@@ -15,6 +15,9 @@ const nextConfig = {
       allowedOrigins: ['localhost:3000'],
     },
   },
+  // Empty turbopack config to silence Next.js 16 warning
+  // Turbopack is enabled by default in Next.js 16
+  turbopack: {},
   webpack: (config) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,
