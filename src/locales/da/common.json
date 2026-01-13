@@ -1,0 +1,78 @@
+{
+  "app": {
+    "name": "Elta CRM",
+    "description": "Professionelt CRM system"
+  },
+  "navigation": {
+    "home": "Hjem",
+    "dashboard": "Dashboard",
+    "leads": "Leads",
+    "inbox": "Indbakke",
+    "offers": "Tilbud",
+    "customers": "Kunder",
+    "projects": "Projekter",
+    "settings": "Indstillinger"
+  },
+  "actions": {
+    "create": "Opret",
+    "edit": "Rediger",
+    "delete": "Slet",
+    "save": "Gem",
+    "cancel": "Annuller",
+    "search": "Søg",
+    "filter": "Filtrer",
+    "export": "Eksporter",
+    "import": "Importer",
+    "close": "Luk",
+    "back": "Tilbage",
+    "next": "Næste",
+    "submit": "Indsend",
+    "confirm": "Bekræft",
+    "view": "Vis",
+    "download": "Download",
+    "upload": "Upload"
+  },
+  "status": {
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "pending": "Afventer",
+    "completed": "Fuldført",
+    "cancelled": "Annulleret"
+  },
+  "messages": {
+    "loading": "Indlæser...",
+    "saving": "Gemmer...",
+    "saved": "Gemt!",
+    "error": "Der opstod en fejl",
+    "success": "Handling fuldført!",
+    "noData": "Ingen data",
+    "noResults": "Ingen resultater fundet",
+    "confirmDelete": "Er du sikker på at du vil slette?",
+    "cannotUndo": "Denne handling kan ikke fortrydes"
+  },
+  "validation": {
+    "required": "Dette felt er påkrævet",
+    "email": "Indtast en gyldig e-mail adresse",
+    "minLength": "Skal være mindst {{min}} tegn",
+    "maxLength": "Må højst være {{max}} tegn",
+    "number": "Skal være et tal",
+    "positive": "Skal være et positivt tal",
+    "date": "Indtast en gyldig dato",
+    "phone": "Indtast et gyldigt telefonnummer"
+  },
+  "time": {
+    "now": "Nu",
+    "today": "I dag",
+    "yesterday": "I går",
+    "tomorrow": "I morgen",
+    "thisWeek": "Denne uge",
+    "thisMonth": "Denne måned",
+    "thisYear": "Dette år",
+    "daysAgo": "{{count}} dag siden",
+    "daysAgo_plural": "{{count}} dage siden",
+    "hoursAgo": "{{count}} time siden",
+    "hoursAgo_plural": "{{count}} timer siden",
+    "minutesAgo": "{{count}} minut siden",
+    "minutesAgo_plural": "{{count}} minutter siden"
+  }
+}
