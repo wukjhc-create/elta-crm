@@ -63,23 +63,29 @@ elta-crm/
    npm install
    ```
 
-3. **Konfigurer miljøvariabler**
+3. **Opsæt Supabase Database**
 
-   Kopier `.env.example` til `.env.local` og opdater med dine Supabase credentials:
+   📖 **VIGTIGT**: Følg den detaljerede guide i `SUPABASE_SETUP.md`
+
+   Oversigt:
    ```bash
+   # 1. Opret Supabase projekt på https://supabase.com
+   # 2. Kopier API keys til .env.local
    cp .env.example .env.local
+
+   # 3. Kør migrations i Supabase SQL Editor eller via CLI
+   # Se SUPABASE_SETUP.md for trin-for-trin instruktioner
+
+   # 4. Verificer setup
+   npm run supabase:verify
    ```
 
-   Rediger `.env.local` og tilføj dine Supabase project detaljer:
-   - `NEXT_PUBLIC_SUPABASE_URL`: Din Supabase project URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Din Supabase anon key
-   - `SUPABASE_SERVICE_ROLE_KEY`: Din Supabase service role key
-
-4. **Kør database migrationer**
-
-   Du skal køre SQL migrations i din Supabase project:
-   - Gå til din Supabase dashboard → SQL Editor
-   - Kør alle migrations fra `supabase/migrations/` i rækkefølge
+   Se `SUPABASE_SETUP.md` for:
+   - Detaljeret trin-for-trin guide
+   - Hvordan man kører migrations
+   - Oprettelse af admin bruger
+   - Fejlfinding
+   - Verification checklist
 
 5. **Start udviklings-serveren**
    ```bash
