@@ -2,6 +2,7 @@
 /node_modules
 /.pnp
 .pnp.js
+package-lock.json
 
 # Testing
 /coverage
@@ -12,6 +13,7 @@
 
 # Production
 /build
+/dist
 
 # Misc
 .DS_Store
