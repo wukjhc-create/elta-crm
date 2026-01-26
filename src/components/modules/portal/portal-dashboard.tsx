@@ -12,6 +12,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import type { PortalSession, PortalOffer, PortalMessageWithRelations } from '@/types/portal.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 import { PortalChat } from './portal-chat'
 
 interface PortalDashboardProps {
@@ -19,6 +20,7 @@ interface PortalDashboardProps {
   session: PortalSession
   offers: PortalOffer[]
   messages: PortalMessageWithRelations[]
+  companySettings?: CompanySettings | null
 }
 
 export function PortalDashboard({
@@ -26,6 +28,7 @@ export function PortalDashboard({
   session,
   offers,
   messages,
+  companySettings,
 }: PortalDashboardProps) {
   const [showChat, setShowChat] = useState(false)
 
@@ -37,10 +40,11 @@ export function PortalDashboard({
     (m) => m.sender_type === 'employee' && !m.read_at
   )
 
+  const currency = companySettings?.default_currency || 'DKK'
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('da-DK', {
       style: 'currency',
-      currency: 'DKK',
+      currency: currency,
       minimumFractionDigits: 0,
     }).format(amount)
   }

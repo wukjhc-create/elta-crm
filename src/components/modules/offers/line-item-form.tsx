@@ -11,11 +11,13 @@ import {
 } from '@/lib/validations/offers'
 import { createLineItem, updateLineItem } from '@/lib/actions/offers'
 import { OFFER_UNITS, type OfferLineItem } from '@/types/offers.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 
 interface LineItemFormProps {
   offerId: string
   lineItem?: OfferLineItem
   nextPosition: number
+  companySettings?: CompanySettings | null
   onClose: () => void
   onSuccess?: () => void
 }
@@ -24,6 +26,7 @@ export function LineItemForm({
   offerId,
   lineItem,
   nextPosition,
+  companySettings,
   onClose,
   onSuccess,
 }: LineItemFormProps) {
@@ -65,10 +68,11 @@ export function LineItemForm({
 
   const calculatedTotal = quantity * unitPrice * (1 - discountPercentage / 100)
 
+  const currency = companySettings?.default_currency || 'DKK'
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('da-DK', {
       style: 'currency',
-      currency: 'DKK',
+      currency: currency,
       minimumFractionDigits: 2,
     }).format(amount)
   }

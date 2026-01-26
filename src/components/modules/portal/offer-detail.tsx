@@ -379,6 +379,7 @@ export function OfferDetail({
           token={token}
           offer={offer}
           session={session}
+          companySettings={companySettings}
           onClose={() => setShowSignature(false)}
         />
       )}

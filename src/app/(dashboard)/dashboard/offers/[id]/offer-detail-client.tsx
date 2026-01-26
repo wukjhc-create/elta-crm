@@ -122,10 +122,11 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     router.refresh()
   }
 
+  const currency = companySettings?.default_currency || 'DKK'
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('da-DK', {
       style: 'currency',
-      currency: 'DKK',
+      currency: currency,
       minimumFractionDigits: 2,
     }).format(amount)
   }
@@ -648,6 +649,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
         <LineItemForm
           offerId={offer.id}
           nextPosition={nextPosition}
+          companySettings={companySettings}
           onClose={() => setShowLineItemForm(false)}
           onSuccess={() => router.refresh()}
         />
@@ -658,6 +660,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
           offerId={offer.id}
           lineItem={editingLineItem}
           nextPosition={nextPosition}
+          companySettings={companySettings}
           onClose={() => setEditingLineItem(null)}
           onSuccess={() => router.refresh()}
         />

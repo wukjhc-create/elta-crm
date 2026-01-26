@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { X, Check, RotateCcw } from 'lucide-react'
 import { acceptOffer } from '@/lib/actions/portal'
 import type { PortalSession, PortalOffer } from '@/types/portal.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 
 interface SignatureDialogProps {
   token: string
   offer: PortalOffer
   session: PortalSession
+  companySettings?: CompanySettings | null
   onClose: () => void
 }
 
@@ -17,6 +19,7 @@ export function SignatureDialog({
   token,
   offer,
   session,
+  companySettings,
   onClose,
 }: SignatureDialogProps) {
   const router = useRouter()
@@ -150,10 +153,11 @@ export function SignatureDialog({
     }
   }
 
+  const currency = companySettings?.default_currency || 'DKK'
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('da-DK', {
       style: 'currency',
-      currency: 'DKK',
+      currency: currency,
       minimumFractionDigits: 0,
     }).format(amount)
   }
