@@ -1,0 +1,694 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createClient, getUser } from '@/lib/supabase/server'
+import {
+  createCalculationSchema,
+  updateCalculationSchema,
+  createCalculationRowSchema,
+  updateCalculationRowSchema,
+} from '@/lib/validations/calculations'
+import type {
+  Calculation,
+  CalculationWithRelations,
+  CalculationRow,
+  CalculationRowWithRelations,
+  CalculationFilters,
+} from '@/types/calculations.types'
+import type { PaginatedResponse, ActionResult } from '@/types/common.types'
+import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
+
+// =====================================================
+// Calculations
+// =====================================================
+
+export async function getCalculations(
+  filters?: CalculationFilters
+): Promise<ActionResult<PaginatedResponse<CalculationWithRelations>>> {
+  try {
+    const supabase = await createClient()
+    const page = filters?.page || 1
+    const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
+    const offset = (page - 1) * pageSize
+
+    // Build count query
+    let countQuery = supabase
+      .from('calculations')
+      .select('*', { count: 'exact', head: true })
+
+    // Build data query
+    let dataQuery = supabase.from('calculations').select(`
+      *,
+      customer:customers(id, company_name, customer_number),
+      created_by_profile:profiles!created_by(id, full_name, email)
+    `)
+
+    // Apply filters
+    if (filters?.search) {
+      const searchFilter = `name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`
+      countQuery = countQuery.or(searchFilter)
+      dataQuery = dataQuery.or(searchFilter)
+    }
+
+    if (filters?.customer_id) {
+      countQuery = countQuery.eq('customer_id', filters.customer_id)
+      dataQuery = dataQuery.eq('customer_id', filters.customer_id)
+    }
+
+    if (filters?.calculation_type) {
+      countQuery = countQuery.eq('calculation_type', filters.calculation_type)
+      dataQuery = dataQuery.eq('calculation_type', filters.calculation_type)
+    }
+
+    if (filters?.is_template !== undefined) {
+      countQuery = countQuery.eq('is_template', filters.is_template)
+      dataQuery = dataQuery.eq('is_template', filters.is_template)
+    }
+
+    // Apply sorting
+    const sortBy = filters?.sortBy || 'created_at'
+    const sortOrder = filters?.sortOrder || 'desc'
+    dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
+
+    // Apply pagination
+    dataQuery = dataQuery.range(offset, offset + pageSize - 1)
+
+    // Execute both queries
+    const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
+
+    if (countResult.error) {
+      console.error('Error counting calculations:', countResult.error)
+      return { success: false, error: 'Kunne ikke hente kalkulationer' }
+    }
+
+    if (dataResult.error) {
+      console.error('Error fetching calculations:', dataResult.error)
+      return { success: false, error: 'Kunne ikke hente kalkulationer' }
+    }
+
+    const total = countResult.count || 0
+    const totalPages = Math.ceil(total / pageSize)
+
+    return {
+      success: true,
+      data: {
+        data: dataResult.data as CalculationWithRelations[],
+        total,
+        page,
+        pageSize,
+        totalPages,
+      },
+    }
+  } catch (error) {
+    console.error('Error in getCalculations:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function getCalculation(
+  id: string
+): Promise<ActionResult<CalculationWithRelations>> {
+  try {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('calculations')
+      .select(`
+        *,
+        customer:customers(id, company_name, customer_number),
+        created_by_profile:profiles!created_by(id, full_name, email),
+        rows:calculation_rows(
+          *,
+          product:product_catalog(id, name, sku, category:product_categories(id, name, slug)),
+          supplier_product:supplier_products(id, supplier_name, supplier_sku)
+        )
+      `)
+      .eq('id', id)
+      .single()
+
+    if (error) {
+      console.error('Error fetching calculation:', error)
+      return { success: false, error: 'Kunne ikke hente kalkulation' }
+    }
+
+    // Sort rows by position
+    if (data.rows) {
+      data.rows.sort(
+        (a: CalculationRow, b: CalculationRow) => a.position - b.position
+      )
+    }
+
+    return { success: true, data: data as CalculationWithRelations }
+  } catch (error) {
+    console.error('Error in getCalculation:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function createCalculation(
+  formData: FormData
+): Promise<ActionResult<Calculation>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const rawData = {
+      name: formData.get('name') as string,
+      description: formData.get('description') as string || null,
+      customer_id: formData.get('customer_id') as string || null,
+      calculation_type: formData.get('calculation_type') as string || 'custom',
+      settings: formData.get('settings')
+        ? JSON.parse(formData.get('settings') as string)
+        : {},
+      margin_percentage: formData.get('margin_percentage')
+        ? Number(formData.get('margin_percentage'))
+        : 0,
+      discount_percentage: formData.get('discount_percentage')
+        ? Number(formData.get('discount_percentage'))
+        : 0,
+      tax_percentage: formData.get('tax_percentage')
+        ? Number(formData.get('tax_percentage'))
+        : 25,
+      is_template: formData.get('is_template') === 'true',
+    }
+
+    const validated = createCalculationSchema.safeParse(rawData)
+    if (!validated.success) {
+      const errors = validated.error.errors.map((e) => e.message).join(', ')
+      return { success: false, error: errors }
+    }
+
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('calculations')
+      .insert({
+        ...validated.data,
+        created_by: user.id,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating calculation:', error)
+      return { success: false, error: 'Kunne ikke oprette kalkulation' }
+    }
+
+    revalidatePath('/dashboard/calculations')
+    return { success: true, data: data as Calculation }
+  } catch (error) {
+    console.error('Error in createCalculation:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function updateCalculation(
+  formData: FormData
+): Promise<ActionResult<Calculation>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const id = formData.get('id') as string
+    if (!id) {
+      return { success: false, error: 'Kalkulation ID mangler' }
+    }
+
+    const rawData = {
+      id,
+      name: formData.get('name') as string,
+      description: formData.get('description') as string || null,
+      customer_id: formData.get('customer_id') as string || null,
+      calculation_type: formData.get('calculation_type') as string || 'custom',
+      settings: formData.get('settings')
+        ? JSON.parse(formData.get('settings') as string)
+        : {},
+      margin_percentage: formData.get('margin_percentage')
+        ? Number(formData.get('margin_percentage'))
+        : 0,
+      discount_percentage: formData.get('discount_percentage')
+        ? Number(formData.get('discount_percentage'))
+        : 0,
+      tax_percentage: formData.get('tax_percentage')
+        ? Number(formData.get('tax_percentage'))
+        : 25,
+      is_template: formData.get('is_template') === 'true',
+      roi_data: formData.get('roi_data')
+        ? JSON.parse(formData.get('roi_data') as string)
+        : null,
+    }
+
+    const validated = updateCalculationSchema.safeParse(rawData)
+    if (!validated.success) {
+      const errors = validated.error.errors.map((e) => e.message).join(', ')
+      return { success: false, error: errors }
+    }
+
+    const supabase = await createClient()
+    const { id: calculationId, ...updateData } = validated.data
+
+    const { data, error } = await supabase
+      .from('calculations')
+      .update(updateData)
+      .eq('id', calculationId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating calculation:', error)
+      return { success: false, error: 'Kunne ikke opdatere kalkulation' }
+    }
+
+    revalidatePath('/dashboard/calculations')
+    revalidatePath(`/dashboard/calculations/${calculationId}`)
+    return { success: true, data: data as Calculation }
+  } catch (error) {
+    console.error('Error in updateCalculation:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function deleteCalculation(id: string): Promise<ActionResult> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    const { error } = await supabase.from('calculations').delete().eq('id', id)
+
+    if (error) {
+      console.error('Error deleting calculation:', error)
+      return { success: false, error: 'Kunne ikke slette kalkulation' }
+    }
+
+    revalidatePath('/dashboard/calculations')
+    return { success: true }
+  } catch (error) {
+    console.error('Error in deleteCalculation:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// Duplicate a calculation (useful for templates)
+export async function duplicateCalculation(
+  id: string,
+  newName?: string
+): Promise<ActionResult<Calculation>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    // Get the original calculation with rows
+    const { data: original, error: fetchError } = await supabase
+      .from('calculations')
+      .select('*, rows:calculation_rows(*)')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !original) {
+      console.error('Error fetching calculation to duplicate:', fetchError)
+      return { success: false, error: 'Kunne ikke finde kalkulation' }
+    }
+
+    // Create new calculation
+    const { data: newCalc, error: createError } = await supabase
+      .from('calculations')
+      .insert({
+        name: newName || `${original.name} (kopi)`,
+        description: original.description,
+        customer_id: original.customer_id,
+        calculation_type: original.calculation_type,
+        settings: original.settings,
+        margin_percentage: original.margin_percentage,
+        discount_percentage: original.discount_percentage,
+        tax_percentage: original.tax_percentage,
+        is_template: false, // Copies are not templates by default
+        created_by: user.id,
+      })
+      .select()
+      .single()
+
+    if (createError || !newCalc) {
+      console.error('Error creating duplicate calculation:', createError)
+      return { success: false, error: 'Kunne ikke duplikere kalkulation' }
+    }
+
+    // Copy all rows
+    if (original.rows && original.rows.length > 0) {
+      const newRows = original.rows.map((row: CalculationRow) => ({
+        calculation_id: newCalc.id,
+        row_type: row.row_type,
+        product_id: row.product_id,
+        supplier_product_id: row.supplier_product_id,
+        section: row.section,
+        position: row.position,
+        description: row.description,
+        quantity: row.quantity,
+        unit: row.unit,
+        cost_price: row.cost_price,
+        sale_price: row.sale_price,
+        discount_percentage: row.discount_percentage,
+        show_on_offer: row.show_on_offer,
+      }))
+
+      const { error: rowsError } = await supabase
+        .from('calculation_rows')
+        .insert(newRows)
+
+      if (rowsError) {
+        console.error('Error copying calculation rows:', rowsError)
+        // Don't fail the whole operation, just warn
+      }
+    }
+
+    revalidatePath('/dashboard/calculations')
+    return { success: true, data: newCalc as Calculation }
+  } catch (error) {
+    console.error('Error in duplicateCalculation:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// Helper for dropdowns
+export async function getCalculationsForSelect(): Promise<
+  ActionResult<{ id: string; name: string; final_amount: number }[]>
+> {
+  try {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('calculations')
+      .select('id, name, final_amount')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching calculations for select:', error)
+      return { success: false, error: 'Kunne ikke hente kalkulationer' }
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error('Error in getCalculationsForSelect:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// =====================================================
+// Calculation Rows
+// =====================================================
+
+export async function getCalculationRows(
+  calculationId: string
+): Promise<ActionResult<CalculationRowWithRelations[]>> {
+  try {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('calculation_rows')
+      .select(`
+        *,
+        product:product_catalog(id, name, sku, category:product_categories(id, name, slug)),
+        supplier_product:supplier_products(id, supplier_name, supplier_sku)
+      `)
+      .eq('calculation_id', calculationId)
+      .order('position')
+
+    if (error) {
+      console.error('Error fetching calculation rows:', error)
+      return { success: false, error: 'Kunne ikke hente kalkulationslinjer' }
+    }
+
+    return { success: true, data: data as CalculationRowWithRelations[] }
+  } catch (error) {
+    console.error('Error in getCalculationRows:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function createCalculationRow(
+  formData: FormData
+): Promise<ActionResult<CalculationRow>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const rawData = {
+      calculation_id: formData.get('calculation_id') as string,
+      row_type: formData.get('row_type') as string || 'manual',
+      product_id: formData.get('product_id') as string || null,
+      supplier_product_id: formData.get('supplier_product_id') as string || null,
+      section: formData.get('section') as string || null,
+      position: Number(formData.get('position')),
+      description: formData.get('description') as string,
+      quantity: formData.get('quantity') ? Number(formData.get('quantity')) : 1,
+      unit: formData.get('unit') as string || 'stk',
+      cost_price: formData.get('cost_price') ? Number(formData.get('cost_price')) : null,
+      sale_price: Number(formData.get('sale_price')),
+      discount_percentage: formData.get('discount_percentage')
+        ? Number(formData.get('discount_percentage'))
+        : 0,
+      show_on_offer: formData.get('show_on_offer') !== 'false',
+    }
+
+    const validated = createCalculationRowSchema.safeParse(rawData)
+    if (!validated.success) {
+      const errors = validated.error.errors.map((e) => e.message).join(', ')
+      return { success: false, error: errors }
+    }
+
+    const supabase = await createClient()
+
+    // Calculate total (trigger will also do this, but good for immediate response)
+    const total =
+      validated.data.quantity *
+      validated.data.sale_price *
+      (1 - (validated.data.discount_percentage || 0) / 100)
+
+    const { data, error } = await supabase
+      .from('calculation_rows')
+      .insert({ ...validated.data, total })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating calculation row:', error)
+      return { success: false, error: 'Kunne ikke oprette linje' }
+    }
+
+    revalidatePath(`/dashboard/calculations/${validated.data.calculation_id}`)
+    return { success: true, data: data as CalculationRow }
+  } catch (error) {
+    console.error('Error in createCalculationRow:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function updateCalculationRow(
+  formData: FormData
+): Promise<ActionResult<CalculationRow>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const id = formData.get('id') as string
+    const calculationId = formData.get('calculation_id') as string
+
+    if (!id) {
+      return { success: false, error: 'Linje ID mangler' }
+    }
+
+    const rawData = {
+      id,
+      row_type: formData.get('row_type') as string || 'manual',
+      product_id: formData.get('product_id') as string || null,
+      supplier_product_id: formData.get('supplier_product_id') as string || null,
+      section: formData.get('section') as string || null,
+      position: Number(formData.get('position')),
+      description: formData.get('description') as string,
+      quantity: formData.get('quantity') ? Number(formData.get('quantity')) : 1,
+      unit: formData.get('unit') as string || 'stk',
+      cost_price: formData.get('cost_price') ? Number(formData.get('cost_price')) : null,
+      sale_price: Number(formData.get('sale_price')),
+      discount_percentage: formData.get('discount_percentage')
+        ? Number(formData.get('discount_percentage'))
+        : 0,
+      show_on_offer: formData.get('show_on_offer') !== 'false',
+    }
+
+    const validated = updateCalculationRowSchema.safeParse(rawData)
+    if (!validated.success) {
+      const errors = validated.error.errors.map((e) => e.message).join(', ')
+      return { success: false, error: errors }
+    }
+
+    const supabase = await createClient()
+    const { id: rowId, ...updateData } = validated.data
+
+    // Calculate total
+    const total =
+      (updateData.quantity || 1) *
+      (updateData.sale_price || 0) *
+      (1 - (updateData.discount_percentage || 0) / 100)
+
+    const { data, error } = await supabase
+      .from('calculation_rows')
+      .update({ ...updateData, total })
+      .eq('id', rowId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating calculation row:', error)
+      return { success: false, error: 'Kunne ikke opdatere linje' }
+    }
+
+    revalidatePath(`/dashboard/calculations/${calculationId}`)
+    return { success: true, data: data as CalculationRow }
+  } catch (error) {
+    console.error('Error in updateCalculationRow:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function deleteCalculationRow(
+  id: string,
+  calculationId: string
+): Promise<ActionResult> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    const { error } = await supabase.from('calculation_rows').delete().eq('id', id)
+
+    if (error) {
+      console.error('Error deleting calculation row:', error)
+      return { success: false, error: 'Kunne ikke slette linje' }
+    }
+
+    revalidatePath(`/dashboard/calculations/${calculationId}`)
+    return { success: true }
+  } catch (error) {
+    console.error('Error in deleteCalculationRow:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// Add product to calculation (helper function)
+export async function addProductToCalculation(
+  calculationId: string,
+  productId: string,
+  quantity: number = 1
+): Promise<ActionResult<CalculationRow>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    // Get product details
+    const { data: product, error: productError } = await supabase
+      .from('product_catalog')
+      .select('*')
+      .eq('id', productId)
+      .single()
+
+    if (productError || !product) {
+      return { success: false, error: 'Produkt ikke fundet' }
+    }
+
+    // Get current max position
+    const { data: rows } = await supabase
+      .from('calculation_rows')
+      .select('position')
+      .eq('calculation_id', calculationId)
+      .order('position', { ascending: false })
+      .limit(1)
+
+    const nextPosition = rows && rows.length > 0 ? rows[0].position + 1 : 0
+
+    // Calculate total
+    const total = quantity * product.list_price
+
+    // Create row
+    const { data, error } = await supabase
+      .from('calculation_rows')
+      .insert({
+        calculation_id: calculationId,
+        row_type: 'product',
+        product_id: productId,
+        position: nextPosition,
+        description: product.name,
+        quantity,
+        unit: product.unit || 'stk',
+        cost_price: product.cost_price,
+        sale_price: product.list_price,
+        total,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error adding product to calculation:', error)
+      return { success: false, error: 'Kunne ikke tilføje produkt' }
+    }
+
+    revalidatePath(`/dashboard/calculations/${calculationId}`)
+    return { success: true, data: data as CalculationRow }
+  } catch (error) {
+    console.error('Error in addProductToCalculation:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// Reorder rows
+export async function reorderCalculationRows(
+  calculationId: string,
+  rowIds: string[]
+): Promise<ActionResult> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    // Update each row's position
+    const updates = rowIds.map((id, index) =>
+      supabase
+        .from('calculation_rows')
+        .update({ position: index })
+        .eq('id', id)
+        .eq('calculation_id', calculationId)
+    )
+
+    await Promise.all(updates)
+
+    revalidatePath(`/dashboard/calculations/${calculationId}`)
+    return { success: true }
+  } catch (error) {
+    console.error('Error in reorderCalculationRows:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}

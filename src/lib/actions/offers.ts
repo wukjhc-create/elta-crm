@@ -807,3 +807,186 @@ export async function getLeadsForSelect(): Promise<
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
+
+// ==================== Product & Calculation Integration ====================
+
+// Add product to offer
+export async function addProductToOffer(
+  offerId: string,
+  productId: string,
+  quantity: number = 1,
+  position?: number
+): Promise<ActionResult<OfferLineItem>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    // Get product details
+    const { data: product, error: productError } = await supabase
+      .from('product_catalog')
+      .select('*')
+      .eq('id', productId)
+      .single()
+
+    if (productError || !product) {
+      return { success: false, error: 'Produkt ikke fundet' }
+    }
+
+    // Get current max position if not specified
+    let nextPosition = position
+    if (nextPosition === undefined) {
+      const { data: items } = await supabase
+        .from('offer_line_items')
+        .select('position')
+        .eq('offer_id', offerId)
+        .order('position', { ascending: false })
+        .limit(1)
+
+      nextPosition = items && items.length > 0 ? items[0].position + 1 : 0
+    }
+
+    // Calculate total
+    const total = quantity * product.list_price
+
+    // Create line item
+    const { data, error } = await supabase
+      .from('offer_line_items')
+      .insert({
+        offer_id: offerId,
+        line_type: 'product',
+        product_id: productId,
+        position: nextPosition,
+        description: product.name,
+        quantity,
+        unit: product.unit || 'stk',
+        unit_price: product.list_price,
+        cost_price: product.cost_price,
+        discount_percentage: 0,
+        total,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error adding product to offer:', error)
+      return { success: false, error: 'Kunne ikke tilføje produkt til tilbud' }
+    }
+
+    // Log activity
+    await logOfferActivity(
+      offerId,
+      'updated',
+      `Produkt "${product.name}" tilføjet`,
+      user.id
+    )
+
+    revalidatePath(`/offers/${offerId}`)
+    return { success: true, data: data as OfferLineItem }
+  } catch (error) {
+    console.error('Error in addProductToOffer:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// Import all rows from a calculation to an offer
+export async function importCalculationToOffer(
+  offerId: string,
+  calculationId: string,
+  startingPosition?: number
+): Promise<ActionResult<{ importedCount: number }>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    // Get calculation with rows
+    const { data: calculation, error: calcError } = await supabase
+      .from('calculations')
+      .select('*, rows:calculation_rows(*)')
+      .eq('id', calculationId)
+      .single()
+
+    if (calcError || !calculation) {
+      return { success: false, error: 'Kalkulation ikke fundet' }
+    }
+
+    // Filter rows that should be shown on offer
+    const rowsToImport = calculation.rows?.filter(
+      (row: { show_on_offer: boolean }) => row.show_on_offer
+    ) || []
+
+    if (rowsToImport.length === 0) {
+      return { success: false, error: 'Ingen linjer at importere' }
+    }
+
+    // Get current max position if not specified
+    let nextPosition = startingPosition
+    if (nextPosition === undefined) {
+      const { data: items } = await supabase
+        .from('offer_line_items')
+        .select('position')
+        .eq('offer_id', offerId)
+        .order('position', { ascending: false })
+        .limit(1)
+
+      nextPosition = items && items.length > 0 ? items[0].position + 1 : 0
+    }
+
+    // Create line items from calculation rows
+    const lineItems = rowsToImport.map((row: {
+      product_id: string | null
+      section: string | null
+      description: string
+      quantity: number
+      unit: string
+      sale_price: number
+      cost_price: number | null
+      discount_percentage: number
+      total: number
+    }, index: number) => ({
+      offer_id: offerId,
+      line_type: row.product_id ? 'product' : 'calculation',
+      product_id: row.product_id,
+      calculation_id: calculationId,
+      section: row.section,
+      position: nextPosition! + index,
+      description: row.description,
+      quantity: row.quantity,
+      unit: row.unit,
+      unit_price: row.sale_price,
+      cost_price: row.cost_price,
+      discount_percentage: row.discount_percentage,
+      total: row.total,
+    }))
+
+    const { error: insertError } = await supabase
+      .from('offer_line_items')
+      .insert(lineItems)
+
+    if (insertError) {
+      console.error('Error importing calculation to offer:', insertError)
+      return { success: false, error: 'Kunne ikke importere kalkulation' }
+    }
+
+    // Log activity
+    await logOfferActivity(
+      offerId,
+      'updated',
+      `Kalkulation "${calculation.name}" importeret (${lineItems.length} linjer)`,
+      user.id
+    )
+
+    revalidatePath(`/offers/${offerId}`)
+    return { success: true, data: { importedCount: lineItems.length } }
+  } catch (error) {
+    console.error('Error in importCalculationToOffer:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}

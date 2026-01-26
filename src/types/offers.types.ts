@@ -39,7 +39,21 @@ export const OFFER_UNITS = [
   { value: 'kWp', label: 'kWp' },
   { value: 'sæt', label: 'Sæt' },
   { value: 'pakke', label: 'Pakke' },
+  { value: 'kg', label: 'Kg' },
+  { value: 'l', label: 'Liter' },
 ] as const
+
+// Line item types
+export const OFFER_LINE_TYPES = ['manual', 'product', 'calculation', 'section'] as const
+export type OfferLineType = (typeof OFFER_LINE_TYPES)[number]
+
+// Line type labels in Danish
+export const OFFER_LINE_TYPE_LABELS: Record<OfferLineType, string> = {
+  manual: 'Manuel',
+  product: 'Produkt',
+  calculation: 'Kalkulation',
+  section: 'Sektion',
+}
 
 // Offer line item type
 export interface OfferLineItem {
@@ -52,6 +66,13 @@ export interface OfferLineItem {
   unit_price: number
   discount_percentage: number
   total: number
+  // New fields for product/calculation integration
+  line_type: OfferLineType
+  product_id: string | null
+  calculation_id: string | null
+  section: string | null
+  cost_price: number | null
+  notes: string | null
   created_at: string
 }
 
@@ -142,6 +163,13 @@ export interface CreateLineItemInput {
   unit: string
   unit_price: number
   discount_percentage?: number
+  // New fields for product/calculation integration
+  line_type?: OfferLineType
+  product_id?: string | null
+  calculation_id?: string | null
+  section?: string | null
+  cost_price?: number | null
+  notes?: string | null
 }
 
 // Update line item input
