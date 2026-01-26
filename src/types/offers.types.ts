@@ -83,6 +83,8 @@ export interface Offer {
   updated_at: string
 }
 
+import type { OfferActivityWithPerformer } from './offer-activities.types'
+
 // Offer with relations
 export interface OfferWithRelations extends Offer {
   line_items?: OfferLineItem[]
@@ -109,6 +111,7 @@ export interface OfferWithRelations extends Offer {
     full_name: string | null
     email: string
   } | null
+  activities?: OfferActivityWithPerformer[]
 }
 
 // Create offer input

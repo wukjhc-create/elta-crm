@@ -694,6 +694,68 @@ export async function deleteTimeEntry(
   }
 }
 
+// ==================== Project from Offer ====================
+
+// Create project from accepted offer
+export async function createProjectFromOffer(
+  offerId: string,
+  customerId: string,
+  offerTitle: string,
+  offerFinalAmount: number
+): Promise<ActionResult<Project>> {
+  try {
+    const supabase = await createClient()
+
+    // Generate project number
+    const projectNumber = await generateProjectNumber()
+
+    // Get a system user ID (for auto-created projects)
+    // Try to get the first admin user, or fall back to any user
+    const { data: adminUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin')
+      .eq('is_active', true)
+      .limit(1)
+      .single()
+
+    const createdBy = adminUser?.id
+
+    if (!createdBy) {
+      console.error('No admin user found for project creation')
+      return { success: false, error: 'Ingen bruger fundet til projektoprettelse' }
+    }
+
+    // Create project
+    const { data, error } = await supabase
+      .from('projects')
+      .insert({
+        project_number: projectNumber,
+        name: offerTitle,
+        description: `Projekt oprettet automatisk fra tilbud. Tilbudsbeløb: ${offerFinalAmount.toLocaleString('da-DK')} DKK`,
+        status: 'planning',
+        priority: 'medium',
+        customer_id: customerId,
+        offer_id: offerId,
+        budget: offerFinalAmount,
+        created_by: createdBy,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating project from offer:', error)
+      return { success: false, error: 'Kunne ikke oprette projekt' }
+    }
+
+    revalidatePath('/projects')
+    return { success: true, data: data as Project }
+  } catch (error) {
+    console.error('Error in createProjectFromOffer:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
 // ==================== Helpers ====================
 
 // Get customers for dropdown

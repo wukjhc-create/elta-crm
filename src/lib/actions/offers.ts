@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createClient, getUser } from '@/lib/supabase/server'
 import {
   createOfferSchema,
@@ -8,6 +9,13 @@ import {
   createLineItemSchema,
   updateLineItemSchema,
 } from '@/lib/validations/offers'
+import { logOfferActivity } from '@/lib/actions/offer-activities'
+import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
+import { sendEmail } from '@/lib/email/email-service'
+import {
+  generateOfferEmailHtml,
+  generateOfferEmailText,
+} from '@/lib/email/templates/offer-email'
 import type {
   Offer,
   OfferWithRelations,
@@ -215,6 +223,14 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       return { success: false, error: 'Kunne ikke oprette tilbud' }
     }
 
+    // Log activity
+    await logOfferActivity(
+      data.id,
+      'created',
+      `Tilbud "${data.title}" oprettet`,
+      user.id
+    )
+
     revalidatePath('/offers')
     return { success: true, data: data as Offer }
   } catch (error) {
@@ -274,6 +290,14 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       console.error('Error updating offer:', error)
       return { success: false, error: 'Kunne ikke opdatere tilbud' }
     }
+
+    // Log activity
+    await logOfferActivity(
+      offerId,
+      'updated',
+      'Tilbud opdateret',
+      user.id
+    )
 
     revalidatePath('/offers')
     revalidatePath(`/offers/${offerId}`)
@@ -353,12 +377,215 @@ export async function updateOfferStatus(
       return { success: false, error: 'Kunne ikke opdatere status' }
     }
 
+    // Log activity
+    const statusLabels: Record<OfferStatus, string> = {
+      draft: 'Kladde',
+      sent: 'Sendt',
+      viewed: 'Set',
+      accepted: 'Accepteret',
+      rejected: 'Afvist',
+      expired: 'Udløbet',
+    }
+    await logOfferActivity(
+      id,
+      'status_change',
+      `Status ændret til "${statusLabels[status]}"`,
+      user.id,
+      { newStatus: status }
+    )
+
     revalidatePath('/offers')
     revalidatePath(`/offers/${id}`)
     return { success: true, data: data as Offer }
   } catch (error) {
     console.error('Error in updateOfferStatus:', error)
     return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// Send offer via email
+export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    // Get offer with customer
+    const { data: offer, error: offerError } = await supabase
+      .from('offers')
+      .select(`
+        *,
+        line_items:offer_line_items(*),
+        customer:customers(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
+      `)
+      .eq('id', offerId)
+      .single()
+
+    if (offerError || !offer) {
+      console.error('Error fetching offer for send:', offerError)
+      return { success: false, error: 'Tilbud ikke fundet' }
+    }
+
+    // Validate offer has customer with email
+    if (!offer.customer) {
+      return { success: false, error: 'Tilbuddet har ingen tilknyttet kunde' }
+    }
+
+    if (!offer.customer.email) {
+      return { success: false, error: 'Kunden har ingen email-adresse' }
+    }
+
+    // Get company settings
+    const settingsResult = await getCompanySettings()
+    if (!settingsResult.success || !settingsResult.data) {
+      return { success: false, error: 'Kunne ikke hente virksomhedsindstillinger' }
+    }
+
+    // Get or create portal token
+    let portalToken: string
+
+    // Check if customer already has an active portal token
+    const { data: existingTokens } = await supabase
+      .from('portal_access_tokens')
+      .select('token')
+      .eq('customer_id', offer.customer.id)
+      .eq('is_active', true)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (existingTokens && existingTokens.length > 0) {
+      portalToken = existingTokens[0].token
+    } else {
+      // Create new portal token
+      const tokenBytes = new Uint8Array(32)
+      crypto.getRandomValues(tokenBytes)
+      const newToken = Array.from(tokenBytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+
+      // Expires in 30 days
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 30)
+
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('portal_access_tokens')
+        .insert({
+          customer_id: offer.customer.id,
+          email: offer.customer.email,
+          token: newToken,
+          expires_at: expiresAt.toISOString(),
+          created_by: user.id,
+        })
+        .select('token')
+        .single()
+
+      if (tokenError || !tokenData) {
+        console.error('Error creating portal token:', tokenError)
+        return { success: false, error: 'Kunne ikke oprette portal-adgang' }
+      }
+
+      portalToken = tokenData.token
+    }
+
+    // Build portal URL
+    const headersList = await headers()
+    const host = headersList.get('host') || 'localhost:3000'
+    const protocol = host.includes('localhost') ? 'http' : 'https'
+    const portalUrl = `${protocol}://${host}/portal/${portalToken}/offers/${offerId}`
+
+    // Sort line items
+    if (offer.line_items) {
+      offer.line_items.sort((a: { position: number }, b: { position: number }) =>
+        a.position - b.position
+      )
+    }
+
+    // Get SMTP settings
+    const smtpResult = await getSmtpSettings()
+
+    // Generate email content
+    const emailHtml = generateOfferEmailHtml({
+      offer: offer as OfferWithRelations,
+      companySettings: settingsResult.data,
+      portalUrl,
+    })
+
+    const emailText = generateOfferEmailText({
+      offer: offer as OfferWithRelations,
+      companySettings: settingsResult.data,
+      portalUrl,
+    })
+
+    // Send email
+    const emailResult = await sendEmail(
+      {
+        to: offer.customer.email,
+        subject: `Tilbud ${offer.offer_number}: ${offer.title}`,
+        html: emailHtml,
+        text: emailText,
+      },
+      smtpResult.success && smtpResult.data
+        ? {
+            host: smtpResult.data.host || undefined,
+            port: smtpResult.data.port || undefined,
+            user: smtpResult.data.user || undefined,
+            password: smtpResult.data.password || undefined,
+            fromEmail: smtpResult.data.fromEmail || undefined,
+            fromName: smtpResult.data.fromName || undefined,
+          }
+        : undefined
+    )
+
+    if (!emailResult.success) {
+      console.error('Error sending offer email:', emailResult.error)
+      return { success: false, error: `Kunne ikke sende email: ${emailResult.error}` }
+    }
+
+    // Update offer status to 'sent'
+    const now = new Date().toISOString()
+    const { data: updatedOffer, error: updateError } = await supabase
+      .from('offers')
+      .update({
+        status: 'sent',
+        sent_at: now,
+      })
+      .eq('id', offerId)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error('Error updating offer status after send:', updateError)
+      // Email was sent, but status update failed - still log activities
+    }
+
+    // Log activities
+    await logOfferActivity(
+      offerId,
+      'email_sent',
+      `Email sendt til ${offer.customer.email}`,
+      user.id,
+      { recipientEmail: offer.customer.email, messageId: emailResult.messageId }
+    )
+
+    await logOfferActivity(
+      offerId,
+      'sent',
+      'Tilbud sendt til kunde',
+      user.id,
+      { portalUrl }
+    )
+
+    revalidatePath('/offers')
+    revalidatePath(`/offers/${offerId}`)
+
+    return { success: true, data: (updatedOffer || offer) as Offer }
+  } catch (error) {
+    console.error('Error in sendOffer:', error)
+    return { success: false, error: 'Der opstod en fejl ved afsendelse' }
   }
 }
 

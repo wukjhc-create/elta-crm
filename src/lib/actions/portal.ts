@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { headers } from 'next/headers'
+import { logOfferActivity } from '@/lib/actions/offer-activities'
+import { createProjectFromOffer } from '@/lib/actions/projects'
 import type {
   PortalAccessToken,
   PortalAccessTokenWithCustomer,
@@ -301,6 +303,15 @@ export async function getPortalOffer(
           status: 'viewed',
         })
         .eq('id', offerId)
+
+      // Log view activity
+      await logOfferActivity(
+        offerId,
+        'viewed',
+        'Tilbud åbnet i kundeportalen',
+        null,
+        { viewedViaPortal: true }
+      )
     }
 
     // Get line items
@@ -368,10 +379,10 @@ export async function acceptOffer(
     const supabase = await createClient()
     const customerId = sessionResult.data.customer_id
 
-    // Verify offer belongs to customer
+    // Verify offer belongs to customer and get details for project creation
     const { data: offer, error: offerError } = await supabase
       .from('offers')
-      .select('id, status, customer_id')
+      .select('id, status, customer_id, title, final_amount')
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
       .single()
@@ -423,6 +434,40 @@ export async function acceptOffer(
       console.error('Error updating offer:', updateError)
       return { success: false, error: 'Kunne ikke opdatere tilbud' }
     }
+
+    // Log acceptance activity
+    await logOfferActivity(
+      data.offer_id,
+      'accepted',
+      `Tilbud accepteret af ${data.signer_name} (${data.signer_email})`,
+      null, // No user ID for portal actions
+      { signerName: data.signer_name, signerEmail: data.signer_email, signerIp: clientIp }
+    )
+
+    // Auto-create project from accepted offer
+    const projectResult = await createProjectFromOffer(
+      data.offer_id,
+      customerId,
+      offer.title,
+      offer.final_amount
+    )
+
+    if (projectResult.success && projectResult.data) {
+      // Log project creation activity
+      await logOfferActivity(
+        data.offer_id,
+        'project_created',
+        `Projekt ${projectResult.data.project_number} oprettet automatisk`,
+        null,
+        { projectId: projectResult.data.id, projectNumber: projectResult.data.project_number }
+      )
+    } else {
+      console.error('Error auto-creating project:', projectResult.error)
+      // Don't fail the offer acceptance if project creation fails
+    }
+
+    revalidatePath('/offers')
+    revalidatePath('/projects')
 
     return { success: true }
   } catch (error) {
@@ -477,6 +522,17 @@ export async function rejectOffer(
       console.error('Error rejecting offer:', updateError)
       return { success: false, error: 'Kunne ikke afvise tilbud' }
     }
+
+    // Log rejection activity
+    await logOfferActivity(
+      offerId,
+      'rejected',
+      reason ? `Tilbud afvist: ${reason}` : 'Tilbud afvist',
+      null,
+      { reason: reason || null }
+    )
+
+    revalidatePath('/offers')
 
     return { success: true }
   } catch (error) {
