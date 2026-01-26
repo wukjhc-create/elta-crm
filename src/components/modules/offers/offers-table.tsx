@@ -20,12 +20,14 @@ import { OfferForm } from './offer-form'
 import { deleteOffer, updateOfferStatus } from '@/lib/actions/offers'
 import { useToast } from '@/components/ui/toast'
 import type { OfferWithRelations, OfferStatus } from '@/types/offers.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 
 interface OffersTableProps {
   offers: OfferWithRelations[]
+  companySettings?: CompanySettings | null
 }
 
-export function OffersTable({ offers }: OffersTableProps) {
+export function OffersTable({ offers, companySettings }: OffersTableProps) {
   const router = useRouter()
   const toast = useToast()
   const [editingOffer, setEditingOffer] = useState<OfferWithRelations | null>(null)
@@ -64,10 +66,11 @@ export function OffersTable({ offers }: OffersTableProps) {
     router.refresh()
   }
 
+  const currency = companySettings?.default_currency || 'DKK'
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('da-DK', {
       style: 'currency',
-      currency: 'DKK',
+      currency: currency,
       maximumFractionDigits: 0,
     }).format(amount)
   }
@@ -276,6 +279,7 @@ export function OffersTable({ offers }: OffersTableProps) {
       {editingOffer && (
         <OfferForm
           offer={editingOffer}
+          companySettings={companySettings}
           onClose={() => setEditingOffer(null)}
           onSuccess={() => router.refresh()}
         />

@@ -1,4 +1,5 @@
 import { getOffers } from '@/lib/actions/offers'
+import { getCompanySettings } from '@/lib/actions/settings'
 import { OffersPageClient } from '@/components/modules/offers/offers-page-client'
 import type { OfferStatus } from '@/types/offers.types'
 
@@ -18,18 +19,21 @@ export default async function OffersPage({ searchParams }: PageProps) {
   const search = params.search || undefined
   const status = params.status || undefined
 
-  const result = await getOffers({
-    page,
-    pageSize,
-    search,
-    status,
-  })
+  const [offersResult, settingsResult] = await Promise.all([
+    getOffers({
+      page,
+      pageSize,
+      search,
+      status,
+    }),
+    getCompanySettings(),
+  ])
 
-  if (!result.success || !result.data) {
+  if (!offersResult.success || !offersResult.data) {
     return (
       <div className="p-6">
         <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-600">
-          {result.error || 'Kunne ikke hente tilbud'}
+          {offersResult.error || 'Kunne ikke hente tilbud'}
         </div>
       </div>
     )
@@ -37,14 +41,15 @@ export default async function OffersPage({ searchParams }: PageProps) {
 
   return (
     <OffersPageClient
-      offers={result.data.data}
+      offers={offersResult.data.data}
       pagination={{
-        currentPage: result.data.page,
-        totalPages: result.data.totalPages,
-        totalItems: result.data.total,
-        pageSize: result.data.pageSize,
+        currentPage: offersResult.data.page,
+        totalPages: offersResult.data.totalPages,
+        totalItems: offersResult.data.total,
+        pageSize: offersResult.data.pageSize,
       }}
       filters={{ search, status }}
+      companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />
   )
 }

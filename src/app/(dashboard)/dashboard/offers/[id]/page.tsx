@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getOffer } from '@/lib/actions/offers'
+import { getCompanySettings } from '@/lib/actions/settings'
 import { OfferDetailClient } from './offer-detail-client'
 
 interface OfferDetailPageProps {
@@ -9,11 +10,19 @@ interface OfferDetailPageProps {
 export default async function OfferDetailPage({ params }: OfferDetailPageProps) {
   const { id } = await params
 
-  const result = await getOffer(id)
+  const [offerResult, settingsResult] = await Promise.all([
+    getOffer(id),
+    getCompanySettings(),
+  ])
 
-  if (!result.success || !result.data) {
+  if (!offerResult.success || !offerResult.data) {
     notFound()
   }
 
-  return <OfferDetailClient offer={result.data} />
+  return (
+    <OfferDetailClient
+      offer={offerResult.data}
+      companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
+    />
+  )
 }

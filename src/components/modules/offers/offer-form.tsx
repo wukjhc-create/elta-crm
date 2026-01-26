@@ -13,14 +13,16 @@ import {
   getLeadsForSelect,
 } from '@/lib/actions/offers'
 import type { Offer } from '@/types/offers.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 
 interface OfferFormProps {
   offer?: Offer
+  companySettings?: CompanySettings | null
   onClose: () => void
   onSuccess?: (offer: Offer) => void
 }
 
-export function OfferForm({ offer, onClose, onSuccess }: OfferFormProps) {
+export function OfferForm({ offer, companySettings, onClose, onSuccess }: OfferFormProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -30,6 +32,16 @@ export function OfferForm({ offer, onClose, onSuccess }: OfferFormProps) {
   const [leads, setLeads] = useState<{ id: string; company_name: string }[]>([])
 
   const isEditing = !!offer
+
+  // Calculate default validity date from company settings
+  const getDefaultValidUntil = () => {
+    if (companySettings?.default_offer_validity_days) {
+      const date = new Date()
+      date.setDate(date.getDate() + companySettings.default_offer_validity_days)
+      return date.toISOString().split('T')[0]
+    }
+    return undefined
+  }
 
   const {
     register,
@@ -52,7 +64,9 @@ export function OfferForm({ offer, onClose, onSuccess }: OfferFormProps) {
         }
       : {
           discount_percentage: 0,
-          tax_percentage: 25,
+          tax_percentage: companySettings?.default_tax_percentage ?? 25,
+          valid_until: getDefaultValidUntil(),
+          terms_and_conditions: companySettings?.default_terms_and_conditions || undefined,
         },
   })
 

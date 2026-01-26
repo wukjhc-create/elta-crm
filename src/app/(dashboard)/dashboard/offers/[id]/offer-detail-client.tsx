@@ -42,12 +42,14 @@ import {
   type OfferStatus,
 } from '@/types/offers.types'
 import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
+  companySettings: CompanySettings | null
 }
 
-export function OfferDetailClient({ offer }: OfferDetailClientProps) {
+export function OfferDetailClient({ offer, companySettings }: OfferDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const [showEditForm, setShowEditForm] = useState(false)
@@ -215,6 +217,7 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
     return (
       <OfferPdfView
         offer={offer}
+        companySettings={companySettings}
         onClose={() => setShowPdfPreview(false)}
       />
     )
@@ -635,6 +638,7 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
       {showEditForm && (
         <OfferForm
           offer={offer}
+          companySettings={companySettings}
           onClose={() => setShowEditForm(false)}
           onSuccess={() => router.refresh()}
         />
@@ -665,20 +669,33 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
 // PDF Preview Component
 function OfferPdfView({
   offer,
+  companySettings,
   onClose,
 }: {
   offer: OfferWithRelations
+  companySettings: CompanySettings | null
   onClose: () => void
 }) {
+  const currency = companySettings?.default_currency || 'DKK'
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('da-DK', {
       style: 'currency',
-      currency: 'DKK',
+      currency: currency,
       minimumFractionDigits: 2,
     }).format(amount)
   }
 
   const lineItems = offer.line_items || []
+
+  // Company info with fallbacks
+  const companyName = companySettings?.company_name || 'Virksomhed'
+  const companyVat = companySettings?.company_vat_number
+  const companyEmail = companySettings?.company_email
+  const companyPhone = companySettings?.company_phone
+  const companyWebsite = companySettings?.company_website
+  const companyAddress = companySettings?.company_address
+  const companyPostalCode = companySettings?.company_postal_code
+  const companyCity = companySettings?.company_city
 
   return (
     <>
@@ -723,9 +740,14 @@ function OfferPdfView({
             <p className="text-gray-600 mt-1">{offer.offer_number}</p>
           </div>
           <div className="text-right">
-            <h2 className="text-xl font-bold text-gray-900">Elta Solar ApS</h2>
-            <p className="text-gray-600">CVR: 12345678</p>
-            <p className="text-gray-600">kontakt@eltasolar.dk</p>
+            <h2 className="text-xl font-bold text-gray-900">{companyName}</h2>
+            {companyVat && <p className="text-gray-600">CVR: {companyVat}</p>}
+            {companyAddress && <p className="text-gray-600">{companyAddress}</p>}
+            {(companyPostalCode || companyCity) && (
+              <p className="text-gray-600">{companyPostalCode} {companyCity}</p>
+            )}
+            {companyEmail && <p className="text-gray-600">{companyEmail}</p>}
+            {companyPhone && <p className="text-gray-600">{companyPhone}</p>}
           </div>
         </div>
 
@@ -833,7 +855,11 @@ function OfferPdfView({
 
         {/* Footer */}
         <div className="mt-12 pt-4 border-t text-center text-sm text-gray-500">
-          <p>Elta Solar ApS • www.eltasolar.dk • kontakt@eltasolar.dk</p>
+          <p>
+            {companyName}
+            {companyWebsite && ` • ${companyWebsite}`}
+            {companyEmail && ` • ${companyEmail}`}
+          </p>
         </div>
       </div>
     </>

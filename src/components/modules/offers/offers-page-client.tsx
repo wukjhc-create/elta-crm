@@ -8,6 +8,7 @@ import { OffersTable } from './offers-table'
 import { Pagination } from '@/components/shared/pagination'
 import type { OfferWithRelations, OfferStatus } from '@/types/offers.types'
 import { OFFER_STATUS_LABELS, OFFER_STATUSES } from '@/types/offers.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 
 interface PaginationData {
   currentPage: number
@@ -25,9 +26,10 @@ interface OffersPageClientProps {
   offers: OfferWithRelations[]
   pagination: PaginationData
   filters: Filters
+  companySettings?: CompanySettings | null
 }
 
-export function OffersPageClient({ offers, pagination, filters }: OffersPageClientProps) {
+export function OffersPageClient({ offers, pagination, filters, companySettings }: OffersPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
@@ -179,7 +181,7 @@ export function OffersPageClient({ offers, pagination, filters }: OffersPageClie
           )}
         </div>
 
-        <OffersTable offers={offers} />
+        <OffersTable offers={offers} companySettings={companySettings} />
 
         {/* Pagination */}
         <div className="bg-white rounded-lg border p-4">
@@ -194,7 +196,7 @@ export function OffersPageClient({ offers, pagination, filters }: OffersPageClie
         </div>
       </div>
 
-      {showForm && <OfferForm onClose={() => setShowForm(false)} />}
+      {showForm && <OfferForm companySettings={companySettings} onClose={() => setShowForm(false)} />}
     </>
   )
 }

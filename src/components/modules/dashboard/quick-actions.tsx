@@ -7,8 +7,13 @@ import { CustomerForm } from '@/components/modules/customers/customer-form'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { ProjectForm } from '@/components/modules/projects/project-form'
 import { MessageForm } from '@/components/modules/messages/message-form'
+import type { CompanySettings } from '@/types/company-settings.types'
 
 type ActionType = 'lead' | 'customer' | 'offer' | 'project' | 'message' | null
+
+interface QuickActionsProps {
+  companySettings?: CompanySettings | null
+}
 
 const ACTIONS = [
   {
@@ -48,7 +53,7 @@ const ACTIONS = [
   },
 ]
 
-export function QuickActions() {
+export function QuickActions({ companySettings }: QuickActionsProps) {
   const [activeForm, setActiveForm] = useState<ActionType>(null)
 
   return (
@@ -79,7 +84,7 @@ export function QuickActions() {
         <CustomerForm onClose={() => setActiveForm(null)} />
       )}
       {activeForm === 'offer' && (
-        <OfferForm onClose={() => setActiveForm(null)} />
+        <OfferForm companySettings={companySettings} onClose={() => setActiveForm(null)} />
       )}
       {activeForm === 'project' && (
         <ProjectForm onClose={() => setActiveForm(null)} />

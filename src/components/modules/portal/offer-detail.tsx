@@ -16,6 +16,7 @@ import {
   Clock,
 } from 'lucide-react'
 import type { PortalSession, PortalOffer, PortalMessageWithRelations } from '@/types/portal.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 import { SignatureDialog } from './signature-dialog'
 import { RejectDialog } from './reject-dialog'
 import { PortalChat } from './portal-chat'
@@ -25,6 +26,7 @@ interface OfferDetailProps {
   session: PortalSession
   offer: PortalOffer
   messages: PortalMessageWithRelations[]
+  companySettings?: CompanySettings | null
 }
 
 export function OfferDetail({
@@ -32,15 +34,17 @@ export function OfferDetail({
   session,
   offer,
   messages,
+  companySettings,
 }: OfferDetailProps) {
   const [showSignature, setShowSignature] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [showChat, setShowChat] = useState(false)
 
+  const currency = companySettings?.default_currency || 'DKK'
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('da-DK', {
       style: 'currency',
-      currency: 'DKK',
+      currency: currency,
       minimumFractionDigits: 2,
     }).format(amount)
   }

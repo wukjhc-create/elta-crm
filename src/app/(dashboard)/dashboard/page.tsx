@@ -16,6 +16,7 @@ import {
   getUpcomingTasks,
   getPendingOffers,
 } from '@/lib/actions/dashboard'
+import { getCompanySettings } from '@/lib/actions/settings'
 import {
   StatCard,
   RecentActivity,
@@ -35,12 +36,15 @@ export default async function DashboardPage() {
   const profile = await getUserProfile()
 
   // Fetch all dashboard data in parallel
-  const [stats, activities, tasks, offers] = await Promise.all([
+  const [stats, activities, tasks, offers, settingsResult] = await Promise.all([
     getDashboardStats(),
     getRecentActivity(8),
     getUpcomingTasks(5),
     getPendingOffers(5),
+    getCompanySettings(),
   ])
+
+  const companySettings = settingsResult.success && settingsResult.data ? settingsResult.data : null
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('da-DK', {
@@ -134,7 +138,7 @@ export default async function DashboardPage() {
       {/* Quick Actions */}
       <div className="bg-white p-6 rounded-lg border">
         <h2 className="text-lg font-semibold mb-4">Hurtige handlinger</h2>
-        <QuickActions />
+        <QuickActions companySettings={companySettings} />
       </div>
 
       {/* Main Content Grid */}

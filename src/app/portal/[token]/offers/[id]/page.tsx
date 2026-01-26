@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { validatePortalToken, getPortalOffer, getPortalMessages } from '@/lib/actions/portal'
+import { getCompanySettings } from '@/lib/actions/settings'
 import { OfferDetail } from '@/components/modules/portal/offer-detail'
 
 interface OfferPageProps {
@@ -18,10 +19,11 @@ export default async function PortalOfferPage({ params }: OfferPageProps) {
 
   const session = sessionResult.data
 
-  // Fetch offer and messages
-  const [offerResult, messagesResult] = await Promise.all([
+  // Fetch offer, messages, and company settings
+  const [offerResult, messagesResult, settingsResult] = await Promise.all([
     getPortalOffer(token, id),
     getPortalMessages(token, id),
+    getCompanySettings(),
   ])
 
   if (!offerResult.success || !offerResult.data) {
@@ -34,6 +36,7 @@ export default async function PortalOfferPage({ params }: OfferPageProps) {
       session={session}
       offer={offerResult.data}
       messages={messagesResult.data || []}
+      companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />
   )
 }
