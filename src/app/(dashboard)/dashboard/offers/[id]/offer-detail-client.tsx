@@ -21,6 +21,8 @@ import {
   Download,
   Loader2,
   Mail,
+  Package,
+  Calculator,
 } from 'lucide-react'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
@@ -31,7 +33,11 @@ import {
   updateOfferStatus,
   deleteLineItem,
   sendOffer,
+  addProductToOffer,
+  importCalculationToOffer,
 } from '@/lib/actions/offers'
+import { getProductsForSelect } from '@/lib/actions/products'
+import { getCalculationsForSelect } from '@/lib/actions/calculations'
 import { getOfferActivities } from '@/lib/actions/offer-activities'
 import { useToast } from '@/components/ui/toast'
 import {
@@ -62,6 +68,12 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [activities, setActivities] = useState<OfferActivityWithPerformer[]>([])
   const [isLoadingActivities, setIsLoadingActivities] = useState(true)
+  const [showProductPicker, setShowProductPicker] = useState(false)
+  const [showCalculationPicker, setShowCalculationPicker] = useState(false)
+  const [products, setProducts] = useState<{ id: string; name: string; sku: string | null; list_price: number }[]>([])
+  const [calculations, setCalculations] = useState<{ id: string; name: string; final_amount: number }[]>([])
+  const [isAddingProduct, setIsAddingProduct] = useState(false)
+  const [isImportingCalculation, setIsImportingCalculation] = useState(false)
 
   // Load activities on mount
   useEffect(() => {
@@ -102,6 +114,48 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     }
 
     router.refresh()
+  }
+
+  const handleOpenProductPicker = async () => {
+    const result = await getProductsForSelect()
+    if (result.success && result.data) {
+      setProducts(result.data)
+    }
+    setShowProductPicker(true)
+  }
+
+  const handleOpenCalculationPicker = async () => {
+    const result = await getCalculationsForSelect()
+    if (result.success && result.data) {
+      setCalculations(result.data)
+    }
+    setShowCalculationPicker(true)
+  }
+
+  const handleAddProduct = async (productId: string) => {
+    setIsAddingProduct(true)
+    const result = await addProductToOffer(offer.id, productId, 1)
+    if (result.success) {
+      toast.success('Produkt tilføjet')
+      router.refresh()
+    } else {
+      toast.error('Kunne ikke tilføje produkt', result.error)
+    }
+    setIsAddingProduct(false)
+    setShowProductPicker(false)
+  }
+
+  const handleImportCalculation = async (calculationId: string) => {
+    setIsImportingCalculation(true)
+    const result = await importCalculationToOffer(offer.id, calculationId)
+    if (result.success && result.data) {
+      toast.success('Kalkulation importeret', `${result.data.importedCount} linjer tilføjet`)
+      router.refresh()
+    } else {
+      toast.error('Kunne ikke importere kalkulation', result.error)
+    }
+    setIsImportingCalculation(false)
+    setShowCalculationPicker(false)
   }
 
   const handleDeleteLineItem = async (lineItemId: string) => {
@@ -341,13 +395,29 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
             <div className="bg-white rounded-lg border p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Linjer</h2>
-                <button
-                  onClick={() => setShowLineItemForm(true)}
-                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                >
-                  <Plus className="w-4 h-4" />
-                  Tilføj linje
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleOpenProductPicker}
+                    className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-primary border rounded px-2 py-1"
+                  >
+                    <Package className="w-4 h-4" />
+                    Fra produkt
+                  </button>
+                  <button
+                    onClick={handleOpenCalculationPicker}
+                    className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-primary border rounded px-2 py-1"
+                  >
+                    <Calculator className="w-4 h-4" />
+                    Fra kalkulation
+                  </button>
+                  <button
+                    onClick={() => setShowLineItemForm(true)}
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Tilføj linje
+                  </button>
+                </div>
               </div>
 
               {lineItems.length === 0 ? (
@@ -664,6 +734,107 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
           onClose={() => setEditingLineItem(null)}
           onSuccess={() => router.refresh()}
         />
+      )}
+
+      {/* Product Picker Dialog */}
+      {showProductPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Vælg produkt</h2>
+              <button
+                onClick={() => setShowProductPicker(false)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {products.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Package className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                  <p>Ingen produkter fundet</p>
+                </div>
+              ) : (
+                products.map((product) => (
+                  <button
+                    key={product.id}
+                    onClick={() => handleAddProduct(product.id)}
+                    disabled={isAddingProduct}
+                    className="w-full p-3 text-left border rounded-lg hover:bg-gray-50 transition-colors flex justify-between items-center disabled:opacity-50"
+                  >
+                    <div>
+                      <div className="font-medium">{product.name}</div>
+                      {product.sku && (
+                        <div className="text-sm text-gray-500">SKU: {product.sku}</div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium">{formatCurrency(product.list_price)}</div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end p-4 border-t">
+              <button
+                onClick={() => setShowProductPicker(false)}
+                className="px-4 py-2 border rounded-md hover:bg-gray-50"
+              >
+                Annuller
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calculation Picker Dialog */}
+      {showCalculationPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Importer fra kalkulation</h2>
+              <button
+                onClick={() => setShowCalculationPicker(false)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {calculations.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Calculator className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                  <p>Ingen kalkulationer fundet</p>
+                </div>
+              ) : (
+                calculations.map((calc) => (
+                  <button
+                    key={calc.id}
+                    onClick={() => handleImportCalculation(calc.id)}
+                    disabled={isImportingCalculation}
+                    className="w-full p-3 text-left border rounded-lg hover:bg-gray-50 transition-colors flex justify-between items-center disabled:opacity-50"
+                  >
+                    <div>
+                      <div className="font-medium">{calc.name}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium">{formatCurrency(calc.final_amount)}</div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end p-4 border-t">
+              <button
+                onClick={() => setShowCalculationPicker(false)}
+                className="px-4 py-2 border rounded-md hover:bg-gray-50"
+              >
+                Annuller
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
