@@ -23,6 +23,7 @@ import type {
 } from '@/types/projects.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
+import { getCompanySettings } from '@/lib/actions/settings'
 
 // ==================== Projects ====================
 
@@ -702,6 +703,12 @@ export async function createProjectFromOffer(
     // Generate project number
     const projectNumber = await generateProjectNumber()
 
+    // Get company settings for currency
+    const settingsResult = await getCompanySettings()
+    const currency = settingsResult.success && settingsResult.data
+      ? settingsResult.data.default_currency
+      : 'DKK'
+
     // Get a system user ID (for auto-created projects)
     // Try to get the first admin user, or fall back to any user
     const { data: adminUser } = await supabase
@@ -725,7 +732,7 @@ export async function createProjectFromOffer(
       .insert({
         project_number: projectNumber,
         name: offerTitle,
-        description: `Projekt oprettet automatisk fra tilbud. Tilbudsbeløb: ${offerFinalAmount.toLocaleString('da-DK')} DKK`,
+        description: `Projekt oprettet automatisk fra tilbud. Tilbudsbeløb: ${offerFinalAmount.toLocaleString('da-DK')} ${currency}`,
         status: 'planning',
         priority: 'medium',
         customer_id: customerId,
