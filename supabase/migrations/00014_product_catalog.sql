@@ -8,7 +8,7 @@
 -- =====================================================
 
 CREATE TABLE suppliers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   code TEXT UNIQUE,  -- 'AO', 'LEMVIG', 'SOLAR_DK'
   contact_name TEXT,
@@ -38,7 +38,7 @@ CREATE TRIGGER update_suppliers_updated_at
 -- =====================================================
 
 CREATE TABLE product_categories (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,  -- 'panels', 'inverters', etc.
   parent_id UUID REFERENCES product_categories(id) ON DELETE SET NULL,
@@ -67,7 +67,7 @@ INSERT INTO product_categories (name, slug, sort_order) VALUES
 -- =====================================================
 
 CREATE TABLE product_catalog (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sku TEXT UNIQUE,
   name TEXT NOT NULL,
   description TEXT,
@@ -100,7 +100,7 @@ CREATE TRIGGER update_product_catalog_updated_at
 -- =====================================================
 
 CREATE TABLE supplier_products (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
   product_id UUID REFERENCES product_catalog(id) ON DELETE SET NULL,  -- Optional link
   supplier_sku TEXT NOT NULL,
@@ -134,7 +134,7 @@ CREATE TRIGGER update_supplier_products_updated_at
 CREATE TYPE calculation_type AS ENUM ('solar_system', 'electrical', 'custom');
 
 CREATE TABLE calculations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   description TEXT,
   customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
@@ -178,7 +178,7 @@ CREATE TRIGGER update_calculations_updated_at
 CREATE TYPE calculation_row_type AS ENUM ('manual', 'product', 'supplier_product', 'section');
 
 CREATE TABLE calculation_rows (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   calculation_id UUID NOT NULL REFERENCES calculations(id) ON DELETE CASCADE,
   row_type calculation_row_type NOT NULL DEFAULT 'manual',
   product_id UUID REFERENCES product_catalog(id) ON DELETE SET NULL,
