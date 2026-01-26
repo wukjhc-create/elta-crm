@@ -16,6 +16,7 @@ import {
 import { LeadStatusBadge } from './lead-status-badge'
 import { LeadForm } from './lead-form'
 import { deleteLead } from '@/lib/actions/leads'
+import { useToast } from '@/components/ui/toast'
 import { LEAD_SOURCE_LABELS, type LeadWithRelations } from '@/types/leads.types'
 
 interface LeadsTableProps {
@@ -24,6 +25,7 @@ interface LeadsTableProps {
 
 export function LeadsTable({ leads }: LeadsTableProps) {
   const router = useRouter()
+  const toast = useToast()
   const [editingLead, setEditingLead] = useState<LeadWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -36,8 +38,10 @@ export function LeadsTable({ leads }: LeadsTableProps) {
     setDeletingId(id)
     const result = await deleteLead(id)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke slette lead')
+    if (result.success) {
+      toast.success('Lead slettet')
+    } else {
+      toast.error('Kunne ikke slette lead', result.error)
     }
 
     setDeletingId(null)

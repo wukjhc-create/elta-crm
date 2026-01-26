@@ -18,6 +18,7 @@ import {
 import { OfferStatusBadge } from './offer-status-badge'
 import { OfferForm } from './offer-form'
 import { deleteOffer, updateOfferStatus } from '@/lib/actions/offers'
+import { useToast } from '@/components/ui/toast'
 import type { OfferWithRelations, OfferStatus } from '@/types/offers.types'
 
 interface OffersTableProps {
@@ -26,6 +27,7 @@ interface OffersTableProps {
 
 export function OffersTable({ offers }: OffersTableProps) {
   const router = useRouter()
+  const toast = useToast()
   const [editingOffer, setEditingOffer] = useState<OfferWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -38,8 +40,10 @@ export function OffersTable({ offers }: OffersTableProps) {
     setDeletingId(id)
     const result = await deleteOffer(id)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke slette tilbud')
+    if (result.success) {
+      toast.success('Tilbud slettet')
+    } else {
+      toast.error('Kunne ikke slette tilbud', result.error)
     }
 
     setDeletingId(null)
@@ -50,8 +54,10 @@ export function OffersTable({ offers }: OffersTableProps) {
   const handleStatusChange = async (id: string, status: OfferStatus) => {
     const result = await updateOfferStatus(id, status)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke opdatere status')
+    if (result.success) {
+      toast.success('Status opdateret')
+    } else {
+      toast.error('Kunne ikke opdatere status', result.error)
     }
 
     setOpenMenuId(null)

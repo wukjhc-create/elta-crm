@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -18,15 +18,22 @@ import {
   Building,
   User,
   Printer,
+  Download,
+  Loader2,
+  Mail,
 } from 'lucide-react'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { LineItemForm } from '@/components/modules/offers/line-item-form'
+import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import {
   deleteOffer,
   updateOfferStatus,
   deleteLineItem,
+  sendOffer,
 } from '@/lib/actions/offers'
+import { getOfferActivities } from '@/lib/actions/offer-activities'
+import { useToast } from '@/components/ui/toast'
 import {
   OFFER_STATUSES,
   OFFER_STATUS_LABELS,
@@ -34,6 +41,7 @@ import {
   type OfferLineItem,
   type OfferStatus,
 } from '@/types/offers.types'
+import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
@@ -41,12 +49,29 @@ interface OfferDetailClientProps {
 
 export function OfferDetailClient({ offer }: OfferDetailClientProps) {
   const router = useRouter()
+  const toast = useToast()
   const [showEditForm, setShowEditForm] = useState(false)
   const [showLineItemForm, setShowLineItemForm] = useState(false)
   const [editingLineItem, setEditingLineItem] = useState<OfferLineItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingLineItemId, setDeletingLineItemId] = useState<string | null>(null)
   const [showPdfPreview, setShowPdfPreview] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+  const [activities, setActivities] = useState<OfferActivityWithPerformer[]>([])
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true)
+
+  // Load activities on mount
+  useEffect(() => {
+    async function loadActivities() {
+      const result = await getOfferActivities(offer.id)
+      if (result.success && result.data) {
+        setActivities(result.data)
+      }
+      setIsLoadingActivities(false)
+    }
+    loadActivities()
+  }, [offer.id])
 
   const handleDelete = async () => {
     if (!confirm('Er du sikker på, at du vil slette dette tilbud?')) {
@@ -57,9 +82,10 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
     const result = await deleteOffer(offer.id)
 
     if (result.success) {
+      toast.success('Tilbud slettet')
       router.push('/dashboard/offers')
     } else {
-      alert(result.error || 'Kunne ikke slette tilbud')
+      toast.error('Kunne ikke slette tilbud', result.error)
       setIsDeleting(false)
     }
   }
@@ -67,8 +93,10 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
   const handleStatusChange = async (newStatus: OfferStatus) => {
     const result = await updateOfferStatus(offer.id, newStatus)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke opdatere status')
+    if (result.success) {
+      toast.success('Status opdateret')
+    } else {
+      toast.error('Kunne ikke opdatere status', result.error)
     }
 
     router.refresh()
@@ -82,8 +110,10 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
     setDeletingLineItemId(lineItemId)
     const result = await deleteLineItem(lineItemId, offer.id)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke slette linje')
+    if (result.success) {
+      toast.success('Linje slettet')
+    } else {
+      toast.error('Kunne ikke slette linje', result.error)
     }
 
     setDeletingLineItemId(null)
@@ -108,6 +138,77 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
     setTimeout(() => {
       window.print()
     }, 100)
+  }
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true)
+    try {
+      const response = await fetch(`/api/offers/${offer.id}/pdf`)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Kunne ikke hente PDF')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${offer.offer_number}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      // Refresh activities to show PDF generation
+      const activitiesResult = await getOfferActivities(offer.id)
+      if (activitiesResult.success && activitiesResult.data) {
+        setActivities(activitiesResult.data)
+      }
+    } catch (error) {
+      toast.error('Kunne ikke downloade PDF', error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsDownloadingPdf(false)
+    }
+  }
+
+  const handleSendOffer = async () => {
+    if (!offer.customer) {
+      toast.warning('Tilbuddet skal have en tilknyttet kunde før det kan sendes')
+      return
+    }
+
+    if (!offer.customer.email) {
+      toast.warning('Kunden har ingen email-adresse')
+      return
+    }
+
+    const lineItems = offer.line_items || []
+    if (lineItems.length === 0) {
+      if (!confirm('Tilbuddet har ingen linjer. Vil du stadig sende det?')) {
+        return
+      }
+    }
+
+    if (!confirm(`Er du sikker på, at du vil sende tilbuddet til ${offer.customer.email}?`)) {
+      return
+    }
+
+    setIsSending(true)
+    const result = await sendOffer(offer.id)
+
+    if (result.success) {
+      // Refresh activities
+      const activitiesResult = await getOfferActivities(offer.id)
+      if (activitiesResult.success && activitiesResult.data) {
+        setActivities(activitiesResult.data)
+      }
+      router.refresh()
+      toast.success('Tilbud sendt', `Email sendt til ${offer.customer?.email}`)
+    } else {
+      toast.error('Kunne ikke sende tilbud', result.error)
+    }
+
+    setIsSending(false)
   }
 
   if (showPdfPreview) {
@@ -144,12 +245,39 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Send button - only show for draft/viewed with customer */}
+            {(offer.status === 'draft' || offer.status === 'viewed') && offer.customer && (
+              <button
+                onClick={handleSendOffer}
+                disabled={isSending}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Mail className="w-4 h-4" />
+                )}
+                {isSending ? 'Sender...' : 'Send Tilbud'}
+              </button>
+            )}
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50 disabled:opacity-50"
+            >
+              {isDownloadingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              PDF
+            </button>
             <button
               onClick={handlePrint}
               className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50"
             >
               <Printer className="w-4 h-4" />
-              Print/PDF
+              Print
             </button>
             <button
               onClick={() => setShowEditForm(true)}
@@ -487,6 +615,18 @@ export function OfferDetailClient({ offer }: OfferDetailClientProps) {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Activity Timeline */}
+            <div className="bg-white rounded-lg border p-6">
+              <h2 className="text-lg font-semibold mb-4">Aktivitet</h2>
+              {isLoadingActivities ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : (
+                <OfferActivityTimeline activities={activities} />
+              )}
             </div>
           </div>
         </div>

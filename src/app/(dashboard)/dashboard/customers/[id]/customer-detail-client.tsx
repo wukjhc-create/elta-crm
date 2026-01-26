@@ -30,6 +30,7 @@ import {
 } from '@/lib/actions/customers'
 import type { CustomerWithRelations, CustomerContact } from '@/types/customers.types'
 import type { PortalAccessToken } from '@/types/portal.types'
+import { useToast } from '@/components/ui/toast'
 
 interface CustomerDetailClientProps {
   customer: CustomerWithRelations
@@ -38,6 +39,7 @@ interface CustomerDetailClientProps {
 
 export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailClientProps) {
   const router = useRouter()
+  const toast = useToast()
   const [showEditForm, setShowEditForm] = useState(false)
   const [showContactForm, setShowContactForm] = useState(false)
   const [editingContact, setEditingContact] = useState<CustomerContact | null>(null)
@@ -53,9 +55,10 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
     const result = await deleteCustomer(customer.id)
 
     if (result.success) {
+      toast.success('Kunde slettet')
       router.push('/dashboard/customers')
     } else {
-      alert(result.error || 'Kunne ikke slette kunde')
+      toast.error('Kunne ikke slette kunde', result.error)
       setIsDeleting(false)
     }
   }
@@ -63,8 +66,10 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
   const handleToggleActive = async () => {
     const result = await toggleCustomerActive(customer.id, !customer.is_active)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke opdatere status')
+    if (result.success) {
+      toast.success(customer.is_active ? 'Kunde deaktiveret' : 'Kunde aktiveret')
+    } else {
+      toast.error('Kunne ikke opdatere status', result.error)
     }
 
     router.refresh()
@@ -78,8 +83,10 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
     setDeletingContactId(contactId)
     const result = await deleteCustomerContact(contactId, customer.id)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke slette kontakt')
+    if (result.success) {
+      toast.success('Kontakt slettet')
+    } else {
+      toast.error('Kunne ikke slette kontakt', result.error)
     }
 
     setDeletingContactId(null)

@@ -15,6 +15,7 @@ import {
   createPortalToken,
   deactivatePortalToken,
 } from '@/lib/actions/portal'
+import { useToast } from '@/components/ui/toast'
 import type { PortalAccessToken } from '@/types/portal.types'
 
 interface PortalAccessProps {
@@ -29,6 +30,7 @@ export function PortalAccess({
   tokens,
 }: PortalAccessProps) {
   const router = useRouter()
+  const toast = useToast()
   const [isCreating, setIsCreating] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
@@ -42,14 +44,16 @@ export function PortalAccess({
         email: customerEmail,
       })
 
-      if (!result.success) {
-        alert(result.error || 'Kunne ikke oprette portal-adgang')
+      if (result.success) {
+        toast.success('Portal-adgang oprettet')
+      } else {
+        toast.error('Kunne ikke oprette portal-adgang', result.error)
         return
       }
 
       router.refresh()
     } catch (err) {
-      alert('Der opstod en fejl')
+      toast.error('Der opstod en fejl')
     } finally {
       setIsCreating(false)
     }
@@ -65,14 +69,16 @@ export function PortalAccess({
     try {
       const result = await deactivatePortalToken(tokenId)
 
-      if (!result.success) {
-        alert(result.error || 'Kunne ikke deaktivere adgang')
+      if (result.success) {
+        toast.success('Adgang deaktiveret')
+      } else {
+        toast.error('Kunne ikke deaktivere adgang', result.error)
         return
       }
 
       router.refresh()
     } catch (err) {
-      alert('Der opstod en fejl')
+      toast.error('Der opstod en fejl')
     } finally {
       setDeactivatingId(null)
     }

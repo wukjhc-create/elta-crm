@@ -6,6 +6,7 @@ import { Clock, Pencil, Trash2, Calendar, User, CheckCircle } from 'lucide-react
 import { formatDate } from '@/lib/utils'
 import { deleteTimeEntry } from '@/lib/actions/projects'
 import { TimeEntryForm } from './time-entry-form'
+import { useToast } from '@/components/ui/toast'
 import type { TimeEntryWithRelations, ProjectTask } from '@/types/projects.types'
 
 interface TimeEntriesListProps {
@@ -22,6 +23,7 @@ export function TimeEntriesList({
   onRefresh,
 }: TimeEntriesListProps) {
   const router = useRouter()
+  const toast = useToast()
   const [editingEntry, setEditingEntry] = useState<TimeEntryWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -31,14 +33,16 @@ export function TimeEntriesList({
     setDeletingId(id)
     try {
       const result = await deleteTimeEntry(id, projectId)
-      if (!result.success) {
-        alert(result.error || 'Der opstod en fejl')
+      if (result.success) {
+        toast.success('Tidsregistrering slettet')
+      } else {
+        toast.error('Kunne ikke slette', result.error)
       }
       router.refresh()
       onRefresh?.()
     } catch (error) {
       console.error('Delete error:', error)
-      alert('Der opstod en fejl ved sletning')
+      toast.error('Der opstod en fejl ved sletning')
     } finally {
       setDeletingId(null)
     }

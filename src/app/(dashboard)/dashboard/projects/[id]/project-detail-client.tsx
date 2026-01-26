@@ -24,6 +24,7 @@ import { ProjectForm } from '@/components/modules/projects/project-form'
 import { TaskBoard } from '@/components/modules/projects/task-board'
 import { TimeEntriesList } from '@/components/modules/projects/time-entries-list'
 import { TimeEntryForm } from '@/components/modules/projects/time-entry-form'
+import { useToast } from '@/components/ui/toast'
 import type { ProjectWithRelations, ProjectTaskWithRelations, TimeEntryWithRelations } from '@/types/projects.types'
 
 interface ProjectDetailClientProps {
@@ -34,6 +35,7 @@ type TabType = 'overview' | 'tasks' | 'time'
 
 export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   const router = useRouter()
+  const toast = useToast()
   const [project, setProject] = useState<ProjectWithRelations | null>(null)
   const [tasks, setTasks] = useState<ProjectTaskWithRelations[]>([])
   const [timeEntries, setTimeEntries] = useState<TimeEntryWithRelations[]>([])
@@ -82,13 +84,14 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
     try {
       const result = await deleteProject(project.id)
       if (result.success) {
+        toast.success('Projekt slettet')
         router.push('/dashboard/projects')
       } else {
-        alert(result.error || 'Der opstod en fejl ved sletning')
+        toast.error('Kunne ikke slette projekt', result.error)
       }
     } catch (error) {
       console.error('Delete error:', error)
-      alert('Der opstod en fejl ved sletning')
+      toast.error('Der opstod en fejl ved sletning')
     } finally {
       setIsDeleting(false)
     }

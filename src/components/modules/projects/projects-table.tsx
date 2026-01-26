@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/utils'
 import { deleteProject } from '@/lib/actions/projects'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './project-status-badge'
 import { ProjectForm } from './project-form'
+import { useToast } from '@/components/ui/toast'
 import type { ProjectWithRelations } from '@/types/projects.types'
 
 interface ProjectsTableProps {
@@ -24,6 +25,7 @@ interface ProjectsTableProps {
 }
 
 export function ProjectsTable({ projects, onRefresh }: ProjectsTableProps) {
+  const toast = useToast()
   const [editingProject, setEditingProject] = useState<ProjectWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -36,13 +38,15 @@ export function ProjectsTable({ projects, onRefresh }: ProjectsTableProps) {
     setDeletingId(id)
     try {
       const result = await deleteProject(id)
-      if (!result.success) {
-        alert(result.error || 'Der opstod en fejl ved sletning')
+      if (result.success) {
+        toast.success('Projekt slettet')
+      } else {
+        toast.error('Kunne ikke slette projekt', result.error)
       }
       onRefresh?.()
     } catch (error) {
       console.error('Delete error:', error)
-      alert('Der opstod en fejl ved sletning')
+      toast.error('Der opstod en fejl ved sletning')
     } finally {
       setDeletingId(null)
     }

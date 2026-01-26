@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { CustomerForm } from './customer-form'
 import { deleteCustomer, toggleCustomerActive } from '@/lib/actions/customers'
+import { useToast } from '@/components/ui/toast'
 import type { CustomerWithRelations } from '@/types/customers.types'
 
 interface CustomersTableProps {
@@ -26,6 +27,7 @@ interface CustomersTableProps {
 
 export function CustomersTable({ customers }: CustomersTableProps) {
   const router = useRouter()
+  const toast = useToast()
   const [editingCustomer, setEditingCustomer] = useState<CustomerWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -38,8 +40,10 @@ export function CustomersTable({ customers }: CustomersTableProps) {
     setDeletingId(id)
     const result = await deleteCustomer(id)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke slette kunde')
+    if (result.success) {
+      toast.success('Kunde slettet')
+    } else {
+      toast.error('Kunne ikke slette kunde', result.error)
     }
 
     setDeletingId(null)
@@ -50,8 +54,10 @@ export function CustomersTable({ customers }: CustomersTableProps) {
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     const result = await toggleCustomerActive(id, !currentStatus)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke opdatere status')
+    if (result.success) {
+      toast.success(currentStatus ? 'Kunde deaktiveret' : 'Kunde aktiveret')
+    } else {
+      toast.error('Kunne ikke opdatere status', result.error)
     }
 
     setOpenMenuId(null)

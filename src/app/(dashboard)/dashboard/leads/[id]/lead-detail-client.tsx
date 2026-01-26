@@ -33,6 +33,7 @@ import {
   type LeadActivity,
   type LeadStatus,
 } from '@/types/leads.types'
+import { useToast } from '@/components/ui/toast'
 
 interface LeadDetailClientProps {
   lead: LeadWithRelations
@@ -41,6 +42,7 @@ interface LeadDetailClientProps {
 
 export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
   const router = useRouter()
+  const toast = useToast()
   const [showEditForm, setShowEditForm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
@@ -56,9 +58,10 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
     const result = await deleteLead(lead.id)
 
     if (result.success) {
+      toast.success('Lead slettet')
       router.push('/dashboard/leads')
     } else {
-      alert(result.error || 'Kunne ikke slette lead')
+      toast.error('Kunne ikke slette lead', result.error)
       setIsDeleting(false)
     }
   }
@@ -67,8 +70,10 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
     setIsUpdatingStatus(true)
     const result = await updateLeadStatus(lead.id, newStatus)
 
-    if (!result.success) {
-      alert(result.error || 'Kunne ikke opdatere status')
+    if (result.success) {
+      toast.success('Status opdateret')
+    } else {
+      toast.error('Kunne ikke opdatere status', result.error)
     }
 
     setIsUpdatingStatus(false)
@@ -82,10 +87,11 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
     const result = await addLeadActivity(lead.id, 'note', newNote.trim())
 
     if (result.success) {
+      toast.success('Note tilføjet')
       setNewNote('')
       router.refresh()
     } else {
-      alert(result.error || 'Kunne ikke tilføje note')
+      toast.error('Kunne ikke tilføje note', result.error)
     }
 
     setIsAddingNote(false)
