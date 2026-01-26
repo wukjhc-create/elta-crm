@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { OFFER_STATUSES } from '@/types/offers.types'
 
+// Helper to convert empty strings to null (for optional UUID fields from HTML forms)
+const emptyStringToNull = (val: unknown) => (val === '' ? null : val)
+
 // Create offer schema
 export const createOfferSchema = z.object({
   title: z
@@ -12,8 +15,8 @@ export const createOfferSchema = z.object({
     .max(5000, 'Beskrivelse må højst være 5000 tegn')
     .nullable()
     .optional(),
-  customer_id: z.string().uuid().nullable().optional(),
-  lead_id: z.string().uuid().nullable().optional(),
+  customer_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
+  lead_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
   discount_percentage: z
     .number()
     .min(0, 'Rabat skal være mindst 0%')
