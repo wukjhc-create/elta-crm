@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
 import type { Lead, LeadWithRelations, LeadActivity, LeadStatus } from '@/types/leads.types'
+import type { PaginatedResponse } from '@/types/common.types'
 
 export interface ActionResult<T = void> {
   success: boolean
@@ -11,7 +12,9 @@ export interface ActionResult<T = void> {
   error?: string
 }
 
-// Get all leads with optional filtering
+const DEFAULT_PAGE_SIZE = 25
+
+// Get all leads with optional filtering and pagination
 export async function getLeads(filters?: {
   search?: string
   status?: LeadStatus
@@ -19,46 +22,81 @@ export async function getLeads(filters?: {
   assigned_to?: string
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
-}): Promise<ActionResult<LeadWithRelations[]>> {
+  page?: number
+  pageSize?: number
+}): Promise<ActionResult<PaginatedResponse<LeadWithRelations>>> {
   try {
     const supabase = await createClient()
+    const page = filters?.page || 1
+    const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
+    const offset = (page - 1) * pageSize
 
-    let query = supabase
+    // Build count query
+    let countQuery = supabase
+      .from('leads')
+      .select('*', { count: 'exact', head: true })
+
+    // Build data query
+    let dataQuery = supabase
       .from('leads')
       .select('*')
 
-    // Apply filters
+    // Apply filters to both queries
     if (filters?.search) {
-      query = query.or(
-        `company_name.ilike.%${filters.search}%,contact_person.ilike.%${filters.search}%,email.ilike.%${filters.search}%`
-      )
+      const searchFilter = `company_name.ilike.%${filters.search}%,contact_person.ilike.%${filters.search}%,email.ilike.%${filters.search}%`
+      countQuery = countQuery.or(searchFilter)
+      dataQuery = dataQuery.or(searchFilter)
     }
 
     if (filters?.status) {
-      query = query.eq('status', filters.status)
+      countQuery = countQuery.eq('status', filters.status)
+      dataQuery = dataQuery.eq('status', filters.status)
     }
 
     if (filters?.source) {
-      query = query.eq('source', filters.source)
+      countQuery = countQuery.eq('source', filters.source)
+      dataQuery = dataQuery.eq('source', filters.source)
     }
 
     if (filters?.assigned_to) {
-      query = query.eq('assigned_to', filters.assigned_to)
+      countQuery = countQuery.eq('assigned_to', filters.assigned_to)
+      dataQuery = dataQuery.eq('assigned_to', filters.assigned_to)
     }
 
     // Apply sorting
     const sortBy = filters?.sortBy || 'created_at'
     const sortOrder = filters?.sortOrder || 'desc'
-    query = query.order(sortBy, { ascending: sortOrder === 'asc' })
+    dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
 
-    const { data, error } = await query
+    // Apply pagination
+    dataQuery = dataQuery.range(offset, offset + pageSize - 1)
 
-    if (error) {
-      console.error('Error fetching leads:', error)
+    // Execute both queries
+    const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
+
+    if (countResult.error) {
+      console.error('Error counting leads:', countResult.error)
       return { success: false, error: 'Kunne ikke hente leads' }
     }
 
-    return { success: true, data: data as LeadWithRelations[] }
+    if (dataResult.error) {
+      console.error('Error fetching leads:', dataResult.error)
+      return { success: false, error: 'Kunne ikke hente leads' }
+    }
+
+    const total = countResult.count || 0
+    const totalPages = Math.ceil(total / pageSize)
+
+    return {
+      success: true,
+      data: {
+        data: dataResult.data as LeadWithRelations[],
+        total,
+        page,
+        pageSize,
+        totalPages,
+      },
+    }
   } catch (error) {
     console.error('Error in getLeads:', error)
     return { success: false, error: 'Der opstod en fejl' }
@@ -162,6 +200,14 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       return { success: false, error: `Database fejl: ${error.message}` }
     }
 
+    // Log lead creation activity
+    await supabase.from('lead_activities').insert({
+      lead_id: data.id,
+      activity_type: 'created',
+      description: `Lead oprettet for "${data.company_name}"`,
+      performed_by: user.id,
+    })
+
     revalidatePath('/leads')
     return { success: true, data: data as Lead }
   } catch (error) {
@@ -206,10 +252,10 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
 
     const supabase = await createClient()
 
-    // Get old status for activity logging
+    // Get old lead data for activity logging
     const { data: oldLead } = await supabase
       .from('leads')
-      .select('status')
+      .select('*')
       .eq('id', id)
       .single()
 
@@ -227,14 +273,62 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       return { success: false, error: 'Kunne ikke opdatere lead' }
     }
 
-    // Log status change if changed
-    if (oldLead && oldLead.status !== data.status) {
-      await supabase.from('lead_activities').insert({
-        lead_id: data.id,
-        activity_type: 'status_change',
-        description: `Status ændret fra "${oldLead.status}" til "${data.status}"`,
-        performed_by: user.id,
-      })
+    // Log activities for changes
+    const activities: { activity_type: string; description: string }[] = []
+
+    if (oldLead) {
+      // Status change
+      if (oldLead.status !== data.status) {
+        activities.push({
+          activity_type: 'status_change',
+          description: `Status ændret fra "${oldLead.status}" til "${data.status}"`,
+        })
+      }
+
+      // Assignment change
+      if (oldLead.assigned_to !== data.assigned_to) {
+        if (data.assigned_to) {
+          activities.push({
+            activity_type: 'assigned',
+            description: 'Lead tildelt ny ansvarlig',
+          })
+        } else {
+          activities.push({
+            activity_type: 'unassigned',
+            description: 'Tildeling fjernet fra lead',
+          })
+        }
+      }
+
+      // Value change
+      if (oldLead.value !== data.value) {
+        const oldVal = oldLead.value ? `${oldLead.value} DKK` : 'ikke angivet'
+        const newVal = data.value ? `${data.value} DKK` : 'ikke angivet'
+        activities.push({
+          activity_type: 'value_change',
+          description: `Værdi ændret fra ${oldVal} til ${newVal}`,
+        })
+      }
+
+      // Generic update if other fields changed
+      if (activities.length === 0) {
+        activities.push({
+          activity_type: 'updated',
+          description: 'Lead oplysninger opdateret',
+        })
+      }
+    }
+
+    // Insert all activities
+    if (activities.length > 0) {
+      await supabase.from('lead_activities').insert(
+        activities.map((a) => ({
+          lead_id: data.id,
+          activity_type: a.activity_type,
+          description: a.description,
+          performed_by: user.id,
+        }))
+      )
     }
 
     revalidatePath('/leads')

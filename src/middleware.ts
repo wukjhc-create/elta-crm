@@ -15,6 +15,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Auth routes (redirect to dashboard if already logged in)
+  // Note: /reset-password is NOT included here because users need a valid
+  // recovery session to reset their password
   if (
     ['/login', '/register', '/forgot-password'].some((path) =>
       request.nextUrl.pathname.startsWith(path)

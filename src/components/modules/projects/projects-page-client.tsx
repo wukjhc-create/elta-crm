@@ -6,7 +6,8 @@ import { Plus, Search, Filter, X } from 'lucide-react'
 import { getProjects } from '@/lib/actions/projects'
 import { ProjectsTable } from './projects-table'
 import { ProjectForm } from './project-form'
-import { ProjectStatusBadge, ProjectPriorityBadge } from './project-status-badge'
+import { ProjectStatusBadge } from './project-status-badge'
+import { Pagination } from '@/components/shared/pagination'
 import {
   PROJECT_STATUSES,
   PROJECT_PRIORITIES,
@@ -17,22 +18,41 @@ import {
   type ProjectPriority,
 } from '@/types/projects.types'
 
+interface PaginationData {
+  currentPage: number
+  totalPages: number
+  totalItems: number
+  pageSize: number
+}
+
 export function ProjectsPageClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectWithRelations[]>([])
+  const [pagination, setPagination] = useState<PaginationData>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    pageSize: 25,
+  })
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
 
-  // Filter state
+  // Filter state from URL params
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | ''>(
     (searchParams.get('status') as ProjectStatus) || ''
   )
   const [priorityFilter, setPriorityFilter] = useState<ProjectPriority | ''>(
     (searchParams.get('priority') as ProjectPriority) || ''
+  )
+  const [currentPage, setCurrentPage] = useState(
+    parseInt(searchParams.get('page') || '1', 10)
+  )
+  const [pageSize, setPageSize] = useState(
+    parseInt(searchParams.get('pageSize') || '25', 10)
   )
 
   const loadProjects = useCallback(async () => {
@@ -42,17 +62,25 @@ export function ProjectsPageClient() {
         search: search || undefined,
         status: statusFilter || undefined,
         priority: priorityFilter || undefined,
+        page: currentPage,
+        pageSize: pageSize,
       })
 
       if (result.success && result.data) {
-        setProjects(result.data)
+        setProjects(result.data.data)
+        setPagination({
+          currentPage: result.data.page,
+          totalPages: result.data.totalPages,
+          totalItems: result.data.total,
+          pageSize: result.data.pageSize,
+        })
       }
     } catch (error) {
       console.error('Failed to load projects:', error)
     } finally {
       setIsLoading(false)
     }
-  }, [search, statusFilter, priorityFilter])
+  }, [search, statusFilter, priorityFilter, currentPage, pageSize])
 
   useEffect(() => {
     loadProjects()
@@ -64,24 +92,35 @@ export function ProjectsPageClient() {
     if (search) params.set('search', search)
     if (statusFilter) params.set('status', statusFilter)
     if (priorityFilter) params.set('priority', priorityFilter)
+    if (currentPage > 1) params.set('page', currentPage.toString())
+    if (pageSize !== 25) params.set('pageSize', pageSize.toString())
 
-    const newUrl = params.toString() ? `?${params.toString()}` : '/projects'
+    const newUrl = params.toString() ? `?${params.toString()}` : '/dashboard/projects'
     router.replace(newUrl, { scroll: false })
-  }, [search, statusFilter, priorityFilter, router])
+  }, [search, statusFilter, priorityFilter, currentPage, pageSize, router])
 
   const clearFilters = () => {
     setSearch('')
     setStatusFilter('')
     setPriorityFilter('')
+    setCurrentPage(1)
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size)
+    setCurrentPage(1)
+  }
+
+  const handleStatusClick = (status: ProjectStatus) => {
+    setStatusFilter(statusFilter === status ? '' : status)
+    setCurrentPage(1)
   }
 
   const hasActiveFilters = search || statusFilter || priorityFilter
-
-  // Group projects by status for summary
-  const projectsByStatus = PROJECT_STATUSES.reduce((acc, status) => {
-    acc[status] = projects.filter((p) => p.status === status).length
-    return acc
-  }, {} as Record<ProjectStatus, number>)
 
   return (
     <div className="space-y-6">
@@ -90,7 +129,7 @@ export function ProjectsPageClient() {
         <div>
           <h1 className="text-2xl font-bold">Projekter</h1>
           <p className="text-muted-foreground">
-            Administrer projekter, opgaver og tidsregistrering
+            Administrer projekter, opgaver og tidsregistrering ({pagination.totalItems} projekter)
           </p>
         </div>
         <button
@@ -107,7 +146,7 @@ export function ProjectsPageClient() {
         {PROJECT_STATUSES.map((status) => (
           <button
             key={status}
-            onClick={() => setStatusFilter(statusFilter === status ? '' : status)}
+            onClick={() => handleStatusClick(status)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
               statusFilter === status
                 ? 'ring-2 ring-primary ring-offset-1'
@@ -115,7 +154,6 @@ export function ProjectsPageClient() {
             }`}
           >
             <ProjectStatusBadge status={status} />
-            <span className="font-medium">{projectsByStatus[status]}</span>
           </button>
         ))}
       </div>
@@ -128,7 +166,10 @@ export function ProjectsPageClient() {
             type="text"
             placeholder="Søg efter projektnummer, navn eller kunde..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setCurrentPage(1)
+            }}
             className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
@@ -167,7 +208,10 @@ export function ProjectsPageClient() {
               <label className="text-sm font-medium">Status</label>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as ProjectStatus | '')}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as ProjectStatus | '')
+                  setCurrentPage(1)
+                }}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">Alle statusser</option>
@@ -183,7 +227,10 @@ export function ProjectsPageClient() {
               <label className="text-sm font-medium">Prioritet</label>
               <select
                 value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value as ProjectPriority | '')}
+                onChange={(e) => {
+                  setPriorityFilter(e.target.value as ProjectPriority | '')
+                  setCurrentPage(1)
+                }}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">Alle prioriteter</option>
@@ -207,6 +254,18 @@ export function ProjectsPageClient() {
         ) : (
           <ProjectsTable projects={projects} onRefresh={loadProjects} />
         )}
+      </div>
+
+      {/* Pagination */}
+      <div className="bg-white rounded-lg border p-4">
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+        />
       </div>
 
       {/* Project Form Modal */}

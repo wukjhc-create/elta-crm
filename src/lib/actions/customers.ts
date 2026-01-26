@@ -13,6 +13,7 @@ import type {
   CustomerWithRelations,
   CustomerContact,
 } from '@/types/customers.types'
+import type { PaginatedResponse } from '@/types/common.types'
 
 export interface ActionResult<T = void> {
   success: boolean
@@ -20,17 +21,30 @@ export interface ActionResult<T = void> {
   error?: string
 }
 
-// Get all customers with optional filtering
+const DEFAULT_PAGE_SIZE = 25
+
+// Get all customers with optional filtering and pagination
 export async function getCustomers(filters?: {
   search?: string
   is_active?: boolean
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
-}): Promise<ActionResult<CustomerWithRelations[]>> {
+  page?: number
+  pageSize?: number
+}): Promise<ActionResult<PaginatedResponse<CustomerWithRelations>>> {
   try {
     const supabase = await createClient()
+    const page = filters?.page || 1
+    const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
+    const offset = (page - 1) * pageSize
 
-    let query = supabase
+    // Build count query
+    let countQuery = supabase
+      .from('customers')
+      .select('*', { count: 'exact', head: true })
+
+    // Build data query
+    let dataQuery = supabase
       .from('customers')
       .select(`
         *,
@@ -38,30 +52,52 @@ export async function getCustomers(filters?: {
         created_by_profile:profiles!customers_created_by_fkey(id, full_name, email)
       `)
 
-    // Apply filters
+    // Apply filters to both queries
     if (filters?.search) {
-      query = query.or(
-        `company_name.ilike.%${filters.search}%,contact_person.ilike.%${filters.search}%,email.ilike.%${filters.search}%,customer_number.ilike.%${filters.search}%`
-      )
+      const searchFilter = `company_name.ilike.%${filters.search}%,contact_person.ilike.%${filters.search}%,email.ilike.%${filters.search}%,customer_number.ilike.%${filters.search}%`
+      countQuery = countQuery.or(searchFilter)
+      dataQuery = dataQuery.or(searchFilter)
     }
 
     if (filters?.is_active !== undefined) {
-      query = query.eq('is_active', filters.is_active)
+      countQuery = countQuery.eq('is_active', filters.is_active)
+      dataQuery = dataQuery.eq('is_active', filters.is_active)
     }
 
     // Apply sorting
     const sortBy = filters?.sortBy || 'created_at'
     const sortOrder = filters?.sortOrder || 'desc'
-    query = query.order(sortBy, { ascending: sortOrder === 'asc' })
+    dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
 
-    const { data, error } = await query
+    // Apply pagination
+    dataQuery = dataQuery.range(offset, offset + pageSize - 1)
 
-    if (error) {
-      console.error('Error fetching customers:', error)
+    // Execute both queries
+    const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
+
+    if (countResult.error) {
+      console.error('Error counting customers:', countResult.error)
       return { success: false, error: 'Kunne ikke hente kunder' }
     }
 
-    return { success: true, data: data as CustomerWithRelations[] }
+    if (dataResult.error) {
+      console.error('Error fetching customers:', dataResult.error)
+      return { success: false, error: 'Kunne ikke hente kunder' }
+    }
+
+    const total = countResult.count || 0
+    const totalPages = Math.ceil(total / pageSize)
+
+    return {
+      success: true,
+      data: {
+        data: dataResult.data as CustomerWithRelations[],
+        total,
+        page,
+        pageSize,
+        totalPages,
+      },
+    }
   } catch (error) {
     console.error('Error in getCustomers:', error)
     return { success: false, error: 'Der opstod en fejl' }

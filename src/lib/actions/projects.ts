@@ -21,6 +21,7 @@ import type {
   ProjectPriority,
   TaskStatus,
 } from '@/types/projects.types'
+import type { PaginatedResponse } from '@/types/common.types'
 
 export interface ActionResult<T = void> {
   success: boolean
@@ -28,9 +29,11 @@ export interface ActionResult<T = void> {
   error?: string
 }
 
+const DEFAULT_PAGE_SIZE = 25
+
 // ==================== Projects ====================
 
-// Get all projects
+// Get all projects with pagination
 export async function getProjects(filters?: {
   search?: string
   status?: ProjectStatus
@@ -39,11 +42,22 @@ export async function getProjects(filters?: {
   project_manager_id?: string
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
-}): Promise<ActionResult<ProjectWithRelations[]>> {
+  page?: number
+  pageSize?: number
+}): Promise<ActionResult<PaginatedResponse<ProjectWithRelations>>> {
   try {
     const supabase = await createClient()
+    const page = filters?.page || 1
+    const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
+    const offset = (page - 1) * pageSize
 
-    let query = supabase
+    // Build count query
+    let countQuery = supabase
+      .from('projects')
+      .select('*', { count: 'exact', head: true })
+
+    // Build data query
+    let dataQuery = supabase
       .from('projects')
       .select(`
         *,
@@ -52,40 +66,67 @@ export async function getProjects(filters?: {
         created_by_profile:profiles!projects_created_by_fkey(id, full_name, email)
       `)
 
+    // Apply filters to both queries
     if (filters?.search) {
-      query = query.or(
-        `name.ilike.%${filters.search}%,project_number.ilike.%${filters.search}%`
-      )
+      const searchFilter = `name.ilike.%${filters.search}%,project_number.ilike.%${filters.search}%`
+      countQuery = countQuery.or(searchFilter)
+      dataQuery = dataQuery.or(searchFilter)
     }
 
     if (filters?.status) {
-      query = query.eq('status', filters.status)
+      countQuery = countQuery.eq('status', filters.status)
+      dataQuery = dataQuery.eq('status', filters.status)
     }
 
     if (filters?.priority) {
-      query = query.eq('priority', filters.priority)
+      countQuery = countQuery.eq('priority', filters.priority)
+      dataQuery = dataQuery.eq('priority', filters.priority)
     }
 
     if (filters?.customer_id) {
-      query = query.eq('customer_id', filters.customer_id)
+      countQuery = countQuery.eq('customer_id', filters.customer_id)
+      dataQuery = dataQuery.eq('customer_id', filters.customer_id)
     }
 
     if (filters?.project_manager_id) {
-      query = query.eq('project_manager_id', filters.project_manager_id)
+      countQuery = countQuery.eq('project_manager_id', filters.project_manager_id)
+      dataQuery = dataQuery.eq('project_manager_id', filters.project_manager_id)
     }
 
+    // Apply sorting
     const sortBy = filters?.sortBy || 'created_at'
     const sortOrder = filters?.sortOrder || 'desc'
-    query = query.order(sortBy, { ascending: sortOrder === 'asc' })
+    dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
 
-    const { data, error } = await query
+    // Apply pagination
+    dataQuery = dataQuery.range(offset, offset + pageSize - 1)
 
-    if (error) {
-      console.error('Error fetching projects:', error)
+    // Execute both queries
+    const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
+
+    if (countResult.error) {
+      console.error('Error counting projects:', countResult.error)
       return { success: false, error: 'Kunne ikke hente projekter' }
     }
 
-    return { success: true, data: data as ProjectWithRelations[] }
+    if (dataResult.error) {
+      console.error('Error fetching projects:', dataResult.error)
+      return { success: false, error: 'Kunne ikke hente projekter' }
+    }
+
+    const total = countResult.count || 0
+    const totalPages = Math.ceil(total / pageSize)
+
+    return {
+      success: true,
+      data: {
+        data: dataResult.data as ProjectWithRelations[],
+        total,
+        page,
+        pageSize,
+        totalPages,
+      },
+    }
   } catch (error) {
     console.error('Error in getProjects:', error)
     return { success: false, error: 'Der opstod en fejl' }
