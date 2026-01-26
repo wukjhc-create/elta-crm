@@ -1,3 +1,18 @@
+/**
+ * Standard result type for server actions
+ * All server actions should return this type for consistent error handling
+ */
+export interface ActionResult<T = void> {
+  success: boolean
+  data?: T
+  error?: string
+}
+
+/**
+ * Default pagination settings
+ */
+export const DEFAULT_PAGE_SIZE = 25
+
 export interface PaginationParams {
   page: number
   pageSize: number

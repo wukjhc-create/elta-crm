@@ -17,12 +17,7 @@ import type {
   SendPortalMessageData,
   AcceptOfferData,
 } from '@/types/portal.types'
-
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-}
+import type { ActionResult } from '@/types/common.types'
 
 // =====================================================
 // Portal Token Management (for employees)

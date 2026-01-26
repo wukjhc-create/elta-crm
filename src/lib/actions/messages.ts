@@ -10,12 +10,7 @@ import type {
   MessageType,
   InboxFolder,
 } from '@/types/messages.types'
-
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-}
+import type { ActionResult } from '@/types/common.types'
 
 // Get messages for inbox
 export async function getMessages(

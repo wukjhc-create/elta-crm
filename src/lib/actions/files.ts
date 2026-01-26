@@ -2,12 +2,7 @@
 
 import { createClient, getUser } from '@/lib/supabase/server'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from '@/lib/constants'
-
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-}
+import type { ActionResult } from '@/types/common.types'
 
 export interface UploadedFile {
   id: string

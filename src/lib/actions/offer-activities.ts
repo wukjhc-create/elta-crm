@@ -6,12 +6,7 @@ import type {
   OfferActivityWithPerformer,
   OfferActivityType,
 } from '@/types/offer-activities.types'
-
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-}
+import type { ActionResult } from '@/types/common.types'
 
 // Log an activity for an offer
 export async function logOfferActivity(

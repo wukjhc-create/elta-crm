@@ -13,15 +13,8 @@ import type {
   CustomerWithRelations,
   CustomerContact,
 } from '@/types/customers.types'
-import type { PaginatedResponse } from '@/types/common.types'
-
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-}
-
-const DEFAULT_PAGE_SIZE = 25
+import type { PaginatedResponse, ActionResult } from '@/types/common.types'
+import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 
 // Get all customers with optional filtering and pagination
 export async function getCustomers(filters?: {

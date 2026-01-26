@@ -6,12 +6,7 @@ import type {
   CompanySettings,
   UpdateCompanySettingsInput,
 } from '@/types/company-settings.types'
-
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-}
+import type { ActionResult } from '@/types/common.types'
 
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {

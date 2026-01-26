@@ -4,15 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
 import type { Lead, LeadWithRelations, LeadActivity, LeadStatus } from '@/types/leads.types'
-import type { PaginatedResponse } from '@/types/common.types'
-
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-}
-
-const DEFAULT_PAGE_SIZE = 25
+import type { PaginatedResponse, ActionResult } from '@/types/common.types'
+import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 
 // Get all leads with optional filtering and pagination
 export async function getLeads(filters?: {
