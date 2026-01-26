@@ -202,14 +202,7 @@ export async function getPortalOffers(
 
     const { data: offers, error } = await supabase
       .from('offers')
-      .select(`
-        *,
-        created_by_profile:profiles!offers_created_by_fkey(
-          full_name,
-          email,
-          phone
-        )
-      `)
+      .select('*')
       .eq('customer_id', customerId)
       .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
       .order('created_at', { ascending: false })
@@ -257,9 +250,9 @@ export async function getPortalOffers(
           line_items: lineItems || [],
           signature: signature || null,
           sales_person: {
-            full_name: offer.created_by_profile?.full_name || null,
-            email: offer.created_by_profile?.email || '',
-            phone: offer.created_by_profile?.phone || null,
+            full_name: null,
+            email: '',
+            phone: null,
           },
         }
       })
@@ -289,14 +282,7 @@ export async function getPortalOffer(
 
     const { data: offer, error } = await supabase
       .from('offers')
-      .select(`
-        *,
-        created_by_profile:profiles!offers_created_by_fkey(
-          full_name,
-          email,
-          phone
-        )
-      `)
+      .select('*')
       .eq('id', offerId)
       .eq('customer_id', customerId)
       .single()
@@ -354,9 +340,9 @@ export async function getPortalOffer(
       line_items: lineItems || [],
       signature: signature || null,
       sales_person: {
-        full_name: offer.created_by_profile?.full_name || null,
-        email: offer.created_by_profile?.email || '',
-        phone: offer.created_by_profile?.phone || null,
+        full_name: null,
+        email: '',
+        phone: null,
       },
     }
 

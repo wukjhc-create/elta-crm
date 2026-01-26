@@ -51,8 +51,7 @@ export async function getOffers(filters?: {
       .select(`
         *,
         customer:customers(id, customer_number, company_name, contact_person, email),
-        lead:leads(id, company_name, contact_person, email),
-        created_by_profile:profiles!offers_created_by_fkey(id, full_name, email)
+        lead:leads(id, company_name, contact_person, email)
       `)
 
     // Apply filters to both queries
@@ -123,8 +122,7 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
         *,
         line_items:offer_line_items(*),
         customer:customers(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country),
-        lead:leads(id, company_name, contact_person, email),
-        created_by_profile:profiles!offers_created_by_fkey(id, full_name, email)
+        lead:leads(id, company_name, contact_person, email)
       `)
       .eq('id', id)
       .single()

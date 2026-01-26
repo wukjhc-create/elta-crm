@@ -61,9 +61,7 @@ export async function getProjects(filters?: {
       .from('projects')
       .select(`
         *,
-        customer:customers(id, customer_number, company_name, contact_person, email),
-        project_manager:profiles!projects_project_manager_id_fkey(id, full_name, email),
-        created_by_profile:profiles!projects_created_by_fkey(id, full_name, email)
+        customer:customers(id, customer_number, company_name, contact_person, email)
       `)
 
     // Apply filters to both queries
@@ -144,17 +142,8 @@ export async function getProject(id: string): Promise<ActionResult<ProjectWithRe
         *,
         customer:customers(id, customer_number, company_name, contact_person, email),
         offer:offers(id, offer_number, title),
-        project_manager:profiles!projects_project_manager_id_fkey(id, full_name, email),
-        created_by_profile:profiles!projects_created_by_fkey(id, full_name, email),
-        tasks:project_tasks(
-          *,
-          assigned_to_profile:profiles!project_tasks_assigned_to_fkey(id, full_name, email)
-        ),
-        time_entries(
-          *,
-          user:profiles!time_entries_user_id_fkey(id, full_name, email),
-          task:project_tasks(id, title)
-        )
+        tasks:project_tasks(*),
+        time_entries(*, task:project_tasks(id, title))
       `)
       .eq('id', id)
       .single()
@@ -792,10 +781,7 @@ export async function getProjectTasks(
 
     const { data, error } = await supabase
       .from('project_tasks')
-      .select(`
-        *,
-        assigned_to_profile:profiles!project_tasks_assigned_to_fkey(id, full_name, email)
-      `)
+      .select('*')
       .eq('project_id', projectId)
       .order('position')
 
@@ -822,7 +808,6 @@ export async function getProjectTimeEntries(
       .from('time_entries')
       .select(`
         *,
-        user:profiles!time_entries_user_id_fkey(id, full_name, email),
         task:project_tasks(id, title)
       `)
       .eq('project_id', projectId)

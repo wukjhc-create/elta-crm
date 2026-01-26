@@ -41,8 +41,6 @@ export async function getMessages(
       .from('messages')
       .select(`
         *,
-        from_user:profiles!messages_from_user_id_fkey(id, full_name, email),
-        to_user:profiles!messages_to_user_id_fkey(id, full_name, email),
         lead:leads(id, name, company),
         customer:customers(id, company_name, customer_number),
         project:projects(id, project_number, name)
@@ -116,15 +114,9 @@ export async function getMessage(
       .from('messages')
       .select(`
         *,
-        from_user:profiles!messages_from_user_id_fkey(id, full_name, email),
-        to_user:profiles!messages_to_user_id_fkey(id, full_name, email),
         lead:leads(id, name, company),
         customer:customers(id, company_name, customer_number),
-        project:projects(id, project_number, name),
-        reply_to_message:messages!messages_reply_to_fkey(
-          id, subject, body, created_at,
-          from_user:profiles!messages_from_user_id_fkey(id, full_name, email)
-        )
+        project:projects(id, project_number, name)
       `)
       .eq('id', id)
       .single()
@@ -137,11 +129,7 @@ export async function getMessage(
     // Get replies to this message
     const { data: replies } = await supabase
       .from('messages')
-      .select(`
-        *,
-        from_user:profiles!messages_from_user_id_fkey(id, full_name, email),
-        to_user:profiles!messages_to_user_id_fkey(id, full_name, email)
-      `)
+      .select('*')
       .eq('reply_to', id)
       .order('created_at', { ascending: true })
 

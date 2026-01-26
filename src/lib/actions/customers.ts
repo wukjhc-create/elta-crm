@@ -48,8 +48,7 @@ export async function getCustomers(filters?: {
       .from('customers')
       .select(`
         *,
-        contacts:customer_contacts(*),
-        created_by_profile:profiles!customers_created_by_fkey(id, full_name, email)
+        contacts:customer_contacts(*)
       `)
 
     // Apply filters to both queries
@@ -113,8 +112,7 @@ export async function getCustomer(id: string): Promise<ActionResult<CustomerWith
       .from('customers')
       .select(`
         *,
-        contacts:customer_contacts(*),
-        created_by_profile:profiles!customers_created_by_fkey(id, full_name, email)
+        contacts:customer_contacts(*)
       `)
       .eq('id', id)
       .single()
