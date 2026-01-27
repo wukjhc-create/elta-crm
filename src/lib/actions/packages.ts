@@ -7,7 +7,6 @@ import type {
   PackageSummary,
   PackageItem,
   PackageCategory,
-  PackageFinancialSummary,
 } from '@/types/packages.types'
 import {
   createPackageSchema,
@@ -178,6 +177,9 @@ export async function createPackage(input: CreatePackageInput): Promise<ActionRe
       .from('packages')
       .insert({
         ...validated,
+        default_markup_percentage: validated.default_markup_percentage ?? 25,
+        is_active: validated.is_active ?? true,
+        is_template: validated.is_template ?? false,
         created_by: user.id,
       })
       .select()
@@ -300,22 +302,33 @@ export async function createPackageItem(input: CreatePackageItemInput): Promise<
     // Validate input
     const validated = createPackageItemSchema.parse(input)
 
+    // Set defaults for optional fields
+    const itemData = {
+      ...validated,
+      unit: validated.unit ?? 'stk',
+      cost_price: validated.cost_price ?? 0,
+      sale_price: validated.sale_price ?? 0,
+      time_minutes: validated.time_minutes ?? 0,
+      sort_order: validated.sort_order ?? 0,
+      show_on_offer: validated.show_on_offer ?? true,
+    }
+
     // Get next sort order if not provided
-    if (!validated.sort_order) {
+    if (!itemData.sort_order) {
       const { data: maxOrder } = await supabase
         .from('package_items')
         .select('sort_order')
-        .eq('package_id', validated.package_id)
+        .eq('package_id', itemData.package_id)
         .order('sort_order', { ascending: false })
         .limit(1)
         .single()
 
-      validated.sort_order = (maxOrder?.sort_order || 0) + 1
+      itemData.sort_order = (maxOrder?.sort_order || 0) + 1
     }
 
     const { data, error } = await supabase
       .from('package_items')
-      .insert(validated)
+      .insert(itemData)
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
@@ -477,67 +490,6 @@ export async function insertPackageIntoOffer(
   }
 }
 
-// =====================================================
-// HELPERS
-// =====================================================
-
-export function calculateFinancialSummary(items: PackageItem[]): PackageFinancialSummary {
-  let componentsCost = 0, componentsSale = 0
-  let productsCost = 0, productsSale = 0
-  let manualCost = 0, manualSale = 0
-  let laborCost = 0, laborSale = 0
-  let totalTimeMinutes = 0
-
-  for (const item of items) {
-    switch (item.item_type) {
-      case 'component':
-        componentsCost += item.total_cost
-        componentsSale += item.total_sale
-        break
-      case 'product':
-        productsCost += item.total_cost
-        productsSale += item.total_sale
-        break
-      case 'time':
-        laborCost += item.total_cost
-        laborSale += item.total_sale
-        break
-      default:
-        manualCost += item.total_cost
-        manualSale += item.total_sale
-    }
-    totalTimeMinutes += item.total_time
-  }
-
-  const totalCost = componentsCost + productsCost + manualCost + laborCost
-  const totalSale = componentsSale + productsSale + manualSale + laborSale
-  const dbAmount = totalSale - totalCost
-  const dbPercentage = totalSale > 0 ? (dbAmount / totalSale) * 100 : 0
-
-  // Format time
-  const hours = Math.floor(totalTimeMinutes / 60)
-  const mins = totalTimeMinutes % 60
-  const totalTimeFormatted = hours > 0
-    ? `${hours}t ${mins}m`
-    : `${mins}m`
-
-  return {
-    totalCost,
-    totalSale,
-    dbAmount,
-    dbPercentage,
-    totalTimeMinutes,
-    totalTimeFormatted,
-    componentsCost,
-    componentsSale,
-    productsCost,
-    productsSale,
-    manualCost,
-    manualSale,
-    laborCost,
-    laborSale,
-  }
-}
 
 // Get components for picker
 export async function getComponentsForPicker(): Promise<ActionResult<{
@@ -574,12 +526,18 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
           .eq('component_id', comp.id)
           .order('sort_order')
 
+        // Handle category which could be an array or object
+        const category = comp.category as unknown as { name: string } | { name: string }[] | null
+        const categoryName = Array.isArray(category)
+          ? category[0]?.name || ''
+          : category?.name || ''
+
         return {
           id: comp.id,
           code: comp.code,
           name: comp.name,
           base_time_minutes: comp.base_time_minutes,
-          category_name: (comp.category as { name: string } | null)?.name || '',
+          category_name: categoryName,
           variants: variants || [],
         }
       })
@@ -621,14 +579,22 @@ export async function getProductsForPicker(): Promise<ActionResult<{
 
     return {
       success: true,
-      data: (data || []).map(p => ({
-        id: p.id,
-        sku: p.sku,
-        name: p.name,
-        cost_price: p.cost_price,
-        list_price: p.list_price,
-        category_name: (p.category as { name: string } | null)?.name || '',
-      }))
+      data: (data || []).map(p => {
+        // Handle category which could be an array or object
+        const category = p.category as unknown as { name: string } | { name: string }[] | null
+        const categoryName = Array.isArray(category)
+          ? category[0]?.name || ''
+          : category?.name || ''
+
+        return {
+          id: p.id,
+          sku: p.sku,
+          name: p.name,
+          cost_price: p.cost_price,
+          list_price: p.list_price,
+          category_name: categoryName,
+        }
+      })
     }
   } catch (err) {
     console.error('Error fetching products for picker:', err)

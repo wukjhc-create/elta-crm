@@ -9,9 +9,9 @@ export const createPackageSchema = z.object({
   code: z.string().max(50).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
   category_id: z.string().uuid().optional().nullable(),
-  default_markup_percentage: z.coerce.number().min(0).max(100).default(25),
-  is_active: z.boolean().default(true),
-  is_template: z.boolean().default(false),
+  default_markup_percentage: z.coerce.number().min(0).max(100).optional(),
+  is_active: z.boolean().optional(),
+  is_template: z.boolean().optional(),
 })
 
 export type CreatePackageInput = z.infer<typeof createPackageSchema>
@@ -32,12 +32,12 @@ export const createPackageItemSchema = z.object({
   product_id: z.string().uuid().optional().nullable(),
   description: z.string().min(1, 'Beskrivelse er påkrævet').max(500),
   quantity: z.coerce.number().min(0.01, 'Antal skal være mindst 0.01'),
-  unit: z.string().max(20).default('stk'),
-  cost_price: z.coerce.number().min(0).default(0),
-  sale_price: z.coerce.number().min(0).default(0),
-  time_minutes: z.coerce.number().min(0).default(0),
-  sort_order: z.coerce.number().int().default(0),
-  show_on_offer: z.boolean().default(true),
+  unit: z.string().max(20).optional(),
+  cost_price: z.coerce.number().min(0).optional(),
+  sale_price: z.coerce.number().min(0).optional(),
+  time_minutes: z.coerce.number().min(0).optional(),
+  sort_order: z.coerce.number().int().optional(),
+  show_on_offer: z.boolean().optional(),
   notes: z.string().max(500).optional().nullable(),
 })
 
