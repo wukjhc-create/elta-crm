@@ -113,6 +113,22 @@ const settingsCards = [
       />
     ),
   },
+  {
+    href: '/dashboard/settings/components',
+    title: 'Komponenter',
+    subtitle: 'El-komponenter',
+    description: 'Administrer el-komponenter, tidsnormer, varianter og materialer til kalkulationer',
+    iconBg: 'bg-yellow-100',
+    iconColor: 'text-yellow-600',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M13 10V3L4 14h7v7l9-11h-7z"
+      />
+    ),
+  },
 ]
 
 export default function SettingsPage() {
