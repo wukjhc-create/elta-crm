@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { ActionResult } from '@/types/common.types'
 import type {
   Package,
   PackageSummary,
@@ -18,11 +19,43 @@ import {
   type CreatePackageItemInput,
   type UpdatePackageItemInput,
 } from '@/lib/validations/packages'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
+import { ZodError } from 'zod'
 
-interface ActionResult<T> {
-  success: boolean
-  data?: T
-  error?: string
+// =====================================================
+// HELPER FUNCTIONS
+// =====================================================
+
+/**
+ * Ensures user is authenticated and returns user ID
+ * @throws Error if not authenticated
+ */
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
+
+/**
+ * Formats error messages for user display
+ */
+function formatError(err: unknown, defaultMessage: string): string {
+  if (err instanceof Error) {
+    if (err.message === 'AUTH_REQUIRED') {
+      return 'Du skal være logget ind'
+    }
+    if (err.message.startsWith('Ugyldig')) {
+      return err.message
+    }
+  }
+  if (err instanceof ZodError) {
+    const firstError = err.errors[0]
+    return firstError?.message || 'Ugyldig input'
+  }
+  console.error(`${defaultMessage}:`, err)
+  return defaultMessage
 }
 
 // =====================================================
@@ -31,6 +64,7 @@ interface ActionResult<T> {
 
 export async function getPackageCategories(): Promise<ActionResult<PackageCategory[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -39,12 +73,14 @@ export async function getPackageCategories(): Promise<ActionResult<PackageCatego
       .eq('is_active', true)
       .order('sort_order')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching package categories:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data || [] }
   } catch (err) {
-    console.error('Error fetching package categories:', err)
-    return { success: false, error: 'Kunne ikke hente kategorier' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente kategorier') }
   }
 }
 
@@ -58,7 +94,13 @@ export async function getPackages(filters?: {
   search?: string
 }): Promise<ActionResult<PackageSummary[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
+
+    // Validate optional category_id
+    if (filters?.category_id) {
+      validateUUID(filters.category_id, 'kategori ID')
+    }
 
     let query = supabase
       .from('v_packages_summary')
@@ -66,14 +108,21 @@ export async function getPackages(filters?: {
       .order('name')
 
     if (filters?.category_id) {
-      // Need to filter by category differently since it's from join
-      const { data: packages } = await supabase
+      const { data: packages, error: pkgError } = await supabase
         .from('packages')
         .select('id')
         .eq('category_id', filters.category_id)
 
-      if (packages) {
+      if (pkgError) {
+        console.error('Database error filtering by category:', pkgError)
+        throw new Error('DATABASE_ERROR')
+      }
+
+      if (packages && packages.length > 0) {
         query = query.in('id', packages.map(p => p.id))
+      } else {
+        // No packages in this category
+        return { success: true, data: [] }
       }
     }
 
@@ -82,22 +131,30 @@ export async function getPackages(filters?: {
     }
 
     if (filters?.search) {
-      query = query.or(`name.ilike.%${filters.search}%,code.ilike.%${filters.search}%`)
+      const sanitized = sanitizeSearchTerm(filters.search)
+      if (sanitized) {
+        query = query.or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`)
+      }
     }
 
     const { data, error } = await query
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching packages:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data || [] }
   } catch (err) {
-    console.error('Error fetching packages:', err)
-    return { success: false, error: 'Kunne ikke hente pakker' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente pakker') }
   }
 }
 
 export async function getPackage(id: string): Promise<ActionResult<Package>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'pakke ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -109,18 +166,29 @@ export async function getPackage(id: string): Promise<ActionResult<Package>> {
       .eq('id', id)
       .single()
 
-    if (error) throw error
-    if (!data) return { success: false, error: 'Pakke ikke fundet' }
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Pakken blev ikke fundet' }
+      }
+      console.error('Database error fetching package:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Pakken blev ikke fundet' }
+    }
 
     return { success: true, data: data as Package }
   } catch (err) {
-    console.error('Error fetching package:', err)
-    return { success: false, error: 'Kunne ikke hente pakke' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente pakke') }
   }
 }
 
 export async function getPackageWithItems(id: string): Promise<ActionResult<Package & { items: PackageItem[] }>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'pakke ID')
+
     const supabase = await createClient()
 
     // Get package
@@ -133,8 +201,17 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
       .eq('id', id)
       .single()
 
-    if (pkgError) throw pkgError
-    if (!pkg) return { success: false, error: 'Pakke ikke fundet' }
+    if (pkgError) {
+      if (pkgError.code === 'PGRST116') {
+        return { success: false, error: 'Pakken blev ikke fundet' }
+      }
+      console.error('Database error fetching package:', pkgError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!pkg) {
+      return { success: false, error: 'Pakken blev ikke fundet' }
+    }
 
     // Get items with relations
     const { data: items, error: itemsError } = await supabase
@@ -147,7 +224,10 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
       .eq('package_id', id)
       .order('sort_order')
 
-    if (itemsError) throw itemsError
+    if (itemsError) {
+      console.error('Database error fetching package items:', itemsError)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return {
       success: true,
@@ -157,21 +237,22 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
       } as Package & { items: PackageItem[] }
     }
   } catch (err) {
-    console.error('Error fetching package with items:', err)
-    return { success: false, error: 'Kunne ikke hente pakke' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente pakke med elementer') }
   }
 }
 
 export async function createPackage(input: CreatePackageInput): Promise<ActionResult<Package>> {
   try {
+    const userId = await requireAuth()
     const supabase = await createClient()
 
     // Validate input
     const validated = createPackageSchema.parse(input)
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { success: false, error: 'Ikke logget ind' }
+    // Validate optional category_id
+    if (validated.category_id) {
+      validateUUID(validated.category_id, 'kategori ID')
+    }
 
     const { data, error } = await supabase
       .from('packages')
@@ -180,27 +261,38 @@ export async function createPackage(input: CreatePackageInput): Promise<ActionRe
         default_markup_percentage: validated.default_markup_percentage ?? 25,
         is_active: validated.is_active ?? true,
         is_template: validated.is_template ?? false,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === '23505') {
+        return { success: false, error: 'En pakke med dette navn eller kode findes allerede' }
+      }
+      console.error('Database error creating package:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/packages')
     return { success: true, data: data as Package }
   } catch (err) {
-    console.error('Error creating package:', err)
-    return { success: false, error: 'Kunne ikke oprette pakke' }
+    return { success: false, error: formatError(err, 'Kunne ikke oprette pakke') }
   }
 }
 
 export async function updatePackage(input: UpdatePackageInput): Promise<ActionResult<Package>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
-    // Validate input
+    // Validate input (includes id validation)
     const { id, ...validated } = updatePackageSchema.parse(input)
+
+    // Validate optional category_id
+    if (validated.category_id) {
+      validateUUID(validated.category_id, 'kategori ID')
+    }
 
     const { data, error } = await supabase
       .from('packages')
@@ -209,19 +301,30 @@ export async function updatePackage(input: UpdatePackageInput): Promise<ActionRe
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Pakken blev ikke fundet' }
+      }
+      if (error.code === '23505') {
+        return { success: false, error: 'En pakke med dette navn eller kode findes allerede' }
+      }
+      console.error('Database error updating package:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/packages')
     revalidatePath(`/dashboard/packages/${id}`)
     return { success: true, data: data as Package }
   } catch (err) {
-    console.error('Error updating package:', err)
-    return { success: false, error: 'Kunne ikke opdatere pakke' }
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere pakke') }
   }
 }
 
 export async function deletePackage(id: string): Promise<ActionResult<void>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'pakke ID')
+
     const supabase = await createClient()
 
     const { error } = await supabase
@@ -229,13 +332,18 @@ export async function deletePackage(id: string): Promise<ActionResult<void>> {
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      if (error.code === '23503') {
+        return { success: false, error: 'Pakken kan ikke slettes da den bruges i kalkulationer eller tilbud' }
+      }
+      console.error('Database error deleting package:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/packages')
     return { success: true }
   } catch (err) {
-    console.error('Error deleting package:', err)
-    return { success: false, error: 'Kunne ikke slette pakke' }
+    return { success: false, error: formatError(err, 'Kunne ikke slette pakke') }
   }
 }
 
@@ -245,6 +353,9 @@ export async function copyPackage(
   newCode?: string
 ): Promise<ActionResult<Package>> {
   try {
+    await requireAuth()
+    validateUUID(sourceId, 'kilde pakke ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -254,17 +365,25 @@ export async function copyPackage(
         p_new_code: newCode || null,
       })
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error copying package:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Kunne ikke kopiere pakken' }
+    }
 
     // Fetch the new package
     const result = await getPackage(data as string)
-    if (!result.success) return result
+    if (!result.success) {
+      return { success: false, error: 'Pakken blev kopieret, men kunne ikke hentes' }
+    }
 
     revalidatePath('/dashboard/packages')
     return result
   } catch (err) {
-    console.error('Error copying package:', err)
-    return { success: false, error: 'Kunne ikke kopiere pakke' }
+    return { success: false, error: formatError(err, 'Kunne ikke kopiere pakke') }
   }
 }
 
@@ -274,6 +393,9 @@ export async function copyPackage(
 
 export async function getPackageItems(packageId: string): Promise<ActionResult<PackageItem[]>> {
   try {
+    await requireAuth()
+    validateUUID(packageId, 'pakke ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -286,21 +408,32 @@ export async function getPackageItems(packageId: string): Promise<ActionResult<P
       .eq('package_id', packageId)
       .order('sort_order')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching package items:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as PackageItem[] }
   } catch (err) {
-    console.error('Error fetching package items:', err)
-    return { success: false, error: 'Kunne ikke hente pakke elementer' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente pakke elementer') }
   }
 }
 
 export async function createPackageItem(input: CreatePackageItemInput): Promise<ActionResult<PackageItem>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
-    // Validate input
+    // Validate input (includes package_id validation)
     const validated = createPackageItemSchema.parse(input)
+
+    // Validate optional foreign keys
+    if (validated.component_id) {
+      validateUUID(validated.component_id, 'komponent ID')
+    }
+    if (validated.product_id) {
+      validateUUID(validated.product_id, 'produkt ID')
+    }
 
     // Set defaults for optional fields
     const itemData = {
@@ -336,22 +469,36 @@ export async function createPackageItem(input: CreatePackageItemInput): Promise<
       `)
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === '23503') {
+        return { success: false, error: 'Ugyldig pakke, komponent eller produkt reference' }
+      }
+      console.error('Database error creating package item:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/packages/${validated.package_id}`)
     return { success: true, data: data as PackageItem }
   } catch (err) {
-    console.error('Error creating package item:', err)
-    return { success: false, error: 'Kunne ikke tilføje element' }
+    return { success: false, error: formatError(err, 'Kunne ikke tilføje element') }
   }
 }
 
 export async function updatePackageItem(input: UpdatePackageItemInput): Promise<ActionResult<PackageItem>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
-    // Validate input
+    // Validate input (includes id validation)
     const { id, ...validated } = updatePackageItemSchema.parse(input)
+
+    // Validate optional foreign keys
+    if (validated.component_id) {
+      validateUUID(validated.component_id, 'komponent ID')
+    }
+    if (validated.product_id) {
+      validateUUID(validated.product_id, 'produkt ID')
+    }
 
     const { data, error } = await supabase
       .from('package_items')
@@ -364,41 +511,62 @@ export async function updatePackageItem(input: UpdatePackageItemInput): Promise<
       `)
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Element blev ikke fundet' }
+      }
+      if (error.code === '23503') {
+        return { success: false, error: 'Ugyldig komponent eller produkt reference' }
+      }
+      console.error('Database error updating package item:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/packages/${data.package_id}`)
     return { success: true, data: data as PackageItem }
   } catch (err) {
-    console.error('Error updating package item:', err)
-    return { success: false, error: 'Kunne ikke opdatere element' }
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere element') }
   }
 }
 
 export async function deletePackageItem(id: string): Promise<ActionResult<void>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'element ID')
+
     const supabase = await createClient()
 
     // Get package_id first for revalidation
-    const { data: item } = await supabase
+    const { data: item, error: fetchError } = await supabase
       .from('package_items')
       .select('package_id')
       .eq('id', id)
       .single()
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return { success: false, error: 'Element blev ikke fundet' }
+      }
+      console.error('Database error fetching package item:', fetchError)
+      throw new Error('DATABASE_ERROR')
+    }
 
     const { error } = await supabase
       .from('package_items')
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error deleting package item:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     if (item) {
       revalidatePath(`/dashboard/packages/${item.package_id}`)
     }
     return { success: true }
   } catch (err) {
-    console.error('Error deleting package item:', err)
-    return { success: false, error: 'Kunne ikke slette element' }
+    return { success: false, error: formatError(err, 'Kunne ikke slette element') }
   }
 }
 
@@ -407,24 +575,34 @@ export async function reorderPackageItems(
   itemIds: string[]
 ): Promise<ActionResult<void>> {
   try {
+    await requireAuth()
+    validateUUID(packageId, 'pakke ID')
+
+    // Validate all item IDs
+    itemIds.forEach((id, index) => {
+      validateUUID(id, `element ID [${index}]`)
+    })
+
     const supabase = await createClient()
 
-    // Update each item's sort_order
-    const updates = itemIds.map((id, index) =>
-      supabase
+    // Update each item's sort_order sequentially to avoid race conditions
+    for (let index = 0; index < itemIds.length; index++) {
+      const { error } = await supabase
         .from('package_items')
         .update({ sort_order: index + 1 })
-        .eq('id', id)
+        .eq('id', itemIds[index])
         .eq('package_id', packageId)
-    )
 
-    await Promise.all(updates)
+      if (error) {
+        console.error('Database error reordering package item:', error)
+        throw new Error('DATABASE_ERROR')
+      }
+    }
 
     revalidatePath(`/dashboard/packages/${packageId}`)
     return { success: true }
   } catch (err) {
-    console.error('Error reordering package items:', err)
-    return { success: false, error: 'Kunne ikke ændre rækkefølge' }
+    return { success: false, error: formatError(err, 'Kunne ikke ændre rækkefølge') }
   }
 }
 
@@ -441,6 +619,10 @@ export async function insertPackageIntoCalculation(
   }
 ): Promise<ActionResult<{ insertedCount: number }>> {
   try {
+    await requireAuth()
+    validateUUID(packageId, 'pakke ID')
+    validateUUID(calculationId, 'kalkulation ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -451,13 +633,15 @@ export async function insertPackageIntoCalculation(
         p_quantity_multiplier: options?.quantityMultiplier || 1,
       })
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error inserting package into calculation:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/calculations/${calculationId}`)
     return { success: true, data: { insertedCount: data as number } }
   } catch (err) {
-    console.error('Error inserting package into calculation:', err)
-    return { success: false, error: 'Kunne ikke indsætte pakke i kalkulation' }
+    return { success: false, error: formatError(err, 'Kunne ikke indsætte pakke i kalkulation') }
   }
 }
 
@@ -470,6 +654,10 @@ export async function insertPackageIntoOffer(
   }
 ): Promise<ActionResult<{ insertedCount: number }>> {
   try {
+    await requireAuth()
+    validateUUID(packageId, 'pakke ID')
+    validateUUID(offerId, 'tilbud ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -480,18 +668,22 @@ export async function insertPackageIntoOffer(
         p_quantity_multiplier: options?.quantityMultiplier || 1,
       })
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error inserting package into offer:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/offers/${offerId}`)
     return { success: true, data: { insertedCount: data as number } }
   } catch (err) {
-    console.error('Error inserting package into offer:', err)
-    return { success: false, error: 'Kunne ikke indsætte pakke i tilbud' }
+    return { success: false, error: formatError(err, 'Kunne ikke indsætte pakke i tilbud') }
   }
 }
 
+// =====================================================
+// PICKER FUNCTIONS
+// =====================================================
 
-// Get components for picker
 export async function getComponentsForPicker(): Promise<ActionResult<{
   id: string
   code: string
@@ -501,6 +693,7 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
   variants: { code: string; name: string }[]
 }[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data: components, error } = await supabase
@@ -515,16 +708,27 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
       .eq('is_active', true)
       .order('code')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching components for picker:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!components || components.length === 0) {
+      return { success: true, data: [] }
+    }
 
     // Get variants for each component
     const result = await Promise.all(
-      (components || []).map(async (comp) => {
-        const { data: variants } = await supabase
+      components.map(async (comp) => {
+        const { data: variants, error: varError } = await supabase
           .from('calc_component_variants')
           .select('code, name')
           .eq('component_id', comp.id)
           .order('sort_order')
+
+        if (varError) {
+          console.error('Database error fetching variants:', varError)
+        }
 
         // Handle category which could be an array or object
         const category = comp.category as unknown as { name: string } | { name: string }[] | null
@@ -545,12 +749,10 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
 
     return { success: true, data: result }
   } catch (err) {
-    console.error('Error fetching components for picker:', err)
-    return { success: false, error: 'Kunne ikke hente komponenter' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente komponenter') }
   }
 }
 
-// Get products for picker
 export async function getProductsForPicker(): Promise<ActionResult<{
   id: string
   sku: string | null
@@ -560,6 +762,7 @@ export async function getProductsForPicker(): Promise<ActionResult<{
   category_name: string
 }[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -575,11 +778,18 @@ export async function getProductsForPicker(): Promise<ActionResult<{
       .eq('is_active', true)
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching products for picker:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data || data.length === 0) {
+      return { success: true, data: [] }
+    }
 
     return {
       success: true,
-      data: (data || []).map(p => {
+      data: data.map(p => {
         // Handle category which could be an array or object
         const category = p.category as unknown as { name: string } | { name: string }[] | null
         const categoryName = Array.isArray(category)
@@ -597,7 +807,6 @@ export async function getProductsForPicker(): Promise<ActionResult<{
       })
     }
   } catch (err) {
-    console.error('Error fetching products for picker:', err)
-    return { success: false, error: 'Kunne ikke hente produkter' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente produkter') }
   }
 }

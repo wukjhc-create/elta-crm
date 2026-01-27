@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { ActionResult } from '@/types/common.types'
 import type {
   CalculationSetting,
   CalculationSettings,
@@ -9,11 +10,31 @@ import type {
   RoomType,
   CalculationSummary,
 } from '@/types/calculation-settings.types'
+import { validateUUID } from '@/lib/validations/common'
 
-interface ActionResult<T> {
-  success: boolean
-  data?: T
-  error?: string
+// =====================================================
+// Helper Functions
+// =====================================================
+
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
+
+function formatError(err: unknown, defaultMessage: string): string {
+  if (err instanceof Error) {
+    if (err.message === 'AUTH_REQUIRED') {
+      return 'Du skal være logget ind'
+    }
+    if (err.message.startsWith('Ugyldig')) {
+      return err.message
+    }
+  }
+  console.error(`${defaultMessage}:`, err)
+  return defaultMessage
 }
 
 // =====================================================
@@ -22,6 +43,7 @@ interface ActionResult<T> {
 
 export async function getCalculationSettings(): Promise<ActionResult<CalculationSettings>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -29,7 +51,10 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
       .select('*')
       .order('setting_key')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching calculation settings:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     // Parse settings into structured format
     const settings: CalculationSettings = {
@@ -125,13 +150,13 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
 
     return { success: true, data: settings }
   } catch (err) {
-    console.error('Error fetching calculation settings:', err)
-    return { success: false, error: 'Kunne ikke hente indstillinger' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente indstillinger') }
   }
 }
 
 export async function getAllSettings(): Promise<ActionResult<CalculationSetting[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -140,12 +165,14 @@ export async function getAllSettings(): Promise<ActionResult<CalculationSetting[
       .order('category')
       .order('setting_key')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching all settings:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as CalculationSetting[] }
   } catch (err) {
-    console.error('Error fetching all settings:', err)
-    return { success: false, error: 'Kunne ikke hente indstillinger' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente indstillinger') }
   }
 }
 
@@ -154,28 +181,36 @@ export async function updateSetting(
   value: Record<string, unknown>
 ): Promise<ActionResult<CalculationSetting>> {
   try {
-    const supabase = await createClient()
+    const userId = await requireAuth()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { success: false, error: 'Ikke logget ind' }
+    if (!settingKey || settingKey.trim().length === 0) {
+      return { success: false, error: 'Indstillingsnøgle er påkrævet' }
+    }
+
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('calculation_settings')
       .update({
         setting_value: value,
-        updated_by: user.id,
+        updated_by: userId,
       })
       .eq('setting_key', settingKey)
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Indstillingen blev ikke fundet' }
+      }
+      console.error('Database error updating setting:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/calculation')
     return { success: true, data: data as CalculationSetting }
   } catch (err) {
-    console.error('Error updating setting:', err)
-    return { success: false, error: 'Kunne ikke opdatere indstilling' }
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere indstilling') }
   }
 }
 
@@ -183,6 +218,10 @@ export async function updateHourlyRate(
   type: 'electrician' | 'apprentice' | 'master' | 'helper',
   rate: number
 ): Promise<ActionResult<void>> {
+  if (typeof rate !== 'number' || rate < 0) {
+    return { success: false, error: 'Ugyldig timesats' }
+  }
+
   const keyMap = {
     electrician: 'hourly_rate_electrician',
     apprentice: 'hourly_rate_apprentice',
@@ -205,6 +244,10 @@ export async function updateMargin(
   type: 'materials' | 'products' | 'subcontractor' | 'default_db_target' | 'minimum_db',
   percentage: number
 ): Promise<ActionResult<void>> {
+  if (typeof percentage !== 'number' || percentage < 0 || percentage > 100) {
+    return { success: false, error: 'Ugyldig procentværdi (0-100)' }
+  }
+
   const keyMap = {
     materials: 'margin_materials',
     products: 'margin_products',
@@ -231,6 +274,7 @@ export async function updateMargin(
 
 export async function getProjectTemplates(): Promise<ActionResult<ProjectTemplate[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -239,17 +283,22 @@ export async function getProjectTemplates(): Promise<ActionResult<ProjectTemplat
       .eq('is_active', true)
       .order('sort_order')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching project templates:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as ProjectTemplate[] }
   } catch (err) {
-    console.error('Error fetching project templates:', err)
-    return { success: false, error: 'Kunne ikke hente projektskabeloner' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente projektskabeloner') }
   }
 }
 
 export async function getProjectTemplate(id: string): Promise<ActionResult<ProjectTemplate>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'skabelon ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -258,13 +307,21 @@ export async function getProjectTemplate(id: string): Promise<ActionResult<Proje
       .eq('id', id)
       .single()
 
-    if (error) throw error
-    if (!data) return { success: false, error: 'Skabelon ikke fundet' }
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Skabelonen blev ikke fundet' }
+      }
+      console.error('Database error fetching project template:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Skabelonen blev ikke fundet' }
+    }
 
     return { success: true, data: data as ProjectTemplate }
   } catch (err) {
-    console.error('Error fetching project template:', err)
-    return { success: false, error: 'Kunne ikke hente projektskabelon' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente projektskabelon') }
   }
 }
 
@@ -274,6 +331,7 @@ export async function getProjectTemplate(id: string): Promise<ActionResult<Proje
 
 export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -282,32 +340,48 @@ export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
       .eq('is_active', true)
       .order('sort_order')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching room types:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as RoomType[] }
   } catch (err) {
-    console.error('Error fetching room types:', err)
-    return { success: false, error: 'Kunne ikke hente rumtyper' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente rumtyper') }
   }
 }
 
 export async function getRoomType(code: string): Promise<ActionResult<RoomType>> {
   try {
+    await requireAuth()
+
+    if (!code || code.trim().length === 0) {
+      return { success: false, error: 'Rumtype kode er påkrævet' }
+    }
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('room_types')
       .select('*')
-      .eq('code', code)
+      .eq('code', code.trim())
       .single()
 
-    if (error) throw error
-    if (!data) return { success: false, error: 'Rumtype ikke fundet' }
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Rumtypen blev ikke fundet' }
+      }
+      console.error('Database error fetching room type:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Rumtypen blev ikke fundet' }
+    }
 
     return { success: true, data: data as RoomType }
   } catch (err) {
-    console.error('Error fetching room type:', err)
-    return { success: false, error: 'Kunne ikke hente rumtype' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente rumtype') }
   }
 }
 
@@ -317,6 +391,9 @@ export async function getRoomType(code: string): Promise<ActionResult<RoomType>>
 
 export async function calculateTotals(calculationId: string): Promise<ActionResult<CalculationSummary>> {
   try {
+    await requireAuth()
+    validateUUID(calculationId, 'kalkulation ID')
+
     const supabase = await createClient()
 
     // Call the database function
@@ -324,7 +401,14 @@ export async function calculateTotals(calculationId: string): Promise<ActionResu
       .rpc('calculate_calculation_totals', { p_calculation_id: calculationId })
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error calculating totals:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Kunne ikke beregne totaler' }
+    }
 
     const result = data as {
       total_time_minutes: number
@@ -342,7 +426,7 @@ export async function calculateTotals(calculationId: string): Promise<ActionResu
     const totalTimeFormatted = hours > 0 ? `${hours}t ${mins}m` : `${mins}m`
 
     // Update the calculation with the new totals
-    await supabase
+    const { error: updateError } = await supabase
       .from('calculations')
       .update({
         total_time_minutes: result.total_time_minutes,
@@ -354,6 +438,11 @@ export async function calculateTotals(calculationId: string): Promise<ActionResu
         db_percentage: result.db_percentage,
       })
       .eq('id', calculationId)
+
+    if (updateError) {
+      console.error('Database error updating calculation totals:', updateError)
+      // Don't throw - we still have valid results
+    }
 
     return {
       success: true,
@@ -369,8 +458,7 @@ export async function calculateTotals(calculationId: string): Promise<ActionResu
       },
     }
   } catch (err) {
-    console.error('Error calculating totals:', err)
-    return { success: false, error: 'Kunne ikke beregne totaler' }
+    return { success: false, error: formatError(err, 'Kunne ikke beregne totaler') }
   }
 }
 
@@ -391,6 +479,7 @@ export async function getComponentsWithPricing(): Promise<ActionResult<{
   variants: { code: string; name: string; time_multiplier: number; extra_minutes: number }[]
 }[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data: components, error } = await supabase
@@ -409,16 +498,27 @@ export async function getComponentsWithPricing(): Promise<ActionResult<{
       .eq('is_active', true)
       .order('code')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching components with pricing:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!components || components.length === 0) {
+      return { success: true, data: [] }
+    }
 
     // Get variants for each component
     const result = await Promise.all(
-      (components || []).map(async (comp) => {
-        const { data: variants } = await supabase
+      components.map(async (comp) => {
+        const { data: variants, error: varError } = await supabase
           .from('calc_component_variants')
           .select('code, name, time_multiplier, extra_minutes')
           .eq('component_id', comp.id)
           .order('sort_order')
+
+        if (varError) {
+          console.error('Database error fetching variants:', varError)
+        }
 
         const category = comp.category as unknown as { name: string } | { name: string }[] | null
         const categoryName = Array.isArray(category)
@@ -447,7 +547,6 @@ export async function getComponentsWithPricing(): Promise<ActionResult<{
 
     return { success: true, data: result }
   } catch (err) {
-    console.error('Error fetching components with pricing:', err)
-    return { success: false, error: 'Kunne ikke hente komponenter' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente komponenter') }
   }
 }

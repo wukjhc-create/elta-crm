@@ -1,13 +1,9 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-
-interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-}
+import type { ActionResult } from '@/types/common.types'
+import { validateUUID } from '@/lib/validations/common'
 
 // =====================================================
 // Types
@@ -85,11 +81,37 @@ export interface ComponentWithDetails extends Component {
 }
 
 // =====================================================
+// Helper Functions
+// =====================================================
+
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
+
+function formatError(err: unknown, defaultMessage: string): string {
+  if (err instanceof Error) {
+    if (err.message === 'AUTH_REQUIRED') {
+      return 'Du skal være logget ind'
+    }
+    if (err.message.startsWith('Ugyldig')) {
+      return err.message
+    }
+  }
+  console.error(`${defaultMessage}:`, err)
+  return defaultMessage
+}
+
+// =====================================================
 // Get Categories
 // =====================================================
 
 export async function getComponentCategories(): Promise<ActionResult<ComponentCategory[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -97,12 +119,14 @@ export async function getComponentCategories(): Promise<ActionResult<ComponentCa
       .select('*')
       .order('sort_order')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching component categories:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as ComponentCategory[] }
   } catch (err) {
-    console.error('Error fetching component categories:', err)
-    return { success: false, error: 'Kunne ikke hente kategorier' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente kategorier') }
   }
 }
 
@@ -112,6 +136,7 @@ export async function getComponentCategories(): Promise<ActionResult<ComponentCa
 
 export async function getComponents(): Promise<ActionResult<Component[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -123,17 +148,20 @@ export async function getComponents(): Promise<ActionResult<Component[]>> {
       .eq('is_active', true)
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching components:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as Component[] }
   } catch (err) {
-    console.error('Error fetching components:', err)
-    return { success: false, error: 'Kunne ikke hente komponenter' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente komponenter') }
   }
 }
 
 export async function getComponentsByCategory(categorySlug?: string): Promise<ActionResult<Component[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     let query = supabase
@@ -146,25 +174,35 @@ export async function getComponentsByCategory(categorySlug?: string): Promise<Ac
       .order('name')
 
     if (categorySlug) {
-      const { data: category } = await supabase
+      const { data: category, error: catError } = await supabase
         .from('calc_component_categories')
         .select('id')
         .eq('slug', categorySlug)
         .single()
 
+      if (catError && catError.code !== 'PGRST116') {
+        console.error('Database error fetching category:', catError)
+        throw new Error('DATABASE_ERROR')
+      }
+
       if (category) {
         query = query.eq('category_id', category.id)
+      } else {
+        // No category found, return empty list
+        return { success: true, data: [] }
       }
     }
 
     const { data, error } = await query
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching components:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as Component[] }
   } catch (err) {
-    console.error('Error fetching components by category:', err)
-    return { success: false, error: 'Kunne ikke hente komponenter' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente komponenter') }
   }
 }
 
@@ -174,6 +212,9 @@ export async function getComponentsByCategory(categorySlug?: string): Promise<Ac
 
 export async function getComponentWithDetails(id: string): Promise<ActionResult<ComponentWithDetails>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'komponent ID')
+
     const supabase = await createClient()
 
     // Get component
@@ -186,7 +227,17 @@ export async function getComponentWithDetails(id: string): Promise<ActionResult<
       .eq('id', id)
       .single()
 
-    if (compError) throw compError
+    if (compError) {
+      if (compError.code === 'PGRST116') {
+        return { success: false, error: 'Komponenten blev ikke fundet' }
+      }
+      console.error('Database error fetching component:', compError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!component) {
+      return { success: false, error: 'Komponenten blev ikke fundet' }
+    }
 
     // Get variants
     const { data: variants, error: varError } = await supabase
@@ -195,7 +246,10 @@ export async function getComponentWithDetails(id: string): Promise<ActionResult<
       .eq('component_id', id)
       .order('sort_order')
 
-    if (varError) throw varError
+    if (varError) {
+      console.error('Database error fetching variants:', varError)
+      throw new Error('DATABASE_ERROR')
+    }
 
     // Get materials
     const { data: materials, error: matError } = await supabase
@@ -204,7 +258,10 @@ export async function getComponentWithDetails(id: string): Promise<ActionResult<
       .eq('component_id', id)
       .order('sort_order')
 
-    if (matError) throw matError
+    if (matError) {
+      console.error('Database error fetching materials:', matError)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return {
       success: true,
@@ -215,8 +272,7 @@ export async function getComponentWithDetails(id: string): Promise<ActionResult<
       } as ComponentWithDetails,
     }
   } catch (err) {
-    console.error('Error fetching component details:', err)
-    return { success: false, error: 'Kunne ikke hente komponent' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente komponent') }
   }
 }
 
@@ -237,6 +293,9 @@ export async function updateComponent(
   }
 ): Promise<ActionResult<Component>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'komponent ID')
+
     const supabase = await createClient()
 
     const { data: updated, error } = await supabase
@@ -246,15 +305,20 @@ export async function updateComponent(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Komponenten blev ikke fundet' }
+      }
+      console.error('Database error updating component:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/components')
     revalidatePath(`/dashboard/settings/components/${id}`)
 
     return { success: true, data: updated as Component }
   } catch (err) {
-    console.error('Error updating component:', err)
-    return { success: false, error: 'Kunne ikke opdatere komponent' }
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere komponent') }
   }
 }
 
@@ -275,33 +339,50 @@ export async function createVariant(
   }
 ): Promise<ActionResult<ComponentVariant>> {
   try {
+    await requireAuth()
+    validateUUID(componentId, 'komponent ID')
+
+    if (!data.name || data.name.trim().length === 0) {
+      return { success: false, error: 'Navn er påkrævet' }
+    }
+
     const supabase = await createClient()
 
     // Get next sort order
-    const { data: existing } = await supabase
+    const { data: existing, error: orderError } = await supabase
       .from('calc_component_variants')
       .select('sort_order')
       .eq('component_id', componentId)
       .order('sort_order', { ascending: false })
       .limit(1)
 
+    if (orderError) {
+      console.error('Database error fetching sort order:', orderError)
+      throw new Error('DATABASE_ERROR')
+    }
+
     const nextSortOrder = existing && existing.length > 0 ? existing[0].sort_order + 1 : 0
 
     // If this is set as default, unset other defaults
     if (data.is_default) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('calc_component_variants')
         .update({ is_default: false })
         .eq('component_id', componentId)
+
+      if (updateError) {
+        console.error('Database error updating defaults:', updateError)
+        throw new Error('DATABASE_ERROR')
+      }
     }
 
     const { data: created, error } = await supabase
       .from('calc_component_variants')
       .insert({
         component_id: componentId,
-        name: data.name,
-        code: data.code || data.name.toUpperCase().replace(/\s+/g, '_'),
-        description: data.description,
+        name: data.name.trim(),
+        code: data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_'),
+        description: data.description || null,
         time_multiplier: data.time_multiplier ?? 1.0,
         extra_minutes: data.extra_minutes ?? 0,
         price_multiplier: data.price_multiplier ?? 1.0,
@@ -311,14 +392,19 @@ export async function createVariant(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === '23505') {
+        return { success: false, error: 'En variant med dette navn findes allerede' }
+      }
+      console.error('Database error creating variant:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/settings/components/${componentId}`)
 
     return { success: true, data: created as ComponentVariant }
   } catch (err) {
-    console.error('Error creating variant:', err)
-    return { success: false, error: 'Kunne ikke oprette variant' }
+    return { success: false, error: formatError(err, 'Kunne ikke oprette variant') }
   }
 }
 
@@ -336,15 +422,24 @@ export async function updateVariant(
   }
 ): Promise<ActionResult<ComponentVariant>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'variant ID')
+    validateUUID(componentId, 'komponent ID')
+
     const supabase = await createClient()
 
     // If setting as default, unset other defaults first
     if (data.is_default) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('calc_component_variants')
         .update({ is_default: false })
         .eq('component_id', componentId)
         .neq('id', id)
+
+      if (updateError) {
+        console.error('Database error updating defaults:', updateError)
+        throw new Error('DATABASE_ERROR')
+      }
     }
 
     const { data: updated, error } = await supabase
@@ -354,19 +449,28 @@ export async function updateVariant(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Varianten blev ikke fundet' }
+      }
+      console.error('Database error updating variant:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/settings/components/${componentId}`)
 
     return { success: true, data: updated as ComponentVariant }
   } catch (err) {
-    console.error('Error updating variant:', err)
-    return { success: false, error: 'Kunne ikke opdatere variant' }
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere variant') }
   }
 }
 
 export async function deleteVariant(id: string, componentId: string): Promise<ActionResult> {
   try {
+    await requireAuth()
+    validateUUID(id, 'variant ID')
+    validateUUID(componentId, 'komponent ID')
+
     const supabase = await createClient()
 
     const { error } = await supabase
@@ -374,14 +478,19 @@ export async function deleteVariant(id: string, componentId: string): Promise<Ac
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      if (error.code === '23503') {
+        return { success: false, error: 'Varianten kan ikke slettes da den bruges i kalkulationer' }
+      }
+      console.error('Database error deleting variant:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/settings/components/${componentId}`)
 
     return { success: true }
   } catch (err) {
-    console.error('Error deleting variant:', err)
-    return { success: false, error: 'Kunne ikke slette variant' }
+    return { success: false, error: formatError(err, 'Kunne ikke slette variant') }
   }
 }
 
@@ -400,15 +509,27 @@ export async function createMaterial(
   }
 ): Promise<ActionResult<ComponentMaterial>> {
   try {
+    await requireAuth()
+    validateUUID(componentId, 'komponent ID')
+
+    if (!data.material_name || data.material_name.trim().length === 0) {
+      return { success: false, error: 'Materialenavn er påkrævet' }
+    }
+
     const supabase = await createClient()
 
     // Get next sort order
-    const { data: existing } = await supabase
+    const { data: existing, error: orderError } = await supabase
       .from('calc_component_materials')
       .select('sort_order')
       .eq('component_id', componentId)
       .order('sort_order', { ascending: false })
       .limit(1)
+
+    if (orderError) {
+      console.error('Database error fetching sort order:', orderError)
+      throw new Error('DATABASE_ERROR')
+    }
 
     const nextSortOrder = existing && existing.length > 0 ? existing[0].sort_order + 1 : 0
 
@@ -416,24 +537,26 @@ export async function createMaterial(
       .from('calc_component_materials')
       .insert({
         component_id: componentId,
-        material_name: data.material_name,
+        material_name: data.material_name.trim(),
         quantity: data.quantity ?? 1,
         unit: data.unit ?? 'stk',
         is_optional: data.is_optional ?? false,
-        notes: data.notes,
+        notes: data.notes || null,
         sort_order: nextSortOrder,
       })
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error creating material:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/settings/components/${componentId}`)
 
     return { success: true, data: created as ComponentMaterial }
   } catch (err) {
-    console.error('Error creating material:', err)
-    return { success: false, error: 'Kunne ikke oprette materiale' }
+    return { success: false, error: formatError(err, 'Kunne ikke oprette materiale') }
   }
 }
 
@@ -449,6 +572,10 @@ export async function updateMaterial(
   }
 ): Promise<ActionResult<ComponentMaterial>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'materiale ID')
+    validateUUID(componentId, 'komponent ID')
+
     const supabase = await createClient()
 
     const { data: updated, error } = await supabase
@@ -458,19 +585,28 @@ export async function updateMaterial(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Materialet blev ikke fundet' }
+      }
+      console.error('Database error updating material:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/settings/components/${componentId}`)
 
     return { success: true, data: updated as ComponentMaterial }
   } catch (err) {
-    console.error('Error updating material:', err)
-    return { success: false, error: 'Kunne ikke opdatere materiale' }
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere materiale') }
   }
 }
 
 export async function deleteMaterial(id: string, componentId: string): Promise<ActionResult> {
   try {
+    await requireAuth()
+    validateUUID(id, 'materiale ID')
+    validateUUID(componentId, 'komponent ID')
+
     const supabase = await createClient()
 
     const { error } = await supabase
@@ -478,14 +614,16 @@ export async function deleteMaterial(id: string, componentId: string): Promise<A
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error deleting material:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/settings/components/${componentId}`)
 
     return { success: true }
   } catch (err) {
-    console.error('Error deleting material:', err)
-    return { success: false, error: 'Kunne ikke slette materiale' }
+    return { success: false, error: formatError(err, 'Kunne ikke slette materiale') }
   }
 }
 
@@ -495,6 +633,9 @@ export async function deleteMaterial(id: string, componentId: string): Promise<A
 
 export async function getVariantMaterials(variantId: string): Promise<ActionResult<VariantMaterial[]>> {
   try {
+    await requireAuth()
+    validateUUID(variantId, 'variant ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -503,12 +644,14 @@ export async function getVariantMaterials(variantId: string): Promise<ActionResu
       .eq('variant_id', variantId)
       .order('sort_order')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error fetching variant materials:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as VariantMaterial[] }
   } catch (err) {
-    console.error('Error fetching variant materials:', err)
-    return { success: false, error: 'Kunne ikke hente variant-materialer' }
+    return { success: false, error: formatError(err, 'Kunne ikke hente variant-materialer') }
   }
 }
 
@@ -524,15 +667,28 @@ export async function createVariantMaterial(
   }
 ): Promise<ActionResult<VariantMaterial>> {
   try {
+    await requireAuth()
+    validateUUID(variantId, 'variant ID')
+    validateUUID(componentId, 'komponent ID')
+
+    if (!data.material_name || data.material_name.trim().length === 0) {
+      return { success: false, error: 'Materialenavn er påkrævet' }
+    }
+
     const supabase = await createClient()
 
     // Get next sort order
-    const { data: existing } = await supabase
+    const { data: existing, error: orderError } = await supabase
       .from('calc_component_variant_materials')
       .select('sort_order')
       .eq('variant_id', variantId)
       .order('sort_order', { ascending: false })
       .limit(1)
+
+    if (orderError) {
+      console.error('Database error fetching sort order:', orderError)
+      throw new Error('DATABASE_ERROR')
+    }
 
     const nextSortOrder = existing && existing.length > 0 ? existing[0].sort_order + 1 : 0
 
@@ -540,29 +696,35 @@ export async function createVariantMaterial(
       .from('calc_component_variant_materials')
       .insert({
         variant_id: variantId,
-        material_name: data.material_name,
+        material_name: data.material_name.trim(),
         quantity: data.quantity ?? 1,
         unit: data.unit ?? 'stk',
         replaces_base: data.replaces_base ?? false,
-        notes: data.notes,
+        notes: data.notes || null,
         sort_order: nextSortOrder,
       })
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error creating variant material:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/settings/components/${componentId}`)
 
     return { success: true, data: created as VariantMaterial }
   } catch (err) {
-    console.error('Error creating variant material:', err)
-    return { success: false, error: 'Kunne ikke oprette variant-materiale' }
+    return { success: false, error: formatError(err, 'Kunne ikke oprette variant-materiale') }
   }
 }
 
 export async function deleteVariantMaterial(id: string, componentId: string): Promise<ActionResult> {
   try {
+    await requireAuth()
+    validateUUID(id, 'variant-materiale ID')
+    validateUUID(componentId, 'komponent ID')
+
     const supabase = await createClient()
 
     const { error } = await supabase
@@ -570,13 +732,15 @@ export async function deleteVariantMaterial(id: string, componentId: string): Pr
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error deleting variant material:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath(`/dashboard/settings/components/${componentId}`)
 
     return { success: true }
   } catch (err) {
-    console.error('Error deleting variant material:', err)
-    return { success: false, error: 'Kunne ikke slette variant-materiale' }
+    return { success: false, error: formatError(err, 'Kunne ikke slette variant-materiale') }
   }
 }
