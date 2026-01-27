@@ -786,3 +786,177 @@ export async function updateCalculationROI(
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
+
+// =====================================================
+// Quick Calculation (from wizard)
+// =====================================================
+
+interface QuickCalculationRoom {
+  roomTypeCode: string
+  name: string
+  components: {
+    componentCode: string
+    variantCode?: string
+    quantity: number
+  }[]
+}
+
+interface QuickCalculationInput {
+  name: string
+  calculationMode: 'standard' | 'solar' | 'electrician'
+  projectType: string
+  rooms: QuickCalculationRoom[]
+  hourlyRate: number
+  customerId?: string
+}
+
+export async function createQuickCalculation(
+  input: QuickCalculationInput
+): Promise<ActionResult<Calculation>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    // 1. Get component details from database
+    const componentCodes = input.rooms.flatMap(r => r.components.map(c => c.componentCode))
+    const uniqueCodes = [...new Set(componentCodes)]
+
+    const { data: componentsData, error: compError } = await supabase
+      .from('calc_components')
+      .select('code, name, base_time_minutes, default_cost_price, default_sale_price')
+      .in('code', uniqueCodes)
+
+    if (compError) {
+      console.error('Error fetching components:', compError)
+      return { success: false, error: 'Kunne ikke hente komponenter' }
+    }
+
+    const componentMap = new Map(
+      (componentsData || []).map(c => [c.code, c])
+    )
+
+    // 2. Create the calculation
+    const { data: calculation, error: calcError } = await supabase
+      .from('calculations')
+      .insert({
+        name: input.name,
+        calculation_type: 'electrical',
+        calculation_mode: input.calculationMode,
+        default_hourly_rate: input.hourlyRate,
+        customer_id: input.customerId || null,
+        tax_percentage: 25,
+        created_by: user.id,
+      })
+      .select()
+      .single()
+
+    if (calcError || !calculation) {
+      console.error('Error creating calculation:', calcError)
+      return { success: false, error: 'Kunne ikke oprette kalkulation' }
+    }
+
+    // 3. Create calculation rows for each room and component
+    const rows: {
+      calculation_id: string
+      row_type: string
+      section: string
+      position: number
+      description: string
+      quantity: number
+      unit: string
+      cost_price: number | null
+      sale_price: number
+      total: number
+      cost_category: string
+    }[] = []
+
+    let position = 0
+
+    for (const room of input.rooms) {
+      // Add section header for room
+      rows.push({
+        calculation_id: calculation.id,
+        row_type: 'section',
+        section: room.name,
+        position: position++,
+        description: room.name,
+        quantity: 1,
+        unit: 'stk',
+        cost_price: null,
+        sale_price: 0,
+        total: 0,
+        cost_category: 'variable',
+      })
+
+      // Add material rows
+      for (const comp of room.components) {
+        const componentData = componentMap.get(comp.componentCode)
+        if (!componentData) continue
+
+        const salePrice = componentData.default_sale_price || 0
+        const costPrice = componentData.default_cost_price || 0
+
+        rows.push({
+          calculation_id: calculation.id,
+          row_type: 'manual',
+          section: 'Materialer',
+          position: position++,
+          description: `${componentData.name}${comp.variantCode ? ` (${comp.variantCode})` : ''} - ${room.name}`,
+          quantity: comp.quantity,
+          unit: 'stk',
+          cost_price: costPrice,
+          sale_price: salePrice,
+          total: salePrice * comp.quantity,
+          cost_category: 'variable',
+        })
+      }
+
+      // Add labor row for room (calculated from component times)
+      const totalMinutes = room.components.reduce((sum, comp) => {
+        const componentData = componentMap.get(comp.componentCode)
+        return sum + (componentData?.base_time_minutes || 0) * comp.quantity
+      }, 0)
+
+      if (totalMinutes > 0) {
+        const hours = totalMinutes / 60
+        const laborCost = hours * input.hourlyRate
+
+        rows.push({
+          calculation_id: calculation.id,
+          row_type: 'manual',
+          section: 'Arbejdsløn',
+          position: position++,
+          description: `Arbejde - ${room.name} (${hours.toFixed(1)} timer)`,
+          quantity: hours,
+          unit: 'timer',
+          cost_price: hours * 295, // Apprentice rate as cost
+          sale_price: input.hourlyRate,
+          total: laborCost,
+          cost_category: 'variable',
+        })
+      }
+    }
+
+    // 4. Insert all rows
+    if (rows.length > 0) {
+      const { error: rowsError } = await supabase
+        .from('calculation_rows')
+        .insert(rows)
+
+      if (rowsError) {
+        console.error('Error inserting calculation rows:', rowsError)
+        // Don't fail completely, but log the error
+      }
+    }
+
+    revalidatePath('/dashboard/calculations')
+    return { success: true, data: calculation as Calculation }
+  } catch (error) {
+    console.error('Error in createQuickCalculation:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}

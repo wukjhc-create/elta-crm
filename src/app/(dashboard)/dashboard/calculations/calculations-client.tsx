@@ -12,6 +12,7 @@ import {
   Trash2,
   Copy,
   FileText,
+  Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -183,10 +184,16 @@ export default function CalculationsClient({
             {total} {total === 1 ? 'kalkulation' : 'kalkulationer'}
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Ny kalkulation
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.push('/dashboard/calculations/quick')}>
+            <Zap className="w-4 h-4 mr-2" />
+            Hurtig kalkulation
+          </Button>
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Ny kalkulation
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

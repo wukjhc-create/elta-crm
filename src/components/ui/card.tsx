@@ -34,6 +34,17 @@ export function CardTitle({ className, ...props }: CardTitleProps) {
   )
 }
 
+interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement> {}
+
+export function CardDescription({ className, ...props }: CardDescriptionProps) {
+  return (
+    <p
+      className={clsx('text-sm text-gray-500', className)}
+      {...props}
+    />
+  )
+}
+
 interface CardContentProps extends HTMLAttributes<HTMLDivElement> {}
 
 export function CardContent({ className, ...props }: CardContentProps) {
