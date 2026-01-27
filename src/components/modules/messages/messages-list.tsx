@@ -170,7 +170,7 @@ export function MessagesList({
                     {message.lead && (
                       <span className="inline-flex items-center gap-1 text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded">
                         <User className="w-3 h-3" />
-                        {message.lead.name}
+                        {message.lead.contact_person}
                       </span>
                     )}
                     {message.customer && (

@@ -210,7 +210,7 @@ export async function getRecentActivity(limit = 10): Promise<RecentActivity[]> {
     await Promise.all([
       supabase
         .from('leads')
-        .select('id, name, company, status, created_at')
+        .select('id, contact_person, company_name, status, created_at')
         .order('created_at', { ascending: false })
         .limit(5),
       supabase
@@ -239,10 +239,10 @@ export async function getRecentActivity(limit = 10): Promise<RecentActivity[]> {
         id: `lead-${lead.id}`,
         type: 'lead',
         action: 'Ny lead',
-        title: lead.name,
-        description: lead.company || undefined,
+        title: lead.contact_person,
+        description: lead.company_name || undefined,
         created_at: lead.created_at,
-        link: `/leads/${lead.id}`,
+        link: `/dashboard/leads/${lead.id}`,
       })
     }
   }

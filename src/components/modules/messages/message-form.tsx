@@ -32,7 +32,7 @@ export function MessageForm({ replyTo, onClose, onSuccess }: MessageFormProps) {
     { id: string; full_name: string | null; email: string }[]
   >([])
   const [relatedEntities, setRelatedEntities] = useState<{
-    leads: { id: string; name: string; company: string | null }[]
+    leads: { id: string; contact_person: string; company_name: string }[]
     customers: { id: string; company_name: string; customer_number: string }[]
     projects: { id: string; project_number: string; name: string }[]
   }>({ leads: [], customers: [], projects: [] })
@@ -234,7 +234,7 @@ export function MessageForm({ replyTo, onClose, onSuccess }: MessageFormProps) {
                     <option value="">Ingen lead...</option>
                     {relatedEntities.leads.map((lead) => (
                       <option key={lead.id} value={lead.id}>
-                        {lead.name} {lead.company && `(${lead.company})`}
+                        {lead.contact_person} {lead.company_name && `(${lead.company_name})`}
                       </option>
                     ))}
                   </select>

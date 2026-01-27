@@ -36,7 +36,7 @@ export async function getMessages(
       .from('messages')
       .select(`
         *,
-        lead:leads(id, name, company),
+        lead:leads(id, contact_person, company_name),
         customer:customers(id, company_name, customer_number),
         project:projects(id, project_number, name)
       `)
@@ -109,7 +109,7 @@ export async function getMessage(
       .from('messages')
       .select(`
         *,
-        lead:leads(id, name, company),
+        lead:leads(id, contact_person, company_name),
         customer:customers(id, company_name, customer_number),
         project:projects(id, project_number, name)
       `)
@@ -427,7 +427,7 @@ export async function getTeamMembersForMessage(): Promise<
 // Get related entities for message linking
 export async function getRelatedEntities(): Promise<
   ActionResult<{
-    leads: { id: string; name: string; company: string | null }[]
+    leads: { id: string; contact_person: string; company_name: string }[]
     customers: { id: string; company_name: string; customer_number: string }[]
     projects: { id: string; project_number: string; name: string }[]
   }>
@@ -438,7 +438,7 @@ export async function getRelatedEntities(): Promise<
     const [leadsResult, customersResult, projectsResult] = await Promise.all([
       supabase
         .from('leads')
-        .select('id, name, company')
+        .select('id, contact_person, company_name')
         .not('status', 'in', '("won","lost")')
         .order('created_at', { ascending: false })
         .limit(50),

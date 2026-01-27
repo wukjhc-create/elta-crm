@@ -228,7 +228,7 @@ export function MessageThread({
                   className="inline-flex items-center gap-1 text-sm bg-orange-50 text-orange-700 px-2 py-1 rounded hover:bg-orange-100"
                 >
                   <User className="w-4 h-4" />
-                  {message.lead.name}
+                  {message.lead.contact_person}
                 </Link>
               )}
               {message.customer && (

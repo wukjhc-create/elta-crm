@@ -84,8 +84,8 @@ export interface MessageWithRelations extends Message {
   } | null
   lead?: {
     id: string
-    name: string
-    company: string | null
+    contact_person: string
+    company_name: string
   } | null
   customer?: {
     id: string
