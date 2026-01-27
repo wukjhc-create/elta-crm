@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Search, X } from 'lucide-react'
 import { OfferForm } from './offer-form'
@@ -9,6 +9,12 @@ import { Pagination } from '@/components/shared/pagination'
 import type { OfferWithRelations, OfferStatus } from '@/types/offers.types'
 import { OFFER_STATUS_LABELS, OFFER_STATUSES } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
+
+interface CalculatorData {
+  systemSize?: number
+  panelCount?: number
+  totalPrice?: number
+}
 
 interface PaginationData {
   currentPage: number
@@ -34,6 +40,37 @@ export function OffersPageClient({ offers, pagination, filters, companySettings 
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
   const [searchInput, setSearchInput] = useState(filters.search || '')
+  const [calculatorData, setCalculatorData] = useState<CalculatorData | null>(null)
+
+  // Check for create=true from calculator redirect
+  useEffect(() => {
+    const createParam = searchParams.get('create')
+    if (createParam === 'true') {
+      // Parse calculator data from URL
+      const systemSize = searchParams.get('systemSize')
+      const panelCount = searchParams.get('panelCount')
+      const totalPrice = searchParams.get('totalPrice')
+
+      if (systemSize || panelCount || totalPrice) {
+        setCalculatorData({
+          systemSize: systemSize ? parseFloat(systemSize) : undefined,
+          panelCount: panelCount ? parseInt(panelCount, 10) : undefined,
+          totalPrice: totalPrice ? parseFloat(totalPrice) : undefined,
+        })
+      }
+
+      setShowForm(true)
+
+      // Clean up URL to remove create params
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('create')
+      params.delete('systemSize')
+      params.delete('panelCount')
+      params.delete('totalPrice')
+      const newUrl = params.toString() ? `/dashboard/offers?${params.toString()}` : '/dashboard/offers'
+      router.replace(newUrl)
+    }
+  }, [searchParams, router])
 
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -196,7 +233,16 @@ export function OffersPageClient({ offers, pagination, filters, companySettings 
         </div>
       </div>
 
-      {showForm && <OfferForm companySettings={companySettings} onClose={() => setShowForm(false)} />}
+      {showForm && (
+        <OfferForm
+          companySettings={companySettings}
+          calculatorData={calculatorData}
+          onClose={() => {
+            setShowForm(false)
+            setCalculatorData(null)
+          }}
+        />
+      )}
     </>
   )
 }

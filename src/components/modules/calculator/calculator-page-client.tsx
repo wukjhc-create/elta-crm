@@ -71,7 +71,7 @@ export function CalculatorPageClient() {
       panelCount: currentInput.panelCount.toString(),
       totalPrice: results.totalPrice.toString(),
     })
-    window.location.href = `/offers?create=true&${params.toString()}`
+    window.location.href = `/dashboard/offers?create=true&${params.toString()}`
   }
 
   const handlePrint = () => {

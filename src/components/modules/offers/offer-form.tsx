@@ -15,14 +15,21 @@ import {
 import type { Offer } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 
+interface CalculatorData {
+  systemSize?: number
+  panelCount?: number
+  totalPrice?: number
+}
+
 interface OfferFormProps {
   offer?: Offer
   companySettings?: CompanySettings | null
+  calculatorData?: CalculatorData | null
   onClose: () => void
   onSuccess?: (offer: Offer) => void
 }
 
-export function OfferForm({ offer, companySettings, onClose, onSuccess }: OfferFormProps) {
+export function OfferForm({ offer, companySettings, calculatorData, onClose, onSuccess }: OfferFormProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -39,6 +46,25 @@ export function OfferForm({ offer, companySettings, onClose, onSuccess }: OfferF
       const date = new Date()
       date.setDate(date.getDate() + companySettings.default_offer_validity_days)
       return date.toISOString().split('T')[0]
+    }
+    return undefined
+  }
+
+  // Generate default title from calculator data
+  const getDefaultTitle = () => {
+    if (calculatorData?.systemSize) {
+      return `Solcelleanlæg ${calculatorData.systemSize} kWp`
+    }
+    return undefined
+  }
+
+  // Generate default description from calculator data
+  const getDefaultDescription = () => {
+    if (calculatorData) {
+      const parts: string[] = []
+      if (calculatorData.systemSize) parts.push(`${calculatorData.systemSize} kWp solcelleanlæg`)
+      if (calculatorData.panelCount) parts.push(`${calculatorData.panelCount} paneler`)
+      return parts.length > 0 ? parts.join(' med ') : undefined
     }
     return undefined
   }
@@ -63,6 +89,8 @@ export function OfferForm({ offer, companySettings, onClose, onSuccess }: OfferF
           notes: offer.notes,
         }
       : {
+          title: getDefaultTitle(),
+          description: getDefaultDescription(),
           discount_percentage: 0,
           tax_percentage: companySettings?.default_tax_percentage ?? 25,
           valid_until: getDefaultValidUntil(),
