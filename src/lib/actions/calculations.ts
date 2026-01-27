@@ -14,6 +14,7 @@ import type {
   CalculationRow,
   CalculationRowWithRelations,
   CalculationFilters,
+  EnhancedROIData,
 } from '@/types/calculations.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
@@ -172,6 +173,16 @@ export async function createCalculation(
         ? Number(formData.get('tax_percentage'))
         : 25,
       is_template: formData.get('is_template') === 'true',
+      // Enhanced calculation fields
+      calculation_mode: formData.get('calculation_mode') as string || 'standard',
+      default_hourly_rate: formData.get('default_hourly_rate')
+        ? Number(formData.get('default_hourly_rate'))
+        : 450,
+      materials_markup_percentage: formData.get('materials_markup_percentage')
+        ? Number(formData.get('materials_markup_percentage'))
+        : 25,
+      show_cost_breakdown: formData.get('show_cost_breakdown') === 'true',
+      group_by_section: formData.get('group_by_section') !== 'false',
     }
 
     const validated = createCalculationSchema.safeParse(rawData)
@@ -240,6 +251,16 @@ export async function updateCalculation(
       roi_data: formData.get('roi_data')
         ? JSON.parse(formData.get('roi_data') as string)
         : null,
+      // Enhanced calculation fields
+      calculation_mode: formData.get('calculation_mode') as string || 'standard',
+      default_hourly_rate: formData.get('default_hourly_rate')
+        ? Number(formData.get('default_hourly_rate'))
+        : 450,
+      materials_markup_percentage: formData.get('materials_markup_percentage')
+        ? Number(formData.get('materials_markup_percentage'))
+        : 25,
+      show_cost_breakdown: formData.get('show_cost_breakdown') === 'true',
+      group_by_section: formData.get('group_by_section') !== 'false',
     }
 
     const validated = updateCalculationSchema.safeParse(rawData)
@@ -335,6 +356,12 @@ export async function duplicateCalculation(
         tax_percentage: original.tax_percentage,
         is_template: false, // Copies are not templates by default
         created_by: user.id,
+        // Enhanced fields
+        calculation_mode: original.calculation_mode || 'standard',
+        default_hourly_rate: original.default_hourly_rate || 450,
+        materials_markup_percentage: original.materials_markup_percentage || 25,
+        show_cost_breakdown: original.show_cost_breakdown || false,
+        group_by_section: original.group_by_section ?? true,
       })
       .select()
       .single()
@@ -360,6 +387,10 @@ export async function duplicateCalculation(
         sale_price: row.sale_price,
         discount_percentage: row.discount_percentage,
         show_on_offer: row.show_on_offer,
+        // Enhanced fields
+        cost_category: row.cost_category || 'variable',
+        hours: row.hours,
+        hourly_rate: row.hourly_rate,
       }))
 
       const { error: rowsError } = await supabase
@@ -461,6 +492,10 @@ export async function createCalculationRow(
         ? Number(formData.get('discount_percentage'))
         : 0,
       show_on_offer: formData.get('show_on_offer') !== 'false',
+      // Enhanced fields
+      cost_category: formData.get('cost_category') as string || 'variable',
+      hours: formData.get('hours') ? Number(formData.get('hours')) : null,
+      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : null,
     }
 
     const validated = createCalculationRowSchema.safeParse(rawData)
@@ -472,10 +507,19 @@ export async function createCalculationRow(
     const supabase = await createClient()
 
     // Calculate total (trigger will also do this, but good for immediate response)
-    const total =
-      validated.data.quantity *
-      validated.data.sale_price *
-      (1 - (validated.data.discount_percentage || 0) / 100)
+    // If hours and hourly_rate are set, use those instead
+    let total: number
+    if (validated.data.hours && validated.data.hourly_rate) {
+      total =
+        validated.data.hours *
+        validated.data.hourly_rate *
+        (1 - (validated.data.discount_percentage || 0) / 100)
+    } else {
+      total =
+        validated.data.quantity *
+        validated.data.sale_price *
+        (1 - (validated.data.discount_percentage || 0) / 100)
+    }
 
     const { data, error } = await supabase
       .from('calculation_rows')
@@ -528,6 +572,10 @@ export async function updateCalculationRow(
         ? Number(formData.get('discount_percentage'))
         : 0,
       show_on_offer: formData.get('show_on_offer') !== 'false',
+      // Enhanced fields
+      cost_category: formData.get('cost_category') as string || 'variable',
+      hours: formData.get('hours') ? Number(formData.get('hours')) : null,
+      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : null,
     }
 
     const validated = updateCalculationRowSchema.safeParse(rawData)
@@ -539,11 +587,19 @@ export async function updateCalculationRow(
     const supabase = await createClient()
     const { id: rowId, ...updateData } = validated.data
 
-    // Calculate total
-    const total =
-      (updateData.quantity || 1) *
-      (updateData.sale_price || 0) *
-      (1 - (updateData.discount_percentage || 0) / 100)
+    // Calculate total (if hours and hourly_rate are set, use those)
+    let total: number
+    if (updateData.hours && updateData.hourly_rate) {
+      total =
+        updateData.hours *
+        updateData.hourly_rate *
+        (1 - (updateData.discount_percentage || 0) / 100)
+    } else {
+      total =
+        (updateData.quantity || 1) *
+        (updateData.sale_price || 0) *
+        (1 - (updateData.discount_percentage || 0) / 100)
+    }
 
     const { data, error } = await supabase
       .from('calculation_rows')
@@ -689,6 +745,44 @@ export async function reorderCalculationRows(
     return { success: true }
   } catch (error) {
     console.error('Error in reorderCalculationRows:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// =====================================================
+// ROI Calculation Server Actions
+// Note: Pure calculation utilities are in /lib/utils/calculations.ts
+// =====================================================
+
+// Update calculation ROI data
+export async function updateCalculationROI(
+  calculationId: string,
+  roiData: EnhancedROIData
+): Promise<ActionResult<Calculation>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('calculations')
+      .update({ roi_data: roiData })
+      .eq('id', calculationId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating calculation ROI:', error)
+      return { success: false, error: 'Kunne ikke opdatere ROI data' }
+    }
+
+    revalidatePath(`/dashboard/calculations/${calculationId}`)
+    return { success: true, data: data as Calculation }
+  } catch (error) {
+    console.error('Error in updateCalculationROI:', error)
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

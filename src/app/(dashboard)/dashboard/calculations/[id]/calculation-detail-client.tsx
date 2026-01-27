@@ -11,6 +11,8 @@ import {
   Package,
   Settings,
   Copy,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -39,13 +41,18 @@ import {
 import CalculationForm from '@/components/modules/calculations/calculation-form'
 import CalculationRowForm from '@/components/modules/calculations/calculation-row-form'
 import ProductPickerDialog from '@/components/modules/calculations/product-picker-dialog'
+import FinancialSummaryCard from '@/components/modules/calculations/financial-summary-card'
+import ROICalculator from '@/components/modules/calculations/roi-calculator'
 import {
   CALCULATION_TYPE_LABELS,
   CALCULATION_ROW_TYPE_LABELS,
+  CALCULATION_MODE_LABELS,
   type CalculationWithRelations,
   type CalculationRowWithRelations,
   type CalculationType,
   type CalculationRowType,
+  type CalculationMode,
+  type EnhancedROIData,
 } from '@/types/calculations.types'
 import type { ProductCategory } from '@/types/products.types'
 
@@ -67,6 +74,7 @@ export default function CalculationDetailClient({
   const [showRowDialog, setShowRowDialog] = useState(false)
   const [editingRow, setEditingRow] = useState<CalculationRowWithRelations | null>(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
+  const [showInternalView, setShowInternalView] = useState(false)
 
   const rows = calculation.rows || []
 
@@ -133,18 +141,36 @@ export default function CalculationDetailClient({
   return (
     <div className="space-y-6">
       {/* Actions */}
-      <div className="flex gap-2 flex-wrap">
-        <Button variant="outline" onClick={() => setShowEditDialog(true)}>
-          <Settings className="w-4 h-4 mr-2" />
-          Indstillinger
-        </Button>
-        <Button variant="outline" onClick={handleDuplicate}>
-          <Copy className="w-4 h-4 mr-2" />
-          Dupliker
-        </Button>
-        <Button variant="outline" onClick={handleDelete} className="text-red-600">
-          <Trash2 className="w-4 h-4 mr-2" />
-          Slet
+      <div className="flex gap-2 flex-wrap justify-between">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setShowEditDialog(true)}>
+            <Settings className="w-4 h-4 mr-2" />
+            Indstillinger
+          </Button>
+          <Button variant="outline" onClick={handleDuplicate}>
+            <Copy className="w-4 h-4 mr-2" />
+            Dupliker
+          </Button>
+          <Button variant="outline" onClick={handleDelete} className="text-red-600">
+            <Trash2 className="w-4 h-4 mr-2" />
+            Slet
+          </Button>
+        </div>
+        <Button
+          variant={showInternalView ? 'default' : 'outline'}
+          onClick={() => setShowInternalView(!showInternalView)}
+        >
+          {showInternalView ? (
+            <>
+              <EyeOff className="w-4 h-4 mr-2" />
+              Skjul intern visning
+            </>
+          ) : (
+            <>
+              <Eye className="w-4 h-4 mr-2" />
+              Intern visning
+            </>
+          )}
         </Button>
       </div>
 
@@ -186,7 +212,13 @@ export default function CalculationDetailClient({
                       <TableHead>Beskrivelse</TableHead>
                       <TableHead className="text-right">Antal</TableHead>
                       <TableHead className="text-right">Pris</TableHead>
+                      {showInternalView && (
+                        <TableHead className="text-right">Kostpris</TableHead>
+                      )}
                       <TableHead className="text-right">Total</TableHead>
+                      {showInternalView && (
+                        <TableHead className="text-right">DB</TableHead>
+                      )}
                       <TableHead className="w-[80px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -207,17 +239,51 @@ export default function CalculationDetailClient({
                                 {row.section}
                               </Badge>
                             )}
+                            {showInternalView && row.cost_category && (
+                              <Badge
+                                variant={row.cost_category === 'fixed' ? 'outline' : 'default'}
+                                className={`text-xs ${row.cost_category === 'fixed' ? 'text-orange-600 border-orange-300' : ''}`}
+                              >
+                                {row.cost_category === 'fixed' ? 'Fast' : 'Variabel'}
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          {row.quantity} {row.unit}
+                          {row.hours ? (
+                            <span>{row.hours} timer</span>
+                          ) : (
+                            <span>{row.quantity} {row.unit}</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatPrice(row.sale_price)}
+                          {row.hourly_rate ? (
+                            <span>{formatPrice(row.hourly_rate)}/t</span>
+                          ) : (
+                            formatPrice(row.sale_price)
+                          )}
                         </TableCell>
+                        {showInternalView && (
+                          <TableCell className="text-right text-gray-500">
+                            {row.cost_price ? formatPrice(row.cost_price) : '-'}
+                          </TableCell>
+                        )}
                         <TableCell className="text-right font-medium">
                           {formatPrice(row.total)}
                         </TableCell>
+                        {showInternalView && (
+                          <TableCell className="text-right">
+                            <span
+                              className={
+                                (row.profit_amount || 0) >= 0
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                              }
+                            >
+                              {formatPrice(row.profit_amount || 0)}
+                            </span>
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div className="flex gap-1">
                             <Button
@@ -248,57 +314,37 @@ export default function CalculationDetailClient({
 
         {/* Summary */}
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Opsummering</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Subtotal</span>
-                <span>{formatPrice(calculation.subtotal)}</span>
-              </div>
+          {/* Financial Summary */}
+          <FinancialSummaryCard
+            calculation={calculation}
+            showInternalView={showInternalView}
+          />
 
-              {calculation.margin_percentage > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">
-                    Avance ({calculation.margin_percentage}%)
-                  </span>
-                  <span className="text-green-600">
-                    +{formatPrice(calculation.margin_amount)}
-                  </span>
-                </div>
-              )}
+          {/* ROI Calculator (for solar/electrician modes or if ROI data exists) */}
+          {(calculation.calculation_mode === 'solar' ||
+            calculation.calculation_mode === 'electrician' ||
+            calculation.roi_data) && (
+            <ROICalculator
+              mode={calculation.calculation_mode || 'standard'}
+              investmentAmount={calculation.final_amount}
+              roiData={calculation.roi_data as EnhancedROIData}
+              readOnly
+            />
+          )}
 
-              {calculation.discount_percentage > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">
-                    Rabat ({calculation.discount_percentage}%)
-                  </span>
-                  <span className="text-red-600">
-                    -{formatPrice(calculation.discount_amount)}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-between border-t pt-2">
-                <span className="text-gray-500">
-                  Moms ({calculation.tax_percentage}%)
-                </span>
-                <span>{formatPrice(calculation.tax_amount)}</span>
-              </div>
-
-              <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                <span>Total inkl. moms</span>
-                <span>{formatPrice(calculation.final_amount)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
+          {/* Information Card */}
           <Card>
             <CardHeader>
               <CardTitle>Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Tilstand</span>
+                <Badge variant="outline">
+                  {CALCULATION_MODE_LABELS[(calculation.calculation_mode || 'standard') as CalculationMode]}
+                </Badge>
+              </div>
+
               <div className="flex justify-between">
                 <span className="text-gray-500">Type</span>
                 <Badge variant="outline">
@@ -318,6 +364,20 @@ export default function CalculationDetailClient({
                   <span className="text-gray-500">Kunde</span>
                   <span>{calculation.customer.company_name}</span>
                 </div>
+              )}
+
+              {/* Electrician mode settings */}
+              {calculation.calculation_mode === 'electrician' && showInternalView && (
+                <>
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="text-gray-500">Standard timepris</span>
+                    <span>{formatPrice(calculation.default_hourly_rate || 450)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Materialemarkup</span>
+                    <span>{calculation.materials_markup_percentage || 25}%</span>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -350,6 +410,8 @@ export default function CalculationDetailClient({
           <CalculationRowForm
             calculationId={calculation.id}
             position={nextPosition}
+            defaultHourlyRate={calculation.default_hourly_rate || 450}
+            isLaborMode={calculation.calculation_mode === 'electrician'}
             onSuccess={() => {
               setShowRowDialog(false)
               router.refresh()
@@ -370,6 +432,8 @@ export default function CalculationDetailClient({
               calculationId={calculation.id}
               row={editingRow}
               position={editingRow.position}
+              defaultHourlyRate={calculation.default_hourly_rate || 450}
+              isLaborMode={calculation.calculation_mode === 'electrician'}
               onSuccess={() => {
                 setEditingRow(null)
                 router.refresh()

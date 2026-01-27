@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CALCULATION_TYPES, CALCULATION_ROW_TYPES } from '@/types/calculations.types'
+import { CALCULATION_TYPES, CALCULATION_ROW_TYPES, CALCULATION_MODES, COST_CATEGORIES } from '@/types/calculations.types'
 
 // Helper function to convert empty string to null
 const toNullIfEmpty = (val: unknown) => (val === '' ? null : val)
@@ -28,6 +28,24 @@ export const solarROIDataSchema = z.object({
   investmentReturn: z.number().optional(),
 })
 
+// Enhanced ROI data schema (works for all project types)
+export const enhancedROIDataSchema = z.object({
+  investmentAmount: z.number().min(0),
+  paybackYears: z.number().min(0),
+  simpleROI: z.number(),
+
+  // Solar-specific
+  annualProduction: z.number().min(0).optional(),
+  selfConsumptionRate: z.number().min(0).max(100).optional(),
+  annualSavings: z.number().min(0).optional(),
+  totalSavings25Years: z.number().min(0).optional(),
+  co2Reduction: z.number().min(0).optional(),
+
+  // General project
+  estimatedAnnualBenefit: z.number().min(0).optional(),
+  projectLifeYears: z.number().int().min(1).optional(),
+})
+
 // =====================================================
 // Calculation Schemas
 // =====================================================
@@ -51,11 +69,24 @@ export const createCalculationSchema = z.object({
     z.number().min(0).max(100).default(25)
   ),
   is_template: z.boolean().default(false),
+
+  // Enhanced calculation fields
+  calculation_mode: z.enum(CALCULATION_MODES).default('standard'),
+  default_hourly_rate: z.preprocess(
+    (val) => (val === '' ? 450 : Number(val)),
+    z.number().min(0).default(450)
+  ),
+  materials_markup_percentage: z.preprocess(
+    (val) => (val === '' ? 25 : Number(val)),
+    z.number().min(0).max(100).default(25)
+  ),
+  show_cost_breakdown: z.boolean().default(false),
+  group_by_section: z.boolean().default(true),
 })
 
 export const updateCalculationSchema = createCalculationSchema.partial().extend({
   id: z.string().uuid('Ugyldigt ID'),
-  roi_data: solarROIDataSchema.nullable().optional(),
+  roi_data: z.union([solarROIDataSchema, enhancedROIDataSchema]).nullable().optional(),
 })
 
 export type CreateCalculationInput = z.infer<typeof createCalculationSchema>
@@ -91,6 +122,17 @@ export const createCalculationRowSchema = z.object({
     z.number().min(0).max(100).default(0)
   ),
   show_on_offer: z.boolean().default(true),
+
+  // Enhanced calculation row fields
+  cost_category: z.enum(COST_CATEGORIES).default('variable'),
+  hours: z.preprocess(
+    (val) => (val === '' || val === null ? null : Number(val)),
+    z.number().min(0).nullable().optional()
+  ),
+  hourly_rate: z.preprocess(
+    (val) => (val === '' || val === null ? null : Number(val)),
+    z.number().min(0).nullable().optional()
+  ),
 })
 
 export const updateCalculationRowSchema = createCalculationRowSchema

@@ -896,7 +896,12 @@ export async function addProductToOffer(
 export async function importCalculationToOffer(
   offerId: string,
   calculationId: string,
-  startingPosition?: number
+  options?: {
+    startingPosition?: number
+    groupBySection?: boolean
+    includeHiddenRows?: boolean
+    includeCostPrices?: boolean
+  }
 ): Promise<ActionResult<{ importedCount: number }>> {
   try {
     const user = await getUser()
@@ -917,13 +922,32 @@ export async function importCalculationToOffer(
       return { success: false, error: 'Kalkulation ikke fundet' }
     }
 
-    // Filter rows that should be shown on offer
-    const rowsToImport = calculation.rows?.filter(
-      (row: { show_on_offer: boolean }) => row.show_on_offer
-    ) || []
+    // Extract options with defaults
+    const startingPosition = options?.startingPosition
+    const groupBySection = options?.groupBySection ?? calculation.group_by_section ?? false
+    const includeHiddenRows = options?.includeHiddenRows ?? false
+    const includeCostPrices = options?.includeCostPrices ?? false
+
+    // Filter rows that should be shown on offer (unless includeHiddenRows is true)
+    let rowsToImport = calculation.rows || []
+    if (!includeHiddenRows) {
+      rowsToImport = rowsToImport.filter(
+        (row: { show_on_offer: boolean }) => row.show_on_offer
+      )
+    }
 
     if (rowsToImport.length === 0) {
       return { success: false, error: 'Ingen linjer at importere' }
+    }
+
+    // Sort rows by section if grouping is enabled
+    if (groupBySection) {
+      rowsToImport = [...rowsToImport].sort((a: { section: string | null }, b: { section: string | null }) => {
+        if (!a.section && !b.section) return 0
+        if (!a.section) return 1
+        if (!b.section) return -1
+        return a.section.localeCompare(b.section)
+      })
     }
 
     // Get current max position if not specified
@@ -940,31 +964,50 @@ export async function importCalculationToOffer(
     }
 
     // Create line items from calculation rows
-    const lineItems = rowsToImport.map((row: {
+    // If grouping by section, add section headers
+    const lineItems: Array<{
+      offer_id: string
+      line_type: string
       product_id: string | null
+      calculation_id: string
       section: string | null
+      position: number
       description: string
       quantity: number
       unit: string
-      sale_price: number
+      unit_price: number
       cost_price: number | null
       discount_percentage: number
       total: number
-    }, index: number) => ({
-      offer_id: offerId,
-      line_type: row.product_id ? 'product' : 'calculation',
-      product_id: row.product_id,
-      calculation_id: calculationId,
-      section: row.section,
-      position: nextPosition! + index,
-      description: row.description,
-      quantity: row.quantity,
-      unit: row.unit,
-      unit_price: row.sale_price,
-      cost_price: row.cost_price,
-      discount_percentage: row.discount_percentage,
-      total: row.total,
-    }))
+    }> = []
+
+    let currentSection: string | null = null
+    let positionCounter = nextPosition!
+
+    for (const row of rowsToImport) {
+      // Add section header if section changed and grouping is enabled
+      if (groupBySection && row.section && row.section !== currentSection) {
+        currentSection = row.section
+        // Note: Section headers could be added here if the offer_line_items table supports them
+        // For now, we just track the section in each row
+      }
+
+      lineItems.push({
+        offer_id: offerId,
+        line_type: row.product_id ? 'product' : 'calculation',
+        product_id: row.product_id,
+        calculation_id: calculationId,
+        section: row.section,
+        position: positionCounter++,
+        description: row.description,
+        quantity: row.hours || row.quantity, // Use hours if labor row
+        unit: row.hours ? 'timer' : row.unit,
+        unit_price: row.hourly_rate || row.sale_price, // Use hourly_rate if labor row
+        cost_price: includeCostPrices ? row.cost_price : null,
+        discount_percentage: row.discount_percentage,
+        total: row.total,
+      })
+    }
 
     const { error: insertError } = await supabase
       .from('offer_line_items')

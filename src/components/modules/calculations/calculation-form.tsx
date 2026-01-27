@@ -16,10 +16,12 @@ import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
 import { createCalculation, updateCalculation } from '@/lib/actions/calculations'
 import { getCustomersForSelect } from '@/lib/actions/offers'
+import CalculationModeSelector from './calculation-mode-selector'
 import {
   CALCULATION_TYPE_LABELS,
   type Calculation,
   type CalculationType,
+  type CalculationMode,
 } from '@/types/calculations.types'
 
 interface CalculationFormProps {
@@ -37,6 +39,10 @@ export default function CalculationForm({
   const [isPending, startTransition] = useTransition()
   const [isTemplate, setIsTemplate] = useState(calculation?.is_template ?? false)
   const [customers, setCustomers] = useState<{ id: string; company_name: string }[]>([])
+  const [calculationMode, setCalculationMode] = useState<CalculationMode>(
+    calculation?.calculation_mode || 'standard'
+  )
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   useEffect(() => {
     async function loadCustomers() {
@@ -52,6 +58,7 @@ export default function CalculationForm({
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
     formData.set('is_template', isTemplate.toString())
+    formData.set('calculation_mode', calculationMode)
 
     startTransition(async () => {
       const result = calculation
@@ -70,6 +77,16 @@ export default function CalculationForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {calculation && <input type="hidden" name="id" value={calculation.id} />}
+
+      {/* Calculation Mode Selector */}
+      <div>
+        <Label className="mb-2 block">Kalkulationstilstand</Label>
+        <CalculationModeSelector
+          value={calculationMode}
+          onChange={setCalculationMode}
+          disabled={isPending}
+        />
+      </div>
 
       <div>
         <Label htmlFor="name">Navn *</Label>
@@ -169,6 +186,77 @@ export default function CalculationForm({
             defaultValue={calculation?.tax_percentage || 25}
           />
         </div>
+      </div>
+
+      {/* Electrician-specific fields */}
+      {calculationMode === 'electrician' && (
+        <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
+          <h4 className="font-medium text-gray-700">El-arbejde indstillinger</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="default_hourly_rate">Standard timepris (DKK)</Label>
+              <Input
+                id="default_hourly_rate"
+                name="default_hourly_rate"
+                type="number"
+                step="1"
+                min="0"
+                defaultValue={calculation?.default_hourly_rate || 450}
+              />
+            </div>
+            <div>
+              <Label htmlFor="materials_markup_percentage">Materialemarkup %</Label>
+              <Input
+                id="materials_markup_percentage"
+                name="materials_markup_percentage"
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                defaultValue={calculation?.materials_markup_percentage || 25}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Advanced Options */}
+      <div className="border-t pt-4">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="text-sm text-blue-600 hover:text-blue-700"
+        >
+          {showAdvanced ? 'Skjul avancerede indstillinger' : 'Vis avancerede indstillinger'}
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="show_cost_breakdown"
+                name="show_cost_breakdown"
+                value="true"
+                defaultChecked={calculation?.show_cost_breakdown ?? false}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="show_cost_breakdown">Vis omkostningsfordeling på tilbud</Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="group_by_section"
+                name="group_by_section"
+                value="true"
+                defaultChecked={calculation?.group_by_section ?? true}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="group_by_section">Gruppér linjer efter sektion</Label>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center space-x-2">

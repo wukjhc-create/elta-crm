@@ -15,6 +15,25 @@ export const CALCULATION_TYPE_LABELS: Record<CalculationType, string> = {
   custom: 'Tilpasset',
 }
 
+// Calculation modes (new)
+export const CALCULATION_MODES = ['standard', 'solar', 'electrician'] as const
+export type CalculationMode = (typeof CALCULATION_MODES)[number]
+
+export const CALCULATION_MODE_LABELS: Record<CalculationMode, string> = {
+  standard: 'Standard',
+  solar: 'Solcelleanlæg',
+  electrician: 'El-arbejde',
+}
+
+// Cost categories
+export const COST_CATEGORIES = ['variable', 'fixed'] as const
+export type CostCategory = (typeof COST_CATEGORIES)[number]
+
+export const COST_CATEGORY_LABELS: Record<CostCategory, string> = {
+  variable: 'Variabel',
+  fixed: 'Fast',
+}
+
 // Calculation row types
 export const CALCULATION_ROW_TYPES = ['manual', 'product', 'supplier_product', 'section'] as const
 export type CalculationRowType = (typeof CALCULATION_ROW_TYPES)[number]
@@ -27,7 +46,7 @@ export const CALCULATION_ROW_TYPE_LABELS: Record<CalculationRowType, string> = {
   section: 'Sektion',
 }
 
-// Common sections
+// Common sections with cost category defaults
 export const CALCULATION_SECTIONS = [
   'Materialer',
   'Arbejdsløn',
@@ -35,6 +54,16 @@ export const CALCULATION_SECTIONS = [
   'Andet',
 ] as const
 export type CalculationSection = (typeof CALCULATION_SECTIONS)[number]
+
+// Enhanced sections with more options and defaults
+export const ENHANCED_SECTIONS = [
+  { key: 'Materialer', label: 'Materialer', costCategory: 'variable' as CostCategory },
+  { key: 'Arbejdsløn', label: 'Arbejdsløn', costCategory: 'variable' as CostCategory },
+  { key: 'Transport', label: 'Transport', costCategory: 'variable' as CostCategory },
+  { key: 'Udstyr', label: 'Udstyr/Leje', costCategory: 'variable' as CostCategory },
+  { key: 'Overhead', label: 'Overhead', costCategory: 'fixed' as CostCategory },
+  { key: 'Andet', label: 'Andet', costCategory: 'variable' as CostCategory },
+] as const
 
 // =====================================================
 // Solar Calculation Settings
@@ -60,6 +89,46 @@ export interface SolarROIData {
   investmentReturn?: number  // percentage
 }
 
+// Enhanced ROI data (works for all project types)
+export interface EnhancedROIData {
+  investmentAmount: number
+  paybackYears: number
+  simpleROI: number
+
+  // Solar-specific
+  annualProduction?: number
+  selfConsumptionRate?: number
+  annualSavings?: number
+  totalSavings25Years?: number
+  co2Reduction?: number
+
+  // General project
+  estimatedAnnualBenefit?: number
+  projectLifeYears?: number
+}
+
+// Financial summary for UI display
+export interface FinancialSummary {
+  materialsCost: number
+  laborCost: number
+  otherCosts: number
+  totalCosts: number
+
+  variableCosts: number
+  fixedCosts: number
+
+  subtotal: number
+  contributionMargin: number
+  contributionMarginRatio: number
+  grossProfit: number
+  grossProfitMargin: number
+
+  marginAmount: number
+  discountAmount: number
+  taxAmount: number
+  finalAmount: number
+}
+
 // =====================================================
 // Calculation
 // =====================================================
@@ -79,11 +148,27 @@ export interface Calculation {
   tax_percentage: number
   tax_amount: number
   final_amount: number
-  roi_data: SolarROIData | null
+  roi_data: SolarROIData | EnhancedROIData | null
   is_template: boolean
   created_by: string
   created_at: string
   updated_at: string
+
+  // Enhanced calculation fields
+  calculation_mode: CalculationMode
+  total_materials_cost: number
+  total_labor_cost: number
+  total_other_costs: number
+  total_variable_costs: number
+  total_fixed_costs: number
+  contribution_margin: number
+  contribution_margin_ratio: number
+  gross_profit: number
+  gross_profit_margin: number
+  default_hourly_rate: number
+  materials_markup_percentage: number
+  show_cost_breakdown: boolean
+  group_by_section: boolean
 }
 
 export interface CalculationWithRelations extends Calculation {
@@ -110,6 +195,13 @@ export interface CreateCalculationInput {
   discount_percentage?: number
   tax_percentage?: number
   is_template?: boolean
+
+  // Enhanced calculation fields
+  calculation_mode?: CalculationMode
+  default_hourly_rate?: number
+  materials_markup_percentage?: number
+  show_cost_breakdown?: boolean
+  group_by_section?: boolean
 }
 
 export interface UpdateCalculationInput extends Partial<CreateCalculationInput> {
@@ -140,6 +232,12 @@ export interface CalculationRow {
   show_on_offer: boolean
   created_at: string
   updated_at: string
+
+  // Enhanced calculation row fields
+  cost_category: CostCategory
+  hours: number | null
+  hourly_rate: number | null
+  profit_amount: number
 }
 
 export interface CalculationRowWithRelations extends CalculationRow {
@@ -161,6 +259,11 @@ export interface CreateCalculationRowInput {
   sale_price: number
   discount_percentage?: number
   show_on_offer?: boolean
+
+  // Enhanced calculation row fields
+  cost_category?: CostCategory
+  hours?: number | null
+  hourly_rate?: number | null
 }
 
 export interface UpdateCalculationRowInput extends Partial<Omit<CreateCalculationRowInput, 'calculation_id'>> {

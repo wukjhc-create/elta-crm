@@ -22,14 +22,20 @@ import {
   CALCULATION_ROW_TYPES,
   CALCULATION_ROW_TYPE_LABELS,
   CALCULATION_SECTIONS,
+  ENHANCED_SECTIONS,
+  COST_CATEGORIES,
+  COST_CATEGORY_LABELS,
   type CalculationRow,
   type CalculationRowType,
+  type CostCategory,
 } from '@/types/calculations.types'
 
 interface CalculationRowFormProps {
   calculationId: string
   row?: CalculationRow
   position: number
+  defaultHourlyRate?: number
+  isLaborMode?: boolean
   onSuccess: () => void
   onCancel: () => void
 }
@@ -38,6 +44,8 @@ export default function CalculationRowForm({
   calculationId,
   row,
   position,
+  defaultHourlyRate = 450,
+  isLaborMode = false,
   onSuccess,
   onCancel,
 }: CalculationRowFormProps) {
@@ -49,9 +57,35 @@ export default function CalculationRowForm({
   const [discountPercentage, setDiscountPercentage] = useState(
     row?.discount_percentage?.toString() || '0'
   )
+  const [selectedSection, setSelectedSection] = useState(row?.section || '')
+  const [costCategory, setCostCategory] = useState<CostCategory>(row?.cost_category || 'variable')
+  const [hours, setHours] = useState(row?.hours?.toString() || '')
+  const [hourlyRate, setHourlyRate] = useState(
+    row?.hourly_rate?.toString() || defaultHourlyRate.toString()
+  )
+
+  // Auto-set cost category based on section
+  const handleSectionChange = (section: string) => {
+    setSelectedSection(section)
+    const sectionDef = ENHANCED_SECTIONS.find((s) => s.key === section)
+    if (sectionDef) {
+      setCostCategory(sectionDef.costCategory)
+    }
+  }
+
+  // Check if this is a labor row (for showing hours input)
+  const isLaborSection = selectedSection === 'Arbejdsløn' || selectedSection === 'Arbejdslon'
 
   // Calculate total for preview
   const calculateTotal = () => {
+    // If hours are set, use hours * hourly rate
+    if (hours && parseFloat(hours) > 0) {
+      const h = parseFloat(hours) || 0
+      const rate = parseFloat(hourlyRate) || 0
+      const discount = parseFloat(discountPercentage) || 0
+      return h * rate * (1 - discount / 100)
+    }
+    // Otherwise use quantity * price
     const qty = parseFloat(quantity) || 0
     const price = parseFloat(salePrice) || 0
     const discount = parseFloat(discountPercentage) || 0
@@ -70,6 +104,10 @@ export default function CalculationRowForm({
     const formData = new FormData(e.currentTarget)
     formData.set('show_on_offer', showOnOffer.toString())
     formData.set('calculation_id', calculationId)
+    formData.set('cost_category', costCategory)
+    formData.set('section', selectedSection)
+    if (hours) formData.set('hours', hours)
+    if (hourlyRate) formData.set('hourly_rate', hourlyRate)
 
     startTransition(async () => {
       const result = row
@@ -111,14 +149,14 @@ export default function CalculationRowForm({
 
         <div>
           <Label htmlFor="section">Sektion</Label>
-          <Select name="section" defaultValue={row?.section || ''}>
+          <Select value={selectedSection} onValueChange={handleSectionChange}>
             <SelectTrigger>
               <SelectValue placeholder="Vælg sektion (valgfri)" />
             </SelectTrigger>
             <SelectContent>
-              {CALCULATION_SECTIONS.map((section) => (
-                <SelectItem key={section} value={section}>
-                  {section}
+              {ENHANCED_SECTIONS.map((section) => (
+                <SelectItem key={section.key} value={section.key}>
+                  {section.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -184,7 +222,42 @@ export default function CalculationRowForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Labor-specific fields */}
+      {(isLaborSection || isLaborMode) && (
+        <div className="border rounded-lg p-4 bg-blue-50 space-y-4">
+          <h4 className="font-medium text-blue-700 text-sm">Arbejdstid</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="hours">Timer</Label>
+              <Input
+                id="hours"
+                name="hours"
+                type="number"
+                step="0.5"
+                min="0"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+                placeholder="f.eks. 8"
+              />
+            </div>
+            <div>
+              <Label htmlFor="hourly_rate">Timepris (DKK)</Label>
+              <Input
+                id="hourly_rate"
+                name="hourly_rate"
+                type="number"
+                step="1"
+                min="0"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                placeholder="f.eks. 450"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <Label htmlFor="cost_price">Kostpris</Label>
           <Input
@@ -210,6 +283,22 @@ export default function CalculationRowForm({
             value={discountPercentage}
             onChange={(e) => setDiscountPercentage(e.target.value)}
           />
+        </div>
+
+        <div>
+          <Label htmlFor="cost_category">Omkostningstype</Label>
+          <Select value={costCategory} onValueChange={(v) => setCostCategory(v as CostCategory)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COST_CATEGORIES.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {COST_CATEGORY_LABELS[cat]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
