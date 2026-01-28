@@ -13,6 +13,7 @@ import {
   Copy,
   FileText,
   Zap,
+  Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -188,6 +189,10 @@ export default function CalculationsClient({
           <Button variant="outline" onClick={() => router.push('/dashboard/calculations/quick')}>
             <Zap className="w-4 h-4 mr-2" />
             Hurtig kalkulation
+          </Button>
+          <Button variant="outline" onClick={() => router.push('/dashboard/calculations/kalkia')}>
+            <Layers className="w-4 h-4 mr-2" />
+            Kalkia Pro
           </Button>
           <Button onClick={() => setShowCreateDialog(true)}>
             <Plus className="w-4 h-4 mr-2" />

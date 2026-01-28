@@ -6,7 +6,9 @@ import {
   ChevronRight,
   Calculator,
   Settings2,
+  ArrowRight,
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBuildingProfiles, getGlobalFactors, getKalkiaNodes } from '@/lib/actions/kalkia'
 
@@ -67,6 +69,26 @@ export default async function KalkiaSettingsPage() {
           </p>
         </div>
       </div>
+
+      {/* Quick Action Card */}
+      <Card className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white border-0">
+        <CardContent className="py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Kalkia Pro Kalkulator</h2>
+              <p className="text-blue-100 mt-1">
+                Start en ny professionel kalkulation med komponentbiblioteket
+              </p>
+            </div>
+            <Link href="/dashboard/calculations/kalkia">
+              <Button variant="secondary" size="lg">
+                Start kalkulation
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Info Card */}
       <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
