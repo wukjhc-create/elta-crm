@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { createMessageSchema } from '@/lib/validations/messages'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type {
   Message,
   MessageWithRelations,
@@ -60,20 +61,24 @@ export async function getMessages(
     }
 
     if (filters?.search) {
+      const sanitized = sanitizeSearchTerm(filters.search)
       query = query.or(
-        `subject.ilike.%${filters.search}%,body.ilike.%${filters.search}%`
+        `subject.ilike.%${sanitized}%,body.ilike.%${sanitized}%`
       )
     }
 
     if (filters?.lead_id) {
+      validateUUID(filters.lead_id, 'lead ID')
       query = query.eq('lead_id', filters.lead_id)
     }
 
     if (filters?.customer_id) {
+      validateUUID(filters.customer_id, 'kunde ID')
       query = query.eq('customer_id', filters.customer_id)
     }
 
     if (filters?.project_id) {
+      validateUUID(filters.project_id, 'projekt ID')
       query = query.eq('project_id', filters.project_id)
     }
 
@@ -102,6 +107,8 @@ export async function getMessage(
     if (!user) {
       return { success: false, error: 'Du skal være logget ind' }
     }
+
+    validateUUID(id, 'besked ID')
 
     const supabase = await createClient()
 
@@ -235,6 +242,8 @@ export async function markAsRead(id: string): Promise<ActionResult<Message>> {
       return { success: false, error: 'Du skal være logget ind' }
     }
 
+    validateUUID(id, 'besked ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -269,6 +278,8 @@ export async function markAsUnread(id: string): Promise<ActionResult<Message>> {
       return { success: false, error: 'Du skal være logget ind' }
     }
 
+    validateUUID(id, 'besked ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -302,6 +313,8 @@ export async function archiveMessage(id: string): Promise<ActionResult<Message>>
     if (!user) {
       return { success: false, error: 'Du skal være logget ind' }
     }
+
+    validateUUID(id, 'besked ID')
 
     const supabase = await createClient()
 
@@ -339,6 +352,8 @@ export async function unarchiveMessage(
       return { success: false, error: 'Du skal være logget ind' }
     }
 
+    validateUUID(id, 'besked ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -372,6 +387,8 @@ export async function deleteMessage(id: string): Promise<ActionResult> {
     if (!user) {
       return { success: false, error: 'Du skal være logget ind' }
     }
+
+    validateUUID(id, 'besked ID')
 
     const supabase = await createClient()
     const { error } = await supabase

@@ -10,6 +10,7 @@ import {
   createTimeEntrySchema,
   updateTimeEntrySchema,
 } from '@/lib/validations/projects'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type {
   Project,
   ProjectWithRelations,
@@ -24,6 +25,29 @@ import type {
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getCompanySettings } from '@/lib/actions/settings'
+
+// ==================== Helper Functions ====================
+
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
+
+function formatError(err: unknown, defaultMessage: string): string {
+  if (err instanceof Error) {
+    if (err.message === 'AUTH_REQUIRED') {
+      return 'Du skal være logget ind'
+    }
+    if (err.message.startsWith('Ugyldig')) {
+      return err.message
+    }
+  }
+  console.error(`${defaultMessage}:`, err)
+  return defaultMessage
+}
 
 // ==================== Projects ====================
 
@@ -40,6 +64,16 @@ export async function getProjects(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<ProjectWithRelations>>> {
   try {
+    await requireAuth()
+
+    // Validate UUID filters
+    if (filters?.customer_id) {
+      validateUUID(filters.customer_id, 'kunde ID')
+    }
+    if (filters?.project_manager_id) {
+      validateUUID(filters.project_manager_id, 'projektleder ID')
+    }
+
     const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
@@ -58,9 +92,10 @@ export async function getProjects(filters?: {
         customer:customers(id, customer_number, company_name, contact_person, email)
       `)
 
-    // Apply filters to both queries
+    // Apply filters to both queries with sanitization
     if (filters?.search) {
-      const searchFilter = `name.ilike.%${filters.search}%,project_number.ilike.%${filters.search}%`
+      const sanitized = sanitizeSearchTerm(filters.search)
+      const searchFilter = `name.ilike.%${sanitized}%,project_number.ilike.%${sanitized}%`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -119,15 +154,17 @@ export async function getProjects(filters?: {
         totalPages,
       },
     }
-  } catch (error) {
-    console.error('Error in getProjects:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente projekter') }
   }
 }
 
 // Get single project with all relations
 export async function getProject(id: string): Promise<ActionResult<ProjectWithRelations>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'projekt ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -166,9 +203,8 @@ export async function getProject(id: string): Promise<ActionResult<ProjectWithRe
     }
 
     return { success: true, data: data as ProjectWithRelations }
-  } catch (error) {
-    console.error('Error in getProject:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente projekt') }
   }
 }
 
@@ -316,10 +352,8 @@ export async function updateProject(formData: FormData): Promise<ActionResult<Pr
 // Delete project
 export async function deleteProject(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'projekt ID')
 
     const supabase = await createClient()
     const { error } = await supabase.from('projects').delete().eq('id', id)
@@ -343,10 +377,8 @@ export async function updateProjectStatus(
   status: ProjectStatus
 ): Promise<ActionResult<Project>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'projekt ID')
 
     const supabase = await createClient()
 
@@ -497,10 +529,9 @@ export async function updateTaskStatus(
   projectId: string
 ): Promise<ActionResult<ProjectTask>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'opgave ID')
+    validateUUID(projectId, 'projekt ID')
 
     const supabase = await createClient()
 
@@ -534,10 +565,9 @@ export async function updateTaskStatus(
 // Delete task
 export async function deleteTask(id: string, projectId: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'opgave ID')
+    validateUUID(projectId, 'projekt ID')
 
     const supabase = await createClient()
     const { error } = await supabase.from('project_tasks').delete().eq('id', id)
@@ -667,10 +697,9 @@ export async function deleteTimeEntry(
   projectId: string
 ): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'tidsregistrering ID')
+    validateUUID(projectId, 'projekt ID')
 
     const supabase = await createClient()
     const { error } = await supabase.from('time_entries').delete().eq('id', id)
@@ -763,6 +792,7 @@ export async function getCustomersForProjectSelect(): Promise<
   ActionResult<{ id: string; company_name: string; customer_number: string }[]>
 > {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -788,6 +818,7 @@ export async function getTeamMembersForProject(): Promise<
   ActionResult<{ id: string; full_name: string | null; email: string }[]>
 > {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -813,6 +844,8 @@ export async function getOffersForProject(
   customerId: string
 ): Promise<ActionResult<{ id: string; offer_number: string; title: string }[]>> {
   try {
+    await requireAuth()
+    validateUUID(customerId, 'kunde ID')
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -839,6 +872,8 @@ export async function getProjectTasks(
   projectId: string
 ): Promise<ActionResult<ProjectTaskWithRelations[]>> {
   try {
+    await requireAuth()
+    validateUUID(projectId, 'projekt ID')
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -864,6 +899,8 @@ export async function getProjectTimeEntries(
   projectId: string
 ): Promise<ActionResult<TimeEntryWithRelations[]>> {
   try {
+    await requireAuth()
+    validateUUID(projectId, 'projekt ID')
     const supabase = await createClient()
 
     const { data, error } = await supabase

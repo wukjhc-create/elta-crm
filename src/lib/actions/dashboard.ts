@@ -1,9 +1,21 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUser } from '@/lib/supabase/server'
 import type { LeadStatus } from '@/types/leads.types'
 import type { OfferStatus } from '@/types/offers.types'
 import type { ProjectStatus } from '@/types/projects.types'
+
+// =====================================================
+// Helper Functions
+// =====================================================
+
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
 
 export interface DashboardStats {
   leads: {
@@ -59,6 +71,7 @@ export interface RecentActivity {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
+  const userId = await requireAuth()
   const supabase = await createClient()
 
   // Fetch all stats in parallel
@@ -80,10 +93,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     supabase.from('projects').select('status'),
     // Time entries for project hours
     supabase.from('time_entries').select('hours, billable'),
-    // Unread messages
+    // Unread messages for current user
     supabase
       .from('messages')
       .select('id', { count: 'exact', head: true })
+      .eq('to_user_id', userId)
       .eq('status', 'unread'),
   ])
 
@@ -203,6 +217,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 export async function getRecentActivity(limit = 10): Promise<RecentActivity[]> {
+  await requireAuth()
   const supabase = await createClient()
 
   // Fetch recent items from each table in parallel
@@ -311,6 +326,7 @@ export async function getUpcomingTasks(limit = 5): Promise<
     status: string
   }[]
 > {
+  await requireAuth()
   const supabase = await createClient()
 
   const { data } = await supabase
@@ -357,6 +373,7 @@ export async function getPendingOffers(limit = 5): Promise<
     created_at: string
   }[]
 > {
+  await requireAuth()
   const supabase = await createClient()
 
   const { data } = await supabase
