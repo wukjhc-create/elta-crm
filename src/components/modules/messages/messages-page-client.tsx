@@ -37,6 +37,7 @@ export function MessagesPageClient() {
     null
   )
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showComposeForm, setShowComposeForm] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
@@ -46,6 +47,7 @@ export function MessagesPageClient() {
 
   const loadMessages = useCallback(async () => {
     setIsLoading(true)
+    setError(null)
     try {
       const [messagesResult, unreadResult] = await Promise.all([
         getMessages(currentFolder, { search: search || undefined }),
@@ -54,12 +56,15 @@ export function MessagesPageClient() {
 
       if (messagesResult.success && messagesResult.data) {
         setMessages(messagesResult.data)
+      } else if (!messagesResult.success) {
+        setError(messagesResult.error || 'Kunne ikke hente beskeder')
       }
       if (unreadResult.success && typeof unreadResult.data === 'number') {
         setUnreadCount(unreadResult.data)
       }
-    } catch (error) {
-      console.error('Failed to load messages:', error)
+    } catch (err) {
+      console.error('Failed to load messages:', err)
+      setError('Der opstod en fejl ved hentning af beskeder')
     } finally {
       setIsLoading(false)
     }
@@ -182,6 +187,16 @@ export function MessagesPageClient() {
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <RefreshCw className="w-5 h-5 animate-spin mr-2" />
                 Indlæser beskeder...
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center h-full">
+                <p className="text-red-600 mb-4">{error}</p>
+                <button
+                  onClick={loadMessages}
+                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+                >
+                  Prøv igen
+                </button>
               </div>
             ) : (
               <MessagesList

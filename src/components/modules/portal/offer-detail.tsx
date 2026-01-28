@@ -148,7 +148,7 @@ export function OfferDetail({
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {offer.line_items.map((item) => (
+                  {(offer.line_items || []).map((item) => (
                     <tr key={item.id}>
                       <td className="px-6 py-4 text-gray-900">
                         {item.description}

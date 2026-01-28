@@ -37,6 +37,7 @@ export function ProjectsPageClient() {
     pageSize: 25,
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
 
@@ -57,6 +58,7 @@ export function ProjectsPageClient() {
 
   const loadProjects = useCallback(async () => {
     setIsLoading(true)
+    setError(null)
     try {
       const result = await getProjects({
         search: search || undefined,
@@ -74,9 +76,12 @@ export function ProjectsPageClient() {
           totalItems: result.data.total,
           pageSize: result.data.pageSize,
         })
+      } else {
+        setError(result.error || 'Kunne ikke hente projekter')
       }
-    } catch (error) {
-      console.error('Failed to load projects:', error)
+    } catch (err) {
+      console.error('Failed to load projects:', err)
+      setError('Der opstod en fejl ved hentning af projekter')
     } finally {
       setIsLoading(false)
     }
@@ -250,6 +255,16 @@ export function ProjectsPageClient() {
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">
             Indlæser projekter...
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={loadProjects}
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+            >
+              Prøv igen
+            </button>
           </div>
         ) : (
           <ProjectsTable projects={projects} onRefresh={loadProjects} />
