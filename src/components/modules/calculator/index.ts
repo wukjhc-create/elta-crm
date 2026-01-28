@@ -1,5 +1,7 @@
 export { CalculatorForm } from './calculator-form'
+export { CalculatorFormV2 } from './calculator-form-v2'
 export { ResultsPanel } from './results-panel'
 export { SavingsChart } from './savings-chart'
 export { CalculatorPageClient } from './calculator-page-client'
+export { CalculatorPageClientV2 } from './calculator-page-client-v2'
 export { SaveTemplateDialog, LoadTemplateDialog } from './template-dialog'
