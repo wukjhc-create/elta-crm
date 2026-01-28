@@ -12,6 +12,7 @@ import {
   createSupplierProductSchema,
   updateSupplierProductSchema,
 } from '@/lib/validations/products'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type {
   Supplier,
   ProductCategory,
@@ -28,11 +29,46 @@ import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 
 // =====================================================
+// Helper Functions
+// =====================================================
+
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
+
+function formatError(err: unknown, defaultMessage: string): string {
+  if (err instanceof Error) {
+    if (err.message === 'AUTH_REQUIRED') {
+      return 'Du skal være logget ind'
+    }
+    if (err.message.startsWith('Ugyldig')) {
+      return err.message
+    }
+  }
+  console.error(`${defaultMessage}:`, err)
+  return defaultMessage
+}
+
+function safeJsonParse<T>(value: string | null, defaultValue: T): T {
+  if (!value) return defaultValue
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return defaultValue
+  }
+}
+
+// =====================================================
 // Product Categories
 // =====================================================
 
 export async function getProductCategories(): Promise<ActionResult<ProductCategory[]>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -42,14 +78,13 @@ export async function getProductCategories(): Promise<ActionResult<ProductCatego
       .order('name')
 
     if (error) {
-      console.error('Error fetching product categories:', error)
-      return { success: false, error: 'Kunne ikke hente kategorier' }
+      console.error('Database error fetching product categories:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data as ProductCategory[] }
-  } catch (error) {
-    console.error('Error in getProductCategories:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: true, data: (data || []) as ProductCategory[] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente kategorier') }
   }
 }
 
@@ -90,15 +125,17 @@ export async function createProductCategory(
   formData: FormData
 ): Promise<ActionResult<ProductCategory>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
+    await requireAuth()
+
+    const parentId = formData.get('parent_id') as string || null
+    if (parentId) {
+      validateUUID(parentId, 'parent kategori ID')
     }
 
     const rawData = {
       name: formData.get('name') as string,
       slug: formData.get('slug') as string,
-      parent_id: formData.get('parent_id') as string || null,
+      parent_id: parentId,
       sort_order: formData.get('sort_order') ? Number(formData.get('sort_order')) : 0,
       is_active: formData.get('is_active') === 'true',
     }
@@ -118,18 +155,20 @@ export async function createProductCategory(
       .single()
 
     if (error) {
-      console.error('Error creating product category:', error)
       if (error.code === '23505') {
         return { success: false, error: 'En kategori med dette slug findes allerede' }
       }
-      return { success: false, error: 'Kunne ikke oprette kategori' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Den valgte parent-kategori findes ikke' }
+      }
+      console.error('Database error creating product category:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true, data: data as ProductCategory }
-  } catch (error) {
-    console.error('Error in createProductCategory:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette kategori') }
   }
 }
 
@@ -137,21 +176,24 @@ export async function updateProductCategory(
   formData: FormData
 ): Promise<ActionResult<ProductCategory>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
 
     const id = formData.get('id') as string
     if (!id) {
       return { success: false, error: 'Kategori ID mangler' }
+    }
+    validateUUID(id, 'kategori ID')
+
+    const parentId = formData.get('parent_id') as string || null
+    if (parentId) {
+      validateUUID(parentId, 'parent kategori ID')
     }
 
     const rawData = {
       id,
       name: formData.get('name') as string,
       slug: formData.get('slug') as string,
-      parent_id: formData.get('parent_id') as string || null,
+      parent_id: parentId,
       sort_order: formData.get('sort_order') ? Number(formData.get('sort_order')) : 0,
       is_active: formData.get('is_active') === 'true',
     }
@@ -173,39 +215,47 @@ export async function updateProductCategory(
       .single()
 
     if (error) {
-      console.error('Error updating product category:', error)
-      return { success: false, error: 'Kunne ikke opdatere kategori' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Kategorien blev ikke fundet' }
+      }
+      if (error.code === '23505') {
+        return { success: false, error: 'En kategori med dette slug findes allerede' }
+      }
+      if (error.code === '23503') {
+        return { success: false, error: 'Den valgte parent-kategori findes ikke' }
+      }
+      console.error('Database error updating product category:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true, data: data as ProductCategory }
-  } catch (error) {
-    console.error('Error in updateProductCategory:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere kategori') }
   }
 }
 
 export async function deleteProductCategory(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'kategori ID')
 
     const supabase = await createClient()
 
     const { error } = await supabase.from('product_categories').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting product category:', error)
-      return { success: false, error: 'Kunne ikke slette kategori' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Kategorien kan ikke slettes da den har tilknyttede produkter eller underkategorier' }
+      }
+      console.error('Database error deleting product category:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteProductCategory:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette kategori') }
   }
 }
 
@@ -217,10 +267,16 @@ export async function getProducts(
   filters?: ProductFilters
 ): Promise<ActionResult<PaginatedResponse<ProductWithCategory>>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
+
+    // Validate category_id if provided
+    if (filters?.category_id) {
+      validateUUID(filters.category_id, 'kategori ID')
+    }
 
     // Build count query
     let countQuery = supabase
@@ -233,9 +289,10 @@ export async function getProducts(
       category:product_categories(id, name, slug)
     `)
 
-    // Apply filters
+    // Apply filters with sanitized search
     if (filters?.search) {
-      const searchFilter = `name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%,description.ilike.%${filters.search}%`
+      const sanitized = sanitizeSearchTerm(filters.search)
+      const searchFilter = `name.ilike.%${sanitized}%,sku.ilike.%${sanitized}%,description.ilike.%${sanitized}%`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -262,13 +319,13 @@ export async function getProducts(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Error counting products:', countResult.error)
-      return { success: false, error: 'Kunne ikke hente produkter' }
+      console.error('Database error counting products:', countResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Error fetching products:', dataResult.error)
-      return { success: false, error: 'Kunne ikke hente produkter' }
+      console.error('Database error fetching products:', dataResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     const total = countResult.count || 0
@@ -284,14 +341,16 @@ export async function getProducts(
         totalPages,
       },
     }
-  } catch (error) {
-    console.error('Error in getProducts:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente produkter') }
   }
 }
 
 export async function getProduct(id: string): Promise<ActionResult<ProductWithCategory>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'produkt ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -304,35 +363,37 @@ export async function getProduct(id: string): Promise<ActionResult<ProductWithCa
       .single()
 
     if (error) {
-      console.error('Error fetching product:', error)
-      return { success: false, error: 'Kunne ikke hente produkt' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Produktet blev ikke fundet' }
+      }
+      console.error('Database error fetching product:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     return { success: true, data: data as ProductWithCategory }
-  } catch (error) {
-    console.error('Error in getProduct:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente produkt') }
   }
 }
 
 export async function createProduct(formData: FormData): Promise<ActionResult<Product>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
+    const userId = await requireAuth()
+
+    const categoryId = formData.get('category_id') as string || null
+    if (categoryId) {
+      validateUUID(categoryId, 'kategori ID')
     }
 
     const rawData = {
       sku: formData.get('sku') as string || null,
       name: formData.get('name') as string,
       description: formData.get('description') as string || null,
-      category_id: formData.get('category_id') as string || null,
+      category_id: categoryId,
       cost_price: formData.get('cost_price') ? Number(formData.get('cost_price')) : null,
       list_price: Number(formData.get('list_price')),
       unit: formData.get('unit') as string || 'stk',
-      specifications: formData.get('specifications')
-        ? JSON.parse(formData.get('specifications') as string)
-        : {},
+      specifications: safeJsonParse(formData.get('specifications') as string | null, {}),
       is_active: formData.get('is_active') !== 'false',
     }
 
@@ -348,37 +409,42 @@ export async function createProduct(formData: FormData): Promise<ActionResult<Pr
       .from('product_catalog')
       .insert({
         ...validated.data,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
 
     if (error) {
-      console.error('Error creating product:', error)
       if (error.code === '23505') {
         return { success: false, error: 'Et produkt med dette SKU findes allerede' }
       }
-      return { success: false, error: 'Kunne ikke oprette produkt' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Den valgte kategori findes ikke' }
+      }
+      console.error('Database error creating product:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true, data: data as Product }
-  } catch (error) {
-    console.error('Error in createProduct:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette produkt') }
   }
 }
 
 export async function updateProduct(formData: FormData): Promise<ActionResult<Product>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
 
     const id = formData.get('id') as string
     if (!id) {
       return { success: false, error: 'Produkt ID mangler' }
+    }
+    validateUUID(id, 'produkt ID')
+
+    const categoryId = formData.get('category_id') as string || null
+    if (categoryId) {
+      validateUUID(categoryId, 'kategori ID')
     }
 
     const rawData = {
@@ -386,13 +452,11 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
       sku: formData.get('sku') as string || null,
       name: formData.get('name') as string,
       description: formData.get('description') as string || null,
-      category_id: formData.get('category_id') as string || null,
+      category_id: categoryId,
       cost_price: formData.get('cost_price') ? Number(formData.get('cost_price')) : null,
       list_price: Number(formData.get('list_price')),
       unit: formData.get('unit') as string || 'stk',
-      specifications: formData.get('specifications')
-        ? JSON.parse(formData.get('specifications') as string)
-        : {},
+      specifications: safeJsonParse(formData.get('specifications') as string | null, {}),
       is_active: formData.get('is_active') !== 'false',
     }
 
@@ -413,40 +477,48 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
       .single()
 
     if (error) {
-      console.error('Error updating product:', error)
-      return { success: false, error: 'Kunne ikke opdatere produkt' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Produktet blev ikke fundet' }
+      }
+      if (error.code === '23505') {
+        return { success: false, error: 'Et produkt med dette SKU findes allerede' }
+      }
+      if (error.code === '23503') {
+        return { success: false, error: 'Den valgte kategori findes ikke' }
+      }
+      console.error('Database error updating product:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     revalidatePath(`/dashboard/products/${productId}`)
     return { success: true, data: data as Product }
-  } catch (error) {
-    console.error('Error in updateProduct:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere produkt') }
   }
 }
 
 export async function deleteProduct(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'produkt ID')
 
     const supabase = await createClient()
 
     const { error } = await supabase.from('product_catalog').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting product:', error)
-      return { success: false, error: 'Kunne ikke slette produkt' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Produktet kan ikke slettes da det er tilknyttet andre data' }
+      }
+      console.error('Database error deleting product:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteProduct:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette produkt') }
   }
 }
 
@@ -455,6 +527,7 @@ export async function getProductsForSelect(): Promise<
   ActionResult<{ id: string; name: string; sku: string | null; list_price: number }[]>
 > {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -464,14 +537,13 @@ export async function getProductsForSelect(): Promise<
       .order('name')
 
     if (error) {
-      console.error('Error fetching products for select:', error)
-      return { success: false, error: 'Kunne ikke hente produkter' }
+      console.error('Database error fetching products for select:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data }
-  } catch (error) {
-    console.error('Error in getProductsForSelect:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: true, data: data || [] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente produkter') }
   }
 }
 
@@ -483,6 +555,7 @@ export async function getSuppliers(
   filters?: SupplierFilters
 ): Promise<ActionResult<PaginatedResponse<Supplier>>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
@@ -496,9 +569,10 @@ export async function getSuppliers(
     // Build data query
     let dataQuery = supabase.from('suppliers').select('*')
 
-    // Apply filters
+    // Apply filters with sanitized search
     if (filters?.search) {
-      const searchFilter = `name.ilike.%${filters.search}%,code.ilike.%${filters.search}%`
+      const sanitized = sanitizeSearchTerm(filters.search)
+      const searchFilter = `name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -520,13 +594,13 @@ export async function getSuppliers(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Error counting suppliers:', countResult.error)
-      return { success: false, error: 'Kunne ikke hente leverandører' }
+      console.error('Database error counting suppliers:', countResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Error fetching suppliers:', dataResult.error)
-      return { success: false, error: 'Kunne ikke hente leverandører' }
+      console.error('Database error fetching suppliers:', dataResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     const total = countResult.count || 0
@@ -542,14 +616,16 @@ export async function getSuppliers(
         totalPages,
       },
     }
-  } catch (error) {
-    console.error('Error in getSuppliers:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leverandører') }
   }
 }
 
 export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'leverandør ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -559,23 +635,22 @@ export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
       .single()
 
     if (error) {
-      console.error('Error fetching supplier:', error)
-      return { success: false, error: 'Kunne ikke hente leverandør' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Leverandøren blev ikke fundet' }
+      }
+      console.error('Database error fetching supplier:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     return { success: true, data: data as Supplier }
-  } catch (error) {
-    console.error('Error in getSupplier:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leverandør') }
   }
 }
 
 export async function createSupplier(formData: FormData): Promise<ActionResult<Supplier>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const rawData = {
       name: formData.get('name') as string,
@@ -600,38 +675,35 @@ export async function createSupplier(formData: FormData): Promise<ActionResult<S
       .from('suppliers')
       .insert({
         ...validated.data,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
 
     if (error) {
-      console.error('Error creating supplier:', error)
       if (error.code === '23505') {
         return { success: false, error: 'En leverandør med denne kode findes allerede' }
       }
-      return { success: false, error: 'Kunne ikke oprette leverandør' }
+      console.error('Database error creating supplier:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true, data: data as Supplier }
-  } catch (error) {
-    console.error('Error in createSupplier:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette leverandør') }
   }
 }
 
 export async function updateSupplier(formData: FormData): Promise<ActionResult<Supplier>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
 
     const id = formData.get('id') as string
     if (!id) {
       return { success: false, error: 'Leverandør ID mangler' }
     }
+    validateUUID(id, 'leverandør ID')
 
     const rawData = {
       id,
@@ -662,39 +734,44 @@ export async function updateSupplier(formData: FormData): Promise<ActionResult<S
       .single()
 
     if (error) {
-      console.error('Error updating supplier:', error)
-      return { success: false, error: 'Kunne ikke opdatere leverandør' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Leverandøren blev ikke fundet' }
+      }
+      if (error.code === '23505') {
+        return { success: false, error: 'En leverandør med denne kode findes allerede' }
+      }
+      console.error('Database error updating supplier:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true, data: data as Supplier }
-  } catch (error) {
-    console.error('Error in updateSupplier:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere leverandør') }
   }
 }
 
 export async function deleteSupplier(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'leverandør ID')
 
     const supabase = await createClient()
 
     const { error } = await supabase.from('suppliers').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting supplier:', error)
-      return { success: false, error: 'Kunne ikke slette leverandør' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Leverandøren kan ikke slettes da den har tilknyttede produkter' }
+      }
+      console.error('Database error deleting supplier:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteSupplier:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette leverandør') }
   }
 }
 
@@ -703,6 +780,7 @@ export async function getSuppliersForSelect(): Promise<
   ActionResult<{ id: string; name: string; code: string | null }[]>
 > {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -712,14 +790,13 @@ export async function getSuppliersForSelect(): Promise<
       .order('name')
 
     if (error) {
-      console.error('Error fetching suppliers for select:', error)
-      return { success: false, error: 'Kunne ikke hente leverandører' }
+      console.error('Database error fetching suppliers for select:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data }
-  } catch (error) {
-    console.error('Error in getSuppliersForSelect:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: true, data: data || [] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leverandører') }
   }
 }
 
@@ -731,10 +808,16 @@ export async function getSupplierProducts(
   filters?: SupplierProductFilters
 ): Promise<ActionResult<PaginatedResponse<SupplierProductWithRelations>>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
+
+    // Validate supplier_id if provided
+    if (filters?.supplier_id) {
+      validateUUID(filters.supplier_id, 'leverandør ID')
+    }
 
     // Build count query
     let countQuery = supabase
@@ -759,8 +842,10 @@ export async function getSupplierProducts(
       dataQuery = dataQuery.eq('is_available', filters.is_available)
     }
 
+    // Apply search with sanitization
     if (filters?.search) {
-      const searchFilter = `supplier_name.ilike.%${filters.search}%,supplier_sku.ilike.%${filters.search}%`
+      const sanitized = sanitizeSearchTerm(filters.search)
+      const searchFilter = `supplier_name.ilike.%${sanitized}%,supplier_sku.ilike.%${sanitized}%`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -777,13 +862,13 @@ export async function getSupplierProducts(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Error counting supplier products:', countResult.error)
-      return { success: false, error: 'Kunne ikke hente leverandørprodukter' }
+      console.error('Database error counting supplier products:', countResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Error fetching supplier products:', dataResult.error)
-      return { success: false, error: 'Kunne ikke hente leverandørprodukter' }
+      console.error('Database error fetching supplier products:', dataResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     const total = countResult.count || 0
@@ -799,9 +884,8 @@ export async function getSupplierProducts(
         totalPages,
       },
     }
-  } catch (error) {
-    console.error('Error in getSupplierProducts:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leverandørprodukter') }
   }
 }
 
@@ -809,14 +893,22 @@ export async function createSupplierProduct(
   formData: FormData
 ): Promise<ActionResult<SupplierProduct>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
+    await requireAuth()
+
+    const supplierId = formData.get('supplier_id') as string
+    if (!supplierId) {
+      return { success: false, error: 'Leverandør ID er påkrævet' }
+    }
+    validateUUID(supplierId, 'leverandør ID')
+
+    const productId = formData.get('product_id') as string || null
+    if (productId) {
+      validateUUID(productId, 'produkt ID')
     }
 
     const rawData = {
-      supplier_id: formData.get('supplier_id') as string,
-      product_id: formData.get('product_id') as string || null,
+      supplier_id: supplierId,
+      product_id: productId,
       supplier_sku: formData.get('supplier_sku') as string,
       supplier_name: formData.get('supplier_name') as string,
       cost_price: formData.get('cost_price') ? Number(formData.get('cost_price')) : null,
@@ -841,18 +933,20 @@ export async function createSupplierProduct(
       .single()
 
     if (error) {
-      console.error('Error creating supplier product:', error)
       if (error.code === '23505') {
         return { success: false, error: 'Dette produkt findes allerede hos leverandøren' }
       }
-      return { success: false, error: 'Kunne ikke oprette leverandørprodukt' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Leverandøren eller produktet findes ikke' }
+      }
+      console.error('Database error creating supplier product:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true, data: data as SupplierProduct }
-  } catch (error) {
-    console.error('Error in createSupplierProduct:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette leverandørprodukt') }
   }
 }
 
@@ -860,20 +954,29 @@ export async function updateSupplierProduct(
   formData: FormData
 ): Promise<ActionResult<SupplierProduct>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
 
     const id = formData.get('id') as string
     if (!id) {
       return { success: false, error: 'Leverandørprodukt ID mangler' }
     }
+    validateUUID(id, 'leverandørprodukt ID')
+
+    const supplierId = formData.get('supplier_id') as string
+    if (!supplierId) {
+      return { success: false, error: 'Leverandør ID er påkrævet' }
+    }
+    validateUUID(supplierId, 'leverandør ID')
+
+    const productId = formData.get('product_id') as string || null
+    if (productId) {
+      validateUUID(productId, 'produkt ID')
+    }
 
     const rawData = {
       id,
-      supplier_id: formData.get('supplier_id') as string,
-      product_id: formData.get('product_id') as string || null,
+      supplier_id: supplierId,
+      product_id: productId,
       supplier_sku: formData.get('supplier_sku') as string,
       supplier_name: formData.get('supplier_name') as string,
       cost_price: formData.get('cost_price') ? Number(formData.get('cost_price')) : null,
@@ -900,38 +1003,46 @@ export async function updateSupplierProduct(
       .single()
 
     if (error) {
-      console.error('Error updating supplier product:', error)
-      return { success: false, error: 'Kunne ikke opdatere leverandørprodukt' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Leverandørproduktet blev ikke fundet' }
+      }
+      if (error.code === '23505') {
+        return { success: false, error: 'Dette produkt findes allerede hos leverandøren' }
+      }
+      if (error.code === '23503') {
+        return { success: false, error: 'Leverandøren eller produktet findes ikke' }
+      }
+      console.error('Database error updating supplier product:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true, data: data as SupplierProduct }
-  } catch (error) {
-    console.error('Error in updateSupplierProduct:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere leverandørprodukt') }
   }
 }
 
 export async function deleteSupplierProduct(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'leverandørprodukt ID')
 
     const supabase = await createClient()
 
     const { error } = await supabase.from('supplier_products').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting supplier product:', error)
-      return { success: false, error: 'Kunne ikke slette leverandørprodukt' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Leverandørproduktet kan ikke slettes da det er tilknyttet andre data' }
+      }
+      console.error('Database error deleting supplier product:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/dashboard/products')
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteSupplierProduct:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette leverandørprodukt') }
   }
 }

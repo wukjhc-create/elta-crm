@@ -8,6 +8,7 @@ import {
   createCustomerContactSchema,
   updateCustomerContactSchema,
 } from '@/lib/validations/customers'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type {
   Customer,
   CustomerWithRelations,
@@ -15,6 +16,31 @@ import type {
 } from '@/types/customers.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
+
+// =====================================================
+// Helper Functions
+// =====================================================
+
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
+
+function formatError(err: unknown, defaultMessage: string): string {
+  if (err instanceof Error) {
+    if (err.message === 'AUTH_REQUIRED') {
+      return 'Du skal være logget ind'
+    }
+    if (err.message.startsWith('Ugyldig')) {
+      return err.message
+    }
+  }
+  console.error(`${defaultMessage}:`, err)
+  return defaultMessage
+}
 
 // Get all customers with optional filtering and pagination
 export async function getCustomers(filters?: {
@@ -26,6 +52,7 @@ export async function getCustomers(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<CustomerWithRelations>>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
@@ -44,9 +71,10 @@ export async function getCustomers(filters?: {
         contacts:customer_contacts(*)
       `)
 
-    // Apply filters to both queries
+    // Apply filters with sanitized search
     if (filters?.search) {
-      const searchFilter = `company_name.ilike.%${filters.search}%,contact_person.ilike.%${filters.search}%,email.ilike.%${filters.search}%,customer_number.ilike.%${filters.search}%`
+      const sanitized = sanitizeSearchTerm(filters.search)
+      const searchFilter = `company_name.ilike.%${sanitized}%,contact_person.ilike.%${sanitized}%,email.ilike.%${sanitized}%,customer_number.ilike.%${sanitized}%`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -68,13 +96,13 @@ export async function getCustomers(filters?: {
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Error counting customers:', countResult.error)
-      return { success: false, error: 'Kunne ikke hente kunder' }
+      console.error('Database error counting customers:', countResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Error fetching customers:', dataResult.error)
-      return { success: false, error: 'Kunne ikke hente kunder' }
+      console.error('Database error fetching customers:', dataResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     const total = countResult.count || 0
@@ -90,15 +118,17 @@ export async function getCustomers(filters?: {
         totalPages,
       },
     }
-  } catch (error) {
-    console.error('Error in getCustomers:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente kunder') }
   }
 }
 
 // Get single customer by ID
 export async function getCustomer(id: string): Promise<ActionResult<CustomerWithRelations>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'kunde ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -111,14 +141,16 @@ export async function getCustomer(id: string): Promise<ActionResult<CustomerWith
       .single()
 
     if (error) {
-      console.error('Error fetching customer:', error)
-      return { success: false, error: 'Kunne ikke hente kunde' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Kunden blev ikke fundet' }
+      }
+      console.error('Database error fetching customer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     return { success: true, data: data as CustomerWithRelations }
-  } catch (error) {
-    console.error('Error in getCustomer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente kunde') }
   }
 }
 
@@ -145,10 +177,7 @@ async function generateCustomerNumber(): Promise<string> {
 // Create new customer
 export async function createCustomer(formData: FormData): Promise<ActionResult<Customer>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const rawData = {
       company_name: formData.get('company_name') as string,
@@ -185,36 +214,36 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       .insert({
         ...validated.data,
         customer_number: customerNumber,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
 
     if (error) {
-      console.error('Error creating customer:', error)
-      return { success: false, error: 'Kunne ikke oprette kunde' }
+      if (error.code === '23505') {
+        return { success: false, error: 'En kunde med dette kundenummer findes allerede' }
+      }
+      console.error('Database error creating customer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/customers')
     return { success: true, data: data as Customer }
-  } catch (error) {
-    console.error('Error in createCustomer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette kunde') }
   }
 }
 
 // Update customer
 export async function updateCustomer(formData: FormData): Promise<ActionResult<Customer>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
 
     const id = formData.get('id') as string
     if (!id) {
       return { success: false, error: 'Kunde ID mangler' }
     }
+    validateUUID(id, 'kunde ID')
 
     const rawData = {
       id,
@@ -255,41 +284,43 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
       .single()
 
     if (error) {
-      console.error('Error updating customer:', error)
-      return { success: false, error: 'Kunne ikke opdatere kunde' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Kunden blev ikke fundet' }
+      }
+      console.error('Database error updating customer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/customers')
     revalidatePath(`/customers/${customerId}`)
     return { success: true, data: data as Customer }
-  } catch (error) {
-    console.error('Error in updateCustomer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere kunde') }
   }
 }
 
 // Delete customer
 export async function deleteCustomer(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'kunde ID')
 
     const supabase = await createClient()
 
     const { error } = await supabase.from('customers').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting customer:', error)
-      return { success: false, error: 'Kunne ikke slette kunde' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Kunden kan ikke slettes da den har tilknyttede tilbud eller kontakter' }
+      }
+      console.error('Database error deleting customer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/customers')
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteCustomer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette kunde') }
   }
 }
 
@@ -299,10 +330,8 @@ export async function toggleCustomerActive(
   isActive: boolean
 ): Promise<ActionResult<Customer>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'kunde ID')
 
     const supabase = await createClient()
 
@@ -314,16 +343,18 @@ export async function toggleCustomerActive(
       .single()
 
     if (error) {
-      console.error('Error toggling customer status:', error)
-      return { success: false, error: 'Kunne ikke opdatere status' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Kunden blev ikke fundet' }
+      }
+      console.error('Database error toggling customer status:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/customers')
     revalidatePath(`/customers/${id}`)
     return { success: true, data: data as Customer }
-  } catch (error) {
-    console.error('Error in toggleCustomerActive:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere status') }
   }
 }
 
@@ -334,6 +365,9 @@ export async function getCustomerContacts(
   customerId: string
 ): Promise<ActionResult<CustomerContact[]>> {
   try {
+    await requireAuth()
+    validateUUID(customerId, 'kunde ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -344,14 +378,13 @@ export async function getCustomerContacts(
       .order('name')
 
     if (error) {
-      console.error('Error fetching customer contacts:', error)
-      return { success: false, error: 'Kunne ikke hente kontakter' }
+      console.error('Database error fetching customer contacts:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data as CustomerContact[] }
-  } catch (error) {
-    console.error('Error in getCustomerContacts:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: true, data: (data || []) as CustomerContact[] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente kontakter') }
   }
 }
 
@@ -360,13 +393,16 @@ export async function createCustomerContact(
   formData: FormData
 ): Promise<ActionResult<CustomerContact>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
+    await requireAuth()
+
+    const customerId = formData.get('customer_id') as string
+    if (!customerId) {
+      return { success: false, error: 'Kunde ID er påkrævet' }
     }
+    validateUUID(customerId, 'kunde ID')
 
     const rawData = {
-      customer_id: formData.get('customer_id') as string,
+      customer_id: customerId,
       name: formData.get('name') as string,
       title: formData.get('title') as string || null,
       email: formData.get('email') as string || null,
@@ -399,15 +435,17 @@ export async function createCustomerContact(
       .single()
 
     if (error) {
-      console.error('Error creating customer contact:', error)
-      return { success: false, error: 'Kunne ikke oprette kontakt' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Kunden findes ikke' }
+      }
+      console.error('Database error creating customer contact:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath(`/customers/${validated.data.customer_id}`)
     return { success: true, data: data as CustomerContact }
-  } catch (error) {
-    console.error('Error in createCustomerContact:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette kontakt') }
   }
 }
 
@@ -416,16 +454,18 @@ export async function updateCustomerContact(
   formData: FormData
 ): Promise<ActionResult<CustomerContact>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
 
     const id = formData.get('id') as string
     const customerId = formData.get('customer_id') as string
 
     if (!id) {
       return { success: false, error: 'Kontakt ID mangler' }
+    }
+    validateUUID(id, 'kontakt ID')
+
+    if (customerId) {
+      validateUUID(customerId, 'kunde ID')
     }
 
     const rawData = {
@@ -448,7 +488,7 @@ export async function updateCustomerContact(
     const supabase = await createClient()
 
     // If this contact is primary, unset any existing primary contact
-    if (validated.data.is_primary) {
+    if (validated.data.is_primary && customerId) {
       await supabase
         .from('customer_contacts')
         .update({ is_primary: false })
@@ -466,15 +506,17 @@ export async function updateCustomerContact(
       .single()
 
     if (error) {
-      console.error('Error updating customer contact:', error)
-      return { success: false, error: 'Kunne ikke opdatere kontakt' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Kontakten blev ikke fundet' }
+      }
+      console.error('Database error updating customer contact:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath(`/customers/${customerId}`)
     return { success: true, data: data as CustomerContact }
-  } catch (error) {
-    console.error('Error in updateCustomerContact:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere kontakt') }
   }
 }
 
@@ -484,10 +526,9 @@ export async function deleteCustomerContact(
   customerId: string
 ): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'kontakt ID')
+    validateUUID(customerId, 'kunde ID')
 
     const supabase = await createClient()
 
@@ -497,14 +538,13 @@ export async function deleteCustomerContact(
       .eq('id', id)
 
     if (error) {
-      console.error('Error deleting customer contact:', error)
-      return { success: false, error: 'Kunne ikke slette kontakt' }
+      console.error('Database error deleting customer contact:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath(`/customers/${customerId}`)
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteCustomerContact:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette kontakt') }
   }
 }

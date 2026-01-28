@@ -9,6 +9,7 @@ import {
   createLineItemSchema,
   updateLineItemSchema,
 } from '@/lib/validations/offers'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
 import { sendEmail } from '@/lib/email/email-service'
@@ -25,6 +26,31 @@ import type {
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 
+// =====================================================
+// Helper Functions
+// =====================================================
+
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
+
+function formatError(err: unknown, defaultMessage: string): string {
+  if (err instanceof Error) {
+    if (err.message === 'AUTH_REQUIRED') {
+      return 'Du skal være logget ind'
+    }
+    if (err.message.startsWith('Ugyldig')) {
+      return err.message
+    }
+  }
+  console.error(`${defaultMessage}:`, err)
+  return defaultMessage
+}
+
 // Get all offers with optional filtering and pagination
 export async function getOffers(filters?: {
   search?: string
@@ -36,10 +62,16 @@ export async function getOffers(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
+
+    // Validate customer_id if provided
+    if (filters?.customer_id) {
+      validateUUID(filters.customer_id, 'kunde ID')
+    }
 
     // Build count query
     let countQuery = supabase
@@ -55,9 +87,10 @@ export async function getOffers(filters?: {
         lead:leads(id, company_name, contact_person, email)
       `)
 
-    // Apply filters to both queries
+    // Apply filters to both queries with sanitized search
     if (filters?.search) {
-      const searchFilter = `title.ilike.%${filters.search}%,offer_number.ilike.%${filters.search}%`
+      const sanitized = sanitizeSearchTerm(filters.search)
+      const searchFilter = `title.ilike.%${sanitized}%,offer_number.ilike.%${sanitized}%`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -84,13 +117,13 @@ export async function getOffers(filters?: {
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Error counting offers:', countResult.error)
-      return { success: false, error: 'Kunne ikke hente tilbud' }
+      console.error('Database error counting offers:', countResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Error fetching offers:', dataResult.error)
-      return { success: false, error: 'Kunne ikke hente tilbud' }
+      console.error('Database error fetching offers:', dataResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     const total = countResult.count || 0
@@ -106,15 +139,17 @@ export async function getOffers(filters?: {
         totalPages,
       },
     }
-  } catch (error) {
-    console.error('Error in getOffers:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente tilbud') }
   }
 }
 
 // Get single offer by ID with all relations
 export async function getOffer(id: string): Promise<ActionResult<OfferWithRelations>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'tilbud ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -129,8 +164,11 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
       .single()
 
     if (error) {
-      console.error('Error fetching offer:', error)
-      return { success: false, error: 'Kunne ikke hente tilbud' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Tilbuddet blev ikke fundet' }
+      }
+      console.error('Database error fetching offer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Sort line items by position
@@ -139,9 +177,8 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
     }
 
     return { success: true, data: data as OfferWithRelations }
-  } catch (error) {
-    console.error('Error in getOffer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente tilbud') }
   }
 }
 
@@ -171,16 +208,23 @@ async function generateOfferNumber(): Promise<string> {
 // Create new offer
 export async function createOffer(formData: FormData): Promise<ActionResult<Offer>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
+    const userId = await requireAuth()
+
+    const customerId = formData.get('customer_id') as string || null
+    const leadId = formData.get('lead_id') as string || null
+
+    if (customerId) {
+      validateUUID(customerId, 'kunde ID')
+    }
+    if (leadId) {
+      validateUUID(leadId, 'lead ID')
     }
 
     const rawData = {
       title: formData.get('title') as string,
       description: formData.get('description') as string || null,
-      customer_id: formData.get('customer_id') as string || null,
-      lead_id: formData.get('lead_id') as string || null,
+      customer_id: customerId,
+      lead_id: leadId,
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
@@ -206,14 +250,17 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       .insert({
         ...validated.data,
         offer_number: offerNumber,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
 
     if (error) {
-      console.error('Error creating offer:', error)
-      return { success: false, error: 'Kunne ikke oprette tilbud' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Den valgte kunde eller lead findes ikke' }
+      }
+      console.error('Database error creating offer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Log activity
@@ -221,36 +268,43 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       data.id,
       'created',
       `Tilbud "${data.title}" oprettet`,
-      user.id
+      userId
     )
 
     revalidatePath('/offers')
     return { success: true, data: data as Offer }
-  } catch (error) {
-    console.error('Error in createOffer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette tilbud') }
   }
 }
 
 // Update offer
 export async function updateOffer(formData: FormData): Promise<ActionResult<Offer>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const id = formData.get('id') as string
     if (!id) {
       return { success: false, error: 'Tilbud ID mangler' }
+    }
+    validateUUID(id, 'tilbud ID')
+
+    const customerId = formData.get('customer_id') as string || null
+    const leadId = formData.get('lead_id') as string || null
+
+    if (customerId) {
+      validateUUID(customerId, 'kunde ID')
+    }
+    if (leadId) {
+      validateUUID(leadId, 'lead ID')
     }
 
     const rawData = {
       id,
       title: formData.get('title') as string,
       description: formData.get('description') as string || null,
-      customer_id: formData.get('customer_id') as string || null,
-      lead_id: formData.get('lead_id') as string || null,
+      customer_id: customerId,
+      lead_id: leadId,
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
@@ -280,8 +334,14 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       .single()
 
     if (error) {
-      console.error('Error updating offer:', error)
-      return { success: false, error: 'Kunne ikke opdatere tilbud' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Tilbuddet blev ikke fundet' }
+      }
+      if (error.code === '23503') {
+        return { success: false, error: 'Den valgte kunde eller lead findes ikke' }
+      }
+      console.error('Database error updating offer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Log activity
@@ -289,40 +349,39 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       offerId,
       'updated',
       'Tilbud opdateret',
-      user.id
+      userId
     )
 
     revalidatePath('/offers')
     revalidatePath(`/offers/${offerId}`)
     return { success: true, data: data as Offer }
-  } catch (error) {
-    console.error('Error in updateOffer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere tilbud') }
   }
 }
 
 // Delete offer
 export async function deleteOffer(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'tilbud ID')
 
     const supabase = await createClient()
 
     const { error } = await supabase.from('offers').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting offer:', error)
-      return { success: false, error: 'Kunne ikke slette tilbud' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Tilbuddet kan ikke slettes da det har tilknyttede data' }
+      }
+      console.error('Database error deleting offer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/offers')
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteOffer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette tilbud') }
   }
 }
 
@@ -332,10 +391,8 @@ export async function updateOfferStatus(
   status: OfferStatus
 ): Promise<ActionResult<Offer>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
+    validateUUID(id, 'tilbud ID')
 
     const supabase = await createClient()
 
@@ -366,8 +423,11 @@ export async function updateOfferStatus(
       .single()
 
     if (error) {
-      console.error('Error updating offer status:', error)
-      return { success: false, error: 'Kunne ikke opdatere status' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Tilbuddet blev ikke fundet' }
+      }
+      console.error('Database error updating offer status:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Log activity
@@ -383,26 +443,23 @@ export async function updateOfferStatus(
       id,
       'status_change',
       `Status ændret til "${statusLabels[status]}"`,
-      user.id,
+      userId,
       { newStatus: status }
     )
 
     revalidatePath('/offers')
     revalidatePath(`/offers/${id}`)
     return { success: true, data: data as Offer }
-  } catch (error) {
-    console.error('Error in updateOfferStatus:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere status') }
   }
 }
 
 // Send offer via email
 export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
+    validateUUID(offerId, 'tilbud ID')
 
     const supabase = await createClient()
 
@@ -471,7 +528,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
           email: offer.customer.email,
           token: newToken,
           expires_at: expiresAt.toISOString(),
-          created_by: user.id,
+          created_by: userId,
         })
         .select('token')
         .single()
@@ -560,7 +617,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
       offerId,
       'email_sent',
       `Email sendt til ${offer.customer.email}`,
-      user.id,
+      userId,
       { recipientEmail: offer.customer.email, messageId: emailResult.messageId }
     )
 
@@ -568,7 +625,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
       offerId,
       'sent',
       'Tilbud sendt til kunde',
-      user.id,
+      userId,
       { portalUrl }
     )
 
@@ -576,9 +633,8 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
     revalidatePath(`/offers/${offerId}`)
 
     return { success: true, data: (updatedOffer || offer) as Offer }
-  } catch (error) {
-    console.error('Error in sendOffer:', error)
-    return { success: false, error: 'Der opstod en fejl ved afsendelse' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Der opstod en fejl ved afsendelse') }
   }
 }
 
@@ -589,6 +645,9 @@ export async function getOfferLineItems(
   offerId: string
 ): Promise<ActionResult<OfferLineItem[]>> {
   try {
+    await requireAuth()
+    validateUUID(offerId, 'tilbud ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -598,14 +657,13 @@ export async function getOfferLineItems(
       .order('position')
 
     if (error) {
-      console.error('Error fetching line items:', error)
-      return { success: false, error: 'Kunne ikke hente linjer' }
+      console.error('Database error fetching line items:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data as OfferLineItem[] }
-  } catch (error) {
-    console.error('Error in getOfferLineItems:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: true, data: (data || []) as OfferLineItem[] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente linjer') }
   }
 }
 
@@ -614,13 +672,16 @@ export async function createLineItem(
   formData: FormData
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
+    await requireAuth()
+
+    const offerId = formData.get('offer_id') as string
+    if (!offerId) {
+      return { success: false, error: 'Tilbud ID er påkrævet' }
     }
+    validateUUID(offerId, 'tilbud ID')
 
     const rawData = {
-      offer_id: formData.get('offer_id') as string,
+      offer_id: offerId,
       position: Number(formData.get('position')),
       description: formData.get('description') as string,
       quantity: Number(formData.get('quantity')),
@@ -650,15 +711,17 @@ export async function createLineItem(
       .single()
 
     if (error) {
-      console.error('Error creating line item:', error)
-      return { success: false, error: 'Kunne ikke oprette linje' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Tilbuddet findes ikke' }
+      }
+      console.error('Database error creating line item:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath(`/offers/${validated.data.offer_id}`)
     return { success: true, data: data as OfferLineItem }
-  } catch (error) {
-    console.error('Error in createLineItem:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette linje') }
   }
 }
 
@@ -667,16 +730,18 @@ export async function updateLineItem(
   formData: FormData
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
 
     const id = formData.get('id') as string
     const offerId = formData.get('offer_id') as string
 
     if (!id) {
       return { success: false, error: 'Linje ID mangler' }
+    }
+    validateUUID(id, 'linje ID')
+
+    if (offerId) {
+      validateUUID(offerId, 'tilbud ID')
     }
 
     const rawData = {
@@ -713,15 +778,17 @@ export async function updateLineItem(
       .single()
 
     if (error) {
-      console.error('Error updating line item:', error)
-      return { success: false, error: 'Kunne ikke opdatere linje' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Linjen blev ikke fundet' }
+      }
+      console.error('Database error updating line item:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath(`/offers/${offerId}`)
     return { success: true, data: data as OfferLineItem }
-  } catch (error) {
-    console.error('Error in updateLineItem:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere linje') }
   }
 }
 
@@ -731,10 +798,9 @@ export async function deleteLineItem(
   offerId: string
 ): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'linje ID')
+    validateUUID(offerId, 'tilbud ID')
 
     const supabase = await createClient()
 
@@ -744,15 +810,14 @@ export async function deleteLineItem(
       .eq('id', id)
 
     if (error) {
-      console.error('Error deleting line item:', error)
-      return { success: false, error: 'Kunne ikke slette linje' }
+      console.error('Database error deleting line item:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath(`/offers/${offerId}`)
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteLineItem:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette linje') }
   }
 }
 
@@ -763,6 +828,7 @@ export async function getCustomersForSelect(): Promise<
   ActionResult<{ id: string; company_name: string; customer_number: string }[]>
 > {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -772,14 +838,13 @@ export async function getCustomersForSelect(): Promise<
       .order('company_name')
 
     if (error) {
-      console.error('Error fetching customers:', error)
-      return { success: false, error: 'Kunne ikke hente kunder' }
+      console.error('Database error fetching customers:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data }
-  } catch (error) {
-    console.error('Error in getCustomersForSelect:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: true, data: data || [] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente kunder') }
   }
 }
 
@@ -788,6 +853,7 @@ export async function getLeadsForSelect(): Promise<
   ActionResult<{ id: string; company_name: string }[]>
 > {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -797,14 +863,13 @@ export async function getLeadsForSelect(): Promise<
       .order('company_name')
 
     if (error) {
-      console.error('Error fetching leads:', error)
-      return { success: false, error: 'Kunne ikke hente leads' }
+      console.error('Database error fetching leads:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data }
-  } catch (error) {
-    console.error('Error in getLeadsForSelect:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: true, data: data || [] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leads') }
   }
 }
 
@@ -818,10 +883,9 @@ export async function addProductToOffer(
   position?: number
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
+    validateUUID(offerId, 'tilbud ID')
+    validateUUID(productId, 'produkt ID')
 
     const supabase = await createClient()
 
@@ -832,8 +896,12 @@ export async function addProductToOffer(
       .eq('id', productId)
       .single()
 
-    if (productError || !product) {
-      return { success: false, error: 'Produkt ikke fundet' }
+    if (productError) {
+      if (productError.code === 'PGRST116') {
+        return { success: false, error: 'Produktet blev ikke fundet' }
+      }
+      console.error('Database error fetching product:', productError)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Get current max position if not specified
@@ -872,8 +940,11 @@ export async function addProductToOffer(
       .single()
 
     if (error) {
-      console.error('Error adding product to offer:', error)
-      return { success: false, error: 'Kunne ikke tilføje produkt til tilbud' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Tilbuddet findes ikke' }
+      }
+      console.error('Database error adding product to offer:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Log activity
@@ -881,14 +952,13 @@ export async function addProductToOffer(
       offerId,
       'updated',
       `Produkt "${product.name}" tilføjet`,
-      user.id
+      userId
     )
 
     revalidatePath(`/offers/${offerId}`)
     return { success: true, data: data as OfferLineItem }
-  } catch (error) {
-    console.error('Error in addProductToOffer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke tilføje produkt til tilbud') }
   }
 }
 
@@ -904,10 +974,9 @@ export async function importCalculationToOffer(
   }
 ): Promise<ActionResult<{ importedCount: number }>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
+    validateUUID(offerId, 'tilbud ID')
+    validateUUID(calculationId, 'kalkulation ID')
 
     const supabase = await createClient()
 
@@ -918,8 +987,12 @@ export async function importCalculationToOffer(
       .eq('id', calculationId)
       .single()
 
-    if (calcError || !calculation) {
-      return { success: false, error: 'Kalkulation ikke fundet' }
+    if (calcError) {
+      if (calcError.code === 'PGRST116') {
+        return { success: false, error: 'Kalkulationen blev ikke fundet' }
+      }
+      console.error('Database error fetching calculation:', calcError)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Extract options with defaults
@@ -1014,8 +1087,11 @@ export async function importCalculationToOffer(
       .insert(lineItems)
 
     if (insertError) {
-      console.error('Error importing calculation to offer:', insertError)
-      return { success: false, error: 'Kunne ikke importere kalkulation' }
+      if (insertError.code === '23503') {
+        return { success: false, error: 'Tilbuddet findes ikke' }
+      }
+      console.error('Database error importing calculation to offer:', insertError)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Log activity
@@ -1023,13 +1099,12 @@ export async function importCalculationToOffer(
       offerId,
       'updated',
       `Kalkulation "${calculation.name}" importeret (${lineItems.length} linjer)`,
-      user.id
+      userId
     )
 
     revalidatePath(`/offers/${offerId}`)
     return { success: true, data: { importedCount: lineItems.length } }
-  } catch (error) {
-    console.error('Error in importCalculationToOffer:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke importere kalkulation') }
   }
 }

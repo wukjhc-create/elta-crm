@@ -3,9 +3,35 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { Lead, LeadWithRelations, LeadActivity, LeadStatus } from '@/types/leads.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
+
+// =====================================================
+// Helper Functions
+// =====================================================
+
+async function requireAuth(): Promise<string> {
+  const user = await getUser()
+  if (!user) {
+    throw new Error('AUTH_REQUIRED')
+  }
+  return user.id
+}
+
+function formatError(err: unknown, defaultMessage: string): string {
+  if (err instanceof Error) {
+    if (err.message === 'AUTH_REQUIRED') {
+      return 'Du skal være logget ind'
+    }
+    if (err.message.startsWith('Ugyldig')) {
+      return err.message
+    }
+  }
+  console.error(`${defaultMessage}:`, err)
+  return defaultMessage
+}
 
 // Get all leads with optional filtering and pagination
 export async function getLeads(filters?: {
@@ -19,10 +45,16 @@ export async function getLeads(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<LeadWithRelations>>> {
   try {
+    await requireAuth()
     const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
+
+    // Validate assigned_to if provided
+    if (filters?.assigned_to) {
+      validateUUID(filters.assigned_to, 'tildelt bruger ID')
+    }
 
     // Build count query
     let countQuery = supabase
@@ -34,9 +66,10 @@ export async function getLeads(filters?: {
       .from('leads')
       .select('*')
 
-    // Apply filters to both queries
+    // Apply filters with sanitized search
     if (filters?.search) {
-      const searchFilter = `company_name.ilike.%${filters.search}%,contact_person.ilike.%${filters.search}%,email.ilike.%${filters.search}%`
+      const sanitized = sanitizeSearchTerm(filters.search)
+      const searchFilter = `company_name.ilike.%${sanitized}%,contact_person.ilike.%${sanitized}%,email.ilike.%${sanitized}%`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -68,13 +101,13 @@ export async function getLeads(filters?: {
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Error counting leads:', countResult.error)
-      return { success: false, error: 'Kunne ikke hente leads' }
+      console.error('Database error counting leads:', countResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Error fetching leads:', dataResult.error)
-      return { success: false, error: 'Kunne ikke hente leads' }
+      console.error('Database error fetching leads:', dataResult.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     const total = countResult.count || 0
@@ -90,15 +123,17 @@ export async function getLeads(filters?: {
         totalPages,
       },
     }
-  } catch (error) {
-    console.error('Error in getLeads:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leads') }
   }
 }
 
 // Get single lead by ID
 export async function getLead(id: string): Promise<ActionResult<LeadWithRelations>> {
   try {
+    await requireAuth()
+    validateUUID(id, 'lead ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -108,26 +143,25 @@ export async function getLead(id: string): Promise<ActionResult<LeadWithRelation
       .single()
 
     if (error) {
-      console.error('Error fetching lead:', error)
-      return { success: false, error: 'Kunne ikke hente lead' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Lead blev ikke fundet' }
+      }
+      console.error('Database error fetching lead:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     return { success: true, data: data as LeadWithRelations }
-  } catch (error) {
-    console.error('Error in getLead:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente lead') }
   }
 }
 
 // Create new lead
 export async function createLead(formData: FormData): Promise<ActionResult<Lead>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
-    // Get form values
+    // Get and validate form values
     const company_name = formData.get('company_name') as string
     const contact_person = formData.get('contact_person') as string
     const email = formData.get('email') as string
@@ -139,6 +173,10 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
     const expected_close_date = formData.get('expected_close_date') as string
     const notes = formData.get('notes') as string
     const assigned_to = formData.get('assigned_to') as string
+
+    if (assigned_to) {
+      validateUUID(assigned_to, 'tildelt bruger ID')
+    }
 
     const rawData = {
       company_name,
@@ -157,7 +195,6 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
 
     const validated = createLeadSchema.safeParse(rawData)
     if (!validated.success) {
-      console.error('Validation errors:', validated.error.errors)
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
@@ -171,7 +208,7 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       email: validated.data.email,
       status: validated.data.status,
       source: validated.data.source,
-      created_by: user.id,
+      created_by: userId,
     }
 
     // Only add optional fields if they have values
@@ -189,8 +226,11 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       .single()
 
     if (error) {
-      console.error('Error creating lead:', error)
-      return { success: false, error: `Database fejl: ${error.message}` }
+      if (error.code === '23503') {
+        return { success: false, error: 'Den valgte bruger findes ikke' }
+      }
+      console.error('Database error creating lead:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Log lead creation activity
@@ -198,28 +238,30 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       lead_id: data.id,
       activity_type: 'created',
       description: `Lead oprettet for "${data.company_name}"`,
-      performed_by: user.id,
+      performed_by: userId,
     })
 
     revalidatePath('/leads')
     return { success: true, data: data as Lead }
-  } catch (error) {
-    console.error('Error in createLead:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette lead') }
   }
 }
 
 // Update lead
 export async function updateLead(formData: FormData): Promise<ActionResult<Lead>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const id = formData.get('id') as string
     if (!id) {
       return { success: false, error: 'Lead ID mangler' }
+    }
+    validateUUID(id, 'lead ID')
+
+    const assignedTo = formData.get('assigned_to') as string || null
+    if (assignedTo) {
+      validateUUID(assignedTo, 'tildelt bruger ID')
     }
 
     const rawData = {
@@ -234,7 +276,7 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       probability: formData.get('probability') ? Number(formData.get('probability')) : null,
       expected_close_date: formData.get('expected_close_date') as string || null,
       notes: formData.get('notes') as string || null,
-      assigned_to: formData.get('assigned_to') as string || null,
+      assigned_to: assignedTo,
     }
 
     const validated = updateLeadSchema.safeParse(rawData)
@@ -262,8 +304,14 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       .single()
 
     if (error) {
-      console.error('Error updating lead:', error)
-      return { success: false, error: 'Kunne ikke opdatere lead' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Lead blev ikke fundet' }
+      }
+      if (error.code === '23503') {
+        return { success: false, error: 'Den valgte bruger findes ikke' }
+      }
+      console.error('Database error updating lead:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Log activities for changes
@@ -319,7 +367,7 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
           lead_id: data.id,
           activity_type: a.activity_type,
           description: a.description,
-          performed_by: user.id,
+          performed_by: userId,
         }))
       )
     }
@@ -327,34 +375,33 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
     revalidatePath('/leads')
     revalidatePath(`/leads/${leadId}`)
     return { success: true, data: data as Lead }
-  } catch (error) {
-    console.error('Error in updateLead:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere lead') }
   }
 }
 
 // Delete lead
 export async function deleteLead(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    await requireAuth()
+    validateUUID(id, 'lead ID')
 
     const supabase = await createClient()
 
     const { error } = await supabase.from('leads').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting lead:', error)
-      return { success: false, error: 'Kunne ikke slette lead' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Lead kan ikke slettes da det har tilknyttede data' }
+      }
+      console.error('Database error deleting lead:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/leads')
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteLead:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke slette lead') }
   }
 }
 
@@ -364,10 +411,8 @@ export async function updateLeadStatus(
   status: LeadStatus
 ): Promise<ActionResult<Lead>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
+    validateUUID(id, 'lead ID')
 
     const supabase = await createClient()
 
@@ -386,8 +431,11 @@ export async function updateLeadStatus(
       .single()
 
     if (error) {
-      console.error('Error updating lead status:', error)
-      return { success: false, error: 'Kunne ikke opdatere status' }
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Lead blev ikke fundet' }
+      }
+      console.error('Database error updating lead status:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     // Log activity
@@ -396,16 +444,15 @@ export async function updateLeadStatus(
         lead_id: id,
         activity_type: 'status_change',
         description: `Status ændret fra "${oldLead.status}" til "${status}"`,
-        performed_by: user.id,
+        performed_by: userId,
       })
     }
 
     revalidatePath('/leads')
     revalidatePath(`/leads/${id}`)
     return { success: true, data: data as Lead }
-  } catch (error) {
-    console.error('Error in updateLeadStatus:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere status') }
   }
 }
 
@@ -414,6 +461,9 @@ export async function getLeadActivities(
   leadId: string
 ): Promise<ActionResult<LeadActivity[]>> {
   try {
+    await requireAuth()
+    validateUUID(leadId, 'lead ID')
+
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -423,14 +473,13 @@ export async function getLeadActivities(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching lead activities:', error)
-      return { success: false, error: 'Kunne ikke hente aktiviteter' }
+      console.error('Database error fetching lead activities:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data as LeadActivity[] }
-  } catch (error) {
-    console.error('Error in getLeadActivities:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: true, data: (data || []) as LeadActivity[] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente aktiviteter') }
   }
 }
 
@@ -441,10 +490,8 @@ export async function addLeadActivity(
   description: string
 ): Promise<ActionResult<LeadActivity>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
+    validateUUID(leadId, 'lead ID')
 
     const supabase = await createClient()
 
@@ -454,21 +501,23 @@ export async function addLeadActivity(
         lead_id: leadId,
         activity_type: activityType,
         description,
-        performed_by: user.id,
+        performed_by: userId,
       })
       .select()
       .single()
 
     if (error) {
-      console.error('Error adding lead activity:', error)
-      return { success: false, error: 'Kunne ikke tilføje aktivitet' }
+      if (error.code === '23503') {
+        return { success: false, error: 'Lead findes ikke' }
+      }
+      console.error('Database error adding lead activity:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath(`/leads/${leadId}`)
     return { success: true, data: data as LeadActivity }
-  } catch (error) {
-    console.error('Error in addLeadActivity:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke tilføje aktivitet') }
   }
 }
 
@@ -477,6 +526,7 @@ export async function getTeamMembers(): Promise<
   ActionResult<{ id: string; full_name: string | null; email: string }[]>
 > {
   try {
+    await requireAuth()
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -485,13 +535,12 @@ export async function getTeamMembers(): Promise<
       .order('full_name')
 
     if (error) {
-      console.error('Error fetching team members:', error)
-      return { success: false, error: 'Kunne ikke hente teammedlemmer' }
+      console.error('Database error fetching team members:', error)
+      throw new Error('DATABASE_ERROR')
     }
 
     return { success: true, data: data || [] }
-  } catch (error) {
-    console.error('Error in getTeamMembers:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente teammedlemmer') }
   }
 }
