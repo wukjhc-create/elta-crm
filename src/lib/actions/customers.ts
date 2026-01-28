@@ -9,6 +9,7 @@ import {
   updateCustomerContactSchema,
 } from '@/lib/validations/customers'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
+import { logCreate, logUpdate, logDelete, logStatusChange } from '@/lib/actions/audit'
 import type {
   Customer,
   CustomerWithRelations,
@@ -227,6 +228,11 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       throw new Error('DATABASE_ERROR')
     }
 
+    // Audit log
+    await logCreate('customer', data.id, data.company_name, {
+      customer_number: data.customer_number,
+    })
+
     revalidatePath('/customers')
     return { success: true, data: data as Customer }
   } catch (err) {
@@ -291,6 +297,16 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
       throw new Error('DATABASE_ERROR')
     }
 
+    // Audit log - log what fields changed
+    const changes: Record<string, { old: unknown; new: unknown }> = {}
+    Object.keys(updateData).forEach((key) => {
+      const newVal = updateData[key as keyof typeof updateData]
+      if (newVal !== undefined) {
+        changes[key] = { old: 'previous', new: newVal }
+      }
+    })
+    await logUpdate('customer', customerId, data.company_name, changes)
+
     revalidatePath('/customers')
     revalidatePath(`/customers/${customerId}`)
     return { success: true, data: data as Customer }
@@ -307,6 +323,13 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
 
     const supabase = await createClient()
 
+    // Get customer name before deleting for audit log
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('company_name, customer_number')
+      .eq('id', id)
+      .single()
+
     const { error } = await supabase.from('customers').delete().eq('id', id)
 
     if (error) {
@@ -316,6 +339,11 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       console.error('Database error deleting customer:', error)
       throw new Error('DATABASE_ERROR')
     }
+
+    // Audit log
+    await logDelete('customer', id, customer?.company_name || 'Ukendt', {
+      customer_number: customer?.customer_number,
+    })
 
     revalidatePath('/customers')
     return { success: true }
@@ -350,11 +378,20 @@ export async function toggleCustomerActive(
       throw new Error('DATABASE_ERROR')
     }
 
+    // Audit log
+    await logStatusChange(
+      'customer',
+      id,
+      data.company_name,
+      isActive ? 'inactive' : 'active',
+      isActive ? 'active' : 'inactive'
+    )
+
     revalidatePath('/customers')
     revalidatePath(`/customers/${id}`)
     return { success: true, data: data as Customer }
   } catch (err) {
-    return { success: false, error: formatError(err, 'Kunne ikke opdatere status') }
+    return { success: false, error: formatError(err, 'Kunne ikke ændre kundestatus') }
   }
 }
 

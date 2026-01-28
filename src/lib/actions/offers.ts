@@ -11,6 +11,7 @@ import {
 } from '@/lib/validations/offers'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
+import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
 import { sendEmail } from '@/lib/email/email-service'
 import {
@@ -271,6 +272,12 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       userId
     )
 
+    // Audit log
+    await logCreate('offer', data.id, data.title, {
+      offer_number: data.offer_number,
+      customer_id: data.customer_id,
+    })
+
     revalidatePath('/offers')
     return { success: true, data: data as Offer }
   } catch (err) {
@@ -352,6 +359,9 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       userId
     )
 
+    // Audit log
+    await logUpdate('offer', offerId, data.title, { updated: { old: false, new: true } })
+
     revalidatePath('/offers')
     revalidatePath(`/offers/${offerId}`)
     return { success: true, data: data as Offer }
@@ -368,6 +378,13 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
 
     const supabase = await createClient()
 
+    // Get offer before deleting for audit log
+    const { data: offer } = await supabase
+      .from('offers')
+      .select('title, offer_number')
+      .eq('id', id)
+      .single()
+
     const { error } = await supabase.from('offers').delete().eq('id', id)
 
     if (error) {
@@ -377,6 +394,11 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
       console.error('Database error deleting offer:', error)
       throw new Error('DATABASE_ERROR')
     }
+
+    // Audit log
+    await logDelete('offer', id, offer?.title || 'Ukendt', {
+      offer_number: offer?.offer_number,
+    })
 
     revalidatePath('/offers')
     return { success: true }
@@ -446,6 +468,21 @@ export async function updateOfferStatus(
       userId,
       { newStatus: status }
     )
+
+    // Audit log - especially important for accepted/rejected
+    const auditAction = status === 'accepted' ? 'accept' : status === 'rejected' ? 'reject' : 'status_change'
+    await createAuditLog({
+      entity_type: 'offer',
+      entity_id: id,
+      entity_name: data.title,
+      action: auditAction,
+      action_description: `Tilbud ${statusLabels[status].toLowerCase()}`,
+      changes: { status: { old: 'previous', new: status } },
+      metadata: {
+        offer_number: data.offer_number,
+        final_amount: data.final_amount,
+      },
+    })
 
     revalidatePath('/offers')
     revalidatePath(`/offers/${id}`)

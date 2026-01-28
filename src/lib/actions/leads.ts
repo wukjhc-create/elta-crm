@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
+import { logCreate, logUpdate, logDelete, logStatusChange } from '@/lib/actions/audit'
 import type { Lead, LeadWithRelations, LeadActivity, LeadStatus } from '@/types/leads.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
@@ -241,6 +242,12 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       performed_by: userId,
     })
 
+    // Audit log
+    await logCreate('lead', data.id, data.company_name, {
+      source: data.source,
+      status: data.status,
+    })
+
     revalidatePath('/leads')
     return { success: true, data: data as Lead }
   } catch (err) {
@@ -372,6 +379,21 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       )
     }
 
+    // Audit log
+    const changes: Record<string, { old: unknown; new: unknown }> = {}
+    if (oldLead) {
+      if (oldLead.status !== data.status) {
+        changes.status = { old: oldLead.status, new: data.status }
+      }
+      if (oldLead.value !== data.value) {
+        changes.value = { old: oldLead.value, new: data.value }
+      }
+      if (oldLead.assigned_to !== data.assigned_to) {
+        changes.assigned_to = { old: oldLead.assigned_to, new: data.assigned_to }
+      }
+    }
+    await logUpdate('lead', leadId, data.company_name, changes)
+
     revalidatePath('/leads')
     revalidatePath(`/leads/${leadId}`)
     return { success: true, data: data as Lead }
@@ -388,6 +410,13 @@ export async function deleteLead(id: string): Promise<ActionResult> {
 
     const supabase = await createClient()
 
+    // Get lead name before deleting for audit log
+    const { data: lead } = await supabase
+      .from('leads')
+      .select('company_name')
+      .eq('id', id)
+      .single()
+
     const { error } = await supabase.from('leads').delete().eq('id', id)
 
     if (error) {
@@ -397,6 +426,9 @@ export async function deleteLead(id: string): Promise<ActionResult> {
       console.error('Database error deleting lead:', error)
       throw new Error('DATABASE_ERROR')
     }
+
+    // Audit log
+    await logDelete('lead', id, lead?.company_name || 'Ukendt')
 
     revalidatePath('/leads')
     return { success: true }
@@ -446,6 +478,9 @@ export async function updateLeadStatus(
         description: `Status ændret fra "${oldLead.status}" til "${status}"`,
         performed_by: userId,
       })
+
+      // Audit log
+      await logStatusChange('lead', id, data.company_name, oldLead.status, status)
     }
 
     revalidatePath('/leads')
