@@ -65,6 +65,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       }
     } catch (error) {
       console.error('Failed to load project:', error)
+      toast.error('Kunne ikke hente projektdata')
     } finally {
       setIsLoading(false)
     }

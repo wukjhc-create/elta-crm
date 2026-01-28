@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { updateTaskStatus, deleteTask } from '@/lib/actions/projects'
+import { useToast } from '@/components/ui/toast'
 import { ProjectPriorityBadge } from './project-status-badge'
 import { TaskForm } from './task-form'
 import {
@@ -133,6 +134,7 @@ function TaskCard({ task, onEdit, onDelete, onDragStart }: TaskCardProps) {
 
 export function TaskBoard({ projectId, tasks, onRefresh }: TaskBoardProps) {
   const router = useRouter()
+  const toast = useToast()
   const [editingTask, setEditingTask] = useState<ProjectTaskWithRelations | null>(null)
   const [showNewTaskForm, setShowNewTaskForm] = useState(false)
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>('todo')
@@ -169,6 +171,7 @@ export function TaskBoard({ projectId, tasks, onRefresh }: TaskBoardProps) {
       onRefresh?.()
     } catch (error) {
       console.error('Failed to update task status:', error)
+      toast.error('Kunne ikke opdatere opgavestatus')
     }
 
     setDraggedTaskId(null)
@@ -181,6 +184,7 @@ export function TaskBoard({ projectId, tasks, onRefresh }: TaskBoardProps) {
       onRefresh?.()
     } catch (error) {
       console.error('Failed to delete task:', error)
+      toast.error('Kunne ikke slette opgave')
     }
   }
 

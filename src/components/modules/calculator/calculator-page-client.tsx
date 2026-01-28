@@ -37,6 +37,7 @@ export function CalculatorPageClient() {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [activeTemplateName, setActiveTemplateName] = useState<string | null>(null)
+  const [templateError, setTemplateError] = useState<string | null>(null)
 
   // Load templates on mount
   useEffect(() => {
@@ -44,9 +45,18 @@ export function CalculatorPageClient() {
   }, [])
 
   const loadTemplates = async () => {
-    const result = await getTemplates()
-    if (result.success && result.data) {
-      setTemplates(result.data)
+    try {
+      setTemplateError(null)
+      const result = await getTemplates()
+      if (result.success && result.data) {
+        setTemplates(result.data)
+      } else if (!result.success) {
+        console.error('Failed to load templates:', result.error)
+        // Don't show error to user - templates are optional
+      }
+    } catch (err) {
+      console.error('Error loading templates:', err)
+      setTemplateError('Kunne ikke hente skabeloner')
     }
   }
 
