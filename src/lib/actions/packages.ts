@@ -717,35 +717,43 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
       return { success: true, data: [] }
     }
 
-    // Get variants for each component
-    const result = await Promise.all(
-      components.map(async (comp) => {
-        const { data: variants, error: varError } = await supabase
-          .from('calc_component_variants')
-          .select('code, name')
-          .eq('component_id', comp.id)
-          .order('sort_order')
+    // Batch fetch all variants for all components (avoids N+1 queries)
+    const componentIds = components.map((c) => c.id)
+    const { data: allVariants, error: varError } = await supabase
+      .from('calc_component_variants')
+      .select('component_id, code, name')
+      .in('component_id', componentIds)
+      .order('sort_order')
 
-        if (varError) {
-          console.error('Database error fetching variants:', varError)
-        }
+    if (varError) {
+      console.error('Database error fetching variants:', varError)
+    }
 
-        // Handle category which could be an array or object
-        const category = comp.category as unknown as { name: string } | { name: string }[] | null
-        const categoryName = Array.isArray(category)
-          ? category[0]?.name || ''
-          : category?.name || ''
+    // Create lookup map for variants by component
+    const variantsByComponent = new Map<string, { code: string; name: string }[]>()
+    allVariants?.forEach((variant) => {
+      const existing = variantsByComponent.get(variant.component_id) || []
+      existing.push({ code: variant.code, name: variant.name })
+      variantsByComponent.set(variant.component_id, existing)
+    })
 
-        return {
-          id: comp.id,
-          code: comp.code,
-          name: comp.name,
-          base_time_minutes: comp.base_time_minutes,
-          category_name: categoryName,
-          variants: variants || [],
-        }
-      })
-    )
+    // Build result without additional queries
+    const result = components.map((comp) => {
+      // Handle category which could be an array or object
+      const category = comp.category as unknown as { name: string } | { name: string }[] | null
+      const categoryName = Array.isArray(category)
+        ? category[0]?.name || ''
+        : category?.name || ''
+
+      return {
+        id: comp.id,
+        code: comp.code,
+        name: comp.name,
+        base_time_minutes: comp.base_time_minutes,
+        category_name: categoryName,
+        variants: variantsByComponent.get(comp.id) || [],
+      }
+    })
 
     return { success: true, data: result }
   } catch (err) {

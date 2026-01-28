@@ -209,51 +209,71 @@ export async function getPortalOffers(
       return { success: false, error: 'Kunne ikke hente tilbud' }
     }
 
-    // Get line items for each offer
-    const offersWithItems: PortalOffer[] = await Promise.all(
-      (offers || []).map(async (offer) => {
-        const { data: lineItems } = await supabase
-          .from('offer_line_items')
-          .select('*')
-          .eq('offer_id', offer.id)
-          .order('position')
+    if (!offers || offers.length === 0) {
+      return { success: true, data: [] }
+    }
 
-        const { data: signature } = await supabase
-          .from('offer_signatures')
-          .select('*')
-          .eq('offer_id', offer.id)
-          .single()
+    // Get all offer IDs for batch queries
+    const offerIds = offers.map((o) => o.id)
 
-        return {
-          id: offer.id,
-          offer_number: offer.offer_number,
-          title: offer.title,
-          description: offer.description,
-          status: offer.status,
-          total_amount: offer.total_amount,
-          discount_percentage: offer.discount_percentage,
-          discount_amount: offer.discount_amount,
-          tax_percentage: offer.tax_percentage,
-          tax_amount: offer.tax_amount,
-          final_amount: offer.final_amount,
-          currency: offer.currency,
-          valid_until: offer.valid_until,
-          terms_and_conditions: offer.terms_and_conditions,
-          sent_at: offer.sent_at,
-          viewed_at: offer.viewed_at,
-          accepted_at: offer.accepted_at,
-          rejected_at: offer.rejected_at,
-          created_at: offer.created_at,
-          line_items: lineItems || [],
-          signature: signature || null,
-          sales_person: {
-            full_name: null,
-            email: '',
-            phone: null,
-          },
-        }
-      })
-    )
+    // Batch fetch all line items and signatures (avoids N+1 queries)
+    const [lineItemsResult, signaturesResult] = await Promise.all([
+      supabase
+        .from('offer_line_items')
+        .select('*')
+        .in('offer_id', offerIds)
+        .order('position'),
+      supabase
+        .from('offer_signatures')
+        .select('*')
+        .in('offer_id', offerIds),
+    ])
+
+    // Create lookup maps for efficient access
+    type LineItem = NonNullable<typeof lineItemsResult.data>[number]
+    type Signature = NonNullable<typeof signaturesResult.data>[number]
+    const lineItemsByOffer = new Map<string, LineItem[]>()
+    const signaturesByOffer = new Map<string, Signature | null>()
+
+    lineItemsResult.data?.forEach((item) => {
+      const existing = lineItemsByOffer.get(item.offer_id) || []
+      existing.push(item)
+      lineItemsByOffer.set(item.offer_id, existing)
+    })
+
+    signaturesResult.data?.forEach((sig) => {
+      signaturesByOffer.set(sig.offer_id, sig)
+    })
+
+    // Build result without additional queries
+    const offersWithItems: PortalOffer[] = offers.map((offer) => ({
+      id: offer.id,
+      offer_number: offer.offer_number,
+      title: offer.title,
+      description: offer.description,
+      status: offer.status,
+      total_amount: offer.total_amount,
+      discount_percentage: offer.discount_percentage,
+      discount_amount: offer.discount_amount,
+      tax_percentage: offer.tax_percentage,
+      tax_amount: offer.tax_amount,
+      final_amount: offer.final_amount,
+      currency: offer.currency,
+      valid_until: offer.valid_until,
+      terms_and_conditions: offer.terms_and_conditions,
+      sent_at: offer.sent_at,
+      viewed_at: offer.viewed_at,
+      accepted_at: offer.accepted_at,
+      rejected_at: offer.rejected_at,
+      created_at: offer.created_at,
+      line_items: lineItemsByOffer.get(offer.id) || [],
+      signature: signaturesByOffer.get(offer.id) || null,
+      sales_person: {
+        full_name: null,
+        email: '',
+        phone: null,
+      },
+    }))
 
     return { success: true, data: offersWithItems }
   } catch (error) {

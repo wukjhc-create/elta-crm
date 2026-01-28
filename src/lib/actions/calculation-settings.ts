@@ -507,43 +507,53 @@ export async function getComponentsWithPricing(): Promise<ActionResult<{
       return { success: true, data: [] }
     }
 
-    // Get variants for each component
-    const result = await Promise.all(
-      components.map(async (comp) => {
-        const { data: variants, error: varError } = await supabase
-          .from('calc_component_variants')
-          .select('code, name, time_multiplier, extra_minutes')
-          .eq('component_id', comp.id)
-          .order('sort_order')
+    // Batch fetch all variants for all components (avoids N+1 queries)
+    const componentIds = components.map((c) => c.id)
+    const { data: allVariants, error: varError } = await supabase
+      .from('calc_component_variants')
+      .select('component_id, code, name, time_multiplier, extra_minutes')
+      .in('component_id', componentIds)
+      .order('sort_order')
 
-        if (varError) {
-          console.error('Database error fetching variants:', varError)
-        }
+    if (varError) {
+      console.error('Database error fetching variants:', varError)
+    }
 
-        const category = comp.category as unknown as { name: string } | { name: string }[] | null
-        const categoryName = Array.isArray(category)
-          ? category[0]?.name || ''
-          : category?.name || ''
+    // Create lookup map for variants by component
+    const variantsByComponent = new Map<string, typeof allVariants>()
+    allVariants?.forEach((variant) => {
+      const existing = variantsByComponent.get(variant.component_id) || []
+      existing.push(variant)
+      variantsByComponent.set(variant.component_id, existing)
+    })
 
-        return {
-          id: comp.id,
-          code: comp.code,
-          name: comp.name,
-          description: comp.description,
-          base_time_minutes: comp.base_time_minutes,
-          default_cost_price: comp.default_cost_price || 0,
-          default_sale_price: comp.default_sale_price || 0,
-          complexity_factor: comp.complexity_factor || 1.0,
-          category_name: categoryName,
-          variants: (variants || []).map(v => ({
-            code: v.code,
-            name: v.name,
-            time_multiplier: v.time_multiplier || 1.0,
-            extra_minutes: v.extra_minutes || 0,
-          })),
-        }
-      })
-    )
+    // Build result without additional queries
+    const result = components.map((comp) => {
+      const category = comp.category as unknown as { name: string } | { name: string }[] | null
+      const categoryName = Array.isArray(category)
+        ? category[0]?.name || ''
+        : category?.name || ''
+
+      const variants = variantsByComponent.get(comp.id) || []
+
+      return {
+        id: comp.id,
+        code: comp.code,
+        name: comp.name,
+        description: comp.description,
+        base_time_minutes: comp.base_time_minutes,
+        default_cost_price: comp.default_cost_price || 0,
+        default_sale_price: comp.default_sale_price || 0,
+        complexity_factor: comp.complexity_factor || 1.0,
+        category_name: categoryName,
+        variants: variants.map((v) => ({
+          code: v.code,
+          name: v.name,
+          time_multiplier: v.time_multiplier || 1.0,
+          extra_minutes: v.extra_minutes || 0,
+        })),
+      }
+    })
 
     return { success: true, data: result }
   } catch (err) {
