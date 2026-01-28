@@ -55,6 +55,97 @@ function safeJsonParse<T>(value: string | null, defaultValue: T): T {
 }
 
 // =====================================================
+// ROI & Calculation Helpers
+// =====================================================
+
+/**
+ * Calculate ROI metrics for any project type
+ * @param investmentAmount - Total investment in DKK
+ * @param annualBenefit - Yearly savings or benefit in DKK
+ * @param projectLifeYears - Project lifespan (default 25 years)
+ * @returns Enhanced ROI data with payback period and simple ROI
+ */
+export function calculateROI(
+  investmentAmount: number,
+  annualBenefit: number,
+  projectLifeYears: number = 25
+): EnhancedROIData {
+  const paybackYears = annualBenefit > 0 ? investmentAmount / annualBenefit : 0
+  const totalBenefit = annualBenefit * projectLifeYears
+  const simpleROI =
+    investmentAmount > 0 ? ((totalBenefit - investmentAmount) / investmentAmount) * 100 : 0
+
+  return {
+    investmentAmount,
+    paybackYears,
+    simpleROI,
+    estimatedAnnualBenefit: annualBenefit,
+    projectLifeYears,
+  }
+}
+
+/**
+ * Calculate electrician job totals with labor and materials
+ * @param hours - Total work hours
+ * @param hourlyRate - Rate per hour in DKK
+ * @param materialsCost - Raw materials cost in DKK
+ * @param materialsMarkup - Markup percentage on materials (0-100)
+ * @returns Breakdown of labor, materials, and grand total
+ */
+export function calculateElectricianJob(
+  hours: number,
+  hourlyRate: number,
+  materialsCost: number,
+  materialsMarkup: number
+): { laborTotal: number; materialsTotal: number; grandTotal: number } {
+  const laborTotal = hours * hourlyRate
+  const materialsTotal = materialsCost * (1 + materialsMarkup / 100)
+  return {
+    laborTotal,
+    materialsTotal,
+    grandTotal: laborTotal + materialsTotal,
+  }
+}
+
+/**
+ * Calculate solar project ROI with electricity production
+ * @param investmentAmount - Total investment in DKK
+ * @param annualProduction - Yearly kWh production
+ * @param electricityPrice - Price per kWh in DKK
+ * @param selfConsumptionRate - Percentage of self-consumption (0-100)
+ * @returns Enhanced ROI data with solar-specific metrics
+ */
+export function calculateSolarROI(
+  investmentAmount: number,
+  annualProduction: number,
+  electricityPrice: number,
+  selfConsumptionRate: number
+): EnhancedROIData {
+  // Self-consumed electricity saves full retail price
+  const selfConsumedKwh = annualProduction * (selfConsumptionRate / 100)
+  const exportedKwh = annualProduction - selfConsumedKwh
+
+  // Exported electricity gets spot price (approximately 40% of retail)
+  const spotPriceRatio = 0.4
+  const annualSavings =
+    selfConsumedKwh * electricityPrice + exportedKwh * electricityPrice * spotPriceRatio
+
+  // CO2 reduction: ~300g per kWh in Denmark
+  const co2Reduction = annualProduction * 0.3
+
+  const baseROI = calculateROI(investmentAmount, annualSavings, 25)
+
+  return {
+    ...baseROI,
+    annualProduction,
+    selfConsumptionRate,
+    annualSavings,
+    totalSavings25Years: annualSavings * 25,
+    co2Reduction,
+  }
+}
+
+// =====================================================
 // Calculations
 // =====================================================
 
