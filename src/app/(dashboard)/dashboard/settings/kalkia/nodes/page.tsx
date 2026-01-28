@@ -1,0 +1,22 @@
+import { getKalkiaNodes } from '@/lib/actions/kalkia'
+import { getComponentCategories } from '@/lib/actions/components'
+import KalkiaNodesClient from './kalkia-nodes-client'
+
+export const metadata = {
+  title: 'Kalkia Noder | ELTA CRM',
+  description: 'Administrer hierarkisk komponenttrae',
+}
+
+export default async function KalkiaNodesPage() {
+  const [nodesResult, categoriesResult] = await Promise.all([
+    getKalkiaNodes(),
+    getComponentCategories(),
+  ])
+
+  return (
+    <KalkiaNodesClient
+      nodes={nodesResult.success && nodesResult.data ? nodesResult.data : []}
+      categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
+    />
+  )
+}

@@ -89,3 +89,51 @@ export function DialogTitle({ children, className }: DialogTitleProps) {
     </h2>
   )
 }
+
+interface DialogDescriptionProps {
+  children: ReactNode
+  className?: string
+}
+
+export function DialogDescription({ children, className }: DialogDescriptionProps) {
+  return (
+    <p className={clsx('text-sm text-gray-500', className)}>
+      {children}
+    </p>
+  )
+}
+
+interface DialogTriggerProps {
+  asChild?: boolean
+  children: ReactNode
+}
+
+export function DialogTrigger({ asChild, children }: DialogTriggerProps) {
+  const context = useContext(DialogContext)
+
+  // When used outside of Dialog context (controlled externally), just render children
+  if (!context) {
+    return <>{children}</>
+  }
+
+  if (asChild && children && typeof children === 'object' && 'props' in children) {
+    const child = children as React.ReactElement<{ onClick?: () => void }>
+    return (
+      <>
+        {(() => {
+          const props = {
+            ...child.props,
+            onClick: () => context.onOpenChange(true),
+          }
+          return { ...child, props }
+        })()}
+      </>
+    )
+  }
+
+  return (
+    <button onClick={() => context.onOpenChange(true)}>
+      {children}
+    </button>
+  )
+}
