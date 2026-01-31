@@ -7,9 +7,6 @@ import {
   Plus,
   FolderTree,
   Wrench,
-  Layers,
-  ChevronRight,
-  ChevronDown,
   Package,
   X,
   Filter,
@@ -25,132 +22,201 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { searchKalkiaNodes, getKalkiaNode } from '@/lib/actions/kalkia'
-import type {
-  KalkiaNodeSummary,
-  KalkiaNodeWithRelations,
-  KalkiaNodeType,
-  KalkiaVariant,
-  KalkiaCalculationItemInput,
-} from '@/types/kalkia.types'
+import { v4 as uuidv4 } from 'uuid'
+import {
+  searchCalcComponents,
+  getCalcComponentsBrowse,
+  getCalcComponentForCalculation,
+  type ComponentSummary,
+  type ComponentForCalculation,
+  type ComponentVariant,
+} from '@/lib/actions/components'
+import type { CalculationItem } from './CalculationPreview'
 
-const nodeTypeIcons: Record<KalkiaNodeType, React.ElementType> = {
-  group: FolderTree,
-  operation: Wrench,
-  composite: Layers,
-}
-
-const nodeTypeColors: Record<KalkiaNodeType, string> = {
-  group: 'bg-blue-100 text-blue-600',
-  operation: 'bg-yellow-100 text-yellow-600',
-  composite: 'bg-purple-100 text-purple-600',
-}
-
-interface SelectedComponent {
-  node: KalkiaNodeWithRelations
+// Component item for calculation - matches what PackageBuilder expects
+export interface CalcComponentInput {
+  componentId: string
   variantId: string | null
   quantity: number
 }
 
 interface ComponentBrowserProps {
-  onAdd: (item: KalkiaCalculationItemInput, nodeName: string, variantName?: string) => void
-  existingNodeIds?: string[]
+  onAdd: (item: CalculationItem) => void
+  existingComponentIds?: string[]
   className?: string
 }
 
 export function ComponentBrowser({
   onAdd,
-  existingNodeIds = [],
+  existingComponentIds = [],
   className = '',
 }: ComponentBrowserProps) {
   const [search, setSearch] = useState('')
-  const [results, setResults] = useState<KalkiaNodeSummary[]>([])
+  const [results, setResults] = useState<ComponentSummary[]>([])
+  const [browseComponents, setBrowseComponents] = useState<ComponentSummary[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedNode, setSelectedNode] = useState<KalkiaNodeWithRelations | null>(null)
-  const [loadingNode, setLoadingNode] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [selectedComponent, setSelectedComponent] = useState<ComponentForCalculation | null>(null)
+  const [loadingComponent, setLoadingComponent] = useState(false)
   const [selectedVariantId, setSelectedVariantId] = useState<string>('')
   const [quantity, setQuantity] = useState(1)
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+
+  // Load initial components on mount
+  useEffect(() => {
+    const loadBrowseComponents = async () => {
+      setInitialLoading(true)
+      const result = await getCalcComponentsBrowse(50)
+      if (result.success && result.data) {
+        setBrowseComponents(result.data)
+      }
+      setInitialLoading(false)
+    }
+    loadBrowseComponents()
+  }, [])
 
   // Debounced search
   useEffect(() => {
-    const searchNodes = async () => {
+    const searchComponents = async () => {
       if (search.length < 2) {
         setResults([])
         return
       }
 
       setLoading(true)
-      const result = await searchKalkiaNodes(search, 30)
+      const result = await searchCalcComponents(search, 30)
       if (result.success && result.data) {
-        let filtered = result.data.filter((n) => !existingNodeIds.includes(n.id))
-        if (typeFilter !== 'all') {
-          filtered = filtered.filter((n) => n.node_type === typeFilter)
+        let filtered = result.data.filter((c) => !existingComponentIds.includes(c.id))
+        if (categoryFilter !== 'all') {
+          filtered = filtered.filter((c) => c.category_slug === categoryFilter)
         }
         setResults(filtered)
       }
       setLoading(false)
     }
 
-    const debounce = setTimeout(searchNodes, 300)
+    const debounce = setTimeout(searchComponents, 300)
     return () => clearTimeout(debounce)
-  }, [search, existingNodeIds, typeFilter])
+  }, [search, existingComponentIds, categoryFilter])
 
-  const handleSelectNode = useCallback(async (summary: KalkiaNodeSummary) => {
-    if (summary.node_type === 'group') {
-      // Toggle group expansion
-      setExpandedGroups((prev) => {
-        const newSet = new Set(prev)
-        if (newSet.has(summary.id)) {
-          newSet.delete(summary.id)
-        } else {
-          newSet.add(summary.id)
-        }
-        return newSet
-      })
-      return
+  // Determine which components to display
+  const displayComponents = search.length >= 2 ? results : browseComponents.filter((c) => {
+    if (existingComponentIds.includes(c.id)) return false
+    if (categoryFilter !== 'all' && c.category_slug !== categoryFilter) return false
+    return true
+  })
+  const isSearchMode = search.length >= 2
+
+  // Get unique categories for filter
+  const categories = Array.from(new Set(browseComponents.map((c) => c.category_slug).filter(Boolean))) as string[]
+
+  // Quick-add: single click adds component with default variant
+  const handleQuickAdd = useCallback(async (summary: ComponentSummary) => {
+    setLoadingComponent(true)
+    const result = await getCalcComponentForCalculation(summary.id)
+
+    if (result.success && result.data) {
+      const component = result.data
+      const variant = component.variants?.find((v) => v.is_default) || component.variants?.[0] || null
+
+      let baseTime = component.base_time_minutes
+      if (variant) {
+        baseTime = Math.round(baseTime * variant.time_multiplier) + variant.extra_minutes
+      }
+
+      const materials = component.materials?.map((m) => ({
+        name: m.material_name,
+        quantity: m.quantity,
+        unit: m.unit,
+        costPrice: 0,
+        salePrice: 0,
+      })) || []
+
+      const calcItem: CalculationItem = {
+        id: uuidv4(),
+        componentId: component.id,
+        componentName: component.name,
+        componentCode: component.code,
+        variantId: variant?.id || null,
+        variantName: variant?.name,
+        quantity: 1,
+        baseTimeMinutes: component.base_time_minutes,
+        calculatedTimeMinutes: baseTime,
+        costPrice: component.default_cost_price || 0,
+        salePrice: component.default_sale_price || 0,
+        materials,
+      }
+
+      onAdd(calcItem)
     }
 
-    setLoadingNode(true)
-    const result = await getKalkiaNode(summary.id)
+    setLoadingComponent(false)
+  }, [onAdd])
+
+  // Detail view: click to see details, then add with custom quantity/variant
+  const handleSelectComponent = useCallback(async (summary: ComponentSummary) => {
+    setLoadingComponent(true)
+    const result = await getCalcComponentForCalculation(summary.id)
     if (result.success && result.data) {
-      setSelectedNode(result.data)
-      // Select default variant
+      setSelectedComponent(result.data)
       const defaultVariant = result.data.variants?.find((v) => v.is_default) || result.data.variants?.[0]
       setSelectedVariantId(defaultVariant?.id || '')
       setQuantity(1)
     }
-    setLoadingNode(false)
+    setLoadingComponent(false)
   }, [])
 
   const handleAdd = () => {
-    if (!selectedNode) return
+    if (!selectedComponent) return
 
-    const item: KalkiaCalculationItemInput = {
-      nodeId: selectedNode.id,
-      variantId: selectedVariantId || null,
-      quantity,
+    const variant = selectedComponent.variants?.find((v) => v.id === selectedVariantId)
+
+    // Calculate time with variant multipliers
+    let baseTime = selectedComponent.base_time_minutes
+    if (variant) {
+      baseTime = Math.round(baseTime * variant.time_multiplier) + variant.extra_minutes
     }
 
-    const variant = selectedNode.variants?.find((v) => v.id === selectedVariantId)
-    onAdd(item, selectedNode.name, variant?.name)
+    // Build materials list
+    const materials = selectedComponent.materials?.map((m) => ({
+      name: m.material_name,
+      quantity: m.quantity,
+      unit: m.unit,
+      costPrice: 0,
+      salePrice: 0,
+    })) || []
+
+    // Create full calculation item
+    const calcItem: CalculationItem = {
+      id: uuidv4(),
+      componentId: selectedComponent.id,
+      componentName: selectedComponent.name,
+      componentCode: selectedComponent.code,
+      variantId: variant?.id || null,
+      variantName: variant?.name,
+      quantity,
+      baseTimeMinutes: selectedComponent.base_time_minutes,
+      calculatedTimeMinutes: baseTime * quantity,
+      costPrice: selectedComponent.default_cost_price || 0,
+      salePrice: selectedComponent.default_sale_price || 0,
+      materials,
+    }
+
+    onAdd(calcItem)
 
     // Reset selection
-    setSelectedNode(null)
+    setSelectedComponent(null)
     setSelectedVariantId('')
     setQuantity(1)
   }
 
   const handleClearSelection = () => {
-    setSelectedNode(null)
+    setSelectedComponent(null)
     setSelectedVariantId('')
     setQuantity(1)
   }
 
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`
-    const minutes = Math.floor(seconds / 60)
+  const formatTime = (minutes: number) => {
     if (minutes < 60) return `${minutes} min`
     const hours = Math.floor(minutes / 60)
     const mins = minutes % 60
@@ -166,26 +232,26 @@ export function ComponentBrowser({
   }
 
   const getCalculatedTime = (): number => {
-    if (!selectedNode) return 0
-    let baseTime = selectedNode.base_time_seconds
+    if (!selectedComponent) return 0
+    let baseTime = selectedComponent.base_time_minutes
 
     if (selectedVariantId) {
-      const variant = selectedNode.variants?.find((v) => v.id === selectedVariantId)
+      const variant = selectedComponent.variants?.find((v) => v.id === selectedVariantId)
       if (variant) {
-        baseTime = Math.round(baseTime * variant.time_multiplier) + variant.extra_time_seconds
+        baseTime = Math.round(baseTime * variant.time_multiplier) + variant.extra_minutes
       }
     }
 
     return baseTime * quantity
   }
 
-  // Group results by path prefix
-  const groupedResults = results.reduce((acc, node) => {
-    const rootPath = node.path.split('.')[0]
-    if (!acc[rootPath]) acc[rootPath] = []
-    acc[rootPath].push(node)
+  // Group components by category
+  const groupedComponents = displayComponents.reduce((acc, comp) => {
+    const category = comp.category_name || 'Uden kategori'
+    if (!acc[category]) acc[category] = []
+    acc[category].push(comp)
     return acc
-  }, {} as Record<string, KalkiaNodeSummary[]>)
+  }, {} as Record<string, ComponentSummary[]>)
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
@@ -194,7 +260,7 @@ export function ComponentBrowser({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
-            placeholder="Søg komponenter (min. 2 tegn)..."
+            placeholder="Søg i komponenter..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -202,140 +268,134 @@ export function ComponentBrowser({
         </div>
 
         <div className="flex gap-2">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-[140px]">
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-[160px]">
               <Filter className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Type" />
+              <SelectValue placeholder="Kategori" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Alle typer</SelectItem>
-              <SelectItem value="operation">Operationer</SelectItem>
-              <SelectItem value="composite">Pakker</SelectItem>
-              <SelectItem value="group">Grupper</SelectItem>
+              <SelectItem value="all">Alle kategorier</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {browseComponents.find((c) => c.category_slug === cat)?.category_name || cat}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
-          {search && (
-            <Badge variant="secondary" className="px-3">
-              {results.length} resultater
-            </Badge>
-          )}
+          <Badge variant="secondary" className="px-3">
+            {isSearchMode ? `${results.length} resultater` : `${displayComponents.length} komponenter`}
+          </Badge>
         </div>
       </div>
 
       {/* Results / Selection area */}
       <div className="flex-1 overflow-hidden flex">
-        {/* Search Results */}
-        <div className={`flex-1 overflow-y-auto border-r ${selectedNode ? 'w-1/2' : 'w-full'}`}>
-          {loading ? (
+        {/* Component List */}
+        <div className={`flex-1 overflow-y-auto border-r ${selectedComponent ? 'w-1/2' : 'w-full'}`}>
+          {(loading || initialLoading) ? (
             <div className="p-8 text-center text-gray-500">
               <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2" />
-              Søger...
+              {isSearchMode ? 'Søger...' : 'Henter komponenter...'}
             </div>
-          ) : results.length === 0 ? (
+          ) : displayComponents.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
-              {search.length < 2 ? (
+              {isSearchMode ? (
                 <>
-                  <Search className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p>Indtast mindst 2 tegn for at søge</p>
-                  <p className="text-sm mt-2">Fx: &quot;stik&quot;, &quot;spot&quot;, &quot;tavle&quot;</p>
+                  <Package className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p>Ingen komponenter fundet for &quot;{search}&quot;</p>
+                  <p className="text-sm mt-2">Prøv et andet søgeord</p>
                 </>
               ) : (
                 <>
                   <Package className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p>Ingen komponenter fundet</p>
+                  <p>Ingen komponenter tilgængelige</p>
+                  <p className="text-sm mt-2">Kontakt administrator for at tilføje komponenter</p>
                 </>
               )}
             </div>
           ) : (
             <div className="divide-y">
-              {Object.entries(groupedResults).map(([rootPath, nodes]) => (
-                <div key={rootPath}>
+              {Object.entries(groupedComponents).map(([category, components]) => (
+                <div key={category}>
                   <div className="px-3 py-2 bg-gray-50 text-sm font-medium text-gray-600 flex items-center gap-2">
                     <FolderTree className="w-4 h-4" />
-                    {rootPath}
+                    {category}
                     <Badge variant="secondary" className="text-xs">
-                      {nodes.length}
+                      {components.length}
                     </Badge>
                   </div>
-                  {nodes.map((node) => {
-                    const Icon = nodeTypeIcons[node.node_type]
-                    const colorClass = nodeTypeColors[node.node_type]
-                    const isGroup = node.node_type === 'group'
-                    const isExpanded = expandedGroups.has(node.id)
+                  {components.map((comp) => (
+                    <div
+                      key={comp.id}
+                      className={`w-full p-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3 ${
+                        selectedComponent?.id === comp.id ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center flex-shrink-0">
+                        <Wrench className="w-4 h-4" />
+                      </div>
 
-                    return (
                       <button
-                        key={node.id}
-                        className={`w-full p-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3 ${
-                          selectedNode?.id === node.id ? 'bg-blue-50' : ''
-                        }`}
-                        onClick={() => handleSelectNode(node)}
-                        disabled={loadingNode}
-                        style={{ paddingLeft: `${12 + node.depth * 16}px` }}
+                        type="button"
+                        className="flex-1 min-w-0 text-left cursor-pointer hover:text-blue-600"
+                        onClick={() => handleSelectComponent(comp)}
+                        disabled={loadingComponent}
                       >
-                        {isGroup ? (
-                          isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-gray-400" />
-                          )
-                        ) : null}
-
-                        <div className={`w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center flex-shrink-0`}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium truncate">{node.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium truncate">{comp.name}</span>
+                          {comp.code && (
                             <Badge variant="outline" className="text-xs flex-shrink-0">
-                              {node.code}
+                              {comp.code}
                             </Badge>
-                          </div>
-                          <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-                            {node.base_time_seconds > 0 && (
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {formatTime(node.base_time_seconds)}
-                              </span>
-                            )}
-                            {node.default_sale_price > 0 && (
-                              <span>{formatPrice(node.default_sale_price)}</span>
-                            )}
-                            {node.variant_count > 0 && (
-                              <span>{node.variant_count} varianter</span>
-                            )}
-                          </div>
+                          )}
                         </div>
-
-                        {!isGroup && (
-                          <Plus className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                        )}
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                          {comp.base_time_minutes > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatTime(comp.base_time_minutes)}
+                            </span>
+                          )}
+                          {comp.variant_count > 0 && (
+                            <span>{comp.variant_count} varianter</span>
+                          )}
+                          {comp.difficulty_level > 1 && (
+                            <span>{'★'.repeat(comp.difficulty_level)}</span>
+                          )}
+                        </div>
                       </button>
-                    )
-                  })}
+
+                      <button
+                        type="button"
+                        className="p-2 rounded-full hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0"
+                        onClick={() => handleQuickAdd(comp)}
+                        disabled={loadingComponent}
+                        title="Tilføj til kalkulation"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Selected Node Detail */}
-        {selectedNode && (
+        {/* Selected Component Detail */}
+        {selectedComponent && (
           <div className="w-1/2 p-4 overflow-y-auto bg-gray-50">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg ${nodeTypeColors[selectedNode.node_type]} flex items-center justify-center`}>
-                  {selectedNode.node_type === 'composite' ? (
-                    <Layers className="w-5 h-5" />
-                  ) : (
-                    <Wrench className="w-5 h-5" />
-                  )}
+                <div className="w-10 h-10 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center">
+                  <Wrench className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">{selectedNode.name}</h3>
-                  <Badge variant="outline" className="text-xs">{selectedNode.code}</Badge>
+                  <h3 className="font-semibold">{selectedComponent.name}</h3>
+                  {selectedComponent.code && (
+                    <Badge variant="outline" className="text-xs">{selectedComponent.code}</Badge>
+                  )}
                 </div>
               </div>
               <Button variant="ghost" size="sm" onClick={handleClearSelection}>
@@ -343,12 +403,12 @@ export function ComponentBrowser({
               </Button>
             </div>
 
-            {selectedNode.description && (
-              <p className="text-sm text-gray-600 mb-4">{selectedNode.description}</p>
+            {selectedComponent.description && (
+              <p className="text-sm text-gray-600 mb-4">{selectedComponent.description}</p>
             )}
 
             {/* Variant Selection */}
-            {selectedNode.variants && selectedNode.variants.length > 0 && (
+            {selectedComponent.variants && selectedComponent.variants.length > 0 && (
               <div className="mb-4">
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
                   Vægtype / Variant
@@ -358,7 +418,7 @@ export function ComponentBrowser({
                     <SelectValue placeholder="Vælg variant" />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectedNode.variants.map((variant: KalkiaVariant) => (
+                    {selectedComponent.variants.map((variant: ComponentVariant) => (
                       <SelectItem key={variant.id} value={variant.id}>
                         <div className="flex items-center justify-between w-full">
                           <span>{variant.name}</span>
@@ -378,7 +438,7 @@ export function ComponentBrowser({
 
                 {selectedVariantId && (
                   <div className="mt-2 text-xs text-gray-500">
-                    {selectedNode.variants.find((v) => v.id === selectedVariantId)?.description}
+                    {selectedComponent.variants.find((v) => v.id === selectedVariantId)?.description}
                   </div>
                 )}
               </div>
@@ -405,7 +465,7 @@ export function ComponentBrowser({
                   <div>
                     <span className="text-gray-500">Basistid:</span>
                     <span className="ml-2 font-medium">
-                      {formatTime(selectedNode.base_time_seconds)}
+                      {formatTime(selectedComponent.base_time_minutes)}
                     </span>
                   </div>
                   <div>
@@ -415,45 +475,38 @@ export function ComponentBrowser({
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Salgspris:</span>
-                    <span className="ml-2 font-medium">
-                      {formatPrice(selectedNode.default_sale_price)}
-                    </span>
-                  </div>
-                  <div>
                     <span className="text-gray-500">Sværhedsgrad:</span>
                     <span className="ml-2">
-                      {'★'.repeat(selectedNode.difficulty_level)}
-                      {'☆'.repeat(5 - selectedNode.difficulty_level)}
+                      {'★'.repeat(selectedComponent.difficulty_level)}
+                      {'☆'.repeat(5 - selectedComponent.difficulty_level)}
                     </span>
                   </div>
+                  {selectedComponent.default_sale_price > 0 && (
+                    <div>
+                      <span className="text-gray-500">Pris:</span>
+                      <span className="ml-2 font-medium">
+                        {formatPrice(selectedComponent.default_sale_price)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
             {/* Materials Preview */}
-            {selectedVariantId && (
+            {selectedComponent.materials && selectedComponent.materials.length > 0 && (
               <div className="mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Materialer</h4>
-                {(() => {
-                  const variant = selectedNode.variants?.find((v) => v.id === selectedVariantId)
-                  const materials = (variant as { materials?: Array<{ id: string; material_name: string; quantity: number; unit: string; cost_price?: number }> })?.materials
-                  if (!materials || materials.length === 0) {
-                    return <p className="text-sm text-gray-500">Ingen materialer defineret</p>
-                  }
-                  return (
-                    <div className="space-y-1">
-                      {materials.map((mat) => (
-                        <div key={mat.id} className="flex items-center justify-between text-sm bg-white rounded p-2">
-                          <span>{mat.material_name}</span>
-                          <span className="text-gray-500">
-                            {mat.quantity * quantity} {mat.unit}
-                          </span>
-                        </div>
-                      ))}
+                <div className="space-y-1">
+                  {selectedComponent.materials.map((mat) => (
+                    <div key={mat.id} className="flex items-center justify-between text-sm bg-white rounded p-2">
+                      <span>{mat.material_name}</span>
+                      <span className="text-gray-500">
+                        {mat.quantity * quantity} {mat.unit}
+                      </span>
                     </div>
-                  )
-                })()}
+                  ))}
+                </div>
               </div>
             )}
 

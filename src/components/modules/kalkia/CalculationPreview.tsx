@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronRight,
   Wrench,
-  Layers,
   AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -24,15 +23,14 @@ import type { CalculationResult } from '@/types/kalkia.types'
 
 export interface CalculationItem {
   id: string
-  nodeId: string
-  nodeName: string
-  nodeCode: string
-  nodeType: 'operation' | 'composite' | 'group'
+  componentId: string
+  componentName: string
+  componentCode: string | null
   variantId: string | null
   variantName?: string
   quantity: number
-  baseTimeSeconds: number
-  calculatedTimeSeconds: number
+  baseTimeMinutes: number
+  calculatedTimeMinutes: number
   costPrice: number
   salePrice: number
   materials?: {
@@ -73,9 +71,7 @@ export function CalculationPreview({
     })
   }
 
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`
-    const minutes = Math.floor(seconds / 60)
+  const formatTime = (minutes: number) => {
     if (minutes < 60) return `${minutes} min`
     const hours = Math.floor(minutes / 60)
     const mins = minutes % 60
@@ -99,7 +95,7 @@ export function CalculationPreview({
   }
 
   // Calculate totals from items
-  const totalTime = items.reduce((sum, item) => sum + item.calculatedTimeSeconds, 0)
+  const totalTime = items.reduce((sum, item) => sum + item.calculatedTimeMinutes, 0)
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
 
   if (items.length === 0) {
@@ -142,21 +138,13 @@ export function CalculationPreview({
                     <div className="w-6" />
                   )}
 
-                  <div className={`w-8 h-8 rounded flex items-center justify-center ${
-                    item.nodeType === 'composite'
-                      ? 'bg-purple-100 text-purple-600'
-                      : 'bg-yellow-100 text-yellow-600'
-                  }`}>
-                    {item.nodeType === 'composite' ? (
-                      <Layers className="w-4 h-4" />
-                    ) : (
-                      <Wrench className="w-4 h-4" />
-                    )}
+                  <div className="w-8 h-8 rounded flex items-center justify-center bg-yellow-100 text-yellow-600">
+                    <Wrench className="w-4 h-4" />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{item.nodeName}</span>
+                      <span className="font-medium truncate">{item.componentName}</span>
                       {item.variantName && (
                         <Badge variant="outline" className="text-xs">
                           {item.variantName}
@@ -166,7 +154,7 @@ export function CalculationPreview({
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {formatTime(item.calculatedTimeSeconds)}
+                        {formatTime(item.calculatedTimeMinutes)}
                       </span>
                       <span>{formatPrice(item.salePrice)}</span>
                     </div>
@@ -240,12 +228,12 @@ export function CalculationPreview({
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="bg-white rounded p-2">
                 <p className="text-gray-500 text-xs">Direkte tid</p>
-                <p className="font-semibold">{formatTime(result.totalDirectTimeSeconds)}</p>
+                <p className="font-semibold">{formatTime(Math.round(result.totalDirectTimeSeconds / 60))}</p>
               </div>
               <div className="bg-white rounded p-2">
                 <p className="text-gray-500 text-xs">Total arbejdstid</p>
                 <p className="font-semibold text-blue-600">
-                  {formatTime(result.totalLaborTimeSeconds)}
+                  {formatTime(Math.round(result.totalLaborTimeSeconds / 60))}
                 </p>
               </div>
             </div>

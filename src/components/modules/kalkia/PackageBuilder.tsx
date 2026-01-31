@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 import {
   Save,
   FileText,
@@ -28,9 +27,8 @@ import {
 } from '@/components/ui/collapsible'
 import { ComponentBrowser } from './ComponentBrowser'
 import { CalculationPreview, type CalculationItem } from './CalculationPreview'
-import { calculateFromNodes, getBuildingProfiles, getKalkiaNode } from '@/lib/actions/kalkia'
+import { getBuildingProfiles } from '@/lib/actions/kalkia'
 import type {
-  KalkiaCalculationItemInput,
   KalkiaBuildingProfile,
   CalculationResult,
 } from '@/types/kalkia.types'
@@ -90,7 +88,7 @@ export function PackageBuilder({
 
   // Recalculate when items or settings change
   useEffect(() => {
-    const calculate = async () => {
+    const calculate = () => {
       if (items.length === 0) {
         setResult(null)
         return
@@ -98,100 +96,105 @@ export function PackageBuilder({
 
       setIsCalculating(true)
 
-      const inputs: KalkiaCalculationItemInput[] = items.map((item) => ({
-        nodeId: item.nodeId,
-        variantId: item.variantId,
-        quantity: item.quantity,
-      }))
+      // Get building profile multipliers
+      const profile = buildingProfiles.find((p) => p.id === selectedProfileId)
+      const timeMultiplier = profile?.time_multiplier || 1
+      const wasteMultiplier = profile?.material_waste_multiplier || 1
+      const overheadMultiplier = profile?.overhead_multiplier || 1
 
-      const calcResult = await calculateFromNodes(
-        inputs,
-        selectedProfileId || null,
-        hourlyRate,
-        marginPercentage,
-        discountPercentage
-      )
+      // Default factors
+      const indirectTimeFactor = 0.10 // 10% indirect time
+      const personalTimeFactor = 0.05 // 5% personal time
+      const overheadFactor = 0.10 * overheadMultiplier // 10% overhead adjusted by profile
+      const materialWasteFactor = wasteMultiplier
 
-      if (calcResult.success && calcResult.data) {
-        setResult(calcResult.data.result)
+      // Calculate totals from items
+      const totalDirectTimeMinutes = items.reduce((sum, item) => sum + item.calculatedTimeMinutes, 0)
+      const totalDirectTimeSeconds = Math.round(totalDirectTimeMinutes * 60 * timeMultiplier)
 
-        // Update item time values from calculation
-        const calculatedItems = calcResult.data.items as Array<{
-          nodeId: string
-          directTimeSeconds: number
-          totalLaborTimeSeconds: number
-          materialCost: number
-          laborCost: number
-        }>
+      // Calculate indirect and personal time
+      const totalIndirectTimeSeconds = Math.round(totalDirectTimeSeconds * indirectTimeFactor)
+      const totalPersonalTimeSeconds = Math.round(totalDirectTimeSeconds * personalTimeFactor)
+      const totalLaborTimeSeconds = totalDirectTimeSeconds + totalIndirectTimeSeconds + totalPersonalTimeSeconds
+      const totalLaborHours = totalLaborTimeSeconds / 3600
 
-        setItems((prev) =>
-          prev.map((item) => {
-            const calcItem = calculatedItems.find((c) => c.nodeId === item.nodeId)
-            if (calcItem) {
-              return {
-                ...item,
-                calculatedTimeSeconds: calcItem.directTimeSeconds,
-                costPrice: calcItem.materialCost + calcItem.laborCost,
-                salePrice: item.salePrice, // Keep original sale price
-              }
-            }
-            return item
-          })
-        )
+      // Calculate material costs with waste factor
+      const baseMaterialCost = items.reduce((sum, item) => {
+        const materialCost = item.materials?.reduce((mSum, m) => mSum + (m.costPrice * m.quantity * item.quantity), 0) || 0
+        return sum + materialCost
+      }, 0)
+      const totalMaterialWaste = baseMaterialCost * (materialWasteFactor - 1)
+      const totalMaterialCost = baseMaterialCost + totalMaterialWaste
+
+      // Calculate labor cost
+      const totalLaborCost = totalLaborHours * hourlyRate
+      const totalOtherCosts = 0 // No other costs for now
+
+      // Calculate cost price
+      const costPrice = totalMaterialCost + totalLaborCost + totalOtherCosts
+
+      // Overhead and risk
+      const overheadAmount = costPrice * overheadFactor
+      const riskAmount = costPrice * 0.02 // 2% risk
+      const salesBasis = costPrice + overheadAmount + riskAmount
+
+      // Pricing
+      const marginAmount = salesBasis * (marginPercentage / 100)
+      const salePriceExclVat = salesBasis + marginAmount
+      const discountAmount = salePriceExclVat * (discountPercentage / 100)
+      const netPrice = salePriceExclVat - discountAmount
+      const vatAmount = netPrice * 0.25
+      const finalAmount = netPrice + vatAmount
+
+      // Calculate DB (contribution margin)
+      const dbAmount = netPrice - totalMaterialCost - totalLaborCost
+      const dbPercentage = netPrice > 0 ? (dbAmount / netPrice) * 100 : 0
+      const dbPerHour = totalLaborHours > 0 ? dbAmount / totalLaborHours : 0
+      const coverageRatio = costPrice > 0 ? netPrice / costPrice : 0
+
+      const calculationResult: CalculationResult = {
+        totalDirectTimeSeconds,
+        totalIndirectTimeSeconds,
+        totalPersonalTimeSeconds,
+        totalLaborTimeSeconds,
+        totalLaborHours,
+        totalMaterialCost,
+        totalMaterialWaste,
+        totalLaborCost,
+        totalOtherCosts,
+        costPrice,
+        overheadAmount,
+        riskAmount,
+        salesBasis,
+        marginAmount,
+        salePriceExclVat,
+        discountAmount,
+        netPrice,
+        vatAmount,
+        finalAmount,
+        dbAmount,
+        dbPercentage,
+        dbPerHour,
+        coverageRatio,
+        factorsUsed: {
+          indirectTimeFactor,
+          personalTimeFactor,
+          overheadFactor,
+          materialWasteFactor,
+        },
       }
 
+      setResult(calculationResult)
       setIsCalculating(false)
     }
 
-    const debounce = setTimeout(calculate, 500)
+    const debounce = setTimeout(calculate, 300)
     return () => clearTimeout(debounce)
-  }, [items, selectedProfileId, hourlyRate, marginPercentage, discountPercentage])
+  }, [items, selectedProfileId, buildingProfiles, hourlyRate, marginPercentage, discountPercentage])
 
-  const handleAddItem = useCallback(
-    async (input: KalkiaCalculationItemInput, nodeName: string, variantName?: string) => {
-      // Fetch full node data for materials
-      const nodeResult = await getKalkiaNode(input.nodeId)
-      if (!nodeResult.success || !nodeResult.data) return
-
-      const node = nodeResult.data
-      const variant = input.variantId
-        ? node.variants?.find((v) => v.id === input.variantId)
-        : node.variants?.find((v) => v.is_default) || node.variants?.[0]
-
-      let baseTime = node.base_time_seconds
-      if (variant) {
-        baseTime = Math.round(baseTime * variant.time_multiplier) + variant.extra_time_seconds
-      }
-
-      // Get materials from variant
-      const materials = (variant as { materials?: Array<{ material_name: string; quantity: number; unit: string; cost_price?: number; sale_price?: number }> })?.materials?.map((m) => ({
-        name: m.material_name,
-        quantity: m.quantity,
-        unit: m.unit,
-        costPrice: m.cost_price || 0,
-        salePrice: m.sale_price || 0,
-      })) || []
-
-      const newItem: CalculationItem = {
-        id: uuidv4(),
-        nodeId: node.id,
-        nodeName,
-        nodeCode: node.code,
-        nodeType: node.node_type as 'operation' | 'composite' | 'group',
-        variantId: variant?.id || null,
-        variantName: variantName || variant?.name,
-        quantity: input.quantity,
-        baseTimeSeconds: node.base_time_seconds,
-        calculatedTimeSeconds: baseTime * input.quantity,
-        costPrice: node.default_cost_price,
-        salePrice: node.default_sale_price,
-        materials,
-      }
-
-      setItems((prev) => [...prev, newItem])
-    },
-    []
-  )
+  const handleAddItem = useCallback((newItem: CalculationItem) => {
+    setItems((prev) => [...prev, newItem])
+  }, [])
 
   const handleRemoveItem = useCallback((itemId: string) => {
     setItems((prev) => prev.filter((item) => item.id !== itemId))
@@ -201,11 +204,11 @@ export function PackageBuilder({
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === itemId) {
-          const baseTime = item.baseTimeSeconds
+          const baseTime = item.baseTimeMinutes
           return {
             ...item,
             quantity,
-            calculatedTimeSeconds: baseTime * quantity,
+            calculatedTimeMinutes: baseTime * quantity,
           }
         }
         return item
@@ -235,7 +238,7 @@ export function PackageBuilder({
     }
   }
 
-  const existingNodeIds = items.map((item) => item.nodeId)
+  const existingComponentIds = items.map((item) => item.componentId)
   const selectedProfile = buildingProfiles.find((p) => p.id === selectedProfileId)
 
   return (
@@ -355,7 +358,7 @@ export function PackageBuilder({
       <div className="flex-1 flex overflow-hidden">
         {/* Component Browser - Left Side */}
         <div className="w-1/2 border-r bg-gray-50">
-          <ComponentBrowser onAdd={handleAddItem} existingNodeIds={existingNodeIds} />
+          <ComponentBrowser onAdd={handleAddItem} existingComponentIds={existingComponentIds} />
         </div>
 
         {/* Calculation Preview - Right Side */}

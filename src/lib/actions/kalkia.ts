@@ -1260,12 +1260,52 @@ export async function calculateFromNodes(
 }
 
 // =====================================================
-// Search
+// Browse and Search
 // =====================================================
 
+/**
+ * Get browseable Kalkia nodes for initial component display.
+ * Returns operation and composite nodes, excluding legacy and category groups.
+ */
+export async function getKalkiaBrowseNodes(
+  limit: number = 50
+): Promise<ActionResult<KalkiaNodeSummary[]>> {
+  try {
+    await requireAuth()
+    const supabase = await createClient()
+
+    // Fetch operation and composite nodes from the new Kalkia system
+    // Exclude legacy (migrated from calc_components) and category group nodes
+    const { data, error } = await supabase
+      .from('v_kalkia_nodes_summary')
+      .select('*')
+      .eq('is_active', true)
+      .in('node_type', ['operation', 'composite'])
+      .not('path', 'like', 'legacy%')
+      .not('code', 'like', 'LEG_%')
+      .not('code', 'like', 'CAT_%')
+      .order('path')
+      .limit(limit)
+
+    if (error) {
+      console.error('Database error fetching browse nodes:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    return { success: true, data: (data || []) as KalkiaNodeSummary[] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente komponenter') }
+  }
+}
+
+/**
+ * Search Kalkia nodes by name, code, or description.
+ * Excludes legacy and category group nodes.
+ */
 export async function searchKalkiaNodes(
   query: string,
-  limit: number = 20
+  limit: number = 20,
+  includeGroups: boolean = false
 ): Promise<ActionResult<KalkiaNodeSummary[]>> {
   try {
     await requireAuth()
@@ -1277,11 +1317,21 @@ export async function searchKalkiaNodes(
 
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    let dbQuery = supabase
       .from('v_kalkia_nodes_summary')
       .select('*')
       .eq('is_active', true)
+      .not('path', 'like', 'legacy%')
+      .not('code', 'like', 'LEG_%')
+      .not('code', 'like', 'CAT_%')
       .or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%,description.ilike.%${sanitized}%`)
+
+    // Filter out group nodes unless explicitly requested
+    if (!includeGroups) {
+      dbQuery = dbQuery.in('node_type', ['operation', 'composite'])
+    }
+
+    const { data, error } = await dbQuery
       .order('name')
       .limit(limit)
 

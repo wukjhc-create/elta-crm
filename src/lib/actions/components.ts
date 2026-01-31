@@ -744,3 +744,185 @@ export async function deleteVariantMaterial(id: string, componentId: string): Pr
     return { success: false, error: formatError(err, 'Kunne ikke slette variant-materiale') }
   }
 }
+
+// =====================================================
+// Kalkia Component Browser Functions
+// =====================================================
+
+export interface ComponentSummary {
+  id: string
+  code: string | null
+  name: string
+  description: string | null
+  base_time_minutes: number
+  difficulty_level: number
+  category_name: string | null
+  category_slug: string | null
+  variant_count: number
+  material_count: number
+  is_active: boolean
+}
+
+export interface ComponentForCalculation extends Component {
+  variants: ComponentVariant[]
+  materials: ComponentMaterial[]
+  labor_rules: {
+    id: string
+    rule_name: string
+    condition_type: string
+    condition_value: Record<string, unknown>
+    extra_minutes: number
+    time_multiplier: number
+    description: string | null
+  }[]
+}
+
+/**
+ * Get browseable components for initial display in Kalkia component browser.
+ * Returns active components with category info and counts.
+ */
+export async function getCalcComponentsBrowse(
+  limit: number = 50
+): Promise<ActionResult<ComponentSummary[]>> {
+  try {
+    await requireAuth()
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('v_calc_components_summary')
+      .select('*')
+      .eq('is_active', true)
+      .order('category_name')
+      .order('name')
+      .limit(limit)
+
+    if (error) {
+      console.error('Database error fetching browse components:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    return { success: true, data: (data || []) as ComponentSummary[] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente komponenter') }
+  }
+}
+
+/**
+ * Search components by name, code, or description.
+ */
+export async function searchCalcComponents(
+  query: string,
+  limit: number = 30
+): Promise<ActionResult<ComponentSummary[]>> {
+  try {
+    await requireAuth()
+
+    const sanitized = query.trim().toLowerCase()
+    if (!sanitized || sanitized.length < 2) {
+      return { success: true, data: [] }
+    }
+
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('v_calc_components_summary')
+      .select('*')
+      .eq('is_active', true)
+      .or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%,description.ilike.%${sanitized}%,category_name.ilike.%${sanitized}%`)
+      .order('name')
+      .limit(limit)
+
+    if (error) {
+      console.error('Database error searching components:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    return { success: true, data: (data || []) as ComponentSummary[] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Søgning fejlede') }
+  }
+}
+
+/**
+ * Get a component with all details needed for calculation:
+ * - Component base data
+ * - All variants with materials
+ * - Labor rules
+ */
+export async function getCalcComponentForCalculation(
+  id: string
+): Promise<ActionResult<ComponentForCalculation>> {
+  try {
+    await requireAuth()
+    validateUUID(id, 'komponent ID')
+
+    const supabase = await createClient()
+
+    // Get component with category
+    const { data: component, error: compError } = await supabase
+      .from('calc_components')
+      .select(`
+        *,
+        category:calc_component_categories(*)
+      `)
+      .eq('id', id)
+      .single()
+
+    if (compError) {
+      if (compError.code === 'PGRST116') {
+        return { success: false, error: 'Komponenten blev ikke fundet' }
+      }
+      console.error('Database error fetching component:', compError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    // Get variants
+    const { data: variants, error: varError } = await supabase
+      .from('calc_component_variants')
+      .select('*')
+      .eq('component_id', id)
+      .order('sort_order')
+
+    if (varError) {
+      console.error('Database error fetching variants:', varError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    // Get base materials
+    const { data: materials, error: matError } = await supabase
+      .from('calc_component_materials')
+      .select('*')
+      .eq('component_id', id)
+      .order('sort_order')
+
+    if (matError) {
+      console.error('Database error fetching materials:', matError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    // Get labor rules
+    const { data: laborRules, error: ruleError } = await supabase
+      .from('calc_component_labor_rules')
+      .select('*')
+      .eq('component_id', id)
+      .eq('is_active', true)
+      .order('sort_order')
+
+    if (ruleError) {
+      console.error('Database error fetching labor rules:', ruleError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    return {
+      success: true,
+      data: {
+        ...component,
+        variants: variants || [],
+        materials: materials || [],
+        labor_rules: laborRules || [],
+      } as ComponentForCalculation,
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente komponent') }
+  }
+}
