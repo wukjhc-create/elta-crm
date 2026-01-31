@@ -108,8 +108,8 @@ export function PackageBuilder({
       const overheadFactor = 0.10 * overheadMultiplier // 10% overhead adjusted by profile
       const materialWasteFactor = wasteMultiplier
 
-      // Calculate totals from items
-      const totalDirectTimeMinutes = items.reduce((sum, item) => sum + item.calculatedTimeMinutes, 0)
+      // Calculate totals from items (calculatedTimeMinutes is per-item, multiply by quantity)
+      const totalDirectTimeMinutes = items.reduce((sum, item) => sum + (item.calculatedTimeMinutes * item.quantity), 0)
       const totalDirectTimeSeconds = Math.round(totalDirectTimeMinutes * 60 * timeMultiplier)
 
       // Calculate indirect and personal time
@@ -204,11 +204,10 @@ export function PackageBuilder({
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === itemId) {
-          const baseTime = item.baseTimeMinutes
           return {
             ...item,
             quantity,
-            calculatedTimeMinutes: baseTime * quantity,
+            // calculatedTimeMinutes is per-item, quantity is handled in display
           }
         }
         return item

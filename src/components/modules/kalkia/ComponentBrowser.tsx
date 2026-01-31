@@ -119,10 +119,14 @@ export function ComponentBrowser({
       const component = result.data
       const variant = component.variants?.find((v) => v.is_default) || component.variants?.[0] || null
 
-      let baseTime = component.base_time_minutes
-      if (variant) {
-        baseTime = Math.round(baseTime * variant.time_multiplier) + variant.extra_minutes
-      }
+      // Calculate time with variant and complexity
+      const timeMultiplier = variant?.time_multiplier || 1
+      const extraMinutes = variant?.extra_minutes || 0
+      const complexityFactor = component.complexity_factor || 1
+
+      let calculatedTime = component.base_time_minutes
+      calculatedTime = Math.round(calculatedTime * timeMultiplier) + extraMinutes
+      calculatedTime = Math.round(calculatedTime * complexityFactor)
 
       const materials = component.materials?.map((m) => ({
         name: m.material_name,
@@ -141,7 +145,10 @@ export function ComponentBrowser({
         variantName: variant?.name,
         quantity: 1,
         baseTimeMinutes: component.base_time_minutes,
-        calculatedTimeMinutes: baseTime,
+        variantTimeMultiplier: timeMultiplier,
+        variantExtraMinutes: extraMinutes,
+        complexityFactor: complexityFactor,
+        calculatedTimeMinutes: calculatedTime,
         costPrice: component.default_cost_price || 0,
         salePrice: component.default_sale_price || 0,
         materials,
@@ -171,11 +178,14 @@ export function ComponentBrowser({
 
     const variant = selectedComponent.variants?.find((v) => v.id === selectedVariantId)
 
-    // Calculate time with variant multipliers
-    let baseTime = selectedComponent.base_time_minutes
-    if (variant) {
-      baseTime = Math.round(baseTime * variant.time_multiplier) + variant.extra_minutes
-    }
+    // Calculate time with variant and complexity
+    const timeMultiplier = variant?.time_multiplier || 1
+    const extraMinutes = variant?.extra_minutes || 0
+    const complexityFactor = selectedComponent.complexity_factor || 1
+
+    let calculatedTime = selectedComponent.base_time_minutes
+    calculatedTime = Math.round(calculatedTime * timeMultiplier) + extraMinutes
+    calculatedTime = Math.round(calculatedTime * complexityFactor)
 
     // Build materials list
     const materials = selectedComponent.materials?.map((m) => ({
@@ -186,7 +196,7 @@ export function ComponentBrowser({
       salePrice: 0,
     })) || []
 
-    // Create full calculation item
+    // Create full calculation item with transparency data
     const calcItem: CalculationItem = {
       id: uuidv4(),
       componentId: selectedComponent.id,
@@ -196,7 +206,10 @@ export function ComponentBrowser({
       variantName: variant?.name,
       quantity,
       baseTimeMinutes: selectedComponent.base_time_minutes,
-      calculatedTimeMinutes: baseTime * quantity,
+      variantTimeMultiplier: timeMultiplier,
+      variantExtraMinutes: extraMinutes,
+      complexityFactor: complexityFactor,
+      calculatedTimeMinutes: calculatedTime,
       costPrice: selectedComponent.default_cost_price || 0,
       salePrice: selectedComponent.default_sale_price || 0,
       materials,

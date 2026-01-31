@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Wrench,
   AlertCircle,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,10 +30,16 @@ export interface CalculationItem {
   variantId: string | null
   variantName?: string
   quantity: number
+  // Time transparency
   baseTimeMinutes: number
+  variantTimeMultiplier: number
+  variantExtraMinutes: number
+  complexityFactor: number
   calculatedTimeMinutes: number
+  // Pricing
   costPrice: number
   salePrice: number
+  // Materials
   materials?: {
     name: string
     quantity: number
@@ -117,26 +124,24 @@ export function CalculationPreview({
         {items.map((item) => {
           const isExpanded = expandedItems.has(item.id)
           const hasMaterials = item.materials && item.materials.length > 0
+          const hasVariantModifier = item.variantTimeMultiplier !== 1 || item.variantExtraMinutes > 0
+          const hasComplexity = item.complexityFactor !== 1
 
           return (
             <Collapsible
               key={item.id}
               open={isExpanded}
-              onOpenChange={() => hasMaterials && toggleItem(item.id)}
+              onOpenChange={() => toggleItem(item.id)}
             >
               <div className="border rounded-lg bg-white">
                 <div className="flex items-center gap-3 p-3">
-                  {hasMaterials ? (
-                    <CollapsibleTrigger className="p-1 hover:bg-gray-100 rounded">
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                    </CollapsibleTrigger>
-                  ) : (
-                    <div className="w-6" />
-                  )}
+                  <CollapsibleTrigger className="p-1 hover:bg-gray-100 rounded">
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4" />
+                    )}
+                  </CollapsibleTrigger>
 
                   <div className="w-8 h-8 rounded flex items-center justify-center bg-yellow-100 text-yellow-600">
                     <Wrench className="w-4 h-4" />
@@ -154,9 +159,9 @@ export function CalculationPreview({
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {formatTime(item.calculatedTimeMinutes)}
+                        {formatTime(item.calculatedTimeMinutes * item.quantity)}
                       </span>
-                      <span>{formatPrice(item.salePrice)}</span>
+                      {item.salePrice > 0 && <span>{formatPrice(item.salePrice * item.quantity)}</span>}
                     </div>
                   </div>
 
@@ -181,33 +186,87 @@ export function CalculationPreview({
                   </div>
                 </div>
 
-                {/* Materials breakdown */}
+                {/* Expanded details */}
                 <CollapsibleContent>
-                  {hasMaterials && (
-                    <div className="px-3 pb-3 ml-14 border-t mt-1 pt-2">
-                      <p className="text-xs font-medium text-gray-600 mb-2">Materialer:</p>
-                      <div className="space-y-1">
-                        {item.materials!.map((mat, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1"
-                          >
-                            <span className="text-gray-700">{mat.name}</span>
-                            <div className="flex items-center gap-3">
-                              <span className="text-gray-500">
-                                {mat.quantity * item.quantity} {mat.unit}
+                  <div className="px-3 pb-3 ml-10 border-t mt-1 pt-3 space-y-3">
+                    {/* Time breakdown */}
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Tidsberegning
+                      </p>
+                      <div className="bg-gray-50 rounded p-2 text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Basistid:</span>
+                          <span className="font-medium">{item.baseTimeMinutes} min</span>
+                        </div>
+                        {hasVariantModifier && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Variant ({item.variantName}):</span>
+                              <span className="font-medium">
+                                ×{item.variantTimeMultiplier.toFixed(2)}
+                                {item.variantExtraMinutes > 0 && ` +${item.variantExtraMinutes} min`}
                               </span>
-                              {mat.costPrice > 0 && (
-                                <span className="text-gray-500">
-                                  {formatPrice(mat.costPrice * mat.quantity * item.quantity)}
-                                </span>
-                              )}
                             </div>
+                          </>
+                        )}
+                        {hasComplexity && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Kompleksitet:</span>
+                            <span className="font-medium">×{item.complexityFactor.toFixed(2)}</span>
                           </div>
-                        ))}
+                        )}
+                        <div className="flex justify-between border-t pt-1 mt-1">
+                          <span className="text-gray-600">Tid pr. stk:</span>
+                          <span className="font-semibold text-blue-600">{formatTime(item.calculatedTimeMinutes)}</span>
+                        </div>
+                        {item.quantity > 1 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">× {item.quantity} stk =</span>
+                            <span className="font-semibold text-blue-600">{formatTime(item.calculatedTimeMinutes * item.quantity)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
+
+                    {/* Materials breakdown */}
+                    {hasMaterials && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
+                          <Package className="w-3 h-3" />
+                          Materialer
+                        </p>
+                        <div className="space-y-1">
+                          {item.materials!.map((mat, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1"
+                            >
+                              <span className="text-gray-700">{mat.name}</span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-gray-500">
+                                  {mat.quantity} {mat.unit} × {item.quantity} = {mat.quantity * item.quantity} {mat.unit}
+                                </span>
+                                {mat.costPrice > 0 && (
+                                  <span className="font-medium">
+                                    {formatPrice(mat.costPrice * mat.quantity * item.quantity)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Component info */}
+                    {item.componentCode && (
+                      <div className="text-xs text-gray-400">
+                        Kode: {item.componentCode}
+                      </div>
+                    )}
+                  </div>
                 </CollapsibleContent>
               </div>
             </Collapsible>
