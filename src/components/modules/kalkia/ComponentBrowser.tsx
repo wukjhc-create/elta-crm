@@ -117,7 +117,9 @@ export function ComponentBrowser({
 
     if (result.success && result.data) {
       const component = result.data
-      const variant = component.variants?.find((v) => v.is_default) || component.variants?.[0] || null
+      // Filter to only active variants
+      const activeVariants = component.variants?.filter((v) => v.is_active !== false) || []
+      const variant = activeVariants.find((v) => v.is_default) || activeVariants[0] || null
 
       // Calculate time with variant and complexity
       const timeMultiplier = variant?.time_multiplier || 1
@@ -132,8 +134,8 @@ export function ComponentBrowser({
         name: m.material_name,
         quantity: m.quantity,
         unit: m.unit,
-        costPrice: 0,
-        salePrice: 0,
+        costPrice: m.cost_price ?? 0,
+        salePrice: m.sale_price ?? 0,
       })) || []
 
       const calcItem: CalculationItem = {
@@ -166,7 +168,9 @@ export function ComponentBrowser({
     const result = await getCalcComponentForCalculation(summary.id)
     if (result.success && result.data) {
       setSelectedComponent(result.data)
-      const defaultVariant = result.data.variants?.find((v) => v.is_default) || result.data.variants?.[0]
+      // Filter to only active variants
+      const activeVariants = result.data.variants?.filter((v) => v.is_active !== false) || []
+      const defaultVariant = activeVariants.find((v) => v.is_default) || activeVariants[0]
       setSelectedVariantId(defaultVariant?.id || '')
       setQuantity(1)
     }
@@ -176,7 +180,9 @@ export function ComponentBrowser({
   const handleAdd = () => {
     if (!selectedComponent) return
 
-    const variant = selectedComponent.variants?.find((v) => v.id === selectedVariantId)
+    // Filter to only active variants
+    const activeVariants = selectedComponent.variants?.filter((v) => v.is_active !== false) || []
+    const variant = activeVariants.find((v) => v.id === selectedVariantId)
 
     // Calculate time with variant and complexity
     const timeMultiplier = variant?.time_multiplier || 1
@@ -187,13 +193,13 @@ export function ComponentBrowser({
     calculatedTime = Math.round(calculatedTime * timeMultiplier) + extraMinutes
     calculatedTime = Math.round(calculatedTime * complexityFactor)
 
-    // Build materials list
+    // Build materials list with prices
     const materials = selectedComponent.materials?.map((m) => ({
       name: m.material_name,
       quantity: m.quantity,
       unit: m.unit,
-      costPrice: 0,
-      salePrice: 0,
+      costPrice: m.cost_price ?? 0,
+      salePrice: m.sale_price ?? 0,
     })) || []
 
     // Create full calculation item with transparency data
@@ -420,42 +426,46 @@ export function ComponentBrowser({
               <p className="text-sm text-gray-600 mb-4">{selectedComponent.description}</p>
             )}
 
-            {/* Variant Selection */}
-            {selectedComponent.variants && selectedComponent.variants.length > 0 && (
-              <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Vægtype / Variant
-                </label>
-                <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Vælg variant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {selectedComponent.variants.map((variant: ComponentVariant) => (
-                      <SelectItem key={variant.id} value={variant.id}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>{variant.name}</span>
-                          {variant.is_default && (
-                            <Badge variant="secondary" className="ml-2 text-xs">Standard</Badge>
-                          )}
-                          {variant.time_multiplier !== 1 && (
-                            <span className="text-xs text-gray-500 ml-2">
-                              ({variant.time_multiplier}x tid)
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Variant Selection - only show active variants */}
+            {(() => {
+              const activeVariants = selectedComponent.variants?.filter((v) => v.is_active !== false) || []
+              if (activeVariants.length === 0) return null
+              return (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Vægtype / Variant
+                  </label>
+                  <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Vælg variant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeVariants.map((variant: ComponentVariant) => (
+                        <SelectItem key={variant.id} value={variant.id}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{variant.name}</span>
+                            {variant.is_default && (
+                              <Badge variant="secondary" className="ml-2 text-xs">Standard</Badge>
+                            )}
+                            {variant.time_multiplier !== 1 && (
+                              <span className="text-xs text-gray-500 ml-2">
+                                ({variant.time_multiplier}x tid)
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                {selectedVariantId && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    {selectedComponent.variants.find((v) => v.id === selectedVariantId)?.description}
-                  </div>
-                )}
-              </div>
-            )}
+                  {selectedVariantId && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      {activeVariants.find((v) => v.id === selectedVariantId)?.description}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Quantity */}
             <div className="mb-4">

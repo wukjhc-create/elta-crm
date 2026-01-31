@@ -48,6 +48,7 @@ export interface ComponentVariant {
   extra_minutes: number
   price_multiplier: number
   is_default: boolean
+  is_active: boolean
   sort_order: number
 }
 
@@ -59,6 +60,8 @@ export interface ComponentMaterial {
   quantity: number
   unit: string
   is_optional: boolean
+  cost_price: number
+  sale_price: number
   notes: string | null
   sort_order: number
 }
@@ -71,6 +74,8 @@ export interface VariantMaterial {
   quantity: number
   unit: string
   replaces_base: boolean
+  cost_price: number
+  sale_price: number
   notes: string | null
   sort_order: number
 }
@@ -336,6 +341,7 @@ export async function createVariant(
     extra_minutes?: number
     price_multiplier?: number
     is_default?: boolean
+    is_active?: boolean
   }
 ): Promise<ActionResult<ComponentVariant>> {
   try {
@@ -387,6 +393,7 @@ export async function createVariant(
         extra_minutes: data.extra_minutes ?? 0,
         price_multiplier: data.price_multiplier ?? 1.0,
         is_default: data.is_default ?? false,
+        is_active: data.is_active ?? true,
         sort_order: nextSortOrder,
       })
       .select()
@@ -419,6 +426,7 @@ export async function updateVariant(
     extra_minutes?: number
     price_multiplier?: number
     is_default?: boolean
+    is_active?: boolean
   }
 ): Promise<ActionResult<ComponentVariant>> {
   try {
@@ -505,6 +513,8 @@ export async function createMaterial(
     quantity?: number
     unit?: string
     is_optional?: boolean
+    cost_price?: number
+    sale_price?: number
     notes?: string
   }
 ): Promise<ActionResult<ComponentMaterial>> {
@@ -541,6 +551,8 @@ export async function createMaterial(
         quantity: data.quantity ?? 1,
         unit: data.unit ?? 'stk',
         is_optional: data.is_optional ?? false,
+        cost_price: data.cost_price ?? 0,
+        sale_price: data.sale_price ?? 0,
         notes: data.notes || null,
         sort_order: nextSortOrder,
       })
@@ -568,6 +580,8 @@ export async function updateMaterial(
     quantity?: number
     unit?: string
     is_optional?: boolean
+    cost_price?: number
+    sale_price?: number
     notes?: string | null
   }
 ): Promise<ActionResult<ComponentMaterial>> {
@@ -663,6 +677,8 @@ export async function createVariantMaterial(
     quantity?: number
     unit?: string
     replaces_base?: boolean
+    cost_price?: number
+    sale_price?: number
     notes?: string
   }
 ): Promise<ActionResult<VariantMaterial>> {
@@ -700,6 +716,8 @@ export async function createVariantMaterial(
         quantity: data.quantity ?? 1,
         unit: data.unit ?? 'stk',
         replaces_base: data.replaces_base ?? false,
+        cost_price: data.cost_price ?? 0,
+        sale_price: data.sale_price ?? 0,
         notes: data.notes || null,
         sort_order: nextSortOrder,
       })

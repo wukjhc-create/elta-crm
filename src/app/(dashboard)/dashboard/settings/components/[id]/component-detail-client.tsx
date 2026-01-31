@@ -84,6 +84,7 @@ export default function ComponentDetailClient({
     time_multiplier: 1.0,
     extra_minutes: 0,
     is_default: false,
+    is_active: true,
   })
 
   // Material dialog state
@@ -94,6 +95,8 @@ export default function ComponentDetailClient({
     quantity: 1,
     unit: 'stk',
     is_optional: false,
+    cost_price: 0,
+    sale_price: 0,
   })
 
   // Variant material dialog state
@@ -104,6 +107,8 @@ export default function ComponentDetailClient({
     quantity: 1,
     unit: 'stk',
     replaces_base: false,
+    cost_price: 0,
+    sale_price: 0,
   })
 
   // Expanded variants
@@ -165,6 +170,7 @@ export default function ComponentDetailClient({
         time_multiplier: variant.time_multiplier,
         extra_minutes: variant.extra_minutes,
         is_default: variant.is_default,
+        is_active: variant.is_active ?? true,
       })
     } else {
       setEditingVariant(null)
@@ -174,6 +180,7 @@ export default function ComponentDetailClient({
         time_multiplier: 1.0,
         extra_minutes: 0,
         is_default: false,
+        is_active: true,
       })
     }
     setShowVariantDialog(true)
@@ -226,6 +233,8 @@ export default function ComponentDetailClient({
         quantity: material.quantity,
         unit: material.unit,
         is_optional: material.is_optional,
+        cost_price: material.cost_price ?? 0,
+        sale_price: material.sale_price ?? 0,
       })
     } else {
       setEditingMaterial(null)
@@ -234,6 +243,8 @@ export default function ComponentDetailClient({
         quantity: 1,
         unit: 'stk',
         is_optional: false,
+        cost_price: 0,
+        sale_price: 0,
       })
     }
     setShowMaterialDialog(true)
@@ -285,6 +296,8 @@ export default function ComponentDetailClient({
       quantity: 1,
       unit: 'stk',
       replaces_base: false,
+      cost_price: 0,
+      sale_price: 0,
     })
     setShowVariantMaterialDialog(true)
   }
@@ -495,6 +508,9 @@ export default function ComponentDetailClient({
                                 {variant.is_default && (
                                   <Badge className="text-xs bg-green-100 text-green-700">Standard</Badge>
                                 )}
+                                {variant.is_active === false && (
+                                  <Badge className="text-xs bg-gray-100 text-gray-500">Inaktiv</Badge>
+                                )}
                               </div>
                               <div className="text-sm text-gray-500 mt-1">
                                 Tid: {formatTime(calculatedTime)}
@@ -612,9 +628,14 @@ export default function ComponentDetailClient({
                             <Badge variant="outline" className="text-xs">Valgfri</Badge>
                           )}
                         </div>
-                        <span className="text-sm text-gray-500">
-                          {material.quantity} {material.unit}
-                        </span>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <span>{material.quantity} {material.unit}</span>
+                          {(material.cost_price > 0 || material.sale_price > 0) && (
+                            <span className="text-xs">
+                              ({formatPrice(material.cost_price ?? 0)} / {formatPrice(material.sale_price ?? 0)})
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex gap-1">
                         <Button
@@ -696,15 +717,27 @@ export default function ComponentDetailClient({
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="var_default"
-                checked={variantForm.is_default}
-                onChange={(e) => setVariantForm(f => ({ ...f, is_default: e.target.checked }))}
-                className="rounded"
-              />
-              <Label htmlFor="var_default">Standard variant</Label>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="var_default"
+                  checked={variantForm.is_default}
+                  onChange={(e) => setVariantForm(f => ({ ...f, is_default: e.target.checked }))}
+                  className="rounded"
+                />
+                <Label htmlFor="var_default">Standard variant</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="var_active"
+                  checked={variantForm.is_active}
+                  onChange={(e) => setVariantForm(f => ({ ...f, is_active: e.target.checked }))}
+                  className="rounded"
+                />
+                <Label htmlFor="var_active">Aktiv</Label>
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowVariantDialog(false)}>
@@ -755,6 +788,30 @@ export default function ComponentDetailClient({
                   value={materialForm.unit}
                   onChange={(e) => setMaterialForm(f => ({ ...f, unit: e.target.value }))}
                   placeholder="stk, m, kg"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="mat_cost">Kostpris (kr)</Label>
+                <Input
+                  id="mat_cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={materialForm.cost_price}
+                  onChange={(e) => setMaterialForm(f => ({ ...f, cost_price: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="mat_sale">Salgspris (kr)</Label>
+                <Input
+                  id="mat_sale"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={materialForm.sale_price}
+                  onChange={(e) => setMaterialForm(f => ({ ...f, sale_price: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
             </div>
@@ -815,6 +872,30 @@ export default function ComponentDetailClient({
                   value={variantMaterialForm.unit}
                   onChange={(e) => setVariantMaterialForm(f => ({ ...f, unit: e.target.value }))}
                   placeholder="stk, m"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="vm_cost">Kostpris (kr)</Label>
+                <Input
+                  id="vm_cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={variantMaterialForm.cost_price}
+                  onChange={(e) => setVariantMaterialForm(f => ({ ...f, cost_price: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="vm_sale">Salgspris (kr)</Label>
+                <Input
+                  id="vm_sale"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={variantMaterialForm.sale_price}
+                  onChange={(e) => setVariantMaterialForm(f => ({ ...f, sale_price: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
             </div>
