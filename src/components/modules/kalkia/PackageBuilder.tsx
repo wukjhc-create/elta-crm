@@ -3,16 +3,17 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   Save,
-  FileText,
   Calculator,
   Building2,
   Settings,
   ChevronDown,
+  Package,
+  Wrench,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { ComponentBrowser } from './ComponentBrowser'
+import { PackageBrowser } from './PackageBrowser'
 import { CalculationPreview, type CalculationItem } from './CalculationPreview'
 import { getBuildingProfiles } from '@/lib/actions/kalkia'
 import type {
@@ -69,6 +71,7 @@ export function PackageBuilder({
   const [hourlyRate, setHourlyRate] = useState(495)
   const [marginPercentage, setMarginPercentage] = useState(15)
   const [discountPercentage, setDiscountPercentage] = useState(0)
+  const [activeTab, setActiveTab] = useState<'components' | 'packages'>('components')
 
   // Load building profiles
   useEffect(() => {
@@ -194,6 +197,10 @@ export function PackageBuilder({
 
   const handleAddItem = useCallback((newItem: CalculationItem) => {
     setItems((prev) => [...prev, newItem])
+  }, [])
+
+  const handleAddItems = useCallback((newItems: CalculationItem[]) => {
+    setItems((prev) => [...prev, ...newItems])
   }, [])
 
   const handleRemoveItem = useCallback((itemId: string) => {
@@ -355,9 +362,43 @@ export function PackageBuilder({
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Component Browser - Left Side */}
-        <div className="w-1/2 border-r bg-gray-50">
-          <ComponentBrowser onAdd={handleAddItem} existingComponentIds={existingComponentIds} />
+        {/* Component/Package Browser - Left Side */}
+        <div className="w-1/2 border-r bg-gray-50 flex flex-col">
+          {/* Tab Navigation */}
+          <div className="border-b bg-white px-2 py-1">
+            <div className="inline-flex items-center rounded-md bg-gray-100 p-1">
+              <button
+                onClick={() => setActiveTab('components')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === 'components'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                Komponenter
+              </button>
+              <button
+                onClick={() => setActiveTab('packages')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === 'packages'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Package className="w-3.5 h-3.5" />
+                Pakker
+              </button>
+            </div>
+          </div>
+          {/* Tab Content */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === 'components' ? (
+              <ComponentBrowser onAdd={handleAddItem} existingComponentIds={existingComponentIds} />
+            ) : (
+              <PackageBrowser onAddItems={handleAddItems} />
+            )}
+          </div>
         </div>
 
         {/* Calculation Preview - Right Side */}

@@ -67,6 +67,7 @@ export interface PackageSummary {
   db_percentage: number
   total_time_minutes: number
   is_active: boolean
+  is_template: boolean
   item_count: number
   component_count: number
   product_count: number

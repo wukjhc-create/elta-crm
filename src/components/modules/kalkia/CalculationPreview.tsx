@@ -235,7 +235,7 @@ export function CalculationPreview({
                       <div>
                         <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
                           <Package className="w-3 h-3" />
-                          Materialer
+                          Materialer ({item.materials!.length} typer)
                         </p>
                         <div className="space-y-1">
                           {item.materials!.map((mat, idx) => (
@@ -243,19 +243,30 @@ export function CalculationPreview({
                               key={idx}
                               className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1"
                             >
-                              <span className="text-gray-700">{mat.name}</span>
-                              <div className="flex items-center gap-3">
+                              <span className="text-gray-700 flex-1 min-w-0 truncate">{mat.name}</span>
+                              <div className="flex items-center gap-2 flex-shrink-0">
                                 <span className="text-gray-500">
-                                  {mat.quantity} {mat.unit} × {item.quantity} = {mat.quantity * item.quantity} {mat.unit}
+                                  {mat.quantity * item.quantity} {mat.unit}
                                 </span>
                                 {mat.costPrice > 0 && (
-                                  <span className="font-medium">
+                                  <span className="font-medium text-gray-700 w-16 text-right">
                                     {formatPrice(mat.costPrice * mat.quantity * item.quantity)}
                                   </span>
                                 )}
                               </div>
                             </div>
                           ))}
+                          {/* Material total for this item */}
+                          {item.materials!.some(m => m.costPrice > 0) && (
+                            <div className="flex items-center justify-between text-xs bg-blue-50 rounded px-2 py-1 mt-1 border-t border-blue-100">
+                              <span className="text-blue-700 font-medium">Materialer i alt</span>
+                              <span className="font-semibold text-blue-700">
+                                {formatPrice(
+                                  item.materials!.reduce((sum, m) => sum + (m.costPrice * m.quantity * item.quantity), 0)
+                                )}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
