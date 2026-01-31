@@ -868,23 +868,37 @@ export async function searchCalcComponents(
  * - Labor rules
  */
 export async function getCalcComponentForCalculation(
-  id: string
+  id?: string,
+  code?: string
 ): Promise<ActionResult<ComponentForCalculation>> {
   try {
     await requireAuth()
-    validateUUID(id, 'komponent ID')
+
+    if (!id && !code) {
+      return { success: false, error: 'Enten ID eller kode skal angives' }
+    }
+
+    if (id) {
+      validateUUID(id, 'komponent ID')
+    }
 
     const supabase = await createClient()
 
-    // Get component with category
-    const { data: component, error: compError } = await supabase
+    // Get component with category - by ID or code
+    let query = supabase
       .from('calc_components')
       .select(`
         *,
         category:calc_component_categories(*)
       `)
-      .eq('id', id)
-      .single()
+
+    if (id) {
+      query = query.eq('id', id)
+    } else if (code) {
+      query = query.eq('code', code)
+    }
+
+    const { data: component, error: compError } = await query.single()
 
     if (compError) {
       if (compError.code === 'PGRST116') {
@@ -894,11 +908,13 @@ export async function getCalcComponentForCalculation(
       throw new Error('DATABASE_ERROR')
     }
 
+    const componentId = component.id
+
     // Get variants
     const { data: variants, error: varError } = await supabase
       .from('calc_component_variants')
       .select('*')
-      .eq('component_id', id)
+      .eq('component_id', componentId)
       .order('sort_order')
 
     if (varError) {
@@ -910,7 +926,7 @@ export async function getCalcComponentForCalculation(
     const { data: materials, error: matError } = await supabase
       .from('calc_component_materials')
       .select('*')
-      .eq('component_id', id)
+      .eq('component_id', componentId)
       .order('sort_order')
 
     if (matError) {
@@ -922,7 +938,7 @@ export async function getCalcComponentForCalculation(
     const { data: laborRules, error: ruleError } = await supabase
       .from('calc_component_labor_rules')
       .select('*')
-      .eq('component_id', id)
+      .eq('component_id', componentId)
       .eq('is_active', true)
       .order('sort_order')
 

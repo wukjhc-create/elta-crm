@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Package,
   Wrench,
+  Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,8 +29,11 @@ import {
 } from '@/components/ui/collapsible'
 import { ComponentBrowser } from './ComponentBrowser'
 import { PackageBrowser } from './PackageBrowser'
+import { QuickJobsPicker } from './QuickJobsPicker'
+import { CalibrationPresetPicker } from './CalibrationPresetPicker'
 import { CalculationPreview, type CalculationItem } from './CalculationPreview'
 import { getBuildingProfiles } from '@/lib/actions/kalkia'
+import type { CalibrationPreset } from '@/types/quick-jobs.types'
 import type {
   KalkiaBuildingProfile,
   CalculationResult,
@@ -71,7 +75,8 @@ export function PackageBuilder({
   const [hourlyRate, setHourlyRate] = useState(495)
   const [marginPercentage, setMarginPercentage] = useState(15)
   const [discountPercentage, setDiscountPercentage] = useState(0)
-  const [activeTab, setActiveTab] = useState<'components' | 'packages'>('components')
+  const [activeTab, setActiveTab] = useState<'quickjobs' | 'components' | 'packages'>('quickjobs')
+  const [calibrationPreset, setCalibrationPreset] = useState<CalibrationPreset | null>(null)
 
   // Load building profiles
   useEffect(() => {
@@ -244,6 +249,23 @@ export function PackageBuilder({
     }
   }
 
+  // Apply calibration preset settings
+  const handleCalibrationPresetChange = useCallback((preset: CalibrationPreset | null) => {
+    setCalibrationPreset(preset)
+    if (preset) {
+      if (preset.hourly_rate) {
+        setHourlyRate(preset.hourly_rate)
+      }
+      if (preset.margin_percentage) {
+        setMarginPercentage(preset.margin_percentage)
+      }
+      // Find and set building profile if specified
+      if (preset.default_building_profile_id) {
+        setSelectedProfileId(preset.default_building_profile_id)
+      }
+    }
+  }, [])
+
   const existingComponentIds = items.map((item) => item.componentId)
   const selectedProfile = buildingProfiles.find((p) => p.id === selectedProfileId)
 
@@ -280,7 +302,16 @@ export function PackageBuilder({
 
         {/* Settings Bar */}
         <Collapsible open={showSettings} onOpenChange={setShowSettings}>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Calibration Preset */}
+            <CalibrationPresetPicker
+              value={calibrationPreset?.id || null}
+              onChange={handleCalibrationPresetChange}
+            />
+
+            <div className="h-6 w-px bg-gray-200" />
+
+            {/* Building Profile */}
             <div className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-gray-400" />
               <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
@@ -304,10 +335,12 @@ export function PackageBuilder({
               </div>
             )}
 
+            <div className="flex-1" />
+
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4 mr-2" />
-                Indstillinger
+                Flere indstillinger
                 <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
               </Button>
             </CollapsibleTrigger>
@@ -368,6 +401,17 @@ export function PackageBuilder({
           <div className="border-b bg-white px-2 py-1">
             <div className="inline-flex items-center rounded-md bg-gray-100 p-1">
               <button
+                onClick={() => setActiveTab('quickjobs')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === 'quickjobs'
+                    ? 'bg-yellow-100 text-yellow-800 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Hurtige Jobs
+              </button>
+              <button
                 onClick={() => setActiveTab('components')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                   activeTab === 'components'
@@ -393,7 +437,9 @@ export function PackageBuilder({
           </div>
           {/* Tab Content */}
           <div className="flex-1 overflow-hidden">
-            {activeTab === 'components' ? (
+            {activeTab === 'quickjobs' ? (
+              <QuickJobsPicker onAddItems={handleAddItems} />
+            ) : activeTab === 'components' ? (
               <ComponentBrowser onAdd={handleAddItem} existingComponentIds={existingComponentIds} />
             ) : (
               <PackageBrowser onAddItems={handleAddItems} />
