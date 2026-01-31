@@ -1,10 +1,10 @@
 -- =====================================================
--- Migration: 00028_fix_packages_summary_view.sql
--- Description: Add is_template to v_packages_summary view
+-- Migration: 00029_fix_packages_view_v2.sql
+-- Description: Fix v_packages_summary view to include is_template
 -- Date: 2026-01-31
 -- =====================================================
 
--- Drop and recreate the view to add is_template
+-- Drop and recreate the view to add is_template column
 DROP VIEW IF EXISTS v_packages_summary;
 
 CREATE VIEW v_packages_summary AS
