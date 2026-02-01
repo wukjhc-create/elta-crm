@@ -7,10 +7,15 @@ import {
   Calculator,
   Settings2,
   ArrowRight,
+  Home,
+  Package,
+  FileText,
+  Brain,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getBuildingProfiles, getGlobalFactors, getKalkiaNodes } from '@/lib/actions/kalkia'
+import { getRoomTypes, getMaterials, getOfferTextTemplates } from '@/lib/actions/component-intelligence'
 
 export const metadata = {
   title: 'Kalkia Indstillinger | ELTA CRM',
@@ -18,17 +23,23 @@ export const metadata = {
 }
 
 export default async function KalkiaSettingsPage() {
-  const [nodesResult, profilesResult, factorsResult] = await Promise.all([
+  const [nodesResult, profilesResult, factorsResult, roomTypesResult, materialsResult, templatesResult] = await Promise.all([
     getKalkiaNodes({ is_active: true }),
     getBuildingProfiles(),
     getGlobalFactors(),
+    getRoomTypes(),
+    getMaterials({}),
+    getOfferTextTemplates({}),
   ])
 
   const nodeCount = nodesResult.success && nodesResult.data ? nodesResult.data.length : 0
   const profileCount = profilesResult.success && profilesResult.data ? profilesResult.data.length : 0
   const factorCount = factorsResult.success && factorsResult.data ? factorsResult.data.length : 0
+  const roomTypeCount = roomTypesResult.success && roomTypesResult.data ? roomTypesResult.data.length : 0
+  const materialCount = materialsResult.success && materialsResult.data ? materialsResult.data.length : 0
+  const templateCount = templatesResult.success && templatesResult.data ? templatesResult.data.length : 0
 
-  const sections = [
+  const coreSections = [
     {
       title: 'Komponenttrae',
       description: 'Administrer hierarkisk komponentbibliotek med noder, varianter og materialer',
@@ -52,6 +63,33 @@ export default async function KalkiaSettingsPage() {
       icon: Sliders,
       stat: `${factorCount} faktorer`,
       color: 'bg-purple-100 text-purple-600',
+    },
+  ]
+
+  const intelligenceSections = [
+    {
+      title: 'Rumtyper',
+      description: 'Konfigurer standard komponentforslag for forskellige rumtyper (soveværelse, køkken, etc.)',
+      href: '/dashboard/settings/kalkia/rooms',
+      icon: Home,
+      stat: `${roomTypeCount} rumtyper`,
+      color: 'bg-indigo-100 text-indigo-600',
+    },
+    {
+      title: 'Materialekatalog',
+      description: 'Centraliseret materialehåndtering med prishistorik og leverandørinfo',
+      href: '/dashboard/settings/kalkia/materials',
+      icon: Package,
+      stat: `${materialCount} materialer`,
+      color: 'bg-orange-100 text-orange-600',
+    },
+    {
+      title: 'Tilbudstekster',
+      description: 'Automatiske beskrivelser og OBS-punkter til tilbud baseret på komponenter',
+      href: '/dashboard/settings/kalkia/texts',
+      icon: FileText,
+      stat: `${templateCount} skabeloner`,
+      color: 'bg-cyan-100 text-cyan-600',
     },
   ]
 
@@ -107,31 +145,67 @@ export default async function KalkiaSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Settings Sections */}
-      <div className="grid gap-4">
-        {sections.map((section) => (
-          <Link key={section.href} href={section.href}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-lg ${section.color} flex items-center justify-center`}>
-                      <section.icon className="w-6 h-6" />
+      {/* Core Settings Sections */}
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold text-gray-700">Kernefunktioner</h2>
+        <div className="grid gap-4">
+          {coreSections.map((section) => (
+            <Link key={section.href} href={section.href}>
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-lg ${section.color} flex items-center justify-center`}>
+                        <section.icon className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{section.title}</h3>
+                        <p className="text-sm text-gray-500 mt-1">{section.description}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{section.title}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{section.description}</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-500">{section.stat}</span>
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-500">{section.stat}</span>
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Intelligence Settings Sections */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Brain className="w-5 h-5 text-purple-500" />
+          <h2 className="text-lg font-semibold text-gray-700">Intelligens & Automatisering</h2>
+        </div>
+        <div className="grid gap-4">
+          {intelligenceSections.map((section) => (
+            <Link key={section.href} href={section.href}>
+              <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-purple-200">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-lg ${section.color} flex items-center justify-center`}>
+                        <section.icon className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{section.title}</h3>
+                        <p className="text-sm text-gray-500 mt-1">{section.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-500">{section.stat}</span>
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Quick Stats */}

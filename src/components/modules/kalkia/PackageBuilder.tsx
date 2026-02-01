@@ -13,6 +13,7 @@ import {
   Users,
   Clock,
   Copy,
+  Home,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +34,7 @@ import {
 import { ComponentBrowser } from './ComponentBrowser'
 import { PackageBrowser } from './PackageBrowser'
 import { QuickJobsPicker } from './QuickJobsPicker'
+import { RoomCalculator } from './RoomCalculator'
 import { CalibrationPresetPicker } from './CalibrationPresetPicker'
 import { CalculationPreview, type CalculationItem } from './CalculationPreview'
 import { getBuildingProfiles } from '@/lib/actions/kalkia'
@@ -114,7 +116,7 @@ export function PackageBuilder({
   const [hourlyRate, setHourlyRate] = useState(495)
   const [marginPercentage, setMarginPercentage] = useState(15)
   const [discountPercentage, setDiscountPercentage] = useState(0)
-  const [activeTab, setActiveTab] = useState<'quickjobs' | 'components' | 'packages'>('quickjobs')
+  const [activeTab, setActiveTab] = useState<'quickjobs' | 'rooms' | 'components' | 'packages'>('quickjobs')
   const [calibrationPreset, setCalibrationPreset] = useState<CalibrationPreset | null>(null)
   const [laborType, setLaborType] = useState<LaborTypeId>('electrician')
   const [timeAdjustment, setTimeAdjustment] = useState<TimeAdjustmentId>('normal')
@@ -605,7 +607,18 @@ export function PackageBuilder({
                 }`}
               >
                 <Zap className="w-3.5 h-3.5" />
-                Hurtige Jobs
+                Jobs
+              </button>
+              <button
+                onClick={() => setActiveTab('rooms')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === 'rooms'
+                    ? 'bg-purple-100 text-purple-800 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Home className="w-3.5 h-3.5" />
+                Rum
               </button>
               <button
                 onClick={() => setActiveTab('components')}
@@ -635,6 +648,8 @@ export function PackageBuilder({
           <div className="flex-1 overflow-hidden">
             {activeTab === 'quickjobs' ? (
               <QuickJobsPicker onAddItems={handleAddItems} />
+            ) : activeTab === 'rooms' ? (
+              <RoomCalculator onAddItems={handleAddItems} />
             ) : activeTab === 'components' ? (
               <ComponentBrowser onAdd={handleAddItem} existingComponentIds={existingComponentIds} />
             ) : (
