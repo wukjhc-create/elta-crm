@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Send, User } from 'lucide-react'
-import { sendPortalMessage, markPortalMessagesAsRead } from '@/lib/actions/portal'
-import type { PortalSession, PortalMessageWithRelations } from '@/types/portal.types'
+import { X, Send, User, Paperclip, File, Image, FileText, Loader2, Download } from 'lucide-react'
+import { sendPortalMessage, markPortalMessagesAsRead, uploadPortalAttachment } from '@/lib/actions/portal'
+import type { PortalSession, PortalMessageWithRelations, PortalAttachment } from '@/types/portal.types'
 
 interface PortalChatProps {
   token: string
@@ -13,6 +13,24 @@ interface PortalChatProps {
   offerId?: string
   onClose: () => void
 }
+
+// Max file size in bytes (10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+// Allowed file types
+const ALLOWED_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'text/csv',
+]
 
 export function PortalChat({
   token,
@@ -23,9 +41,13 @@ export function PortalChat({
 }: PortalChatProps) {
   const router = useRouter()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [newMessage, setNewMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pendingAttachments, setPendingAttachments] = useState<PortalAttachment[]>([])
 
   // Scroll to bottom on mount and when messages change
   useEffect(() => {
@@ -43,8 +65,64 @@ export function PortalChat({
     }
   }, [messages, token])
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setError(null)
+    setIsUploading(true)
+
+    try {
+      for (const file of Array.from(files)) {
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+          setError(`Filen "${file.name}" er for stor (max 10MB)`)
+          continue
+        }
+
+        // Validate file type
+        if (!ALLOWED_TYPES.includes(file.type)) {
+          setError(`Filtypen for "${file.name}" er ikke tilladt`)
+          continue
+        }
+
+        // Upload file
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const result = await uploadPortalAttachment(token, formData)
+
+        if (result.success && result.data) {
+          setPendingAttachments((prev) => [
+            ...prev,
+            {
+              name: result.data!.name,
+              url: result.data!.url,
+              size: result.data!.size,
+              type: result.data!.type,
+            },
+          ])
+        } else {
+          setError(result.error || 'Kunne ikke uploade fil')
+        }
+      }
+    } catch (err) {
+      setError('Der opstod en fejl ved upload')
+    } finally {
+      setIsUploading(false)
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setPendingAttachments((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const handleSend = async () => {
-    if (!newMessage.trim()) return
+    if (!newMessage.trim() && pendingAttachments.length === 0) return
 
     setIsSending(true)
     setError(null)
@@ -53,9 +131,10 @@ export function PortalChat({
       const result = await sendPortalMessage(token, {
         customer_id: session.customer_id,
         offer_id: offerId,
-        message: newMessage.trim(),
+        message: newMessage.trim() || (pendingAttachments.length > 0 ? `Vedhæftet ${pendingAttachments.length} fil(er)` : ''),
         sender_type: 'customer',
         sender_name: session.customer.contact_person,
+        attachments: pendingAttachments,
       })
 
       if (!result.success) {
@@ -64,6 +143,7 @@ export function PortalChat({
       }
 
       setNewMessage('')
+      setPendingAttachments([])
       router.refresh()
     } catch (err) {
       setError('Der opstod en fejl')
@@ -98,6 +178,20 @@ export function PortalChat({
       minute: '2-digit',
     })
   }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const getFileIcon = (type: string) => {
+    if (type.startsWith('image/')) return <Image className="w-4 h-4" />
+    if (type === 'application/pdf') return <FileText className="w-4 h-4" />
+    return <File className="w-4 h-4" />
+  }
+
+  const isImageType = (type: string) => type.startsWith('image/')
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center md:items-end md:justify-end md:p-6">
@@ -163,12 +257,52 @@ export function PortalChat({
                   <p className="whitespace-pre-wrap break-words">
                     {message.message}
                   </p>
+
+                  {/* Attachments */}
+                  {message.attachments && message.attachments.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {message.attachments.map((attachment, idx) => (
+                        <AttachmentDisplay
+                          key={idx}
+                          attachment={attachment}
+                          isCustomer={message.sender_type === 'customer'}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))
           )}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Pending attachments preview */}
+        {pendingAttachments.length > 0 && (
+          <div className="px-4 py-2 border-t bg-gray-50">
+            <p className="text-xs text-gray-500 mb-2">Vedhæftede filer:</p>
+            <div className="flex flex-wrap gap-2">
+              {pendingAttachments.map((attachment, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 bg-white border rounded-lg px-2 py-1 text-sm"
+                >
+                  {getFileIcon(attachment.type)}
+                  <span className="truncate max-w-[120px]">{attachment.name}</span>
+                  <span className="text-xs text-gray-400">
+                    ({formatFileSize(attachment.size)})
+                  </span>
+                  <button
+                    onClick={() => removeAttachment(idx)}
+                    className="text-gray-400 hover:text-red-500"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -180,6 +314,28 @@ export function PortalChat({
         {/* Input */}
         <div className="p-4 border-t">
           <div className="flex gap-2">
+            {/* File upload button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileSelect}
+              accept={ALLOWED_TYPES.join(',')}
+              multiple
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || isSending}
+              className="px-3 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Vedhæft fil"
+            >
+              {isUploading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Paperclip className="w-5 h-5" />
+              )}
+            </button>
+
             <textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
@@ -191,10 +347,14 @@ export function PortalChat({
             />
             <button
               onClick={handleSend}
-              disabled={isSending || !newMessage.trim()}
+              disabled={isSending || (!newMessage.trim() && pendingAttachments.length === 0)}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send className="w-5 h-5" />
+              {isSending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
@@ -203,5 +363,61 @@ export function PortalChat({
         </div>
       </div>
     </div>
+  )
+}
+
+// Attachment display component
+function AttachmentDisplay({
+  attachment,
+  isCustomer,
+}: {
+  attachment: PortalAttachment
+  isCustomer: boolean
+}) {
+  const isImage = attachment.type.startsWith('image/')
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  if (isImage) {
+    return (
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+      >
+        <img
+          src={attachment.url}
+          alt={attachment.name}
+          className="max-w-full rounded-lg max-h-48 object-cover"
+        />
+      </a>
+    )
+  }
+
+  return (
+    <a
+      href={attachment.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex items-center gap-2 p-2 rounded-lg ${
+        isCustomer
+          ? 'bg-white/20 hover:bg-white/30'
+          : 'bg-gray-200 hover:bg-gray-300'
+      }`}
+    >
+      <File className="w-5 h-5 flex-shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium truncate">{attachment.name}</p>
+        <p className={`text-xs ${isCustomer ? 'text-white/70' : 'text-gray-500'}`}>
+          {formatFileSize(attachment.size)}
+        </p>
+      </div>
+      <Download className="w-4 h-4 flex-shrink-0" />
+    </a>
   )
 }

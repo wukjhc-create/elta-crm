@@ -16,6 +16,8 @@ import type {
   CreatePortalTokenData,
   SendPortalMessageData,
   AcceptOfferData,
+  PortalAttachment,
+  UploadAttachmentResult,
 } from '@/types/portal.types'
 import type { ActionResult } from '@/types/common.types'
 
@@ -631,6 +633,7 @@ export async function sendPortalMessage(
         sender_type: 'customer',
         sender_name: data.sender_name || sessionResult.data.customer.contact_person,
         message: data.message,
+        attachments: data.attachments || [],
       })
       .select()
       .single()
@@ -651,7 +654,8 @@ export async function sendPortalMessage(
 export async function sendEmployeeMessage(
   customerId: string,
   message: string,
-  offerId?: string
+  offerId?: string,
+  attachments?: PortalAttachment[]
 ): Promise<ActionResult<PortalMessage>> {
   try {
     const user = await getUser()
@@ -677,6 +681,7 @@ export async function sendEmployeeMessage(
         sender_id: user.id,
         sender_name: profile?.full_name || 'Medarbejder',
         message,
+        attachments: attachments || [],
       })
       .select()
       .single()
@@ -759,6 +764,205 @@ export async function getUnreadPortalMessageCount(
     return { success: true, data: count || 0 }
   } catch (error) {
     console.error('Error in getUnreadPortalMessageCount:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// =====================================================
+// Portal File Attachments
+// =====================================================
+
+/**
+ * Upload a file attachment for portal chat (customer)
+ */
+export async function uploadPortalAttachment(
+  token: string,
+  formData: FormData
+): Promise<ActionResult<UploadAttachmentResult>> {
+  try {
+    // Validate token
+    const sessionResult = await validatePortalToken(token)
+    if (!sessionResult.success || !sessionResult.data) {
+      return { success: false, error: sessionResult.error }
+    }
+
+    const customerId = sessionResult.data.customer_id
+    const file = formData.get('file') as File | null
+
+    if (!file) {
+      return { success: false, error: 'Ingen fil valgt' }
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      return { success: false, error: 'Filen er for stor (max 10MB)' }
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+      'text/csv',
+    ]
+
+    if (!allowedTypes.includes(file.type)) {
+      return { success: false, error: 'Filtypen er ikke tilladt' }
+    }
+
+    const supabase = await createClient()
+
+    // Generate unique filename
+    const timestamp = Date.now()
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const path = `${customerId}/${timestamp}-${sanitizedName}`
+
+    // Upload to storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('portal-attachments')
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('Error uploading file:', uploadError)
+      return { success: false, error: 'Kunne ikke uploade fil' }
+    }
+
+    // Get signed URL (valid for 1 hour)
+    const { data: urlData } = await supabase.storage
+      .from('portal-attachments')
+      .createSignedUrl(path, 3600)
+
+    return {
+      success: true,
+      data: {
+        path: uploadData.path,
+        url: urlData?.signedUrl || '',
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      },
+    }
+  } catch (error) {
+    console.error('Error in uploadPortalAttachment:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+/**
+ * Upload a file attachment for portal chat (employee)
+ */
+export async function uploadEmployeeAttachment(
+  customerId: string,
+  formData: FormData
+): Promise<ActionResult<UploadAttachmentResult>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const file = formData.get('file') as File | null
+
+    if (!file) {
+      return { success: false, error: 'Ingen fil valgt' }
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      return { success: false, error: 'Filen er for stor (max 10MB)' }
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+      'text/csv',
+    ]
+
+    if (!allowedTypes.includes(file.type)) {
+      return { success: false, error: 'Filtypen er ikke tilladt' }
+    }
+
+    const supabase = await createClient()
+
+    // Generate unique filename
+    const timestamp = Date.now()
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const path = `${customerId}/${user.id}-${timestamp}-${sanitizedName}`
+
+    // Upload to storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('portal-attachments')
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('Error uploading file:', uploadError)
+      return { success: false, error: 'Kunne ikke uploade fil' }
+    }
+
+    // Get signed URL (valid for 1 hour)
+    const { data: urlData } = await supabase.storage
+      .from('portal-attachments')
+      .createSignedUrl(path, 3600)
+
+    return {
+      success: true,
+      data: {
+        path: uploadData.path,
+        url: urlData?.signedUrl || '',
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      },
+    }
+  } catch (error) {
+    console.error('Error in uploadEmployeeAttachment:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+/**
+ * Get a fresh signed URL for an attachment
+ */
+export async function getAttachmentUrl(
+  path: string
+): Promise<ActionResult<string>> {
+  try {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase.storage
+      .from('portal-attachments')
+      .createSignedUrl(path, 3600) // 1 hour
+
+    if (error) {
+      console.error('Error getting signed URL:', error)
+      return { success: false, error: 'Kunne ikke hente fil-URL' }
+    }
+
+    return { success: true, data: data.signedUrl }
+  } catch (error) {
+    console.error('Error in getAttachmentUrl:', error)
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

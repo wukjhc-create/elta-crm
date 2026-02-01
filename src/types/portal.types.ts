@@ -137,6 +137,16 @@ export interface SendPortalMessageData {
   message: string
   sender_type: PortalSenderType
   sender_name?: string
+  attachments?: PortalAttachment[]
+}
+
+// File upload types
+export interface UploadAttachmentResult {
+  path: string
+  url: string
+  name: string
+  size: number
+  type: string
 }
 
 export interface AcceptOfferData {
