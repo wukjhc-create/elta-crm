@@ -137,3 +137,16 @@ export function DialogTrigger({ asChild, children }: DialogTriggerProps) {
     </button>
   )
 }
+
+interface DialogFooterProps {
+  children: ReactNode
+  className?: string
+}
+
+export function DialogFooter({ children, className }: DialogFooterProps) {
+  return (
+    <div className={clsx('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 p-6 pt-0', className)}>
+      {children}
+    </div>
+  )
+}
