@@ -1160,6 +1160,208 @@ export async function deleteKalkiaCalculation(id: string): Promise<ActionResult>
 }
 
 // =====================================================
+// PackageBuilder Integration
+// =====================================================
+
+interface PackageBuilderCalculationItem {
+  id: string
+  componentId: string
+  componentName: string
+  componentCode: string | null
+  variantId: string | null
+  variantName?: string
+  quantity: number
+  baseTimeMinutes: number
+  variantTimeMultiplier: number
+  variantExtraMinutes: number
+  complexityFactor: number
+  calculatedTimeMinutes: number
+  costPrice: number
+  salePrice: number
+  materials?: {
+    name: string
+    quantity: number
+    unit: string
+    costPrice: number
+    salePrice: number
+  }[]
+}
+
+interface PackageBuilderSaveInput {
+  name: string
+  description: string
+  items: PackageBuilderCalculationItem[]
+  result: CalculationResult | null
+  buildingProfileId: string | null
+  settings: {
+    hourlyRate: number
+    marginPercentage: number
+    discountPercentage: number
+    laborType?: string
+    timeAdjustment?: string
+  }
+  customerId?: string | null
+  isTemplate?: boolean
+}
+
+/**
+ * Save a complete calculation from the PackageBuilder component.
+ * Creates a kalkia_calculation record with all line items and the final result.
+ */
+export async function savePackageBuilderCalculation(
+  input: PackageBuilderSaveInput
+): Promise<ActionResult<KalkiaCalculation>> {
+  try {
+    const userId = await requireAuth()
+    const supabase = await createClient()
+
+    // Build factors snapshot from settings
+    const factorsSnapshot = {
+      laborType: input.settings.laborType || 'electrician',
+      timeAdjustment: input.settings.timeAdjustment || 'normal',
+      ...(input.result?.factorsUsed || {}),
+    }
+
+    // Build building profile snapshot if selected
+    let buildingProfileSnapshot = {}
+    if (input.buildingProfileId) {
+      validateUUID(input.buildingProfileId, 'bygningsprofil ID')
+      const { data: profileData } = await supabase
+        .from('kalkia_building_profiles')
+        .select('*')
+        .eq('id', input.buildingProfileId)
+        .single()
+      if (profileData) {
+        buildingProfileSnapshot = profileData
+      }
+    }
+
+    // Insert the calculation
+    const { data: calculation, error: calcError } = await supabase
+      .from('kalkia_calculations')
+      .insert({
+        name: input.name,
+        description: input.description || null,
+        customer_id: input.customerId || null,
+        building_profile_id: input.buildingProfileId || null,
+
+        // Time tracking
+        total_direct_time_seconds: input.result?.totalDirectTimeSeconds || 0,
+        total_indirect_time_seconds: input.result?.totalIndirectTimeSeconds || 0,
+        total_personal_time_seconds: input.result?.totalPersonalTimeSeconds || 0,
+        total_labor_time_seconds: input.result?.totalLaborTimeSeconds || 0,
+
+        // Cost breakdown
+        hourly_rate: input.settings.hourlyRate,
+        total_material_cost: input.result?.totalMaterialCost || 0,
+        total_material_waste: input.result?.totalMaterialWaste || 0,
+        total_labor_cost: input.result?.totalLaborCost || 0,
+        total_other_costs: input.result?.totalOtherCosts || 0,
+        cost_price: input.result?.costPrice || 0,
+
+        // Pricing
+        overhead_percentage: 12,
+        overhead_amount: input.result?.overheadAmount || 0,
+        risk_percentage: 2,
+        risk_amount: input.result?.riskAmount || 0,
+        sales_basis: input.result?.salesBasis || 0,
+        margin_percentage: input.settings.marginPercentage,
+        margin_amount: input.result?.marginAmount || 0,
+        sale_price_excl_vat: input.result?.salePriceExclVat || 0,
+        discount_percentage: input.settings.discountPercentage,
+        discount_amount: input.result?.discountAmount || 0,
+        net_price: input.result?.netPrice || 0,
+        vat_percentage: 25,
+        vat_amount: input.result?.vatAmount || 0,
+        final_amount: input.result?.finalAmount || 0,
+
+        // Key metrics
+        db_amount: input.result?.dbAmount || 0,
+        db_percentage: input.result?.dbPercentage || 0,
+        db_per_hour: input.result?.dbPerHour || 0,
+        coverage_ratio: input.result?.coverageRatio || 0,
+
+        // Snapshots
+        factors_snapshot: factorsSnapshot,
+        building_profile_snapshot: buildingProfileSnapshot,
+
+        // Status
+        status: 'draft',
+        is_template: input.isTemplate || false,
+        created_by: userId,
+      })
+      .select()
+      .single()
+
+    if (calcError) {
+      console.error('Database error creating calculation:', calcError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    // Insert calculation rows for each item
+    if (input.items.length > 0) {
+      const rows = input.items.map((item, index) => ({
+        calculation_id: calculation.id,
+        node_id: null, // We're using calc_components, not kalkia_nodes
+        variant_id: item.variantId,
+        position: index + 1,
+        section: null,
+        description: item.componentName + (item.variantName ? ` (${item.variantName})` : ''),
+        quantity: item.quantity,
+        unit: 'stk',
+        base_time_seconds: item.baseTimeMinutes * 60,
+        adjusted_time_seconds: item.calculatedTimeMinutes * 60,
+        material_cost: item.materials?.reduce((sum, m) => sum + (m.costPrice * m.quantity * item.quantity), 0) || 0,
+        material_waste: 0,
+        labor_cost: (item.calculatedTimeMinutes / 60) * input.settings.hourlyRate * item.quantity,
+        total_cost: item.costPrice * item.quantity,
+        sale_price: item.salePrice,
+        total_sale: item.salePrice * item.quantity,
+        rules_applied: [],
+        conditions: {
+          componentId: item.componentId,
+          componentCode: item.componentCode,
+          variantTimeMultiplier: item.variantTimeMultiplier,
+          variantExtraMinutes: item.variantExtraMinutes,
+          complexityFactor: item.complexityFactor,
+        },
+        show_on_offer: true,
+        is_optional: false,
+      }))
+
+      const { error: rowsError } = await supabase
+        .from('kalkia_calculation_rows')
+        .insert(rows)
+
+      if (rowsError) {
+        console.error('Database error creating calculation rows:', rowsError)
+        // Don't fail the whole operation, just log
+      }
+    }
+
+    revalidatePath('/dashboard/calculations')
+    return { success: true, data: calculation as KalkiaCalculation }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke gemme kalkulation') }
+  }
+}
+
+/**
+ * Clone a calculation as a template.
+ */
+export async function cloneCalculationAsTemplate(
+  input: Omit<PackageBuilderSaveInput, 'result' | 'buildingProfileId' | 'customerId'>
+): Promise<ActionResult<KalkiaCalculation>> {
+  return savePackageBuilderCalculation({
+    ...input,
+    buildingProfileId: null,
+    customerId: null,
+    result: null, // Will be recalculated
+    isTemplate: true,
+  })
+}
+
+// =====================================================
 // Calculation Engine Integration
 // =====================================================
 
