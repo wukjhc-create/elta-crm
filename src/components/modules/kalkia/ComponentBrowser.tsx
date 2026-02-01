@@ -10,6 +10,8 @@ import {
   Package,
   X,
   Filter,
+  DollarSign,
+  TrendingUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -504,11 +506,30 @@ export function ComponentBrowser({
                       {'☆'.repeat(5 - selectedComponent.difficulty_level)}
                     </span>
                   </div>
+                  {selectedComponent.default_cost_price > 0 && (
+                    <div>
+                      <span className="text-gray-500">Kostpris:</span>
+                      <span className="ml-2 font-medium text-gray-600">
+                        {formatPrice(selectedComponent.default_cost_price)}
+                      </span>
+                    </div>
+                  )}
                   {selectedComponent.default_sale_price > 0 && (
                     <div>
-                      <span className="text-gray-500">Pris:</span>
-                      <span className="ml-2 font-medium">
+                      <span className="text-gray-500">Salgspris:</span>
+                      <span className="ml-2 font-medium text-green-600">
                         {formatPrice(selectedComponent.default_sale_price)}
+                      </span>
+                    </div>
+                  )}
+                  {selectedComponent.default_sale_price > 0 && selectedComponent.default_cost_price > 0 && (
+                    <div className="col-span-2 pt-2 border-t mt-2">
+                      <span className="text-gray-500">Est. DB:</span>
+                      <span className="ml-2 font-semibold text-green-600">
+                        {formatPrice(selectedComponent.default_sale_price - selectedComponent.default_cost_price)}
+                        <span className="text-xs font-normal ml-1">
+                          ({((selectedComponent.default_sale_price - selectedComponent.default_cost_price) / selectedComponent.default_sale_price * 100).toFixed(1)}%)
+                        </span>
                       </span>
                     </div>
                   )}

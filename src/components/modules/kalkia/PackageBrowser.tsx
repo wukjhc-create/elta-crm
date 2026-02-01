@@ -7,6 +7,8 @@ import {
   Package,
   Plus,
   FolderTree,
+  TrendingUp,
+  DollarSign,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -284,8 +286,20 @@ export function PackageBrowser({
                           {formatTime(pkg.total_time_minutes)}
                         </span>
                         <span>{pkg.item_count} linjer</span>
+                        {pkg.total_cost_price > 0 && (
+                          <span className="text-gray-400">
+                            <DollarSign className="w-3 h-3 inline" />
+                            {formatPrice(pkg.total_cost_price)}
+                          </span>
+                        )}
                         {pkg.total_sale_price > 0 && (
-                          <span>{formatPrice(pkg.total_sale_price)}</span>
+                          <span className="font-medium">{formatPrice(pkg.total_sale_price)}</span>
+                        )}
+                        {pkg.db_percentage > 0 && (
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                            <TrendingUp className="w-3 h-3 mr-0.5" />
+                            {pkg.db_percentage.toFixed(1)}% DB
+                          </Badge>
                         )}
                       </div>
                       {pkg.description && (

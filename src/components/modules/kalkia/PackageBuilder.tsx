@@ -10,6 +10,9 @@ import {
   Package,
   Wrench,
   Zap,
+  Users,
+  Clock,
+  Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,6 +42,27 @@ import type {
   CalculationResult,
 } from '@/types/kalkia.types'
 
+// Labor types with different hourly rates
+const LABOR_TYPES = [
+  { id: 'electrician', name: 'Elektriker', rateMultiplier: 1.0, icon: '⚡' },
+  { id: 'master', name: 'Mester', rateMultiplier: 1.25, icon: '👷' },
+  { id: 'apprentice', name: 'Lærling', rateMultiplier: 0.65, icon: '🔧' },
+  { id: 'helper', name: 'Hjælper', rateMultiplier: 0.5, icon: '🛠️' },
+] as const
+
+type LaborTypeId = (typeof LABOR_TYPES)[number]['id']
+
+// Time adjustments for overtime, weekend, etc.
+const TIME_ADJUSTMENTS = [
+  { id: 'normal', name: 'Normal tid', multiplier: 1.0, description: 'Hverdage 07-17' },
+  { id: 'overtime', name: 'Overtid', multiplier: 1.5, description: '+50% efter 17' },
+  { id: 'weekend', name: 'Weekend', multiplier: 1.75, description: '+75% lør/søn' },
+  { id: 'holiday', name: 'Helligdag', multiplier: 2.0, description: '+100% helligdage' },
+  { id: 'night', name: 'Natarbejde', multiplier: 1.3, description: '+30% 22-06' },
+] as const
+
+type TimeAdjustmentId = (typeof TIME_ADJUSTMENTS)[number]['id']
+
 interface PackageBuilderProps {
   onSave?: (data: {
     name: string
@@ -50,6 +74,20 @@ interface PackageBuilderProps {
       hourlyRate: number
       marginPercentage: number
       discountPercentage: number
+      laborType: LaborTypeId
+      timeAdjustment: TimeAdjustmentId
+    }
+  }) => Promise<void>
+  onClone?: (data: {
+    name: string
+    description: string
+    items: CalculationItem[]
+    settings: {
+      hourlyRate: number
+      marginPercentage: number
+      discountPercentage: number
+      laborType: LaborTypeId
+      timeAdjustment: TimeAdjustmentId
     }
   }) => Promise<void>
   initialName?: string
@@ -58,6 +96,7 @@ interface PackageBuilderProps {
 
 export function PackageBuilder({
   onSave,
+  onClone,
   initialName = '',
   initialDescription = '',
 }: PackageBuilderProps) {
@@ -77,6 +116,8 @@ export function PackageBuilder({
   const [discountPercentage, setDiscountPercentage] = useState(0)
   const [activeTab, setActiveTab] = useState<'quickjobs' | 'components' | 'packages'>('quickjobs')
   const [calibrationPreset, setCalibrationPreset] = useState<CalibrationPreset | null>(null)
+  const [laborType, setLaborType] = useState<LaborTypeId>('electrician')
+  const [timeAdjustment, setTimeAdjustment] = useState<TimeAdjustmentId>('normal')
 
   // Load building profiles
   useEffect(() => {
@@ -110,6 +151,12 @@ export function PackageBuilder({
       const wasteMultiplier = profile?.material_waste_multiplier || 1
       const overheadMultiplier = profile?.overhead_multiplier || 1
 
+      // Get labor type and time adjustment multipliers
+      const selectedLaborType = LABOR_TYPES.find((lt) => lt.id === laborType)
+      const laborRateMultiplier = selectedLaborType?.rateMultiplier || 1
+      const selectedTimeAdjustment = TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment)
+      const timeAdjustmentMultiplier = selectedTimeAdjustment?.multiplier || 1
+
       // Default factors
       const indirectTimeFactor = 0.10 // 10% indirect time
       const personalTimeFactor = 0.05 // 5% personal time
@@ -134,8 +181,9 @@ export function PackageBuilder({
       const totalMaterialWaste = baseMaterialCost * (materialWasteFactor - 1)
       const totalMaterialCost = baseMaterialCost + totalMaterialWaste
 
-      // Calculate labor cost
-      const totalLaborCost = totalLaborHours * hourlyRate
+      // Calculate labor cost with labor type and time adjustment multipliers
+      const effectiveHourlyRate = hourlyRate * laborRateMultiplier * timeAdjustmentMultiplier
+      const totalLaborCost = totalLaborHours * effectiveHourlyRate
       const totalOtherCosts = 0 // No other costs for now
 
       // Calculate cost price
@@ -198,7 +246,7 @@ export function PackageBuilder({
 
     const debounce = setTimeout(calculate, 300)
     return () => clearTimeout(debounce)
-  }, [items, selectedProfileId, buildingProfiles, hourlyRate, marginPercentage, discountPercentage])
+  }, [items, selectedProfileId, buildingProfiles, hourlyRate, marginPercentage, discountPercentage, laborType, timeAdjustment])
 
   const handleAddItem = useCallback((newItem: CalculationItem) => {
     setItems((prev) => [...prev, newItem])
@@ -242,6 +290,30 @@ export function PackageBuilder({
           hourlyRate,
           marginPercentage,
           discountPercentage,
+          laborType,
+          timeAdjustment,
+        },
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleClone = async () => {
+    if (!onClone) return
+
+    setIsSaving(true)
+    try {
+      await onClone({
+        name: `${name.trim()} (Kopi)`,
+        description: description.trim(),
+        items,
+        settings: {
+          hourlyRate,
+          marginPercentage,
+          discountPercentage,
+          laborType,
+          timeAdjustment,
         },
       })
     } finally {
@@ -292,6 +364,12 @@ export function PackageBuilder({
             </div>
           </div>
 
+          {onClone && items.length > 0 && (
+            <Button variant="outline" onClick={handleClone} disabled={isSaving}>
+              <Copy className="w-4 h-4 mr-2" />
+              Klon som skabelon
+            </Button>
+          )}
           {onSave && (
             <Button onClick={handleSave} disabled={!name.trim() || isSaving}>
               <Save className="w-4 h-4 mr-2" />
@@ -335,6 +413,24 @@ export function PackageBuilder({
               </div>
             )}
 
+            {/* Labor type and time adjustment indicators */}
+            {(laborType !== 'electrician' || timeAdjustment !== 'normal') && (
+              <div className="flex items-center gap-2">
+                {laborType !== 'electrician' && (
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                    <Users className="w-3 h-3 mr-1" />
+                    {LABOR_TYPES.find((lt) => lt.id === laborType)?.name}
+                  </Badge>
+                )}
+                {timeAdjustment !== 'normal' && (
+                  <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+                    <Clock className="w-3 h-3 mr-1" />
+                    {TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment)?.name}
+                  </Badge>
+                )}
+              </div>
+            )}
+
             <div className="flex-1" />
 
             <CollapsibleTrigger asChild>
@@ -348,7 +444,8 @@ export function PackageBuilder({
 
           <CollapsibleContent>
             <Card className="mt-4">
-              <CardContent className="py-4">
+              <CardContent className="py-4 space-y-4">
+                {/* Basic settings */}
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700">Timepris</label>
@@ -387,6 +484,105 @@ export function PackageBuilder({
                     </div>
                   </div>
                 </div>
+
+                {/* Labor type and time adjustment */}
+                <div className="border-t pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Labor Type Selection */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 flex items-center gap-1 mb-2">
+                        <Users className="w-4 h-4" />
+                        Arbejdstype
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {LABOR_TYPES.map((lt) => (
+                          <button
+                            key={lt.id}
+                            onClick={() => setLaborType(lt.id)}
+                            className={`p-2 rounded-lg border text-left transition-colors ${
+                              laborType === lt.id
+                                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span>{lt.icon}</span>
+                              <div>
+                                <p className="text-sm font-medium">{lt.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {lt.rateMultiplier === 1
+                                    ? 'Standard'
+                                    : lt.rateMultiplier > 1
+                                    ? `+${((lt.rateMultiplier - 1) * 100).toFixed(0)}%`
+                                    : `-${((1 - lt.rateMultiplier) * 100).toFixed(0)}%`}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Time Adjustment Selection */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 flex items-center gap-1 mb-2">
+                        <Clock className="w-4 h-4" />
+                        Tidstillæg
+                      </label>
+                      <div className="space-y-1">
+                        {TIME_ADJUSTMENTS.map((ta) => (
+                          <button
+                            key={ta.id}
+                            onClick={() => setTimeAdjustment(ta.id)}
+                            className={`w-full p-2 rounded-lg border text-left transition-colors flex items-center justify-between ${
+                              timeAdjustment === ta.id
+                                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div>
+                              <p className="text-sm font-medium">{ta.name}</p>
+                              <p className="text-xs text-gray-500">{ta.description}</p>
+                            </div>
+                            <Badge
+                              variant={ta.multiplier > 1 ? 'default' : 'secondary'}
+                              className={ta.multiplier > 1 ? 'bg-orange-100 text-orange-700' : ''}
+                            >
+                              {ta.multiplier}x
+                            </Badge>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Effective rate display */}
+                {(laborType !== 'electrician' || timeAdjustment !== 'normal') && (
+                  <div className="border-t pt-4">
+                    <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3">
+                      <div>
+                        <p className="text-sm font-medium text-blue-700">Effektiv timepris</p>
+                        <p className="text-xs text-blue-600">
+                          {LABOR_TYPES.find((lt) => lt.id === laborType)?.name} + {TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment)?.name}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-blue-700">
+                          {Math.round(
+                            hourlyRate *
+                              (LABOR_TYPES.find((lt) => lt.id === laborType)?.rateMultiplier || 1) *
+                              (TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment)?.multiplier || 1)
+                          ).toLocaleString('da-DK')}{' '}
+                          kr/t
+                        </p>
+                        <p className="text-xs text-blue-600">
+                          ({hourlyRate} × {LABOR_TYPES.find((lt) => lt.id === laborType)?.rateMultiplier} × {TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment)?.multiplier})
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </CollapsibleContent>
