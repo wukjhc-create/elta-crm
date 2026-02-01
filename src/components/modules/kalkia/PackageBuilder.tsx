@@ -651,6 +651,9 @@ export function PackageBuilder({
             onRemoveItem={handleRemoveItem}
             onUpdateQuantity={handleUpdateQuantity}
             isLoading={isCalculating}
+            laborType={LABOR_TYPES.find((lt) => lt.id === laborType) || null}
+            timeAdjustment={TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment) || null}
+            hourlyRate={hourlyRate}
           />
         </div>
       </div>

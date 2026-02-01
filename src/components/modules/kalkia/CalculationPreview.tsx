@@ -55,6 +55,9 @@ interface CalculationPreviewProps {
   onRemoveItem: (itemId: string) => void
   onUpdateQuantity: (itemId: string, quantity: number) => void
   isLoading?: boolean
+  laborType?: { name: string; rateMultiplier: number } | null
+  timeAdjustment?: { name: string; multiplier: number } | null
+  hourlyRate?: number
 }
 
 export function CalculationPreview({
@@ -63,6 +66,9 @@ export function CalculationPreview({
   onRemoveItem,
   onUpdateQuantity,
   isLoading = false,
+  laborType,
+  timeAdjustment,
+  hourlyRate = 495,
 }: CalculationPreviewProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
 
@@ -307,6 +313,33 @@ export function CalculationPreview({
                 </p>
               </div>
             </div>
+
+            {/* Rate Information (if non-standard) */}
+            {(laborType && laborType.rateMultiplier !== 1) || (timeAdjustment && timeAdjustment.multiplier !== 1) ? (
+              <div className="bg-blue-50 rounded p-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-blue-700 text-xs">Effektiv timepris</span>
+                  <span className="font-semibold text-blue-800">
+                    {formatPrice(
+                      hourlyRate *
+                      (laborType?.rateMultiplier || 1) *
+                      (timeAdjustment?.multiplier || 1)
+                    )}/time
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-blue-600 mt-1">
+                  {laborType && laborType.rateMultiplier !== 1 && (
+                    <span>{laborType.name} ({laborType.rateMultiplier}x)</span>
+                  )}
+                  {timeAdjustment && timeAdjustment.multiplier !== 1 && (
+                    <>
+                      {laborType && laborType.rateMultiplier !== 1 && <span>+</span>}
+                      <span>{timeAdjustment.name} ({timeAdjustment.multiplier}x)</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             {/* Cost Summary */}
             <div className="grid grid-cols-2 gap-2 text-sm">
