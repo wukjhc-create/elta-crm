@@ -19,10 +19,12 @@ import {
   Star,
   CheckCircle,
   XCircle,
+  MessageSquare,
 } from 'lucide-react'
 import { CustomerForm } from '@/components/modules/customers/customer-form'
 import { ContactForm } from '@/components/modules/customers/contact-form'
 import { PortalAccess } from '@/components/modules/customers/portal-access'
+import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import {
   deleteCustomer,
   toggleCustomerActive,
@@ -45,6 +47,7 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
   const [editingContact, setEditingContact] = useState<CustomerContact | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
+  const [showChat, setShowChat] = useState(false)
 
   const handleDelete = async () => {
     if (!confirm('Er du sikker på, at du vil slette denne kunde?')) {
@@ -481,6 +484,32 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
               customerEmail={customer.email}
               tokens={portalTokens}
             />
+
+            {/* Portal Chat */}
+            <div className="bg-white rounded-lg border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Portal Chat
+                </h2>
+                <button
+                  onClick={() => setShowChat(true)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Åbn chat
+                </button>
+              </div>
+              <p className="text-sm text-gray-500">
+                Send beskeder til kunden via kundeportalen. Kunden kan svare når de er logget ind.
+              </p>
+              <button
+                onClick={() => setShowChat(true)}
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Start chat
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -507,6 +536,15 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
           contact={editingContact}
           onClose={() => setEditingContact(null)}
           onSuccess={() => router.refresh()}
+        />
+      )}
+
+      {showChat && (
+        <EmployeeChat
+          customerId={customer.id}
+          customerName={customer.company_name}
+          isModal={true}
+          onClose={() => setShowChat(false)}
         />
       )}
     </>

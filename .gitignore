@@ -63,3 +63,5 @@ tmpclaude-*
 
 # Claude Code
 .claude
+
+.vercel

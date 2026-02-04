@@ -25,6 +25,7 @@ import type {
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getCompanySettings } from '@/lib/actions/settings'
+import { triggerWebhooks, buildProjectWebhookPayload } from '@/lib/actions/integrations'
 
 // ==================== Helper Functions ====================
 
@@ -280,6 +281,14 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
       return { success: false, error: 'Kunne ikke oprette projekt' }
     }
 
+    // Trigger webhooks for project.created
+    const payload = await buildProjectWebhookPayload(data.id, 'project.created')
+    if (payload) {
+      triggerWebhooks('project.created', payload).catch(err => {
+        console.error('Error triggering webhooks:', err)
+      })
+    }
+
     revalidatePath('/projects')
     return { success: true, data: data as Project }
   } catch (error) {
@@ -392,6 +401,28 @@ export async function updateProjectStatus(
     if (error) {
       console.error('Error updating project status:', error)
       return { success: false, error: 'Kunne ikke opdatere status' }
+    }
+
+    // Trigger webhooks for project status changes
+    const webhookEventMap: Partial<Record<ProjectStatus, 'project.status_changed' | 'project.completed' | 'project.cancelled'>> = {
+      completed: 'project.completed',
+      cancelled: 'project.cancelled',
+    }
+    const specificEvent = webhookEventMap[status]
+
+    // Always trigger status_changed, plus specific event if applicable
+    const payload = await buildProjectWebhookPayload(id, 'project.status_changed')
+    if (payload) {
+      triggerWebhooks('project.status_changed', payload).catch(err => {
+        console.error('Error triggering webhooks:', err)
+      })
+
+      // Also trigger specific events (completed, cancelled)
+      if (specificEvent) {
+        triggerWebhooks(specificEvent, payload).catch(err => {
+          console.error('Error triggering webhooks:', err)
+        })
+      }
     }
 
     revalidatePath('/projects')
@@ -775,6 +806,14 @@ export async function createProjectFromOffer(
     if (error) {
       console.error('Error creating project from offer:', error)
       return { success: false, error: 'Kunne ikke oprette projekt' }
+    }
+
+    // Trigger webhooks for project.created
+    const payload = await buildProjectWebhookPayload(data.id, 'project.created')
+    if (payload) {
+      triggerWebhooks('project.created', payload).catch(err => {
+        console.error('Error triggering webhooks:', err)
+      })
     }
 
     revalidatePath('/projects')

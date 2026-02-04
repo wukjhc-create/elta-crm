@@ -68,7 +68,7 @@ Du er et professionelt udviklingsteam med 4 roller:
 ### Tech Stack
 - **Frontend:** Next.js 16, React, TypeScript, Tailwind CSS
 - **Backend:** Supabase (PostgreSQL, Auth, Realtime, Storage)
-- **Deployment:** TBD
+- **Deployment:** Vercel (configured)
 
 ---
 
@@ -81,7 +81,9 @@ Vi bygger:
 - ✅ Chat med filer
 - ✅ Tilbudssystem med skabeloner
 - ✅ Ordreflow
-- 🔜 Integration til eksternt ordresystem
+- ✅ Integration til eksternt ordresystem
+- ✅ Email-integration
+- ✅ SMS-notifikationer
 - 🔜 Fuldt kalkulationsmodul som Kalkia
 
 ---
@@ -137,6 +139,15 @@ elta-crm/
 - `calculator_templates` - Kalkulator skabeloner
 - `portal_access_tokens` - Kundeportal adgangstokens
 - `portal_messages` - Portal chat beskeder
+- `suppliers` - Leverandører/grossister
+- `supplier_products` - Leverandørprodukter med priser
+- `supplier_settings` - Leverandør import-konfiguration (inkl. adapter_code, sync_config)
+- `price_history` - Prisændringer over tid
+- `import_batches` - Import-log og audit trail
+- `supplier_sync_jobs` - Sync job-konfiguration (cron, retries)
+- `supplier_sync_logs` - Sync udførelses-log med detaljeret status
+- `customer_supplier_prices` - Kundespecifikke leverandøraftaler (rabat, margin)
+- `customer_product_prices` - Kundespecifikke produktpriser
 
 ### Ved nye tabeller:
 1. Vis mig CREATE TABLE SQL først
@@ -161,7 +172,7 @@ elta-crm/
 ### FASE 3: Kommunikation ✅
 - [x] Chat-system mellem sælger og kunde
 - [x] Besked-indbakke
-- [ ] Fil-upload til chat (mangler)
+- [x] Fil-upload til chat (portal + medarbejder-side)
 
 ### FASE 4: Tilbud ✅
 - [x] Tilbuds-modul med skabeloner
@@ -173,10 +184,27 @@ elta-crm/
 - [ ] Fuld kalkulationsmotor som Kalkia (fremtidig udvidelse)
 - [ ] Produkt-katalog (fremtidig udvidelse)
 
-### FASE 6: Integration (NÆSTE)
-- [ ] Eksternt ordresystem
-- [ ] Email-integration
-- [ ] SMS-notifikationer
+### FASE 6: Integration ✅
+- [x] Eksternt ordresystem (Generic API integration med webhooks)
+- [x] Email-integration
+- [x] SMS-notifikationer (GatewayAPI)
+
+### FASE 7: Grossist-Integration ✅
+- [x] Leverandør-modul med CRUD
+- [x] AO og Lemvigh-Müller import konfiguration
+- [x] CSV import engine med dansk talformat support
+- [x] Prishistorik og import-log
+- [x] Kalkia material-linking til leverandørprodukter
+- [x] Automatisk prissynkronisering
+
+### FASE 8: Enterprise Leverandør-Engine ✅
+- [x] Adapter-baseret leverandør-framework (SupplierAdapter interface, BaseSupplierAdapter, Registry)
+- [x] AO adapter med encoding fallback (ISO-8859-1 → UTF-8)
+- [x] Lemvigh-Müller adapter med undergruppe-mapping og API/FTP support
+- [x] Sync Engine med job-styring og logning
+- [x] Kundespecifik prissætning (customer_supplier_prices, customer_product_prices)
+- [x] Dyb Kalkia-integration med live leverandørpriser i kalkulationer
+- [x] Kundespecifik prisberegning via database-funktioner (get_customer_product_price, get_best_price_for_customer)
 
 ---
 
@@ -216,3 +244,25 @@ Ved hver opgave:
   - Digital signatur ved accept
   - Chat mellem kunde og sælger
   - Portal routes: `/portal/[token]` og `/portal/[token]/offers/[id]`
+- 2026-02-01: Vercel deployment konfigureret:
+  - vercel.json med sikkerhedsheaders og region (fra1)
+  - next.config.js opdateret til produktion
+  - Environment variables: Se .env.example for komplet liste
+- 2026-02-01: Grossist-Integration (AO, Lemvigh-Müller) implementeret:
+  - Nye tabeller: supplier_settings, price_history, import_batches
+  - Udvidet supplier_products med margin, kategori, EAN m.m.
+  - Udvidet kalkia_variant_materials med supplier_product_id link
+  - Import engine med CSV parsing og dansk talformat (1.234,56)
+  - Server actions: suppliers.ts, import.ts
+  - UI: /dashboard/settings/suppliers/
+  - AO bruger ISO-8859-1 encoding, LM bruger UTF-8
+- 2026-02-04: Enterprise Leverandør-Engine implementeret:
+  - Adapter-pattern: SupplierAdapter interface + BaseSupplierAdapter + Registry (supplier-adapter.ts)
+  - AOAdapter med encoding-fallback, LMAdapter med undergruppe-mapping
+  - SyncEngine (sync-engine.ts) til adapter-baseret filbehandling
+  - Nye tabeller: supplier_sync_jobs, supplier_sync_logs, customer_supplier_prices, customer_product_prices
+  - Server actions: sync.ts (job CRUD + logning), customer-pricing.ts (kundespecifik pris)
+  - DB-funktioner: get_customer_product_price(), get_best_price_for_customer()
+  - Kalkia-engine opdateret: bruger live leverandørpriser via CalculationContext.supplierPrices
+  - Nye kalkia-funktioner: loadSupplierPricesForVariant(), loadSupplierPricesForCalculation()
+  - Legacy-kompatibilitet bevaret (AOImporter, LMImporter klasser stadig tilgængelige)

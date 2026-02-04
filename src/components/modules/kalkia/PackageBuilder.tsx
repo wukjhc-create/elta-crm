@@ -14,6 +14,8 @@ import {
   Clock,
   Copy,
   Home,
+  FileText,
+  ClipboardList,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +39,8 @@ import { QuickJobsPicker } from './QuickJobsPicker'
 import { RoomCalculator } from './RoomCalculator'
 import { CalibrationPresetPicker } from './CalibrationPresetPicker'
 import { CalculationPreview, type CalculationItem } from './CalculationPreview'
+import { CreateOfferModal } from './CreateOfferModal'
+import { MaterialSummary } from './MaterialSummary'
 import { getBuildingProfiles } from '@/lib/actions/kalkia'
 import type { CalibrationPreset } from '@/types/quick-jobs.types'
 import type {
@@ -117,6 +121,8 @@ export function PackageBuilder({
   const [marginPercentage, setMarginPercentage] = useState(15)
   const [discountPercentage, setDiscountPercentage] = useState(0)
   const [activeTab, setActiveTab] = useState<'quickjobs' | 'rooms' | 'components' | 'packages'>('quickjobs')
+  const [rightPanelView, setRightPanelView] = useState<'preview' | 'materials'>('preview')
+  const [showCreateOfferModal, setShowCreateOfferModal] = useState(false)
   const [calibrationPreset, setCalibrationPreset] = useState<CalibrationPreset | null>(null)
   const [laborType, setLaborType] = useState<LaborTypeId>('electrician')
   const [timeAdjustment, setTimeAdjustment] = useState<TimeAdjustmentId>('normal')
@@ -366,6 +372,17 @@ export function PackageBuilder({
             </div>
           </div>
 
+          {items.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateOfferModal(true)}
+              disabled={isSaving}
+              className="border-green-200 text-green-700 hover:bg-green-50"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Opret tilbud
+            </Button>
+          )}
           {onClone && items.length > 0 && (
             <Button variant="outline" onClick={handleClone} disabled={isSaving}>
               <Copy className="w-4 h-4 mr-2" />
@@ -658,20 +675,74 @@ export function PackageBuilder({
           </div>
         </div>
 
-        {/* Calculation Preview - Right Side */}
-        <div className="w-1/2 bg-white">
-          <CalculationPreview
-            items={items}
-            result={result}
-            onRemoveItem={handleRemoveItem}
-            onUpdateQuantity={handleUpdateQuantity}
-            isLoading={isCalculating}
-            laborType={LABOR_TYPES.find((lt) => lt.id === laborType) || null}
-            timeAdjustment={TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment) || null}
-            hourlyRate={hourlyRate}
-          />
+        {/* Calculation Preview / Materials - Right Side */}
+        <div className="w-1/2 bg-white flex flex-col">
+          {/* Right Panel Tabs */}
+          <div className="border-b bg-white px-2 py-1">
+            <div className="inline-flex items-center rounded-md bg-gray-100 p-1">
+              <button
+                onClick={() => setRightPanelView('preview')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  rightPanelView === 'preview'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                Oversigt
+              </button>
+              <button
+                onClick={() => setRightPanelView('materials')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  rightPanelView === 'materials'
+                    ? 'bg-orange-100 text-orange-800 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Package className="w-3.5 h-3.5" />
+                Materialer
+                {items.length > 0 && (
+                  <span className="ml-1 text-xs bg-orange-200 text-orange-700 px-1.5 rounded-full">
+                    {items.reduce((sum, item) => sum + (item.materials?.length || 0), 0)}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Right Panel Content */}
+          <div className="flex-1 overflow-hidden">
+            {rightPanelView === 'preview' ? (
+              <CalculationPreview
+                items={items}
+                result={result}
+                onRemoveItem={handleRemoveItem}
+                onUpdateQuantity={handleUpdateQuantity}
+                isLoading={isCalculating}
+                laborType={LABOR_TYPES.find((lt) => lt.id === laborType) || null}
+                timeAdjustment={TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment) || null}
+                hourlyRate={hourlyRate}
+              />
+            ) : (
+              <MaterialSummary items={items} />
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Create Offer Modal */}
+      <CreateOfferModal
+        open={showCreateOfferModal}
+        onOpenChange={setShowCreateOfferModal}
+        calculationName={name}
+        items={items}
+        result={result}
+        settings={{
+          hourlyRate,
+          marginPercentage,
+          discountPercentage,
+        }}
+      />
     </div>
   )
 }

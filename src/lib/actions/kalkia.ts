@@ -1547,3 +1547,813 @@ export async function searchKalkiaNodes(
     return { success: false, error: formatError(err, 'Sorgning fejlede') }
   }
 }
+
+// =====================================================
+// Create Offer from Calculation
+// =====================================================
+
+interface CalculationItemForOffer {
+  id: string
+  componentId: string
+  componentName: string
+  componentCode: string | null
+  variantId: string | null
+  variantName?: string
+  quantity: number
+  baseTimeMinutes: number
+  variantTimeMultiplier: number
+  variantExtraMinutes: number
+  complexityFactor: number
+  calculatedTimeMinutes: number
+  costPrice: number
+  salePrice: number
+  materials?: {
+    name: string
+    quantity: number
+    unit: string
+    costPrice: number
+    salePrice: number
+  }[]
+}
+
+interface CreateOfferFromCalculationInput {
+  title: string
+  description: string | null
+  customerId: string
+  validUntil: string | null
+  termsAndConditions: string | null
+  items: CalculationItemForOffer[]
+  result: CalculationResult | null
+  settings: {
+    hourlyRate: number
+    marginPercentage: number
+    discountPercentage: number
+  }
+}
+
+/**
+ * Create an offer directly from a calculation with all line items.
+ */
+export async function createOfferFromCalculation(
+  input: CreateOfferFromCalculationInput
+): Promise<ActionResult<{ id: string; offer_number: string }>> {
+  try {
+    const userId = await requireAuth()
+    const supabase = await createClient()
+
+    // Validate customer exists
+    const { data: customer, error: customerError } = await supabase
+      .from('customers')
+      .select('id, company_name')
+      .eq('id', input.customerId)
+      .single()
+
+    if (customerError || !customer) {
+      return { success: false, error: 'Kunde ikke fundet' }
+    }
+
+    // Generate offer number
+    const currentYear = new Date().getFullYear()
+    const prefix = `TILBUD-${currentYear}-`
+
+    const { data: lastOffer } = await supabase
+      .from('offers')
+      .select('offer_number')
+      .ilike('offer_number', `${prefix}%`)
+      .order('offer_number', { ascending: false })
+      .limit(1)
+
+    let nextNumber = 1
+    if (lastOffer && lastOffer.length > 0) {
+      const lastNum = parseInt(lastOffer[0].offer_number.replace(prefix, ''), 10)
+      if (!isNaN(lastNum)) {
+        nextNumber = lastNum + 1
+      }
+    }
+    const offerNumber = `${prefix}${String(nextNumber).padStart(4, '0')}`
+
+    // Calculate totals from items
+    const totalAmount = input.result?.salePriceExclVat ||
+      input.items.reduce((sum, item) => sum + item.salePrice * item.quantity, 0)
+
+    const discountPercentage = input.settings.discountPercentage || 0
+    const discountAmount = totalAmount * (discountPercentage / 100)
+    const taxPercentage = 25
+    const taxAmount = (totalAmount - discountAmount) * (taxPercentage / 100)
+    const finalAmount = totalAmount - discountAmount + taxAmount
+
+    // Create the offer
+    const { data: offer, error: offerError } = await supabase
+      .from('offers')
+      .insert({
+        offer_number: offerNumber,
+        title: input.title,
+        description: input.description,
+        customer_id: input.customerId,
+        status: 'draft',
+        total_amount: totalAmount,
+        discount_percentage: discountPercentage,
+        discount_amount: discountAmount,
+        tax_percentage: taxPercentage,
+        tax_amount: taxAmount,
+        final_amount: finalAmount,
+        currency: 'DKK',
+        valid_until: input.validUntil,
+        terms_and_conditions: input.termsAndConditions,
+        created_by: userId,
+      })
+      .select('id, offer_number')
+      .single()
+
+    if (offerError || !offer) {
+      console.error('Error creating offer:', offerError)
+      return { success: false, error: 'Kunne ikke oprette tilbud' }
+    }
+
+    // Create line items from calculation items
+    const lineItems = input.items.map((item, index) => {
+      const totalTimeMinutes = item.calculatedTimeMinutes * item.quantity
+      const laborCost = (totalTimeMinutes / 60) * input.settings.hourlyRate
+      const materialCost = item.materials?.reduce(
+        (sum, m) => sum + m.costPrice * m.quantity * item.quantity,
+        0
+      ) || 0
+      const itemCostPrice = laborCost + materialCost
+      const itemSalePrice = item.salePrice * item.quantity
+
+      return {
+        offer_id: offer.id,
+        position: index,
+        description: item.variantName
+          ? `${item.componentName} (${item.variantName})`
+          : item.componentName,
+        quantity: item.quantity,
+        unit: 'stk',
+        unit_price: item.salePrice,
+        cost_price: itemCostPrice / item.quantity,
+        discount_percentage: 0,
+        total: itemSalePrice,
+      }
+    })
+
+    const { error: lineItemsError } = await supabase
+      .from('offer_line_items')
+      .insert(lineItems)
+
+    if (lineItemsError) {
+      console.error('Error creating line items:', lineItemsError)
+      // Don't fail the whole operation, the offer was created
+    }
+
+    // Log activity
+    await supabase.from('offer_activities').insert({
+      offer_id: offer.id,
+      activity_type: 'created',
+      description: `Tilbud oprettet fra kalkulation med ${input.items.length} komponenter`,
+      performed_by: userId,
+    })
+
+    revalidatePath('/dashboard/offers')
+    revalidatePath(`/dashboard/offers/${offer.id}`)
+
+    return { success: true, data: offer }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette tilbud fra kalkulation') }
+  }
+}
+
+// =====================================================
+// Supplier Integration for Materials
+// =====================================================
+
+/**
+ * Link a Kalkia variant material to a supplier product
+ */
+export async function linkMaterialToSupplierProduct(
+  materialId: string,
+  supplierProductId: string,
+  autoUpdatePrice: boolean = false
+): Promise<ActionResult<KalkiaVariantMaterial>> {
+  try {
+    await requireAuth()
+    validateUUID(materialId, 'materiale ID')
+    validateUUID(supplierProductId, 'leverandørprodukt ID')
+
+    const supabase = await createClient()
+
+    // Get supplier product to verify it exists and get prices
+    const { data: supplierProduct, error: spError } = await supabase
+      .from('supplier_products')
+      .select('id, cost_price, list_price, supplier_name')
+      .eq('id', supplierProductId)
+      .single()
+
+    if (spError || !supplierProduct) {
+      return { success: false, error: 'Leverandørprodukt ikke fundet' }
+    }
+
+    // Update material with supplier product link
+    const updateData: Record<string, unknown> = {
+      supplier_product_id: supplierProductId,
+      auto_update_price: autoUpdatePrice,
+    }
+
+    // Optionally update prices from supplier product
+    if (autoUpdatePrice) {
+      if (supplierProduct.cost_price) {
+        updateData.cost_price = supplierProduct.cost_price
+      }
+      if (supplierProduct.list_price) {
+        updateData.sale_price = supplierProduct.list_price
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('kalkia_variant_materials')
+      .update(updateData)
+      .eq('id', materialId)
+      .select()
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Materiale ikke fundet' }
+      }
+      console.error('Database error linking material to supplier product:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    revalidatePath('/dashboard/settings/kalkia/nodes')
+    return { success: true, data: data as KalkiaVariantMaterial }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke linke materiale til leverandørprodukt') }
+  }
+}
+
+/**
+ * Unlink a Kalkia variant material from a supplier product
+ */
+export async function unlinkMaterialFromSupplierProduct(
+  materialId: string
+): Promise<ActionResult<KalkiaVariantMaterial>> {
+  try {
+    await requireAuth()
+    validateUUID(materialId, 'materiale ID')
+
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('kalkia_variant_materials')
+      .update({
+        supplier_product_id: null,
+        auto_update_price: false,
+      })
+      .eq('id', materialId)
+      .select()
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Materiale ikke fundet' }
+      }
+      console.error('Database error unlinking material from supplier product:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    revalidatePath('/dashboard/settings/kalkia/nodes')
+    return { success: true, data: data as KalkiaVariantMaterial }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke fjerne link til leverandørprodukt') }
+  }
+}
+
+/**
+ * Get supplier product options for a material (by name match)
+ */
+export async function getSupplierOptionsForMaterial(
+  materialName: string
+): Promise<ActionResult<Array<{
+  supplier_product_id: string
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string | null
+  supplier_sku: string
+  product_name: string
+  cost_price: number
+  list_price: number | null
+  is_preferred: boolean
+  is_available: boolean
+}>>> {
+  try {
+    await requireAuth()
+
+    const sanitized = sanitizeSearchTerm(materialName)
+    if (!sanitized || sanitized.length < 2) {
+      return { success: true, data: [] }
+    }
+
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('v_supplier_products_with_supplier')
+      .select(`
+        id,
+        supplier_id,
+        supplier_name,
+        supplier_code,
+        supplier_sku,
+        cost_price,
+        list_price,
+        is_preferred,
+        is_available
+      `)
+      .eq('is_available', true)
+      .eq('supplier_is_active', true)
+      .or(`supplier_name.ilike.%${sanitized}%,supplier_sku.ilike.%${sanitized}%`)
+      .order('is_preferred', { ascending: false })
+      .order('cost_price', { ascending: true })
+      .limit(20)
+
+    if (error) {
+      console.error('Database error fetching supplier options:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    const options = (data || []).map((row) => ({
+      supplier_product_id: row.id,
+      supplier_id: row.supplier_id,
+      supplier_name: row.supplier_name,
+      supplier_code: row.supplier_code,
+      supplier_sku: row.supplier_sku,
+      product_name: row.supplier_name,
+      cost_price: row.cost_price || 0,
+      list_price: row.list_price,
+      is_preferred: row.is_preferred || false,
+      is_available: row.is_available,
+    }))
+
+    return { success: true, data: options }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leverandørmuligheder') }
+  }
+}
+
+/**
+ * Sync material prices from linked supplier products for a variant
+ */
+export async function syncMaterialPricesFromSupplier(
+  variantId: string
+): Promise<ActionResult<{ updated: number; skipped: number }>> {
+  try {
+    await requireAuth()
+    validateUUID(variantId, 'variant ID')
+
+    const supabase = await createClient()
+
+    // Get all materials with supplier links that have auto_update_price enabled
+    const { data: materials, error: materialsError } = await supabase
+      .from('kalkia_variant_materials')
+      .select(`
+        id,
+        supplier_product_id,
+        auto_update_price,
+        cost_price,
+        sale_price
+      `)
+      .eq('variant_id', variantId)
+      .not('supplier_product_id', 'is', null)
+
+    if (materialsError) {
+      console.error('Database error fetching materials:', materialsError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!materials || materials.length === 0) {
+      return { success: true, data: { updated: 0, skipped: 0 } }
+    }
+
+    // Get linked supplier products
+    const supplierProductIds = materials.map((m) => m.supplier_product_id).filter(Boolean)
+
+    const { data: supplierProducts, error: spError } = await supabase
+      .from('supplier_products')
+      .select('id, cost_price, list_price')
+      .in('id', supplierProductIds)
+
+    if (spError) {
+      console.error('Database error fetching supplier products:', spError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    const spMap = new Map(
+      (supplierProducts || []).map((sp) => [sp.id, sp])
+    )
+
+    let updated = 0
+    let skipped = 0
+
+    // Update each material with auto_update_price enabled
+    for (const material of materials) {
+      if (!material.auto_update_price) {
+        skipped++
+        continue
+      }
+
+      const sp = spMap.get(material.supplier_product_id)
+      if (!sp) {
+        skipped++
+        continue
+      }
+
+      // Check if prices are different
+      if (
+        sp.cost_price === material.cost_price &&
+        sp.list_price === material.sale_price
+      ) {
+        skipped++
+        continue
+      }
+
+      // Update material prices
+      const { error: updateError } = await supabase
+        .from('kalkia_variant_materials')
+        .update({
+          cost_price: sp.cost_price,
+          sale_price: sp.list_price,
+        })
+        .eq('id', material.id)
+
+      if (!updateError) {
+        updated++
+      } else {
+        skipped++
+      }
+    }
+
+    revalidatePath('/dashboard/settings/kalkia/nodes')
+    return { success: true, data: { updated, skipped } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke synkronisere priser') }
+  }
+}
+
+/**
+ * Sync all material prices across all variants (batch operation)
+ */
+export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult<{ updated: number; skipped: number }>> {
+  try {
+    await requireAuth()
+
+    const supabase = await createClient()
+
+    // Call the database function to sync all materials
+    const { data, error } = await supabase
+      .rpc('sync_all_material_prices_from_suppliers')
+
+    if (error) {
+      // If the function doesn't exist, do it manually
+      console.log('RPC not available, syncing manually')
+
+      // Get all materials with supplier links and auto_update enabled
+      const { data: materials, error: materialsError } = await supabase
+        .from('kalkia_variant_materials')
+        .select(`
+          id,
+          supplier_product_id,
+          cost_price,
+          sale_price
+        `)
+        .eq('auto_update_price', true)
+        .not('supplier_product_id', 'is', null)
+
+      if (materialsError) {
+        throw new Error('DATABASE_ERROR')
+      }
+
+      if (!materials || materials.length === 0) {
+        return { success: true, data: { updated: 0, skipped: 0 } }
+      }
+
+      // Get linked supplier products
+      const supplierProductIds = materials.map((m) => m.supplier_product_id).filter(Boolean)
+
+      const { data: supplierProducts } = await supabase
+        .from('supplier_products')
+        .select('id, cost_price, list_price')
+        .in('id', supplierProductIds)
+
+      const spMap = new Map(
+        (supplierProducts || []).map((sp) => [sp.id, sp])
+      )
+
+      let updated = 0
+      let skipped = 0
+
+      for (const material of materials) {
+        const sp = spMap.get(material.supplier_product_id)
+        if (!sp) {
+          skipped++
+          continue
+        }
+
+        if (
+          sp.cost_price === material.cost_price &&
+          sp.list_price === material.sale_price
+        ) {
+          skipped++
+          continue
+        }
+
+        const { error: updateError } = await supabase
+          .from('kalkia_variant_materials')
+          .update({
+            cost_price: sp.cost_price,
+            sale_price: sp.list_price,
+          })
+          .eq('id', material.id)
+
+        if (!updateError) {
+          updated++
+        } else {
+          skipped++
+        }
+      }
+
+      revalidatePath('/dashboard/settings/kalkia')
+      return { success: true, data: { updated, skipped } }
+    }
+
+    revalidatePath('/dashboard/settings/kalkia')
+    return { success: true, data: data as { updated: number; skipped: number } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke synkronisere alle priser') }
+  }
+}
+
+// =====================================================
+// Live Supplier Price Loading for Kalkia Calculations
+// =====================================================
+
+/**
+ * Load live supplier prices for all materials in a variant.
+ * Returns a Map that can be passed to CalculationContext.supplierPrices
+ * to enable live pricing in the calculation engine.
+ *
+ * Optionally accepts a customer ID for customer-specific pricing.
+ */
+export async function loadSupplierPricesForVariant(
+  variantId: string,
+  customerId?: string
+): Promise<ActionResult<Map<string, {
+  materialId: string
+  supplierProductId: string
+  supplierName: string
+  supplierSku: string
+  baseCostPrice: number
+  effectiveCostPrice: number
+  effectiveSalePrice: number
+  discountPercentage: number
+  marginPercentage: number
+  priceSource: string
+  isStale: boolean
+  lastSyncedAt: string | null
+}>>> {
+  try {
+    await requireAuth()
+    validateUUID(variantId, 'variant ID')
+
+    const supabase = await createClient()
+
+    // Get all materials with supplier product links
+    const { data: materials, error: materialsError } = await supabase
+      .from('kalkia_variant_materials')
+      .select(`
+        id,
+        supplier_product_id,
+        cost_price,
+        sale_price
+      `)
+      .eq('variant_id', variantId)
+      .not('supplier_product_id', 'is', null)
+
+    if (materialsError) {
+      console.error('Database error loading materials:', materialsError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!materials || materials.length === 0) {
+      return { success: true, data: new Map() }
+    }
+
+    // Get linked supplier products with supplier info
+    const supplierProductIds = materials.map((m) => m.supplier_product_id).filter(Boolean)
+
+    const { data: supplierProducts, error: spError } = await supabase
+      .from('v_supplier_products_with_supplier')
+      .select('*')
+      .in('id', supplierProductIds)
+
+    if (spError) {
+      console.error('Database error loading supplier products:', spError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    // Build supplier product map
+    const spMap = new Map(
+      (supplierProducts || []).map((sp) => [sp.id, sp])
+    )
+
+    // Optionally load customer-specific pricing
+    let customerDiscountMap = new Map<string, { discount: number; margin: number | null }>()
+    let customerProductPriceMap = new Map<string, { cost: number | null; list: number | null; discount: number | null }>()
+
+    if (customerId) {
+      validateUUID(customerId, 'kunde ID')
+
+      // Customer-supplier agreements
+      const { data: customerSupplierPrices } = await supabase
+        .from('customer_supplier_prices')
+        .select('supplier_id, discount_percentage, custom_margin_percentage')
+        .eq('customer_id', customerId)
+        .eq('is_active', true)
+
+      if (customerSupplierPrices) {
+        customerDiscountMap = new Map(
+          customerSupplierPrices.map((csp) => [
+            csp.supplier_id,
+            { discount: csp.discount_percentage || 0, margin: csp.custom_margin_percentage }
+          ])
+        )
+      }
+
+      // Customer-specific product prices
+      const { data: customerProductPrices } = await supabase
+        .from('customer_product_prices')
+        .select('supplier_product_id, custom_cost_price, custom_list_price, custom_discount_percentage')
+        .eq('customer_id', customerId)
+        .eq('is_active', true)
+        .in('supplier_product_id', supplierProductIds)
+
+      if (customerProductPrices) {
+        customerProductPriceMap = new Map(
+          customerProductPrices.map((cpp) => [
+            cpp.supplier_product_id,
+            { cost: cpp.custom_cost_price, list: cpp.custom_list_price, discount: cpp.custom_discount_percentage }
+          ])
+        )
+      }
+    }
+
+    // Build price override map
+    const priceMap = new Map<string, {
+      materialId: string
+      supplierProductId: string
+      supplierName: string
+      supplierSku: string
+      baseCostPrice: number
+      effectiveCostPrice: number
+      effectiveSalePrice: number
+      discountPercentage: number
+      marginPercentage: number
+      priceSource: string
+      isStale: boolean
+      lastSyncedAt: string | null
+    }>()
+
+    for (const material of materials) {
+      const sp = spMap.get(material.supplier_product_id)
+      if (!sp || !sp.cost_price) continue
+
+      const baseCost = sp.cost_price
+      let effectiveCost = baseCost
+      let discount = 0
+      let margin = sp.margin_percentage || sp.default_margin_percentage || 25
+      let priceSource = 'standard'
+
+      // Check customer-specific product price
+      const customerProductPrice = customerProductPriceMap.get(sp.id)
+      if (customerProductPrice) {
+        priceSource = 'customer_product'
+        if (customerProductPrice.cost !== null) {
+          effectiveCost = customerProductPrice.cost
+        }
+        if (customerProductPrice.discount !== null) {
+          discount = customerProductPrice.discount
+          effectiveCost = baseCost * (1 - discount / 100)
+        }
+      } else {
+        // Check customer-supplier agreement
+        const customerSupplier = customerDiscountMap.get(sp.supplier_id)
+        if (customerSupplier) {
+          priceSource = 'customer_supplier'
+          discount = customerSupplier.discount
+          effectiveCost = baseCost * (1 - discount / 100)
+          if (customerSupplier.margin !== null) {
+            margin = customerSupplier.margin
+          }
+        }
+      }
+
+      const effectiveSale = effectiveCost * (1 + margin / 100)
+
+      // Check if price is stale (not synced in 7+ days)
+      const lastSynced = sp.last_synced_at ? new Date(sp.last_synced_at) : null
+      const isStale = !lastSynced || (Date.now() - lastSynced.getTime() > 7 * 24 * 60 * 60 * 1000)
+
+      priceMap.set(material.id, {
+        materialId: material.id,
+        supplierProductId: sp.id,
+        supplierName: sp.supplier_name || '',
+        supplierSku: sp.supplier_sku || '',
+        baseCostPrice: baseCost,
+        effectiveCostPrice: effectiveCost,
+        effectiveSalePrice: effectiveSale,
+        discountPercentage: discount,
+        marginPercentage: margin,
+        priceSource,
+        isStale,
+        lastSyncedAt: sp.last_synced_at,
+      })
+    }
+
+    return { success: true, data: priceMap }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leverandørpriser') }
+  }
+}
+
+/**
+ * Load supplier prices for all materials in a calculation.
+ * Returns a combined Map for all variants used in the calculation.
+ */
+export async function loadSupplierPricesForCalculation(
+  calculationId: string,
+  customerId?: string
+): Promise<ActionResult<Map<string, {
+  materialId: string
+  supplierProductId: string
+  supplierName: string
+  supplierSku: string
+  baseCostPrice: number
+  effectiveCostPrice: number
+  effectiveSalePrice: number
+  discountPercentage: number
+  marginPercentage: number
+  priceSource: string
+  isStale: boolean
+  lastSyncedAt: string | null
+}>>> {
+  try {
+    await requireAuth()
+    validateUUID(calculationId, 'kalkulation ID')
+
+    const supabase = await createClient()
+
+    // Get all rows in the calculation to find variant IDs
+    const { data: rows, error: rowsError } = await supabase
+      .from('kalkia_calculation_rows')
+      .select('variant_id')
+      .eq('calculation_id', calculationId)
+      .not('variant_id', 'is', null)
+
+    if (rowsError) {
+      console.error('Database error loading calculation rows:', rowsError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    const variantIds = [...new Set((rows || []).map((r) => r.variant_id).filter(Boolean))]
+
+    if (variantIds.length === 0) {
+      return { success: true, data: new Map() }
+    }
+
+    // Load supplier prices for all variants
+    const allPrices = new Map<string, {
+      materialId: string
+      supplierProductId: string
+      supplierName: string
+      supplierSku: string
+      baseCostPrice: number
+      effectiveCostPrice: number
+      effectiveSalePrice: number
+      discountPercentage: number
+      marginPercentage: number
+      priceSource: string
+      isStale: boolean
+      lastSyncedAt: string | null
+    }>()
+
+    for (const variantId of variantIds) {
+      const result = await loadSupplierPricesForVariant(variantId, customerId)
+      if (result.success && result.data) {
+        for (const [key, value] of result.data.entries()) {
+          allPrices.set(key, value)
+        }
+      }
+    }
+
+    return { success: true, data: allPrices }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente leverandørpriser for kalkulation') }
+  }
+}

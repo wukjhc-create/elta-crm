@@ -409,6 +409,25 @@ export interface CalculationContext {
   buildingProfile: KalkiaBuildingProfile | null
   globalFactors: KalkiaGlobalFactor[]
   hourlyRate: number
+  /** Optional customer ID for customer-specific pricing */
+  customerId?: string
+  /** Supplier price overrides keyed by material ID */
+  supplierPrices?: Map<string, SupplierPriceOverride>
+}
+
+export interface SupplierPriceOverride {
+  materialId: string
+  supplierProductId: string
+  supplierName: string
+  supplierSku: string
+  baseCostPrice: number
+  effectiveCostPrice: number
+  effectiveSalePrice: number
+  discountPercentage: number
+  marginPercentage: number
+  priceSource: string
+  isStale: boolean
+  lastSyncedAt: string | null
 }
 
 export interface CalculationConditions {

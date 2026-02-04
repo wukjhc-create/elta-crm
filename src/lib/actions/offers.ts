@@ -12,6 +12,7 @@ import {
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
+import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
 import { sendEmail } from '@/lib/email/email-service'
 import {
@@ -484,6 +485,25 @@ export async function updateOfferStatus(
       },
     })
 
+    // Trigger webhooks for status changes
+    const webhookEventMap: Partial<Record<OfferStatus, 'offer.sent' | 'offer.viewed' | 'offer.accepted' | 'offer.rejected' | 'offer.expired'>> = {
+      sent: 'offer.sent',
+      viewed: 'offer.viewed',
+      accepted: 'offer.accepted',
+      rejected: 'offer.rejected',
+      expired: 'offer.expired',
+    }
+    const webhookEvent = webhookEventMap[status]
+    if (webhookEvent) {
+      const payload = await buildOfferWebhookPayload(id, webhookEvent)
+      if (payload) {
+        // Fire and forget - don't block the response
+        triggerWebhooks(webhookEvent, payload).catch(err => {
+          console.error('Error triggering webhooks:', err)
+        })
+      }
+    }
+
     revalidatePath('/offers')
     revalidatePath(`/offers/${id}`)
     return { success: true, data: data as Offer }
@@ -665,6 +685,14 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
       userId,
       { portalUrl }
     )
+
+    // Trigger webhooks for offer.sent
+    const payload = await buildOfferWebhookPayload(offerId, 'offer.sent')
+    if (payload) {
+      triggerWebhooks('offer.sent', payload).catch(err => {
+        console.error('Error triggering webhooks:', err)
+      })
+    }
 
     revalidatePath('/offers')
     revalidatePath(`/offers/${offerId}`)

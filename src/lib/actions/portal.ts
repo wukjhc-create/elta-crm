@@ -5,6 +5,7 @@ import { createClient, getUser } from '@/lib/supabase/server'
 import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createProjectFromOffer } from '@/lib/actions/projects'
+import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
 import type {
   PortalAccessToken,
   PortalAccessTokenWithCustomer,
@@ -329,6 +330,14 @@ export async function getPortalOffer(
         null,
         { viewedViaPortal: true }
       )
+
+      // Trigger webhooks for offer.viewed
+      const payload = await buildOfferWebhookPayload(offerId, 'offer.viewed')
+      if (payload) {
+        triggerWebhooks('offer.viewed', payload).catch(err => {
+          console.error('Error triggering webhooks:', err)
+        })
+      }
     }
 
     // Get line items
@@ -483,6 +492,14 @@ export async function acceptOffer(
       // Don't fail the offer acceptance if project creation fails
     }
 
+    // Trigger webhooks for offer.accepted
+    const payload = await buildOfferWebhookPayload(data.offer_id, 'offer.accepted')
+    if (payload) {
+      triggerWebhooks('offer.accepted', payload).catch(err => {
+        console.error('Error triggering webhooks:', err)
+      })
+    }
+
     revalidatePath('/offers')
     revalidatePath('/projects')
 
@@ -548,6 +565,14 @@ export async function rejectOffer(
       null,
       { reason: reason || null }
     )
+
+    // Trigger webhooks for offer.rejected
+    const payload = await buildOfferWebhookPayload(offerId, 'offer.rejected')
+    if (payload) {
+      triggerWebhooks('offer.rejected', payload).catch(err => {
+        console.error('Error triggering webhooks:', err)
+      })
+    }
 
     revalidatePath('/offers')
 
@@ -764,6 +789,85 @@ export async function getUnreadPortalMessageCount(
     return { success: true, data: count || 0 }
   } catch (error) {
     console.error('Error in getUnreadPortalMessageCount:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// Get messages for a customer (employee view)
+export async function getCustomerPortalMessages(
+  customerId: string,
+  offerId?: string
+): Promise<ActionResult<PortalMessageWithRelations[]>> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    let query = supabase
+      .from('portal_messages')
+      .select(`
+        *,
+        sender:profiles!portal_messages_sender_id_fkey (
+          id,
+          full_name,
+          email
+        ),
+        offer:offers!portal_messages_offer_id_fkey (
+          id,
+          offer_number,
+          title
+        )
+      `)
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: true })
+
+    if (offerId) {
+      query = query.eq('offer_id', offerId)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error fetching customer portal messages:', error)
+      return { success: false, error: 'Kunne ikke hente beskeder' }
+    }
+
+    return { success: true, data: data as PortalMessageWithRelations[] }
+  } catch (error) {
+    console.error('Error in getCustomerPortalMessages:', error)
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// Mark customer messages as read (employee view)
+export async function markCustomerMessagesAsRead(
+  messageIds: string[]
+): Promise<ActionResult> {
+  try {
+    const user = await getUser()
+    if (!user) {
+      return { success: false, error: 'Du skal være logget ind' }
+    }
+
+    const supabase = await createClient()
+
+    const { error } = await supabase
+      .from('portal_messages')
+      .update({ read_at: new Date().toISOString() })
+      .in('id', messageIds)
+      .eq('sender_type', 'customer')
+
+    if (error) {
+      console.error('Error marking customer messages as read:', error)
+      return { success: false, error: 'Kunne ikke markere som læst' }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error in markCustomerMessagesAsRead:', error)
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

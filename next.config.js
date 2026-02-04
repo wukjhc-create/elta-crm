@@ -6,13 +6,22 @@ const nextConfig = {
         protocol: 'https',
         hostname: '*.supabase.co',
         port: '',
-        pathname: '/storage/v1/object/public/**',
+        pathname: '/storage/v1/object/**',
       },
     ],
   },
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000'],
+      // Allow localhost for dev and production domains
+      allowedOrigins: [
+        'localhost:3000',
+        // Add your Vercel domains here after deployment
+        // They will be automatically allowed via VERCEL_URL
+        ...(process.env.VERCEL_URL ? [process.env.VERCEL_URL] : []),
+        ...(process.env.NEXT_PUBLIC_APP_URL
+          ? [process.env.NEXT_PUBLIC_APP_URL.replace(/^https?:\/\//, '')]
+          : []),
+      ].filter(Boolean),
     },
   },
   // Empty turbopack config to silence Next.js 16 warning

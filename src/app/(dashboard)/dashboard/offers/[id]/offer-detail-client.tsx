@@ -23,11 +23,14 @@ import {
   Mail,
   Package,
   Calculator,
+  MessageSquare,
 } from 'lucide-react'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { LineItemForm } from '@/components/modules/offers/line-item-form'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
+import { SendEmailModal, EmailTimeline } from '@/components/email'
+import { SendSmsModal, SmsTimeline } from '@/components/sms'
 import {
   deleteOffer,
   updateOfferStatus,
@@ -64,12 +67,13 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingLineItemId, setDeletingLineItemId] = useState<string | null>(null)
   const [showPdfPreview, setShowPdfPreview] = useState(false)
-  const [isSending, setIsSending] = useState(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [activities, setActivities] = useState<OfferActivityWithPerformer[]>([])
   const [isLoadingActivities, setIsLoadingActivities] = useState(true)
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [showCalculationPicker, setShowCalculationPicker] = useState(false)
+  const [showSendEmailModal, setShowSendEmailModal] = useState(false)
+  const [showSendSmsModal, setShowSendSmsModal] = useState(false)
   const [products, setProducts] = useState<{ id: string; name: string; sku: string | null; list_price: number }[]>([])
   const [calculations, setCalculations] = useState<{ id: string; name: string; final_amount: number }[]>([])
   const [isAddingProduct, setIsAddingProduct] = useState(false)
@@ -228,7 +232,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     }
   }
 
-  const handleSendOffer = async () => {
+  const handleOpenSendEmail = () => {
     if (!offer.customer) {
       toast.warning('Tilbuddet skal have en tilknyttet kunde før det kan sendes')
       return
@@ -239,33 +243,39 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
       return
     }
 
-    const lineItems = offer.line_items || []
-    if (lineItems.length === 0) {
-      if (!confirm('Tilbuddet har ingen linjer. Vil du stadig sende det?')) {
-        return
-      }
-    }
+    setShowSendEmailModal(true)
+  }
 
-    if (!confirm(`Er du sikker på, at du vil sende tilbuddet til ${offer.customer.email}?`)) {
+  const handleEmailSent = async () => {
+    // Refresh activities after email is sent
+    const activitiesResult = await getOfferActivities(offer.id)
+    if (activitiesResult.success && activitiesResult.data) {
+      setActivities(activitiesResult.data)
+    }
+    router.refresh()
+  }
+
+  const handleOpenSendSms = () => {
+    if (!offer.customer) {
+      toast.warning('Tilbuddet skal have en tilknyttet kunde før det kan sendes')
       return
     }
 
-    setIsSending(true)
-    const result = await sendOffer(offer.id)
-
-    if (result.success) {
-      // Refresh activities
-      const activitiesResult = await getOfferActivities(offer.id)
-      if (activitiesResult.success && activitiesResult.data) {
-        setActivities(activitiesResult.data)
-      }
-      router.refresh()
-      toast.success('Tilbud sendt', `Email sendt til ${offer.customer?.email}`)
-    } else {
-      toast.error('Kunne ikke sende tilbud', result.error)
+    if (!offer.customer.phone) {
+      toast.warning('Kunden har intet telefonnummer')
+      return
     }
 
-    setIsSending(false)
+    setShowSendSmsModal(true)
+  }
+
+  const handleSmsSent = async () => {
+    // Refresh activities after SMS is sent
+    const activitiesResult = await getOfferActivities(offer.id)
+    if (activitiesResult.success && activitiesResult.data) {
+      setActivities(activitiesResult.data)
+    }
+    router.refresh()
   }
 
   if (showPdfPreview) {
@@ -303,20 +313,24 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Send button - only show for draft/viewed with customer */}
-            {(offer.status === 'draft' || offer.status === 'viewed') && offer.customer && (
-              <button
-                onClick={handleSendOffer}
-                disabled={isSending}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
-              >
-                {isSending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
+            {/* Send buttons - only show for draft/sent/viewed with customer */}
+            {(offer.status === 'draft' || offer.status === 'sent' || offer.status === 'viewed') && offer.customer && (
+              <>
+                <button
+                  onClick={handleOpenSendEmail}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                >
                   <Mail className="w-4 h-4" />
-                )}
-                {isSending ? 'Sender...' : 'Send Tilbud'}
-              </button>
+                  {offer.status === 'draft' ? 'Send Tilbud' : 'Send Email'}
+                </button>
+                <button
+                  onClick={handleOpenSendSms}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-md hover:bg-primary/10"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  SMS
+                </button>
+              </>
             )}
             <button
               onClick={handleDownloadPdf}
@@ -691,6 +705,46 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
               </div>
             </div>
 
+            {/* Email Communication */}
+            <div className="bg-white rounded-lg border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Email Kommunikation</h2>
+                {offer.customer && (
+                  <button
+                    onClick={handleOpenSendEmail}
+                    className="text-sm text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Mail className="w-3 h-3" />
+                    Send email
+                  </button>
+                )}
+              </div>
+              <EmailTimeline
+                offerId={offer.id}
+                onSendEmail={offer.customer ? handleOpenSendEmail : undefined}
+              />
+            </div>
+
+            {/* SMS Timeline */}
+            <div className="bg-white rounded-lg border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  SMS
+                </h2>
+                {offer.customer?.phone && (
+                  <button
+                    onClick={handleOpenSendSms}
+                    className="text-sm text-primary hover:underline flex items-center gap-1"
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                    Send SMS
+                  </button>
+                )}
+              </div>
+              <SmsTimeline offerId={offer.id} />
+            </div>
+
             {/* Activity Timeline */}
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Aktivitet</h2>
@@ -836,6 +890,22 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
           </div>
         </div>
       )}
+
+      {/* Send Email Modal */}
+      <SendEmailModal
+        open={showSendEmailModal}
+        onOpenChange={setShowSendEmailModal}
+        offerId={offer.id}
+        onEmailSent={handleEmailSent}
+      />
+
+      {/* Send SMS Modal */}
+      <SendSmsModal
+        open={showSendSmsModal}
+        onOpenChange={setShowSendSmsModal}
+        offerId={offer.id}
+        onSmsSent={handleSmsSent}
+      />
     </>
   )
 }

@@ -226,18 +226,34 @@ export class KalkiaCalculationEngine {
   }
 
   /**
-   * Calculate material cost for a variant
+   * Calculate material cost for a variant.
+   * When supplier prices are available in context, uses live prices
+   * from linked supplier products (with customer-specific discounts if applicable).
    */
   calculateMaterialCost(
     materials: KalkiaVariantMaterial[],
     quantity: number,
     wastePercentage: number = 0
-  ): { materialCost: number; materialWaste: number } {
+  ): { materialCost: number; materialWaste: number; supplierPricesUsed: number } {
     let totalCost = 0
+    let supplierPricesUsed = 0
 
     for (const material of materials) {
       const materialQty = material.quantity * quantity
-      const price = material.cost_price ?? material.sale_price ?? 0
+
+      // Check for live supplier price override
+      const supplierPrice = this.context.supplierPrices?.get(material.id)
+      let price: number
+
+      if (supplierPrice && !supplierPrice.isStale) {
+        // Use effective cost price from supplier (includes customer discounts)
+        price = supplierPrice.effectiveCostPrice
+        supplierPricesUsed++
+      } else {
+        // Fallback to material's stored price
+        price = material.cost_price ?? material.sale_price ?? 0
+      }
+
       totalCost += materialQty * price
     }
 
@@ -256,6 +272,7 @@ export class KalkiaCalculationEngine {
     return {
       materialCost: totalCost,
       materialWaste: materialWaste,
+      supplierPricesUsed,
     }
   }
 

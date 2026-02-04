@@ -1,11 +1,8 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { getSmtpSettings } from '@/lib/actions/settings'
 import { IntegrationsSettingsClient } from './integrations-settings-client'
 
 export default async function IntegrationsSettingsPage() {
-  const smtpResult = await getSmtpSettings()
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -21,9 +18,7 @@ export default async function IntegrationsSettingsPage() {
         </div>
       </div>
 
-      <IntegrationsSettingsClient
-        smtpSettings={smtpResult.success ? smtpResult.data : undefined}
-      />
+      <IntegrationsSettingsClient />
     </div>
   )
 }
