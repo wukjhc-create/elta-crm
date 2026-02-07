@@ -19,5 +19,10 @@
       ]
     }
   ],
-  "crons": []
+  "crons": [
+    {
+      "path": "/api/cron/supplier-sync",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }
