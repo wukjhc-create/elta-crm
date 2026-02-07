@@ -44,9 +44,17 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
   async function loadSummary() {
     setLoading(true)
     try {
-      const { getSystemHealthSummary } = await import('@/lib/services/supplier-fallback')
-      const data = await getSystemHealthSummary()
-      setSummary(data)
+      const { getSystemHealthSummary } = await import('@/lib/actions/supplier-health')
+      const result = await getSystemHealthSummary()
+      if (result.success && result.data) {
+        // Convert string date to Date object if needed
+        setSummary({
+          ...result.data,
+          lastGlobalSync: result.data.lastGlobalSync ? new Date(result.data.lastGlobalSync) : null,
+        })
+      } else {
+        setSummary(null)
+      }
     } catch {
       setSummary(null)
     }
