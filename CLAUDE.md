@@ -148,6 +148,13 @@ elta-crm/
 - `supplier_sync_logs` - Sync udførelses-log med detaljeret status
 - `customer_supplier_prices` - Kundespecifikke leverandøraftaler (rabat, margin)
 - `customer_product_prices` - Kundespecifikke produktpriser
+- `project_interpretations` - AI-fortolkede projektbeskrivelser
+- `auto_calculations` - Auto-genererede kalkulationer
+- `project_risks` - Risici og advarsler for projekter
+- `auto_offer_texts` - Genererede tilbudstekster
+- `calculation_feedback` - Feedback til selvlærende system
+- `complexity_factors` - Kompleksitetsfaktorer (beton, ældre hus, etc.)
+- `electrical_point_types` - El-punkttyper med basistider
 
 ### Ved nye tabeller:
 1. Vis mig CREATE TABLE SQL først
@@ -196,6 +203,16 @@ elta-crm/
 - [x] Prishistorik og import-log
 - [x] Kalkia material-linking til leverandørprodukter
 - [x] Automatisk prissynkronisering
+
+### FASE 8: Auto Project Engine ✅
+- [x] AI projektfortolker (NLP for projektbeskrivelser)
+- [x] Automatisk komponent-matching
+- [x] Tidsberegning med kompleksitets-/størrelses-/tilgængeligheds-faktorer
+- [x] Prisberegning med margin og risikobuffer
+- [x] Risiko-detection og advarsler
+- [x] Dansk tilbudstekst-generator
+- [x] UI på /dashboard/ai-project
+- [x] Selvlærende engine med feedback-loop
 
 ### FASE 8: Enterprise Leverandør-Engine ✅
 - [x] Adapter-baseret leverandør-framework (SupplierAdapter interface, BaseSupplierAdapter, Registry)
