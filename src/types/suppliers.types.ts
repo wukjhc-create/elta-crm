@@ -552,3 +552,171 @@ export interface MaterialPriceFromSupplier {
   is_stale: boolean
   last_synced_at: string | null
 }
+
+// =====================================================
+// Credential Management Types
+// =====================================================
+
+export type CredentialType = 'api' | 'ftp' | 'web'
+export type CredentialEnvironment = 'production' | 'sandbox' | 'test'
+export type TestStatus = 'success' | 'failed' | 'timeout' | 'invalid_credentials'
+
+export interface SupplierCredential {
+  id: string
+  supplier_id: string
+  credential_type: CredentialType
+  api_endpoint: string | null
+  is_active: boolean
+  last_test_at: string | null
+  last_test_status: TestStatus | null
+  last_test_error: string | null
+  environment: CredentialEnvironment
+  notes: string | null
+  created_at: string
+  updated_at: string
+  has_credentials: boolean
+}
+
+export interface CredentialInput {
+  username?: string
+  password?: string
+  api_key?: string
+  client_id?: string
+  client_secret?: string
+  customer_number?: string
+  price_list_code?: string
+}
+
+export interface CreateCredentialData {
+  supplier_id: string
+  credential_type: CredentialType
+  api_endpoint?: string
+  credentials: CredentialInput
+  environment?: CredentialEnvironment
+  notes?: string
+}
+
+// =====================================================
+// Margin Rules Types
+// =====================================================
+
+export type MarginRuleType = 'supplier' | 'category' | 'subcategory' | 'product' | 'customer'
+
+export interface SupplierMarginRule {
+  id: string
+  supplier_id: string
+  rule_type: MarginRuleType
+  category: string | null
+  sub_category: string | null
+  supplier_product_id: string | null
+  customer_id: string | null
+  margin_percentage: number
+  min_margin_percentage: number | null
+  max_margin_percentage: number | null
+  fixed_markup: number
+  round_to: number | null
+  valid_from: string | null
+  valid_to: string | null
+  is_active: boolean
+  priority: number
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateMarginRuleData {
+  supplier_id: string
+  rule_type: MarginRuleType
+  category?: string
+  sub_category?: string
+  supplier_product_id?: string
+  customer_id?: string
+  margin_percentage: number
+  min_margin_percentage?: number
+  max_margin_percentage?: number
+  fixed_markup?: number
+  round_to?: number
+  valid_from?: string
+  valid_to?: string
+  priority?: number
+  notes?: string
+}
+
+// =====================================================
+// Sync Schedule Types
+// =====================================================
+
+export type SyncType = 'full_catalog' | 'price_update' | 'availability' | 'incremental'
+export type ScheduleRunStatus = 'success' | 'failed' | 'partial' | 'skipped' | 'running'
+
+export interface SupplierSyncSchedule {
+  id: string
+  supplier_id: string
+  schedule_name: string
+  sync_type: SyncType
+  cron_expression: string
+  timezone: string
+  is_enabled: boolean
+  max_duration_minutes: number
+  retry_on_failure: boolean
+  max_retries: number
+  retry_delay_minutes: number
+  last_run_at: string | null
+  last_run_status: ScheduleRunStatus | null
+  last_run_duration_ms: number | null
+  last_run_items_processed: number | null
+  next_run_at: string | null
+  notify_on_failure: boolean
+  notify_email: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateSyncScheduleData {
+  supplier_id: string
+  schedule_name: string
+  sync_type: SyncType
+  cron_expression: string
+  timezone?: string
+  max_duration_minutes?: number
+  retry_on_failure?: boolean
+  max_retries?: number
+  retry_delay_minutes?: number
+  notify_on_failure?: boolean
+  notify_email?: string
+}
+
+// =====================================================
+// Product Cache Types (Fallback)
+// =====================================================
+
+export type CacheSource = 'api' | 'import' | 'manual'
+
+export interface SupplierProductCache {
+  id: string
+  supplier_product_id: string
+  cached_cost_price: number | null
+  cached_list_price: number | null
+  cached_is_available: boolean | null
+  cached_stock_quantity: number | null
+  cached_lead_time_days: number | null
+  cached_at: string
+  cache_source: CacheSource | null
+  cache_expires_at: string | null
+  is_stale: boolean
+  fallback_priority: number
+}
+
+// =====================================================
+// Effective Margin Result (from DB function)
+// =====================================================
+
+export interface EffectiveMargin {
+  margin_percentage: number
+  fixed_markup: number
+  round_to: number | null
+  rule_type: MarginRuleType
+  rule_id: string
+}

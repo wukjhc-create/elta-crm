@@ -19,12 +19,15 @@ import {
   Mail,
   Phone,
   User,
+  Key,
+  Percent,
 } from 'lucide-react'
 import { deleteSupplier } from '@/lib/actions/suppliers'
 import { SupplierForm } from '@/components/modules/suppliers/supplier-form'
 import { SupplierSettingsForm } from '@/components/modules/suppliers/supplier-settings-form'
 import { SupplierProductsTable } from '@/components/modules/suppliers/supplier-products-table'
 import { ImportHistory } from '@/components/modules/suppliers/import-history'
+import { SupplierCredentialsForm } from '@/components/modules/suppliers/supplier-credentials-form'
 import type { Supplier } from '@/types/suppliers.types'
 
 interface SupplierDetailClientProps {
@@ -159,6 +162,10 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
             <Settings className="w-4 h-4 mr-2" />
             Indstillinger
           </TabsTrigger>
+          <TabsTrigger value="credentials">
+            <Key className="w-4 h-4 mr-2" />
+            API Login
+          </TabsTrigger>
           <TabsTrigger value="products">
             <Package className="w-4 h-4 mr-2" />
             Produkter
@@ -172,6 +179,15 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
         <TabsContent value="settings" className="mt-6">
           <div className="bg-white rounded-lg border p-6">
             <SupplierSettingsForm
+              supplierId={currentSupplier.id}
+              supplierCode={currentSupplier.code}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="credentials" className="mt-6">
+          <div className="bg-white rounded-lg border p-6">
+            <SupplierCredentialsForm
               supplierId={currentSupplier.id}
               supplierCode={currentSupplier.code}
             />

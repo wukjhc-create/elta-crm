@@ -148,7 +148,7 @@ export async function createSupplierCredential(
     }
 
     // Encrypt credentials
-    const encryptedCredentials = await encryptCredentials(data.credentials)
+    const encryptedCredentials = await encryptCredentials(data.credentials as Record<string, unknown>)
 
     const supabase = await createClient()
 
@@ -236,7 +236,7 @@ export async function updateSupplierCredential(
       if (!isEncryptionConfigured()) {
         return { success: false, error: 'Krypteringsnøgle er ikke konfigureret' }
       }
-      updateData.credentials_encrypted = await encryptCredentials(data.credentials)
+      updateData.credentials_encrypted = await encryptCredentials(data.credentials as Record<string, unknown>)
     }
 
     const { data: result, error } = await supabase
