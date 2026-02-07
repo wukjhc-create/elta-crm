@@ -2357,3 +2357,198 @@ export async function loadSupplierPricesForCalculation(
     return { success: false, error: formatError(err, 'Kunne ikke hente leverandørpriser for kalkulation') }
   }
 }
+
+/**
+ * Refresh supplier prices for all linked materials in a calculation.
+ * Fetches live prices from supplier APIs and updates the database.
+ * Returns updated price map for immediate use.
+ */
+export async function refreshSupplierPricesForCalculation(
+  calculationId: string,
+  customerId?: string
+): Promise<ActionResult<{
+  refreshedCount: number
+  failedCount: number
+  priceChanges: number
+  prices: Map<string, {
+    materialId: string
+    supplierProductId: string
+    supplierName: string
+    supplierSku: string
+    baseCostPrice: number
+    effectiveCostPrice: number
+    effectiveSalePrice: number
+    discountPercentage: number
+    marginPercentage: number
+    priceSource: string
+    isStale: boolean
+    lastSyncedAt: string | null
+  }>
+}>> {
+  try {
+    await requireAuth()
+    validateUUID(calculationId, 'kalkulation ID')
+
+    const supabase = await createClient()
+
+    // Get all variants in calculation
+    const { data: rows, error: rowsError } = await supabase
+      .from('kalkia_calculation_rows')
+      .select('variant_id')
+      .eq('calculation_id', calculationId)
+      .not('variant_id', 'is', null)
+
+    if (rowsError) {
+      console.error('Database error fetching calculation rows:', rowsError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    const variantIds = [...new Set((rows || []).map((r) => r.variant_id).filter(Boolean))]
+
+    if (variantIds.length === 0) {
+      return {
+        success: true,
+        data: { refreshedCount: 0, failedCount: 0, priceChanges: 0, prices: new Map() }
+      }
+    }
+
+    // Get all materials with supplier links
+    const { data: materials, error: materialsError } = await supabase
+      .from('kalkia_variant_materials')
+      .select(`
+        id,
+        supplier_product_id,
+        cost_price,
+        sale_price,
+        supplier_products!inner (
+          id,
+          supplier_id,
+          supplier_sku,
+          cost_price,
+          suppliers!inner (
+            id,
+            code,
+            name
+          )
+        )
+      `)
+      .in('variant_id', variantIds)
+      .not('supplier_product_id', 'is', null)
+
+    if (materialsError) {
+      console.error('Database error loading materials:', materialsError)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    if (!materials || materials.length === 0) {
+      return {
+        success: true,
+        data: { refreshedCount: 0, failedCount: 0, priceChanges: 0, prices: new Map() }
+      }
+    }
+
+    // Group materials by supplier
+    const materialsBySupplier = new Map<string, Array<{
+      materialId: string
+      supplierProductId: string
+      sku: string
+      oldPrice: number | null
+    }>>()
+
+    for (const material of materials) {
+      const sp = Array.isArray(material.supplier_products)
+        ? material.supplier_products[0]
+        : material.supplier_products
+      if (!sp) continue
+
+      const supplier = Array.isArray(sp.suppliers) ? sp.suppliers[0] : sp.suppliers
+      if (!supplier) continue
+
+      const key = `${sp.supplier_id}:${supplier.code}`
+      if (!materialsBySupplier.has(key)) {
+        materialsBySupplier.set(key, [])
+      }
+      materialsBySupplier.get(key)!.push({
+        materialId: material.id,
+        supplierProductId: sp.id,
+        sku: sp.supplier_sku,
+        oldPrice: sp.cost_price,
+      })
+    }
+
+    // Import API client factory
+    const { SupplierAPIClientFactory } = await import('@/lib/services/supplier-api-client')
+
+    let refreshedCount = 0
+    let failedCount = 0
+    let priceChanges = 0
+
+    // Refresh prices from each supplier
+    for (const [key, supplierMaterials] of materialsBySupplier) {
+      const [supplierId, supplierCode] = key.split(':')
+
+      try {
+        const client = await SupplierAPIClientFactory.getClient(supplierId, supplierCode)
+        if (!client) {
+          failedCount += supplierMaterials.length
+          continue
+        }
+
+        const skus = supplierMaterials.map((m) => m.sku)
+        const prices = await client.getProductPrices(skus)
+
+        for (const material of supplierMaterials) {
+          const newPrice = prices.get(material.sku)
+          if (newPrice) {
+            // Update supplier product with new price
+            if (material.oldPrice !== newPrice.costPrice) {
+              await supabase
+                .from('supplier_products')
+                .update({
+                  cost_price: newPrice.costPrice,
+                  list_price: newPrice.listPrice,
+                  is_available: newPrice.isAvailable,
+                  lead_time_days: newPrice.leadTimeDays,
+                  last_synced_at: new Date().toISOString(),
+                })
+                .eq('id', material.supplierProductId)
+
+              // Record price change
+              if (material.oldPrice) {
+                const changePercent = ((newPrice.costPrice - material.oldPrice) / material.oldPrice) * 100
+                await supabase.from('price_history').insert({
+                  supplier_product_id: material.supplierProductId,
+                  old_cost_price: material.oldPrice,
+                  new_cost_price: newPrice.costPrice,
+                  change_percentage: Math.round(changePercent * 100) / 100,
+                  change_source: 'api_sync',
+                })
+                priceChanges++
+              }
+            }
+            refreshedCount++
+          } else {
+            failedCount++
+          }
+        }
+      } catch {
+        failedCount += supplierMaterials.length
+      }
+    }
+
+    // Now load the updated prices
+    const priceResult = await loadSupplierPricesForCalculation(calculationId, customerId)
+
+    return {
+      success: true,
+      data: {
+        refreshedCount,
+        failedCount,
+        priceChanges,
+        prices: priceResult.success && priceResult.data ? priceResult.data : new Map(),
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere leverandørpriser') }
+  }
+}
