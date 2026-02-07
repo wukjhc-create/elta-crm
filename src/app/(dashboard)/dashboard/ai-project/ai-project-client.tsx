@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -23,15 +24,26 @@ import {
   Building2,
   Ruler,
   Plug,
+  Users,
+  X,
+  Search,
 } from 'lucide-react'
 import {
   analyzeProjectDescription,
   quickAnalyzeProject,
   createOfferFromAnalysis,
 } from '@/lib/actions/auto-project'
+import { getCustomers } from '@/lib/actions/customers'
 import type { AnalyzeProjectOutput, RiskFactor } from '@/types/auto-project.types'
 
+interface Customer {
+  id: string
+  name: string
+  email: string | null
+}
+
 export function AIProjectClient() {
+  const router = useRouter()
   const toast = useToast()
   const [description, setDescription] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
@@ -52,6 +64,10 @@ export function AIProjectClient() {
     offer: false,
   })
   const [creatingOffer, setCreatingOffer] = useState(false)
+  const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
 
   // Quick analyze as user types (debounced)
   const handleDescriptionChange = useCallback(async (value: string) => {
@@ -109,10 +125,43 @@ export function AIProjectClient() {
 
   const handleCreateOffer = async () => {
     if (!result) return
-
-    // For now, just show a message - would need customer selection
-    toast.info('Opret tilbud', 'Vælg en kunde for at oprette tilbud')
+    setShowCustomerModal(true)
+    loadCustomers()
   }
+
+  const loadCustomers = async () => {
+    setLoadingCustomers(true)
+    const res = await getCustomers({ pageSize: 100 })
+    if (res.success && res.data) {
+      setCustomers(res.data.data.map((c) => ({
+        id: c.id,
+        name: c.company_name || c.contact_person,
+        email: c.email,
+      })))
+    }
+    setLoadingCustomers(false)
+  }
+
+  const handleSelectCustomer = async (customerId: string) => {
+    if (!result) return
+
+    setCreatingOffer(true)
+    const res = await createOfferFromAnalysis(result.id, customerId)
+
+    if (res.success && res.data) {
+      toast.success('Tilbud oprettet', 'Du bliver sendt til tilbuddet')
+      setShowCustomerModal(false)
+      router.push(`/dashboard/offers/${res.data.offer_id}`)
+    } else {
+      toast.error('Kunne ikke oprette tilbud', res.error)
+    }
+    setCreatingOffer(false)
+  }
+
+  const filteredCustomers = customers.filter(c =>
+    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    (c.email && c.email.toLowerCase().includes(customerSearch.toLowerCase()))
+  )
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -471,6 +520,65 @@ export function AIProjectClient() {
                 <div className="text-sm text-gray-500 line-clamp-2">{example.text}</div>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Customer Selection Modal */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-500" />
+                <h2 className="font-semibold">Vælg kunde</h2>
+              </div>
+              <button onClick={() => setShowCustomerModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Søg efter kunde..."
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto space-y-2">
+                {loadingCustomers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  </div>
+                ) : filteredCustomers.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    {customerSearch ? 'Ingen kunder fundet' : 'Ingen kunder'}
+                  </div>
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <button
+                      key={customer.id}
+                      onClick={() => handleSelectCustomer(customer.id)}
+                      disabled={creatingOffer}
+                      className="w-full text-left p-3 border rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all disabled:opacity-50"
+                    >
+                      <div className="font-medium">{customer.name}</div>
+                      {customer.email && (
+                        <div className="text-sm text-gray-500">{customer.email}</div>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowCustomerModal(false)}>
+                Annuller
+              </Button>
+            </div>
           </div>
         </div>
       )}
