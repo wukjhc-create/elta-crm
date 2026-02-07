@@ -1173,3 +1173,387 @@ export async function importCalculationToOffer(
     return { success: false, error: formatError(err, 'Kunne ikke importere kalkulation') }
   }
 }
+
+// =====================================================
+// Supplier Product Integration
+// =====================================================
+
+/**
+ * Create a line item from a supplier product.
+ * Automatically applies margin rules and tracks supplier information.
+ */
+export async function createLineItemFromSupplierProduct(
+  offerId: string,
+  supplierProductId: string,
+  quantity: number,
+  options?: {
+    customMarginPercentage?: number
+    customDiscount?: number
+    customDescription?: string
+    position?: number
+  }
+): Promise<ActionResult<OfferLineItem>> {
+  try {
+    const userId = await requireAuth()
+    validateUUID(offerId, 'tilbud ID')
+    validateUUID(supplierProductId, 'leverandør produkt ID')
+
+    const supabase = await createClient()
+
+    // Get offer to check customer for custom pricing
+    const { data: offer } = await supabase
+      .from('offers')
+      .select('customer_id')
+      .eq('id', offerId)
+      .single()
+
+    // Get supplier product with supplier info
+    const { data: supplierProduct, error: spError } = await supabase
+      .from('supplier_products')
+      .select(`
+        id,
+        supplier_id,
+        supplier_sku,
+        supplier_name,
+        cost_price,
+        list_price,
+        margin_percentage,
+        unit,
+        suppliers!inner (
+          name,
+          code
+        )
+      `)
+      .eq('id', supplierProductId)
+      .single()
+
+    if (spError || !supplierProduct) {
+      return { success: false, error: 'Leverandør produkt ikke fundet' }
+    }
+
+    if (!supplierProduct.cost_price) {
+      return { success: false, error: 'Produktet har ingen kostpris' }
+    }
+
+    // Get effective margin (use DB function if available, otherwise fallback)
+    let marginPercentage = options?.customMarginPercentage ?? supplierProduct.margin_percentage ?? 25
+    let effectiveCostPrice = supplierProduct.cost_price
+
+    // Check for customer-specific pricing
+    if (offer?.customer_id) {
+      const { data: customerPricing } = await supabase
+        .from('customer_supplier_prices')
+        .select('discount_percentage, custom_margin_percentage')
+        .eq('customer_id', offer.customer_id)
+        .eq('supplier_id', supplierProduct.supplier_id)
+        .eq('is_active', true)
+        .single()
+
+      if (customerPricing) {
+        if (customerPricing.discount_percentage) {
+          effectiveCostPrice = supplierProduct.cost_price * (1 - customerPricing.discount_percentage / 100)
+        }
+        if (customerPricing.custom_margin_percentage !== null) {
+          marginPercentage = customerPricing.custom_margin_percentage
+        }
+      }
+    }
+
+    // Calculate sale price with margin
+    const unitPrice = effectiveCostPrice * (1 + marginPercentage / 100)
+
+    // Get next position if not provided
+    let position = options?.position
+    if (position === undefined) {
+      const { data: maxPos } = await supabase
+        .from('offer_line_items')
+        .select('position')
+        .eq('offer_id', offerId)
+        .order('position', { ascending: false })
+        .limit(1)
+        .single()
+
+      position = (maxPos?.position || 0) + 1
+    }
+
+    // Calculate total
+    const discount = options?.customDiscount ?? 0
+    const total = quantity * unitPrice * (1 - discount / 100)
+
+    // Get supplier name
+    const supplierInfo = Array.isArray(supplierProduct.suppliers)
+      ? supplierProduct.suppliers[0]
+      : supplierProduct.suppliers
+
+    // Insert line item with supplier tracking
+    const { data, error } = await supabase
+      .from('offer_line_items')
+      .insert({
+        offer_id: offerId,
+        position,
+        description: options?.customDescription || supplierProduct.supplier_name,
+        quantity,
+        unit: supplierProduct.unit || 'stk',
+        unit_price: Math.round(unitPrice * 100) / 100,
+        discount_percentage: discount,
+        total,
+        supplier_product_id: supplierProductId,
+        supplier_cost_price_at_creation: supplierProduct.cost_price,
+        supplier_margin_applied: marginPercentage,
+        supplier_name_at_creation: supplierInfo?.name || null,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database error creating line item from supplier product:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    // Log activity
+    await logOfferActivity(
+      offerId,
+      'updated',
+      `Tilføjet fra leverandør: ${supplierProduct.supplier_name} (${supplierProduct.supplier_sku})`,
+      userId
+    )
+
+    revalidatePath(`/offers/${offerId}`)
+    return { success: true, data: data as OfferLineItem }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette linje fra leverandør produkt') }
+  }
+}
+
+/**
+ * Search supplier products and add to offer.
+ * Returns matching products that can be added as line items.
+ */
+export async function searchSupplierProductsForOffer(
+  query: string,
+  options?: {
+    supplierId?: string
+    customerId?: string
+    limit?: number
+  }
+): Promise<ActionResult<Array<{
+  id: string
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string
+  supplier_sku: string
+  product_name: string
+  cost_price: number
+  list_price: number | null
+  margin_percentage: number
+  estimated_sale_price: number
+  unit: string
+  is_available: boolean
+}>>> {
+  try {
+    await requireAuth()
+
+    const supabase = await createClient()
+
+    let dbQuery = supabase
+      .from('supplier_products')
+      .select(`
+        id,
+        supplier_id,
+        supplier_sku,
+        supplier_name,
+        cost_price,
+        list_price,
+        margin_percentage,
+        unit,
+        is_available,
+        suppliers!inner (
+          name,
+          code,
+          is_active
+        )
+      `)
+      .eq('suppliers.is_active', true)
+      .or(`supplier_sku.ilike.%${query}%,supplier_name.ilike.%${query}%`)
+      .limit(options?.limit || 20)
+
+    if (options?.supplierId) {
+      validateUUID(options.supplierId, 'leverandør ID')
+      dbQuery = dbQuery.eq('supplier_id', options.supplierId)
+    }
+
+    const { data, error } = await dbQuery
+
+    if (error) {
+      console.error('Database error searching supplier products:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    // Get customer-specific pricing if customer provided
+    let customerPricingMap = new Map<string, { discount: number; margin: number | null }>()
+    if (options?.customerId) {
+      validateUUID(options.customerId, 'kunde ID')
+
+      const { data: customerPricing } = await supabase
+        .from('customer_supplier_prices')
+        .select('supplier_id, discount_percentage, custom_margin_percentage')
+        .eq('customer_id', options.customerId)
+        .eq('is_active', true)
+
+      if (customerPricing) {
+        customerPricingMap = new Map(
+          customerPricing.map((cp) => [
+            cp.supplier_id,
+            { discount: cp.discount_percentage || 0, margin: cp.custom_margin_percentage }
+          ])
+        )
+      }
+    }
+
+    // Transform results
+    const results = (data || []).map((sp) => {
+      const supplier = Array.isArray(sp.suppliers) ? sp.suppliers[0] : sp.suppliers
+      const customerPricing = customerPricingMap.get(sp.supplier_id)
+
+      let effectiveCost = sp.cost_price || 0
+      let margin = sp.margin_percentage || 25
+
+      if (customerPricing) {
+        effectiveCost = (sp.cost_price || 0) * (1 - customerPricing.discount / 100)
+        if (customerPricing.margin !== null) {
+          margin = customerPricing.margin
+        }
+      }
+
+      return {
+        id: sp.id,
+        supplier_id: sp.supplier_id,
+        supplier_name: supplier?.name || '',
+        supplier_code: supplier?.code || '',
+        supplier_sku: sp.supplier_sku,
+        product_name: sp.supplier_name,
+        cost_price: sp.cost_price || 0,
+        list_price: sp.list_price,
+        margin_percentage: margin,
+        estimated_sale_price: Math.round(effectiveCost * (1 + margin / 100) * 100) / 100,
+        unit: sp.unit || 'stk',
+        is_available: sp.is_available,
+      }
+    })
+
+    return { success: true, data: results }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Søgning fejlede') }
+  }
+}
+
+/**
+ * Update line item with fresh supplier price.
+ * Recalculates the unit price based on current supplier cost and margin.
+ */
+export async function refreshLineItemPrice(
+  lineItemId: string
+): Promise<ActionResult<OfferLineItem>> {
+  try {
+    const userId = await requireAuth()
+    validateUUID(lineItemId, 'linje ID')
+
+    const supabase = await createClient()
+
+    // Get line item with supplier product link
+    const { data: lineItem, error: liError } = await supabase
+      .from('offer_line_items')
+      .select(`
+        id,
+        offer_id,
+        quantity,
+        discount_percentage,
+        supplier_product_id,
+        supplier_margin_applied,
+        offers!inner (
+          customer_id
+        )
+      `)
+      .eq('id', lineItemId)
+      .single()
+
+    if (liError || !lineItem) {
+      return { success: false, error: 'Linje ikke fundet' }
+    }
+
+    if (!lineItem.supplier_product_id) {
+      return { success: false, error: 'Linjen er ikke knyttet til et leverandør produkt' }
+    }
+
+    // Get current supplier product price
+    const { data: supplierProduct, error: spError } = await supabase
+      .from('supplier_products')
+      .select('cost_price, supplier_id')
+      .eq('id', lineItem.supplier_product_id)
+      .single()
+
+    if (spError || !supplierProduct?.cost_price) {
+      return { success: false, error: 'Kunne ikke hente leverandør pris' }
+    }
+
+    // Get customer-specific pricing if applicable
+    const offerInfo = Array.isArray(lineItem.offers) ? lineItem.offers[0] : lineItem.offers
+    let effectiveCostPrice = supplierProduct.cost_price
+    let marginPercentage = lineItem.supplier_margin_applied || 25
+
+    if (offerInfo?.customer_id) {
+      const { data: customerPricing } = await supabase
+        .from('customer_supplier_prices')
+        .select('discount_percentage, custom_margin_percentage')
+        .eq('customer_id', offerInfo.customer_id)
+        .eq('supplier_id', supplierProduct.supplier_id)
+        .eq('is_active', true)
+        .single()
+
+      if (customerPricing) {
+        if (customerPricing.discount_percentage) {
+          effectiveCostPrice = supplierProduct.cost_price * (1 - customerPricing.discount_percentage / 100)
+        }
+        if (customerPricing.custom_margin_percentage !== null) {
+          marginPercentage = customerPricing.custom_margin_percentage
+        }
+      }
+    }
+
+    // Calculate new price
+    const newUnitPrice = Math.round(effectiveCostPrice * (1 + marginPercentage / 100) * 100) / 100
+    const discount = lineItem.discount_percentage || 0
+    const total = lineItem.quantity * newUnitPrice * (1 - discount / 100)
+
+    // Update line item
+    const { data, error } = await supabase
+      .from('offer_line_items')
+      .update({
+        unit_price: newUnitPrice,
+        total,
+        supplier_cost_price_at_creation: supplierProduct.cost_price,
+        supplier_margin_applied: marginPercentage,
+      })
+      .eq('id', lineItemId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database error updating line item price:', error)
+      throw new Error('DATABASE_ERROR')
+    }
+
+    // Log activity
+    await logOfferActivity(
+      lineItem.offer_id,
+      'updated',
+      `Pris opdateret fra leverandør`,
+      userId
+    )
+
+    revalidatePath(`/offers/${lineItem.offer_id}`)
+    return { success: true, data: data as OfferLineItem }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke opdatere pris') }
+  }
+}
