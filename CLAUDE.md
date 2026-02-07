@@ -266,3 +266,47 @@ Ved hver opgave:
   - Kalkia-engine opdateret: bruger live leverandørpriser via CalculationContext.supplierPrices
   - Nye kalkia-funktioner: loadSupplierPricesForVariant(), loadSupplierPricesForCalculation()
   - Legacy-kompatibilitet bevaret (AOImporter, LMImporter klasser stadig tilgængelige)
+- 2026-02-07: FULD Leverandør-Integration implementeret (AO + Lemvigh-Müller):
+  - **Credential Storage (krypteret)**:
+    - Migration 00044: supplier_credentials, supplier_margin_rules, supplier_sync_schedules, supplier_product_cache
+    - AES-256-GCM kryptering (encryption.ts)
+    - credentials.ts: CRUD + test connection + maskeret visning
+    - SupplierCredentialsForm UI med AO/LM felt-konfiguration
+  - **API Clients for Live Sync**:
+    - supplier-api-client.ts: BaseSupplierAPIClient + AOAPIClient + LMAPIClient
+    - Authentication, rate limiting, token caching, automatic retries
+    - Fallback til cached priser ved API fejl
+    - SupplierAPIClientFactory for nem instansiering
+  - **Automatisk Nightly Sync**:
+    - /api/cron/supplier-sync endpoint
+    - vercel.json cron: "0 2 * * *" (3 AM Copenhagen)
+    - sync-schedules.ts: CRUD + manual trigger (runSyncNow)
+  - **Kalkia Integration**:
+    - refreshSupplierPricesForCalculation(): Fetch live priser fra API
+    - Materialer kan linkes til supplier_products
+    - Priser opdateres automatisk i kalkulationer
+  - **Tilbud Integration**:
+    - createLineItemFromSupplierProduct(): Opret linje fra leverandør
+    - searchSupplierProductsForOffer(): Søg produkter med kundepriser
+    - refreshLineItemPrice(): Opdater pris fra leverandør
+    - Tracking: supplier_product_id, supplier_cost_price_at_creation, supplier_margin_applied
+  - **Margin Rules Engine**:
+    - margin-rules.ts: CRUD for regler med prioritetshierarki
+    - Regeltyper: supplier, category, subcategory, product, customer
+    - DB-funktioner: get_effective_margin(), calculate_sale_price()
+  - **Price Analytics**:
+    - price-analytics.ts: Advarsler, trends, påvirkede tilbud
+    - getPriceChangeAlerts(), getAffectedOffers(), getPriceTrends()
+    - Dashboard widget data via getPriceAlertSummary()
+  - **Fallback System**:
+    - supplier-fallback.ts: SupplierFallbackService klasse
+    - Cache management, stale detection, health status
+    - getAllSupplierHealth(), getSystemHealthSummary()
+  - **Status UI**:
+    - SupplierStatusCard: Per-leverandør status med test/sync knapper
+    - SupplierHealthOverview: Dashboard widget for systemstatus
+  - **Database tabeller tilføjet**:
+    - supplier_credentials (krypterede loginoplysninger)
+    - supplier_margin_rules (prisregler med prioritet)
+    - supplier_sync_schedules (cron-baseret synkronisering)
+    - supplier_product_cache (offline fallback data)
