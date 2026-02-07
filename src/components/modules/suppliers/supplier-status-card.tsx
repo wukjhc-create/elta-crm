@@ -18,7 +18,7 @@ import {
   TrendingDown,
 } from 'lucide-react'
 import { testSupplierAPIConnection, syncSupplierPrices } from '@/lib/actions/supplier-sync'
-import type { SupplierHealth } from '@/lib/services/supplier-fallback'
+import { getSupplierHealth, type SupplierHealth } from '@/lib/actions/supplier-health'
 
 interface SupplierStatusCardProps {
   supplierId: string
@@ -46,11 +46,12 @@ export function SupplierStatusCard({
   async function loadStatus() {
     setLoading(true)
     try {
-      // Import dynamically to avoid SSR issues
-      const { SupplierFallbackService } = await import('@/lib/services/supplier-fallback')
-      const service = new SupplierFallbackService(supplierId)
-      const health = await service.getHealthStatus()
-      setStatus(health)
+      const result = await getSupplierHealth(supplierId)
+      if (result.success && result.data) {
+        setStatus(result.data)
+      } else {
+        setStatus(null)
+      }
     } catch {
       setStatus(null)
     }
@@ -168,7 +169,7 @@ export function SupplierStatusCard({
             <div className="text-gray-500">Sidste sync</div>
             <div className="font-medium">
               {status?.lastSuccessfulSync
-                ? formatRelativeTime(status.lastSuccessfulSync)
+                ? formatRelativeTime(new Date(status.lastSuccessfulSync))
                 : 'Aldrig'}
             </div>
           </div>
