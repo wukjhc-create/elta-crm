@@ -22,6 +22,7 @@ import {
   Key,
   Percent,
   RefreshCw,
+  Search as SearchIcon,
 } from 'lucide-react'
 import { deleteSupplier } from '@/lib/actions/suppliers'
 import { SupplierForm } from '@/components/modules/suppliers/supplier-form'
@@ -31,6 +32,7 @@ import { ImportHistory } from '@/components/modules/suppliers/import-history'
 import { SupplierCredentialsForm } from '@/components/modules/suppliers/supplier-credentials-form'
 import { MarginRulesManager } from '@/components/modules/suppliers/margin-rules-manager'
 import { SyncJobsManager } from '@/components/modules/suppliers/sync-jobs-manager'
+import { SupplierAPISearch } from '@/components/modules/suppliers/supplier-api-search'
 import type { Supplier } from '@/types/suppliers.types'
 
 interface SupplierDetailClientProps {
@@ -177,6 +179,10 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
             <Package className="w-4 h-4 mr-2" />
             Produkter
           </TabsTrigger>
+          <TabsTrigger value="api-search">
+            <SearchIcon className="w-4 h-4 mr-2" />
+            API Søg
+          </TabsTrigger>
           <TabsTrigger value="sync">
             <RefreshCw className="w-4 h-4 mr-2" />
             Sync Jobs
@@ -214,6 +220,13 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
 
         <TabsContent value="products" className="mt-6">
           <SupplierProductsTable
+            supplierId={currentSupplier.id}
+            supplierName={currentSupplier.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="api-search" className="mt-6">
+          <SupplierAPISearch
             supplierId={currentSupplier.id}
             supplierName={currentSupplier.name}
           />

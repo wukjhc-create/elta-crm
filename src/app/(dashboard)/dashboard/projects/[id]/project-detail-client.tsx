@@ -24,6 +24,7 @@ import { ProjectForm } from '@/components/modules/projects/project-form'
 import { TaskBoard } from '@/components/modules/projects/task-board'
 import { TimeEntriesList } from '@/components/modules/projects/time-entries-list'
 import { TimeEntryForm } from '@/components/modules/projects/time-entry-form'
+import { CalculationFeedback } from '@/components/modules/projects/calculation-feedback'
 import { useToast } from '@/components/ui/toast'
 import type { ProjectWithRelations, ProjectTaskWithRelations, TimeEntryWithRelations } from '@/types/projects.types'
 
@@ -316,6 +317,18 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
                   {project.notes}
                 </p>
               </div>
+            )}
+
+            {/* Calculation Feedback */}
+            {(project.status === 'completed' || project.actual_hours > 0) && (
+              <CalculationFeedback
+                projectId={project.id}
+                offerId={project.offer_id}
+                estimatedHours={project.estimated_hours}
+                actualHours={project.actual_hours}
+                budget={project.budget}
+                actualCost={project.actual_cost}
+              />
             )}
           </div>
 

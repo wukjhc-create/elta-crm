@@ -486,7 +486,7 @@ export async function getOfferTemplates(): Promise<ActionResult<OfferTextTemplat
  * Record feedback for a calculation (for self-improvement)
  */
 export async function recordCalculationFeedback(
-  calculationId: string,
+  calculationId: string | null,
   feedback: Partial<CalculationFeedback>
 ): Promise<ActionResult<{ id: string }>> {
   try {
@@ -497,7 +497,7 @@ export async function recordCalculationFeedback(
     const { data, error } = await supabase
       .from('calculation_feedback')
       .insert({
-        calculation_id: calculationId,
+        calculation_id: calculationId || null,
         offer_id: feedback.offer_id,
         project_id: feedback.project_id,
         estimated_hours: feedback.estimated_hours,
