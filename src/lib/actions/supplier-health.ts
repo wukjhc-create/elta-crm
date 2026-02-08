@@ -1,8 +1,7 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import type { ActionResult } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Types
@@ -42,9 +41,7 @@ export async function getSupplierHealth(
   supplierId: string
 ): Promise<ActionResult<SupplierHealth>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const maxCacheAge = 24 * 60 * 60 * 1000 // 24 hours
 
     // Get supplier info
@@ -142,9 +139,7 @@ export async function getSupplierHealth(
  */
 export async function getSystemHealthSummary(): Promise<ActionResult<SystemHealthSummary>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const maxCacheAge = 24 * 60 * 60 * 1000
 
     // Get all active suppliers

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getAuthenticatedClient, requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import {
   createProjectSchema,
   updateProjectSchema,
@@ -43,7 +43,7 @@ export async function getProjects(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<ProjectWithRelations>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     // Validate UUID filters
     if (filters?.customer_id) {
@@ -53,7 +53,6 @@ export async function getProjects(filters?: {
       validateUUID(filters.project_manager_id, 'projektleder ID')
     }
 
-    const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -141,10 +140,8 @@ export async function getProjects(filters?: {
 // Get single project with all relations
 export async function getProject(id: string): Promise<ActionResult<ProjectWithRelations>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'projekt ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('projects')
@@ -213,7 +210,7 @@ async function generateProjectNumber(): Promise<string> {
 // Create project
 export async function createProject(formData: FormData): Promise<ActionResult<Project>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const rawData = {
       name: formData.get('name') as string,
@@ -238,7 +235,6 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const projectNumber = await generateProjectNumber()
 
     const { data, error } = await supabase
@@ -275,7 +271,7 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
 // Update project
 export async function updateProject(formData: FormData): Promise<ActionResult<Project>> {
   try {
-    const userId = await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -306,7 +302,6 @@ export async function updateProject(formData: FormData): Promise<ActionResult<Pr
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const { id: projectId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -333,10 +328,9 @@ export async function updateProject(formData: FormData): Promise<ActionResult<Pr
 // Delete project
 export async function deleteProject(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'projekt ID')
 
-    const supabase = await createClient()
     const { error } = await supabase.from('projects').delete().eq('id', id)
 
     if (error) {
@@ -358,10 +352,8 @@ export async function updateProjectStatus(
   status: ProjectStatus
 ): Promise<ActionResult<Project>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'projekt ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('projects')
@@ -411,7 +403,7 @@ export async function updateProjectStatus(
 // Create task
 export async function createTask(formData: FormData): Promise<ActionResult<ProjectTask>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const rawData = {
       project_id: formData.get('project_id') as string,
@@ -433,7 +425,6 @@ export async function createTask(formData: FormData): Promise<ActionResult<Proje
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('project_tasks')
@@ -460,7 +451,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<Proje
 // Update task
 export async function updateTask(formData: FormData): Promise<ActionResult<ProjectTask>> {
   try {
-    const userId = await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     const projectId = formData.get('project_id') as string
@@ -488,7 +479,6 @@ export async function updateTask(formData: FormData): Promise<ActionResult<Proje
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const { id: taskId, ...updateData } = validated.data
 
     // Set completed_at if status is done
@@ -526,11 +516,9 @@ export async function updateTaskStatus(
   projectId: string
 ): Promise<ActionResult<ProjectTask>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'opgave ID')
     validateUUID(projectId, 'projekt ID')
-
-    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = { status }
     if (status === 'done') {
@@ -562,11 +550,10 @@ export async function updateTaskStatus(
 // Delete task
 export async function deleteTask(id: string, projectId: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'opgave ID')
     validateUUID(projectId, 'projekt ID')
 
-    const supabase = await createClient()
     const { error } = await supabase.from('project_tasks').delete().eq('id', id)
 
     if (error) {
@@ -589,7 +576,7 @@ export async function createTimeEntry(
   formData: FormData
 ): Promise<ActionResult<TimeEntry>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const rawData = {
       project_id: formData.get('project_id') as string,
@@ -606,7 +593,6 @@ export async function createTimeEntry(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('time_entries')
@@ -635,7 +621,7 @@ export async function updateTimeEntry(
   formData: FormData
 ): Promise<ActionResult<TimeEntry>> {
   try {
-    const userId = await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     const projectId = formData.get('project_id') as string
@@ -659,7 +645,6 @@ export async function updateTimeEntry(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const { id: entryId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -688,11 +673,10 @@ export async function deleteTimeEntry(
   projectId: string
 ): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'tidsregistrering ID')
     validateUUID(projectId, 'projekt ID')
 
-    const supabase = await createClient()
     const { error } = await supabase.from('time_entries').delete().eq('id', id)
 
     if (error) {
@@ -791,8 +775,7 @@ export async function getCustomersForProjectSelect(): Promise<
   ActionResult<{ id: string; company_name: string; customer_number: string }[]>
 > {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('customers')
@@ -817,8 +800,7 @@ export async function getTeamMembersForProject(): Promise<
   ActionResult<{ id: string; full_name: string | null; email: string }[]>
 > {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('profiles')
@@ -843,9 +825,8 @@ export async function getOffersForProject(
   customerId: string
 ): Promise<ActionResult<{ id: string; offer_number: string; title: string }[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(customerId, 'kunde ID')
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('offers')
@@ -871,9 +852,8 @@ export async function getProjectTasks(
   projectId: string
 ): Promise<ActionResult<ProjectTaskWithRelations[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(projectId, 'projekt ID')
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('project_tasks')
@@ -898,9 +878,8 @@ export async function getProjectTimeEntries(
   projectId: string
 ): Promise<ActionResult<TimeEntryWithRelations[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(projectId, 'projekt ID')
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('time_entries')

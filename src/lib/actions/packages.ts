@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -20,8 +19,7 @@ import {
   type UpdatePackageItemInput,
 } from '@/lib/validations/packages'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
-import { ZodError } from 'zod'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -40,8 +38,7 @@ import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 export async function getPackageCategories(): Promise<ActionResult<PackageCategory[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('package_categories')
@@ -70,8 +67,7 @@ export async function getPackages(filters?: {
   search?: string
 }): Promise<ActionResult<PackageSummary[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Validate optional category_id
     if (filters?.category_id) {
@@ -128,10 +124,8 @@ export async function getPackages(filters?: {
 
 export async function getPackage(id: string): Promise<ActionResult<Package>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'pakke ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('packages')
@@ -162,10 +156,8 @@ export async function getPackage(id: string): Promise<ActionResult<Package>> {
 
 export async function getPackageWithItems(id: string): Promise<ActionResult<Package & { items: PackageItem[] }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'pakke ID')
-
-    const supabase = await createClient()
 
     // Get package
     const { data: pkg, error: pkgError } = await supabase
@@ -219,8 +211,7 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
 
 export async function createPackage(input: CreatePackageInput): Promise<ActionResult<Package>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Validate input
     const validated = createPackageSchema.parse(input)
@@ -259,8 +250,7 @@ export async function createPackage(input: CreatePackageInput): Promise<ActionRe
 
 export async function updatePackage(input: UpdatePackageInput): Promise<ActionResult<Package>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Validate input (includes id validation)
     const { id, ...validated } = updatePackageSchema.parse(input)
@@ -298,10 +288,8 @@ export async function updatePackage(input: UpdatePackageInput): Promise<ActionRe
 
 export async function deletePackage(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'pakke ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('packages')
@@ -329,10 +317,8 @@ export async function copyPackage(
   newCode?: string
 ): Promise<ActionResult<Package>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(sourceId, 'kilde pakke ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .rpc('copy_package', {
@@ -369,10 +355,8 @@ export async function copyPackage(
 
 export async function getPackageItems(packageId: string): Promise<ActionResult<PackageItem[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(packageId, 'pakke ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('package_items')
@@ -397,8 +381,7 @@ export async function getPackageItems(packageId: string): Promise<ActionResult<P
 
 export async function createPackageItem(input: CreatePackageItemInput): Promise<ActionResult<PackageItem>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Validate input (includes package_id validation)
     const validated = createPackageItemSchema.parse(input)
@@ -462,8 +445,7 @@ export async function createPackageItem(input: CreatePackageItemInput): Promise<
 
 export async function updatePackageItem(input: UpdatePackageItemInput): Promise<ActionResult<PackageItem>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Validate input (includes id validation)
     const { id, ...validated } = updatePackageItemSchema.parse(input)
@@ -507,10 +489,8 @@ export async function updatePackageItem(input: UpdatePackageItemInput): Promise<
 
 export async function deletePackageItem(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'element ID')
-
-    const supabase = await createClient()
 
     // Get package_id first for revalidation
     const { data: item, error: fetchError } = await supabase
@@ -551,15 +531,13 @@ export async function reorderPackageItems(
   itemIds: string[]
 ): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(packageId, 'pakke ID')
 
     // Validate all item IDs
     itemIds.forEach((id, index) => {
       validateUUID(id, `element ID [${index}]`)
     })
-
-    const supabase = await createClient()
 
     // Update each item's sort_order sequentially to avoid race conditions
     for (let index = 0; index < itemIds.length; index++) {
@@ -595,11 +573,9 @@ export async function insertPackageIntoCalculation(
   }
 ): Promise<ActionResult<{ insertedCount: number }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(packageId, 'pakke ID')
     validateUUID(calculationId, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .rpc('insert_package_into_calculation', {
@@ -630,11 +606,9 @@ export async function insertPackageIntoOffer(
   }
 ): Promise<ActionResult<{ insertedCount: number }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(packageId, 'pakke ID')
     validateUUID(offerId, 'tilbud ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .rpc('insert_package_into_offer', {
@@ -669,8 +643,7 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
   variants: { code: string; name: string }[]
 }[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data: components, error } = await supabase
       .from('calc_components')
@@ -746,8 +719,7 @@ export async function getProductsForPicker(): Promise<ActionResult<{
   category_name: string
 }[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('product_catalog')

@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import {
   createKalkiaNodeSchema,
   updateKalkiaNodeSchema,
@@ -44,7 +43,7 @@ import type {
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { KalkiaCalculationEngine, createDefaultContext } from '@/lib/services/kalkia-engine'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // Kalkia Nodes
 // =====================================================
@@ -53,8 +52,7 @@ export async function getKalkiaNodes(
   filters?: KalkiaNodeFilters
 ): Promise<ActionResult<KalkiaNodeSummary[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('v_kalkia_nodes_summary')
@@ -116,8 +114,7 @@ export async function getKalkiaNodeTree(
   rootPath?: string
 ): Promise<ActionResult<KalkiaNodeWithRelations[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('kalkia_nodes')
@@ -173,10 +170,8 @@ export async function getKalkiaNode(
   id: string
 ): Promise<ActionResult<KalkiaNodeWithRelations>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'node ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('kalkia_nodes')
@@ -214,7 +209,7 @@ export async function createKalkiaNode(
   formData: FormData
 ): Promise<ActionResult<KalkiaNode>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const rawData = {
       parent_id: formData.get('parent_id') as string || null,
@@ -239,8 +234,6 @@ export async function createKalkiaNode(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     // Generate path based on parent
     let path = validated.data.code.toLowerCase().replace(/[^a-z0-9_]/g, '_')
@@ -290,7 +283,7 @@ export async function updateKalkiaNode(
   formData: FormData
 ): Promise<ActionResult<KalkiaNode>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -322,7 +315,6 @@ export async function updateKalkiaNode(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const { id: nodeId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -354,10 +346,8 @@ export async function updateKalkiaNode(
 
 export async function deleteKalkiaNode(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'node ID')
-
-    const supabase = await createClient()
 
     // Check for children
     const { count } = await supabase
@@ -395,10 +385,8 @@ export async function getKalkiaVariants(
   nodeId: string
 ): Promise<ActionResult<KalkiaVariantWithMaterials[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(nodeId, 'node ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('kalkia_variants')
@@ -427,7 +415,7 @@ export async function createKalkiaVariant(
   formData: FormData
 ): Promise<ActionResult<KalkiaVariant>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const rawData = {
       node_id: formData.get('node_id') as string,
@@ -449,8 +437,6 @@ export async function createKalkiaVariant(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     // If setting as default, unset other defaults for this node
     if (validated.data.is_default) {
@@ -485,7 +471,7 @@ export async function updateKalkiaVariant(
   formData: FormData
 ): Promise<ActionResult<KalkiaVariant>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -513,8 +499,6 @@ export async function updateKalkiaVariant(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     // If setting as default, get node_id first and unset others
     if (validated.data.is_default) {
@@ -559,10 +543,8 @@ export async function updateKalkiaVariant(
 
 export async function deleteKalkiaVariant(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'variant ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('kalkia_variants')
@@ -589,7 +571,7 @@ export async function createKalkiaVariantMaterial(
   formData: FormData
 ): Promise<ActionResult<KalkiaVariantMaterial>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const rawData = {
       variant_id: formData.get('variant_id') as string,
@@ -608,8 +590,6 @@ export async function createKalkiaVariantMaterial(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('kalkia_variant_materials')
@@ -633,7 +613,7 @@ export async function updateKalkiaVariantMaterial(
   formData: FormData
 ): Promise<ActionResult<KalkiaVariantMaterial>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -659,7 +639,6 @@ export async function updateKalkiaVariantMaterial(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const { id: materialId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -686,10 +665,8 @@ export async function updateKalkiaVariantMaterial(
 
 export async function deleteKalkiaVariantMaterial(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'materiale ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('kalkia_variant_materials')
@@ -714,8 +691,7 @@ export async function deleteKalkiaVariantMaterial(id: string): Promise<ActionRes
 
 export async function getBuildingProfiles(): Promise<ActionResult<KalkiaBuildingProfile[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('kalkia_building_profiles')
@@ -737,7 +713,7 @@ export async function updateBuildingProfile(
   formData: FormData
 ): Promise<ActionResult<KalkiaBuildingProfile>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -766,7 +742,6 @@ export async function updateBuildingProfile(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const { id: profileId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -797,8 +772,7 @@ export async function updateBuildingProfile(
 
 export async function getGlobalFactors(): Promise<ActionResult<KalkiaGlobalFactor[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('kalkia_global_factors')
@@ -820,7 +794,7 @@ export async function updateGlobalFactor(
   formData: FormData
 ): Promise<ActionResult<KalkiaGlobalFactor>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -848,7 +822,6 @@ export async function updateGlobalFactor(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const { id: factorId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -881,8 +854,7 @@ export async function getKalkiaCalculations(
   filters?: KalkiaCalculationFilters
 ): Promise<ActionResult<PaginatedResponse<KalkiaCalculationSummary>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -961,10 +933,8 @@ export async function getKalkiaCalculation(
   id: string
 ): Promise<ActionResult<KalkiaCalculationWithRelations>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('kalkia_calculations')
@@ -1005,7 +975,7 @@ export async function createKalkiaCalculation(
   formData: FormData
 ): Promise<ActionResult<KalkiaCalculation>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const rawData = {
       name: formData.get('name') as string,
@@ -1026,8 +996,6 @@ export async function createKalkiaCalculation(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('kalkia_calculations')
@@ -1054,7 +1022,7 @@ export async function updateKalkiaCalculation(
   formData: FormData
 ): Promise<ActionResult<KalkiaCalculation>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -1084,7 +1052,6 @@ export async function updateKalkiaCalculation(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
     const { id: calcId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -1112,10 +1079,8 @@ export async function updateKalkiaCalculation(
 
 export async function deleteKalkiaCalculation(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('kalkia_calculations')
@@ -1187,8 +1152,7 @@ export async function savePackageBuilderCalculation(
   input: PackageBuilderSaveInput
 ): Promise<ActionResult<KalkiaCalculation>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Build factors snapshot from settings
     const factorsSnapshot = {
@@ -1350,9 +1314,7 @@ export async function calculateFromNodes(
   riskPercentage: number = 0
 ): Promise<ActionResult<{ items: unknown[]; result: CalculationResult }>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get building profile if specified
     let buildingProfile: KalkiaBuildingProfile | null = null
@@ -1448,8 +1410,7 @@ export async function getKalkiaBrowseNodes(
   limit: number = 50
 ): Promise<ActionResult<KalkiaNodeSummary[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Fetch operation and composite nodes from the new Kalkia system
     // Exclude legacy (migrated from calc_components) and category group nodes
@@ -1485,14 +1446,12 @@ export async function searchKalkiaNodes(
   includeGroups: boolean = false
 ): Promise<ActionResult<KalkiaNodeSummary[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const sanitized = sanitizeSearchTerm(query)
     if (!sanitized || sanitized.length < 2) {
       return { success: true, data: [] }
     }
-
-    const supabase = await createClient()
 
     let dbQuery = supabase
       .from('v_kalkia_nodes_summary')
@@ -1573,8 +1532,7 @@ export async function createOfferFromCalculation(
   input: CreateOfferFromCalculationInput
 ): Promise<ActionResult<{ id: string; offer_number: string }>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Validate customer exists
     const { data: customer, error: customerError } = await supabase
@@ -1710,11 +1668,9 @@ export async function linkMaterialToSupplierProduct(
   autoUpdatePrice: boolean = false
 ): Promise<ActionResult<KalkiaVariantMaterial>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(materialId, 'materiale ID')
     validateUUID(supplierProductId, 'leverandørprodukt ID')
-
-    const supabase = await createClient()
 
     // Get supplier product to verify it exists and get prices
     const { data: supplierProduct, error: spError } = await supabase
@@ -1772,10 +1728,8 @@ export async function unlinkMaterialFromSupplierProduct(
   materialId: string
 ): Promise<ActionResult<KalkiaVariantMaterial>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(materialId, 'materiale ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('kalkia_variant_materials')
@@ -1820,14 +1774,12 @@ export async function getSupplierOptionsForMaterial(
   is_available: boolean
 }>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const sanitized = sanitizeSearchTerm(materialName)
     if (!sanitized || sanitized.length < 2) {
       return { success: true, data: [] }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('v_supplier_products_with_supplier')
@@ -1880,10 +1832,8 @@ export async function syncMaterialPricesFromSupplier(
   variantId: string
 ): Promise<ActionResult<{ updated: number; skipped: number }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(variantId, 'variant ID')
-
-    const supabase = await createClient()
 
     // Get all materials with supplier links that have auto_update_price enabled
     const { data: materials, error: materialsError } = await supabase
@@ -1977,9 +1927,7 @@ export async function syncMaterialPricesFromSupplier(
  */
 export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult<{ updated: number; skipped: number }>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Call the database function to sync all materials
     const { data, error } = await supabase
@@ -2094,10 +2042,8 @@ export async function loadSupplierPricesForVariant(
   lastSyncedAt: string | null
 }>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(variantId, 'variant ID')
-
-    const supabase = await createClient()
 
     // Get all materials with supplier product links
     const { data: materials, error: materialsError } = await supabase
@@ -2279,10 +2225,8 @@ export async function loadSupplierPricesForCalculation(
   lastSyncedAt: string | null
 }>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(calculationId, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     // Get all rows in the calculation to find variant IDs
     const { data: rows, error: rowsError } = await supabase
@@ -2361,10 +2305,8 @@ export async function refreshSupplierPricesForCalculation(
   }>
 }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(calculationId, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     // Get all variants in calculation
     const { data: rows, error: rowsError } = await supabase

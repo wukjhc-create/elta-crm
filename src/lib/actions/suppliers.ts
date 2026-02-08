@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
@@ -19,7 +18,7 @@ import type {
   SupplierProductFilters,
   SupplierOptionForMaterial,
 } from '@/types/suppliers.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // Supplier CRUD
 // =====================================================
@@ -28,8 +27,7 @@ export async function getSuppliers(
   filters?: SupplierFilters
 ): Promise<ActionResult<Supplier[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('suppliers')
@@ -67,10 +65,8 @@ export async function getSuppliers(
 
 export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('suppliers')
@@ -96,8 +92,7 @@ export async function createSupplier(
   data: CreateSupplierData
 ): Promise<ActionResult<Supplier>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data: supplier, error } = await supabase
       .from('suppliers')
@@ -128,10 +123,8 @@ export async function updateSupplier(
   data: Omit<UpdateSupplierData, 'id'>
 ): Promise<ActionResult<Supplier>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data: supplier, error } = await supabase
       .from('suppliers')
@@ -161,10 +154,8 @@ export async function updateSupplier(
 
 export async function deleteSupplier(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('suppliers')
@@ -191,10 +182,8 @@ export async function getSupplierSettings(
   supplierId: string
 ): Promise<ActionResult<SupplierSettings | null>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_settings')
@@ -218,10 +207,8 @@ export async function updateSupplierSettings(
   data: UpdateSupplierSettingsData
 ): Promise<ActionResult<SupplierSettings>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Check if settings exist
     const { data: existing } = await supabase
@@ -271,8 +258,7 @@ export async function getSupplierProducts(
   filters?: SupplierProductFilters
 ): Promise<ActionResult<PaginatedResponse<SupplierProductWithSupplier>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
@@ -365,8 +351,7 @@ export async function searchSupplierProducts(
   options?: { supplier_id?: string; limit?: number }
 ): Promise<ActionResult<SupplierProductWithSupplier[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const sanitized = sanitizeSearchTerm(query)
     if (!sanitized || sanitized.length < 2) {
@@ -404,10 +389,8 @@ export async function getSupplierProduct(
   id: string
 ): Promise<ActionResult<SupplierProductWithSupplier>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('v_supplier_products_with_supplier')
@@ -434,10 +417,8 @@ export async function updateSupplierProduct(
   data: Omit<UpdateSupplierProductData, 'id'>
 ): Promise<ActionResult<SupplierProduct>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
-
-    const supabase = await createClient()
 
     const { data: product, error } = await supabase
       .from('supplier_products')
@@ -470,10 +451,8 @@ export async function getPriceHistory(
   options?: { limit?: number }
 ): Promise<ActionResult<PriceHistory[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierProductId, 'produkt ID')
-
-    const supabase = await createClient()
 
     const limit = options?.limit || 50
 
@@ -503,8 +482,7 @@ export async function getPreferredSupplierForProduct(
   productSku: string
 ): Promise<ActionResult<SupplierProductWithSupplier | null>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('v_supplier_products_with_supplier')
@@ -543,8 +521,7 @@ export async function getSupplierOptionsForMaterial(
   materialName: string
 ): Promise<ActionResult<SupplierOptionForMaterial[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const sanitized = sanitizeSearchTerm(materialName)
     if (!sanitized || sanitized.length < 2) {
@@ -604,8 +581,7 @@ export async function getSupplierProductCategories(
   supplierId?: string
 ): Promise<ActionResult<string[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('supplier_products')

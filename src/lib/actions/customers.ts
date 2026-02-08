@@ -17,7 +17,7 @@ import type {
 } from '@/types/customers.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // Get all customers with optional filtering and pagination
 export async function getCustomers(filters?: {
@@ -29,8 +29,7 @@ export async function getCustomers(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<CustomerWithRelations>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -103,10 +102,8 @@ export async function getCustomers(filters?: {
 // Get single customer by ID
 export async function getCustomer(id: string): Promise<ActionResult<CustomerWithRelations>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kunde ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('customers')
@@ -154,7 +151,7 @@ async function generateCustomerNumber(): Promise<string> {
 // Create new customer
 export async function createCustomer(formData: FormData): Promise<ActionResult<Customer>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const rawData = {
       company_name: formData.get('company_name') as string,
@@ -182,8 +179,6 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
     const customerNumber = await generateCustomerNumber()
 
     const { data, error } = await supabase
@@ -219,7 +214,7 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
 // Update customer
 export async function updateCustomer(formData: FormData): Promise<ActionResult<Customer>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -253,8 +248,6 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     const { id: customerId, ...updateData } = validated.data
 
@@ -294,10 +287,8 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
 // Delete customer
 export async function deleteCustomer(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kunde ID')
-
-    const supabase = await createClient()
 
     // Get customer name before deleting for audit log
     const { data: customer } = await supabase
@@ -334,10 +325,8 @@ export async function toggleCustomerActive(
   isActive: boolean
 ): Promise<ActionResult<Customer>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kunde ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('customers')
@@ -378,10 +367,8 @@ export async function getCustomerContacts(
   customerId: string
 ): Promise<ActionResult<CustomerContact[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(customerId, 'kunde ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('customer_contacts')
@@ -406,7 +393,7 @@ export async function createCustomerContact(
   formData: FormData
 ): Promise<ActionResult<CustomerContact>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const customerId = formData.get('customer_id') as string
     if (!customerId) {
@@ -430,8 +417,6 @@ export async function createCustomerContact(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     // If this contact is primary, unset any existing primary contact
     if (validated.data.is_primary) {
@@ -467,7 +452,7 @@ export async function updateCustomerContact(
   formData: FormData
 ): Promise<ActionResult<CustomerContact>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     const customerId = formData.get('customer_id') as string
@@ -497,8 +482,6 @@ export async function updateCustomerContact(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     // If this contact is primary, unset any existing primary contact
     if (validated.data.is_primary && customerId) {
@@ -539,11 +522,9 @@ export async function deleteCustomerContact(
   customerId: string
 ): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kontakt ID')
     validateUUID(customerId, 'kunde ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('customer_contacts')

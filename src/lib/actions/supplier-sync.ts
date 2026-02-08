@@ -1,11 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import { SupplierAPIClientFactory, type ProductPrice } from '@/lib/services/supplier-api-client'
 import type { ActionResult } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Types
@@ -42,10 +41,8 @@ export async function syncSupplierPrices(
   const startTime = Date.now()
 
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Get supplier info
     const { data: supplier, error: supplierError } = await supabase
@@ -223,10 +220,8 @@ export async function searchSupplierAPI(
   options?: { limit?: number }
 ): Promise<ActionResult<ProductPrice[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Get supplier info
     const { data: supplier } = await supabase
@@ -265,10 +260,8 @@ export async function getLiveProductPrice(
   sku: string
 ): Promise<ActionResult<ProductPrice>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Get supplier info
     const { data: supplier } = await supabase
@@ -306,10 +299,8 @@ export async function testSupplierAPIConnection(
   supplierId: string
 ): Promise<ActionResult<{ success: boolean; message: string }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Get supplier info
     const { data: supplier } = await supabase
@@ -348,10 +339,9 @@ export async function importProductsFromAPI(
   products: ProductPrice[]
 ): Promise<ActionResult<{ imported: number; updated: number }>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 
-    const supabase = await createClient()
     let imported = 0
     let updated = 0
 
@@ -412,9 +402,7 @@ export async function getProductPriceComparison(
   productName: string
 ): Promise<ActionResult<Array<{ supplierId: string; supplierName: string; supplierCode: string; price: ProductPrice }>>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get all active suppliers with API credentials
     const { data: suppliers } = await supabase

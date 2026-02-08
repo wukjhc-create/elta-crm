@@ -1,9 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Types
@@ -73,9 +72,7 @@ export async function getPriceChangeAlerts(options?: {
   daysBack?: number
 }): Promise<ActionResult<PriceChangeAlert[]>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const threshold = options?.threshold || 5 // Default 5% change
     const daysBack = options?.daysBack || 7
     const cutoffDate = new Date()
@@ -165,9 +162,7 @@ export async function getAffectedOffers(
   options?: { daysBack?: number }
 ): Promise<ActionResult<AffectedOffer[]>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const daysBack = options?.daysBack || 30
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysBack)
@@ -313,10 +308,9 @@ export async function getPriceTrends(
   options?: { limit?: number }
 ): Promise<ActionResult<PriceTrend[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 
-    const supabase = await createClient()
     const now = new Date()
     const date30DaysAgo = new Date(now)
     date30DaysAgo.setDate(date30DaysAgo.getDate() - 30)
@@ -420,9 +414,7 @@ export async function getPriceTrends(
  */
 export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPriceStats[]>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const now = new Date()
     const date30DaysAgo = new Date(now)
     date30DaysAgo.setDate(date30DaysAgo.getDate() - 30)
@@ -522,9 +514,7 @@ export async function getPriceAlertSummary(): Promise<ActionResult<{
   criticalAlerts: number // Changes > 10%
 }>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const now = new Date()
     const date7DaysAgo = new Date(now)
     date7DaysAgo.setDate(date7DaysAgo.getDate() - 7)
@@ -575,10 +565,8 @@ export async function getProductPriceHistory(
   created_at: string
 }>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierProductId, 'produkt ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('price_history')

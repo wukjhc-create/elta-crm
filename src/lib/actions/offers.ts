@@ -27,7 +27,7 @@ import type {
 } from '@/types/offers.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
 
 // Get all offers with optional filtering and pagination
 export async function getOffers(filters?: {
@@ -40,8 +40,7 @@ export async function getOffers(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -125,10 +124,8 @@ export async function getOffers(filters?: {
 // Get single offer by ID with all relations
 export async function getOffer(id: string): Promise<ActionResult<OfferWithRelations>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'tilbud ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('offers')
@@ -186,7 +183,7 @@ async function generateOfferNumber(): Promise<string> {
 // Create new offer
 export async function createOffer(formData: FormData): Promise<ActionResult<Offer>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const customerId = formData.get('customer_id') as string || null
     const leadId = formData.get('lead_id') as string || null
@@ -219,8 +216,6 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
     const offerNumber = await generateOfferNumber()
 
     const { data, error } = await supabase
@@ -265,7 +260,7 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
 // Update offer
 export async function updateOffer(formData: FormData): Promise<ActionResult<Offer>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -305,8 +300,6 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     const { id: offerId, ...updateData } = validated.data
 
@@ -350,10 +343,8 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
 // Delete offer
 export async function deleteOffer(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'tilbud ID')
-
-    const supabase = await createClient()
 
     // Get offer before deleting for audit log
     const { data: offer } = await supabase
@@ -390,10 +381,8 @@ export async function updateOfferStatus(
   status: OfferStatus
 ): Promise<ActionResult<Offer>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(id, 'tilbud ID')
-
-    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = { status }
 
@@ -491,10 +480,8 @@ export async function updateOfferStatus(
 // Send offer via email
 export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(offerId, 'tilbud ID')
-
-    const supabase = await createClient()
 
     // Get offer with customer
     const { data: offer, error: offerError } = await supabase
@@ -686,10 +673,8 @@ export async function getOfferLineItems(
   offerId: string
 ): Promise<ActionResult<OfferLineItem[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(offerId, 'tilbud ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('offer_line_items')
@@ -713,7 +698,7 @@ export async function createLineItem(
   formData: FormData
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const offerId = formData.get('offer_id') as string
     if (!offerId) {
@@ -738,8 +723,6 @@ export async function createLineItem(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     // Calculate total (will also be done by trigger, but good to have client-side)
     const total = validated.data.quantity * validated.data.unit_price *
@@ -771,7 +754,7 @@ export async function updateLineItem(
   formData: FormData
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     const offerId = formData.get('offer_id') as string
@@ -802,8 +785,6 @@ export async function updateLineItem(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     const { id: lineItemId, ...updateData } = validated.data
 
@@ -839,11 +820,9 @@ export async function deleteLineItem(
   offerId: string
 ): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'linje ID')
     validateUUID(offerId, 'tilbud ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('offer_line_items')
@@ -869,8 +848,7 @@ export async function getCustomersForSelect(): Promise<
   ActionResult<{ id: string; company_name: string; customer_number: string }[]>
 > {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('customers')
@@ -894,8 +872,7 @@ export async function getLeadsForSelect(): Promise<
   ActionResult<{ id: string; company_name: string }[]>
 > {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('leads')
@@ -924,11 +901,9 @@ export async function addProductToOffer(
   position?: number
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(offerId, 'tilbud ID')
     validateUUID(productId, 'produkt ID')
-
-    const supabase = await createClient()
 
     // Get product details
     const { data: product, error: productError } = await supabase
@@ -1015,11 +990,9 @@ export async function importCalculationToOffer(
   }
 ): Promise<ActionResult<{ importedCount: number }>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(offerId, 'tilbud ID')
     validateUUID(calculationId, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     // Get calculation with rows
     const { data: calculation, error: calcError } = await supabase
@@ -1170,11 +1143,9 @@ export async function createLineItemFromSupplierProduct(
   }
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(offerId, 'tilbud ID')
     validateUUID(supplierProductId, 'leverandør produkt ID')
-
-    const supabase = await createClient()
 
     // Get offer to check customer for custom pricing
     const { data: offer } = await supabase
@@ -1327,9 +1298,7 @@ export async function searchSupplierProductsForOffer(
   is_available: boolean
 }>>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let dbQuery = supabase
       .from('supplier_products')
@@ -1431,10 +1400,8 @@ export async function refreshLineItemPrice(
   lineItemId: string
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(lineItemId, 'linje ID')
-
-    const supabase = await createClient()
 
     // Get line item with supplier product link
     const { data: lineItem, error: liError } = await supabase

@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -10,7 +9,7 @@ import type {
   CustomerProductPrice,
   CustomerEffectivePrice,
 } from '@/types/suppliers.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // Customer-Supplier Price Agreements
 // =====================================================
@@ -19,10 +18,8 @@ export async function getCustomerSupplierPrices(
   customerId: string
 ): Promise<ActionResult<CustomerSupplierPrice[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(customerId, 'kunde ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('customer_supplier_prices')
@@ -45,11 +42,9 @@ export async function upsertCustomerSupplierPrice(
   data: CreateCustomerSupplierPriceData
 ): Promise<ActionResult<CustomerSupplierPrice>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(data.customer_id, 'kunde ID')
     validateUUID(data.supplier_id, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data: result, error } = await supabase
       .from('customer_supplier_prices')
@@ -79,10 +74,8 @@ export async function deleteCustomerSupplierPrice(
   id: string
 ): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'aftale ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('customer_supplier_prices')
@@ -109,10 +102,8 @@ export async function getCustomerProductPrices(
   supplierProductId?: string
 ): Promise<ActionResult<CustomerProductPrice[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(customerId, 'kunde ID')
-
-    const supabase = await createClient()
 
     let query = supabase
       .from('customer_product_prices')
@@ -152,11 +143,9 @@ export async function upsertCustomerProductPrice(
   }
 ): Promise<ActionResult<CustomerProductPrice>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(customerId, 'kunde ID')
     validateUUID(supplierProductId, 'leverandørprodukt ID')
-
-    const supabase = await createClient()
 
     const { data: result, error } = await supabase
       .from('customer_product_prices')
@@ -194,11 +183,9 @@ export async function getCustomerEffectivePrice(
   supplierProductId: string
 ): Promise<ActionResult<CustomerEffectivePrice>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(customerId, 'kunde ID')
     validateUUID(supplierProductId, 'leverandørprodukt ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .rpc('get_customer_product_price', {
@@ -238,10 +225,8 @@ export async function getBestPriceForCustomer(
   price_source: string
 }>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(customerId, 'kunde ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .rpc('get_best_price_for_customer', {

@@ -1,10 +1,9 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import type { LeadStatus } from '@/types/leads.types'
 import type { OfferStatus } from '@/types/offers.types'
 import type { ProjectStatus } from '@/types/projects.types'
-import { requireAuth } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 
 export interface DashboardStats {
   leads: {
@@ -60,8 +59,7 @@ export interface RecentActivity {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const userId = await requireAuth()
-  const supabase = await createClient()
+  const { supabase, userId } = await getAuthenticatedClient()
 
   // Fetch all stats in parallel
   const [
@@ -206,8 +204,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 export async function getRecentActivity(limit = 10): Promise<RecentActivity[]> {
-  await requireAuth()
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
 
   // Fetch recent items from each table in parallel
   const [leadsResult, customersResult, offersResult, projectsResult] =
@@ -315,8 +312,7 @@ export async function getUpcomingTasks(limit = 5): Promise<
     status: string
   }[]
 > {
-  await requireAuth()
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
 
   const { data } = await supabase
     .from('project_tasks')
@@ -362,8 +358,7 @@ export async function getPendingOffers(limit = 5): Promise<
     created_at: string
   }[]
 > {
-  await requireAuth()
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
 
   const { data } = await supabase
     .from('offers')

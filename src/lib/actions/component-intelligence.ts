@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -20,7 +19,7 @@ import type {
   CreateOfferTextInput,
   UpdateOfferTextInput,
 } from '@/types/component-intelligence.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -31,8 +30,7 @@ import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_types')
@@ -53,8 +51,7 @@ export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
 
 export async function getRoomType(id: string): Promise<ActionResult<RoomType>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_types')
@@ -79,8 +76,7 @@ export async function createRoomType(
   input: Omit<RoomType, 'id' | 'created_at' | 'updated_at'>
 ): Promise<ActionResult<RoomType>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_types')
@@ -111,8 +107,7 @@ export async function updateRoomType(
   input: Partial<Omit<RoomType, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<ActionResult<RoomType>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_types')
@@ -138,8 +133,7 @@ export async function updateRoomType(
 
 export async function deleteRoomType(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('room_types')
@@ -166,8 +160,7 @@ export async function getRoomComponentSuggestions(
   sizeM2: number
 ): Promise<ActionResult<RoomComponentSuggestion[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase.rpc('get_room_component_suggestions', {
       p_room_type_code: roomTypeCode,
@@ -194,8 +187,7 @@ export async function getRoomTemplates(options?: {
   tier?: string
 }): Promise<ActionResult<RoomTemplateWithRelations[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('room_templates')
@@ -231,8 +223,7 @@ export async function createRoomTemplate(
   input: CreateRoomTemplateInput
 ): Promise<ActionResult<RoomTemplate>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_templates')
@@ -259,8 +250,7 @@ export async function updateRoomTemplate(
   input: UpdateRoomTemplateInput
 ): Promise<ActionResult<RoomTemplate>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
 
@@ -287,8 +277,7 @@ export async function updateRoomTemplate(
 
 export async function deleteRoomTemplate(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('room_templates')
@@ -316,8 +305,7 @@ export async function getMaterials(options?: {
   limit?: number
 }): Promise<ActionResult<Material[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('materials_catalog')
@@ -353,8 +341,7 @@ export async function getMaterials(options?: {
 
 export async function getMaterial(id: string): Promise<ActionResult<Material>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('materials_catalog')
@@ -379,8 +366,7 @@ export async function createMaterial(
   input: CreateMaterialInput
 ): Promise<ActionResult<Material>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('materials_catalog')
@@ -419,8 +405,7 @@ export async function updateMaterial(
   input: UpdateMaterialInput
 ): Promise<ActionResult<Material>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
 
@@ -471,8 +456,7 @@ export async function updateMaterial(
 
 export async function deleteMaterial(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Soft delete by setting is_active = false
     const { error } = await supabase
@@ -495,8 +479,7 @@ export async function getMaterialPriceHistory(
   materialId: string
 ): Promise<ActionResult<MaterialPriceHistory[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('material_price_history')
@@ -524,8 +507,7 @@ export async function updateMaterialPrice(
   }
 ): Promise<ActionResult<Material>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get current prices
     const { data: current, error: fetchError } = await supabase
@@ -587,8 +569,7 @@ export async function getOfferTextTemplates(options?: {
   template_key?: string
 }): Promise<ActionResult<OfferTextTemplate[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('offer_text_templates')
@@ -625,8 +606,7 @@ export async function createOfferTextTemplate(
   input: CreateOfferTextInput
 ): Promise<ActionResult<OfferTextTemplate>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('offer_text_templates')
@@ -653,8 +633,7 @@ export async function updateOfferTextTemplate(
   input: UpdateOfferTextInput
 ): Promise<ActionResult<OfferTextTemplate>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
 
@@ -681,8 +660,7 @@ export async function updateOfferTextTemplate(
 
 export async function deleteOfferTextTemplate(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('offer_text_templates')
@@ -710,8 +688,7 @@ export async function calculateIntelligentTime(
   variantMultiplier: number = 1.0
 ): Promise<ActionResult<IntelligentTimeCalculation>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get component with intelligence data
     const { data: component, error } = await supabase
@@ -825,8 +802,7 @@ export async function getOfferTextsForCalculation(
   globalTexts: OfferTextTemplate[]
 }>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get component-level texts
     const { data: componentTexts } = await supabase
@@ -908,8 +884,7 @@ export async function bulkUpdateMaterialPrices(
   updates: Array<{ id: string; cost_price?: number; sale_price?: number }>
 ): Promise<ActionResult<{ updated: number }>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     let updatedCount = 0
 

@@ -1,10 +1,9 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import { validateUUID } from '@/lib/validations/common'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Types
@@ -91,8 +90,7 @@ export interface ComponentWithDetails extends Component {
 
 export async function getComponentCategories(): Promise<ActionResult<ComponentCategory[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calc_component_categories')
@@ -116,8 +114,7 @@ export async function getComponentCategories(): Promise<ActionResult<ComponentCa
 
 export async function getComponents(): Promise<ActionResult<Component[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calc_components')
@@ -141,8 +138,7 @@ export async function getComponents(): Promise<ActionResult<Component[]>> {
 
 export async function getComponentsByCategory(categorySlug?: string): Promise<ActionResult<Component[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('calc_components')
@@ -192,10 +188,8 @@ export async function getComponentsByCategory(categorySlug?: string): Promise<Ac
 
 export async function getComponentWithDetails(id: string): Promise<ActionResult<ComponentWithDetails>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'komponent ID')
-
-    const supabase = await createClient()
 
     // Get component
     const { data: component, error: compError } = await supabase
@@ -273,10 +267,8 @@ export async function updateComponent(
   }
 ): Promise<ActionResult<Component>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'komponent ID')
-
-    const supabase = await createClient()
 
     const { data: updated, error } = await supabase
       .from('calc_components')
@@ -320,14 +312,12 @@ export async function createVariant(
   }
 ): Promise<ActionResult<ComponentVariant>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(componentId, 'komponent ID')
 
     if (!data.name || data.name.trim().length === 0) {
       return { success: false, error: 'Navn er påkrævet' }
     }
-
-    const supabase = await createClient()
 
     // Get next sort order
     const { data: existing, error: orderError } = await supabase
@@ -405,11 +395,9 @@ export async function updateVariant(
   }
 ): Promise<ActionResult<ComponentVariant>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'variant ID')
     validateUUID(componentId, 'komponent ID')
-
-    const supabase = await createClient()
 
     // If setting as default, unset other defaults first
     if (data.is_default) {
@@ -450,11 +438,9 @@ export async function updateVariant(
 
 export async function deleteVariant(id: string, componentId: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'variant ID')
     validateUUID(componentId, 'komponent ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('calc_component_variants')
@@ -494,14 +480,12 @@ export async function createMaterial(
   }
 ): Promise<ActionResult<ComponentMaterial>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(componentId, 'komponent ID')
 
     if (!data.material_name || data.material_name.trim().length === 0) {
       return { success: false, error: 'Materialenavn er påkrævet' }
     }
-
-    const supabase = await createClient()
 
     // Get next sort order
     const { data: existing, error: orderError } = await supabase
@@ -561,11 +545,9 @@ export async function updateMaterial(
   }
 ): Promise<ActionResult<ComponentMaterial>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'materiale ID')
     validateUUID(componentId, 'komponent ID')
-
-    const supabase = await createClient()
 
     const { data: updated, error } = await supabase
       .from('calc_component_materials')
@@ -592,11 +574,9 @@ export async function updateMaterial(
 
 export async function deleteMaterial(id: string, componentId: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'materiale ID')
     validateUUID(componentId, 'komponent ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('calc_component_materials')
@@ -622,10 +602,8 @@ export async function deleteMaterial(id: string, componentId: string): Promise<A
 
 export async function getVariantMaterials(variantId: string): Promise<ActionResult<VariantMaterial[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(variantId, 'variant ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('calc_component_variant_materials')
@@ -658,15 +636,13 @@ export async function createVariantMaterial(
   }
 ): Promise<ActionResult<VariantMaterial>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(variantId, 'variant ID')
     validateUUID(componentId, 'komponent ID')
 
     if (!data.material_name || data.material_name.trim().length === 0) {
       return { success: false, error: 'Materialenavn er påkrævet' }
     }
-
-    const supabase = await createClient()
 
     // Get next sort order
     const { data: existing, error: orderError } = await supabase
@@ -714,11 +690,9 @@ export async function createVariantMaterial(
 
 export async function deleteVariantMaterial(id: string, componentId: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'variant-materiale ID')
     validateUUID(componentId, 'komponent ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('calc_component_variant_materials')
@@ -778,8 +752,7 @@ export async function getCalcComponentsBrowse(
   limit: number = 50
 ): Promise<ActionResult<ComponentSummary[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('v_calc_components_summary')
@@ -808,14 +781,12 @@ export async function searchCalcComponents(
   limit: number = 30
 ): Promise<ActionResult<ComponentSummary[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const sanitized = query.trim().toLowerCase()
     if (!sanitized || sanitized.length < 2) {
       return { success: true, data: [] }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('v_calc_components_summary')
@@ -847,7 +818,7 @@ export async function getCalcComponentForCalculation(
   code?: string
 ): Promise<ActionResult<ComponentForCalculation>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     if (!id && !code) {
       return { success: false, error: 'Enten ID eller kode skal angives' }
@@ -856,8 +827,6 @@ export async function getCalcComponentForCalculation(
     if (id) {
       validateUUID(id, 'komponent ID')
     }
-
-    const supabase = await createClient()
 
     // Get component with category - by ID or code
     let query = supabase

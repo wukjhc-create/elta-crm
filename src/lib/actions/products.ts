@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import {
   createSupplierSchema,
   updateSupplierSchema,
@@ -27,7 +26,7 @@ import type {
 } from '@/types/products.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
   try {
@@ -43,8 +42,7 @@ function safeJsonParse<T>(value: string | null, defaultValue: T): T {
 
 export async function getProductCategories(): Promise<ActionResult<ProductCategory[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('product_categories')
@@ -100,7 +98,7 @@ export async function createProductCategory(
   formData: FormData
 ): Promise<ActionResult<ProductCategory>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const parentId = formData.get('parent_id') as string || null
     if (parentId) {
@@ -120,8 +118,6 @@ export async function createProductCategory(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('product_categories')
@@ -151,7 +147,7 @@ export async function updateProductCategory(
   formData: FormData
 ): Promise<ActionResult<ProductCategory>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -178,8 +174,6 @@ export async function updateProductCategory(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
     const { id: categoryId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -212,10 +206,8 @@ export async function updateProductCategory(
 
 export async function deleteProductCategory(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kategori ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase.from('product_categories').delete().eq('id', id)
 
@@ -242,8 +234,7 @@ export async function getProducts(
   filters?: ProductFilters
 ): Promise<ActionResult<PaginatedResponse<ProductWithCategory>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -323,10 +314,8 @@ export async function getProducts(
 
 export async function getProduct(id: string): Promise<ActionResult<ProductWithCategory>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('product_catalog')
@@ -353,7 +342,7 @@ export async function getProduct(id: string): Promise<ActionResult<ProductWithCa
 
 export async function createProduct(formData: FormData): Promise<ActionResult<Product>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const categoryId = formData.get('category_id') as string || null
     if (categoryId) {
@@ -377,8 +366,6 @@ export async function createProduct(formData: FormData): Promise<ActionResult<Pr
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('product_catalog')
@@ -409,7 +396,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult<Pr
 
 export async function updateProduct(formData: FormData): Promise<ActionResult<Product>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -440,8 +427,6 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
     const { id: productId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -475,10 +460,8 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
 
 export async function deleteProduct(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase.from('product_catalog').delete().eq('id', id)
 
@@ -502,8 +485,7 @@ export async function getProductsForSelect(): Promise<
   ActionResult<{ id: string; name: string; sku: string | null; list_price: number }[]>
 > {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('product_catalog')
@@ -530,8 +512,7 @@ export async function getSuppliers(
   filters?: SupplierFilters
 ): Promise<ActionResult<PaginatedResponse<Supplier>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -598,10 +579,8 @@ export async function getSuppliers(
 
 export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('suppliers')
@@ -625,7 +604,7 @@ export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
 
 export async function createSupplier(formData: FormData): Promise<ActionResult<Supplier>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const rawData = {
       name: formData.get('name') as string,
@@ -643,8 +622,6 @@ export async function createSupplier(formData: FormData): Promise<ActionResult<S
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('suppliers')
@@ -672,7 +649,7 @@ export async function createSupplier(formData: FormData): Promise<ActionResult<S
 
 export async function updateSupplier(formData: FormData): Promise<ActionResult<Supplier>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -697,8 +674,6 @@ export async function updateSupplier(formData: FormData): Promise<ActionResult<S
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
     const { id: supplierId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -728,10 +703,8 @@ export async function updateSupplier(formData: FormData): Promise<ActionResult<S
 
 export async function deleteSupplier(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase.from('suppliers').delete().eq('id', id)
 
@@ -755,8 +728,7 @@ export async function getSuppliersForSelect(): Promise<
   ActionResult<{ id: string; name: string; code: string | null }[]>
 > {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('suppliers')
@@ -783,8 +755,7 @@ export async function getSupplierProducts(
   filters?: SupplierProductFilters
 ): Promise<ActionResult<PaginatedResponse<SupplierProductWithRelations>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -868,7 +839,7 @@ export async function createSupplierProduct(
   formData: FormData
 ): Promise<ActionResult<SupplierProduct>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const supplierId = formData.get('supplier_id') as string
     if (!supplierId) {
@@ -899,8 +870,6 @@ export async function createSupplierProduct(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
-
     const { data, error } = await supabase
       .from('supplier_products')
       .insert(validated.data)
@@ -929,7 +898,7 @@ export async function updateSupplierProduct(
   formData: FormData
 ): Promise<ActionResult<SupplierProduct>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -966,8 +935,6 @@ export async function updateSupplierProduct(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
     const { id: supplierProductId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -1000,10 +967,8 @@ export async function updateSupplierProduct(
 
 export async function deleteSupplierProduct(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'leverandørprodukt ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase.from('supplier_products').delete().eq('id', id)
 

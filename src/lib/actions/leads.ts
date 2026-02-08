@@ -1,14 +1,13 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logCreate, logUpdate, logDelete, logStatusChange } from '@/lib/actions/audit'
 import type { Lead, LeadWithRelations, LeadActivity, LeadStatus } from '@/types/leads.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // Get all leads with optional filtering and pagination
 export async function getLeads(filters?: {
@@ -22,8 +21,7 @@ export async function getLeads(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<LeadWithRelations>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -108,10 +106,8 @@ export async function getLeads(filters?: {
 // Get single lead by ID
 export async function getLead(id: string): Promise<ActionResult<LeadWithRelations>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'lead ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('leads')
@@ -136,7 +132,7 @@ export async function getLead(id: string): Promise<ActionResult<LeadWithRelation
 // Create new lead
 export async function createLead(formData: FormData): Promise<ActionResult<Lead>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Get and validate form values
     const company_name = formData.get('company_name') as string
@@ -175,8 +171,6 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     // Build insert object, excluding null/undefined values and tags
     const insertData: Record<string, unknown> = {
@@ -234,7 +228,7 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
 // Update lead
 export async function updateLead(formData: FormData): Promise<ActionResult<Lead>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -267,8 +261,6 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
 
     // Get old lead data for activity logging
     const { data: oldLead } = await supabase
@@ -381,10 +373,8 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
 // Delete lead
 export async function deleteLead(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'lead ID')
-
-    const supabase = await createClient()
 
     // Get lead name before deleting for audit log
     const { data: lead } = await supabase
@@ -419,10 +409,8 @@ export async function updateLeadStatus(
   status: LeadStatus
 ): Promise<ActionResult<Lead>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(id, 'lead ID')
-
-    const supabase = await createClient()
 
     // Get old status
     const { data: oldLead } = await supabase
@@ -472,10 +460,8 @@ export async function getLeadActivities(
   leadId: string
 ): Promise<ActionResult<LeadActivity[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(leadId, 'lead ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('lead_activities')
@@ -501,10 +487,8 @@ export async function addLeadActivity(
   description: string
 ): Promise<ActionResult<LeadActivity>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(leadId, 'lead ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('lead_activities')
@@ -537,8 +521,7 @@ export async function getTeamMembers(): Promise<
   ActionResult<{ id: string; full_name: string | null; email: string }[]>
 > {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('profiles')

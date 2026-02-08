@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
@@ -13,7 +12,7 @@ import type {
   UpdateSyncJobData,
   SyncLogFilters,
 } from '@/types/suppliers.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // Sync Job CRUD
 // =====================================================
@@ -22,8 +21,7 @@ export async function getSyncJobs(
   supplierId?: string
 ): Promise<ActionResult<SupplierSyncJobWithSupplier[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('v_supplier_sync_jobs')
@@ -52,10 +50,8 @@ export async function getSyncJob(
   id: string
 ): Promise<ActionResult<SupplierSyncJobWithSupplier>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'sync job ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('v_supplier_sync_jobs')
@@ -81,10 +77,8 @@ export async function createSyncJob(
   data: CreateSyncJobData
 ): Promise<ActionResult<SupplierSyncJob>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(data.supplier_id, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data: job, error } = await supabase
       .from('supplier_sync_jobs')
@@ -112,10 +106,8 @@ export async function updateSyncJob(
   data: UpdateSyncJobData
 ): Promise<ActionResult<SupplierSyncJob>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'sync job ID')
-
-    const supabase = await createClient()
 
     const { data: job, error } = await supabase
       .from('supplier_sync_jobs')
@@ -143,10 +135,8 @@ export async function deleteSyncJob(
   id: string
 ): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'sync job ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('supplier_sync_jobs')
@@ -176,10 +166,8 @@ export async function startSyncLog(
   syncJobId?: string
 ): Promise<ActionResult<SupplierSyncLog>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_sync_logs')
@@ -216,10 +204,8 @@ export async function updateSyncLog(
   >>
 ): Promise<ActionResult<SupplierSyncLog>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(logId, 'sync log ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_sync_logs')
@@ -256,10 +242,8 @@ export async function completeSyncLog(
   }
 ): Promise<ActionResult<SupplierSyncLog>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(logId, 'sync log ID')
-
-    const supabase = await createClient()
 
     const startedAt = await supabase
       .from('supplier_sync_logs')
@@ -323,8 +307,7 @@ export async function getSyncLogs(
   filters?: SyncLogFilters
 ): Promise<ActionResult<PaginatedResponse<SupplierSyncLog>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE

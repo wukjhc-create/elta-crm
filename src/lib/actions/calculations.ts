@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import {
   createCalculationSchema,
   updateCalculationSchema,
@@ -19,7 +18,7 @@ import type {
 } from '@/types/calculations.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
   try {
@@ -37,8 +36,7 @@ export async function getCalculations(
   filters?: CalculationFilters
 ): Promise<ActionResult<PaginatedResponse<CalculationWithRelations>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -124,10 +122,8 @@ export async function getCalculation(
   id: string
 ): Promise<ActionResult<CalculationWithRelations>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('calculations')
@@ -173,7 +169,7 @@ export async function createCalculation(
   formData: FormData
 ): Promise<ActionResult<Calculation>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Validate customer_id if provided
     const customerId = formData.get('customer_id') as string || null
@@ -215,8 +211,6 @@ export async function createCalculation(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
-
     const { data, error } = await supabase
       .from('calculations')
       .insert({
@@ -242,7 +236,7 @@ export async function updateCalculation(
   formData: FormData
 ): Promise<ActionResult<Calculation>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -291,8 +285,6 @@ export async function updateCalculation(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
     const { id: calculationId, ...updateData } = validated.data
 
     const { data, error } = await supabase
@@ -320,10 +312,8 @@ export async function updateCalculation(
 
 export async function deleteCalculation(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase.from('calculations').delete().eq('id', id)
 
@@ -348,10 +338,8 @@ export async function duplicateCalculation(
   newName?: string
 ): Promise<ActionResult<Calculation>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(id, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     // Get the original calculation with rows
     const { data: original, error: fetchError } = await supabase
@@ -449,8 +437,7 @@ export async function getCalculationsForSelect(): Promise<
   ActionResult<{ id: string; name: string; final_amount: number }[]>
 > {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculations')
@@ -476,10 +463,8 @@ export async function getCalculationRows(
   calculationId: string
 ): Promise<ActionResult<CalculationRowWithRelations[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(calculationId, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('calculation_rows')
@@ -506,7 +491,7 @@ export async function createCalculationRow(
   formData: FormData
 ): Promise<ActionResult<CalculationRow>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const calculationId = formData.get('calculation_id') as string
     if (!calculationId) {
@@ -548,8 +533,6 @@ export async function createCalculationRow(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
-
     // Calculate total (trigger will also do this, but good for immediate response)
     // If hours and hourly_rate are set, use those instead
     let total: number
@@ -590,7 +573,7 @@ export async function updateCalculationRow(
   formData: FormData
 ): Promise<ActionResult<CalculationRow>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     const id = formData.get('id') as string
     const calculationId = formData.get('calculation_id') as string
@@ -637,8 +620,6 @@ export async function updateCalculationRow(
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-
-    const supabase = await createClient()
     const { id: rowId, ...updateData } = validated.data
 
     // Calculate total (if hours and hourly_rate are set, use those)
@@ -682,11 +663,9 @@ export async function deleteCalculationRow(
   calculationId: string
 ): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'linje ID')
     validateUUID(calculationId, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase.from('calculation_rows').delete().eq('id', id)
 
@@ -709,15 +688,13 @@ export async function addProductToCalculation(
   quantity: number = 1
 ): Promise<ActionResult<CalculationRow>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(calculationId, 'kalkulation ID')
     validateUUID(productId, 'produkt ID')
 
     if (quantity <= 0) {
       return { success: false, error: 'Antal skal være større end 0' }
     }
-
-    const supabase = await createClient()
 
     // Get product details
     const { data: product, error: productError } = await supabase
@@ -787,15 +764,13 @@ export async function reorderCalculationRows(
   rowIds: string[]
 ): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(calculationId, 'kalkulation ID')
 
     // Validate all row IDs
     rowIds.forEach((id, index) => {
       validateUUID(id, `linje ID [${index}]`)
     })
-
-    const supabase = await createClient()
 
     // Update each row's position sequentially to avoid race conditions
     for (let index = 0; index < rowIds.length; index++) {
@@ -829,10 +804,8 @@ export async function updateCalculationROI(
   roiData: EnhancedROIData
 ): Promise<ActionResult<Calculation>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(calculationId, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('calculations')
@@ -883,7 +856,7 @@ export async function createQuickCalculation(
   input: QuickCalculationInput
 ): Promise<ActionResult<Calculation>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Validate input
     if (!input.name || input.name.trim().length === 0) {
@@ -897,8 +870,6 @@ export async function createQuickCalculation(
     if (input.hourlyRate <= 0) {
       return { success: false, error: 'Timesats skal være større end 0' }
     }
-
-    const supabase = await createClient()
 
     // 1. Get component details from database
     const componentCodes = input.rooms.flatMap(r => r.components.map(c => c.componentCode))

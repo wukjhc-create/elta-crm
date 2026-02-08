@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -11,15 +10,14 @@ import type {
   CalculationSummary,
 } from '@/types/calculation-settings.types'
 import { validateUUID } from '@/lib/validations/common'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // CALCULATION SETTINGS
 // =====================================================
 
 export async function getCalculationSettings(): Promise<ActionResult<CalculationSettings>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculation_settings')
@@ -131,8 +129,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
 
 export async function getAllSettings(): Promise<ActionResult<CalculationSetting[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculation_settings')
@@ -156,13 +153,11 @@ export async function updateSetting(
   value: Record<string, unknown>
 ): Promise<ActionResult<CalculationSetting>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     if (!settingKey || settingKey.trim().length === 0) {
       return { success: false, error: 'Indstillingsnøgle er påkrævet' }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('calculation_settings')
@@ -249,8 +244,7 @@ export async function updateMargin(
 
 export async function getProjectTemplates(): Promise<ActionResult<ProjectTemplate[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('project_templates')
@@ -271,10 +265,8 @@ export async function getProjectTemplates(): Promise<ActionResult<ProjectTemplat
 
 export async function getProjectTemplate(id: string): Promise<ActionResult<ProjectTemplate>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'skabelon ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('project_templates')
@@ -306,8 +298,7 @@ export async function getProjectTemplate(id: string): Promise<ActionResult<Proje
 
 export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_types')
@@ -328,13 +319,11 @@ export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
 
 export async function getRoomType(code: string): Promise<ActionResult<RoomType>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     if (!code || code.trim().length === 0) {
       return { success: false, error: 'Rumtype kode er påkrævet' }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('room_types')
@@ -366,10 +355,8 @@ export async function getRoomType(code: string): Promise<ActionResult<RoomType>>
 
 export async function calculateTotals(calculationId: string): Promise<ActionResult<CalculationSummary>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(calculationId, 'kalkulation ID')
-
-    const supabase = await createClient()
 
     // Call the database function
     const { data, error } = await supabase
@@ -454,8 +441,7 @@ export async function getComponentsWithPricing(): Promise<ActionResult<{
   variants: { code: string; name: string; time_multiplier: number; extra_minutes: number }[]
 }[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data: components, error } = await supabase
       .from('calc_components')

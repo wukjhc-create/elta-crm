@@ -18,7 +18,7 @@ import type {
   ProfitSimulationResult,
 } from '@/types/calculation-intelligence.types'
 import { CalculationIntelligenceEngine, detectAnomalies } from '@/lib/services/calculation-intelligence'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Auth Helper
@@ -29,8 +29,7 @@ import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 export async function getInstallationTypes(): Promise<ActionResult<InstallationType[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('installation_types')
@@ -55,8 +54,7 @@ export async function getInstallationTypes(): Promise<ActionResult<InstallationT
 
 export async function getRoomTemplates(): Promise<ActionResult<RoomTemplate[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_templates')
@@ -81,8 +79,7 @@ export async function getRoomTemplates(): Promise<ActionResult<RoomTemplate[]>> 
 
 export async function getComponentTimeData(): Promise<ActionResult<ComponentTimeIntelligence[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('component_time_intelligence')
@@ -108,10 +105,7 @@ export async function calculateProject(
   input: ProjectCalculationInput
 ): Promise<ActionResult<ProjectEstimate>> {
   try {
-    await requireAuth()
-
-    // Load reference data
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const [installTypesResult, roomTemplatesResult, componentTimeResult] = await Promise.all([
       supabase.from('installation_types').select('*').eq('is_active', true),
@@ -147,8 +141,7 @@ export async function saveRoomCalculation(
   input: CreateRoomCalculationInput & { total_time_seconds: number; total_material_cost: number; total_cable_meters: number; total_labor_cost: number; total_cost: number; component_breakdown: unknown[] }
 ): Promise<ActionResult<RoomCalculation>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_calculations')
@@ -189,8 +182,7 @@ export async function getRoomCalculations(
   calculationId: string
 ): Promise<ActionResult<RoomCalculation[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('room_calculations')
@@ -211,8 +203,7 @@ export async function getRoomCalculations(
 
 export async function deleteRoomCalculation(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('room_calculations')
@@ -240,8 +231,7 @@ export async function runAnomalyDetection(
   marginPercentage: number
 ): Promise<ActionResult<CalculationAnomaly[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const anomalies = detectAnomalies({
       calculation_id: calculationId,
@@ -285,8 +275,7 @@ export async function getCalculationAnomalies(
   calculationId: string
 ): Promise<ActionResult<CalculationAnomaly[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculation_anomalies')
@@ -310,8 +299,7 @@ export async function resolveAnomaly(
   notes: string
 ): Promise<ActionResult> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('calculation_anomalies')
@@ -342,8 +330,7 @@ export async function getSystemAlerts(
   filters?: { is_read?: boolean; alert_type?: string; limit?: number }
 ): Promise<ActionResult<SystemAlert[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('system_alerts')
@@ -374,8 +361,7 @@ export async function getSystemAlerts(
 
 export async function markAlertRead(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('system_alerts')
@@ -391,8 +377,7 @@ export async function markAlertRead(id: string): Promise<ActionResult> {
 
 export async function dismissAlert(id: string): Promise<ActionResult> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('system_alerts')
@@ -441,8 +426,7 @@ export async function getOfferTextTemplates(
   type?: string
 ): Promise<ActionResult<OfferTextTemplate[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('offer_text_templates')
@@ -520,8 +504,7 @@ export async function generateOfferFromCalculation(
   upsell_suggestions: Array<{ title: string; description: string; estimated_cost: number }>
 }>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get calculation with rows
     const { data: calculation, error: calcError } = await supabase
@@ -604,8 +587,7 @@ export async function convertCalculationToOffer(
   }
 ): Promise<ActionResult<{ offer_id: string }>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Generate offer data
     const genResult = await generateOfferFromCalculation(calculationId, {

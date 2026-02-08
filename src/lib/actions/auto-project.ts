@@ -7,7 +7,6 @@
  * Handles database storage and retrieval of analyses.
  */
 
-import { createClient } from '@/lib/supabase/server'
 import { analyzeProject, quickAnalyze } from '@/lib/ai/autoProjectEngine'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -19,7 +18,7 @@ import type {
   OfferTextTemplate,
   CalculationFeedback,
 } from '@/types/auto-project.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Types
@@ -70,7 +69,7 @@ export async function analyzeProjectDescription(
   input: AnalyzeProjectInput
 ): Promise<ActionResult<AnalyzeProjectOutput & { id: string; warnings: string[] }>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Run the analysis
     const result = await analyzeProject(
@@ -84,8 +83,6 @@ export async function analyzeProjectDescription(
     if (!result.success || !result.data) {
       return { success: false, error: result.error || 'Analyse fejlede' }
     }
-
-    const supabase = await createClient()
 
     // Save interpretation to database
     const { data: savedInterpretation, error: interpError } = await supabase
@@ -228,9 +225,7 @@ export async function quickAnalyzeProject(
  */
 export async function getAnalysis(id: string): Promise<ActionResult<SavedAnalysis>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get interpretation
     const { data: interpretation, error: interpError } = await supabase
@@ -397,9 +392,7 @@ export async function listAnalyses(
   options?: { limit?: number }
 ): Promise<ActionResult<{ id: string; description: string; total_price: number; created_at: string }[]>> {
   try {
-    const userId = await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
     const limit = options?.limit || 20
 
     const { data, error } = await supabase
@@ -442,9 +435,7 @@ export async function listAnalyses(
  */
 export async function getOfferTemplates(): Promise<ActionResult<OfferTextTemplate[]>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('offer_text_templates')
@@ -490,9 +481,7 @@ export async function recordCalculationFeedback(
   feedback: Partial<CalculationFeedback>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculation_feedback')
@@ -537,7 +526,7 @@ export async function createOfferFromAnalysis(
   customerId: string
 ): Promise<ActionResult<{ offer_id: string }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get the analysis
     const analysisResult = await getAnalysis(analysisId)
@@ -546,7 +535,6 @@ export async function createOfferFromAnalysis(
     }
 
     const { calculation, offer_text } = analysisResult.data
-    const supabase = await createClient()
 
     // Create offer
     const { data: offer, error: offerError } = await supabase

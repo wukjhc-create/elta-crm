@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -10,7 +9,7 @@ import type {
   SyncType,
   ScheduleRunStatus,
 } from '@/types/suppliers.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // Sync Schedule CRUD
 // =====================================================
@@ -22,10 +21,8 @@ export async function getSupplierSyncSchedules(
   supplierId: string
 ): Promise<ActionResult<SupplierSyncSchedule[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_sync_schedules')
@@ -51,10 +48,8 @@ export async function createSyncSchedule(
   data: CreateSyncScheduleData
 ): Promise<ActionResult<SupplierSyncSchedule>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(data.supplier_id, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Calculate next run time
     const nextRunAt = calculateNextRun(data.cron_expression)
@@ -114,10 +109,8 @@ export async function updateSyncSchedule(
   }>
 ): Promise<ActionResult<SupplierSyncSchedule>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'plan ID')
-
-    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = {}
 
@@ -162,10 +155,8 @@ export async function updateSyncSchedule(
  */
 export async function deleteSyncSchedule(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'plan ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('supplier_sync_schedules')
@@ -190,10 +181,8 @@ export async function deleteSyncSchedule(id: string): Promise<ActionResult> {
  */
 export async function toggleSyncSchedule(id: string): Promise<ActionResult<SupplierSyncSchedule>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'plan ID')
-
-    const supabase = await createClient()
 
     // Get current state
     const { data: current, error: fetchError } = await supabase
@@ -241,10 +230,8 @@ export async function toggleSyncSchedule(id: string): Promise<ActionResult<Suppl
  */
 export async function runSyncNow(scheduleId: string): Promise<ActionResult<{ message: string }>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(scheduleId, 'plan ID')
-
-    const supabase = await createClient()
 
     // Get schedule info
     const { data: schedule, error: scheduleError } = await supabase
@@ -306,10 +293,8 @@ export async function getSyncHistory(
   error_message: string | null
 }>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_sync_logs')

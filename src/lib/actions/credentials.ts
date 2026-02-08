@@ -1,11 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import { encryptCredentials, decryptCredentials, isEncryptionConfigured, maskSensitive } from '@/lib/utils/encryption'
 import type { ActionResult } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Types
@@ -58,10 +57,8 @@ export async function getSupplierCredentials(
   supplierId: string
 ): Promise<ActionResult<SupplierCredential[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_credentials')
@@ -115,7 +112,7 @@ export async function createSupplierCredential(
   data: CreateCredentialData
 ): Promise<ActionResult<SupplierCredential>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(data.supplier_id, 'leverandør ID')
 
     if (!isEncryptionConfigured()) {
@@ -124,8 +121,6 @@ export async function createSupplierCredential(
 
     // Encrypt credentials
     const encryptedCredentials = await encryptCredentials(data.credentials as Record<string, unknown>)
-
-    const supabase = await createClient()
 
     const { data: result, error } = await supabase
       .from('supplier_credentials')
@@ -186,10 +181,8 @@ export async function updateSupplierCredential(
   }
 ): Promise<ActionResult<SupplierCredential>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'credential ID')
-
-    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = {}
 
@@ -256,10 +249,8 @@ export async function updateSupplierCredential(
 
 export async function deleteSupplierCredential(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'credential ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('supplier_credentials')
@@ -287,14 +278,12 @@ export async function getDecryptedCredentials(
   credentialType: CredentialType = 'api'
 ): Promise<ActionResult<CredentialInput & { api_endpoint?: string }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 
     if (!isEncryptionConfigured()) {
       return { success: false, error: 'Krypteringsnøgle er ikke konfigureret' }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_credentials')
@@ -333,10 +322,8 @@ export async function testSupplierConnection(
   credentialId: string
 ): Promise<ActionResult<{ status: TestStatus; message: string }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(credentialId, 'credential ID')
-
-    const supabase = await createClient()
 
     // Get credential info
     const { data: credential, error: fetchError } = await supabase
@@ -476,14 +463,12 @@ export async function getMaskedCredentials(
   credentialId: string
 ): Promise<ActionResult<Record<string, string>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(credentialId, 'credential ID')
 
     if (!isEncryptionConfigured()) {
       return { success: false, error: 'Krypteringsnøgle er ikke konfigureret' }
     }
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_credentials')

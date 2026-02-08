@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -9,7 +8,7 @@ import type {
   CreateMarginRuleData,
   MarginRuleType,
 } from '@/types/suppliers.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // Margin Rules CRUD
 // =====================================================
@@ -21,10 +20,8 @@ export async function getSupplierMarginRules(
   supplierId: string
 ): Promise<ActionResult<SupplierMarginRule[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_margin_rules')
@@ -51,7 +48,7 @@ export async function createMarginRule(
   data: CreateMarginRuleData
 ): Promise<ActionResult<SupplierMarginRule>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(data.supplier_id, 'leverandør ID')
 
     // Validate optional IDs
@@ -75,8 +72,6 @@ export async function createMarginRule(
     if (data.rule_type === 'customer' && !data.customer_id) {
       return { success: false, error: 'Kunde er påkrævet for kunde-regler' }
     }
-
-    const supabase = await createClient()
 
     const { data: result, error } = await supabase
       .from('supplier_margin_rules')
@@ -134,10 +129,8 @@ export async function updateMarginRule(
   }>
 ): Promise<ActionResult<SupplierMarginRule>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'regel ID')
-
-    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = {}
 
@@ -180,10 +173,8 @@ export async function updateMarginRule(
  */
 export async function deleteMarginRule(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'regel ID')
-
-    const supabase = await createClient()
 
     const { error } = await supabase
       .from('supplier_margin_rules')
@@ -208,10 +199,8 @@ export async function deleteMarginRule(id: string): Promise<ActionResult> {
  */
 export async function toggleMarginRule(id: string): Promise<ActionResult<SupplierMarginRule>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'regel ID')
-
-    const supabase = await createClient()
 
     // Get current state
     const { data: current, error: fetchError } = await supabase
@@ -269,10 +258,8 @@ export async function getEffectiveMargin(
   rule_id: string
 } | null>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Call the database function
     const { data, error } = await supabase.rpc('get_effective_margin', {
@@ -323,10 +310,8 @@ export async function calculateSalePrice(
   }
 ): Promise<ActionResult<number>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Call the database function
     const { data, error } = await supabase.rpc('calculate_sale_price', {
@@ -366,10 +351,8 @@ export async function setDefaultSupplierMargin(
   }
 ): Promise<ActionResult<SupplierMarginRule>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Check if supplier-level rule exists
     const { data: existing } = await supabase
@@ -441,10 +424,8 @@ export async function getMarginRuleSummary(
   rulesByType: Record<MarginRuleType, number>
 }>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('supplier_margin_rules')

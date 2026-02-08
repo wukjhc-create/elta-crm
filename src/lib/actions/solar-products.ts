@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import { validateUUID } from '@/lib/validations/common'
@@ -21,7 +20,7 @@ import {
   isBatterySpecs,
   isMountingSpecs,
 } from '@/types/solar-products.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // Read Operations
 // =====================================================
@@ -33,8 +32,7 @@ export async function getSolarProducts(
   type?: SolarProductType
 ): Promise<ActionResult<SolarProduct[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('solar_products')
@@ -65,10 +63,9 @@ export async function getSolarProducts(
  */
 export async function getSolarProduct(id: string): Promise<ActionResult<SolarProduct>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
 
-    const supabase = await createClient()
     const { data, error } = await supabase
       .from('solar_products')
       .select('*')
@@ -94,13 +91,12 @@ export async function getSolarProduct(id: string): Promise<ActionResult<SolarPro
  */
 export async function getSolarProductByCode(code: string): Promise<ActionResult<SolarProduct>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     if (!code || typeof code !== 'string') {
       return { success: false, error: 'Ugyldig produktkode' }
     }
 
-    const supabase = await createClient()
     const { data, error } = await supabase
       .from('solar_products')
       .select('*')
@@ -127,8 +123,7 @@ export async function getSolarProductByCode(code: string): Promise<ActionResult<
  */
 export async function getSolarProductsByType(): Promise<ActionResult<SolarProductsByType>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('solar_products')
@@ -181,7 +176,7 @@ export async function createSolarProduct(
   input: CreateSolarProductInput
 ): Promise<ActionResult<SolarProduct>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Validate required fields
     if (!input.code || !input.name || !input.product_type) {
@@ -193,7 +188,6 @@ export async function createSolarProduct(
       return { success: false, error: 'Produktkode må kun indeholde store bogstaver, tal og bindestreger' }
     }
 
-    const supabase = await createClient()
     const { data, error } = await supabase
       .from('solar_products')
       .insert({
@@ -234,10 +228,9 @@ export async function updateSolarProduct(
   input: UpdateSolarProductInput
 ): Promise<ActionResult<SolarProduct>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
 
-    const supabase = await createClient()
     const { data, error } = await supabase
       .from('solar_products')
       .update({
@@ -274,10 +267,9 @@ export async function updateSolarProduct(
  */
 export async function deleteSolarProduct(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
 
-    const supabase = await createClient()
     const { error } = await supabase
       .from('solar_products')
       .update({ is_active: false })
@@ -306,8 +298,7 @@ export async function deleteSolarProduct(id: string): Promise<ActionResult<void>
  */
 export async function getSolarAssumptions(): Promise<ActionResult<SolarAssumptions>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculation_settings')
@@ -378,7 +369,7 @@ export async function updateSolarAssumption(
   value: number
 ): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     // Validate key
     const validKeys = [
@@ -404,7 +395,6 @@ export async function updateSolarAssumption(
       return { success: false, error: 'Værdien skal være et tal' }
     }
 
-    const supabase = await createClient()
 
     // Get existing setting to preserve label and unit
     const { data: existing } = await supabase
@@ -445,7 +435,7 @@ export async function updateSolarAssumptions(
   updates: Partial<SolarAssumptions>
 ): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
+    await getAuthenticatedClient()
 
     const keyMap: Record<keyof SolarAssumptions, string> = {
       annualSunHours: 'solar_annual_sun_hours',

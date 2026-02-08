@@ -6,7 +6,6 @@
  * Actions for the self-improving calculation system.
  */
 
-import { createClient } from '@/lib/supabase/server'
 import {
   analyzeLearningMetrics,
   analyzeComponentCalibration,
@@ -189,9 +188,7 @@ export async function recordProjectFeedback(
   }
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get estimated values from calculation
     const { data: calc } = await supabase
@@ -267,9 +264,7 @@ export async function getAccuracyTrends(
   }>
 > {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Determine date range
     const now = new Date()

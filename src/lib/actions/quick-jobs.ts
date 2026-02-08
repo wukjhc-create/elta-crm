@@ -1,10 +1,9 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { QuickJob, CalibrationPreset } from '@/types/quick-jobs.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -18,8 +17,7 @@ export async function getQuickJobs(options?: {
   featured_only?: boolean
 }): Promise<ActionResult<QuickJob[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('quick_jobs')
@@ -50,8 +48,7 @@ export async function getQuickJobs(options?: {
 
 export async function getQuickJob(id: string): Promise<ActionResult<QuickJob>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('quick_jobs')
@@ -75,8 +72,7 @@ export async function getQuickJob(id: string): Promise<ActionResult<QuickJob>> {
 
 export async function incrementQuickJobUsage(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase.rpc('increment_quick_job_usage', { job_id: id })
 
@@ -102,8 +98,7 @@ export async function incrementQuickJobUsage(id: string): Promise<ActionResult<v
 
 export async function getCalibrationPresets(): Promise<ActionResult<CalibrationPreset[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calibration_presets')
@@ -126,8 +121,7 @@ export async function getCalibrationPresets(): Promise<ActionResult<CalibrationP
 
 export async function getCalibrationPreset(id: string): Promise<ActionResult<CalibrationPreset>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calibration_presets')
@@ -151,8 +145,7 @@ export async function getCalibrationPreset(id: string): Promise<ActionResult<Cal
 
 export async function getDefaultCalibrationPreset(): Promise<ActionResult<CalibrationPreset | null>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calibration_presets')
@@ -185,8 +178,7 @@ export async function createCalibrationPreset(input: {
   default_building_profile_id?: string
 }): Promise<ActionResult<CalibrationPreset>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Generate unique code
     const code = `CAL-${Date.now().toString(36).toUpperCase()}`
@@ -233,8 +225,7 @@ export async function updateCalibrationPreset(
   }>
 ): Promise<ActionResult<CalibrationPreset>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calibration_presets')
@@ -260,8 +251,7 @@ export async function updateCalibrationPreset(
 
 export async function deleteCalibrationPreset(id: string): Promise<ActionResult<void>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('calibration_presets')

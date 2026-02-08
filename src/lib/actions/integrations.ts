@@ -22,7 +22,7 @@ import type {
   WebhookOfferData,
   WebhookProjectData,
 } from '@/types/integrations.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // HELPERS
@@ -33,8 +33,7 @@ import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('integrations')
@@ -51,8 +50,7 @@ export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
 
 export async function getIntegration(id: string): Promise<ActionResult<IntegrationWithRelations>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('integrations')
@@ -82,8 +80,7 @@ export async function createIntegration(
   input: CreateIntegrationInput
 ): Promise<ActionResult<Integration>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('integrations')
@@ -107,8 +104,7 @@ export async function updateIntegration(
   input: UpdateIntegrationInput
 ): Promise<ActionResult<Integration>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
 
@@ -130,8 +126,7 @@ export async function updateIntegration(
 
 export async function deleteIntegration(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('integrations')
@@ -152,8 +147,7 @@ export async function toggleIntegration(
   isActive: boolean
 ): Promise<ActionResult<Integration>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('integrations')
@@ -177,8 +171,7 @@ export async function toggleIntegration(
 
 export async function getWebhooks(integrationId: string): Promise<ActionResult<IntegrationWebhook[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('integration_webhooks')
@@ -198,8 +191,7 @@ export async function createWebhook(
   input: CreateWebhookInput
 ): Promise<ActionResult<IntegrationWebhook>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('integration_webhooks')
@@ -220,8 +212,7 @@ export async function updateWebhook(
   input: UpdateWebhookInput
 ): Promise<ActionResult<IntegrationWebhook>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
 
@@ -243,8 +234,7 @@ export async function updateWebhook(
 
 export async function deleteWebhook(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('integration_webhooks')
@@ -266,8 +256,7 @@ export async function deleteWebhook(id: string): Promise<ActionResult> {
 
 export async function getEndpoints(integrationId: string): Promise<ActionResult<IntegrationEndpoint[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('integration_endpoints')
@@ -287,8 +276,7 @@ export async function createEndpoint(
   input: CreateEndpointInput
 ): Promise<ActionResult<IntegrationEndpoint>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('integration_endpoints')
@@ -309,8 +297,7 @@ export async function updateEndpoint(
   input: UpdateEndpointInput
 ): Promise<ActionResult<IntegrationEndpoint>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
 
@@ -332,8 +319,7 @@ export async function updateEndpoint(
 
 export async function deleteEndpoint(id: string): Promise<ActionResult> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('integration_endpoints')
@@ -362,8 +348,7 @@ export async function getIntegrationLogs(
   }
 ): Promise<ActionResult<IntegrationLogWithRelations[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('integration_logs')
@@ -408,8 +393,7 @@ export async function getExternalReferences(
   entityId: string
 ): Promise<ActionResult<ExternalReference[]>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('external_references')
@@ -677,8 +661,7 @@ export async function exportOfferToIntegration(
   integrationId: string
 ): Promise<ActionResult<{ externalId?: string }>> {
   try {
-    const userId = await requireAuth()
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Get integration
     const { data: integration, error: intError } = await supabase
@@ -803,8 +786,7 @@ export async function testIntegrationConnection(
   integrationId: string
 ): Promise<ActionResult<{ status: number; message: string }>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data: integration, error } = await supabase
       .from('integrations')

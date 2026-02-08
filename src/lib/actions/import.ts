@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import { ImportEngine, decodeFileContent, detectColumnMappings, createImportResult, calculatePriceChange } from '@/lib/services/import-engine'
 import { AOImporter, AO_DEFAULT_CONFIG, AO_COLUMN_MAPPINGS } from '@/lib/services/importers/ao-importer'
@@ -18,7 +17,7 @@ import type {
   PriceChange,
   ColumnMappings,
 } from '@/types/suppliers.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 /**
  * Get importer config based on supplier code
  */
@@ -43,10 +42,8 @@ export async function previewImport(
   customMappings?: ColumnMappings
 ): Promise<ActionResult<ImportPreview>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Get supplier info and settings
     const { data: supplier, error: supplierError } = await supabase
@@ -176,10 +173,8 @@ export async function executeImport(
   options: { dryRun?: boolean; customMappings?: ColumnMappings }
 ): Promise<ActionResult<ImportResult>> {
   try {
-    const userId = await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
-
-    const supabase = await createClient()
 
     // Get supplier info and settings
     const { data: supplier, error: supplierError } = await supabase
@@ -458,8 +453,7 @@ export async function getImportBatches(
   filters?: ImportBatchFilters
 ): Promise<ActionResult<PaginatedResponse<ImportBatchSummary>>> {
   try {
-    await requireAuth()
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
@@ -532,10 +526,8 @@ export async function getImportBatch(
   batchId: string
 ): Promise<ActionResult<ImportBatchSummary>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(batchId, 'batch ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('v_import_batches_summary')
@@ -565,10 +557,8 @@ export async function retryImport(
   batchId: string
 ): Promise<ActionResult<ImportResult>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(batchId, 'batch ID')
-
-    const supabase = await createClient()
 
     // Get original batch info
     const { data: batch, error } = await supabase
@@ -604,10 +594,8 @@ export async function getPriceChangesFromImport(
   batchId: string
 ): Promise<ActionResult<PriceChange[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(batchId, 'batch ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('price_history')
