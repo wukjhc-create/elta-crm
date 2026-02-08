@@ -12,6 +12,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { revalidatePath } from 'next/cache'
 import { sendEmail } from '@/lib/email/email-service'
 import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
@@ -173,18 +174,13 @@ export async function createEmailTemplate(
   input: EmailTemplateCreate
 ): Promise<{ success: boolean; data?: EmailTemplate; error?: string }> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('email_templates')
       .insert({
         ...input,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
@@ -349,18 +345,13 @@ export async function createEmailThread(
   input: EmailThreadCreate
 ): Promise<{ success: boolean; data?: EmailThread; error?: string }> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('email_threads')
       .insert({
         ...input,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
@@ -411,12 +402,7 @@ export async function createEmailMessage(
   input: EmailMessageCreate
 ): Promise<{ success: boolean; data?: EmailMessage; error?: string }> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const trackingId = generateTrackingId()
 
@@ -425,7 +411,7 @@ export async function createEmailMessage(
       .insert({
         ...input,
         tracking_id: trackingId,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
@@ -619,12 +605,7 @@ export async function sendOfferEmail(
   input: SendOfferEmailInput
 ): Promise<SendOfferEmailResult> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase } = await getAuthenticatedClient()
 
     // Get offer with customer
     const { data: offer, error: offerError } = await supabase

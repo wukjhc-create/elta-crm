@@ -11,6 +11,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { revalidatePath } from 'next/cache'
 import { parseProjectDescription, getKeywordCategories } from '@/lib/engines/project-intake'
 import { analyzeProjectRisks, quickRiskCheck, getOfferObsPoints, getRecommendedMargin } from '@/lib/engines/risk-engine'
@@ -57,18 +58,13 @@ export async function saveProjectContext(
   context: ProjectContextCreate
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('project_contexts')
       .insert({
         ...context,
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single()
@@ -242,18 +238,13 @@ export async function acknowledgeRisk(
   notes?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('risk_assessments')
       .update({
         is_acknowledged: true,
-        acknowledged_by: user.id,
+        acknowledged_by: userId,
         acknowledged_at: new Date().toISOString(),
         resolution_notes: notes,
       })
@@ -312,12 +303,7 @@ export async function generateAndSaveOfferContent(
   context: OfferTextContext
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Fetch templates
     const { data: templates, error: templateError } = await supabase
@@ -340,7 +326,7 @@ export async function generateAndSaveOfferContent(
         generation_type: 'full',
         generated_content: content,
         templates_used: templates?.map(t => t.id) || [],
-        created_by: user.id,
+        created_by: userId,
       })
 
     if (logError) {
@@ -407,12 +393,7 @@ export async function savePriceExplanation(
   format: 'simple' | 'detailed' | 'itemized' = 'detailed'
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('price_explanations')
@@ -424,7 +405,7 @@ export async function savePriceExplanation(
         sections: result.sections,
         breakdown_data: result.breakdown,
         generated_at: new Date().toISOString(),
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single()
@@ -482,12 +463,7 @@ export async function createCalculationSnapshot(
   reason?: string
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'Ikke autoriseret' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Get version number
     let version = 1
@@ -531,7 +507,7 @@ export async function createCalculationSnapshot(
         effective_hourly_rate: effectiveRate,
         component_count: data.items.length,
         risk_level: riskLevel,
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single()

@@ -12,8 +12,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { EmailStatusBadge } from './EmailStatusBadge'
-import { getEmailThreads, getEmailMessages } from '@/lib/actions/email'
+import { getEmailThreads, getEmailMessages, resendEmail } from '@/lib/actions/email'
 import type { EmailThreadWithRelations, EmailMessage } from '@/types/email.types'
+import { useToast } from '@/components/ui/toast'
 import {
   Mail,
   Send,
@@ -25,7 +26,7 @@ import {
   MousePointer,
   RefreshCw,
   Loader2,
-  ExternalLink,
+  RotateCcw,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { da } from 'date-fns/locale'
@@ -53,12 +54,17 @@ function EmailMessageCard({
   message,
   isExpanded,
   onToggle,
+  onResend,
+  isResending,
 }: {
   message: EmailMessage
   isExpanded: boolean
   onToggle: () => void
+  onResend: (messageId: string) => void
+  isResending: boolean
 }) {
   const isOutbound = message.direction === 'outbound'
+  const canResend = isOutbound && ['sent', 'delivered', 'failed', 'bounced'].includes(message.status)
 
   return (
     <div className={`relative pl-6 pb-4 ${isOutbound ? '' : 'bg-blue-50/50 -mx-4 px-4 py-2 rounded-lg'}`}>
@@ -138,6 +144,25 @@ function EmailMessageCard({
                 Fejl: {message.error_message}
               </div>
             )}
+
+            {/* Resend button */}
+            {canResend && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onResend(message.id)}
+                disabled={isResending}
+              >
+                {isResending ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                )}
+                {message.status === 'failed' || message.status === 'bounced'
+                  ? 'Send igen'
+                  : 'Gensend'}
+              </Button>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -146,9 +171,11 @@ function EmailMessageCard({
 }
 
 export function EmailTimeline({ offerId, onSendEmail }: EmailTimelineProps) {
+  const toast = useToast()
   const [threads, setThreads] = useState<EmailThreadWithRelations[]>([])
   const [messages, setMessages] = useState<EmailMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [resendingId, setResendingId] = useState<string | null>(null)
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
 
   const loadData = async () => {
@@ -195,6 +222,23 @@ export function EmailTimeline({ offerId, onSendEmail }: EmailTimelineProps) {
       }
       return next
     })
+  }
+
+  const handleResend = async (messageId: string) => {
+    setResendingId(messageId)
+    try {
+      const result = await resendEmail(messageId)
+      if (result.success) {
+        toast.success('E-mail gensendt')
+        await loadData()
+      } else {
+        toast.error(result.error || 'Kunne ikke gensende e-mail')
+      }
+    } catch {
+      toast.error('Fejl ved gensendelse')
+    } finally {
+      setResendingId(null)
+    }
   }
 
   return (
@@ -250,6 +294,8 @@ export function EmailTimeline({ offerId, onSendEmail }: EmailTimelineProps) {
                 message={message}
                 isExpanded={expandedMessages.has(message.id)}
                 onToggle={() => toggleMessage(message.id)}
+                onResend={handleResend}
+                isResending={resendingId === message.id}
               />
             ))}
           </div>

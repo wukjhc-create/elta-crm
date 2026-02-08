@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { revalidatePath } from 'next/cache'
 import type {
   CreateTemplateInput,
@@ -35,15 +36,7 @@ export async function createTemplate(input: CreateTemplateInput): Promise<{
   error?: string
 }> {
   try {
-    const supabase = await createClient()
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculator_templates')
