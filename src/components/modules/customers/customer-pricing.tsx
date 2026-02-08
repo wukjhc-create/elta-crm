@@ -10,6 +10,8 @@ import {
   Percent,
   DollarSign,
   Building2,
+  Search,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
@@ -17,6 +19,7 @@ import {
   getCustomerSupplierPrices,
   upsertCustomerSupplierPrice,
   deleteCustomerSupplierPrice,
+  getBestPriceForCustomer,
 } from '@/lib/actions/customer-pricing'
 import { getSuppliersForSelect } from '@/lib/actions/products'
 import type { CustomerSupplierPrice, CreateCustomerSupplierPriceData } from '@/types/suppliers.types'
@@ -33,6 +36,22 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingAgreement, setEditingAgreement] = useState<CustomerSupplierPrice | null>(null)
+  const [priceLookupSku, setPriceLookupSku] = useState('')
+  const [isSearchingPrice, setIsSearchingPrice] = useState(false)
+  const [priceResults, setPriceResults] = useState<Array<{
+    supplier_product_id: string
+    supplier_id: string
+    supplier_name: string
+    supplier_code: string
+    base_cost_price: number
+    effective_cost_price: number
+    effective_sale_price: number
+    discount_percentage: number
+    is_preferred: boolean
+    is_available: boolean
+    price_source: string
+  }>>([])
+  const [priceSearchDone, setPriceSearchDone] = useState(false)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -60,6 +79,20 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
     } else {
       toast.error('Fejl', result.error)
     }
+  }
+
+  const handlePriceLookup = async () => {
+    if (!priceLookupSku.trim()) return
+    setIsSearchingPrice(true)
+    setPriceSearchDone(false)
+    const result = await getBestPriceForCustomer(customerId, priceLookupSku.trim())
+    if (result.success && result.data) {
+      setPriceResults(result.data)
+    } else {
+      setPriceResults([])
+    }
+    setPriceSearchDone(true)
+    setIsSearchingPrice(false)
   }
 
   const handleFormSuccess = () => {
@@ -179,6 +212,83 @@ export function CustomerPricing({ customerId, customerName }: CustomerPricingPro
           ))}
         </div>
       )}
+
+      {/* Price Lookup */}
+      <div className="mt-6 pt-6 border-t">
+        <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+          <Search className="w-4 h-4" />
+          Prisopslag
+        </h3>
+        <p className="text-xs text-gray-500 mb-2">
+          Søg på varenummer (SKU) for at finde bedste pris for denne kunde
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={priceLookupSku}
+            onChange={(e) => setPriceLookupSku(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handlePriceLookup()}
+            className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            placeholder="Indtast varenummer/SKU..."
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handlePriceLookup}
+            disabled={isSearchingPrice || !priceLookupSku.trim()}
+          >
+            {isSearchingPrice ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Search className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
+
+        {priceSearchDone && (
+          <div className="mt-3">
+            {priceResults.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-2">
+                Ingen priser fundet for &quot;{priceLookupSku}&quot;
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {priceResults.map((r, i) => (
+                  <div
+                    key={r.supplier_product_id}
+                    className={`border rounded-lg p-3 text-sm ${
+                      i === 0 ? 'border-green-300 bg-green-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{r.supplier_name}</span>
+                        {r.supplier_code && (
+                          <span className="text-gray-400 ml-1">({r.supplier_code})</span>
+                        )}
+                        {i === 0 && (
+                          <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
+                            Bedste pris
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold">
+                          {new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(r.effective_sale_price)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Kost: {new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(r.effective_cost_price)}
+                          {r.discount_percentage > 0 && ` (-${r.discount_percentage}%)`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
