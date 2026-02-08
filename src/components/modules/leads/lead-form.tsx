@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
 import { createLeadSchema, type CreateLeadInput } from '@/lib/validations/leads'
 import { createLead, updateLead, getTeamMembers } from '@/lib/actions/leads'
 import {
@@ -355,6 +355,7 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
               disabled={isLoading}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
             >
+              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
               {isLoading
                 ? 'Gemmer...'
                 : isEditing

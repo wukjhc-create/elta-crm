@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Copy } from 'lucide-react'
+import { X, Copy, Loader2 } from 'lucide-react'
 import { createCustomerSchema, type CreateCustomerInput } from '@/lib/validations/customers'
 import { createCustomer, updateCustomer } from '@/lib/actions/customers'
 import type { Customer } from '@/types/customers.types'
@@ -394,6 +394,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
               disabled={isLoading}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
             >
+              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />}
               {isLoading
                 ? 'Gemmer...'
                 : isEditing
