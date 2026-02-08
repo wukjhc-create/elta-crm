@@ -144,6 +144,26 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: '#f9fafb',
   },
+  // Section row (e.g., "Materialer", "Arbejdsløn")
+  tableSectionRow: {
+    flexDirection: 'row',
+    borderBottom: '1 solid #ddd',
+    padding: 8,
+    backgroundColor: '#e8f0fe',
+    marginTop: 4,
+  },
+  tableSectionText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#0066cc',
+  },
+  // Line item with notes
+  lineItemNotes: {
+    fontSize: 8,
+    color: '#888',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
   colPosition: {
     width: '5%',
   },
@@ -208,6 +228,44 @@ const styles = StyleSheet.create({
     color: '#0066cc',
     textAlign: 'right',
   },
+  // Scope/introduction section
+  scopeBox: {
+    backgroundColor: '#f0f7ff',
+    padding: 12,
+    borderRadius: 4,
+    borderLeft: '3 solid #0066cc',
+    marginBottom: 20,
+  },
+  scopeTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#0066cc',
+    marginBottom: 5,
+  },
+  scopeText: {
+    fontSize: 9,
+    color: '#444',
+    lineHeight: 1.5,
+  },
+  // Notes section
+  notesBox: {
+    backgroundColor: '#fffbeb',
+    padding: 12,
+    borderRadius: 4,
+    borderLeft: '3 solid #f59e0b',
+    marginBottom: 20,
+  },
+  notesTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#92400e',
+    marginBottom: 5,
+  },
+  notesText: {
+    fontSize: 9,
+    color: '#78350f',
+    lineHeight: 1.5,
+  },
   termsSection: {
     marginTop: 20,
     paddingTop: 15,
@@ -234,6 +292,13 @@ const styles = StyleSheet.create({
     paddingTop: 15,
   },
   footerText: {
+    fontSize: 8,
+    color: '#999',
+  },
+  pageNumber: {
+    position: 'absolute',
+    bottom: 15,
+    right: 40,
     fontSize: 8,
     color: '#999',
   },
@@ -265,6 +330,14 @@ interface OfferPdfProps {
 
 export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
   const lineItems = offer.line_items || []
+
+  // Separate section headers from regular items
+  const hasSections = lineItems.some(
+    (item: OfferLineItem) => item.line_type === 'section'
+  )
+
+  // Track row index for alternating colors (reset per section)
+  let rowIdx = 0
 
   return (
     <Document>
@@ -327,9 +400,20 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
         <View style={styles.section}>
           <Text style={styles.offerTitle}>{offer.title}</Text>
           {offer.description && (
-            <Text style={styles.offerDescription}>{offer.description}</Text>
+            <View style={styles.scopeBox}>
+              <Text style={styles.scopeTitle}>Omfang</Text>
+              <Text style={styles.scopeText}>{offer.description}</Text>
+            </View>
           )}
         </View>
+
+        {/* Notes / OBS Points */}
+        {offer.notes && (
+          <View style={styles.notesBox}>
+            <Text style={styles.notesTitle}>OBS / Bemærkninger</Text>
+            <Text style={styles.notesText}>{offer.notes}</Text>
+          </View>
+        )}
 
         {/* Line Items Table */}
         {lineItems.length > 0 && (
@@ -344,24 +428,45 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
             </View>
 
             {/* Table Rows */}
-            {lineItems.map((item: OfferLineItem, index: number) => (
-              <View
-                key={item.id}
-                style={index % 2 === 0 ? styles.tableRow : styles.tableRowAlt}
-              >
-                <Text style={styles.colPosition}>{item.position}</Text>
-                <Text style={styles.colDescription}>{item.description}</Text>
-                <Text style={styles.colQuantity}>
-                  {item.quantity} {item.unit}
-                </Text>
-                <Text style={styles.colUnitPrice}>
-                  {formatCurrency(item.unit_price, offer.currency)}
-                </Text>
-                <Text style={styles.colTotal}>
-                  {formatCurrency(item.total, offer.currency)}
-                </Text>
-              </View>
-            ))}
+            {lineItems.map((item: OfferLineItem) => {
+              // Section header row
+              if (item.line_type === 'section') {
+                rowIdx = 0
+                return (
+                  <View key={item.id} style={styles.tableSectionRow}>
+                    <Text style={styles.tableSectionText}>{item.description}</Text>
+                  </View>
+                )
+              }
+
+              // Regular item row
+              const isAlt = rowIdx % 2 !== 0
+              rowIdx++
+
+              return (
+                <View
+                  key={item.id}
+                  style={isAlt ? styles.tableRowAlt : styles.tableRow}
+                >
+                  <Text style={styles.colPosition}>{item.position}</Text>
+                  <View style={styles.colDescription}>
+                    <Text>{item.description}</Text>
+                    {item.notes && (
+                      <Text style={styles.lineItemNotes}>{item.notes}</Text>
+                    )}
+                  </View>
+                  <Text style={styles.colQuantity}>
+                    {item.quantity} {item.unit}
+                  </Text>
+                  <Text style={styles.colUnitPrice}>
+                    {formatCurrency(item.unit_price, offer.currency)}
+                  </Text>
+                  <Text style={styles.colTotal}>
+                    {formatCurrency(item.total, offer.currency)}
+                  </Text>
+                </View>
+              )
+            })}
           </View>
         )}
 
@@ -417,6 +522,13 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
             {companySettings.company_email && ` | ${companySettings.company_email}`}
           </Text>
         </View>
+
+        {/* Page Number */}
+        <Text
+          style={styles.pageNumber}
+          render={({ pageNumber, totalPages }) => `Side ${pageNumber} af ${totalPages}`}
+          fixed
+        />
       </Page>
     </Document>
   )
