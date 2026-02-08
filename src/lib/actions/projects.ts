@@ -714,7 +714,6 @@ export async function createProjectFromOffer(
       : 'DKK'
 
     // Get a system user ID (for auto-created projects)
-    // Try to get the first admin user, or fall back to any user
     const { data: adminUser } = await supabase
       .from('profiles')
       .select('id')
@@ -730,13 +729,34 @@ export async function createProjectFromOffer(
       return { success: false, error: 'Ingen bruger fundet til projektoprettelse' }
     }
 
+    // Load offer line items to build detailed description and tasks
+    const { data: lineItems } = await supabase
+      .from('offer_line_items')
+      .select('description, quantity, unit, unit_price, total, cost_price, section')
+      .eq('offer_id', offerId)
+      .order('position', { ascending: true })
+
+    // Build a detailed description from line items
+    const lineItemSummary = lineItems && lineItems.length > 0
+      ? lineItems
+          .filter(li => li.total > 0)
+          .map(li => `- ${li.description}: ${li.quantity} ${li.unit} × ${li.unit_price?.toLocaleString('da-DK')} ${currency} = ${li.total?.toLocaleString('da-DK')} ${currency}`)
+          .join('\n')
+      : null
+
+    const description = [
+      `Projekt oprettet automatisk fra tilbud.`,
+      `Tilbudsbeløb: ${offerFinalAmount.toLocaleString('da-DK')} ${currency}`,
+      lineItemSummary ? `\nTilbudslinjer:\n${lineItemSummary}` : '',
+    ].filter(Boolean).join('\n')
+
     // Create project
     const { data, error } = await supabase
       .from('projects')
       .insert({
         project_number: projectNumber,
         name: offerTitle,
-        description: `Projekt oprettet automatisk fra tilbud. Tilbudsbeløb: ${offerFinalAmount.toLocaleString('da-DK')} ${currency}`,
+        description,
         status: 'planning',
         priority: 'medium',
         customer_id: customerId,
@@ -750,6 +770,32 @@ export async function createProjectFromOffer(
     if (error) {
       console.error('Error creating project from offer:', error)
       return { success: false, error: 'Kunne ikke oprette projekt' }
+    }
+
+    // Create project tasks from non-section line items
+    if (lineItems && lineItems.length > 0) {
+      const tasks = lineItems
+        .filter(li => li.total > 0 && li.description)
+        .map((li, index) => ({
+          project_id: data.id,
+          title: li.description,
+          description: `${li.quantity} ${li.unit} - Tilbudsbeløb: ${li.total?.toLocaleString('da-DK')} ${currency}`,
+          status: 'pending' as const,
+          priority: 'medium' as const,
+          position: index,
+          created_by: createdBy,
+        }))
+
+      if (tasks.length > 0) {
+        const { error: tasksError } = await supabase
+          .from('project_tasks')
+          .insert(tasks)
+
+        if (tasksError) {
+          console.error('Error creating project tasks from offer:', tasksError)
+          // Don't fail - project was created, tasks are supplementary
+        }
+      }
     }
 
     // Trigger webhooks for project.created
