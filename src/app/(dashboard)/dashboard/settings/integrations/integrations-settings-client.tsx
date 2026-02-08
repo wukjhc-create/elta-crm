@@ -54,21 +54,24 @@ import {
   createWebhook,
   updateWebhook,
   deleteWebhook,
+  getEndpoints,
+  createEndpoint,
+  updateEndpoint,
+  deleteEndpoint,
   getIntegrationLogs,
   testIntegrationConnection,
 } from '@/lib/actions/integrations'
-import type {
-  Integration,
-  IntegrationWithRelations,
-  IntegrationWebhook,
-  IntegrationLogWithRelations,
-  IntegrationType,
-  AuthType,
-  WebhookEventType,
-  INTEGRATION_TYPE_LABELS,
-  AUTH_TYPE_LABELS,
-  WEBHOOK_EVENT_LABELS,
-  LOG_TYPE_LABELS,
+import {
+  ENDPOINT_OPERATION_LABELS,
+  type Integration,
+  type IntegrationWithRelations,
+  type IntegrationWebhook,
+  type IntegrationEndpoint,
+  type IntegrationLogWithRelations,
+  type IntegrationType,
+  type AuthType,
+  type WebhookEventType,
+  type EndpointOperation,
 } from '@/types/integrations.types'
 
 // Labels
@@ -120,7 +123,9 @@ export function IntegrationsSettingsClient() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showWebhookDialog, setShowWebhookDialog] = useState(false)
+  const [showEndpointDialog, setShowEndpointDialog] = useState(false)
   const [editingWebhook, setEditingWebhook] = useState<IntegrationWebhook | null>(null)
+  const [editingEndpoint, setEditingEndpoint] = useState<IntegrationEndpoint | null>(null)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -138,6 +143,14 @@ export function IntegrationsSettingsClient() {
     url: '',
     event_type: 'offer.accepted' as WebhookEventType,
     http_method: 'POST',
+  })
+
+  const [endpointForm, setEndpointForm] = useState({
+    name: '',
+    endpoint_path: '',
+    http_method: 'POST',
+    operation: 'create_order' as EndpointOperation,
+    description: '',
   })
 
   const [isSaving, setIsSaving] = useState(false)
@@ -304,6 +317,58 @@ export function IntegrationsSettingsClient() {
     }
   }
 
+  const handleCreateEndpoint = async () => {
+    if (!selectedIntegration) return
+    setIsSaving(true)
+    const result = await createEndpoint({
+      integration_id: selectedIntegration.id,
+      ...endpointForm,
+    })
+    if (result.success) {
+      toast.success('Endpoint oprettet')
+      setShowEndpointDialog(false)
+      loadIntegrationDetails(selectedIntegration.id)
+      resetEndpointForm()
+    } else {
+      toast.error('Fejl', result.error)
+    }
+    setIsSaving(false)
+  }
+
+  const handleUpdateEndpoint = async () => {
+    if (!editingEndpoint) return
+    setIsSaving(true)
+    const result = await updateEndpoint({
+      id: editingEndpoint.id,
+      ...endpointForm,
+    })
+    if (result.success) {
+      toast.success('Endpoint opdateret')
+      setShowEndpointDialog(false)
+      setEditingEndpoint(null)
+      if (selectedIntegration) {
+        loadIntegrationDetails(selectedIntegration.id)
+      }
+      resetEndpointForm()
+    } else {
+      toast.error('Fejl', result.error)
+    }
+    setIsSaving(false)
+  }
+
+  const handleDeleteEndpoint = async (id: string) => {
+    if (!confirm('Er du sikker på at du vil slette dette endpoint?')) return
+    const result = await deleteEndpoint(id)
+    if (result.success) {
+      toast.success('Endpoint slettet')
+      if (selectedIntegration) {
+        loadIntegrationDetails(selectedIntegration.id)
+      }
+    } else {
+      toast.error('Fejl', result.error)
+    }
+  }
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -323,6 +388,28 @@ export function IntegrationsSettingsClient() {
       event_type: 'offer.accepted',
       http_method: 'POST',
     })
+  }
+
+  const resetEndpointForm = () => {
+    setEndpointForm({
+      name: '',
+      endpoint_path: '',
+      http_method: 'POST',
+      operation: 'create_order',
+      description: '',
+    })
+  }
+
+  const openEditEndpoint = (endpoint: IntegrationEndpoint) => {
+    setEditingEndpoint(endpoint)
+    setEndpointForm({
+      name: endpoint.name,
+      endpoint_path: endpoint.endpoint_path,
+      http_method: endpoint.http_method,
+      operation: endpoint.operation,
+      description: endpoint.description || '',
+    })
+    setShowEndpointDialog(true)
   }
 
   const openEditDialog = () => {
@@ -480,6 +567,10 @@ export function IntegrationsSettingsClient() {
                     <Webhook className="w-4 h-4 mr-2" />
                     Webhooks ({selectedIntegration.webhooks?.length || 0})
                   </TabsTrigger>
+                  <TabsTrigger value="endpoints">
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Endpoints ({selectedIntegration.endpoints?.length || 0})
+                  </TabsTrigger>
                   <TabsTrigger value="logs">
                     <Activity className="w-4 h-4 mr-2" />
                     Aktivitet
@@ -599,6 +690,68 @@ export function IntegrationsSettingsClient() {
                               size="sm"
                               className="text-red-600"
                               onClick={() => handleDeleteWebhook(webhook.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Endpoints Tab */}
+                <TabsContent value="endpoints" className="space-y-4 mt-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-gray-500">
+                      API endpoints til at sende data til det eksterne system
+                    </p>
+                    <Button size="sm" onClick={() => setShowEndpointDialog(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nyt endpoint
+                    </Button>
+                  </div>
+
+                  {!selectedIntegration.endpoints || selectedIntegration.endpoints.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Link2 className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                      <p>Ingen endpoints konfigureret</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedIntegration.endpoints.map((endpoint) => (
+                        <div
+                          key={endpoint.id}
+                          className="border rounded-lg p-3 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-2 h-2 rounded-full ${endpoint.is_active ? 'bg-green-500' : 'bg-gray-300'}`} />
+                            <div>
+                              <div className="font-medium text-sm">{endpoint.name}</div>
+                              <div className="text-xs text-gray-500 font-mono">
+                                {endpoint.http_method} {endpoint.endpoint_path}
+                              </div>
+                              {endpoint.description && (
+                                <div className="text-xs text-gray-400">{endpoint.description}</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {ENDPOINT_OPERATION_LABELS[endpoint.operation] || endpoint.operation}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditEndpoint(endpoint)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600"
+                              onClick={() => handleDeleteEndpoint(endpoint.id)}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -858,6 +1011,104 @@ export function IntegrationsSettingsClient() {
             <Button onClick={handleUpdateIntegration} disabled={isSaving}>
               {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Gem ændringer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Endpoint Dialog */}
+      <Dialog open={showEndpointDialog} onOpenChange={(open) => {
+        setShowEndpointDialog(open)
+        if (!open) {
+          setEditingEndpoint(null)
+          resetEndpointForm()
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingEndpoint ? 'Rediger Endpoint' : 'Nyt Endpoint'}</DialogTitle>
+            <DialogDescription>
+              Konfigurer API endpoint til eksternt system
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Navn *</Label>
+              <Input
+                value={endpointForm.name}
+                onChange={(e) => setEndpointForm({ ...endpointForm, name: e.target.value })}
+                placeholder="F.eks. Opret ordre"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Sti *</Label>
+              <Input
+                value={endpointForm.endpoint_path}
+                onChange={(e) => setEndpointForm({ ...endpointForm, endpoint_path: e.target.value })}
+                placeholder="/api/v1/orders"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>HTTP Metode</Label>
+                <Select
+                  value={endpointForm.http_method}
+                  onValueChange={(value) => setEndpointForm({ ...endpointForm, http_method: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GET">GET</SelectItem>
+                    <SelectItem value="POST">POST</SelectItem>
+                    <SelectItem value="PUT">PUT</SelectItem>
+                    <SelectItem value="PATCH">PATCH</SelectItem>
+                    <SelectItem value="DELETE">DELETE</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Operation</Label>
+                <Select
+                  value={endpointForm.operation}
+                  onValueChange={(value) => setEndpointForm({ ...endpointForm, operation: value as EndpointOperation })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(ENDPOINT_OPERATION_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Beskrivelse</Label>
+              <Textarea
+                value={endpointForm.description}
+                onChange={(e) => setEndpointForm({ ...endpointForm, description: e.target.value })}
+                placeholder="Valgfri beskrivelse..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEndpointDialog(false)}>
+              Annuller
+            </Button>
+            <Button
+              onClick={editingEndpoint ? handleUpdateEndpoint : handleCreateEndpoint}
+              disabled={isSaving || !endpointForm.name || !endpointForm.endpoint_path}
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {editingEndpoint ? 'Gem ændringer' : 'Opret endpoint'}
             </Button>
           </DialogFooter>
         </DialogContent>
