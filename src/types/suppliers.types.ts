@@ -337,8 +337,10 @@ export const LM_IMPORT_CONFIG: Omit<ImportConfig, 'supplier_id'> = {
 export interface SupplierFilters {
   search?: string
   is_active?: boolean
-  sortBy?: 'name' | 'code' | 'created_at'
+  sortBy?: string
   sortOrder?: 'asc' | 'desc'
+  page?: number
+  pageSize?: number
 }
 
 export interface SupplierProductFilters {

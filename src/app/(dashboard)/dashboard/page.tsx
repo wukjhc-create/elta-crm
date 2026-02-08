@@ -25,6 +25,7 @@ import {
   PendingOffers,
   QuickActions,
   SystemAlertsWidget,
+  PriceAlertsWidget,
 } from '@/components/modules/dashboard'
 
 export default async function DashboardPage() {
@@ -142,10 +143,16 @@ export default async function DashboardPage() {
         <QuickActions companySettings={companySettings} />
       </div>
 
-      {/* System Alerts */}
-      <div className="bg-white p-6 rounded-lg border">
-        <h2 className="text-lg font-semibold mb-4">Systemadvarsler</h2>
-        <SystemAlertsWidget />
+      {/* System Alerts & Price Monitoring */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-lg border">
+          <h2 className="text-lg font-semibold mb-4">Systemadvarsler</h2>
+          <SystemAlertsWidget />
+        </div>
+        <div className="bg-white p-6 rounded-lg border">
+          <h2 className="text-lg font-semibold mb-4">Prisovervågning</h2>
+          <PriceAlertsWidget />
+        </div>
       </div>
 
       {/* Main Content Grid */}

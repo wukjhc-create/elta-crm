@@ -1,6 +1,12 @@
 // =====================================================
-// Products & Suppliers Types
+// Products Types
 // =====================================================
+
+// Re-export supplier types for backward compatibility
+import type { Supplier as _Supplier } from './suppliers.types'
+export type { Supplier, SupplierFilters } from './suppliers.types'
+export type { CreateSupplierData as CreateSupplierInput, UpdateSupplierData as UpdateSupplierInput } from './suppliers.types'
+type Supplier = _Supplier
 
 // Product units
 export const PRODUCT_UNITS = [
@@ -39,40 +45,6 @@ export const PRODUCT_CATEGORY_LABELS: Record<ProductCategorySlug, string> = {
   cables: 'Kabler',
   accessories: 'Tilbehør',
   labor: 'Arbejdsløn',
-}
-
-// =====================================================
-// Supplier
-// =====================================================
-
-export interface Supplier {
-  id: string
-  name: string
-  code: string | null
-  contact_name: string | null
-  contact_email: string | null
-  contact_phone: string | null
-  website: string | null
-  notes: string | null
-  is_active: boolean
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface CreateSupplierInput {
-  name: string
-  code?: string | null
-  contact_name?: string | null
-  contact_email?: string | null
-  contact_phone?: string | null
-  website?: string | null
-  notes?: string | null
-  is_active?: boolean
-}
-
-export interface UpdateSupplierInput extends Partial<CreateSupplierInput> {
-  id: string
 }
 
 // =====================================================
@@ -198,15 +170,6 @@ export interface UpdateSupplierProductInput extends Partial<CreateSupplierProduc
 export interface ProductFilters {
   search?: string
   category_id?: string
-  is_active?: boolean
-  sortBy?: string
-  sortOrder?: 'asc' | 'desc'
-  page?: number
-  pageSize?: number
-}
-
-export interface SupplierFilters {
-  search?: string
   is_active?: boolean
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
