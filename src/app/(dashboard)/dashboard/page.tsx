@@ -27,6 +27,7 @@ import {
   SystemAlertsWidget,
   PriceAlertsWidget,
 } from '@/components/modules/dashboard'
+import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
 
 export default async function DashboardPage() {
   const user = await getUser()
@@ -143,8 +144,8 @@ export default async function DashboardPage() {
         <QuickActions companySettings={companySettings} />
       </div>
 
-      {/* System Alerts & Price Monitoring */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* System Alerts, Price Monitoring & Supplier Health */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg border">
           <h2 className="text-lg font-semibold mb-4">Systemadvarsler</h2>
           <SystemAlertsWidget />
@@ -153,6 +154,7 @@ export default async function DashboardPage() {
           <h2 className="text-lg font-semibold mb-4">Prisovervågning</h2>
           <PriceAlertsWidget />
         </div>
+        <SupplierHealthOverview />
       </div>
 
       {/* Main Content Grid */}

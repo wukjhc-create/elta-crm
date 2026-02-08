@@ -1,4 +1,5 @@
 import { SuppliersList } from '@/components/modules/suppliers'
+import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
 
 export const metadata = {
   title: 'Leverandører | Indstillinger',
@@ -13,6 +14,8 @@ export default function SuppliersPage() {
           Administrer grossister og leverandører til produktimport
         </p>
       </div>
+
+      <SupplierHealthOverview />
 
       <SuppliersList />
     </div>
