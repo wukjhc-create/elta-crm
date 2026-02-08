@@ -38,7 +38,7 @@ import { PackageBrowser } from './PackageBrowser'
 import { QuickJobsPicker } from './QuickJobsPicker'
 import { RoomCalculator } from './RoomCalculator'
 import { CalibrationPresetPicker } from './CalibrationPresetPicker'
-import { CalculationPreview, type CalculationItem } from './CalculationPreview'
+import { CalculationPreview, type CalculationItem, type ItemOverrides } from './CalculationPreview'
 import { CreateOfferModal } from './CreateOfferModal'
 import { MaterialSummary } from './MaterialSummary'
 import { getBuildingProfiles } from '@/lib/actions/kalkia'
@@ -171,8 +171,11 @@ export function PackageBuilder({
       const overheadFactor = 0.10 * overheadMultiplier // 10% overhead adjusted by profile
       const materialWasteFactor = wasteMultiplier
 
-      // Calculate totals from items (calculatedTimeMinutes is per-item, multiply by quantity)
-      const totalDirectTimeMinutes = items.reduce((sum, item) => sum + (item.calculatedTimeMinutes * item.quantity), 0)
+      // Calculate totals from items (use overrides if present)
+      const totalDirectTimeMinutes = items.reduce((sum, item) => {
+        const effectiveTime = item.overrides?.timeMinutes ?? item.calculatedTimeMinutes
+        return sum + (effectiveTime * item.quantity)
+      }, 0)
       const totalDirectTimeSeconds = Math.round(totalDirectTimeMinutes * 60 * timeMultiplier)
 
       // Calculate indirect and personal time
@@ -181,8 +184,11 @@ export function PackageBuilder({
       const totalLaborTimeSeconds = totalDirectTimeSeconds + totalIndirectTimeSeconds + totalPersonalTimeSeconds
       const totalLaborHours = totalLaborTimeSeconds / 3600
 
-      // Calculate material costs with waste factor
+      // Calculate material costs with waste factor (use cost overrides if present)
       const baseMaterialCost = items.reduce((sum, item) => {
+        if (item.overrides?.costPrice !== undefined) {
+          return sum + (item.overrides.costPrice * item.quantity)
+        }
         const materialCost = item.materials?.reduce((mSum, m) => mSum + (m.costPrice * m.quantity * item.quantity), 0) || 0
         return sum + materialCost
       }, 0)
@@ -202,9 +208,26 @@ export function PackageBuilder({
       const riskAmount = costPrice * 0.02 // 2% risk
       const salesBasis = costPrice + overheadAmount + riskAmount
 
-      // Pricing
+      // Pricing - check for sale price overrides
+      const salePriceOverrideTotal = items.reduce((sum, item) => {
+        if (item.overrides?.salePrice !== undefined) {
+          return sum + (item.overrides.salePrice * item.quantity)
+        }
+        return sum
+      }, 0)
+      const hasAnySalePriceOverride = items.some(item => item.overrides?.salePrice !== undefined)
+
       const marginAmount = salesBasis * (marginPercentage / 100)
-      const salePriceExclVat = salesBasis + marginAmount
+      const calculatedSalePrice = salesBasis + marginAmount
+      // If items have sale price overrides, blend override totals with calculated price for non-overridden items
+      const salePriceExclVat = hasAnySalePriceOverride
+        ? salePriceOverrideTotal + items.reduce((sum, item) => {
+            if (item.overrides?.salePrice !== undefined) return sum
+            // Proportional allocation of calculated sale price for non-overridden items
+            const itemTimeShare = ((item.overrides?.timeMinutes ?? item.calculatedTimeMinutes) * item.quantity) / (totalDirectTimeMinutes || 1)
+            return sum + calculatedSalePrice * itemTimeShare
+          }, 0)
+        : calculatedSalePrice
       const discountAmount = salePriceExclVat * (discountPercentage / 100)
       const netPrice = salePriceExclVat - discountAmount
       const vatAmount = netPrice * 0.25
@@ -277,6 +300,23 @@ export function PackageBuilder({
             quantity,
             // calculatedTimeMinutes is per-item, quantity is handled in display
           }
+        }
+        return item
+      })
+    )
+  }, [])
+
+  const handleOverrideItem = useCallback((itemId: string, overrides: ItemOverrides | undefined) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId) {
+          // Clean up empty overrides
+          const cleanOverrides = overrides && (
+            overrides.timeMinutes !== undefined ||
+            overrides.costPrice !== undefined ||
+            overrides.salePrice !== undefined
+          ) ? overrides : undefined
+          return { ...item, overrides: cleanOverrides }
         }
         return item
       })
@@ -718,6 +758,7 @@ export function PackageBuilder({
                 result={result}
                 onRemoveItem={handleRemoveItem}
                 onUpdateQuantity={handleUpdateQuantity}
+                onOverrideItem={handleOverrideItem}
                 isLoading={isCalculating}
                 laborType={LABOR_TYPES.find((lt) => lt.id === laborType) || null}
                 timeAdjustment={TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment) || null}

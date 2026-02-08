@@ -10,6 +10,8 @@ import {
   Wrench,
   AlertCircle,
   Info,
+  Pencil,
+  RotateCcw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +23,12 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import type { CalculationResult } from '@/types/kalkia.types'
+
+export interface ItemOverrides {
+  timeMinutes?: number
+  costPrice?: number
+  salePrice?: number
+}
 
 export interface CalculationItem {
   id: string
@@ -39,6 +47,8 @@ export interface CalculationItem {
   // Pricing
   costPrice: number
   salePrice: number
+  // Manual overrides
+  overrides?: ItemOverrides
   // Materials
   materials?: {
     name: string
@@ -46,6 +56,8 @@ export interface CalculationItem {
     unit: string
     costPrice: number
     salePrice: number
+    supplierProductId?: string | null
+    supplierName?: string | null
   }[]
 }
 
@@ -54,6 +66,7 @@ interface CalculationPreviewProps {
   result?: CalculationResult | null
   onRemoveItem: (itemId: string) => void
   onUpdateQuantity: (itemId: string, quantity: number) => void
+  onOverrideItem?: (itemId: string, overrides: ItemOverrides | undefined) => void
   isLoading?: boolean
   laborType?: { name: string; rateMultiplier: number } | null
   timeAdjustment?: { name: string; multiplier: number } | null
@@ -65,12 +78,14 @@ export function CalculationPreview({
   result,
   onRemoveItem,
   onUpdateQuantity,
+  onOverrideItem,
   isLoading = false,
   laborType,
   timeAdjustment,
   hourlyRate = 495,
 }: CalculationPreviewProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [editingItem, setEditingItem] = useState<string | null>(null)
 
   const toggleItem = (itemId: string) => {
     setExpandedItems((prev) => {
@@ -132,6 +147,14 @@ export function CalculationPreview({
           const hasMaterials = item.materials && item.materials.length > 0
           const hasVariantModifier = item.variantTimeMultiplier !== 1 || item.variantExtraMinutes > 0
           const hasComplexity = item.complexityFactor !== 1
+          const hasOverrides = item.overrides && (
+            item.overrides.timeMinutes !== undefined ||
+            item.overrides.costPrice !== undefined ||
+            item.overrides.salePrice !== undefined
+          )
+          const effectiveTime = item.overrides?.timeMinutes ?? item.calculatedTimeMinutes
+          const effectiveSalePrice = item.overrides?.salePrice ?? item.salePrice
+          const isEditing = editingItem === item.id
 
           return (
             <Collapsible
@@ -139,7 +162,7 @@ export function CalculationPreview({
               open={isExpanded}
               onOpenChange={() => toggleItem(item.id)}
             >
-              <div className="border rounded-lg bg-white">
+              <div className={`border rounded-lg bg-white ${hasOverrides ? 'border-orange-300' : ''}`}>
                 <div className="flex items-center gap-3 p-3">
                   <CollapsibleTrigger className="p-1 hover:bg-gray-100 rounded">
                     {isExpanded ? (
@@ -161,13 +184,22 @@ export function CalculationPreview({
                           {item.variantName}
                         </Badge>
                       )}
+                      {hasOverrides && (
+                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-300">
+                          Tilpasset
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-                      <span className="flex items-center gap-1">
+                      <span className={`flex items-center gap-1 ${hasOverrides && item.overrides?.timeMinutes !== undefined ? 'text-orange-600 font-medium' : ''}`}>
                         <Clock className="w-3 h-3" />
-                        {formatTime(item.calculatedTimeMinutes * item.quantity)}
+                        {formatTime(effectiveTime * item.quantity)}
                       </span>
-                      {item.salePrice > 0 && <span>{formatPrice(item.salePrice * item.quantity)}</span>}
+                      {effectiveSalePrice > 0 && (
+                        <span className={hasOverrides && item.overrides?.salePrice !== undefined ? 'text-orange-600 font-medium' : ''}>
+                          {formatPrice(effectiveSalePrice * item.quantity)}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -274,6 +306,151 @@ export function CalculationPreview({
                             </div>
                           )}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Manual Overrides */}
+                    {onOverrideItem && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-gray-600 flex items-center gap-1">
+                            <Pencil className="w-3 h-3" />
+                            Manuelle tilpasninger
+                          </p>
+                          <div className="flex items-center gap-1">
+                            {!isEditing && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs text-blue-600"
+                                onClick={(e) => { e.stopPropagation(); setEditingItem(item.id) }}
+                              >
+                                <Pencil className="w-3 h-3 mr-1" />
+                                Tilpas
+                              </Button>
+                            )}
+                            {hasOverrides && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs text-orange-600"
+                                onClick={(e) => { e.stopPropagation(); onOverrideItem(item.id, undefined); setEditingItem(null) }}
+                              >
+                                <RotateCcw className="w-3 h-3 mr-1" />
+                                Nulstil
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        {isEditing && (
+                          <div className="bg-orange-50 border border-orange-200 rounded p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-gray-600 w-20 flex-shrink-0">Tid (min)</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={1}
+                                defaultValue={item.overrides?.timeMinutes ?? item.calculatedTimeMinutes}
+                                className="h-7 text-xs"
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value)
+                                  if (!isNaN(val) && val >= 0) {
+                                    onOverrideItem(item.id, {
+                                      ...item.overrides,
+                                      timeMinutes: val === item.calculatedTimeMinutes ? undefined : val,
+                                    })
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                Beregnet: {item.calculatedTimeMinutes}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-gray-600 w-20 flex-shrink-0">Kostpris</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                defaultValue={item.overrides?.costPrice ?? item.costPrice}
+                                className="h-7 text-xs"
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value)
+                                  if (!isNaN(val) && val >= 0) {
+                                    onOverrideItem(item.id, {
+                                      ...item.overrides,
+                                      costPrice: val === item.costPrice ? undefined : val,
+                                    })
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                Beregnet: {item.costPrice.toFixed(0)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-gray-600 w-20 flex-shrink-0">Salgspris</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                defaultValue={item.overrides?.salePrice ?? item.salePrice}
+                                className="h-7 text-xs"
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value)
+                                  if (!isNaN(val) && val >= 0) {
+                                    onOverrideItem(item.id, {
+                                      ...item.overrides,
+                                      salePrice: val === item.salePrice ? undefined : val,
+                                    })
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                Beregnet: {item.salePrice.toFixed(0)}
+                              </span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full h-7 text-xs"
+                              onClick={(e) => { e.stopPropagation(); setEditingItem(null) }}
+                            >
+                              Luk
+                            </Button>
+                          </div>
+                        )}
+                        {!isEditing && hasOverrides && (
+                          <div className="bg-orange-50 rounded p-2 text-xs space-y-1">
+                            {item.overrides?.timeMinutes !== undefined && (
+                              <div className="flex justify-between">
+                                <span className="text-orange-700">Tid tilpasset:</span>
+                                <span className="font-medium text-orange-800">
+                                  {formatTime(item.overrides.timeMinutes)} <span className="text-orange-500 line-through">{formatTime(item.calculatedTimeMinutes)}</span>
+                                </span>
+                              </div>
+                            )}
+                            {item.overrides?.costPrice !== undefined && (
+                              <div className="flex justify-between">
+                                <span className="text-orange-700">Kostpris tilpasset:</span>
+                                <span className="font-medium text-orange-800">
+                                  {formatPrice(item.overrides.costPrice)} <span className="text-orange-500 line-through">{formatPrice(item.costPrice)}</span>
+                                </span>
+                              </div>
+                            )}
+                            {item.overrides?.salePrice !== undefined && (
+                              <div className="flex justify-between">
+                                <span className="text-orange-700">Salgspris tilpasset:</span>
+                                <span className="font-medium text-orange-800">
+                                  {formatPrice(item.overrides.salePrice)} <span className="text-orange-500 line-through">{formatPrice(item.salePrice)}</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
