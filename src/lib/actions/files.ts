@@ -1,6 +1,7 @@
 'use server'
 
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
 
@@ -52,10 +53,7 @@ export async function uploadFile(
   formData: FormData
 ): Promise<ActionResult<UploadedFile>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const file = formData.get('file') as File
     const entityType = formData.get('entityType') as UploadedFile['entity_type']
@@ -70,8 +68,6 @@ export async function uploadFile(
     if (!validation.valid) {
       return { success: false, error: validation.error }
     }
-
-    const supabase = await createClient()
 
     // Generate unique file name
     const fileName = generateFileName(file.name)
@@ -112,7 +108,7 @@ export async function uploadFile(
         bucket: 'attachments',
         entity_type: entityType,
         entity_id: entityId,
-        uploaded_by: user.id,
+        uploaded_by: userId,
       })
       .select()
       .single()
@@ -161,12 +157,7 @@ export async function getFiles(
 // Delete a file
 export async function deleteFile(fileId: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get file record first
     const { data: file, error: fetchError } = await supabase

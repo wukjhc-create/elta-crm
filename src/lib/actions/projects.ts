@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient, requireAuth, formatError } from '@/lib/actions/action-helpers'
 import {
   createProjectSchema,
   updateProjectSchema,
@@ -26,7 +27,6 @@ import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { triggerWebhooks, buildProjectWebhookPayload } from '@/lib/actions/integrations'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 // ==================== Projects ====================
 
@@ -213,10 +213,7 @@ async function generateProjectNumber(): Promise<string> {
 // Create project
 export async function createProject(formData: FormData): Promise<ActionResult<Project>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const rawData = {
       name: formData.get('name') as string,
@@ -249,7 +246,7 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
       .insert({
         ...validated.data,
         project_number: projectNumber,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
@@ -278,10 +275,7 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
 // Update project
 export async function updateProject(formData: FormData): Promise<ActionResult<Project>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const id = formData.get('id') as string
     if (!id) {
@@ -417,10 +411,7 @@ export async function updateProjectStatus(
 // Create task
 export async function createTask(formData: FormData): Promise<ActionResult<ProjectTask>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const rawData = {
       project_id: formData.get('project_id') as string,
@@ -448,7 +439,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<Proje
       .from('project_tasks')
       .insert({
         ...validated.data,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
@@ -469,10 +460,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<Proje
 // Update task
 export async function updateTask(formData: FormData): Promise<ActionResult<ProjectTask>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const id = formData.get('id') as string
     const projectId = formData.get('project_id') as string
@@ -601,10 +589,7 @@ export async function createTimeEntry(
   formData: FormData
 ): Promise<ActionResult<TimeEntry>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const rawData = {
       project_id: formData.get('project_id') as string,
@@ -627,7 +612,7 @@ export async function createTimeEntry(
       .from('time_entries')
       .insert({
         ...validated.data,
-        user_id: user.id,
+        user_id: userId,
       })
       .select()
       .single()
@@ -650,10 +635,7 @@ export async function updateTimeEntry(
   formData: FormData
 ): Promise<ActionResult<TimeEntry>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const userId = await requireAuth()
 
     const id = formData.get('id') as string
     const projectId = formData.get('project_id') as string

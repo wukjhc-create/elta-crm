@@ -1,7 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type {
@@ -13,7 +13,6 @@ import type {
 } from '@/types/audit.types'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 async function getClientInfo(): Promise<{ ip: string | null; userAgent: string | null }> {
   try {
     const headersList = await headers()
@@ -37,25 +36,17 @@ export async function createAuditLog(
   data: CreateAuditLogData
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
-    // Get current user info
-    const user = await getUser()
-    let userEmail: string | null = null
-    let userName: string | null = null
+    // Get user profile info
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', userId)
+      .single()
 
-    if (user) {
-      userEmail = user.email || null
-
-      // Get user's profile for name
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .single()
-
-      userName = profile?.full_name || null
-    }
+    const userEmail = profile?.email || null
+    const userName = profile?.full_name || null
 
     // Get client info
     const { ip, userAgent } = await getClientInfo()
@@ -67,7 +58,7 @@ export async function createAuditLog(
 
     // Call the database function
     const { data: result, error } = await supabase.rpc('log_audit_event', {
-      p_user_id: user?.id || null,
+      p_user_id: userId || null,
       p_user_email: userEmail,
       p_user_name: userName,
       p_entity_type: data.entity_type,
@@ -194,10 +185,8 @@ export async function getEntityAuditLogs(
   entityId: string
 ): Promise<ActionResult<AuditLogEntry[]>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
     validateUUID(entityId, 'entity ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('audit_logs')
@@ -225,7 +214,7 @@ export async function getAuditLogs(
   filters?: AuditLogFilters
 ): Promise<ActionResult<PaginatedResponse<AuditLogEntry>>> {
   try {
-    await requireAuth()
+    const { supabase } = await getAuthenticatedClient()
 
     // Validate optional UUIDs
     if (filters?.entity_id) {
@@ -234,8 +223,6 @@ export async function getAuditLogs(
     if (filters?.user_id) {
       validateUUID(filters.user_id, 'user ID')
     }
-
-    const supabase = await createClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -322,9 +309,7 @@ export async function getRecentAuditActivity(
   limit: number = 10
 ): Promise<ActionResult<AuditLogEntry[]>> {
   try {
-    await requireAuth()
-
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('v_recent_audit_logs')

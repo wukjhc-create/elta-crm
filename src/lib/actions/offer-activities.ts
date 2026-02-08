@@ -1,6 +1,9 @@
 'use server'
 
 import { createClient, getUser } from '@/lib/supabase/server'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+// Note: getUser is intentionally kept here for optional auth in logOfferActivity/logOfferActivities
+// These functions are called from both authenticated and unauthenticated (portal) contexts
 import type {
   OfferActivity,
   OfferActivityWithPerformer,
@@ -9,6 +12,8 @@ import type {
 import type { ActionResult } from '@/types/common.types'
 
 // Log an activity for an offer
+// Uses optional auth because this is called from both
+// authenticated dashboard context and unauthenticated portal context
 export async function logOfferActivity(
   offerId: string,
   activityType: OfferActivityType,
@@ -45,17 +50,16 @@ export async function logOfferActivity(
 
     return { success: true, data: data as OfferActivity }
   } catch (error) {
-    console.error('Error in logOfferActivity:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: false, error: formatError(error, 'Kunne ikke logge aktivitet') }
   }
 }
 
-// Get all activities for an offer
+// Get all activities for an offer (dashboard only, requires auth)
 export async function getOfferActivities(
   offerId: string
 ): Promise<ActionResult<OfferActivityWithPerformer[]>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('offer_activities')
@@ -73,12 +77,12 @@ export async function getOfferActivities(
 
     return { success: true, data: data as OfferActivityWithPerformer[] }
   } catch (error) {
-    console.error('Error in getOfferActivities:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: false, error: formatError(error, 'Kunne ikke hente aktiviteter') }
   }
 }
 
 // Log multiple activities at once
+// Uses optional auth because this follows the same pattern as logOfferActivity
 export async function logOfferActivities(
   activities: {
     offerId: string
@@ -111,7 +115,6 @@ export async function logOfferActivities(
 
     return { success: true }
   } catch (error) {
-    console.error('Error in logOfferActivities:', error)
-    return { success: false, error: 'Der opstod en fejl' }
+    return { success: false, error: formatError(error, 'Kunne ikke logge aktiviteter') }
   }
 }

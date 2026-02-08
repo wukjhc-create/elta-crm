@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import type {
   CompanySettings,
   UpdateCompanySettingsInput,
@@ -56,12 +57,7 @@ export async function updateCompanySettings(
   input: UpdateCompanySettingsInput
 ): Promise<ActionResult<CompanySettings>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Get existing settings ID
     const { data: existing } = await supabase
@@ -139,17 +135,12 @@ export async function getSmtpSettings(): Promise<ActionResult<{
 // Get current user's profile
 export async function getProfile(): Promise<ActionResult<Profile>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (error) {
@@ -169,12 +160,7 @@ export async function updateProfile(
   input: UpdateProfileInput
 ): Promise<ActionResult<Profile>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('profiles')
@@ -182,7 +168,7 @@ export async function updateProfile(
         ...input,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', user.id)
+      .eq('id', userId)
       .select()
       .single()
 
@@ -209,12 +195,7 @@ export async function changePassword(
   newPassword: string
 ): Promise<ActionResult<void>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Supabase updateUser method for password change
     const { error } = await supabase.auth.updateUser({
@@ -243,12 +224,7 @@ export async function changePassword(
 // Get all team members
 export async function getTeamMembers(): Promise<ActionResult<Profile[]>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('profiles')
@@ -273,18 +249,13 @@ export async function updateTeamMember(
   input: { role?: string; department?: string; is_active?: boolean }
 ): Promise<ActionResult<Profile>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Check if current user is admin
     const { data: currentProfile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (currentProfile?.role !== 'admin') {

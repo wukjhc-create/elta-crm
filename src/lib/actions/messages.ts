@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { createMessageSchema } from '@/lib/validations/messages'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type {
@@ -26,12 +27,7 @@ export async function getMessages(
   }
 ): Promise<ActionResult<MessageWithRelations[]>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     let query = supabase
       .from('messages')
@@ -44,11 +40,11 @@ export async function getMessages(
 
     // Filter by folder
     if (folder === 'inbox') {
-      query = query.eq('to_user_id', user.id).neq('status', 'archived')
+      query = query.eq('to_user_id', userId).neq('status', 'archived')
     } else if (folder === 'sent') {
-      query = query.eq('from_user_id', user.id)
+      query = query.eq('from_user_id', userId)
     } else if (folder === 'archived') {
-      query = query.eq('to_user_id', user.id).eq('status', 'archived')
+      query = query.eq('to_user_id', userId).eq('status', 'archived')
     }
 
     // Apply filters
@@ -103,14 +99,9 @@ export async function getMessage(
   id: string
 ): Promise<ActionResult<MessageWithRelations>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     validateUUID(id, 'besked ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('messages')
@@ -148,17 +139,12 @@ export async function getMessage(
 // Get unread count
 export async function getUnreadCount(): Promise<ActionResult<number>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { count, error } = await supabase
       .from('messages')
       .select('*', { count: 'exact', head: true })
-      .eq('to_user_id', user.id)
+      .eq('to_user_id', userId)
       .eq('status', 'unread')
 
     if (error) {
@@ -178,10 +164,7 @@ export async function sendMessage(
   formData: FormData
 ): Promise<ActionResult<Message>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const rawData = {
       subject: formData.get('subject') as string,
@@ -201,22 +184,20 @@ export async function sendMessage(
       return { success: false, error: errors }
     }
 
-    const supabase = await createClient()
-
     // Get sender's profile info
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name, email')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     const { data, error } = await supabase
       .from('messages')
       .insert({
         ...validated.data,
-        from_user_id: user.id,
+        from_user_id: userId,
         from_name: profile?.full_name || null,
-        from_email: profile?.email || user.email,
+        from_email: profile?.email || '',
       })
       .select()
       .single()
@@ -237,14 +218,9 @@ export async function sendMessage(
 // Mark message as read
 export async function markAsRead(id: string): Promise<ActionResult<Message>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     validateUUID(id, 'besked ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('messages')
@@ -253,7 +229,7 @@ export async function markAsRead(id: string): Promise<ActionResult<Message>> {
         status: 'read',
       })
       .eq('id', id)
-      .eq('to_user_id', user.id)
+      .eq('to_user_id', userId)
       .select()
       .single()
 
@@ -273,14 +249,9 @@ export async function markAsRead(id: string): Promise<ActionResult<Message>> {
 // Mark message as unread
 export async function markAsUnread(id: string): Promise<ActionResult<Message>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     validateUUID(id, 'besked ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('messages')
@@ -289,7 +260,7 @@ export async function markAsUnread(id: string): Promise<ActionResult<Message>> {
         status: 'unread',
       })
       .eq('id', id)
-      .eq('to_user_id', user.id)
+      .eq('to_user_id', userId)
       .select()
       .single()
 
@@ -309,14 +280,9 @@ export async function markAsUnread(id: string): Promise<ActionResult<Message>> {
 // Archive message
 export async function archiveMessage(id: string): Promise<ActionResult<Message>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     validateUUID(id, 'besked ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('messages')
@@ -325,7 +291,7 @@ export async function archiveMessage(id: string): Promise<ActionResult<Message>>
         status: 'archived',
       })
       .eq('id', id)
-      .eq('to_user_id', user.id)
+      .eq('to_user_id', userId)
       .select()
       .single()
 
@@ -347,14 +313,9 @@ export async function unarchiveMessage(
   id: string
 ): Promise<ActionResult<Message>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     validateUUID(id, 'besked ID')
-
-    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('messages')
@@ -363,7 +324,7 @@ export async function unarchiveMessage(
         status: 'read',
       })
       .eq('id', id)
-      .eq('to_user_id', user.id)
+      .eq('to_user_id', userId)
       .select()
       .single()
 
@@ -383,19 +344,14 @@ export async function unarchiveMessage(
 // Delete message
 export async function deleteMessage(id: string): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     validateUUID(id, 'besked ID')
-
-    const supabase = await createClient()
     const { error } = await supabase
       .from('messages')
       .delete()
       .eq('id', id)
-      .eq('to_user_id', user.id)
+      .eq('to_user_id', userId)
 
     if (error) {
       console.error('Error deleting message:', error)
@@ -415,18 +371,13 @@ export async function getTeamMembersForMessage(): Promise<
   ActionResult<{ id: string; full_name: string | null; email: string }[]>
 > {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, email')
       .eq('is_active', true)
-      .neq('id', user.id) // Exclude current user
+      .neq('id', userId) // Exclude current user
       .order('full_name')
 
     if (error) {

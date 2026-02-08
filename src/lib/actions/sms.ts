@@ -11,7 +11,8 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import type { ActionResult } from '@/types/common.types'
 import type {
   SmsTemplate,
@@ -69,12 +70,7 @@ export async function updateSmsSettings(settings: Partial<{
   enabled: boolean
 }>): Promise<ActionResult<void>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const updateData: Record<string, unknown> = {}
     if (settings.apiKey !== undefined) updateData.sms_gateway_api_key = settings.apiKey
@@ -186,18 +182,13 @@ export async function createSmsTemplate(
   input: SmsTemplateCreate
 ): Promise<ActionResult<SmsTemplate>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('sms_templates')
       .insert({
         ...input,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
@@ -223,12 +214,7 @@ export async function updateSmsTemplate(
   input: SmsTemplateUpdate
 ): Promise<ActionResult<SmsTemplate>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('sms_templates')
@@ -252,12 +238,7 @@ export async function updateSmsTemplate(
 
 export async function deleteSmsTemplate(id: string): Promise<ActionResult<void>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('sms_templates')
@@ -324,18 +305,13 @@ export async function createSmsMessage(
   input: SmsMessageCreate
 ): Promise<ActionResult<SmsMessage>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('sms_messages')
       .insert({
         ...input,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
@@ -650,12 +626,7 @@ export async function sendOfferSms(
   input: SendOfferSmsInput
 ): Promise<ActionResult<{ message_id: string; gateway_id: string }>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Get SMS settings
     const settingsResult = await getSmsSettings()

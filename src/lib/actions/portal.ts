@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createProjectFromOffer } from '@/lib/actions/projects'
@@ -31,12 +32,7 @@ export async function createPortalToken(
   data: CreatePortalTokenData
 ): Promise<ActionResult<PortalAccessToken>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Generate secure token
     const tokenBytes = new Uint8Array(32)
@@ -52,7 +48,7 @@ export async function createPortalToken(
         email: data.email,
         token,
         expires_at: data.expires_at || null,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single()
@@ -75,12 +71,7 @@ export async function getPortalTokens(
   customerId: string
 ): Promise<ActionResult<PortalAccessToken[]>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('portal_access_tokens')
@@ -105,12 +96,7 @@ export async function deactivatePortalToken(
   tokenId: string
 ): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('portal_access_tokens')
@@ -683,18 +669,13 @@ export async function sendEmployeeMessage(
   attachments?: PortalAttachment[]
 ): Promise<ActionResult<PortalMessage>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     // Get employee name
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     const { data: messageData, error } = await supabase
@@ -703,7 +684,7 @@ export async function sendEmployeeMessage(
         customer_id: customerId,
         offer_id: offerId || null,
         sender_type: 'employee',
-        sender_id: user.id,
+        sender_id: userId,
         sender_name: profile?.full_name || 'Medarbejder',
         message,
         attachments: attachments || [],
@@ -762,12 +743,7 @@ export async function getUnreadPortalMessageCount(
   customerId?: string
 ): Promise<ActionResult<number>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     let query = supabase
       .from('portal_messages')
@@ -799,12 +775,7 @@ export async function getCustomerPortalMessages(
   offerId?: string
 ): Promise<ActionResult<PortalMessageWithRelations[]>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     let query = supabase
       .from('portal_messages')
@@ -847,12 +818,7 @@ export async function markCustomerMessagesAsRead(
   messageIds: string[]
 ): Promise<ActionResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
-
-    const supabase = await createClient()
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('portal_messages')
@@ -970,10 +936,7 @@ export async function uploadEmployeeAttachment(
   formData: FormData
 ): Promise<ActionResult<UploadAttachmentResult>> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return { success: false, error: 'Du skal være logget ind' }
-    }
+    const { supabase, userId } = await getAuthenticatedClient()
 
     const file = formData.get('file') as File | null
 
@@ -1005,12 +968,10 @@ export async function uploadEmployeeAttachment(
       return { success: false, error: 'Filtypen er ikke tilladt' }
     }
 
-    const supabase = await createClient()
-
     // Generate unique filename
     const timestamp = Date.now()
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const path = `${customerId}/${user.id}-${timestamp}-${sanitizedName}`
+    const path = `${customerId}/${userId}-${timestamp}-${sanitizedName}`
 
     // Upload to storage
     const { data: uploadData, error: uploadError } = await supabase.storage
