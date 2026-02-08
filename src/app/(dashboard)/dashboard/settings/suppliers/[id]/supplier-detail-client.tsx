@@ -23,6 +23,7 @@ import {
   Percent,
   RefreshCw,
   Search as SearchIcon,
+  Calendar,
 } from 'lucide-react'
 import { deleteSupplier } from '@/lib/actions/suppliers'
 import { SupplierForm } from '@/components/modules/suppliers/supplier-form'
@@ -32,6 +33,7 @@ import { ImportHistory } from '@/components/modules/suppliers/import-history'
 import { SupplierCredentialsForm } from '@/components/modules/suppliers/supplier-credentials-form'
 import { MarginRulesManager } from '@/components/modules/suppliers/margin-rules-manager'
 import { SyncJobsManager } from '@/components/modules/suppliers/sync-jobs-manager'
+import { SyncSchedulesManager } from '@/components/modules/suppliers/sync-schedules-manager'
 import { SupplierAPISearch } from '@/components/modules/suppliers/supplier-api-search'
 import type { Supplier } from '@/types/suppliers.types'
 
@@ -183,6 +185,10 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
             <SearchIcon className="w-4 h-4 mr-2" />
             API Søg
           </TabsTrigger>
+          <TabsTrigger value="schedules">
+            <Calendar className="w-4 h-4 mr-2" />
+            Planer
+          </TabsTrigger>
           <TabsTrigger value="sync">
             <RefreshCw className="w-4 h-4 mr-2" />
             Sync Jobs
@@ -227,6 +233,13 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
 
         <TabsContent value="api-search" className="mt-6">
           <SupplierAPISearch
+            supplierId={currentSupplier.id}
+            supplierName={currentSupplier.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="schedules" className="mt-6">
+          <SyncSchedulesManager
             supplierId={currentSupplier.id}
             supplierName={currentSupplier.name}
           />

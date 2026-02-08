@@ -155,6 +155,12 @@ elta-crm/
 - `calculation_feedback` - Feedback til selvlærende system
 - `complexity_factors` - Kompleksitetsfaktorer (beton, ældre hus, etc.)
 - `electrical_point_types` - El-punkttyper med basistider
+- `supplier_credentials` - Krypterede loginoplysninger (AES-256-GCM)
+- `supplier_margin_rules` - Prisregler med prioritetshierarki
+- `supplier_sync_schedules` - Cron-baseret synkroniseringsplaner
+- `supplier_product_cache` - Offline fallback prisdata
+- `price_alert_rules` - Konfiguration af prisadvarsler (tærskler, typer)
+- `system_alerts` - Runtime advarsler fra cron og overvågning
 
 ### Ved nye tabeller:
 1. Vis mig CREATE TABLE SQL først

@@ -343,37 +343,52 @@ export async function testSupplierConnection(
       .eq('id', credential.supplier_id)
       .single()
 
-    let testStatus: TestStatus = 'failed'
-    let testMessage = 'Ukendt leverandør'
-    let testError: string | null = null
+    const supplierCode = supplier?.code?.toUpperCase()
 
-    try {
-      // Decrypt credentials
-      const credentials = await decryptCredentials(credential.credentials_encrypted) as CredentialInput
+    if (!supplierCode || !['AO', 'LM'].includes(supplierCode)) {
+      // Update status for unsupported suppliers
+      await supabase
+        .from('supplier_credentials')
+        .update({
+          last_test_at: new Date().toISOString(),
+          last_test_status: 'failed',
+          last_test_error: 'Leverandør understøtter ikke API-test',
+        })
+        .eq('id', credentialId)
 
-      // Test based on supplier
-      const supplierCode = supplier?.code?.toUpperCase()
-
-      if (supplierCode === 'AO') {
-        // Test AO API connection
-        const result = await testAOConnection(credentials, credential.api_endpoint)
-        testStatus = result.status
-        testMessage = result.message
-        testError = result.error || null
-      } else if (supplierCode === 'LM') {
-        // Test Lemvigh-Müller connection
-        const result = await testLMConnection(credentials, credential.api_endpoint)
-        testStatus = result.status
-        testMessage = result.message
-        testError = result.error || null
-      } else {
-        testMessage = 'Leverandør understøtter ikke API-test'
+      return {
+        success: false,
+        data: { status: 'failed', message: 'Leverandør understøtter ikke API-test' },
+        error: 'Leverandør understøtter ikke API-test',
       }
-    } catch (err) {
-      testStatus = 'failed'
-      testMessage = 'Fejl ved dekryptering af loginoplysninger'
-      testError = err instanceof Error ? err.message : 'Ukendt fejl'
     }
+
+    // Use the real API client to test connection (dynamic import to avoid circular dependency)
+    const { SupplierAPIClientFactory } = await import('@/lib/services/supplier-api-client')
+    SupplierAPIClientFactory.clearCache()
+    const client = await SupplierAPIClientFactory.getClient(credential.supplier_id, supplierCode)
+
+    if (!client) {
+      await supabase
+        .from('supplier_credentials')
+        .update({
+          last_test_at: new Date().toISOString(),
+          last_test_status: 'failed',
+          last_test_error: 'Kunne ikke oprette API-klient',
+        })
+        .eq('id', credentialId)
+
+      return {
+        success: false,
+        data: { status: 'failed', message: 'Kunne ikke oprette API-klient' },
+        error: 'Kunne ikke oprette API-klient',
+      }
+    }
+
+    // Run the actual connection test (loads credentials, attempts auth, updates status)
+    const result = await client.testConnection()
+
+    const testStatus: TestStatus = result.success ? 'success' : 'failed'
 
     // Update credential with test result
     await supabase
@@ -381,77 +396,19 @@ export async function testSupplierConnection(
       .update({
         last_test_at: new Date().toISOString(),
         last_test_status: testStatus,
-        last_test_error: testError,
+        last_test_error: result.error || null,
       })
       .eq('id', credentialId)
 
     revalidatePath('/dashboard/settings/suppliers')
 
     return {
-      success: testStatus === 'success',
-      data: { status: testStatus, message: testMessage },
-      error: testStatus !== 'success' ? testMessage : undefined,
+      success: result.success,
+      data: { status: testStatus, message: result.message },
+      error: !result.success ? result.message : undefined,
     }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke teste forbindelse') }
-  }
-}
-
-// =====================================================
-// Supplier-Specific Connection Tests
-// =====================================================
-
-async function testAOConnection(
-  credentials: CredentialInput,
-  apiEndpoint: string | null
-): Promise<{ status: TestStatus; message: string; error?: string }> {
-  // AO API test implementation
-  // For now, we'll simulate a test - real implementation would call AO's API
-  try {
-    if (!credentials.username || !credentials.password) {
-      return { status: 'invalid_credentials', message: 'Manglende brugernavn eller adgangskode' }
-    }
-
-    // TODO: Implement actual AO API health check
-    // const endpoint = apiEndpoint || 'https://api.ao.dk/v1'
-    // const response = await fetch(`${endpoint}/auth/test`, { ... })
-
-    // For now, return success if credentials are present
-    return { status: 'success', message: 'Forbindelse til AO er aktiv' }
-  } catch (err) {
-    return {
-      status: 'failed',
-      message: 'Kunne ikke forbinde til AO',
-      error: err instanceof Error ? err.message : 'Netværksfejl',
-    }
-  }
-}
-
-async function testLMConnection(
-  credentials: CredentialInput,
-  apiEndpoint: string | null
-): Promise<{ status: TestStatus; message: string; error?: string }> {
-  // Lemvigh-Müller API test implementation
-  try {
-    if (!credentials.username || !credentials.password) {
-      return { status: 'invalid_credentials', message: 'Manglende brugernavn eller adgangskode' }
-    }
-
-    if (!credentials.customer_number) {
-      return { status: 'invalid_credentials', message: 'Manglende kundenummer' }
-    }
-
-    // TODO: Implement actual L-M API health check
-    // const endpoint = apiEndpoint || 'https://api.lfrm.dk/v1'
-    // const response = await fetch(`${endpoint}/auth/validate`, { ... })
-
-    return { status: 'success', message: 'Forbindelse til Lemvigh-Müller er aktiv' }
-  } catch (err) {
-    return {
-      status: 'failed',
-      message: 'Kunne ikke forbinde til Lemvigh-Müller',
-      error: err instanceof Error ? err.message : 'Netværksfejl',
-    }
   }
 }
 

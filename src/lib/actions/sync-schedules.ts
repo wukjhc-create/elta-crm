@@ -372,36 +372,5 @@ function calculateNextRun(cronExpression: string): string {
   return nextRun.toISOString()
 }
 
-/**
- * Common cron expressions for UI
- */
-export const COMMON_CRON_EXPRESSIONS = [
-  { label: 'Hver nat kl. 03:00', value: '0 3 * * *' },
-  { label: 'Hver nat kl. 02:00', value: '0 2 * * *' },
-  { label: 'Hver morgen kl. 06:00', value: '0 6 * * *' },
-  { label: 'Hver time', value: '0 * * * *' },
-  { label: 'Hver 6. time', value: '0 */6 * * *' },
-  { label: 'Hver mandag kl. 03:00', value: '0 3 * * 1' },
-  { label: 'Hver dag kl. 12:00', value: '0 12 * * *' },
-]
-
-/**
- * Sync type labels for UI
- */
-export const SYNC_TYPE_LABELS: Record<SyncType, string> = {
-  full_catalog: 'Fuld katalog',
-  price_update: 'Prisopdatering',
-  availability: 'Lagerstatus',
-  incremental: 'Inkrementel',
-}
-
-/**
- * Status labels for UI
- */
-export const STATUS_LABELS: Record<ScheduleRunStatus, string> = {
-  success: 'Gennemført',
-  failed: 'Fejlet',
-  partial: 'Delvist',
-  skipped: 'Sprunget over',
-  running: 'Kører',
-}
+// UI Helper Constants moved to client components (sync-schedules-manager.tsx)
+// 'use server' files can only export async functions
