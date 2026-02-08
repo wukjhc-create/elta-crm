@@ -1,26 +1,31 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AlertTriangle, TrendingUp, TrendingDown, ArrowUpDown, FileText, Package, RefreshCw } from 'lucide-react'
+import { AlertTriangle, TrendingUp, TrendingDown, ArrowUpDown, FileText, Package, RefreshCw, Activity } from 'lucide-react'
 import {
   getPriceChangeAlerts,
   getAffectedOffers,
   getSupplierPriceStats,
   getPriceAlertSummary,
+  getPriceTrends,
 } from '@/lib/actions/price-analytics'
 import type {
   PriceChangeAlert,
   AffectedOffer,
   SupplierPriceStats,
+  PriceTrend,
 } from '@/lib/actions/price-analytics'
 
-type Tab = 'alerts' | 'affected' | 'suppliers'
+type Tab = 'alerts' | 'affected' | 'suppliers' | 'trends'
 
 export function PricingDashboardClient() {
   const [activeTab, setActiveTab] = useState<Tab>('alerts')
   const [alerts, setAlerts] = useState<PriceChangeAlert[]>([])
   const [affectedOffers, setAffectedOffers] = useState<AffectedOffer[]>([])
   const [supplierStats, setSupplierStats] = useState<SupplierPriceStats[]>([])
+  const [trends, setTrends] = useState<PriceTrend[]>([])
+  const [trendsSupplierId, setTrendsSupplierId] = useState<string>('')
+  const [isLoadingTrends, setIsLoadingTrends] = useState(false)
   const [summary, setSummary] = useState<{
     totalAlerts: number
     priceIncreases: number
@@ -48,12 +53,24 @@ export function PricingDashboardClient() {
     loadData()
   }, [loadData])
 
+  const loadTrends = useCallback(async (supplierId: string) => {
+    if (!supplierId) return
+    setIsLoadingTrends(true)
+    const res = await getPriceTrends(supplierId, { limit: 50 })
+    if (res.success && res.data) setTrends(res.data)
+    setIsLoadingTrends(false)
+  }, [])
+
   const loadTabData = useCallback(async (tab: Tab) => {
     if (tab === 'affected' && affectedOffers.length === 0) {
       const res = await getAffectedOffers(undefined, { daysBack })
       if (res.success && res.data) setAffectedOffers(res.data)
     }
     if (tab === 'suppliers' && supplierStats.length === 0) {
+      const res = await getSupplierPriceStats()
+      if (res.success && res.data) setSupplierStats(res.data)
+    }
+    if (tab === 'trends' && supplierStats.length === 0) {
       const res = await getSupplierPriceStats()
       if (res.success && res.data) setSupplierStats(res.data)
     }
@@ -144,6 +161,7 @@ export function PricingDashboardClient() {
             { key: 'alerts' as Tab, label: 'Prisadvarsler', count: alerts.length },
             { key: 'affected' as Tab, label: 'Påvirkede tilbud', count: affectedOffers.length },
             { key: 'suppliers' as Tab, label: 'Leverandørstatistik', count: supplierStats.length },
+            { key: 'trends' as Tab, label: 'Pristendenser', count: trends.length },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -170,6 +188,18 @@ export function PricingDashboardClient() {
         {activeTab === 'alerts' && <AlertsTab alerts={alerts} isLoading={isLoading} />}
         {activeTab === 'affected' && <AffectedOffersTab offers={affectedOffers} />}
         {activeTab === 'suppliers' && <SuppliersTab stats={supplierStats} />}
+        {activeTab === 'trends' && (
+          <TrendsTab
+            trends={trends}
+            isLoading={isLoadingTrends}
+            suppliers={supplierStats}
+            selectedSupplierId={trendsSupplierId}
+            onSupplierChange={(id) => {
+              setTrendsSupplierId(id)
+              loadTrends(id)
+            }}
+          />
+        )}
       </div>
     </div>
   )
@@ -362,6 +392,110 @@ function SuppliersTab({ stats }: { stats: SupplierPriceStats[] }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function TrendsTab({
+  trends,
+  isLoading,
+  suppliers,
+  selectedSupplierId,
+  onSupplierChange,
+}: {
+  trends: PriceTrend[]
+  isLoading: boolean
+  suppliers: SupplierPriceStats[]
+  selectedSupplierId: string
+  onSupplierChange: (id: string) => void
+}) {
+  const volatilityStyles = {
+    stable: 'bg-green-100 text-green-700',
+    moderate: 'bg-amber-100 text-amber-700',
+    high: 'bg-red-100 text-red-700',
+  }
+  const volatilityLabels = {
+    stable: 'Stabil',
+    moderate: 'Moderat',
+    high: 'Høj',
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg border p-4 flex items-center gap-4">
+        <label className="text-sm text-gray-500">Leverandør:</label>
+        <select
+          className="border rounded px-3 py-1.5 text-sm flex-1 max-w-xs"
+          value={selectedSupplierId}
+          onChange={(e) => onSupplierChange(e.target.value)}
+        >
+          <option value="">Vælg leverandør...</option>
+          {suppliers.map((s) => (
+            <option key={s.supplier_id} value={s.supplier_id}>{s.supplier_name}</option>
+          ))}
+        </select>
+      </div>
+
+      {!selectedSupplierId ? (
+        <EmptyState message="Vælg en leverandør for at se pristendenser" />
+      ) : isLoading ? (
+        <LoadingState />
+      ) : trends.length === 0 ? (
+        <EmptyState message="Ingen pristendenser fundet for denne leverandør" />
+      ) : (
+        <div className="bg-white rounded-lg border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50">
+                  <th className="text-left px-4 py-2.5 font-medium">Produkt</th>
+                  <th className="text-right px-4 py-2.5 font-medium">Nuv. pris</th>
+                  <th className="text-right px-4 py-2.5 font-medium">30 dage</th>
+                  <th className="text-right px-4 py-2.5 font-medium">90 dage</th>
+                  <th className="text-center px-4 py-2.5 font-medium">Volatilitet</th>
+                  <th className="text-center px-4 py-2.5 font-medium">Ændringer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trends.map((trend) => (
+                  <tr key={trend.supplier_product_id} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium truncate max-w-[250px]">{trend.product_name}</div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-medium">{formatDKK(trend.current_price)}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      {trend.trend_30_days !== null ? (
+                        <span className={`inline-flex items-center gap-1 ${trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                          {trend.trend_30_days > 0 ? <TrendingUp className="h-3 w-3" /> : trend.trend_30_days < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+                          {trend.trend_30_days > 0 ? '+' : ''}{trend.trend_30_days}%
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {trend.trend_90_days !== null ? (
+                        <span className={`inline-flex items-center gap-1 ${trend.trend_90_days > 0 ? 'text-red-600' : trend.trend_90_days < 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                          {trend.trend_90_days > 0 ? <TrendingUp className="h-3 w-3" /> : trend.trend_90_days < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+                          {trend.trend_90_days > 0 ? '+' : ''}{trend.trend_90_days}%
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${volatilityStyles[trend.volatility]}`}>
+                        {volatilityLabels[trend.volatility]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-gray-600">{trend.change_count_30_days}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
