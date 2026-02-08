@@ -32,6 +32,7 @@ import {
   analyzeProjectDescription,
   quickAnalyzeProject,
   createOfferFromAnalysis,
+  listAnalyses,
 } from '@/lib/actions/auto-project'
 import { getCustomers } from '@/lib/actions/customers'
 import type { AnalyzeProjectOutput, RiskFactor } from '@/types/auto-project.types'
@@ -68,6 +69,18 @@ export function AIProjectClient() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [customerSearch, setCustomerSearch] = useState('')
   const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [recentAnalyses, setRecentAnalyses] = useState<{ id: string; description: string; total_price: number; created_at: string }[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(true)
+
+  // Load recent analyses on mount
+  useEffect(() => {
+    async function loadHistory() {
+      const res = await listAnalyses({ limit: 10 })
+      if (res.success && res.data) setRecentAnalyses(res.data)
+      setLoadingHistory(false)
+    }
+    loadHistory()
+  }, [])
 
   // Quick analyze as user types (debounced)
   const handleDescriptionChange = useCallback(async (value: string) => {
@@ -523,6 +536,50 @@ export function AIProjectClient() {
           </div>
         </div>
       )}
+
+      {/* Recent Analyses History */}
+      <div className="bg-white border rounded-lg p-6 mt-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Clock className="w-5 h-5 text-gray-500" />
+          Seneste analyser
+        </h2>
+        {loadingHistory ? (
+          <div className="animate-pulse space-y-3">
+            <div className="h-10 bg-gray-200 rounded" />
+            <div className="h-10 bg-gray-200 rounded" />
+          </div>
+        ) : recentAnalyses.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-4">
+            Ingen tidligere analyser endnu
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {recentAnalyses.map((analysis) => (
+              <div
+                key={analysis.id}
+                className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+              >
+                <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-700 truncate">{analysis.description}</p>
+                  <p className="text-xs text-gray-400">
+                    {new Date(analysis.created_at).toLocaleDateString('da-DK', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+                <span className="text-sm font-medium text-gray-900 shrink-0">
+                  {formatCurrency(analysis.total_price)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Customer Selection Modal */}
       {showCustomerModal && (
