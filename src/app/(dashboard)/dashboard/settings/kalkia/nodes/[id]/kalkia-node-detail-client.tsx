@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -12,6 +12,13 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
+  Link2,
+  Unlink,
+  RefreshCw,
+  Search,
+  Star,
+  Loader2,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,8 +36,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import type { KalkiaNodeWithRelations, KalkiaNodeType, KalkiaVariantMaterial } from '@/types/kalkia.types'
 import { KALKIA_NODE_TYPE_LABELS } from '@/types/kalkia.types'
+import {
+  linkMaterialToSupplierProduct,
+  unlinkMaterialFromSupplierProduct,
+  getSupplierOptionsForMaterial,
+  syncMaterialPricesFromSupplier,
+} from '@/lib/actions/kalkia'
 
 // Extended variant type with materials from server
 interface VariantWithMaterials {
@@ -75,8 +96,29 @@ const nodeTypeColors: Record<KalkiaNodeType, string> = {
   composite: 'bg-purple-100 text-purple-600',
 }
 
+interface SupplierOption {
+  supplier_product_id: string
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string | null
+  supplier_sku: string
+  product_name: string
+  cost_price: number
+  list_price: number | null
+  is_preferred: boolean
+  is_available: boolean
+}
+
 export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeDetailClientProps) {
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(new Set())
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
+  const [selectedMaterial, setSelectedMaterial] = useState<KalkiaVariantMaterial | null>(null)
+  const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [linking, setLinking] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const Icon = nodeTypeIcons[node.node_type]
   const colorClass = nodeTypeColors[node.node_type]
@@ -107,6 +149,75 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
     }
     setExpandedVariants(newExpanded)
   }
+
+  const showMessage = useCallback((type: 'success' | 'error', text: string) => {
+    setActionMessage({ type, text })
+    setTimeout(() => setActionMessage(null), 3000)
+  }, [])
+
+  const handleOpenLinkDialog = useCallback(async (material: KalkiaVariantMaterial) => {
+    setSelectedMaterial(material)
+    setSearchQuery(material.material_name)
+    setLinkDialogOpen(true)
+    setSearching(true)
+    const result = await getSupplierOptionsForMaterial(material.material_name)
+    if (result.success && result.data) {
+      setSupplierOptions(result.data)
+    } else {
+      setSupplierOptions([])
+    }
+    setSearching(false)
+  }, [])
+
+  const handleSearch = useCallback(async (query: string) => {
+    setSearchQuery(query)
+    if (query.length < 2) {
+      setSupplierOptions([])
+      return
+    }
+    setSearching(true)
+    const result = await getSupplierOptionsForMaterial(query)
+    if (result.success && result.data) {
+      setSupplierOptions(result.data)
+    }
+    setSearching(false)
+  }, [])
+
+  const handleLinkProduct = useCallback(async (supplierProductId: string, autoUpdate: boolean) => {
+    if (!selectedMaterial) return
+    setLinking(supplierProductId)
+    const result = await linkMaterialToSupplierProduct(selectedMaterial.id, supplierProductId, autoUpdate)
+    if (result.success) {
+      showMessage('success', 'Materiale linket til leverandørprodukt')
+      setLinkDialogOpen(false)
+      setSelectedMaterial(null)
+    } else {
+      showMessage('error', result.error || 'Kunne ikke linke')
+    }
+    setLinking(null)
+  }, [selectedMaterial, showMessage])
+
+  const handleUnlink = useCallback(async (materialId: string) => {
+    setLinking(materialId)
+    const result = await unlinkMaterialFromSupplierProduct(materialId)
+    if (result.success) {
+      showMessage('success', 'Link fjernet')
+    } else {
+      showMessage('error', result.error || 'Kunne ikke fjerne link')
+    }
+    setLinking(null)
+  }, [showMessage])
+
+  const handleSyncVariant = useCallback(async (variantId: string) => {
+    setSyncing(variantId)
+    const result = await syncMaterialPricesFromSupplier(variantId)
+    if (result.success && result.data) {
+      showMessage('success', `Synkroniseret: ${result.data.updated} opdateret, ${result.data.skipped} sprunget over`)
+    } else {
+      showMessage('error', result.error || 'Synkronisering fejlede')
+    }
+    setSyncing(null)
+  }, [showMessage])
 
   return (
     <div className="space-y-6">
@@ -309,10 +420,27 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="mt-2 ml-7 p-4 border rounded-lg">
-                      <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center gap-2">
-                        <Package className="w-4 h-4" />
-                        Materialer
-                      </h4>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
+                          <Package className="w-4 h-4" />
+                          Materialer
+                        </h4>
+                        {(variant as VariantWithMaterials).materials?.some(m => m.supplier_product_id) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSyncVariant(variant.id)}
+                            disabled={syncing === variant.id}
+                          >
+                            {syncing === variant.id ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3 h-3 mr-1" />
+                            )}
+                            Synk priser
+                          </Button>
+                        )}
+                      </div>
                       {(variant as VariantWithMaterials).materials && (variant as VariantWithMaterials).materials!.length > 0 ? (
                         <Table>
                           <TableHeader>
@@ -322,6 +450,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                               <TableHead>Enhed</TableHead>
                               <TableHead className="text-right">Kostpris</TableHead>
                               <TableHead className="text-right">Salgspris</TableHead>
+                              <TableHead>Leverandør</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -355,6 +484,50 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                                   {material.sale_price
                                     ? formatPrice(material.sale_price)
                                     : '-'}
+                                </TableCell>
+                                <TableCell>
+                                  {material.supplier_product ? (
+                                    <div className="flex items-center gap-1">
+                                      <div className="text-xs">
+                                        <div className="font-medium text-green-700 flex items-center gap-1">
+                                          <Link2 className="w-3 h-3" />
+                                          {material.supplier_product.supplier.name}
+                                        </div>
+                                        <div className="text-gray-500">
+                                          {material.supplier_product.supplier_sku}
+                                          {material.auto_update_price && (
+                                            <Badge variant="outline" className="text-[10px] ml-1 px-1 py-0">
+                                              Auto
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
+                                        onClick={() => handleUnlink(material.id)}
+                                        disabled={linking === material.id}
+                                        title="Fjern link"
+                                      >
+                                        {linking === material.id ? (
+                                          <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                          <Unlink className="w-3 h-3" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs text-blue-600 hover:text-blue-800"
+                                      onClick={() => handleOpenLinkDialog(material)}
+                                    >
+                                      <Search className="w-3 h-3 mr-1" />
+                                      Link
+                                    </Button>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -450,6 +623,119 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
             <p className="text-gray-700 whitespace-pre-wrap">{node.notes}</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Supplier Link Dialog */}
+      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Link til leverandørprodukt</DialogTitle>
+            <DialogDescription>
+              Søg efter leverandørprodukter til &quot;{selectedMaterial?.material_name}&quot;
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Søg efter produkt..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="pl-9"
+              />
+              {searching && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+              )}
+            </div>
+
+            <div className="max-h-[300px] overflow-y-auto space-y-2">
+              {supplierOptions.length === 0 && !searching && searchQuery.length >= 2 && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  Ingen leverandørprodukter fundet
+                </p>
+              )}
+              {supplierOptions.map((option) => (
+                <div
+                  key={option.supplier_product_id}
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm truncate">
+                        {option.supplier_name}
+                      </span>
+                      {option.is_preferred && (
+                        <Star className="w-3 h-3 text-yellow-500 flex-shrink-0" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>{option.supplier_code || 'Leverandør'}</span>
+                      <span>·</span>
+                      <span className="font-mono">{option.supplier_sku}</span>
+                    </div>
+                    <div className="text-xs mt-1">
+                      <span className="text-gray-600">
+                        Kost: {formatPrice(option.cost_price)}
+                      </span>
+                      {option.list_price && (
+                        <span className="text-gray-500 ml-2">
+                          Liste: {formatPrice(option.list_price)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 ml-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => handleLinkProduct(option.supplier_product_id, false)}
+                      disabled={linking !== null}
+                    >
+                      {linking === option.supplier_product_id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        'Link'
+                      )}
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => handleLinkProduct(option.supplier_product_id, true)}
+                      disabled={linking !== null}
+                      title="Link og opdater priser automatisk"
+                    >
+                      {linking === option.supplier_product_id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3 h-3 mr-1" />
+                          Link + Auto
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Action message toast */}
+      {actionMessage && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 ${
+          actionMessage.type === 'success'
+            ? 'bg-green-50 text-green-800 border border-green-200'
+            : 'bg-red-50 text-red-800 border border-red-200'
+        }`}>
+          <span className="text-sm">{actionMessage.text}</span>
+          <button onClick={() => setActionMessage(null)} className="p-0.5 hover:opacity-70">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
       )}
     </div>
   )

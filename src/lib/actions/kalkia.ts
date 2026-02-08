@@ -182,7 +182,8 @@ export async function getKalkiaNode(
           *,
           materials:kalkia_variant_materials(
             *,
-            product:product_catalog(id, name, sku, cost_price, list_price)
+            product:product_catalog(id, name, sku, cost_price, list_price),
+            supplier_product:supplier_products(id, supplier_sku, supplier_name, cost_price, list_price, supplier:suppliers(name, code))
           )
         ),
         rules:kalkia_rules(*),
@@ -394,7 +395,8 @@ export async function getKalkiaVariants(
         *,
         materials:kalkia_variant_materials(
           *,
-          product:product_catalog(id, name, sku, cost_price, list_price)
+          product:product_catalog(id, name, sku, cost_price, list_price),
+          supplier_product:supplier_products(id, supplier_sku, supplier_name, cost_price, list_price, supplier:suppliers(name, code))
         )
       `)
       .eq('node_id', nodeId)
@@ -1935,7 +1937,7 @@ export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult
 
     if (error) {
       // If the function doesn't exist, do it manually
-      console.log('RPC not available, syncing manually')
+      console.info('RPC sync_all_material_prices_from_suppliers not available, syncing manually')
 
       // Get all materials with supplier links and auto_update enabled
       const { data: materials, error: materialsError } = await supabase

@@ -175,6 +175,8 @@ export interface KalkiaVariantMaterial {
   sale_price: number | null
   is_optional: boolean
   sort_order: number
+  supplier_product_id: string | null
+  auto_update_price: boolean
   created_at: string
   product?: {
     id: string
@@ -182,6 +184,17 @@ export interface KalkiaVariantMaterial {
     sku: string
     cost_price: number | null
     list_price: number
+  } | null
+  supplier_product?: {
+    id: string
+    supplier_sku: string
+    supplier_name: string
+    cost_price: number
+    list_price: number | null
+    supplier: {
+      name: string
+      code: string | null
+    }
   } | null
 }
 

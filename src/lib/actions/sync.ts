@@ -159,7 +159,7 @@ export async function deleteSyncJob(
 // Sync Execution
 // =====================================================
 
-export async function startSyncLog(
+async function startSyncLog(
   supplierId: string,
   jobType: string,
   triggerType: 'manual' | 'scheduled' | 'webhook' | 'api',
@@ -225,7 +225,7 @@ export async function updateSyncLog(
   }
 }
 
-export async function completeSyncLog(
+async function completeSyncLog(
   logId: string,
   result: {
     status: 'completed' | 'failed'

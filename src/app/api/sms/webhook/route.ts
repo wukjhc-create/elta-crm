@@ -46,7 +46,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unsupported content type' }, { status: 400 })
     }
 
-    console.log('SMS webhook received:', payload)
+    // Log webhook payload for debugging
+    console.info('SMS webhook received:', payload.id, payload.status)
 
     // Handle the webhook
     const result = await handleSmsWebhook({

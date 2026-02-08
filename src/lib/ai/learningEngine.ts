@@ -367,11 +367,8 @@ export async function getSuggestedRiskBuffer(complexityScore: number): Promise<n
  * Record an adjustment made to the system
  */
 export async function recordAdjustment(adjustment: Omit<Adjustment, 'applied_at'>): Promise<void> {
-  // For now, log it - could store in database
-  console.log('Calibration adjustment:', {
-    ...adjustment,
-    applied_at: new Date().toISOString(),
-  })
+  // Log adjustment - could be expanded to store in database
+  console.info('Calibration adjustment applied:', adjustment.type, adjustment.component || adjustment.factor)
 }
 
 // =====================================================
