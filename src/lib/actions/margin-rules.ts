@@ -488,33 +488,5 @@ export async function getMarginRuleSummary(
   }
 }
 
-// =====================================================
-// UI Helper Constants
-// =====================================================
-
-export const MARGIN_RULE_TYPE_LABELS: Record<MarginRuleType, string> = {
-  supplier: 'Leverandør (standard)',
-  category: 'Kategori',
-  subcategory: 'Underkategori',
-  product: 'Produkt',
-  customer: 'Kunde',
-}
-
-export const MARGIN_RULE_TYPE_DESCRIPTIONS: Record<MarginRuleType, string> = {
-  supplier: 'Gælder for alle produkter fra leverandøren',
-  category: 'Gælder for alle produkter i en kategori',
-  subcategory: 'Gælder for alle produkter i en underkategori',
-  product: 'Gælder kun for ét specifikt produkt',
-  customer: 'Gælder for alle produkter til en specifik kunde',
-}
-
-export const MARGIN_RULE_PRIORITY_HELP = `
-Regler anvendes i følgende rækkefølge (højest prioritet først):
-1. Produkt-specifikke regler
-2. Kunde-specifikke regler
-3. Underkategori-regler
-4. Kategori-regler
-5. Leverandør (standard) regler
-
-Inden for samme type bruges regel med højest prioritet-værdi.
-`
+// UI Helper Constants moved to client components (margin-rules-manager.tsx)
+// 'use server' files can only export async functions

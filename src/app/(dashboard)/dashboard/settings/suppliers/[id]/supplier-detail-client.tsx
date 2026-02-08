@@ -21,6 +21,7 @@ import {
   User,
   Key,
   Percent,
+  RefreshCw,
 } from 'lucide-react'
 import { deleteSupplier } from '@/lib/actions/suppliers'
 import { SupplierForm } from '@/components/modules/suppliers/supplier-form'
@@ -28,6 +29,8 @@ import { SupplierSettingsForm } from '@/components/modules/suppliers/supplier-se
 import { SupplierProductsTable } from '@/components/modules/suppliers/supplier-products-table'
 import { ImportHistory } from '@/components/modules/suppliers/import-history'
 import { SupplierCredentialsForm } from '@/components/modules/suppliers/supplier-credentials-form'
+import { MarginRulesManager } from '@/components/modules/suppliers/margin-rules-manager'
+import { SyncJobsManager } from '@/components/modules/suppliers/sync-jobs-manager'
 import type { Supplier } from '@/types/suppliers.types'
 
 interface SupplierDetailClientProps {
@@ -166,9 +169,17 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
             <Key className="w-4 h-4 mr-2" />
             API Login
           </TabsTrigger>
+          <TabsTrigger value="margins">
+            <Percent className="w-4 h-4 mr-2" />
+            Marginer
+          </TabsTrigger>
           <TabsTrigger value="products">
             <Package className="w-4 h-4 mr-2" />
             Produkter
+          </TabsTrigger>
+          <TabsTrigger value="sync">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Sync Jobs
           </TabsTrigger>
           <TabsTrigger value="history">
             <History className="w-4 h-4 mr-2" />
@@ -194,8 +205,22 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
           </div>
         </TabsContent>
 
+        <TabsContent value="margins" className="mt-6">
+          <MarginRulesManager
+            supplierId={currentSupplier.id}
+            supplierName={currentSupplier.name}
+          />
+        </TabsContent>
+
         <TabsContent value="products" className="mt-6">
           <SupplierProductsTable
+            supplierId={currentSupplier.id}
+            supplierName={currentSupplier.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="sync" className="mt-6">
+          <SyncJobsManager
             supplierId={currentSupplier.id}
             supplierName={currentSupplier.name}
           />

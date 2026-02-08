@@ -24,6 +24,7 @@ import {
 import { CustomerForm } from '@/components/modules/customers/customer-form'
 import { ContactForm } from '@/components/modules/customers/contact-form'
 import { PortalAccess } from '@/components/modules/customers/portal-access'
+import { CustomerPricing } from '@/components/modules/customers/customer-pricing'
 import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import {
   deleteCustomer,
@@ -477,6 +478,12 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
                 </div>
               </div>
             </div>
+
+            {/* Customer Pricing */}
+            <CustomerPricing
+              customerId={customer.id}
+              customerName={customer.company_name}
+            />
 
             {/* Portal Access */}
             <PortalAccess
