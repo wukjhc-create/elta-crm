@@ -25,6 +25,7 @@ import {
   Boxes,
   Calculator,
   MessageSquare,
+  Plug,
 } from 'lucide-react'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
@@ -43,6 +44,7 @@ import {
   addProductToOffer,
   importCalculationToOffer,
 } from '@/lib/actions/offers'
+import { getIntegrations, exportOfferToIntegration } from '@/lib/actions/integrations'
 import { getProductsForSelect } from '@/lib/actions/products'
 import { getCalculationsForSelect } from '@/lib/actions/calculations'
 import { getOfferActivities } from '@/lib/actions/offer-activities'
@@ -83,6 +85,9 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   const [calculations, setCalculations] = useState<{ id: string; name: string; final_amount: number }[]>([])
   const [isAddingProduct, setIsAddingProduct] = useState(false)
   const [isImportingCalculation, setIsImportingCalculation] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [availableIntegrations, setAvailableIntegrations] = useState<{ id: string; name: string }[]>([])
+  const [showExportDialog, setShowExportDialog] = useState(false)
 
   // Load activities on mount
   useEffect(() => {
@@ -296,6 +301,37 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     router.refresh()
   }
 
+  const handleOpenExport = async () => {
+    const result = await getIntegrations()
+    if (result.success && result.data) {
+      const active = result.data.filter((i) => i.is_active)
+      if (active.length === 0) {
+        toast.warning('Ingen aktive integrationer konfigureret')
+        return
+      }
+      setAvailableIntegrations(active.map((i) => ({ id: i.id, name: i.name })))
+      setShowExportDialog(true)
+    } else {
+      toast.error('Kunne ikke hente integrationer')
+    }
+  }
+
+  const handleExportToIntegration = async (integrationId: string) => {
+    setIsExporting(true)
+    setShowExportDialog(false)
+    const result = await exportOfferToIntegration(offer.id, integrationId)
+    if (result.success) {
+      toast.success('Tilbud eksporteret', result.data?.externalId ? `Eksternt ID: ${result.data.externalId}` : undefined)
+      const activitiesResult = await getOfferActivities(offer.id)
+      if (activitiesResult.success && activitiesResult.data) {
+        setActivities(activitiesResult.data)
+      }
+    } else {
+      toast.error('Eksport fejlede', result.error)
+    }
+    setIsExporting(false)
+  }
+
   if (showPdfPreview) {
     return (
       <OfferPdfView
@@ -368,6 +404,18 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
             >
               <Printer className="w-4 h-4" />
               Print
+            </button>
+            <button
+              onClick={handleOpenExport}
+              disabled={isExporting}
+              className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50 disabled:opacity-50"
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plug className="w-4 h-4" />
+              )}
+              Eksporter
             </button>
             <button
               onClick={() => setShowEditForm(true)}
@@ -947,6 +995,34 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
         onOpenChange={setShowPackagePicker}
         onSelect={handleAddPackage}
       />
+
+      {/* Export to Integration Dialog */}
+      {showExportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Eksporter til integration</h3>
+            <p className="text-sm text-gray-500 mb-4">Vælg hvilken integration tilbuddet skal sendes til</p>
+            <div className="space-y-2">
+              {availableIntegrations.map((integration) => (
+                <button
+                  key={integration.id}
+                  onClick={() => handleExportToIntegration(integration.id)}
+                  className="w-full text-left border rounded-lg p-3 hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <Plug className="w-4 h-4 text-gray-400" />
+                  <span className="font-medium text-sm">{integration.name}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowExportDialog(false)}
+              className="mt-4 w-full px-4 py-2 border rounded-md text-sm hover:bg-gray-50"
+            >
+              Annuller
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }

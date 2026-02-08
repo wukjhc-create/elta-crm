@@ -14,6 +14,8 @@ import {
   Copy,
   Eye,
   EyeOff,
+  FileText,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -48,6 +50,7 @@ import { CalculationSnapshots } from '@/components/modules/calculations/calculat
 import { CalculationAnomalies } from '@/components/modules/calculations/calculation-anomalies'
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
 import { insertPackageIntoCalculation } from '@/lib/actions/packages'
+import { convertCalculationToOffer } from '@/lib/actions/calculation-intelligence'
 import {
   CALCULATION_TYPE_LABELS,
   CALCULATION_ROW_TYPE_LABELS,
@@ -81,8 +84,31 @@ export default function CalculationDetailClient({
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [showPackagePicker, setShowPackagePicker] = useState(false)
   const [showInternalView, setShowInternalView] = useState(false)
+  const [isConverting, setIsConverting] = useState(false)
 
   const rows = calculation.rows || []
+
+  const handleConvertToOffer = async () => {
+    if (rows.length === 0) {
+      toast.error('Tilføj mindst én linje før konvertering')
+      return
+    }
+    if (!confirm('Konverter denne kalkulation til et tilbud? Kalkulationen markeres som konverteret.')) {
+      return
+    }
+    setIsConverting(true)
+    const result = await convertCalculationToOffer(
+      calculation.id,
+      calculation.customer_id || null,
+    )
+    if (result.success && result.data) {
+      toast.success('Tilbud oprettet fra kalkulation')
+      router.push(`/dashboard/offers/${result.data.offer_id}`)
+    } else {
+      toast.error(result.error || 'Kunne ikke konvertere til tilbud')
+    }
+    setIsConverting(false)
+  }
 
   const handleDelete = async () => {
     if (!confirm(`Er du sikker på at du vil slette "${calculation.name}"?`)) {
@@ -171,6 +197,14 @@ export default function CalculationDetailClient({
           <Button variant="outline" onClick={handleDuplicate}>
             <Copy className="w-4 h-4 mr-2" />
             Dupliker
+          </Button>
+          <Button onClick={handleConvertToOffer} disabled={isConverting}>
+            {isConverting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4 mr-2" />
+            )}
+            Opret tilbud
           </Button>
           <Button variant="outline" onClick={handleDelete} className="text-red-600">
             <Trash2 className="w-4 h-4 mr-2" />
