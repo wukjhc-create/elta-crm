@@ -29,6 +29,7 @@ import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { LineItemForm } from '@/components/modules/offers/line-item-form'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
+import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
 import { SendEmailModal, EmailTimeline } from '@/components/email'
 import { SendSmsModal, SmsTimeline } from '@/components/sms'
 import {
@@ -704,6 +705,15 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                 )}
               </div>
             </div>
+
+            {/* Price Explanation */}
+            {offer.line_items && offer.line_items.length > 0 && (
+              <PriceExplanationCard
+                offerId={offer.id}
+                lineItems={offer.line_items}
+                finalAmount={offer.final_amount}
+              />
+            )}
 
             {/* Email Communication */}
             <div className="bg-white rounded-lg border p-6">

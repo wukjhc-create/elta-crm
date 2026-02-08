@@ -43,6 +43,7 @@ import CalculationRowForm from '@/components/modules/calculations/calculation-ro
 import ProductPickerDialog from '@/components/modules/calculations/product-picker-dialog'
 import FinancialSummaryCard from '@/components/modules/calculations/financial-summary-card'
 import ROICalculator from '@/components/modules/calculations/roi-calculator'
+import { CalculationSnapshots } from '@/components/modules/calculations/calculation-snapshots'
 import {
   CALCULATION_TYPE_LABELS,
   CALCULATION_ROW_TYPE_LABELS,
@@ -331,6 +332,9 @@ export default function CalculationDetailClient({
               readOnly
             />
           )}
+
+          {/* Snapshots */}
+          <CalculationSnapshots calculation={calculation} />
 
           {/* Information Card */}
           <Card>

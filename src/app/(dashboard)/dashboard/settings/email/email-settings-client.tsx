@@ -42,6 +42,7 @@ import {
   deleteEmailTemplate,
   testSmtpConnectionAction,
   sendTestEmailAction,
+  getEmailStats,
 } from '@/lib/actions/email'
 import type { EmailTemplate, EmailTemplateCreate, EmailTemplateUpdate } from '@/types/email.types'
 import type { CompanySettings } from '@/types/company-settings.types'
@@ -59,6 +60,10 @@ import {
   Trash2,
   Eye,
   AlertTriangle,
+  BarChart3,
+  MailOpen,
+  MousePointerClick,
+  AlertCircle,
 } from 'lucide-react'
 
 interface EmailSettingsClientProps {
@@ -105,6 +110,29 @@ export function EmailSettingsClient({
   // Test email state
   const [testEmailAddress, setTestEmailAddress] = useState('')
   const [isSendingTest, setIsSendingTest] = useState(false)
+
+  // Stats state
+  const [emailStats, setEmailStats] = useState<{
+    total_sent: number
+    total_opened: number
+    total_clicked: number
+    total_bounced: number
+    open_rate: number
+    click_rate: number
+  } | null>(null)
+  const [isLoadingStats, setIsLoadingStats] = useState(false)
+
+  const loadStats = async (days?: number) => {
+    setIsLoadingStats(true)
+    try {
+      const stats = await getEmailStats({ days: days || 30 })
+      setEmailStats(stats)
+    } catch {
+      toast?.error('Fejl', 'Kunne ikke hente statistik')
+    } finally {
+      setIsLoadingStats(false)
+    }
+  }
 
   // =====================================================
   // SMTP HANDLERS
@@ -272,6 +300,10 @@ export function EmailSettingsClient({
           <TabsTrigger value="templates">
             <FileText className="h-4 w-4 mr-2" />
             E-mail skabeloner
+          </TabsTrigger>
+          <TabsTrigger value="stats" onClick={() => !emailStats && loadStats()}>
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Statistik
           </TabsTrigger>
         </TabsList>
 
@@ -514,6 +546,156 @@ export function EmailSettingsClient({
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Stats Tab */}
+        <TabsContent value="stats" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    E-mail statistik
+                  </CardTitle>
+                  <CardDescription>
+                    Overblik over sendte e-mails og engagement
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadStats(7)}
+                  >
+                    7 dage
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadStats(30)}
+                  >
+                    30 dage
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadStats(90)}
+                  >
+                    90 dage
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingStats ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : emailStats ? (
+                <div className="space-y-6">
+                  {/* Main stats grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-blue-600 mb-1">
+                        <Send className="h-4 w-4" />
+                        <span className="text-sm font-medium">Sendt</span>
+                      </div>
+                      <p className="text-2xl font-bold text-blue-700">
+                        {emailStats.total_sent}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-green-600 mb-1">
+                        <MailOpen className="h-4 w-4" />
+                        <span className="text-sm font-medium">Åbnet</span>
+                      </div>
+                      <p className="text-2xl font-bold text-green-700">
+                        {emailStats.total_opened}
+                      </p>
+                      <p className="text-xs text-green-600 mt-1">
+                        {emailStats.open_rate.toFixed(1)}% åbningsrate
+                      </p>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-purple-600 mb-1">
+                        <MousePointerClick className="h-4 w-4" />
+                        <span className="text-sm font-medium">Klikket</span>
+                      </div>
+                      <p className="text-2xl font-bold text-purple-700">
+                        {emailStats.total_clicked}
+                      </p>
+                      <p className="text-xs text-purple-600 mt-1">
+                        {emailStats.click_rate.toFixed(1)}% klikrate
+                      </p>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-red-600 mb-1">
+                        <AlertCircle className="h-4 w-4" />
+                        <span className="text-sm font-medium">Fejlet</span>
+                      </div>
+                      <p className="text-2xl font-bold text-red-700">
+                        {emailStats.total_bounced}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rate bars */}
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-muted-foreground">Åbningsrate</span>
+                        <span className="font-medium">{emailStats.open_rate.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full transition-all"
+                          style={{ width: `${Math.min(emailStats.open_rate, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-muted-foreground">Klikrate</span>
+                        <span className="font-medium">{emailStats.click_rate.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-purple-500 rounded-full transition-all"
+                          style={{ width: `${Math.min(emailStats.click_rate, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-muted-foreground">Leveringsrate</span>
+                        <span className="font-medium">
+                          {emailStats.total_sent > 0
+                            ? (((emailStats.total_sent - emailStats.total_bounced) / emailStats.total_sent) * 100).toFixed(1)
+                            : 0}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full transition-all"
+                          style={{
+                            width: `${emailStats.total_sent > 0
+                              ? Math.min(((emailStats.total_sent - emailStats.total_bounced) / emailStats.total_sent) * 100, 100)
+                              : 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Vælg en tidsperiode for at se statistik</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
