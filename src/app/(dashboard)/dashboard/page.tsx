@@ -24,6 +24,7 @@ import {
   UpcomingTasks,
   PendingOffers,
   QuickActions,
+  SystemAlertsWidget,
 } from '@/components/modules/dashboard'
 
 export default async function DashboardPage() {
@@ -139,6 +140,12 @@ export default async function DashboardPage() {
       <div className="bg-white p-6 rounded-lg border">
         <h2 className="text-lg font-semibold mb-4">Hurtige handlinger</h2>
         <QuickActions companySettings={companySettings} />
+      </div>
+
+      {/* System Alerts */}
+      <div className="bg-white p-6 rounded-lg border">
+        <h2 className="text-lg font-semibold mb-4">Systemadvarsler</h2>
+        <SystemAlertsWidget />
       </div>
 
       {/* Main Content Grid */}

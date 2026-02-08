@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/supplier-sync",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-check",
+      "schedule": "0 3 * * *"
     }
   ]
 }
