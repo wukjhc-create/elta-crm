@@ -22,6 +22,7 @@ import {
   Loader2,
   Mail,
   Package,
+  Boxes,
   Calculator,
   MessageSquare,
 } from 'lucide-react'
@@ -30,6 +31,8 @@ import { OfferForm } from '@/components/modules/offers/offer-form'
 import { LineItemForm } from '@/components/modules/offers/line-item-form'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
+import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
+import { insertPackageIntoOffer } from '@/lib/actions/packages'
 import { SendEmailModal, EmailTimeline } from '@/components/email'
 import { SendSmsModal, SmsTimeline } from '@/components/sms'
 import {
@@ -75,6 +78,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   const [showCalculationPicker, setShowCalculationPicker] = useState(false)
   const [showSendEmailModal, setShowSendEmailModal] = useState(false)
   const [showSendSmsModal, setShowSendSmsModal] = useState(false)
+  const [showPackagePicker, setShowPackagePicker] = useState(false)
   const [products, setProducts] = useState<{ id: string; name: string; sku: string | null; list_price: number }[]>([])
   const [calculations, setCalculations] = useState<{ id: string; name: string; final_amount: number }[]>([])
   const [isAddingProduct, setIsAddingProduct] = useState(false)
@@ -161,6 +165,19 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     }
     setIsImportingCalculation(false)
     setShowCalculationPicker(false)
+  }
+
+  const handleAddPackage = async (packageId: string, packageName: string) => {
+    setShowPackagePicker(false)
+    const result = await insertPackageIntoOffer(packageId, offer.id, {
+      startingPosition: nextPosition,
+    })
+    if (result.success && result.data) {
+      toast.success(`Pakke "${packageName}" tilføjet`, `${result.data.insertedCount} linjer`)
+      router.refresh()
+    } else {
+      toast.error('Kunne ikke tilføje pakke', result.error)
+    }
   }
 
   const handleDeleteLineItem = async (lineItemId: string) => {
@@ -411,6 +428,13 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Linjer</h2>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowPackagePicker(true)}
+                    className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-primary border rounded px-2 py-1"
+                  >
+                    <Boxes className="w-4 h-4" />
+                    Fra pakke
+                  </button>
                   <button
                     onClick={handleOpenProductPicker}
                     className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-primary border rounded px-2 py-1"
@@ -915,6 +939,13 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
         onOpenChange={setShowSendSmsModal}
         offerId={offer.id}
         onSmsSent={handleSmsSent}
+      />
+
+      {/* Package Picker Dialog */}
+      <PackagePickerDialog
+        open={showPackagePicker}
+        onOpenChange={setShowPackagePicker}
+        onSelect={handleAddPackage}
       />
     </>
   )

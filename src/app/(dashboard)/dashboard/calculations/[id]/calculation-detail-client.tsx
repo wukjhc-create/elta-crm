@@ -9,6 +9,7 @@ import {
   Calculator,
   GripVertical,
   Package,
+  Boxes,
   Settings,
   Copy,
   Eye,
@@ -44,6 +45,9 @@ import ProductPickerDialog from '@/components/modules/calculations/product-picke
 import FinancialSummaryCard from '@/components/modules/calculations/financial-summary-card'
 import ROICalculator from '@/components/modules/calculations/roi-calculator'
 import { CalculationSnapshots } from '@/components/modules/calculations/calculation-snapshots'
+import { CalculationAnomalies } from '@/components/modules/calculations/calculation-anomalies'
+import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
+import { insertPackageIntoCalculation } from '@/lib/actions/packages'
 import {
   CALCULATION_TYPE_LABELS,
   CALCULATION_ROW_TYPE_LABELS,
@@ -75,6 +79,7 @@ export default function CalculationDetailClient({
   const [showRowDialog, setShowRowDialog] = useState(false)
   const [editingRow, setEditingRow] = useState<CalculationRowWithRelations | null>(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
+  const [showPackagePicker, setShowPackagePicker] = useState(false)
   const [showInternalView, setShowInternalView] = useState(false)
 
   const rows = calculation.rows || []
@@ -128,6 +133,21 @@ export default function CalculationDetailClient({
       }
     })
     setShowProductPicker(false)
+  }
+
+  const handleAddPackage = async (packageId: string, packageName: string) => {
+    setShowPackagePicker(false)
+    startTransition(async () => {
+      const result = await insertPackageIntoCalculation(packageId, calculation.id, {
+        startingPosition: nextPosition,
+      })
+      if (result.success && result.data) {
+        toast.success(`Pakke "${packageName}" tilføjet (${result.data.insertedCount} linjer)`)
+        router.refresh()
+      } else {
+        toast.error(result.error || 'Kunne ikke tilføje pakke')
+      }
+    })
   }
 
   const formatPrice = (price: number) => {
@@ -185,6 +205,14 @@ export default function CalculationDetailClient({
                 Linjer ({rows.length})
               </CardTitle>
               <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowPackagePicker(true)}
+                >
+                  <Boxes className="w-4 h-4 mr-2" />
+                  Fra pakke
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -333,6 +361,9 @@ export default function CalculationDetailClient({
             />
           )}
 
+          {/* Anomaly Detection */}
+          <CalculationAnomalies calculationId={calculation.id} />
+
           {/* Snapshots */}
           <CalculationSnapshots calculation={calculation} />
 
@@ -454,6 +485,13 @@ export default function CalculationDetailClient({
         onOpenChange={setShowProductPicker}
         products={products}
         onSelect={handleAddProduct}
+      />
+
+      {/* Package Picker Dialog */}
+      <PackagePickerDialog
+        open={showPackagePicker}
+        onOpenChange={setShowPackagePicker}
+        onSelect={handleAddPackage}
       />
     </div>
   )
