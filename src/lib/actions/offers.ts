@@ -1182,12 +1182,27 @@ export async function createLineItemFromSupplierProduct(
       return { success: false, error: 'Produktet har ingen kostpris' }
     }
 
-    // Get effective margin (use DB function if available, otherwise fallback)
+    // Get effective margin from rules engine (DB function with full hierarchy)
     let marginPercentage = options?.customMarginPercentage ?? supplierProduct.margin_percentage ?? 25
     let effectiveCostPrice = supplierProduct.cost_price
+    let fixedMarkup = 0
+    let roundTo: number | null = null
 
-    // Check for customer-specific pricing
-    if (offer?.customer_id) {
+    // Try margin rules engine first, then fall back to customer pricing
+    const { data: marginData } = await supabase.rpc('get_effective_margin', {
+      p_supplier_id: supplierProduct.supplier_id,
+      p_supplier_product_id: supplierProductId,
+      p_category: null,
+      p_sub_category: null,
+      p_customer_id: offer?.customer_id || null,
+    })
+
+    if (marginData && marginData.length > 0 && !options?.customMarginPercentage) {
+      marginPercentage = marginData[0].margin_percentage
+      fixedMarkup = marginData[0].fixed_markup || 0
+      roundTo = marginData[0].round_to
+    } else if (offer?.customer_id && !options?.customMarginPercentage) {
+      // Fallback: check customer-specific pricing
       const { data: customerPricing } = await supabase
         .from('customer_supplier_prices')
         .select('discount_percentage, custom_margin_percentage')
@@ -1206,8 +1221,11 @@ export async function createLineItemFromSupplierProduct(
       }
     }
 
-    // Calculate sale price with margin
-    const unitPrice = effectiveCostPrice * (1 + marginPercentage / 100)
+    // Calculate sale price with margin + optional fixed markup and rounding
+    let unitPrice = effectiveCostPrice * (1 + marginPercentage / 100) + fixedMarkup
+    if (roundTo && roundTo > 0) {
+      unitPrice = Math.ceil(unitPrice / roundTo) * roundTo
+    }
 
     // Get next position if not provided
     let position = options?.position

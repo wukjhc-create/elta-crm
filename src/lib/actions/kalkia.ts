@@ -1126,6 +1126,8 @@ interface PackageBuilderCalculationItem {
     unit: string
     costPrice: number
     salePrice: number
+    supplierProductId?: string | null
+    supplierName?: string | null
   }[]
 }
 
@@ -1509,6 +1511,8 @@ interface CalculationItemForOffer {
     unit: string
     costPrice: number
     salePrice: number
+    supplierProductId?: string | null
+    supplierName?: string | null
   }[]
 }
 
@@ -1616,6 +1620,9 @@ export async function createOfferFromCalculation(
       const itemCostPrice = laborCost + materialCost
       const itemSalePrice = item.salePrice * item.quantity
 
+      // Find primary supplier product from materials (first linked one)
+      const linkedMaterial = item.materials?.find(m => m.supplierProductId)
+
       return {
         offer_id: offer.id,
         position: index,
@@ -1628,6 +1635,12 @@ export async function createOfferFromCalculation(
         cost_price: itemCostPrice / item.quantity,
         discount_percentage: 0,
         total: itemSalePrice,
+        line_type: 'calculation' as const,
+        // Carry supplier tracking if materials have supplier links
+        supplier_product_id: linkedMaterial?.supplierProductId || null,
+        supplier_cost_price_at_creation: linkedMaterial ? linkedMaterial.costPrice : null,
+        supplier_margin_applied: linkedMaterial ? input.settings.marginPercentage : null,
+        supplier_name_at_creation: linkedMaterial?.supplierName || null,
       }
     })
 

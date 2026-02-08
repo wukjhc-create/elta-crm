@@ -73,6 +73,11 @@ export interface OfferLineItem {
   section: string | null
   cost_price: number | null
   notes: string | null
+  // Supplier tracking fields
+  supplier_product_id: string | null
+  supplier_cost_price_at_creation: number | null
+  supplier_margin_applied: number | null
+  supplier_name_at_creation: string | null
   created_at: string
 }
 
@@ -170,6 +175,11 @@ export interface CreateLineItemInput {
   section?: string | null
   cost_price?: number | null
   notes?: string | null
+  // Supplier tracking
+  supplier_product_id?: string | null
+  supplier_cost_price_at_creation?: number | null
+  supplier_margin_applied?: number | null
+  supplier_name_at_creation?: string | null
 }
 
 // Update line item input
