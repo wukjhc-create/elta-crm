@@ -165,8 +165,46 @@ export async function analyzeLearningMetrics(): Promise<LearningMetrics> {
     project_profitability_rate: Math.round(profitabilityRate * 10) / 10,
     avg_customer_satisfaction: Math.round(avgSatisfaction * 10) / 10,
     improving,
-    recent_adjustments: [], // TODO: Load from adjustments table
+    recent_adjustments: await loadRecentAdjustments(supabase),
   }
+}
+
+async function loadRecentAdjustments(supabase: Awaited<ReturnType<typeof createClient>>): Promise<Adjustment[]> {
+  const { data } = await supabase
+    .from('calculation_feedback')
+    .select('adjustment_suggestions, created_at')
+    .not('adjustment_suggestions', 'eq', '[]')
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  if (!data) return []
+
+  const adjustments: Adjustment[] = []
+  for (const row of data) {
+    const suggestions = row.adjustment_suggestions as Array<{
+      type: string
+      component?: string
+      factor?: string
+      old_value: number
+      new_value: number
+      reason: string
+      applied_at?: string
+    }>
+    if (Array.isArray(suggestions)) {
+      for (const s of suggestions) {
+        adjustments.push({
+          type: s.type as Adjustment['type'],
+          component: s.component,
+          factor: s.factor,
+          old_value: s.old_value,
+          new_value: s.new_value,
+          reason: s.reason,
+          applied_at: s.applied_at || row.created_at,
+        })
+      }
+    }
+  }
+  return adjustments
 }
 
 function getDefaultMetrics(): LearningMetrics {

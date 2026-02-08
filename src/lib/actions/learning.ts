@@ -17,7 +17,7 @@ import {
   type Adjustment,
 } from '@/lib/ai/learningEngine'
 import type { ActionResult } from '@/types/common.types'
-import { requireAuth, formatError } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Helpers
@@ -82,8 +82,18 @@ export async function suggestRiskBuffer(
  */
 export async function runAutoCalibration(): Promise<ActionResult<{ adjustments: Adjustment[] }>> {
   try {
-    await requireAuth()
-    // TODO: Check admin role
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Verify admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan køre autokalibrering' }
+    }
 
     const adjustments = await autoCalibrate()
 
@@ -100,9 +110,27 @@ export async function applyCalibration(
   calibration: ComponentCalibration
 ): Promise<ActionResult<{ applied: boolean }>> {
   try {
-    await requireAuth()
+    const { supabase, userId } = await getAuthenticatedClient()
 
-    const supabase = await createClient()
+    // Verify admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan anvende kalibreringer' }
+    }
+
+    // Get current value for history
+    const { data: currentComponent } = await supabase
+      .from('calc_components')
+      .select('time_estimate')
+      .eq('code', calibration.code)
+      .single()
+
+    const oldValue = currentComponent?.time_estimate || 0
 
     // Update calc_components time estimate
     const { error } = await supabase
@@ -117,7 +145,22 @@ export async function applyCalibration(
       return { success: false, error: 'Kunne ikke opdatere komponent' }
     }
 
-    // TODO: Record adjustment in history
+    // Record adjustment in calculation_feedback
+    const reason = `Afvigelse: ${calibration.variance_percentage.toFixed(1)}%, baseret på ${calibration.sample_size} beregninger`
+    await supabase
+      .from('calculation_feedback')
+      .insert({
+        lessons_learned: `Kalibrering: ${calibration.code} tidsjustering fra ${oldValue}min til ${calibration.suggested_time_minutes}min`,
+        adjustment_suggestions: [{
+          type: 'time',
+          component: calibration.code,
+          old_value: oldValue,
+          new_value: calibration.suggested_time_minutes,
+          reason,
+          applied_at: new Date().toISOString(),
+          applied_by: userId,
+        }],
+      })
 
     return { success: true, data: { applied: true } }
   } catch (err) {
