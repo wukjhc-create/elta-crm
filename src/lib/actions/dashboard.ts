@@ -1,21 +1,10 @@
 'use server'
 
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import type { LeadStatus } from '@/types/leads.types'
 import type { OfferStatus } from '@/types/offers.types'
 import type { ProjectStatus } from '@/types/projects.types'
-
-// =====================================================
-// Helper Functions
-// =====================================================
-
-async function requireAuth(): Promise<string> {
-  const user = await getUser()
-  if (!user) {
-    throw new Error('AUTH_REQUIRED')
-  }
-  return user.id
-}
+import { requireAuth } from '@/lib/actions/action-helpers'
 
 export interface DashboardStats {
   leads: {

@@ -1,10 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import { encryptCredentials, decryptCredentials, isEncryptionConfigured, maskSensitive } from '@/lib/utils/encryption'
 import type { ActionResult } from '@/types/common.types'
+import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Types
@@ -49,32 +50,6 @@ export interface CreateCredentialData {
   environment?: CredentialEnvironment
   notes?: string
 }
-
-// =====================================================
-// Helper Functions
-// =====================================================
-
-async function requireAuth(): Promise<string> {
-  const user = await getUser()
-  if (!user) {
-    throw new Error('AUTH_REQUIRED')
-  }
-  return user.id
-}
-
-function formatError(err: unknown, defaultMessage: string): string {
-  if (err instanceof Error) {
-    if (err.message === 'AUTH_REQUIRED') {
-      return 'Du skal være logget ind'
-    }
-    if (err.message.includes('ENCRYPTION_KEY')) {
-      return 'Krypteringsnøgle er ikke konfigureret'
-    }
-  }
-  console.error(`${defaultMessage}:`, err)
-  return defaultMessage
-}
-
 // =====================================================
 // Credential CRUD
 // =====================================================

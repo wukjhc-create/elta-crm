@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -21,6 +21,7 @@ import {
 } from '@/lib/validations/packages'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { ZodError } from 'zod'
+import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -30,34 +31,9 @@ import { ZodError } from 'zod'
  * Ensures user is authenticated and returns user ID
  * @throws Error if not authenticated
  */
-async function requireAuth(): Promise<string> {
-  const user = await getUser()
-  if (!user) {
-    throw new Error('AUTH_REQUIRED')
-  }
-  return user.id
-}
-
 /**
  * Formats error messages for user display
  */
-function formatError(err: unknown, defaultMessage: string): string {
-  if (err instanceof Error) {
-    if (err.message === 'AUTH_REQUIRED') {
-      return 'Du skal være logget ind'
-    }
-    if (err.message.startsWith('Ugyldig')) {
-      return err.message
-    }
-  }
-  if (err instanceof ZodError) {
-    const firstError = err.errors[0]
-    return firstError?.message || 'Ugyldig input'
-  }
-  console.error(`${defaultMessage}:`, err)
-  return defaultMessage
-}
-
 // =====================================================
 // PACKAGE CATEGORIES
 // =====================================================

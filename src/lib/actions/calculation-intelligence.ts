@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import type { ActionResult } from '@/types/common.types'
 import type {
   InstallationType,
@@ -18,26 +18,11 @@ import type {
   ProfitSimulationResult,
 } from '@/types/calculation-intelligence.types'
 import { CalculationIntelligenceEngine, detectAnomalies } from '@/lib/services/calculation-intelligence'
+import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Auth Helper
 // =====================================================
-
-async function requireAuth(): Promise<string> {
-  const user = await getUser()
-  if (!user) throw new Error('AUTH_REQUIRED')
-  return user.id
-}
-
-function formatError(err: unknown, defaultMessage: string): string {
-  if (err instanceof Error) {
-    if (err.message === 'AUTH_REQUIRED') return 'Du skal være logget ind'
-    if (err.message.startsWith('Ugyldig')) return err.message
-  }
-  console.error(`${defaultMessage}:`, err)
-  return defaultMessage
-}
-
 // =====================================================
 // Installation Types
 // =====================================================

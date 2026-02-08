@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -9,30 +9,7 @@ import type {
   CreateMarginRuleData,
   MarginRuleType,
 } from '@/types/suppliers.types'
-
-// =====================================================
-// Helper Functions
-// =====================================================
-
-async function requireAuth(): Promise<string> {
-  const user = await getUser()
-  if (!user) {
-    throw new Error('AUTH_REQUIRED')
-  }
-  return user.id
-}
-
-function formatError(err: unknown, defaultMessage: string): string {
-  if (err instanceof Error) {
-    if (err.message === 'AUTH_REQUIRED') {
-      return 'Du skal være logget ind'
-    }
-    return err.message
-  }
-  console.error(`${defaultMessage}:`, err)
-  return defaultMessage
-}
-
+import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 // =====================================================
 // Margin Rules CRUD
 // =====================================================

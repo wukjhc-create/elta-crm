@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -20,29 +20,11 @@ import type {
   CreateOfferTextInput,
   UpdateOfferTextInput,
 } from '@/types/component-intelligence.types'
+import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // HELPER FUNCTIONS
 // =====================================================
-
-async function requireAuth(): Promise<string> {
-  const user = await getUser()
-  if (!user) {
-    throw new Error('AUTH_REQUIRED')
-  }
-  return user.id
-}
-
-function formatError(err: unknown, defaultMessage: string): string {
-  if (err instanceof Error) {
-    if (err.message === 'AUTH_REQUIRED') {
-      return 'Du skal være logget ind'
-    }
-  }
-  console.error(`${defaultMessage}:`, err)
-  return defaultMessage
-}
-
 // =====================================================
 // ROOM TYPES
 // =====================================================

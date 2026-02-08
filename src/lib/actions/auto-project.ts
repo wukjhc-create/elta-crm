@@ -7,7 +7,7 @@
  * Handles database storage and retrieval of analyses.
  */
 
-import { createClient, getUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { analyzeProject, quickAnalyze } from '@/lib/ai/autoProjectEngine'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -19,6 +19,7 @@ import type {
   OfferTextTemplate,
   CalculationFeedback,
 } from '@/types/auto-project.types'
+import { requireAuth, formatError } from '@/lib/actions/action-helpers'
 
 // =====================================================
 // Types
@@ -58,26 +59,6 @@ interface SavedAnalysis {
 // =====================================================
 // Helpers
 // =====================================================
-
-async function requireAuth(): Promise<string> {
-  const user = await getUser()
-  if (!user) {
-    throw new Error('AUTH_REQUIRED')
-  }
-  return user.id
-}
-
-function formatError(err: unknown, defaultMessage: string): string {
-  if (err instanceof Error) {
-    if (err.message === 'AUTH_REQUIRED') {
-      return 'Du skal være logget ind'
-    }
-    return err.message
-  }
-  console.error(`${defaultMessage}:`, err)
-  return defaultMessage
-}
-
 // =====================================================
 // Main Analysis Actions
 // =====================================================
