@@ -340,7 +340,7 @@ export default function ComponentDetailClient({
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/dashboard/settings/components">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" aria-label="Tilbage">
             <ArrowLeft className="w-5 h-5" />
           </Button>
         </Link>
@@ -527,6 +527,7 @@ export default function ComponentDetailClient({
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label="Rediger variant"
                               onClick={() => openVariantDialog(variant)}
                             >
                               <Pencil className="w-4 h-4" />
@@ -534,6 +535,7 @@ export default function ComponentDetailClient({
                             <Button
                               variant="ghost"
                               size="icon"
+                              aria-label="Slet variant"
                               className="text-red-500"
                               onClick={() => handleDeleteVariant(variant)}
                             >
@@ -580,6 +582,7 @@ export default function ComponentDetailClient({
                                       variant="ghost"
                                       size="icon"
                                       className="h-6 w-6 text-red-500"
+                                      aria-label="Fjern materiale"
                                       onClick={() => handleDeleteVariantMaterial(vm.id)}
                                     >
                                       <Trash2 className="w-3 h-3" />
@@ -642,6 +645,7 @@ export default function ComponentDetailClient({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
+                          aria-label="Rediger materiale"
                           onClick={() => openMaterialDialog(material)}
                         >
                           <Pencil className="w-3 h-3" />
@@ -650,6 +654,7 @@ export default function ComponentDetailClient({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500"
+                          aria-label="Slet materiale"
                           onClick={() => handleDeleteMaterial(material)}
                         >
                           <Trash2 className="w-3 h-3" />

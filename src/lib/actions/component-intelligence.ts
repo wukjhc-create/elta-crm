@@ -20,6 +20,7 @@ import type {
   UpdateOfferTextInput,
 } from '@/types/component-intelligence.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { validateUUID } from '@/lib/validations/common'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -51,6 +52,7 @@ export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
 
 export async function getRoomType(id: string): Promise<ActionResult<RoomType>> {
   try {
+    validateUUID(id, 'rum ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -277,6 +279,7 @@ export async function updateRoomTemplate(
 
 export async function deleteRoomTemplate(id: string): Promise<ActionResult<void>> {
   try {
+    validateUUID(id, 'rumskabelon ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
@@ -341,6 +344,7 @@ export async function getMaterials(options?: {
 
 export async function getMaterial(id: string): Promise<ActionResult<Material>> {
   try {
+    validateUUID(id, 'materiale ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -660,6 +664,7 @@ export async function updateOfferTextTemplate(
 
 export async function deleteOfferTextTemplate(id: string): Promise<ActionResult<void>> {
   try {
+    validateUUID(id, 'tilbudstekst ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase

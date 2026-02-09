@@ -460,6 +460,7 @@ export default function QuickCalculationClient({
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="Fjern rum"
                             onClick={() => removeRoom(room.id)}
                             className="text-red-500 hover:text-red-700"
                           >
@@ -493,6 +494,7 @@ export default function QuickCalculationClient({
                                     variant="outline"
                                     size="icon"
                                     className="h-7 w-7"
+                                    aria-label="Minus"
                                     onClick={() => updateComponentQuantity(room.id, comp.id, -1)}
                                   >
                                     <Minus className="w-3 h-3" />
@@ -502,6 +504,7 @@ export default function QuickCalculationClient({
                                     variant="outline"
                                     size="icon"
                                     className="h-7 w-7"
+                                    aria-label="Plus"
                                     onClick={() => updateComponentQuantity(room.id, comp.id, 1)}
                                   >
                                     <Plus className="w-3 h-3" />

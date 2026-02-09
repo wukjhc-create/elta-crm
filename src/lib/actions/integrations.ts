@@ -23,6 +23,7 @@ import type {
   WebhookProjectData,
 } from '@/types/integrations.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { validateUUID } from '@/lib/validations/common'
 
 // =====================================================
 // HELPERS
@@ -50,6 +51,7 @@ export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
 
 export async function getIntegration(id: string): Promise<ActionResult<IntegrationWithRelations>> {
   try {
+    validateUUID(id, 'integration ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -126,6 +128,7 @@ export async function updateIntegration(
 
 export async function deleteIntegration(id: string): Promise<ActionResult> {
   try {
+    validateUUID(id, 'integration ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
@@ -234,6 +237,7 @@ export async function updateWebhook(
 
 export async function deleteWebhook(id: string): Promise<ActionResult> {
   try {
+    validateUUID(id, 'webhook ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase

@@ -19,6 +19,7 @@ import type {
   CalculationFeedback,
 } from '@/types/auto-project.types'
 import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { OFFER_VALIDITY_DAYS } from '@/lib/constants'
 
@@ -228,6 +229,7 @@ export async function quickAnalyzeProject(
  */
 export async function getAnalysis(id: string): Promise<ActionResult<SavedAnalysis>> {
   try {
+    validateUUID(id, 'analyse ID')
     const { supabase } = await getAuthenticatedClient()
 
     // Get interpretation

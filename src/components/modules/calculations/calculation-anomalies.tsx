@@ -159,6 +159,7 @@ export function CalculationAnomalies({ calculationId }: CalculationAnomaliesProp
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 shrink-0"
+                  aria-label="Afvis"
                   onClick={() => handleResolve(anomaly.id)}
                   disabled={resolvingId === anomaly.id}
                 >

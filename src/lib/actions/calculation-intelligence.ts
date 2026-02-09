@@ -19,6 +19,7 @@ import type {
 } from '@/types/calculation-intelligence.types'
 import { CalculationIntelligenceEngine, detectAnomalies } from '@/lib/services/calculation-intelligence'
 import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { validateUUID } from '@/lib/validations/common'
 
 // =====================================================
 // Auth Helper
@@ -203,6 +204,7 @@ export async function getRoomCalculations(
 
 export async function deleteRoomCalculation(id: string): Promise<ActionResult> {
   try {
+    validateUUID(id, 'rumberegning ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
@@ -361,6 +363,7 @@ export async function getSystemAlerts(
 
 export async function markAlertRead(id: string): Promise<ActionResult> {
   try {
+    validateUUID(id, 'advarsel ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
@@ -377,6 +380,7 @@ export async function markAlertRead(id: string): Promise<ActionResult> {
 
 export async function dismissAlert(id: string): Promise<ActionResult> {
   try {
+    validateUUID(id, 'advarsel ID')
     const { supabase, userId } = await getAuthenticatedClient()
 
     const { error } = await supabase
