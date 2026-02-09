@@ -3,9 +3,11 @@ import { getProducts, getProductCategories } from '@/lib/actions/products'
 import ProductsClient from './products-client'
 
 export const metadata = {
-  title: 'Produktkatalog | ELTA CRM',
+  title: 'Produktkatalog',
   description: 'Administrer dit produktkatalog',
 }
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   searchParams: Promise<{

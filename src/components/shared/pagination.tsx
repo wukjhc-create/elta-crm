@@ -100,13 +100,14 @@ export function Pagination({
 
       {/* Page navigation */}
       {totalPages > 1 && (
-        <div className="flex items-center gap-1">
+        <nav className="flex items-center gap-1" aria-label="Sidenavigation">
           {/* First page */}
           <button
             onClick={() => onPageChange(1)}
             disabled={currentPage === 1}
             className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Første side"
+            aria-label="Gå til første side"
           >
             <ChevronsLeft className="w-4 h-4" />
           </button>
@@ -117,6 +118,7 @@ export function Pagination({
             disabled={currentPage === 1}
             className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Forrige side"
+            aria-label="Forrige side"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -132,6 +134,8 @@ export function Pagination({
                 <button
                   key={page}
                   onClick={() => onPageChange(page)}
+                  aria-label={`Side ${page}`}
+                  aria-current={currentPage === page ? 'page' : undefined}
                   className={`min-w-[32px] h-8 rounded-md text-sm font-medium transition-colors ${
                     currentPage === page
                       ? 'bg-primary text-primary-foreground'
@@ -150,6 +154,7 @@ export function Pagination({
             disabled={currentPage === totalPages}
             className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Næste side"
+            aria-label="Næste side"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -160,10 +165,11 @@ export function Pagination({
             disabled={currentPage === totalPages}
             className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Sidste side"
+            aria-label="Gå til sidste side"
           >
             <ChevronsRight className="w-4 h-4" />
           </button>
-        </div>
+        </nav>
       )}
     </div>
   )

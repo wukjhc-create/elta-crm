@@ -7,8 +7,15 @@ import { ToastProvider } from '@/components/ui/toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: APP_NAME,
-  description: 'Professionelt CRM system bygget med Next.js og Supabase',
+  title: {
+    default: APP_NAME,
+    template: `%s | ${APP_NAME}`,
+  },
+  description: 'Professionelt CRM system til el- og solcelleinstallationer',
+  robots: {
+    index: false,
+    follow: false,
+  },
 }
 
 export default function RootLayout({

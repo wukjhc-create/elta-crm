@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { getSupplier } from '@/lib/actions/suppliers'
 import { ImportPageClient } from './import-page-client'
 
+export const dynamic = 'force-dynamic'
+
 interface ImportPageProps {
   params: Promise<{ id: string }>
 }

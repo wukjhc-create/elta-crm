@@ -3,9 +3,11 @@ import { getComponentCategories } from '@/lib/actions/components'
 import KalkiaNodesClient from './kalkia-nodes-client'
 
 export const metadata = {
-  title: 'Kalkia Noder | ELTA CRM',
+  title: 'Kalkia Noder',
   description: 'Administrer hierarkisk komponenttrae',
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function KalkiaNodesPage() {
   const [nodesResult, categoriesResult] = await Promise.all([

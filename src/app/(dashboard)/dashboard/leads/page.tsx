@@ -1,6 +1,14 @@
+import { Metadata } from 'next'
 import { getLeads } from '@/lib/actions/leads'
 import { LeadsPageClient } from '@/components/modules/leads/leads-page-client'
 import type { LeadStatus, LeadSource } from '@/types/leads.types'
+
+export const metadata: Metadata = {
+  title: 'Leads',
+  description: 'Håndter leads og konverter til kunder',
+}
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   searchParams: Promise<{

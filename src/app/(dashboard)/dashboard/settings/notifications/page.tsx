@@ -1,6 +1,12 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { NotificationsSettingsClient } from './notifications-settings-client'
+
+export const metadata: Metadata = {
+  title: 'Notifikationer',
+  description: 'Konfigurer e-mail og SMS notifikationer',
+}
 
 export default function NotificationsSettingsPage() {
   return (

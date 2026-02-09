@@ -179,6 +179,7 @@ export function CustomersTable({ customers }: CustomersTableProps) {
                           setOpenMenuId(openMenuId === customer.id ? null : customer.id)
                         }
                         className="p-1 hover:bg-gray-100 rounded-full"
+                        aria-label="Flere handlinger"
                       >
                         <MoreHorizontal className="w-5 h-5 text-gray-400" />
                       </button>

@@ -2,9 +2,11 @@ import { getComponents, getComponentCategories } from '@/lib/actions/components'
 import ComponentsClient from './components-client'
 
 export const metadata = {
-  title: 'Komponenter | ELTA CRM',
+  title: 'Komponenter',
   description: 'Administrer el-komponenter til kalkulationer',
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function ComponentsPage() {
   const [componentsResult, categoriesResult] = await Promise.all([

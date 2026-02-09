@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { LoginForm } from '@/components/auth/login-form'
 
 export const metadata = {
-  title: 'Log ind - Elta CRM',
+  title: 'Log ind',
   description: 'Log ind på din Elta CRM konto',
 }
 

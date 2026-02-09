@@ -1,6 +1,14 @@
+import { Metadata } from 'next'
 import { getSolarCalculatorData } from '@/lib/actions/solar-products'
 import { CalculatorPageClientV2 } from '@/components/modules/calculator/calculator-page-client-v2'
 import { CalculatorPageClient } from '@/components/modules/calculator'
+
+export const metadata: Metadata = {
+  title: 'Solcelle Kalkulator',
+  description: 'Beregn solcelleanlæg og besparelser',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function CalcPage() {
   // Try to load database-driven products and assumptions

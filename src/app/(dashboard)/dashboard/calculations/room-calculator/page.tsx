@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { RoomCalculatorClient } from './room-calculator-client'
 
 export const metadata: Metadata = {
-  title: 'Rum-kalkulator | ELTA CRM',
+  title: 'Rum-kalkulator',
   description: 'Professionel rum-baseret el-kalkulation med automatisk tids- og materialeberegning',
 }
 

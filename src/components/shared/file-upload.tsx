@@ -188,6 +188,7 @@ export function FileUpload({
           <button
             onClick={() => setUploadError(null)}
             className="ml-auto hover:text-red-800"
+            aria-label="Luk fejlmeddelelse"
           >
             <X className="w-4 h-4" />
           </button>
@@ -222,6 +223,7 @@ export function FileUpload({
                     rel="noopener noreferrer"
                     className="p-1.5 text-gray-400 hover:text-primary hover:bg-white rounded"
                     title="Download"
+                    aria-label="Download fil"
                   >
                     <Download className="w-4 h-4" />
                   </a>
@@ -231,6 +233,7 @@ export function FileUpload({
                       disabled={deletingId === file.id}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white rounded disabled:opacity-50"
                       title="Slet"
+                      aria-label="Slet fil"
                     >
                       {deletingId === file.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

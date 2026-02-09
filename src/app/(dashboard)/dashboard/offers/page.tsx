@@ -1,7 +1,15 @@
+import { Metadata } from 'next'
 import { getOffers } from '@/lib/actions/offers'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { OffersPageClient } from '@/components/modules/offers/offers-page-client'
 import type { OfferStatus } from '@/types/offers.types'
+
+export const metadata: Metadata = {
+  title: 'Tilbud',
+  description: 'Opret og administrer tilbud til kunder',
+}
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   searchParams: Promise<{

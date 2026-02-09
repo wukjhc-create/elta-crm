@@ -119,6 +119,7 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-100 rounded-full"
+            aria-label="Luk"
           >
             <X className="w-5 h-5" />
           </button>

@@ -1,6 +1,14 @@
+import { Metadata } from 'next'
 import { getUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AuditLogClient } from './audit-client'
+
+export const metadata: Metadata = {
+  title: 'Revisionslog',
+  description: 'Se alle brugerhandlinger og ændringer i systemet',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function AuditLogPage() {
   const user = await getUser()

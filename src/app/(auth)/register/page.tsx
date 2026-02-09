@@ -1,7 +1,7 @@
 import { RegisterForm } from '@/components/auth/register-form'
 
 export const metadata = {
-  title: 'Opret konto - Elta CRM',
+  title: 'Opret konto',
   description: 'Opret en ny konto på Elta CRM',
 }
 

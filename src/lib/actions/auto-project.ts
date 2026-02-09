@@ -413,7 +413,7 @@ export async function listAnalyses(
       return { success: false, error: 'Kunne ikke hente analyser' }
     }
 
-    const result = (data || []).map((item: any) => ({
+    const result = (data || []).map((item: { id: string; raw_description?: string; created_at: string; auto_calculations?: { total_price: number }[] }) => ({
       id: item.id,
       description: item.raw_description?.substring(0, 100) + '...',
       total_price: item.auto_calculations?.[0]?.total_price || 0,

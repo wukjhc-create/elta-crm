@@ -211,6 +211,7 @@ export function ProjectsTable({ projects, onRefresh }: ProjectsTableProps) {
                         onClick={() => setOpenMenuId(openMenuId === project.id ? null : project.id)}
                         className="p-1 hover:bg-muted rounded"
                         disabled={deletingId === project.id}
+                        aria-label="Flere handlinger"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>

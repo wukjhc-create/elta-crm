@@ -3,9 +3,11 @@ import { getCalculations } from '@/lib/actions/calculations'
 import CalculationsClient from './calculations-client'
 
 export const metadata = {
-  title: 'Kalkulationer | ELTA CRM',
+  title: 'Kalkulationer',
   description: 'Administrer dine kalkulationer',
 }
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   searchParams: Promise<{

@@ -1,3 +1,4 @@
+import { Metadata } from 'next'
 import { getUser, getUserProfile } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import {
@@ -28,6 +29,13 @@ import {
   PriceAlertsWidget,
 } from '@/components/modules/dashboard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
+
+export const metadata: Metadata = {
+  title: 'Dashboard',
+  description: 'Oversigt over kunder, leads, tilbud og projekter',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   const user = await getUser()

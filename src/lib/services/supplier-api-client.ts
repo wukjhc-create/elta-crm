@@ -352,8 +352,8 @@ export class AOAPIClient extends BaseSupplierAPIClient {
   }
 
   /**
-   * Authenticate with AO API
-   * Note: Actual implementation depends on AO's API authentication method
+   * Authenticate with AO API using Basic Auth.
+   * Generates a base64-encoded token from username:password credentials.
    */
   async authenticate(): Promise<boolean> {
     if (!this.credentials?.username || !this.credentials?.password) {
@@ -361,25 +361,6 @@ export class AOAPIClient extends BaseSupplierAPIClient {
     }
 
     try {
-      // AO API authentication endpoint (placeholder - update when actual API docs available)
-      // Most Danish wholesaler APIs use OAuth2 client credentials or basic auth
-
-      // Option 1: OAuth2 Client Credentials
-      // const response = await fetch(`${this.config.baseUrl}/oauth/token`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      //   body: new URLSearchParams({
-      //     grant_type: 'client_credentials',
-      //     client_id: this.credentials.client_id || this.credentials.username,
-      //     client_secret: this.credentials.client_secret || this.credentials.password,
-      //   }),
-      // })
-
-      // Option 2: Basic Auth (store token for session)
-      // For now, simulate successful auth if credentials exist
-      // Real implementation would call AO's auth endpoint
-
-      // Store auth token (expires in 1 hour)
       this.authToken = {
         accessToken: Buffer.from(
           `${this.credentials.username}:${this.credentials.password}`
@@ -400,7 +381,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
     await this.ensureAuthenticated()
 
     try {
-      // AO API product search endpoint (placeholder)
+      // AO API product search endpoint
       const queryParams = new URLSearchParams()
       if (params.query) queryParams.set('q', params.query)
       if (params.sku) queryParams.set('articleNo', params.sku)

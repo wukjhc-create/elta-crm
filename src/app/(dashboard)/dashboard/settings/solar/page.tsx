@@ -1,5 +1,13 @@
+import { Metadata } from 'next'
 import { getSolarProductsByType, getSolarAssumptions } from '@/lib/actions/solar-products'
 import { SolarSettingsClient } from './solar-settings-client'
+
+export const metadata: Metadata = {
+  title: 'Solcelle produkter',
+  description: 'Administrer solcellepaneler, invertere og batterier',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function SolarSettingsPage() {
   const [productsResult, assumptionsResult] = await Promise.all([

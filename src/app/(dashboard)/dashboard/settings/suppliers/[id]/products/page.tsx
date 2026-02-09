@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { getSupplier } from '@/lib/actions/suppliers'
 import { SupplierProductsTable } from '@/components/modules/suppliers'
 
+export const dynamic = 'force-dynamic'
+
 interface ProductsPageProps {
   params: Promise<{ id: string }>
 }

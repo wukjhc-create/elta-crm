@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { PricingDashboardClient } from './pricing-client'
 
 export const metadata: Metadata = {
-  title: 'Prisovervågning | ELTA CRM',
+  title: 'Prisovervågning',
   description: 'Overvåg prisændringer, påvirkede tilbud og leverandørtendenser',
 }
 

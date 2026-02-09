@@ -1,7 +1,15 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { CompanySettingsClient } from './company-settings-client'
+
+export const metadata: Metadata = {
+  title: 'Virksomhed',
+  description: 'Virksomhedsoplysninger og standardindstillinger',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function CompanySettingsPage() {
   const result = await getCompanySettings()

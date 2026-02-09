@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { ProfitSimulatorClient } from './profit-simulator-client'
 
 export const metadata: Metadata = {
-  title: 'Profit Simulator | ELTA CRM',
+  title: 'Profit Simulator',
   description: 'Simuler profitabilitet med forskellige marginer og rabatter',
 }
 

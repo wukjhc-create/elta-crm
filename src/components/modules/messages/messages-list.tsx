@@ -198,6 +198,7 @@ export function MessagesList({
                   }}
                   className="p-1 hover:bg-muted rounded"
                   disabled={loadingAction === message.id}
+                  aria-label="Flere handlinger"
                 >
                   <MoreHorizontal className="w-4 h-4" />
                 </button>

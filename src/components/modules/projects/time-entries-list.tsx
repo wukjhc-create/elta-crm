@@ -140,6 +140,7 @@ export function TimeEntriesList({
                     <button
                       onClick={() => setEditingEntry(entry)}
                       className="p-1 hover:bg-muted rounded"
+                      aria-label="Rediger tidsregistrering"
                     >
                       <Pencil className="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -147,6 +148,7 @@ export function TimeEntriesList({
                       onClick={() => handleDelete(entry.id)}
                       disabled={deletingId === entry.id}
                       className="p-1 hover:bg-red-50 rounded"
+                      aria-label="Slet tidsregistrering"
                     >
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </button>

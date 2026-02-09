@@ -1,5 +1,7 @@
 import { ProjectDetailClient } from './project-detail-client'
 
+export const dynamic = 'force-dynamic'
+
 interface ProjectPageProps {
   params: Promise<{
     id: string

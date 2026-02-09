@@ -4,9 +4,11 @@ import { getComponentCategories } from '@/lib/actions/components'
 import KalkiaNodeDetailClient from './kalkia-node-detail-client'
 
 export const metadata = {
-  title: 'Node Detaljer | ELTA CRM',
+  title: 'Node Detaljer',
   description: 'Se og rediger Kalkia node',
 }
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ id: string }>

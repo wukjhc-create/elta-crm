@@ -4,9 +4,11 @@ import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
 import { getEmailTemplates } from '@/lib/actions/email'
 
 export const metadata: Metadata = {
-  title: 'E-mail indstillinger | Elta CRM',
+  title: 'E-mail indstillinger',
   description: 'Konfigurer SMTP og e-mail skabeloner',
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function EmailSettingsPage() {
   const [smtpResult, companyResult, templates] = await Promise.all([

@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button'
 import ProductDetailClient from './product-detail-client'
 
 export const metadata = {
-  title: 'Produkt detaljer | ELTA CRM',
+  title: 'Produkt detaljer',
 }
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{

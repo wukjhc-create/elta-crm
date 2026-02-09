@@ -3,9 +3,11 @@ import { SmsSettingsClient } from './sms-settings-client'
 import { getSmsSettings, getSmsTemplates } from '@/lib/actions/sms'
 
 export const metadata: Metadata = {
-  title: 'SMS indstillinger | Elta CRM',
+  title: 'SMS indstillinger',
   description: 'Konfigurer GatewayAPI og SMS skabeloner',
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function SmsSettingsPage() {
   const [settingsResult, templates] = await Promise.all([

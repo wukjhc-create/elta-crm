@@ -1,7 +1,15 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getProfile } from '@/lib/actions/settings'
 import { ProfileSettingsClient } from './profile-settings-client'
+
+export const metadata: Metadata = {
+  title: 'Profil',
+  description: 'Dine personlige oplysninger',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function ProfileSettingsPage() {
   const result = await getProfile()

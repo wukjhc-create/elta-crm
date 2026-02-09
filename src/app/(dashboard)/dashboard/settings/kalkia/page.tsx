@@ -18,9 +18,11 @@ import { getBuildingProfiles, getGlobalFactors, getKalkiaNodes } from '@/lib/act
 import { getRoomTypes, getMaterials, getOfferTextTemplates } from '@/lib/actions/component-intelligence'
 
 export const metadata = {
-  title: 'Kalkia Indstillinger | ELTA CRM',
+  title: 'Kalkia Indstillinger',
   description: 'Konfigurer Kalkia kalkulationssystemet',
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function KalkiaSettingsPage() {
   const [nodesResult, profilesResult, factorsResult, roomTypesResult, materialsResult, templatesResult] = await Promise.all([

@@ -1,6 +1,14 @@
+import { Metadata } from 'next'
 import { getUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { LearningDashboardClient } from './learning-client'
+
+export const metadata: Metadata = {
+  title: 'AI Selvlæring',
+  description: 'AI model performance og feedback statistik',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function LearningDashboardPage() {
   const user = await getUser()

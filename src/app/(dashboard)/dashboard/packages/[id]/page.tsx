@@ -8,8 +8,10 @@ import {
 import PackageDetailClient from './package-detail-client'
 
 export const metadata = {
-  title: 'Rediger pakke | ELTA CRM',
+  title: 'Rediger pakke',
 }
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ id: string }>

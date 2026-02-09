@@ -1,5 +1,11 @@
+import { Metadata } from 'next'
 import { Suspense } from 'react'
 import { ProjectsPageClient } from '@/components/modules/projects/projects-page-client'
+
+export const metadata: Metadata = {
+  title: 'Projekter',
+  description: 'Administrer projekter, opgaver og tidsregistrering',
+}
 
 export default function ProjectsPage() {
   return (

@@ -361,8 +361,8 @@ async function fetchSupplierMaterials(names: string[]): Promise<Map<string, Mate
     const map = new Map<string, MaterialMatch>()
 
     for (const prod of products || []) {
-      const product = prod.product as any
-      const supplier = prod.supplier as any
+      const product = prod.product as unknown as { id: string; name?: string; sku?: string; unit?: string } | null
+      const supplier = prod.supplier as unknown as { name?: string } | null
 
       if (product) {
         const key = product.name?.toLowerCase().replace(/\s+/g, '_') || prod.id

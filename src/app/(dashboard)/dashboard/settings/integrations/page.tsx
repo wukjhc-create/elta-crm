@@ -1,6 +1,14 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { IntegrationsSettingsClient } from './integrations-settings-client'
+
+export const metadata: Metadata = {
+  title: 'Integrationer',
+  description: 'Konfigurer webhooks og eksterne integrationer',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function IntegrationsSettingsPage() {
   return (

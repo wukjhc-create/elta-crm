@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { getSupplier } from '@/lib/actions/suppliers'
 import { SupplierDetailClient } from './supplier-detail-client'
 
+export const dynamic = 'force-dynamic'
+
 interface SupplierPageProps {
   params: Promise<{ id: string }>
 }

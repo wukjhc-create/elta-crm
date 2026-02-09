@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button'
 import CalculationDetailClient from './calculation-detail-client'
 
 export const metadata = {
-  title: 'Kalkulation detaljer | ELTA CRM',
+  title: 'Kalkulation detaljer',
 }
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{

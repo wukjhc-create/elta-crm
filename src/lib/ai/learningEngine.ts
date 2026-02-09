@@ -257,7 +257,7 @@ export async function analyzeComponentCalibration(): Promise<ComponentCalibratio
   > = {}
 
   for (const calc of calculations) {
-    const feedback = calc.calculation_feedback as any
+    const feedback = calc.calculation_feedback as { actual_hours: number }[] | null
     if (!feedback || !feedback[0]?.actual_hours) continue
 
     const actualHours = feedback[0].actual_hours
@@ -265,7 +265,7 @@ export async function analyzeComponentCalibration(): Promise<ComponentCalibratio
     const ratio = actualHours / estimatedHours
 
     // Distribute actual time proportionally to components
-    const components = calc.components as any[]
+    const components = calc.components as { code: string; time_minutes?: number; quantity: number }[] | null
     for (const comp of components || []) {
       const code = comp.code
       const estimatedMinutes = comp.time_minutes || 30

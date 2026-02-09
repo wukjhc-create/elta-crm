@@ -3,6 +3,8 @@ import { getOffer } from '@/lib/actions/offers'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { OfferDetailClient } from './offer-detail-client'
 
+export const dynamic = 'force-dynamic'
+
 interface OfferDetailPageProps {
   params: Promise<{ id: string }>
 }

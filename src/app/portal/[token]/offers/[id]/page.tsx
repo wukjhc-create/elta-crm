@@ -3,6 +3,8 @@ import { validatePortalToken, getPortalOffer, getPortalMessages } from '@/lib/ac
 import { getCompanySettings } from '@/lib/actions/settings'
 import { OfferDetail } from '@/components/modules/portal/offer-detail'
 
+export const dynamic = 'force-dynamic'
+
 interface OfferPageProps {
   params: Promise<{ token: string; id: string }>
 }

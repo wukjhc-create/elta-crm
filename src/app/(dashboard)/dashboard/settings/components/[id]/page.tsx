@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation'
 import ComponentDetailClient from './component-detail-client'
 
 export const metadata = {
-  title: 'Rediger Komponent | ELTA CRM',
+  title: 'Rediger Komponent',
   description: 'Rediger komponent, varianter og materialer',
 }
+
+export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ id: string }>

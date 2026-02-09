@@ -6,6 +6,8 @@ export const metadata = {
   description: 'Centraliseret materialehåndtering med prishistorik',
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function MaterialsCatalogPage() {
   const result = await getMaterials({})
 

@@ -2,9 +2,11 @@ import { getProjectTemplates, getRoomTypes, getComponentsWithPricing, getCalcula
 import QuickCalculationClient from './quick-calculation-client'
 
 export const metadata = {
-  title: 'Hurtig Kalkulation | ELTA CRM',
+  title: 'Hurtig Kalkulation',
   description: 'Opret hurtigt en kalkulation baseret på projekttype og rum',
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function QuickCalculationPage() {
   const [templatesResult, roomTypesResult, componentsResult, settingsResult] = await Promise.all([

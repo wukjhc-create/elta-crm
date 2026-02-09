@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation'
 import { getLead, getLeadActivities } from '@/lib/actions/leads'
 import { LeadDetailClient } from './lead-detail-client'
 
+export const dynamic = 'force-dynamic'
+
 interface LeadDetailPageProps {
   params: Promise<{ id: string }>
 }

@@ -6,6 +6,8 @@ export const metadata = {
   description: 'Konfigurer standard komponentforslag for forskellige rumtyper',
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function RoomTypesPage() {
   const result = await getRoomTypes()
 

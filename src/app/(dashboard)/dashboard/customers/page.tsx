@@ -1,5 +1,13 @@
+import { Metadata } from 'next'
 import { getCustomers } from '@/lib/actions/customers'
 import { CustomersPageClient } from '@/components/modules/customers/customers-page-client'
+
+export const metadata: Metadata = {
+  title: 'Kunder',
+  description: 'Administrer kunder og kontaktpersoner',
+}
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   searchParams: Promise<{

@@ -1,6 +1,12 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { SecuritySettingsClient } from './security-settings-client'
+
+export const metadata: Metadata = {
+  title: 'Sikkerhed',
+  description: 'Adgangskode og sikkerhedsindstillinger',
+}
 
 export default function SecuritySettingsPage() {
   return (

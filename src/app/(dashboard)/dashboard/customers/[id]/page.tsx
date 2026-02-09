@@ -3,6 +3,8 @@ import { getCustomer } from '@/lib/actions/customers'
 import { getPortalTokens } from '@/lib/actions/portal'
 import { CustomerDetailClient } from './customer-detail-client'
 
+export const dynamic = 'force-dynamic'
+
 interface CustomerDetailPageProps {
   params: Promise<{ id: string }>
 }

@@ -212,6 +212,7 @@ export function PortalChat({
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg"
+            aria-label="Luk chat"
           >
             <X className="w-5 h-5" />
           </button>
@@ -295,6 +296,7 @@ export function PortalChat({
                   <button
                     onClick={() => removeAttachment(idx)}
                     className="text-gray-400 hover:text-red-500"
+                    aria-label="Fjern vedhæftet fil"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -328,6 +330,7 @@ export function PortalChat({
               disabled={isUploading || isSending}
               className="px-3 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Vedhæft fil"
+              aria-label="Vedhæft fil"
             >
               {isUploading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

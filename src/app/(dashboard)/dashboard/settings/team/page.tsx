@@ -1,8 +1,16 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getTeamMembers } from '@/lib/actions/settings'
 import { getUser } from '@/lib/supabase/server'
 import { TeamSettingsClient } from './team-settings-client'
+
+export const metadata: Metadata = {
+  title: 'Team',
+  description: 'Administrer teammedlemmer og roller',
+}
+
+export const dynamic = 'force-dynamic'
 
 export default async function TeamSettingsPage() {
   const [result, user] = await Promise.all([

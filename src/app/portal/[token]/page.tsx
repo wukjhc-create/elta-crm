@@ -3,6 +3,8 @@ import { validatePortalToken, getPortalOffers, getPortalMessages } from '@/lib/a
 import { getCompanySettings } from '@/lib/actions/settings'
 import { PortalDashboard } from '@/components/modules/portal/portal-dashboard'
 
+export const dynamic = 'force-dynamic'
+
 interface PortalPageProps {
   params: Promise<{ token: string }>
 }

@@ -3,9 +3,11 @@ import { getPackages, getPackageCategories } from '@/lib/actions/packages'
 import PackagesClient from './packages-client'
 
 export const metadata = {
-  title: 'Pakker | ELTA CRM',
+  title: 'Pakker',
   description: 'Administrer dine pakker og bundter',
 }
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   searchParams: Promise<{

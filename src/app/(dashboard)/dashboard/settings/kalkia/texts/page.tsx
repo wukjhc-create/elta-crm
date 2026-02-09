@@ -6,6 +6,8 @@ export const metadata = {
   description: 'Automatiske beskrivelser og OBS-punkter til tilbud',
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function OfferTextsPage() {
   const result = await getOfferTextTemplates({})
 
