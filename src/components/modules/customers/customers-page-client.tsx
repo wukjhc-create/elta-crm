@@ -6,6 +6,7 @@ import { Plus, Search, X } from 'lucide-react'
 import { CustomerForm } from './customer-form'
 import { CustomersTable } from './customers-table'
 import { Pagination } from '@/components/shared/pagination'
+import { ExportButton } from '@/components/shared/export-button'
 import type { CustomerWithRelations } from '@/types/customers.types'
 
 interface PaginationData {
@@ -87,13 +88,16 @@ export function CustomersPageClient({ customers, pagination, filters }: Customer
               Administrer din kundebase ({pagination.totalItems} kunder)
             </p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Ny Kunde
-          </button>
+          <div className="flex items-center gap-2">
+            <ExportButton type="customers" filters={{ search: filters.search, is_active: filters.is_active }} />
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Ny Kunde
+            </button>
+          </div>
         </div>
 
         {/* Filters */}

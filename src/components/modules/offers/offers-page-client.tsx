@@ -6,6 +6,7 @@ import { Plus, Search, X } from 'lucide-react'
 import { OfferForm } from './offer-form'
 import { OffersTable } from './offers-table'
 import { Pagination } from '@/components/shared/pagination'
+import { ExportButton } from '@/components/shared/export-button'
 import type { OfferWithRelations, OfferStatus } from '@/types/offers.types'
 import { OFFER_STATUS_LABELS, OFFER_STATUSES } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
@@ -132,13 +133,16 @@ export function OffersPageClient({ offers, pagination, filters, companySettings 
               Opret og administrer salgstilbud ({pagination.totalItems} tilbud)
             </p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Nyt Tilbud
-          </button>
+          <div className="flex items-center gap-2">
+            <ExportButton type="offers" filters={{ search: filters.search, status: filters.status }} />
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Nyt Tilbud
+            </button>
+          </div>
         </div>
 
         {/* Filters */}

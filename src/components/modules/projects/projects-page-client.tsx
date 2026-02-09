@@ -8,6 +8,7 @@ import { ProjectsTable } from './projects-table'
 import { ProjectForm } from './project-form'
 import { ProjectStatusBadge } from './project-status-badge'
 import { Pagination } from '@/components/shared/pagination'
+import { ExportButton } from '@/components/shared/export-button'
 import {
   PROJECT_STATUSES,
   PROJECT_PRIORITIES,
@@ -137,13 +138,16 @@ export function ProjectsPageClient() {
             Administrer projekter, opgaver og tidsregistrering ({pagination.totalItems} projekter)
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-        >
-          <Plus className="w-4 h-4" />
-          Nyt Projekt
-        </button>
+        <div className="flex items-center gap-2">
+          <ExportButton type="projects" filters={{ search, status: statusFilter || undefined, priority: priorityFilter || undefined }} />
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          >
+            <Plus className="w-4 h-4" />
+            Nyt Projekt
+          </button>
+        </div>
       </div>
 
       {/* Status Summary */}

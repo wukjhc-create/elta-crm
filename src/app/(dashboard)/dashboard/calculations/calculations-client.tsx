@@ -18,6 +18,7 @@ import {
   Home,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ExportButton } from '@/components/shared/export-button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -201,6 +202,14 @@ export default function CalculationsClient({
             <Layers className="w-4 h-4 mr-2" />
             Kalkia Pro
           </Button>
+          <ExportButton
+            type="calculations"
+            filters={{
+              search: initialFilters.search || undefined,
+              calculation_type: initialFilters.calculation_type || undefined,
+              is_template: initialFilters.is_template === 'true' ? 'true' : initialFilters.is_template === 'false' ? 'false' : undefined,
+            }}
+          />
           <Button onClick={() => setShowCreateDialog(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Ny kalkulation

@@ -6,6 +6,7 @@ import { Plus, Search, X } from 'lucide-react'
 import { LeadForm } from './lead-form'
 import { LeadsTable } from './leads-table'
 import { Pagination } from '@/components/shared/pagination'
+import { ExportButton } from '@/components/shared/export-button'
 import type { LeadWithRelations, LeadStatus, LeadSource } from '@/types/leads.types'
 import { LEAD_STATUS_LABELS, LEAD_STATUSES, LEAD_SOURCE_LABELS, LEAD_SOURCES } from '@/types/leads.types'
 
@@ -100,13 +101,16 @@ export function LeadsPageClient({ leads, pagination, filters }: LeadsPageClientP
               Administrer og følg dine salgsmuligheder ({pagination.totalItems} leads)
             </p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Ny Lead
-          </button>
+          <div className="flex items-center gap-2">
+            <ExportButton type="leads" filters={{ search: filters.search, status: filters.status, source: filters.source }} />
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Ny Lead
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
