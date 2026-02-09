@@ -19,6 +19,8 @@ import type {
   CalculationFeedback,
 } from '@/types/auto-project.types'
 import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { revalidatePath } from 'next/cache'
+import { OFFER_VALIDITY_DAYS } from '@/lib/constants'
 
 // =====================================================
 // Types
@@ -186,6 +188,7 @@ export async function analyzeProjectDescription(
     result.data.interpretation.id = interpretationId
     result.data.calculation.id = calculationId
 
+    revalidatePath('/dashboard/ai-project')
     return {
       success: true,
       data: {
@@ -544,7 +547,7 @@ export async function createOfferFromAnalysis(
         status: 'draft',
         description: offer_text.sections.work_description,
         total_amount: calculation.price.total_price,
-        valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+        valid_until: new Date(Date.now() + OFFER_VALIDITY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
         notes: offer_text.full_offer_text,
       })
       .select('id')

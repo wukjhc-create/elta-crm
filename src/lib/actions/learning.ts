@@ -17,6 +17,7 @@ import {
 } from '@/lib/ai/learningEngine'
 import type { ActionResult } from '@/types/common.types'
 import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { revalidatePath } from 'next/cache'
 
 // =====================================================
 // Helpers
@@ -161,6 +162,7 @@ export async function applyCalibration(
         }],
       })
 
+    revalidatePath('/dashboard/settings')
     return { success: true, data: { applied: true } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke anvende kalibrering') }
@@ -240,6 +242,7 @@ export async function recordProjectFeedback(
       return { success: false, error: 'Kunne ikke gemme feedback' }
     }
 
+    revalidatePath('/dashboard')
     return { success: true, data: { id: feedback.id } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke registrere feedback') }

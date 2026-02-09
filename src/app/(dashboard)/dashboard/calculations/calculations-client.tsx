@@ -57,6 +57,7 @@ import {
 } from '@/types/calculations.types'
 import type { PaginatedResponse } from '@/types/common.types'
 import CalculationForm from '@/components/modules/calculations/calculation-form'
+import { formatDate as formatDateUtil } from '@/lib/utils'
 
 interface CalculationsClientProps {
   initialCalculations: PaginatedResponse<CalculationWithRelations> | null
@@ -170,11 +171,7 @@ export default function CalculationsClient({
   }
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('da-DK', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    })
+    return formatDateUtil(date)
   }
 
   return (

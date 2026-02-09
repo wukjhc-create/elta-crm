@@ -17,6 +17,7 @@ import {
 } from '@/lib/actions/portal'
 import { useToast } from '@/components/ui/toast'
 import type { PortalAccessToken } from '@/types/portal.types'
+import { formatDateTimeDK } from '@/lib/utils/format'
 
 interface PortalAccessProps {
   customerId: string
@@ -97,14 +98,7 @@ export function PortalAccess({
   }
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString('da-DK', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatDateTimeDK(dateStr) || '-'
   }
 
   const activeTokens = tokens.filter((t) => t.is_active)

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { getImportBatches, getImportBatch, getPriceChangesFromImport } from '@/lib/actions/import'
 import type { ImportBatchSummary, ImportStatus, PriceChange } from '@/types/suppliers.types'
+import { formatDateTimeDK, formatDurationMs } from '@/lib/utils/format'
 
 interface ImportHistoryProps {
   supplierId?: string
@@ -93,21 +94,13 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
   }
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleString('da-DK', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatDateTimeDK(date)
   }
 
   const formatDuration = (start: string | null, end: string | null) => {
     if (!start || !end) return '-'
     const ms = new Date(end).getTime() - new Date(start).getTime()
-    if (ms < 1000) return `${ms}ms`
-    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
-    return `${Math.floor(ms / 60000)}m ${((ms % 60000) / 1000).toFixed(0)}s`
+    return formatDurationMs(ms)
   }
 
   const formatPrice = (price: number | null) => {

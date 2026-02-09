@@ -28,26 +28,15 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { formatDateTimeDK, formatTimeAgo } from '@/lib/utils/format'
 
 interface EmailTimelineProps {
   offerId: string
   onSendEmail?: () => void
 }
 
-function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 function formatRelative(date: string): string {
-  return formatDistanceToNow(new Date(date), { addSuffix: true, locale: da })
+  return formatTimeAgo(date)
 }
 
 function EmailMessageCard({
@@ -111,7 +100,7 @@ function EmailMessageCard({
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {message.sent_at ? formatDate(message.sent_at) : formatDate(message.created_at)}
+                {message.sent_at ? formatDateTimeDK(message.sent_at) : formatDateTimeDK(message.created_at)}
               </span>
               {message.opened_at && (
                 <span className="flex items-center gap-1 text-green-600">

@@ -35,6 +35,7 @@ import {
   getSupplierProductCategories,
 } from '@/lib/actions/suppliers'
 import type { SupplierProductWithSupplier } from '@/types/suppliers.types'
+import { formatDate as formatDateUtil } from '@/lib/utils'
 
 interface SupplierProductsTableProps {
   supplierId: string
@@ -108,11 +109,7 @@ export function SupplierProductsTable({
 
   const formatDate = (date: string | null) => {
     if (!date) return '-'
-    return new Date(date).toLocaleDateString('da-DK', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    })
+    return formatDateUtil(date)
   }
 
   return (

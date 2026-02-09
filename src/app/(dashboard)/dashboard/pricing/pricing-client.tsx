@@ -15,6 +15,7 @@ import type {
   SupplierPriceStats,
   PriceTrend,
 } from '@/lib/actions/price-analytics'
+import { formatDate as formatDateUtil } from '@/lib/utils'
 
 type Tab = 'alerts' | 'affected' | 'suppliers' | 'trends'
 
@@ -588,9 +589,5 @@ function formatDKK(amount: number): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  return formatDateUtil(dateStr)
 }

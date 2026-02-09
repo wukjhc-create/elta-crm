@@ -10,6 +10,7 @@ import type {
   OfferActivityType,
 } from '@/types/offer-activities.types'
 import type { ActionResult } from '@/types/common.types'
+import { revalidatePath } from 'next/cache'
 
 // Log an activity for an offer
 // Uses optional auth because this is called from both
@@ -48,6 +49,7 @@ export async function logOfferActivity(
       return { success: false, error: 'Kunne ikke logge aktivitet' }
     }
 
+    revalidatePath('/dashboard/offers')
     return { success: true, data: data as OfferActivity }
   } catch (error) {
     return { success: false, error: formatError(error, 'Kunne ikke logge aktivitet') }
@@ -113,6 +115,7 @@ export async function logOfferActivities(
       return { success: false, error: 'Kunne ikke logge aktiviteter' }
     }
 
+    revalidatePath('/dashboard/offers')
     return { success: true }
   } catch (error) {
     return { success: false, error: formatError(error, 'Kunne ikke logge aktiviteter') }

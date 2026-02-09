@@ -73,6 +73,7 @@ import {
   type WebhookEventType,
   type EndpointOperation,
 } from '@/types/integrations.types'
+import { formatDateTimeDK } from '@/lib/utils/format'
 
 // Labels
 const TYPE_LABELS: Record<IntegrationType, string> = {
@@ -445,12 +446,7 @@ export function IntegrationsSettingsClient() {
   }
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleString('da-DK', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatDateTimeDK(date)
   }
 
   if (loading) {

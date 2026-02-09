@@ -20,6 +20,7 @@ import type { CompanySettings } from '@/types/company-settings.types'
 import { SignatureDialog } from './signature-dialog'
 import { RejectDialog } from './reject-dialog'
 import { PortalChat } from './portal-chat'
+import { formatDateLongDK } from '@/lib/utils/format'
 
 interface OfferDetailProps {
   token: string
@@ -50,12 +51,7 @@ export function OfferDetail({
   }
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString('da-DK', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    })
+    return formatDateLongDK(dateStr) || '-'
   }
 
   const isExpired = offer.valid_until && new Date(offer.valid_until) < new Date()

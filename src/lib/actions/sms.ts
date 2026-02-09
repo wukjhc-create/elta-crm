@@ -13,6 +13,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { SMS_CONFIG, PORTAL_TOKEN_EXPIRY_DAYS } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
 import type {
   SmsTemplate,
@@ -352,11 +353,11 @@ function calculateParts(message: string): number {
   const length = message.length
 
   if (isUnicode) {
-    if (length <= 70) return 1
-    return Math.ceil(length / 67)
+    if (length <= SMS_CONFIG.UNICODE_PART_LENGTH) return 1
+    return Math.ceil(length / SMS_CONFIG.UNICODE_SEGMENT_LENGTH)
   } else {
-    if (length <= 160) return 1
-    return Math.ceil(length / 153)
+    if (length <= SMS_CONFIG.GSM_PART_LENGTH) return 1
+    return Math.ceil(length / SMS_CONFIG.GSM_SEGMENT_LENGTH)
   }
 }
 
@@ -367,12 +368,12 @@ function formatPhone(phone: string): string {
   let cleaned = phone.replace(/\D/g, '')
   cleaned = cleaned.replace(/^0+/, '')
 
-  if (cleaned.startsWith('45')) {
+  if (cleaned.startsWith(String(SMS_CONFIG.DANISH_COUNTRY_CODE))) {
     return cleaned
   }
 
-  if (cleaned.length === 8) {
-    return `45${cleaned}`
+  if (cleaned.length === SMS_CONFIG.DANISH_PHONE_LENGTH) {
+    return `${SMS_CONFIG.DANISH_COUNTRY_CODE}${cleaned}`
   }
 
   return cleaned
@@ -481,14 +482,14 @@ async function sendViaGatewayApi(
     // GatewayAPI uses Basic Auth with API key and secret
     const authString = Buffer.from(`${config.apiKey}:${config.secret}`).toString('base64')
 
-    const response = await fetch('https://gatewayapi.com/rest/mtsms', {
+    const response = await fetch(SMS_CONFIG.GATEWAY_API_SMS_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Basic ${authString}`,
       },
       body: JSON.stringify({
-        sender: config.senderName.substring(0, 11), // Max 11 chars
+        sender: config.senderName.substring(0, SMS_CONFIG.SENDER_NAME_MAX_LENGTH),
         message,
         recipients: [{ msisdn: phone }],
         callback_url: `${appUrl}/api/sms/webhook`,
@@ -527,7 +528,7 @@ export async function testGatewayApiConnection(config: {
   try {
     const authString = Buffer.from(`${config.apiKey}:${config.secret}`).toString('base64')
 
-    const response = await fetch('https://gatewayapi.com/rest/me', {
+    const response = await fetch(SMS_CONFIG.GATEWAY_API_INFO_ENDPOINT, {
       method: 'GET',
       headers: {
         'Authorization': `Basic ${authString}`,
@@ -608,7 +609,7 @@ async function getOrCreatePortalToken(offerId: string, customerId: string): Prom
   // Create new token
   const token = crypto.randomUUID()
   const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + 30) // 30 days
+  expiresAt.setDate(expiresAt.getDate() + PORTAL_TOKEN_EXPIRY_DAYS)
 
   await supabase.from('portal_access_tokens').insert({
     customer_id: customerId,

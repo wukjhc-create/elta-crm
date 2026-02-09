@@ -7,6 +7,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getDecryptedCredentials, type CredentialInput } from '@/lib/actions/credentials'
+import { SUPPLIER_API_CONFIG } from '@/lib/constants'
 
 // =====================================================
 // Types
@@ -71,9 +72,9 @@ export abstract class BaseSupplierAPIClient {
   constructor(supplierId: string, config: SupplierAPIConfig) {
     this.supplierId = supplierId
     this.config = {
-      timeout: 30000,
-      retryAttempts: 3,
-      retryDelayMs: 1000,
+      timeout: SUPPLIER_API_CONFIG.DEFAULT_TIMEOUT_MS,
+      retryAttempts: SUPPLIER_API_CONFIG.DEFAULT_RETRY_ATTEMPTS,
+      retryDelayMs: SUPPLIER_API_CONFIG.DEFAULT_RETRY_DELAY_MS,
       ...config,
     }
   }
@@ -290,7 +291,7 @@ export abstract class BaseSupplierAPIClient {
           cached_lead_time_days: p.leadTimeDays,
           cached_at: new Date().toISOString(),
           cache_source: 'api' as const,
-          cache_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+          cache_expires_at: new Date(Date.now() + SUPPLIER_API_CONFIG.CACHE_TTL_MS).toISOString(),
           is_stale: false,
           fallback_priority: 1,
         }))
@@ -365,7 +366,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
         accessToken: Buffer.from(
           `${this.credentials.username}:${this.credentials.password}`
         ).toString('base64'),
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + SUPPLIER_API_CONFIG.AUTH_TOKEN_TTL_MS),
       }
 
       return true
@@ -705,7 +706,7 @@ export class LMAPIClient extends BaseSupplierAPIClient {
         accessToken: Buffer.from(
           `${this.credentials.customer_number}:${this.credentials.username}:${this.credentials.password}`
         ).toString('base64'),
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + SUPPLIER_API_CONFIG.AUTH_TOKEN_TTL_MS),
       }
 
       return true
@@ -894,11 +895,11 @@ export class SupplierAPIClientFactory {
 
     if (code === 'AO') {
       client = new AOAPIClient(supplierId, {
-        baseUrl: 'https://api.ao.dk/v1', // Default URL
+        baseUrl: SUPPLIER_API_CONFIG.AO_API_BASE_URL,
       })
     } else if (code === 'LM' || code === 'LEMVIGH') {
       client = new LMAPIClient(supplierId, {
-        baseUrl: 'https://api.lfrm.dk/v1', // Default URL
+        baseUrl: SUPPLIER_API_CONFIG.LM_API_BASE_URL,
       })
     }
 

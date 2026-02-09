@@ -11,6 +11,7 @@ import {
 } from '@/lib/validations/offers'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
+import { PORTAL_TOKEN_EXPIRY_DAYS } from '@/lib/constants'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
@@ -537,9 +538,8 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('')
 
-      // Expires in 30 days
       const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 30)
+      expiresAt.setDate(expiresAt.getDate() + PORTAL_TOKEN_EXPIRY_DAYS)
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('portal_access_tokens')

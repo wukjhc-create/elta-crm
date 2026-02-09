@@ -86,22 +86,14 @@ interface SyncHistoryEntry {
   error_message: string | null
 }
 
+import { formatDateTimeDK, formatDurationMs } from '@/lib/utils/format'
+
 function formatDuration(ms: number | null): string {
-  if (!ms) return '—'
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
-  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
+  return formatDurationMs(ms)
 }
 
 function formatDate(dateString: string | null): string {
-  if (!dateString) return '—'
-  return new Date(dateString).toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatDateTimeDK(dateString) || '\u2014'
 }
 
 function formatRelativeDate(dateString: string | null): string {

@@ -1,6 +1,7 @@
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Elta CRM'
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 export const DEFAULT_LOCALE = process.env.NEXT_PUBLIC_DEFAULT_LOCALE || 'da'
+export const DEFAULT_LOCALE_CODE = 'da-DK'
 
 // File upload constants
 export const MAX_FILE_SIZE = parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE || '10485760') // 10MB
@@ -34,6 +35,37 @@ export const TIME_FORMAT = 'HH:mm'
 // Currency
 export const DEFAULT_CURRENCY = 'DKK'
 export const DEFAULT_TAX_RATE = 25 // 25% Danish VAT
+
+// Offer & token validity
+export const OFFER_VALIDITY_DAYS = 30
+export const PORTAL_TOKEN_EXPIRY_DAYS = 30
+export const FILE_SIGNED_URL_EXPIRY_SECONDS = 3600
+
+// SMS configuration
+export const SMS_CONFIG = {
+  UNICODE_PART_LENGTH: 70,
+  UNICODE_SEGMENT_LENGTH: 67,
+  GSM_PART_LENGTH: 160,
+  GSM_SEGMENT_LENGTH: 153,
+  SENDER_NAME_MAX_LENGTH: 11,
+  DANISH_COUNTRY_CODE: 45,
+  DANISH_PHONE_LENGTH: 8,
+  GATEWAY_API_SMS_ENDPOINT: 'https://gatewayapi.com/rest/mtsms',
+  GATEWAY_API_INFO_ENDPOINT: 'https://gatewayapi.com/rest/me',
+} as const
+
+// Supplier API configuration
+export const SUPPLIER_API_CONFIG = {
+  DEFAULT_TIMEOUT_MS: 30000,
+  DEFAULT_RETRY_ATTEMPTS: 3,
+  DEFAULT_RETRY_DELAY_MS: 1000,
+  CACHE_TTL_MS: 24 * 60 * 60 * 1000, // 24 hours
+  AUTH_TOKEN_TTL_MS: 60 * 60 * 1000, // 1 hour
+  AO_API_BASE_URL: 'https://api.ao.dk/v1',
+  AO_WEBSITE_URL: 'https://www.ao.dk',
+  LM_API_BASE_URL: 'https://api.lfrm.dk/v1',
+  LM_WEBSITE_URL: 'https://www.lfrm.dk',
+} as const
 
 // Lead statuses
 export const LEAD_STATUSES = [

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
-import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from '@/lib/constants'
+import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES, FILE_SIGNED_URL_EXPIRY_SECONDS } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
 
 export interface UploadedFile {
@@ -201,7 +201,7 @@ export async function deleteFile(fileId: string): Promise<ActionResult> {
 // Get signed URL for private file access
 export async function getSignedUrl(
   filePath: string,
-  expiresIn: number = 3600
+  expiresIn: number = FILE_SIGNED_URL_EXPIRY_SECONDS
 ): Promise<ActionResult<string>> {
   try {
     const supabase = await createClient()

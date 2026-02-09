@@ -1,3 +1,51 @@
+import { format, parseISO, formatDistanceToNow } from 'date-fns'
+import { da } from 'date-fns/locale'
+
+// =====================================================
+// Date Formatting
+// =====================================================
+
+/**
+ * Format date with time in Danish locale: "15. feb 2026 14:30"
+ */
+export function formatDateTimeDK(date: string | Date | null | undefined): string {
+  if (!date) return ''
+  const dateObj = typeof date === 'string' ? parseISO(date) : date
+  return format(dateObj, 'd. MMM yyyy HH:mm', { locale: da })
+}
+
+/**
+ * Format date with long month in Danish: "15. februar 2026"
+ */
+export function formatDateLongDK(date: string | Date | null | undefined): string {
+  if (!date) return ''
+  const dateObj = typeof date === 'string' ? parseISO(date) : date
+  return format(dateObj, 'd. MMMM yyyy', { locale: da })
+}
+
+/**
+ * Format relative time in Danish: "2 timer siden"
+ */
+export function formatTimeAgo(date: string | Date | null | undefined): string {
+  if (!date) return ''
+  const dateObj = typeof date === 'string' ? parseISO(date) : date
+  return formatDistanceToNow(dateObj, { addSuffix: true, locale: da })
+}
+
+/**
+ * Format duration from milliseconds to human-readable: "2m 30s"
+ */
+export function formatDurationMs(ms: number | null | undefined): string {
+  if (!ms) return '\u2014'
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
+}
+
+// =====================================================
+// Number/Currency Formatting
+// =====================================================
+
 /**
  * Format bytes to human-readable string
  */

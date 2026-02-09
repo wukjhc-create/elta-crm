@@ -20,6 +20,7 @@ import {
   User,
   Loader2,
 } from 'lucide-react'
+import { formatDateTimeDK } from '@/lib/utils/format'
 
 interface SmsTimelineProps {
   offerId?: string
@@ -114,13 +115,7 @@ function SmsMessageCard({ message }: { message: SmsMessage }) {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return null
-    return new Date(dateStr).toLocaleString('da-DK', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatDateTimeDK(dateStr)
   }
 
   return (
@@ -271,9 +266,7 @@ export function SmsListCompact({ offerId, customerId }: { offerId?: string; cust
           <SmsStatusBadge status={message.status} size="sm" showIcon={false} />
           <span className="truncate flex-1">{message.to_phone}</span>
           <span className="text-xs text-muted-foreground">
-            {message.sent_at
-              ? new Date(message.sent_at).toLocaleDateString('da-DK')
-              : new Date(message.created_at).toLocaleDateString('da-DK')}
+            {formatDateTimeDK(message.sent_at || message.created_at)}
           </span>
         </div>
       ))}

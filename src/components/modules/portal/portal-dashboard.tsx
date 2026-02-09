@@ -14,6 +14,7 @@ import {
 import type { PortalSession, PortalOffer, PortalMessageWithRelations } from '@/types/portal.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { PortalChat } from './portal-chat'
+import { formatDate as formatDateUtil } from '@/lib/utils'
 
 interface PortalDashboardProps {
   token: string
@@ -50,11 +51,7 @@ export function PortalDashboard({
   }
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('da-DK', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    })
+    return formatDateUtil(dateStr)
   }
 
   const getStatusIcon = (status: string) => {
