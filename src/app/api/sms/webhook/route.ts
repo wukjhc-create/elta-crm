@@ -32,10 +32,18 @@ export async function POST(request: NextRequest) {
       payload = await request.json()
     } else if (contentType.includes('application/x-www-form-urlencoded')) {
       const formData = await request.formData()
+      const rawId = parseInt(formData.get('id') as string, 10)
+      const rawMsisdn = parseInt(formData.get('msisdn') as string, 10)
+      const rawTime = parseInt(formData.get('time') as string, 10)
+
+      if (isNaN(rawId) || isNaN(rawMsisdn) || isNaN(rawTime)) {
+        return NextResponse.json({ error: 'Invalid numeric fields' }, { status: 400 })
+      }
+
       payload = {
-        id: parseInt(formData.get('id') as string),
-        msisdn: parseInt(formData.get('msisdn') as string),
-        time: parseInt(formData.get('time') as string),
+        id: rawId,
+        msisdn: rawMsisdn,
+        time: rawTime,
         status: formData.get('status') as GatewayApiWebhook['status'],
         error: formData.get('error') as string | undefined,
         code: formData.get('code') as string | undefined,

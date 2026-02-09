@@ -111,13 +111,16 @@ export async function GET(request: Request) {
           continue
         }
 
-        // Get products to sync
+        // Get products to sync - load all at once to avoid N+1 queries
         const { data: products } = await supabase
           .from('supplier_products')
-          .select('supplier_sku')
+          .select('id, supplier_sku, cost_price, list_price')
           .eq('supplier_id', schedule.supplier_id)
 
         const skus = products?.map((p) => p.supplier_sku) || []
+        const productsBySkU = new Map(
+          (products || []).map((p) => [p.supplier_sku, p])
+        )
 
         if (skus.length === 0) {
           results.push({
@@ -162,13 +165,7 @@ export async function GET(request: Request) {
             const prices = await client.getProductPrices(batch)
 
             for (const [sku, price] of prices) {
-              const { data: existingProduct } = await supabase
-                .from('supplier_products')
-                .select('id, cost_price, list_price')
-                .eq('supplier_id', schedule.supplier_id)
-                .eq('supplier_sku', sku)
-                .single()
-
+              const existingProduct = productsBySkU.get(sku)
               if (!existingProduct) continue
 
               const oldPrice = existingProduct.cost_price

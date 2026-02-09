@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'crypto'
 
 /**
  * INBOUND WEBHOOK ENDPOINT
@@ -81,7 +82,11 @@ export async function POST(
 
     if (integration.api_key && authHeader) {
       const providedKey = authHeader.replace('Bearer ', '')
-      if (providedKey !== integration.api_key) {
+      const expected = Buffer.from(integration.api_key)
+      const provided = Buffer.from(providedKey)
+      const keysMatch = expected.length === provided.length &&
+        timingSafeEqual(expected, provided)
+      if (!keysMatch) {
         await logWebhook(supabase, integrationId, {
           success: false,
           error_message: 'Invalid API key',
@@ -247,10 +252,14 @@ export async function GET(
 ) {
   const { integrationId } = await params
 
-  // Handle challenge/verification
+  // Handle challenge/verification - sanitize to prevent XSS
   const challenge = request.nextUrl.searchParams.get('challenge')
   if (challenge) {
-    return new NextResponse(challenge, { status: 200 })
+    const sanitized = challenge.replace(/[^a-zA-Z0-9_\-\.]/g, '')
+    return new NextResponse(sanitized, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    })
   }
 
   return NextResponse.json({
