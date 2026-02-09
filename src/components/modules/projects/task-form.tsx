@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X } from 'lucide-react'
@@ -29,6 +29,12 @@ export function TaskForm({ projectId, task, onClose, onSuccess }: TaskFormProps)
   >([])
 
   const isEditing = !!task
+
+  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
+  useEffect(() => {
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [handleEscape])
 
   const {
     register,
@@ -103,9 +109,9 @@ export function TaskForm({ projectId, task, onClose, onSuccess }: TaskFormProps)
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div role="dialog" aria-modal="true" aria-labelledby="task-form-title" className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white">
-          <h2 className="text-xl font-semibold">
+          <h2 id="task-form-title" className="text-xl font-semibold">
             {isEditing ? 'Rediger Opgave' : 'Opret Ny Opgave'}
           </h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Save, Trash2 } from 'lucide-react'
 import {
   createTemplate,
@@ -33,6 +33,13 @@ export function SaveTemplateDialog({
   const [description, setDescription] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
 
   if (!isOpen) return null
 
@@ -68,10 +75,10 @@ export function SaveTemplateDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div role="dialog" aria-modal="true" aria-labelledby="save-template-title" className="bg-white rounded-lg shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-semibold">Gem som skabelon</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
+          <h2 id="save-template-title" className="text-xl font-semibold">Gem som skabelon</h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full" aria-label="Luk">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -164,6 +171,13 @@ export function LoadTemplateDialog({
 }: LoadTemplateDialogProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -181,10 +195,10 @@ export function LoadTemplateDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-labelledby="load-template-title" className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-semibold">Indlæs skabelon</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
+          <h2 id="load-template-title" className="text-xl font-semibold">Indlæs skabelon</h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full" aria-label="Luk">
             <X className="w-5 h-5" />
           </button>
         </div>

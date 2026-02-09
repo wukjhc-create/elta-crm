@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, XCircle } from 'lucide-react'
 import { rejectOffer } from '@/lib/actions/portal'
@@ -16,6 +16,16 @@ export function RejectDialog({ token, offerId, onClose }: RejectDialogProps) {
   const [reason, setReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Escape key handler
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose()
+  }, [onClose])
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
@@ -45,12 +55,18 @@ export function RejectDialog({ token, offerId, onClose }: RejectDialogProps) {
         onClick={onClose}
       />
 
-      <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reject-dialog-title"
+        className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4"
+      >
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold">Afvis tilbud</h2>
+          <h2 id="reject-dialog-title" className="text-xl font-bold">Afvis tilbud</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg"
+            aria-label="Luk"
           >
             <X className="w-5 h-5" />
           </button>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Check, RotateCcw } from 'lucide-react'
 import { acceptOffer } from '@/lib/actions/portal'
@@ -31,6 +31,16 @@ export function SignatureDialog({
   const [name, setName] = useState(session.customer.contact_person)
   const [email, setEmail] = useState(session.customer.email)
   const [acceptTerms, setAcceptTerms] = useState(false)
+
+  // Escape key handler
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose()
+  }, [onClose])
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -169,12 +179,18 @@ export function SignatureDialog({
         onClick={onClose}
       />
 
-      <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="signature-dialog-title"
+        className="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+      >
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold">Accepter tilbud</h2>
+          <h2 id="signature-dialog-title" className="text-xl font-bold">Accepter tilbud</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg"
+            aria-label="Luk"
           >
             <X className="w-5 h-5" />
           </button>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X } from 'lucide-react'
@@ -27,6 +27,12 @@ export function TimeEntryForm({
   const [isLoading, setIsLoading] = useState(false)
 
   const isEditing = !!timeEntry
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -96,9 +102,9 @@ export function TimeEntryForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div role="dialog" aria-modal="true" aria-labelledby="time-entry-form-title" className="bg-white rounded-lg shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-semibold">
+          <h2 id="time-entry-form-title" className="text-xl font-semibold">
             {isEditing ? 'Rediger Tidsregistrering' : 'Registrer Tid'}
           </h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">

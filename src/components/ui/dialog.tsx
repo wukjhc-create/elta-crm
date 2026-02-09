@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useId, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -33,6 +33,27 @@ interface DialogContentProps {
 export function DialogContent({ children, className }: DialogContentProps) {
   const context = useContext(DialogContext)
   if (!context) throw new Error('DialogContent must be used within Dialog')
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+
+  // Escape key handler
+  useEffect(() => {
+    if (!context.open) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        context.onOpenChange(false)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [context])
+
+  // Auto-focus dialog on open
+  useEffect(() => {
+    if (context.open && dialogRef.current) {
+      dialogRef.current.focus()
+    }
+  }, [context.open])
 
   if (!context.open) return null
 
@@ -44,8 +65,13 @@ export function DialogContent({ children, className }: DialogContentProps) {
       />
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
           className={clsx(
-            'relative bg-white rounded-lg shadow-lg w-full max-h-[90vh] overflow-y-auto',
+            'relative bg-white rounded-lg shadow-lg w-full max-h-[90vh] overflow-y-auto focus:outline-none',
             'animate-in fade-in-0 zoom-in-95',
             className
           )}
@@ -54,15 +80,20 @@ export function DialogContent({ children, className }: DialogContentProps) {
           <button
             onClick={() => context.onOpenChange(false)}
             className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none"
+            aria-label="Luk"
           >
             <X className="h-4 w-4" />
           </button>
-          {children}
+          <DialogTitleIdContext.Provider value={titleId}>
+            {children}
+          </DialogTitleIdContext.Provider>
         </div>
       </div>
     </div>
   )
 }
+
+const DialogTitleIdContext = createContext<string | undefined>(undefined)
 
 interface DialogHeaderProps {
   children: ReactNode
@@ -83,8 +114,9 @@ interface DialogTitleProps {
 }
 
 export function DialogTitle({ children, className }: DialogTitleProps) {
+  const titleId = useContext(DialogTitleIdContext)
   return (
-    <h2 className={clsx('text-lg font-semibold', className)}>
+    <h2 id={titleId} className={clsx('text-lg font-semibold', className)}>
       {children}
     </h2>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -28,6 +28,13 @@ export function MessageForm({ replyTo, onClose, onSuccess }: MessageFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showLinkOptions, setShowLinkOptions] = useState(false)
+
+  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
+  useEffect(() => {
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [handleEscape])
+
   const [teamMembers, setTeamMembers] = useState<
     { id: string; full_name: string | null; email: string }[]
   >([])
@@ -111,9 +118,9 @@ export function MessageForm({ replyTo, onClose, onSuccess }: MessageFormProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div role="dialog" aria-modal="true" aria-labelledby="message-form-title" className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white">
-          <h2 className="text-xl font-semibold">
+          <h2 id="message-form-title" className="text-xl font-semibold">
             {replyTo ? 'Svar på besked' : 'Ny Besked'}
           </h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full" aria-label="Luk">
