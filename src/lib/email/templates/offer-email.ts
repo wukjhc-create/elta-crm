@@ -1,5 +1,6 @@
 import type { OfferWithRelations } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
+import { formatDateLongDK } from '@/lib/utils/format'
 
 interface OfferEmailParams {
   offer: OfferWithRelations
@@ -18,12 +19,7 @@ function formatCurrency(amount: number, currency: string = 'DKK'): string {
 
 // Format date
 function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  return formatDateLongDK(dateString)
 }
 
 export function generateOfferEmailHtml({

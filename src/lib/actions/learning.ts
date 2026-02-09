@@ -290,7 +290,7 @@ export async function getAccuracyTrends(
       const start = periods[i]
       const end = periods[i + 1]
 
-      labels.push(start.toLocaleDateString('da-DK', { month: 'short', day: 'numeric' }))
+      labels.push(new Intl.DateTimeFormat('da-DK', { month: 'short', day: 'numeric' }).format(start))
 
       const { data } = await supabase
         .from('calculation_feedback')

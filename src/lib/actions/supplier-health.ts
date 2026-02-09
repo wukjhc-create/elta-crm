@@ -171,36 +171,37 @@ export async function getSystemHealthSummary(): Promise<ActionResult<SystemHealt
     const criticalIssues: string[] = []
     let lastGlobalSync: Date | null = null
 
-    for (const supplier of suppliers) {
-      const healthResult = await getSupplierHealth(supplier.id)
+    const healthResults = await Promise.allSettled(
+      suppliers.map((supplier) => getSupplierHealth(supplier.id))
+    )
 
-      if (healthResult.success && healthResult.data) {
-        const health = healthResult.data
+    for (const result of healthResults) {
+      if (result.status !== 'fulfilled' || !result.value.success || !result.value.data) continue
+      const health = result.value.data
 
-        if (health.isOnline) {
-          onlineCount++
-        } else {
-          criticalIssues.push(`${health.supplierName} er offline`)
-        }
+      if (health.isOnline) {
+        onlineCount++
+      } else {
+        criticalIssues.push(`${health.supplierName} er offline`)
+      }
 
-        if (health.cacheStatus === 'fresh') {
-          freshCacheCount++
-        } else if (health.cacheStatus === 'stale') {
-          staleCacheCount++
-          criticalIssues.push(`${health.supplierName} har forældet cache`)
-        } else {
-          missingCacheCount++
-        }
+      if (health.cacheStatus === 'fresh') {
+        freshCacheCount++
+      } else if (health.cacheStatus === 'stale') {
+        staleCacheCount++
+        criticalIssues.push(`${health.supplierName} har forældet cache`)
+      } else {
+        missingCacheCount++
+      }
 
-        if (health.failureCount >= 3) {
-          criticalIssues.push(`${health.supplierName} har ${health.failureCount} fejl`)
-        }
+      if (health.failureCount >= 3) {
+        criticalIssues.push(`${health.supplierName} har ${health.failureCount} fejl`)
+      }
 
-        if (health.lastSuccessfulSync) {
-          const syncDate = new Date(health.lastSuccessfulSync)
-          if (!lastGlobalSync || syncDate > lastGlobalSync) {
-            lastGlobalSync = syncDate
-          }
+      if (health.lastSuccessfulSync) {
+        const syncDate = new Date(health.lastSuccessfulSync)
+        if (!lastGlobalSync || syncDate > lastGlobalSync) {
+          lastGlobalSync = syncDate
         }
       }
     }

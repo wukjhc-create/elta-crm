@@ -8,6 +8,7 @@ import {
   Font,
 } from '@react-pdf/renderer'
 import type { OfferWithRelations, OfferLineItem } from '@/types/offers.types'
+import { formatDateLongDK } from '@/lib/utils/format'
 import type { CompanySettings } from '@/types/company-settings.types'
 
 // Register fonts (using system fonts for simplicity)
@@ -315,12 +316,7 @@ function formatCurrency(amount: number, currency: string = 'DKK'): string {
 
 // Format date
 function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  return formatDateLongDK(dateString)
 }
 
 interface OfferPdfProps {

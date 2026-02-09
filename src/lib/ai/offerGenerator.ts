@@ -280,7 +280,7 @@ function generateFullOfferText(sections: OfferTextSections, ctx: GeneratorContex
   if (projectAddress) {
     lines.push(`Adresse: ${projectAddress}`)
   }
-  lines.push(`Dato: ${new Date().toLocaleDateString('da-DK')}`)
+  lines.push(`Dato: ${new Intl.DateTimeFormat('da-DK').format(new Date())}`)
   lines.push('')
 
   // Price summary at top

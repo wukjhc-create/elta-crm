@@ -2277,12 +2277,14 @@ export async function loadSupplierPricesForCalculation(
       lastSyncedAt: string | null
     }>()
 
-    for (const variantId of variantIds) {
-      const result = await loadSupplierPricesForVariant(variantId, customerId)
-      if (result.success && result.data) {
-        for (const [key, value] of result.data.entries()) {
-          allPrices.set(key, value)
-        }
+    const priceResults = await Promise.allSettled(
+      variantIds.map((variantId) => loadSupplierPricesForVariant(variantId, customerId))
+    )
+
+    for (const result of priceResults) {
+      if (result.status !== 'fulfilled' || !result.value.success || !result.value.data) continue
+      for (const [key, value] of result.value.data.entries()) {
+        allPrices.set(key, value)
       }
     }
 
