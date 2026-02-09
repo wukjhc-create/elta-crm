@@ -186,6 +186,146 @@ export async function updateProfile(
 }
 
 // ============================================
+// Company Logo Actions
+// ============================================
+
+export async function uploadCompanyLogo(
+  formData: FormData,
+): Promise<ActionResult<{ url: string }>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Check admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan uploade logo' }
+    }
+
+    const file = formData.get('file') as File
+    if (!file) {
+      return { success: false, error: 'Ingen fil valgt' }
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+    if (!allowedTypes.includes(file.type)) {
+      return { success: false, error: 'Kun PNG, JPEG, WebP og SVG er tilladt' }
+    }
+
+    // Validate file size (2MB max for logos)
+    if (file.size > 2 * 1024 * 1024) {
+      return { success: false, error: 'Logo må maksimalt være 2 MB' }
+    }
+
+    // Upload to Supabase Storage
+    const ext = file.name.split('.').pop() || 'png'
+    const fileName = `company-logo-${Date.now()}.${ext}`
+    const filePath = `logos/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('attachments')
+      .upload(filePath, file, { upsert: true })
+
+    if (uploadError) {
+      return { success: false, error: formatError(uploadError, 'Kunne ikke uploade logo') }
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('attachments')
+      .getPublicUrl(filePath)
+
+    const publicUrl = urlData.publicUrl
+
+    // Update company_settings
+    const { data: existing } = await supabase
+      .from('company_settings')
+      .select('id, company_logo_url')
+      .single()
+
+    if (!existing) {
+      return { success: false, error: 'Virksomhedsindstillinger ikke fundet' }
+    }
+
+    // Delete old logo file if exists
+    if (existing.company_logo_url) {
+      const oldPath = existing.company_logo_url.split('/attachments/')[1]
+      if (oldPath) {
+        await supabase.storage.from('attachments').remove([oldPath])
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('company_settings')
+      .update({ company_logo_url: publicUrl })
+      .eq('id', existing.id)
+
+    if (updateError) {
+      return { success: false, error: 'Kunne ikke gemme logo URL' }
+    }
+
+    revalidatePath('/dashboard/settings')
+    return { success: true, data: { url: publicUrl } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Logo upload fejlede') }
+  }
+}
+
+export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Check admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan slette logo' }
+    }
+
+    const { data: existing } = await supabase
+      .from('company_settings')
+      .select('id, company_logo_url')
+      .single()
+
+    if (!existing) {
+      return { success: false, error: 'Virksomhedsindstillinger ikke fundet' }
+    }
+
+    // Delete file from storage
+    if (existing.company_logo_url) {
+      const filePath = existing.company_logo_url.split('/attachments/')[1]
+      if (filePath) {
+        await supabase.storage.from('attachments').remove([filePath])
+      }
+    }
+
+    // Clear URL in settings
+    const { error: updateError } = await supabase
+      .from('company_settings')
+      .update({ company_logo_url: null })
+      .eq('id', existing.id)
+
+    if (updateError) {
+      return { success: false, error: 'Kunne ikke fjerne logo' }
+    }
+
+    revalidatePath('/dashboard/settings')
+    return { success: true, data: undefined }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Sletning af logo fejlede') }
+  }
+}
+
+// ============================================
 // Security Actions
 // ============================================
 

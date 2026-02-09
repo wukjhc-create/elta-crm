@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Mail, Globe, FileText } from 'lucide-react'
-import { updateCompanySettings } from '@/lib/actions/settings'
+import Image from 'next/image'
+import { Building2, Mail, Globe, FileText, Upload, Trash2, ImageIcon } from 'lucide-react'
+import { updateCompanySettings, uploadCompanyLogo, deleteCompanyLogo } from '@/lib/actions/settings'
 import { useToast } from '@/components/ui/toast'
 import type { CompanySettings } from '@/types/company-settings.types'
 
@@ -15,6 +16,9 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
   const router = useRouter()
   const toast = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(settings.company_logo_url)
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState({
     company_name: settings.company_name || '',
     company_address: settings.company_address || '',
@@ -30,6 +34,49 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
     default_offer_validity_days: settings.default_offer_validity_days || 30,
     default_terms_and_conditions: settings.default_terms_and_conditions || '',
   })
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingLogo(true)
+    try {
+      const formDataObj = new FormData()
+      formDataObj.append('file', file)
+      const result = await uploadCompanyLogo(formDataObj)
+
+      if (result.success && result.data) {
+        setLogoUrl(result.data.url)
+        toast.success('Logo uploadet')
+        router.refresh()
+      } else {
+        toast.error('Kunne ikke uploade logo', result.error)
+      }
+    } catch {
+      toast.error('Der opstod en fejl ved upload')
+    } finally {
+      setIsUploadingLogo(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleLogoDelete = async () => {
+    setIsUploadingLogo(true)
+    try {
+      const result = await deleteCompanyLogo()
+      if (result.success) {
+        setLogoUrl(null)
+        toast.success('Logo fjernet')
+        router.refresh()
+      } else {
+        toast.error('Kunne ikke fjerne logo', result.error)
+      }
+    } catch {
+      toast.error('Der opstod en fejl')
+    } finally {
+      setIsUploadingLogo(false)
+    }
+  }
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -77,6 +124,73 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
   }
 
   return (
+    <div className="space-y-6">
+      {/* Company Logo */}
+      <div className="bg-white rounded-lg border p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-indigo-100 rounded-lg">
+            <ImageIcon className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Virksomhedslogo</h2>
+            <p className="text-sm text-gray-500">Logo vises på tilbud og dokumenter</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-6">
+          {/* Logo preview */}
+          <div className="flex-shrink-0 w-32 h-32 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden">
+            {logoUrl ? (
+              <Image
+                src={logoUrl}
+                alt="Virksomhedslogo"
+                width={128}
+                height={128}
+                className="object-contain w-full h-full p-2"
+              />
+            ) : (
+              <ImageIcon className="w-10 h-10 text-gray-300" />
+            )}
+          </div>
+
+          {/* Upload controls */}
+          <div className="space-y-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              onChange={handleLogoUpload}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingLogo}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              <Upload className="w-4 h-4" />
+              {isUploadingLogo ? 'Uploader...' : logoUrl ? 'Skift logo' : 'Upload logo'}
+            </button>
+
+            {logoUrl && (
+              <button
+                type="button"
+                onClick={handleLogoDelete}
+                disabled={isUploadingLogo}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Fjern logo
+              </button>
+            )}
+
+            <p className="text-xs text-gray-500">
+              PNG, JPEG, WebP eller SVG. Maks 2 MB.
+            </p>
+          </div>
+        </div>
+      </div>
+
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Company Information */}
       <div className="bg-white rounded-lg border p-6">
@@ -349,5 +463,6 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
         </button>
       </div>
     </form>
+    </div>
   )
 }
