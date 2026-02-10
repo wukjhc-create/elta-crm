@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import type { ActionResult } from '@/types/common.types'
+import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import type {
   Package,
   PackageSummary,
@@ -65,20 +65,22 @@ export async function getPackages(filters?: {
   category_id?: string
   is_active?: boolean
   search?: string
-}): Promise<ActionResult<PackageSummary[]>> {
+  page?: number
+  pageSize?: number
+}): Promise<ActionResult<PaginatedResponse<PackageSummary>>> {
   try {
     const { supabase } = await getAuthenticatedClient()
+    const page = filters?.page || 1
+    const pageSize = filters?.pageSize || 24
+    const offset = (page - 1) * pageSize
 
     // Validate optional category_id
     if (filters?.category_id) {
       validateUUID(filters.category_id, 'kategori ID')
     }
 
-    let query = supabase
-      .from('v_packages_summary')
-      .select('*')
-      .order('name')
-
+    // Determine package IDs if filtering by category
+    let categoryPackageIds: string[] | null = null
     if (filters?.category_id) {
       const { data: packages, error: pkgError } = await supabase
         .from('packages')
@@ -91,32 +93,50 @@ export async function getPackages(filters?: {
       }
 
       if (packages && packages.length > 0) {
-        query = query.in('id', packages.map(p => p.id))
+        categoryPackageIds = packages.map(p => p.id)
       } else {
-        // No packages in this category
-        return { success: true, data: [] }
+        return { success: true, data: { data: [], page, pageSize, total: 0, totalPages: 0 } }
       }
     }
 
-    if (filters?.is_active !== undefined) {
-      query = query.eq('is_active', filters.is_active)
-    }
+    // Build count query
+    let countQuery = supabase
+      .from('v_packages_summary')
+      .select('*', { count: 'exact', head: true })
 
+    if (categoryPackageIds) countQuery = countQuery.in('id', categoryPackageIds)
+    if (filters?.is_active !== undefined) countQuery = countQuery.eq('is_active', filters.is_active)
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      if (sanitized) {
-        query = query.or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`)
-      }
+      if (sanitized) countQuery = countQuery.or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`)
     }
 
-    const { data, error } = await query
+    const { count } = await countQuery
+    const total = count || 0
+    const totalPages = Math.ceil(total / pageSize)
+
+    // Build data query
+    let dataQuery = supabase
+      .from('v_packages_summary')
+      .select('*')
+      .order('name')
+      .range(offset, offset + pageSize - 1)
+
+    if (categoryPackageIds) dataQuery = dataQuery.in('id', categoryPackageIds)
+    if (filters?.is_active !== undefined) dataQuery = dataQuery.eq('is_active', filters.is_active)
+    if (filters?.search) {
+      const sanitized = sanitizeSearchTerm(filters.search)
+      if (sanitized) dataQuery = dataQuery.or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`)
+    }
+
+    const { data, error } = await dataQuery
 
     if (error) {
       console.error('Database error fetching packages:', error)
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data || [] }
+    return { success: true, data: { data: data || [], page, pageSize, total, totalPages } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente pakker') }
   }

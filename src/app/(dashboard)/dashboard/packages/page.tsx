@@ -13,17 +13,21 @@ interface PageProps {
   searchParams: Promise<{
     search?: string
     category_id?: string
+    page?: string
   }>
 }
 
 export default async function PackagesPage({ searchParams }: PageProps) {
   const params = await searchParams
+  const page = params.page ? parseInt(params.page, 10) : 1
 
   const [packagesResult, categoriesResult] = await Promise.all([
     getPackages({
       search: params.search,
       category_id: params.category_id,
       is_active: true,
+      page,
+      pageSize: 24,
     }),
     getPackageCategories(),
   ])
@@ -31,7 +35,7 @@ export default async function PackagesPage({ searchParams }: PageProps) {
   return (
     <Suspense fallback={<PackagesLoading />}>
       <PackagesClient
-        initialPackages={packagesResult.success && packagesResult.data ? packagesResult.data : []}
+        initialPackages={packagesResult.success && packagesResult.data ? packagesResult.data : null}
         categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
         initialFilters={{
           search: params.search || '',

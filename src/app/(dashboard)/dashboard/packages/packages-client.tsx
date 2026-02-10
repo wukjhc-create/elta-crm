@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   Plus,
@@ -16,11 +16,13 @@ import {
   Filter,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
+import { Pagination } from '@/components/shared/pagination'
 import type { PackageSummary, PackageCategory } from '@/types/packages.types'
+import type { PaginatedResponse } from '@/types/common.types'
 import { createPackage, deletePackage, copyPackage } from '@/lib/actions/packages'
 
 interface PackagesClientProps {
-  initialPackages: PackageSummary[]
+  initialPackages: PaginatedResponse<PackageSummary> | null
   categories: PackageCategory[]
   initialFilters: {
     search: string
@@ -34,10 +36,16 @@ export default function PackagesClient({
   initialFilters,
 }: PackagesClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { success, error } = useToast()
   const [isPending, startTransition] = useTransition()
 
-  const [packages] = useState(initialPackages)
+  const packages = initialPackages?.data || []
+  const total = initialPackages?.total || 0
+  const page = initialPackages?.page || 1
+  const totalPages = initialPackages?.totalPages || 1
+  const pageSize = initialPackages?.pageSize || 24
+
   const [search, setSearch] = useState(initialFilters.search)
   const [categoryFilter, setCategoryFilter] = useState(initialFilters.category_id)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -47,6 +55,20 @@ export default function PackagesClient({
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (categoryFilter) params.set('category_id', categoryFilter)
+    router.push(`/dashboard/packages?${params.toString()}`)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (newPage > 1) params.set('page', newPage.toString())
+    else params.delete('page')
+    router.push(`/dashboard/packages?${params.toString()}`)
+  }
+
+  const handlePageSizeChange = (newSize: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('pageSize', newSize.toString())
+    params.delete('page')
     router.push(`/dashboard/packages?${params.toString()}`)
   }
 
@@ -99,7 +121,7 @@ export default function PackagesClient({
         <div>
           <h1 className="text-2xl font-bold">Pakker</h1>
           <p className="text-muted-foreground">
-            Opret og administrer genanvendelige pakker med komponenter og produkter
+            Opret og administrer genanvendelige pakker ({total} pakker)
           </p>
         </div>
         <button
@@ -266,6 +288,20 @@ export default function PackagesClient({
               </Link>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="bg-white rounded-lg border p-4">
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={total}
+            pageSize={pageSize}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
         </div>
       )}
 

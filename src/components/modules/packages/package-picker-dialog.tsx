@@ -48,7 +48,7 @@ export function PackagePickerDialog({
         search: searchTerm,
       })
       if (result.success && result.data) {
-        setPackages(result.data)
+        setPackages(result.data.data)
       }
     } catch {
       // Failed to load

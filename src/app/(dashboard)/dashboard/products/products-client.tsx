@@ -42,6 +42,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { Pagination } from '@/components/shared/pagination'
 import { useToast } from '@/components/ui/toast'
 import { deleteProduct } from '@/lib/actions/products'
 import type { ProductWithCategory, ProductCategory } from '@/types/products.types'
@@ -285,28 +286,15 @@ export default function ProductsClient({
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t">
-              <p className="text-sm text-gray-500">
-                Side {page} af {totalPages}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => updateFilters({ page: page - 1 })}
-                >
-                  Forrige
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => updateFilters({ page: page + 1 })}
-                >
-                  Næste
-                </Button>
-              </div>
+            <div className="px-4 py-3 border-t">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={total}
+                pageSize={25}
+                onPageChange={(p) => updateFilters({ page: p })}
+                onPageSizeChange={() => {}}
+              />
             </div>
           )}
         </div>
