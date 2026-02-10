@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { revalidatePath } from 'next/cache'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES, FILE_SIGNED_URL_EXPIRY_SECONDS } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
 
@@ -120,6 +121,7 @@ export async function uploadFile(
       return { success: false, error: 'Kunne ikke registrere filen' }
     }
 
+    revalidatePath(`/dashboard/${entityType}s/${entityId}`)
     return { success: true, data: fileRecord as UploadedFile }
   } catch (error) {
     console.error('Error in uploadFile:', error)
@@ -191,6 +193,9 @@ export async function deleteFile(fileId: string): Promise<ActionResult> {
       return { success: false, error: 'Kunne ikke slette filen' }
     }
 
+    if (file.entity_type && file.entity_id) {
+      revalidatePath(`/dashboard/${file.entity_type}s/${file.entity_id}`)
+    }
     return { success: true }
   } catch (error) {
     console.error('Error in deleteFile:', error)

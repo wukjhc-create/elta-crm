@@ -115,7 +115,15 @@ export async function encryptCredentials(credentials: Record<string, unknown>): 
  */
 export async function decryptCredentials(encryptedBase64: string): Promise<Record<string, unknown>> {
   const json = await decrypt(encryptedBase64)
-  return JSON.parse(json)
+  try {
+    const parsed = JSON.parse(json)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('Decrypted data is not a valid credentials object')
+    }
+    return parsed
+  } catch (error) {
+    throw new Error(`Credential decryption failed: ${error instanceof Error ? error.message : 'invalid JSON'}`)
+  }
 }
 
 /**

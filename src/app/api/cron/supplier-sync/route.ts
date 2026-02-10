@@ -163,6 +163,11 @@ export async function GET(request: Request) {
 
           try {
             const prices = await client.getProductPrices(batch)
+            const now = new Date().toISOString()
+            const priceHistoryBatch: Array<Record<string, unknown>> = []
+
+            // Collect all updates for this batch
+            const updateFns: Array<() => Promise<unknown>> = []
 
             for (const [sku, price] of prices) {
               const existingProduct = productsBySkU.get(sku)
@@ -170,27 +175,31 @@ export async function GET(request: Request) {
 
               const oldPrice = existingProduct.cost_price
               const newPrice = price.costPrice
+              const productId = existingProduct.id
 
-              // Update product
-              await supabase
-                .from('supplier_products')
-                .update({
-                  cost_price: newPrice,
-                  list_price: price.listPrice,
-                  is_available: price.isAvailable,
-                  lead_time_days: price.leadTimeDays,
-                  last_synced_at: new Date().toISOString(),
-                })
-                .eq('id', existingProduct.id)
+              // Queue product update as a function to execute later
+              updateFns.push(async () => {
+                const { error } = await supabase
+                  .from('supplier_products')
+                  .update({
+                    cost_price: newPrice,
+                    list_price: price.listPrice,
+                    is_available: price.isAvailable,
+                    lead_time_days: price.leadTimeDays,
+                    last_synced_at: now,
+                  })
+                  .eq('id', productId)
+                if (error) throw error
+              })
 
               updatedProducts++
 
-              // Record price change if different
+              // Collect price history records
               if (oldPrice !== newPrice) {
                 const changePercentage =
                   oldPrice && oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0
 
-                await supabase.from('price_history').insert({
+                priceHistoryBatch.push({
                   supplier_product_id: existingProduct.id,
                   old_cost_price: oldPrice,
                   new_cost_price: newPrice,
@@ -201,6 +210,24 @@ export async function GET(request: Request) {
                 })
 
                 priceChanges++
+              }
+            }
+
+            // Execute all product updates in parallel
+            const updateResults = await Promise.allSettled(updateFns.map((fn) => fn()))
+            const failedUpdates = updateResults.filter((r) => r.status === 'rejected')
+            if (failedUpdates.length > 0) {
+              errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${failedUpdates.length} product updates failed`)
+            }
+
+            // Batch insert price history records
+            if (priceHistoryBatch.length > 0) {
+              const { error: historyError } = await supabase
+                .from('price_history')
+                .insert(priceHistoryBatch)
+
+              if (historyError) {
+                console.error('Price history insert error:', historyError)
               }
             }
           } catch (batchError) {
@@ -307,13 +334,30 @@ export async function GET(request: Request) {
 
 /**
  * Calculate next run time based on cron expression
- * Simple implementation - for production, use a proper cron parser
+ * Parses hour from cron format "minute hour * * *" (standard 5-field cron)
+ * Falls back to tomorrow 3 AM if parsing fails
  */
 function getNextRunTime(cronExpression: string): string {
-  // Default: next day at 3 AM Copenhagen time
   const now = new Date()
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
+
+  try {
+    // Parse cron: "min hour day month weekday"
+    const parts = cronExpression.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      const minute = parseInt(parts[0])
+      const hour = parseInt(parts[1])
+      if (!isNaN(minute) && !isNaN(hour)) {
+        tomorrow.setHours(hour, minute, 0, 0)
+        return tomorrow.toISOString()
+      }
+    }
+  } catch {
+    // Fall through to default
+  }
+
+  // Default: 3 AM
   tomorrow.setHours(3, 0, 0, 0)
   return tomorrow.toISOString()
 }
