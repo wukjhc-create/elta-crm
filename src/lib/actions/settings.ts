@@ -187,6 +187,108 @@ export async function updateProfile(
 }
 
 // ============================================
+// Profile Avatar Actions
+// ============================================
+
+export async function uploadProfileAvatar(
+  formData: FormData,
+): Promise<ActionResult<{ url: string }>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    const file = formData.get('file') as File
+    if (!file) {
+      return { success: false, error: 'Ingen fil valgt' }
+    }
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      return { success: false, error: 'Kun PNG, JPEG og WebP er tilladt' }
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      return { success: false, error: 'Profilbillede må maksimalt være 2 MB' }
+    }
+
+    // Delete old avatar if exists
+    const { data: currentProfile } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', userId)
+      .single()
+
+    if (currentProfile?.avatar_url) {
+      const oldPath = currentProfile.avatar_url.split('/attachments/')[1]
+      if (oldPath) {
+        await supabase.storage.from('attachments').remove([oldPath])
+      }
+    }
+
+    const ext = file.name.split('.').pop() || 'png'
+    const filePath = `avatars/${userId}-${Date.now()}.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('attachments')
+      .upload(filePath, file, { upsert: true })
+
+    if (uploadError) {
+      return { success: false, error: formatError(uploadError, 'Kunne ikke uploade billede') }
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('attachments')
+      .getPublicUrl(filePath)
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ avatar_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+
+    if (updateError) {
+      return { success: false, error: 'Kunne ikke gemme profilbillede' }
+    }
+
+    revalidatePath('/dashboard/settings/profile')
+    return { success: true, data: { url: urlData.publicUrl } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Upload af profilbillede fejlede') }
+  }
+}
+
+export async function deleteProfileAvatar(): Promise<ActionResult<void>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    const { data: currentProfile } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', userId)
+      .single()
+
+    if (currentProfile?.avatar_url) {
+      const filePath = currentProfile.avatar_url.split('/attachments/')[1]
+      if (filePath) {
+        await supabase.storage.from('attachments').remove([filePath])
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ avatar_url: null, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+
+    if (updateError) {
+      return { success: false, error: 'Kunne ikke fjerne profilbillede' }
+    }
+
+    revalidatePath('/dashboard/settings/profile')
+    return { success: true, data: undefined }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Sletning af profilbillede fejlede') }
+  }
+}
+
+// ============================================
 // Company Logo Actions
 // ============================================
 
@@ -569,6 +671,59 @@ export async function cancelInvitation(invitationId: string): Promise<ActionResu
     return { success: true, data: null }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke annullere invitation') }
+  }
+}
+
+// ============================================
+// Notification Preferences
+// ============================================
+
+export interface NotificationPreferences {
+  [key: string]: { email: boolean; push: boolean }
+}
+
+export async function getNotificationPreferences(): Promise<ActionResult<NotificationPreferences>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('notification_preferences')
+      .eq('id', userId)
+      .single()
+
+    if (error) {
+      return { success: false, error: 'Kunne ikke hente notifikationspræferencer' }
+    }
+
+    return { success: true, data: (data.notification_preferences as NotificationPreferences) || {} }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Fejl ved hentning af notifikationer') }
+  }
+}
+
+export async function saveNotificationPreferences(
+  preferences: NotificationPreferences
+): Promise<ActionResult<void>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        notification_preferences: preferences,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+
+    if (error) {
+      return { success: false, error: 'Kunne ikke gemme notifikationspræferencer' }
+    }
+
+    revalidatePath('/dashboard/settings/notifications')
+    return { success: true, data: undefined }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Fejl ved gemning af notifikationer') }
   }
 }
 

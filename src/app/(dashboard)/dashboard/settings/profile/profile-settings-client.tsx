@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useRef, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
-import { updateProfile, type Profile, type UpdateProfileInput } from '@/lib/actions/settings'
-import { User, Phone, Building2, Mail, Save, Loader2 } from 'lucide-react'
+import { updateProfile, uploadProfileAvatar, deleteProfileAvatar, type Profile, type UpdateProfileInput } from '@/lib/actions/settings'
+import { User, Phone, Building2, Mail, Save, Loader2, Camera, Trash2 } from 'lucide-react'
 
 interface ProfileSettingsClientProps {
   profile: Profile
@@ -14,6 +15,10 @@ interface ProfileSettingsClientProps {
 
 export function ProfileSettingsClient({ profile }: ProfileSettingsClientProps) {
   const [isPending, startTransition] = useTransition()
+  const [isUploading, setIsUploading] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
   const toast = useToast()
   const [formData, setFormData] = useState<UpdateProfileInput>({
     full_name: profile.full_name || '',
@@ -44,25 +49,97 @@ export function ProfileSettingsClient({ profile }: ProfileSettingsClientProps) {
       {/* Profile header with avatar */}
       <div className="bg-white rounded-lg border p-6">
         <div className="flex items-center gap-4">
-          <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
-            {profile.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt={profile.full_name || 'Profil'}
-                className="w-20 h-20 rounded-full object-cover"
-              />
-            ) : (
-              <User className="w-10 h-10 text-blue-600" />
-            )}
+          <div className="relative group">
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={profile.full_name || 'Profil'}
+                  className="w-20 h-20 rounded-full object-cover"
+                />
+              ) : (
+                <User className="w-10 h-10 text-blue-600" />
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                setIsUploading(true)
+                try {
+                  const fd = new FormData()
+                  fd.append('file', file)
+                  const result = await uploadProfileAvatar(fd)
+                  if (result.success && result.data) {
+                    setAvatarUrl(result.data.url)
+                    toast.success('Profilbillede opdateret')
+                    router.refresh()
+                  } else {
+                    toast.error(result.error || 'Upload fejlede')
+                  }
+                } catch {
+                  toast.error('Upload fejlede')
+                } finally {
+                  setIsUploading(false)
+                  if (fileInputRef.current) fileInputRef.current.value = ''
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="absolute inset-0 bg-black/0 group-hover:bg-black/40 rounded-full flex items-center justify-center transition-colors"
+              aria-label="Skift profilbillede"
+            >
+              {isUploading ? (
+                <Loader2 className="w-6 h-6 text-white animate-spin" />
+              ) : (
+                <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
+            </button>
           </div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
               {profile.full_name || 'Ikke angivet'}
             </h2>
             <p className="text-gray-500">{profile.email}</p>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-1">
-              {profile.role}
-            </span>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                {profile.role}
+              </span>
+              {avatarUrl && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsUploading(true)
+                    try {
+                      const result = await deleteProfileAvatar()
+                      if (result.success) {
+                        setAvatarUrl(null)
+                        toast.success('Profilbillede fjernet')
+                        router.refresh()
+                      } else {
+                        toast.error(result.error || 'Kunne ikke fjerne billede')
+                      }
+                    } catch {
+                      toast.error('Kunne ikke fjerne billede')
+                    } finally {
+                      setIsUploading(false)
+                    }
+                  }}
+                  disabled={isUploading}
+                  className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-800"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Fjern billede
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

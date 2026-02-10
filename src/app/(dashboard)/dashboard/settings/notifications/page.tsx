@@ -2,13 +2,19 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { NotificationsSettingsClient } from './notifications-settings-client'
+import { getNotificationPreferences } from '@/lib/actions/settings'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Notifikationer',
   description: 'Konfigurer e-mail og SMS notifikationer',
 }
 
-export default function NotificationsSettingsPage() {
+export default async function NotificationsSettingsPage() {
+  const result = await getNotificationPreferences()
+  const saved = result.success && result.data ? result.data : {}
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -24,7 +30,7 @@ export default function NotificationsSettingsPage() {
         </div>
       </div>
 
-      <NotificationsSettingsClient />
+      <NotificationsSettingsClient savedPreferences={saved} />
     </div>
   )
 }

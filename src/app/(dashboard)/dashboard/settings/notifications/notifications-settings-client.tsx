@@ -3,83 +3,107 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import { saveNotificationPreferences, type NotificationPreferences } from '@/lib/actions/settings'
 import { Bell, Mail, MessageSquare, FileText, Users, Save, Loader2, Info } from 'lucide-react'
 
-interface NotificationPreference {
+interface PreferenceConfig {
   key: string
   label: string
   description: string
   icon: React.ReactNode
-  email: boolean
-  push: boolean
+  defaultEmail: boolean
+  defaultPush: boolean
 }
 
-const defaultPreferences: NotificationPreference[] = [
+const PREFERENCE_CONFIGS: PreferenceConfig[] = [
   {
     key: 'new_lead',
     label: 'Nye leads',
     description: 'Når et nyt lead oprettes eller tildeles dig',
     icon: <Users className="w-5 h-5" />,
-    email: true,
-    push: true,
+    defaultEmail: true,
+    defaultPush: true,
   },
   {
     key: 'new_message',
     label: 'Nye beskeder',
     description: 'Når du modtager en ny besked fra kunde eller kollega',
     icon: <MessageSquare className="w-5 h-5" />,
-    email: true,
-    push: true,
+    defaultEmail: true,
+    defaultPush: true,
   },
   {
     key: 'offer_signed',
     label: 'Tilbud underskrevet',
     description: 'Når en kunde underskriver et tilbud',
     icon: <FileText className="w-5 h-5" />,
-    email: true,
-    push: true,
+    defaultEmail: true,
+    defaultPush: true,
   },
   {
     key: 'offer_viewed',
     label: 'Tilbud set',
     description: 'Når en kunde ser dit tilbud',
     icon: <FileText className="w-5 h-5" />,
-    email: false,
-    push: true,
+    defaultEmail: false,
+    defaultPush: true,
   },
   {
     key: 'daily_summary',
     label: 'Daglig opsummering',
     description: 'Daglig rapport over aktiviteter',
     icon: <Mail className="w-5 h-5" />,
-    email: true,
-    push: false,
+    defaultEmail: true,
+    defaultPush: false,
   },
 ]
 
-export function NotificationsSettingsClient() {
+function buildState(saved: NotificationPreferences): Record<string, { email: boolean; push: boolean }> {
+  const state: Record<string, { email: boolean; push: boolean }> = {}
+  for (const config of PREFERENCE_CONFIGS) {
+    state[config.key] = saved[config.key] ?? { email: config.defaultEmail, push: config.defaultPush }
+  }
+  return state
+}
+
+function buildDefaults(): Record<string, { email: boolean; push: boolean }> {
+  const state: Record<string, { email: boolean; push: boolean }> = {}
+  for (const config of PREFERENCE_CONFIGS) {
+    state[config.key] = { email: config.defaultEmail, push: config.defaultPush }
+  }
+  return state
+}
+
+interface NotificationsSettingsClientProps {
+  savedPreferences: NotificationPreferences
+}
+
+export function NotificationsSettingsClient({ savedPreferences }: NotificationsSettingsClientProps) {
   const [isPending, setIsPending] = useState(false)
   const toast = useToast()
-  const [preferences, setPreferences] = useState<NotificationPreference[]>(defaultPreferences)
+  const [preferences, setPreferences] = useState(() => buildState(savedPreferences))
 
   const handleToggle = (key: string, type: 'email' | 'push') => {
-    setPreferences(prev =>
-      prev.map(pref =>
-        pref.key === key
-          ? { ...pref, [type]: !pref[type] }
-          : pref
-      )
-    )
+    setPreferences(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [type]: !prev[key][type] },
+    }))
   }
 
   const handleSave = async () => {
     setIsPending(true)
-
-    // Simulate API call - in a real implementation, this would save to database
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    toast.success('Notifikationsindstillinger gemt')
-    setIsPending(false)
+    try {
+      const result = await saveNotificationPreferences(preferences)
+      if (result.success) {
+        toast.success('Notifikationsindstillinger gemt')
+      } else {
+        toast.error(result.error || 'Kunne ikke gemme indstillinger')
+      }
+    } catch {
+      toast.error('Kunne ikke gemme indstillinger')
+    } finally {
+      setIsPending(false)
+    }
   }
 
   return (
@@ -109,49 +133,54 @@ export function NotificationsSettingsClient() {
         </div>
 
         {/* Preference rows */}
-        {preferences.map(pref => (
-          <div key={pref.key} className="p-4 grid grid-cols-[1fr,80px,80px] gap-4 items-center">
-            <div className="flex items-start gap-3">
-              <div className="text-gray-500 mt-0.5">{pref.icon}</div>
-              <div>
-                <div className="font-medium text-gray-900">{pref.label}</div>
-                <div className="text-sm text-gray-500">{pref.description}</div>
+        {PREFERENCE_CONFIGS.map(config => {
+          const pref = preferences[config.key]
+          return (
+            <div key={config.key} className="p-4 grid grid-cols-[1fr,80px,80px] gap-4 items-center">
+              <div className="flex items-start gap-3">
+                <div className="text-gray-500 mt-0.5">{config.icon}</div>
+                <div>
+                  <div className="font-medium text-gray-900">{config.label}</div>
+                  <div className="text-sm text-gray-500">{config.description}</div>
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => handleToggle(config.key, 'email')}
+                  aria-label={`${config.label} e-mail ${pref.email ? 'til' : 'fra'}`}
+                  className={`w-10 h-6 rounded-full transition-colors relative ${
+                    pref.email ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      pref.email ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => handleToggle(config.key, 'push')}
+                  aria-label={`${config.label} push ${pref.push ? 'til' : 'fra'}`}
+                  className={`w-10 h-6 rounded-full transition-colors relative ${
+                    pref.push ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      pref.push ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
-
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={() => handleToggle(pref.key, 'email')}
-                className={`w-10 h-6 rounded-full transition-colors relative ${
-                  pref.email ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    pref.email ? 'translate-x-4' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={() => handleToggle(pref.key, 'push')}
-                className={`w-10 h-6 rounded-full transition-colors relative ${
-                  pref.push ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    pref.push ? 'translate-x-4' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Quick actions */}
@@ -161,21 +190,29 @@ export function NotificationsSettingsClient() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPreferences(prev => prev.map(p => ({ ...p, email: true, push: true })))}
+            onClick={() => {
+              const all: Record<string, { email: boolean; push: boolean }> = {}
+              for (const c of PREFERENCE_CONFIGS) all[c.key] = { email: true, push: true }
+              setPreferences(all)
+            }}
           >
             Aktiver alle
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPreferences(prev => prev.map(p => ({ ...p, email: false, push: false })))}
+            onClick={() => {
+              const none: Record<string, { email: boolean; push: boolean }> = {}
+              for (const c of PREFERENCE_CONFIGS) none[c.key] = { email: false, push: false }
+              setPreferences(none)
+            }}
           >
             Deaktiver alle
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPreferences(defaultPreferences)}
+            onClick={() => setPreferences(buildDefaults())}
           >
             Nulstil til standard
           </Button>
