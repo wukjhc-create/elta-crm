@@ -14,6 +14,7 @@ import {
   Send,
   CheckCircle,
   XCircle,
+  Loader2,
 } from 'lucide-react'
 import { OfferStatusBadge } from './offer-status-badge'
 import { OfferForm } from './offer-form'
@@ -147,7 +148,8 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
       {/* Bulk Action Bar */}
       {someSelected && (
         <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-2 mb-2 flex items-center gap-3 flex-wrap">
-          <span className="text-sm font-medium text-primary">
+          <span className="text-sm font-medium text-primary flex items-center gap-2">
+            {isBulkActing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             {selectedIds.size} valgt
           </span>
           <div className="h-4 w-px bg-gray-300" />

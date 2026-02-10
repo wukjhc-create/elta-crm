@@ -11,6 +11,7 @@ import {
   Clock,
   User,
   Building2,
+  Loader2,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { deleteProject, updateProjectStatus } from '@/lib/actions/projects'
@@ -154,7 +155,8 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
       {/* Bulk action bar */}
       {someSelected && (
         <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
-          <span className="text-sm font-medium text-blue-800">
+          <span className="text-sm font-medium text-blue-800 flex items-center gap-2">
+            {isBulkActing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             {selectedIds.size} valgt
           </span>
           <div className="flex gap-2 ml-auto">
