@@ -148,6 +148,35 @@ async function generateCustomerNumber(): Promise<string> {
   return 'C' + nextNum.toString().padStart(6, '0')
 }
 
+// Check for duplicate customers by email or company name
+export async function checkDuplicateCustomer(
+  email: string,
+  companyName: string,
+  excludeId?: string
+): Promise<ActionResult<{ id: string; company_name: string; customer_number: string; email: string }[]>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    let query = supabase
+      .from('customers')
+      .select('id, company_name, customer_number, email')
+      .or(`email.ilike.${email},company_name.ilike.${companyName}`)
+      .limit(5)
+
+    if (excludeId) {
+      query = query.neq('id', excludeId)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      return { success: false, error: 'Kunne ikke tjekke for dubletter' }
+    }
+    return { success: true, data: data || [] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Fejl ved dublet-tjek') }
+  }
+}
+
 // Create new customer
 export async function createCustomer(formData: FormData): Promise<ActionResult<Customer>> {
   try {

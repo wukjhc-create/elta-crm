@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Copy, Loader2 } from 'lucide-react'
 import { createCustomerSchema, type CreateCustomerInput } from '@/lib/validations/customers'
-import { createCustomer, updateCustomer } from '@/lib/actions/customers'
+import { createCustomer, updateCustomer, checkDuplicateCustomer } from '@/lib/actions/customers'
 import { FormField, inputClass } from '@/components/shared/form-field'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import type { Customer } from '@/types/customers.types'
@@ -96,6 +96,24 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
     try {
       setIsLoading(true)
       setError(null)
+
+      // Check for duplicates when creating
+      if (!isEditing && data.email) {
+        const dupeResult = await checkDuplicateCustomer(data.email, data.company_name)
+        if (dupeResult.success && dupeResult.data && dupeResult.data.length > 0) {
+          const matches = dupeResult.data.map(d => `${d.company_name} (${d.customer_number})`).join(', ')
+          const proceed = await confirmUnsaved({
+            title: 'Mulig dublet fundet',
+            description: `Der findes allerede lignende kunder: ${matches}. Vil du oprette alligevel?`,
+            confirmLabel: 'Opret alligevel',
+            variant: 'warning',
+          })
+          if (!proceed) {
+            setIsLoading(false)
+            return
+          }
+        }
+      }
 
       const formData = new FormData()
       if (customer?.id) {

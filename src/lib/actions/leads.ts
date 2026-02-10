@@ -130,6 +130,35 @@ export async function getLead(id: string): Promise<ActionResult<LeadWithRelation
   }
 }
 
+// Check for duplicate leads by email or company name
+export async function checkDuplicateLead(
+  email: string,
+  companyName: string,
+  excludeId?: string
+): Promise<ActionResult<{ id: string; company_name: string; email: string; status: string }[]>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    let query = supabase
+      .from('leads')
+      .select('id, company_name, email, status')
+      .or(`email.ilike.${email},company_name.ilike.${companyName}`)
+      .limit(5)
+
+    if (excludeId) {
+      query = query.neq('id', excludeId)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      return { success: false, error: 'Kunne ikke tjekke for dubletter' }
+    }
+    return { success: true, data: data || [] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Fejl ved dublet-tjek') }
+  }
+}
+
 // Create new lead
 export async function createLead(formData: FormData): Promise<ActionResult<Lead>> {
   try {
