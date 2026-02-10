@@ -772,18 +772,21 @@ export async function reorderCalculationRows(
       validateUUID(id, `linje ID [${index}]`)
     })
 
-    // Update each row's position sequentially to avoid race conditions
-    for (let index = 0; index < rowIds.length; index++) {
-      const { error } = await supabase
-        .from('calculation_rows')
-        .update({ position: index })
-        .eq('id', rowIds[index])
-        .eq('calculation_id', calculationId)
+    // Update all row positions in parallel (position is independent per row)
+    const results = await Promise.all(
+      rowIds.map((id, index) =>
+        supabase
+          .from('calculation_rows')
+          .update({ position: index })
+          .eq('id', id)
+          .eq('calculation_id', calculationId)
+      )
+    )
 
-      if (error) {
-        console.error('Database error reordering calculation row:', error)
-        throw new Error('DATABASE_ERROR')
-      }
+    const failed = results.find((r) => r.error)
+    if (failed?.error) {
+      console.error('Database error reordering calculation row:', failed.error)
+      throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath(`/dashboard/calculations/${calculationId}`)

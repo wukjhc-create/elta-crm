@@ -114,12 +114,20 @@ export function RoomCalculator({ onAddItems, className = '' }: RoomCalculatorPro
     if (suggestions.length === 0) return
 
     setAddingToCalc(true)
+
+    // Filter suggestions with quantity > 0
+    const validSuggestions = suggestions.filter((s) => s.suggested_quantity > 0)
+
+    // Batch-fetch all components in parallel (avoid N+1)
+    const compResults = await Promise.all(
+      validSuggestions.map((s) => getCalcComponentForCalculation(undefined, s.component_code))
+    )
+
     const items: CalculationItem[] = []
 
-    for (const suggestion of suggestions) {
-      if (suggestion.suggested_quantity === 0) continue
-
-      const compResult = await getCalcComponentForCalculation(undefined, suggestion.component_code)
+    for (let i = 0; i < validSuggestions.length; i++) {
+      const suggestion = validSuggestions[i]
+      const compResult = compResults[i]
 
       if (compResult.success && compResult.data) {
         const component = compResult.data

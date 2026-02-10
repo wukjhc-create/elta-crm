@@ -86,16 +86,22 @@ export abstract class BaseSupplierAPIClient {
    * Load credentials from encrypted storage
    */
   async loadCredentials(): Promise<boolean> {
-    const result = await getDecryptedCredentials(this.supplierId, 'api')
-    if (result.success && result.data) {
-      this.credentials = result.data
-      // Update base URL from stored endpoint if available
-      if (result.data.api_endpoint) {
-        this.config.baseUrl = result.data.api_endpoint
+    try {
+      const result = await getDecryptedCredentials(this.supplierId, 'api')
+      if (result.success && result.data) {
+        this.credentials = result.data
+        // Update base URL from stored endpoint if available
+        if (result.data.api_endpoint) {
+          this.config.baseUrl = result.data.api_endpoint
+        }
+        return true
       }
-      return true
+      console.info(`[Supplier ${this.supplierId}] Credential loading failed: ${result.error || 'no data'}`)
+      return false
+    } catch (error) {
+      console.error(`[Supplier ${this.supplierId}] Credential decryption error:`, error)
+      return false
     }
-    return false
   }
 
   /**
@@ -154,6 +160,9 @@ export abstract class BaseSupplierAPIClient {
     let lastError: Error | null = null
 
     for (let attempt = 0; attempt < (this.config.retryAttempts || 3); attempt++) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
+
       try {
         // Check rate limit
         if (this.rateLimitInfo && this.rateLimitInfo.remaining === 0) {
@@ -162,9 +171,6 @@ export abstract class BaseSupplierAPIClient {
             await this.sleep(Math.min(waitMs, 60000)) // Max 1 minute wait
           }
         }
-
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
 
         const response = await fetch(url, {
           ...options,
@@ -176,8 +182,6 @@ export abstract class BaseSupplierAPIClient {
           },
         })
 
-        clearTimeout(timeoutId)
-
         // Update rate limit info from headers
         this.updateRateLimitFromHeaders(response.headers)
 
@@ -188,9 +192,12 @@ export abstract class BaseSupplierAPIClient {
             continue
           }
           if (response.status === 429) {
-            // Rate limited, wait and retry
+            // Rate limited - use Retry-After header or exponential backoff
             const retryAfter = response.headers.get('Retry-After')
-            const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (this.config.retryDelayMs || 1000)
+            const retryAfterMs = retryAfter ? parseInt(retryAfter) * 1000 : NaN
+            const waitMs = !isNaN(retryAfterMs) && retryAfterMs > 0
+              ? retryAfterMs
+              : this.exponentialBackoff(attempt)
             await this.sleep(waitMs)
             continue
           }
@@ -207,10 +214,12 @@ export abstract class BaseSupplierAPIClient {
           throw new Error(`Request timeout after ${this.config.timeout}ms`)
         }
 
-        // Wait before retry
+        // Exponential backoff with jitter before retry
         if (attempt < (this.config.retryAttempts || 3) - 1) {
-          await this.sleep((this.config.retryDelayMs || 1000) * (attempt + 1))
+          await this.sleep(this.exponentialBackoff(attempt))
         }
+      } finally {
+        clearTimeout(timeoutId)
       }
     }
 
@@ -225,9 +234,14 @@ export abstract class BaseSupplierAPIClient {
     const reset = headers.get('X-RateLimit-Reset') || headers.get('RateLimit-Reset')
 
     if (remaining !== null) {
-      this.rateLimitInfo = {
-        remaining: parseInt(remaining),
-        resetAt: reset ? new Date(parseInt(reset) * 1000) : new Date(Date.now() + 60000),
+      const parsedRemaining = parseInt(remaining)
+      const parsedReset = reset ? parseInt(reset) : NaN
+
+      if (!isNaN(parsedRemaining)) {
+        this.rateLimitInfo = {
+          remaining: parsedRemaining,
+          resetAt: !isNaN(parsedReset) ? new Date(parsedReset * 1000) : new Date(Date.now() + 60000),
+        }
       }
     }
   }
@@ -308,6 +322,17 @@ export abstract class BaseSupplierAPIClient {
 
   protected sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  /**
+   * Exponential backoff with jitter for retry delays
+   * Base delay doubles each attempt + random jitter to avoid thundering herd
+   */
+  protected exponentialBackoff(attempt: number): number {
+    const baseDelay = this.config.retryDelayMs || 1000
+    const exponentialDelay = baseDelay * Math.pow(2, attempt)
+    const jitter = Math.random() * baseDelay // 0 to baseDelay random jitter
+    return Math.min(exponentialDelay + jitter, 60000) // Cap at 60 seconds
   }
 }
 

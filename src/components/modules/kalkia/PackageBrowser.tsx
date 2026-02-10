@@ -103,15 +103,24 @@ export function PackageBrowser({
       const packageWithItems = result.data
       const calculationItems: CalculationItem[] = []
 
-      // Process each package item
+      // Batch-fetch all component details in parallel (avoid N+1)
+      const componentItems = packageWithItems.items.filter(
+        (item) => item.item_type === 'component' && item.component_id
+      )
+      const componentResults = await Promise.all(
+        componentItems.map((item) => getCalcComponentForCalculation(item.component_id!))
+      )
+      const componentMap = new Map(
+        componentItems.map((item, i) => [item.component_id!, componentResults[i]])
+      )
+
+      // Process each package item using pre-fetched data
       for (const item of packageWithItems.items) {
         if (item.item_type === 'component' && item.component_id) {
-          // Fetch component details
-          const compResult = await getCalcComponentForCalculation(item.component_id)
-          if (compResult.success && compResult.data) {
+          const compResult = componentMap.get(item.component_id)
+          if (compResult?.success && compResult.data) {
             const component = compResult.data
 
-            // Find variant if specified
             const activeVariants = component.variants?.filter((v) => v.is_active !== false) || []
             const variant = item.component_variant_code
               ? activeVariants.find(v => v.code === item.component_variant_code)
@@ -152,7 +161,6 @@ export function PackageBrowser({
             })
           }
         } else if (item.item_type === 'manual' || item.item_type === 'time') {
-          // Manual items without component reference
           calculationItems.push({
             id: uuidv4(),
             componentId: '',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Trash2,
   Clock,
@@ -122,9 +122,11 @@ export function CalculationPreview({
     }).format(value / 100)
   }
 
-  // Calculate totals from items
-  const totalTime = items.reduce((sum, item) => sum + item.calculatedTimeMinutes, 0)
-  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
+  // Memoize totals to avoid recalculation on every render
+  const { totalTime, totalItems } = useMemo(() => ({
+    totalTime: items.reduce((sum, item) => sum + item.calculatedTimeMinutes, 0),
+    totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
+  }), [items])
 
   if (items.length === 0) {
     return (
