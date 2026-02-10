@@ -111,13 +111,17 @@ export function GlobalSearch() {
           placeholder="Søg leads, kunder, tilbud, projekter..."
           className="w-full pl-10 pr-10 py-2 border rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors text-sm"
         />
-        {query && (
+        {query ? (
           <button
             onClick={clearSearch}
             className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-200 rounded"
           >
             <X className="w-4 h-4 text-gray-400" />
           </button>
+        ) : (
+          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-gray-400 bg-gray-100 border rounded font-mono">
+            Ctrl+K
+          </kbd>
         )}
       </div>
 
