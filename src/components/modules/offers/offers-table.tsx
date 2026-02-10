@@ -187,7 +187,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
       <div className="bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="pl-4 pr-2 py-3 w-10">
                   <input

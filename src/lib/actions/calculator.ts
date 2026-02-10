@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { revalidatePath } from 'next/cache'
 import type {
@@ -14,7 +13,7 @@ export async function getTemplates(): Promise<{
   error?: string
 }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculator_templates')
@@ -71,7 +70,7 @@ export async function deleteTemplate(id: string): Promise<{
   error?: string
 }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('calculator_templates')

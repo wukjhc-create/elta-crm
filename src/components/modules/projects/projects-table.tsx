@@ -185,7 +185,7 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
 
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-white">
             <tr className="border-b text-left text-sm text-muted-foreground">
               <th className="pb-3 w-10 pl-2">
                 <input

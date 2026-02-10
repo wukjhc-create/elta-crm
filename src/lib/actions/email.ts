@@ -95,7 +95,7 @@ export async function getEmailTemplates(options?: {
   active_only?: boolean
 }): Promise<EmailTemplate[]> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('email_templates')
@@ -127,7 +127,7 @@ export async function getEmailTemplates(options?: {
 
 export async function getEmailTemplate(id: string): Promise<EmailTemplate | null> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('email_templates')
@@ -149,7 +149,7 @@ export async function getEmailTemplate(id: string): Promise<EmailTemplate | null
 
 export async function getEmailTemplateByCode(code: string): Promise<EmailTemplate | null> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('email_templates')
@@ -203,7 +203,7 @@ export async function updateEmailTemplate(
   input: EmailTemplateUpdate
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('email_templates')
@@ -225,7 +225,7 @@ export async function updateEmailTemplate(
 
 export async function deleteEmailTemplate(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('email_templates')
@@ -256,7 +256,7 @@ export async function getEmailThreads(options?: {
   limit?: number
 }): Promise<EmailThreadWithRelations[]> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('email_threads')
@@ -309,7 +309,7 @@ export async function getEmailThreads(options?: {
 
 export async function getEmailThread(id: string): Promise<EmailThreadWithRelations | null> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('email_threads')
@@ -374,7 +374,7 @@ export async function createEmailThread(
 
 export async function getEmailMessages(threadId: string): Promise<EmailMessageWithRelations[]> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('email_messages')
@@ -436,7 +436,7 @@ export async function logEmailEvent(
   input: EmailEventCreate
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
       .from('email_events')
@@ -497,7 +497,7 @@ export async function generateEmailPreview(
   input: GenerateEmailPreviewInput
 ): Promise<{ success: boolean; data?: EmailPreview; error?: string }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get offer with customer
     const { data: offer, error: offerError } = await supabase
@@ -801,7 +801,7 @@ export async function resendEmail(
   updates?: { subject?: string; body_html?: string }
 ): Promise<SendOfferEmailResult> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Get original message with thread
     const { data: message, error: msgError } = await supabase
@@ -931,12 +931,18 @@ export async function logIncomingEmail(
     }
 
     // Update thread status
+    const { data: currentThread } = await supabase
+      .from('email_threads')
+      .select('unread_count')
+      .eq('id', threadId)
+      .single()
+
     await supabase
       .from('email_threads')
       .update({
         status: 'replied',
         last_replied_at: new Date().toISOString(),
-        unread_count: supabase.rpc('increment', { x: 1 }),
+        unread_count: (currentThread?.unread_count || 0) + 1,
       })
       .eq('id', threadId)
 
@@ -964,7 +970,7 @@ export async function getEmailStats(options?: {
   click_rate: number
 }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('email_messages')

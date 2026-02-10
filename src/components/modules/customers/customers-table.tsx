@@ -20,6 +20,7 @@ import { CustomerForm } from './customer-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CopyButton } from '@/components/shared/copy-button'
+import { TruncatedCell } from '@/components/shared/truncated-cell'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteCustomer, toggleCustomerActive } from '@/lib/actions/customers'
 import { useToast } from '@/components/ui/toast'
@@ -174,7 +175,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
       <div className="bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="pl-4 pr-2 py-3 w-10">
                   <input
@@ -243,13 +244,13 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                       {customer.contact_person}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
-                        {customer.email}
+                      <span className="flex items-center gap-1 min-w-0">
+                        <Mail className="w-3 h-3 shrink-0" />
+                        <TruncatedCell text={customer.email} maxWidth="max-w-[160px]" className="text-xs text-gray-400" />
                       </span>
                       {customer.phone && (
                         <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
+                          <Phone className="w-3 h-3 shrink-0" />
                           {customer.phone}
                         </span>
                       )}

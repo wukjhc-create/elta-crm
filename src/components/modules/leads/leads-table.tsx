@@ -17,6 +17,7 @@ import { LeadStatusBadge } from './lead-status-badge'
 import { LeadForm } from './lead-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
+import { TruncatedCell } from '@/components/shared/truncated-cell'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteLead, updateLeadStatus } from '@/lib/actions/leads'
 import { useToast } from '@/components/ui/toast'
@@ -184,7 +185,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
       <div className="bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="pl-4 pr-2 py-3 w-10">
                   <input
@@ -239,13 +240,13 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                         {lead.contact_person}
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <Mail className="w-3 h-3" />
-                          {lead.email}
+                        <span className="flex items-center gap-1 min-w-0">
+                          <Mail className="w-3 h-3 shrink-0" />
+                          <TruncatedCell text={lead.email} maxWidth="max-w-[160px]" className="text-xs text-gray-400" />
                         </span>
                         {lead.phone && (
                           <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
+                            <Phone className="w-3 h-3 shrink-0" />
                             {lead.phone}
                           </span>
                         )}

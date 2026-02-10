@@ -133,7 +133,7 @@ export async function getFiles(
   entityId: string
 ): Promise<ActionResult<UploadedFile[]>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('files')
@@ -204,7 +204,7 @@ export async function getSignedUrl(
   expiresIn: number = FILE_SIGNED_URL_EXPIRY_SECONDS
 ): Promise<ActionResult<string>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase.storage
       .from('attachments')
