@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import {
   Pencil,
   Trash2,
@@ -43,6 +44,7 @@ interface LeadDetailClientProps {
 export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
@@ -50,9 +52,12 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
   const [isAddingNote, setIsAddingNote] = useState(false)
 
   const handleDelete = async () => {
-    if (!confirm('Er du sikker på, at du vil slette denne lead?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet lead',
+      description: `Er du sikker på, at du vil slette "${lead.company_name || lead.contact_person}"? Dette kan ikke fortrydes.`,
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setIsDeleting(true)
     const result = await deleteLead(lead.id)
@@ -418,6 +423,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
           onSuccess={() => router.refresh()}
         />
       )}
+      {ConfirmDialog}
     </>
   )
 }

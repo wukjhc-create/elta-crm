@@ -20,6 +20,7 @@ import { CustomerForm } from './customer-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CopyButton } from '@/components/shared/copy-button'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteCustomer, toggleCustomerActive } from '@/lib/actions/customers'
 import { useToast } from '@/components/ui/toast'
 import type { CustomerWithRelations } from '@/types/customers.types'
@@ -36,6 +37,7 @@ interface CustomersTableProps {
 export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered, onClearFilters }: CustomersTableProps) {
   const router = useRouter()
   const toast = useToast()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [editingCustomer, setEditingCustomer] = useState<CustomerWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -59,7 +61,12 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
   }
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Er du sikker på, at du vil slette ${selectedIds.size} kunder?`)) return
+    const ok = await confirm({
+      title: 'Slet kunder',
+      description: `Er du sikker på, at du vil slette ${selectedIds.size} kunder? Dette kan ikke fortrydes.`,
+      confirmLabel: 'Slet alle',
+    })
+    if (!ok) return
     setIsBulkActing(true)
     await Promise.allSettled(Array.from(selectedIds).map((id) => deleteCustomer(id)))
     toast.success(`${selectedIds.size} kunder slettet`)
@@ -78,9 +85,12 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Er du sikker på, at du vil slette denne kunde?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet kunde',
+      description: 'Er du sikker på, at du vil slette denne kunde? Dette kan ikke fortrydes.',
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setDeletingId(id)
     const result = await deleteCustomer(id)
@@ -345,6 +355,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
           onSuccess={() => router.refresh()}
         />
       )}
+      {ConfirmDialog}
     </>
   )
 }

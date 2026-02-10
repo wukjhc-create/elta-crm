@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
 import { CopyButton } from '@/components/shared/copy-button'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import {
   Pencil,
   Trash2,
@@ -44,6 +45,7 @@ interface CustomerDetailClientProps {
 export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
   const [showContactForm, setShowContactForm] = useState(false)
   const [editingContact, setEditingContact] = useState<CustomerContact | null>(null)
@@ -52,9 +54,12 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
   const [showChat, setShowChat] = useState(false)
 
   const handleDelete = async () => {
-    if (!confirm('Er du sikker på, at du vil slette denne kunde?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet kunde',
+      description: `Er du sikker på, at du vil slette "${customer.company_name}"? Dette kan ikke fortrydes.`,
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setIsDeleting(true)
     const result = await deleteCustomer(customer.id)
@@ -81,9 +86,12 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
   }
 
   const handleDeleteContact = async (contactId: string) => {
-    if (!confirm('Er du sikker på, at du vil slette denne kontakt?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet kontakt',
+      description: 'Er du sikker på, at du vil slette denne kontakt?',
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setDeletingContactId(contactId)
     const result = await deleteCustomerContact(contactId, customer.id)
@@ -553,6 +561,7 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
           onClose={() => setShowChat(false)}
         />
       )}
+      {ConfirmDialog}
     </>
   )
 }

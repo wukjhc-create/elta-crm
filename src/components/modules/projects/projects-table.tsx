@@ -17,6 +17,7 @@ import { deleteProject } from '@/lib/actions/projects'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './project-status-badge'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import { ProjectForm } from './project-form'
 import { useToast } from '@/components/ui/toast'
 import type { ProjectWithRelations } from '@/types/projects.types'
@@ -33,14 +34,18 @@ interface ProjectsTableProps {
 
 export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, filtered, onClearFilters }: ProjectsTableProps) {
   const toast = useToast()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [editingProject, setEditingProject] = useState<ProjectWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Er du sikker på at du vil slette dette projekt? Alle opgaver og tidsregistreringer slettes også.')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet projekt',
+      description: 'Er du sikker på at du vil slette dette projekt? Alle opgaver og tidsregistreringer slettes også.',
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setDeletingId(id)
     try {
@@ -284,6 +289,7 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
           }}
         />
       )}
+      {ConfirmDialog}
     </>
   )
 }

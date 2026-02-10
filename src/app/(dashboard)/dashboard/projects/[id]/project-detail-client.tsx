@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
 import { CopyButton } from '@/components/shared/copy-button'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import {
   Pencil,
   Trash2,
@@ -39,6 +40,7 @@ type TabType = 'overview' | 'tasks' | 'time' | 'activity'
 export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [project, setProject] = useState<ProjectWithRelations | null>(null)
   const [tasks, setTasks] = useState<ProjectTaskWithRelations[]>([])
   const [timeEntries, setTimeEntries] = useState<TimeEntryWithRelations[]>([])
@@ -80,9 +82,12 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
 
   const handleDelete = async () => {
     if (!project) return
-    if (!confirm('Er du sikker på at du vil slette dette projekt? Alle opgaver og tidsregistreringer slettes også.')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet projekt',
+      description: `Er du sikker på at du vil slette "${project.name}"? Alle opgaver og tidsregistreringer slettes også.`,
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setIsDeleting(true)
     try {
@@ -493,6 +498,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
           }}
         />
       )}
+      {ConfirmDialog}
     </div>
   )
 }

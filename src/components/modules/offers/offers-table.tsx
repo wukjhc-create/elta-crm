@@ -20,6 +20,7 @@ import { OfferForm } from './offer-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CopyButton } from '@/components/shared/copy-button'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteOffer, updateOfferStatus } from '@/lib/actions/offers'
 import { useToast } from '@/components/ui/toast'
 import { OFFER_STATUSES, OFFER_STATUS_LABELS, type OfferWithRelations, type OfferStatus } from '@/types/offers.types'
@@ -38,6 +39,7 @@ interface OffersTableProps {
 export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort, filtered, onClearFilters }: OffersTableProps) {
   const router = useRouter()
   const toast = useToast()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [editingOffer, setEditingOffer] = useState<OfferWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -61,7 +63,12 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
   }
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Er du sikker på, at du vil slette ${selectedIds.size} tilbud?`)) return
+    const ok = await confirm({
+      title: 'Slet tilbud',
+      description: `Er du sikker på, at du vil slette ${selectedIds.size} tilbud? Dette kan ikke fortrydes.`,
+      confirmLabel: 'Slet alle',
+    })
+    if (!ok) return
     setIsBulkActing(true)
     await Promise.allSettled(Array.from(selectedIds).map((id) => deleteOffer(id)))
     toast.success(`${selectedIds.size} tilbud slettet`)
@@ -80,9 +87,12 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Er du sikker på, at du vil slette dette tilbud?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet tilbud',
+      description: 'Er du sikker på, at du vil slette dette tilbud? Dette kan ikke fortrydes.',
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setDeletingId(id)
     const result = await deleteOffer(id)
@@ -374,6 +384,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
           onSuccess={() => router.refresh()}
         />
       )}
+      {ConfirmDialog}
     </>
   )
 }

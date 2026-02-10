@@ -17,6 +17,7 @@ import { LeadStatusBadge } from './lead-status-badge'
 import { LeadForm } from './lead-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteLead, updateLeadStatus } from '@/lib/actions/leads'
 import { useToast } from '@/components/ui/toast'
 import { LEAD_SOURCE_LABELS, LEAD_STATUSES, LEAD_STATUS_LABELS, type LeadWithRelations, type LeadStatus } from '@/types/leads.types'
@@ -33,6 +34,7 @@ interface LeadsTableProps {
 export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClearFilters }: LeadsTableProps) {
   const router = useRouter()
   const toast = useToast()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [editingLead, setEditingLead] = useState<LeadWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -63,7 +65,12 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
   }
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Er du sikker på, at du vil slette ${selectedIds.size} leads?`)) return
+    const ok = await confirm({
+      title: 'Slet leads',
+      description: `Er du sikker på, at du vil slette ${selectedIds.size} leads? Dette kan ikke fortrydes.`,
+      confirmLabel: 'Slet alle',
+    })
+    if (!ok) return
     setIsBulkActing(true)
     await Promise.allSettled(Array.from(selectedIds).map((id) => deleteLead(id)))
     toast.success(`${selectedIds.size} leads slettet`)
@@ -82,9 +89,12 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Er du sikker på, at du vil slette denne lead?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet lead',
+      description: 'Er du sikker på, at du vil slette denne lead? Dette kan ikke fortrydes.',
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setDeletingId(id)
     const result = await deleteLead(id)
@@ -321,6 +331,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
           onSuccess={() => router.refresh()}
         />
       )}
+      {ConfirmDialog}
     </>
   )
 }

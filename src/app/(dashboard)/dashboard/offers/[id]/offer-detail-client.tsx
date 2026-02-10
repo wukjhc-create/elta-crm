@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
 import { CopyButton } from '@/components/shared/copy-button'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import {
   Pencil,
   Trash2,
@@ -68,6 +69,7 @@ interface OfferDetailClientProps {
 export function OfferDetailClient({ offer, companySettings }: OfferDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
   const [showLineItemForm, setShowLineItemForm] = useState(false)
   const [editingLineItem, setEditingLineItem] = useState<OfferLineItem | null>(null)
@@ -103,9 +105,12 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   }, [offer.id])
 
   const handleDelete = async () => {
-    if (!confirm('Er du sikker på, at du vil slette dette tilbud?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet tilbud',
+      description: `Er du sikker på, at du vil slette tilbud "${offer.title}"? Dette kan ikke fortrydes.`,
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setIsDeleting(true)
     const result = await deleteOffer(offer.id)
@@ -187,9 +192,12 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   }
 
   const handleDeleteLineItem = async (lineItemId: string) => {
-    if (!confirm('Er du sikker på, at du vil slette denne linje?')) {
-      return
-    }
+    const ok = await confirm({
+      title: 'Slet linje',
+      description: 'Er du sikker på, at du vil slette denne linje fra tilbuddet?',
+      confirmLabel: 'Slet',
+    })
+    if (!ok) return
 
     setDeletingLineItemId(lineItemId)
     const result = await deleteLineItem(lineItemId, offer.id)
@@ -1022,6 +1030,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
           </div>
         </div>
       )}
+      {ConfirmDialog}
     </>
   )
 }
