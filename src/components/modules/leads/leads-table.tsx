@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { format } from 'date-fns'
-import { da } from 'date-fns/locale'
+import { formatSmartDate } from '@/lib/utils/format'
 import {
   MoreHorizontal,
   Pencil,
@@ -213,7 +212,11 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
               {leads.map((lead) => (
                 <tr
                   key={lead.id}
-                  className={`hover:bg-gray-50 transition-colors ${selectedIds.has(lead.id) ? 'bg-primary/5' : ''}`}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('input, button, a, [role="menu"]')) return
+                    router.push(`/dashboard/leads/${lead.id}`)
+                  }}
+                  className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.has(lead.id) ? 'bg-primary/5' : ''}`}
                 >
                   <td className="pl-4 pr-2 py-4">
                     <input
@@ -274,9 +277,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                       '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
-                    {format(new Date(lead.created_at), 'd. MMM yyyy', {
-                      locale: da,
-                    })}
+                    {formatSmartDate(lead.created_at)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="relative">

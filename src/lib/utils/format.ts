@@ -42,6 +42,23 @@ export function formatDurationMs(ms: number | null | undefined): string {
   return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
 }
 
+/**
+ * Smart date format: relative for recent dates (< 7 days), absolute for older.
+ * "2 timer siden" / "15. feb 2026"
+ */
+export function formatSmartDate(date: string | Date | null | undefined): string {
+  if (!date) return '-'
+  const dateObj = typeof date === 'string' ? parseISO(date) : date
+  const now = new Date()
+  const diffMs = now.getTime() - dateObj.getTime()
+  const diffDays = diffMs / (1000 * 60 * 60 * 24)
+
+  if (diffDays >= 0 && diffDays < 7) {
+    return formatDistanceToNow(dateObj, { addSuffix: true, locale: da })
+  }
+  return format(dateObj, 'd. MMM yyyy', { locale: da })
+}
+
 // =====================================================
 // Number/Currency Formatting
 // =====================================================

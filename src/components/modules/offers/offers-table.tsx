@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
+import { formatSmartDate } from '@/lib/utils/format'
 import {
   MoreHorizontal,
   Pencil,
@@ -214,7 +215,11 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
               {offers.map((offer) => (
                 <tr
                   key={offer.id}
-                  className={`hover:bg-gray-50 transition-colors ${selectedIds.has(offer.id) ? 'bg-primary/5' : ''}`}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('input, button, a, [role="menu"]')) return
+                    router.push(`/dashboard/offers/${offer.id}`)
+                  }}
+                  className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.has(offer.id) ? 'bg-primary/5' : ''}`}
                 >
                   <td className="pl-4 pr-2 py-4">
                     <input
@@ -288,9 +293,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
-                    {format(new Date(offer.created_at), 'd. MMM yyyy', {
-                      locale: da,
-                    })}
+                    {formatSmartDate(offer.created_at)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="relative">

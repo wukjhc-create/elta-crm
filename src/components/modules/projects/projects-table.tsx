@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   MoreHorizontal,
   Pencil,
@@ -35,6 +36,7 @@ interface ProjectsTableProps {
 }
 
 export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, filtered, onClearFilters }: ProjectsTableProps) {
+  const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
   const [editingProject, setEditingProject] = useState<ProjectWithRelations | null>(null)
@@ -212,7 +214,14 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
               const isOverTime = progress !== null && progress > 100
 
               return (
-                <tr key={project.id} className="border-b hover:bg-muted/50">
+                <tr
+                  key={project.id}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('input, button, a, [role="menu"]')) return
+                    router.push(`/dashboard/projects/${project.id}`)
+                  }}
+                  className="border-b hover:bg-muted/50 cursor-pointer"
+                >
                   <td className="py-3 pl-2">
                     <input
                       type="checkbox"
