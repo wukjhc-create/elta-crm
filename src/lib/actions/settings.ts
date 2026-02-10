@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import type {
   CompanySettings,
@@ -422,5 +423,202 @@ export async function updateTeamMember(
   } catch (error) {
     console.error('Error in updateTeamMember:', error)
     return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// =====================================================
+// Team Invitations
+// =====================================================
+
+export interface TeamInvitation {
+  id: string
+  email: string
+  role: string
+  invited_by: string
+  invited_by_name: string | null
+  created_at: string
+  status: 'pending' | 'accepted' | 'expired'
+}
+
+export async function inviteTeamMember(
+  email: string,
+  role: string = 'user',
+): Promise<ActionResult<{ email: string }>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Check admin
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, full_name')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan invitere teammedlemmer' }
+    }
+
+    // Check if user already exists
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .maybeSingle()
+
+    if (existing) {
+      return { success: false, error: 'Denne email er allerede registreret' }
+    }
+
+    // Check if there's already a pending invite
+    const { data: pendingInvite } = await supabase
+      .from('team_invitations')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .eq('status', 'pending')
+      .maybeSingle()
+
+    if (pendingInvite) {
+      return { success: false, error: 'Der er allerede en afventende invitation til denne email' }
+    }
+
+    // Send invite via Supabase Auth Admin
+    const admin = createAdminClient()
+    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email.toLowerCase(), {
+      data: { role, invited_by: userId },
+    })
+
+    if (inviteError) {
+      console.error('Error inviting user:', inviteError)
+      return { success: false, error: 'Kunne ikke sende invitation. Tjek at email er gyldig.' }
+    }
+
+    // Store invitation record
+    await supabase.from('team_invitations').insert({
+      email: email.toLowerCase(),
+      role,
+      invited_by: userId,
+      status: 'pending',
+    })
+
+    revalidatePath('/dashboard/settings/team')
+    return { success: true, data: { email: email.toLowerCase() } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke sende invitation') }
+  }
+}
+
+export async function getTeamInvitations(): Promise<ActionResult<TeamInvitation[]>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    const { data, error } = await supabase
+      .from('team_invitations')
+      .select('*, inviter:profiles!invited_by(full_name)')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching invitations:', error)
+      return { success: false, error: 'Kunne ikke hente invitationer' }
+    }
+
+    const invitations: TeamInvitation[] = (data || []).map((inv) => {
+      const inviter = inv.inviter as unknown as { full_name: string | null } | null
+      return {
+        id: inv.id,
+        email: inv.email,
+        role: inv.role,
+        invited_by: inv.invited_by,
+        invited_by_name: inviter?.full_name || null,
+        created_at: inv.created_at,
+        status: inv.status,
+      }
+    })
+
+    return { success: true, data: invitations }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente invitationer') }
+  }
+}
+
+export async function cancelInvitation(invitationId: string): Promise<ActionResult<null>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Check admin
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan annullere invitationer' }
+    }
+
+    const { error } = await supabase
+      .from('team_invitations')
+      .delete()
+      .eq('id', invitationId)
+
+    if (error) {
+      console.error('Error canceling invitation:', error)
+      return { success: false, error: 'Kunne ikke annullere invitation' }
+    }
+
+    revalidatePath('/dashboard/settings/team')
+    return { success: true, data: null }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke annullere invitation') }
+  }
+}
+
+export async function resendInvitation(invitationId: string): Promise<ActionResult<null>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Check admin
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan gensende invitationer' }
+    }
+
+    // Get invitation
+    const { data: invitation } = await supabase
+      .from('team_invitations')
+      .select('email, role')
+      .eq('id', invitationId)
+      .eq('status', 'pending')
+      .single()
+
+    if (!invitation) {
+      return { success: false, error: 'Invitation ikke fundet' }
+    }
+
+    // Resend via Supabase Auth Admin
+    const admin = createAdminClient()
+    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(invitation.email, {
+      data: { role: invitation.role, invited_by: userId },
+    })
+
+    if (inviteError) {
+      console.error('Error resending invitation:', inviteError)
+      return { success: false, error: 'Kunne ikke gensende invitation' }
+    }
+
+    // Update timestamp
+    await supabase
+      .from('team_invitations')
+      .update({ created_at: new Date().toISOString() })
+      .eq('id', invitationId)
+
+    revalidatePath('/dashboard/settings/team')
+    return { success: true, data: null }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke gensende invitation') }
   }
 }

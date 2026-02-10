@@ -3,7 +3,15 @@
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
-import { updateTeamMember, type Profile } from '@/lib/actions/settings'
+import {
+  updateTeamMember,
+  inviteTeamMember,
+  cancelInvitation,
+  resendInvitation,
+  type Profile,
+  type TeamInvitation,
+} from '@/lib/actions/settings'
+import { formatTimeAgo } from '@/lib/utils/format'
 import {
   User,
   Shield,
@@ -13,10 +21,16 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Mail,
+  RotateCw,
+  Trash2,
+  UserPlus,
+  Clock,
 } from 'lucide-react'
 
 interface TeamSettingsClientProps {
   members: Profile[]
+  invitations: TeamInvitation[]
   currentUserId: string
 }
 
@@ -26,11 +40,15 @@ const ROLES = [
   { value: 'admin', label: 'Administrator', icon: ShieldCheck },
 ]
 
-export function TeamSettingsClient({ members, currentUserId }: TeamSettingsClientProps) {
+export function TeamSettingsClient({ members, invitations, currentUserId }: TeamSettingsClientProps) {
   const [isPending, startTransition] = useTransition()
   const toast = useToast()
   const [editingMember, setEditingMember] = useState<string | null>(null)
   const [membersList, setMembersList] = useState(members)
+  const [invitationsList, setInvitationsList] = useState(invitations)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('user')
+  const [isInviting, setIsInviting] = useState(false)
 
   const currentUser = membersList.find(m => m.id === currentUserId)
   const isAdmin = currentUser?.role === 'admin'
@@ -227,16 +245,133 @@ export function TeamSettingsClient({ members, currentUserId }: TeamSettingsClien
         </div>
       </div>
 
-      {/* Invite section - placeholder */}
-      <div className="bg-white rounded-lg border p-6">
-        <h4 className="font-semibold text-gray-900 mb-2">Inviter nyt teammedlem</h4>
-        <p className="text-sm text-gray-500 mb-4">
-          Invitation af nye teammedlemmer kræver Supabase Admin API og er under udvikling.
-        </p>
-        <Button disabled variant="outline">
-          Kommer snart
-        </Button>
-      </div>
+      {/* Invite section */}
+      {isAdmin && (
+        <div className="bg-white rounded-lg border p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <UserPlus className="w-5 h-5 text-primary" />
+            <h4 className="font-semibold text-gray-900">Inviter nyt teammedlem</h4>
+          </div>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              if (!inviteEmail.trim()) return
+              setIsInviting(true)
+              const result = await inviteTeamMember(inviteEmail.trim(), inviteRole)
+              if (result.success) {
+                toast.success(`Invitation sendt til ${inviteEmail}`)
+                setInviteEmail('')
+                setInviteRole('user')
+                // Refresh invitations list
+                setInvitationsList(prev => [
+                  { id: crypto.randomUUID(), email: inviteEmail.toLowerCase(), role: inviteRole, invited_by: currentUserId, invited_by_name: null, created_at: new Date().toISOString(), status: 'pending' },
+                  ...prev,
+                ])
+              } else {
+                toast.error(result.error || 'Kunne ikke sende invitation')
+              }
+              setIsInviting(false)
+            }}
+            className="flex flex-col sm:flex-row gap-3"
+          >
+            <div className="flex-1">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Email adresse..."
+                required
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+              className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="user">Bruger</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Administrator</option>
+            </select>
+            <Button type="submit" disabled={isInviting || !inviteEmail.trim()}>
+              {isInviting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sender...
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4 mr-2" />
+                  Send invitation
+                </>
+              )}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {/* Pending invitations */}
+      {invitationsList.filter(i => i.status === 'pending').length > 0 && (
+        <div className="bg-white rounded-lg border">
+          <div className="p-4 border-b">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-500" />
+              Afventende invitationer ({invitationsList.filter(i => i.status === 'pending').length})
+            </h3>
+          </div>
+          <div className="divide-y">
+            {invitationsList
+              .filter(i => i.status === 'pending')
+              .map(inv => (
+                <div key={inv.id} className="p-4 flex items-center gap-4">
+                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                    <Mail className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900">{inv.email}</div>
+                    <div className="text-sm text-gray-500">
+                      Rolle: {ROLES.find(r => r.value === inv.role)?.label || inv.role} &middot; Sendt {formatTimeAgo(inv.created_at)}
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          const result = await resendInvitation(inv.id)
+                          if (result.success) {
+                            toast.success('Invitation gensendt')
+                          } else {
+                            toast.error(result.error || 'Kunne ikke gensende')
+                          }
+                        }}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
+                        title="Gensend invitation"
+                      >
+                        <RotateCw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Annuller invitation til ${inv.email}?`)) return
+                          const result = await cancelInvitation(inv.id)
+                          if (result.success) {
+                            setInvitationsList(prev => prev.filter(i => i.id !== inv.id))
+                            toast.success('Invitation annulleret')
+                          } else {
+                            toast.error(result.error || 'Kunne ikke annullere')
+                          }
+                        }}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-md"
+                        title="Annuller invitation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

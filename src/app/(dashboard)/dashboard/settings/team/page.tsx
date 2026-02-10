@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { getTeamMembers } from '@/lib/actions/settings'
+import { getTeamMembers, getTeamInvitations } from '@/lib/actions/settings'
 import { getUser } from '@/lib/supabase/server'
 import { TeamSettingsClient } from './team-settings-client'
 
@@ -13,8 +13,9 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function TeamSettingsPage() {
-  const [result, user] = await Promise.all([
+  const [result, invitationsResult, user] = await Promise.all([
     getTeamMembers(),
+    getTeamInvitations(),
     getUser(),
   ])
 
@@ -56,7 +57,11 @@ export default async function TeamSettingsPage() {
         </div>
       </div>
 
-      <TeamSettingsClient members={result.data} currentUserId={user.id} />
+      <TeamSettingsClient
+        members={result.data}
+        invitations={invitationsResult.success && invitationsResult.data ? invitationsResult.data : []}
+        currentUserId={user.id}
+      />
     </div>
   )
 }

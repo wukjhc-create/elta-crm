@@ -73,7 +73,7 @@ export default function ComponentsClient({ components, categories }: ComponentsC
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Komponenter</h1>
         <p className="text-gray-600 mt-1">
-          Administrer el-komponenter, tidsnormer, varianter og materialer
+          Administrer el-komponenter, tidsnormer, varianter og materialer ({filteredComponents.length} af {components.length})
         </p>
       </div>
 
