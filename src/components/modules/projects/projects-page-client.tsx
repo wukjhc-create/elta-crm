@@ -43,7 +43,8 @@ export function ProjectsPageClient() {
   const [showFilters, setShowFilters] = useState(false)
 
   // Filter state from URL params
-  const [search, setSearch] = useState(searchParams.get('search') || '')
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') || '')
+  const [debouncedSearch, setDebouncedSearch] = useState(searchInput)
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | ''>(
     (searchParams.get('status') as ProjectStatus) || ''
   )
@@ -61,12 +62,21 @@ export function ProjectsPageClient() {
     parseInt(searchParams.get('pageSize') || '25', 10)
   )
 
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(searchInput)
+      setCurrentPage(1)
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [searchInput])
+
   const loadProjects = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
       const result = await getProjects({
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         status: statusFilter || undefined,
         priority: priorityFilter || undefined,
         sortBy: sortBy || undefined,
@@ -92,7 +102,7 @@ export function ProjectsPageClient() {
     } finally {
       setIsLoading(false)
     }
-  }, [search, statusFilter, priorityFilter, sortBy, sortOrder, currentPage, pageSize])
+  }, [debouncedSearch, statusFilter, priorityFilter, sortBy, sortOrder, currentPage, pageSize])
 
   useEffect(() => {
     loadProjects()
@@ -101,7 +111,7 @@ export function ProjectsPageClient() {
   // Update URL params when filters change
   useEffect(() => {
     const params = new URLSearchParams()
-    if (search) params.set('search', search)
+    if (debouncedSearch) params.set('search', debouncedSearch)
     if (statusFilter) params.set('status', statusFilter)
     if (priorityFilter) params.set('priority', priorityFilter)
     if (sortBy) params.set('sortBy', sortBy)
@@ -111,10 +121,11 @@ export function ProjectsPageClient() {
 
     const newUrl = params.toString() ? `?${params.toString()}` : '/dashboard/projects'
     router.replace(newUrl, { scroll: false })
-  }, [search, statusFilter, priorityFilter, sortBy, sortOrder, currentPage, pageSize, router])
+  }, [debouncedSearch, statusFilter, priorityFilter, sortBy, sortOrder, currentPage, pageSize, router])
 
   const clearFilters = () => {
-    setSearch('')
+    setSearchInput('')
+    setDebouncedSearch('')
     setStatusFilter('')
     setPriorityFilter('')
     setCurrentPage(1)
@@ -144,7 +155,7 @@ export function ProjectsPageClient() {
     setCurrentPage(1)
   }
 
-  const hasActiveFilters = search || statusFilter || priorityFilter
+  const hasActiveFilters = debouncedSearch || statusFilter || priorityFilter
 
   return (
     <div className="space-y-6">
@@ -157,7 +168,7 @@ export function ProjectsPageClient() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportButton type="projects" filters={{ search, status: statusFilter || undefined, priority: priorityFilter || undefined }} />
+          <ExportButton type="projects" filters={{ search: debouncedSearch, status: statusFilter || undefined, priority: priorityFilter || undefined }} />
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
@@ -192,11 +203,8 @@ export function ProjectsPageClient() {
           <input
             type="text"
             placeholder="Søg efter projektnummer, navn eller kunde..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setCurrentPage(1)
-            }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
@@ -211,7 +219,7 @@ export function ProjectsPageClient() {
           Filtre
           {hasActiveFilters && (
             <span className="bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full">
-              {[search, statusFilter, priorityFilter].filter(Boolean).length}
+              {[debouncedSearch, statusFilter, priorityFilter].filter(Boolean).length}
             </span>
           )}
         </button>
