@@ -185,13 +185,13 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                   />
                 </th>
                 <SortableHeader label="Tilbud" column="title" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                   Kunde / Lead
                 </th>
                 <SortableHeader label="Status" column="status" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <SortableHeader label="Beløb" column="final_amount" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
-                <SortableHeader label="Gyldig til" column="valid_until" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
-                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Gyldig til" column="valid_until" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="hidden lg:table-cell" />
+                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="hidden lg:table-cell" />
                 <th className="relative px-6 py-3">
                   <span className="sr-only">Handlinger</span>
                 </th>
@@ -225,7 +225,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 hidden md:table-cell">
                     {offer.customer ? (
                       <div>
                         <Link
@@ -263,14 +263,14 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       ekskl. moms: {formatCurrency(offer.total_amount - offer.discount_amount)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                     {offer.valid_until
                       ? format(new Date(offer.valid_until), 'd. MMM yyyy', {
                           locale: da,
                         })
                       : '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                     {format(new Date(offer.created_at), 'd. MMM yyyy', {
                       locale: da,
                     })}

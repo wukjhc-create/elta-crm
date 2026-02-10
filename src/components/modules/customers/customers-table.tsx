@@ -175,12 +175,12 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                 </th>
                 <SortableHeader label="Kunde" column="company_name" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <SortableHeader label="Kundenr." column="customer_number" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                   Kontakt
                 </th>
-                <SortableHeader label="By" column="billing_city" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="By" column="billing_city" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="hidden md:table-cell" />
                 <SortableHeader label="Status" column="is_active" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
-                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="hidden lg:table-cell" />
                 <th className="relative px-6 py-3">
                   <span className="sr-only">Handlinger</span>
                 </th>
@@ -221,7 +221,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                       {customer.customer_number}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 hidden lg:table-cell">
                     <div className="text-sm text-gray-900">
                       {customer.contact_person}
                     </div>
@@ -238,7 +238,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
                     {customer.billing_city || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -254,7 +254,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                     {format(new Date(customer.created_at), 'd. MMM yyyy', {
                       locale: da,
                     })}

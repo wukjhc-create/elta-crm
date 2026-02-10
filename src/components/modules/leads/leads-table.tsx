@@ -176,12 +176,12 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                 </th>
                 <SortableHeader label="Firma / Kontakt" column="company_name" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <SortableHeader label="Status" column="status" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
-                <SortableHeader label="Kilde" column="source" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Kilde" column="source" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="hidden md:table-cell" />
                 <SortableHeader label="Værdi" column="value" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                   Tildelt
                 </th>
-                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="hidden lg:table-cell" />
                 <th className="relative px-6 py-3">
                   <span className="sr-only">Handlinger</span>
                 </th>
@@ -230,7 +230,7 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                   <td className="px-6 py-4 whitespace-nowrap">
                     <LeadStatusBadge status={lead.status} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
                     {LEAD_SOURCE_LABELS[lead.source]}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -243,12 +243,12 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                     {lead.assigned_to_profile?.full_name ||
                       lead.assigned_to_profile?.email ||
                       '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                     {format(new Date(lead.created_at), 'd. MMM yyyy', {
                       locale: da,
                     })}

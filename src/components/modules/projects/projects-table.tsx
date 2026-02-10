@@ -100,11 +100,11 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
               <SortableHeader label="Projekt" column="project_number" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
               <SortableHeader label="Kunde" column="customer_id" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
               <SortableHeader label="Status" column="status" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
-              <SortableHeader label="Prioritet" column="priority" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
-              <SortableHeader label="Tidsplan" column="start_date" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
-              <SortableHeader label="Timer" column="actual_hours" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
-              <SortableHeader label="Budget" column="budget" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
-              <th className="pb-3 font-medium">Projektleder</th>
+              <SortableHeader label="Prioritet" column="priority" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal hidden md:table-cell" />
+              <SortableHeader label="Tidsplan" column="start_date" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal hidden lg:table-cell" />
+              <SortableHeader label="Timer" column="actual_hours" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal hidden lg:table-cell" />
+              <SortableHeader label="Budget" column="budget" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal hidden lg:table-cell" />
+              <th className="pb-3 font-medium hidden xl:table-cell">Projektleder</th>
               <th className="pb-3 font-medium w-10"></th>
             </tr>
           </thead>
@@ -150,10 +150,10 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
                   <td className="py-3">
                     <ProjectStatusBadge status={project.status} />
                   </td>
-                  <td className="py-3">
+                  <td className="py-3 hidden md:table-cell">
                     <ProjectPriorityBadge priority={project.priority} />
                   </td>
-                  <td className="py-3">
+                  <td className="py-3 hidden lg:table-cell">
                     <div className="flex items-center gap-1 text-sm">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <span>
@@ -167,7 +167,7 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
                       </span>
                     </div>
                   </td>
-                  <td className="py-3">
+                  <td className="py-3 hidden lg:table-cell">
                     <div className="flex items-center gap-1 text-sm">
                       <Clock className="w-4 h-4 text-muted-foreground" />
                       <span className={isOverTime ? 'text-red-600 font-medium' : ''}>
@@ -190,7 +190,7 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
                       )}
                     </div>
                   </td>
-                  <td className="py-3">
+                  <td className="py-3 hidden lg:table-cell">
                     <div className="text-sm">
                       <span className={isOverBudget ? 'text-red-600 font-medium' : ''}>
                         {formatBudget(project.actual_cost)}
@@ -203,7 +203,7 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
                       )}
                     </div>
                   </td>
-                  <td className="py-3">
+                  <td className="py-3 hidden xl:table-cell">
                     {project.project_manager ? (
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-muted-foreground" />
