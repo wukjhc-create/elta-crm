@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/utils'
 import { deleteProject } from '@/lib/actions/projects'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './project-status-badge'
 import { SortableHeader } from '@/components/shared/sortable-header'
+import { EmptyState } from '@/components/shared/empty-state'
 import { ProjectForm } from './project-form'
 import { useToast } from '@/components/ui/toast'
 import type { ProjectWithRelations } from '@/types/projects.types'
@@ -26,9 +27,11 @@ interface ProjectsTableProps {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSort?: (column: string) => void
+  filtered?: boolean
+  onClearFilters?: () => void
 }
 
-export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort }: ProjectsTableProps) {
+export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, filtered, onClearFilters }: ProjectsTableProps) {
   const toast = useToast()
   const [editingProject, setEditingProject] = useState<ProjectWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -78,10 +81,13 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort }
 
   if (projects.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <p>Ingen projekter fundet.</p>
-        <p className="text-sm mt-1">Opret dit første projekt for at komme i gang.</p>
-      </div>
+      <EmptyState
+        icon={Building2}
+        title={filtered ? 'Ingen projekter fundet' : 'Ingen projekter endnu'}
+        description={filtered ? 'Prøv at ændre dine søgekriterier.' : 'Opret dit første projekt for at komme i gang.'}
+        filtered={filtered}
+        onClearFilters={onClearFilters}
+      />
     )
   }
 

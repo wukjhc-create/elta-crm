@@ -179,7 +179,14 @@ export function CustomersPageClient({ customers, pagination, filters, sort }: Cu
           )}
         </div>
 
-        <CustomersTable customers={customers} sortBy={sort?.sortBy} sortOrder={sort?.sortOrder} onSort={handleSort} />
+        <CustomersTable
+          customers={customers}
+          sortBy={sort?.sortBy}
+          sortOrder={sort?.sortOrder}
+          onSort={handleSort}
+          filtered={!!(filters.search || filters.is_active !== undefined)}
+          onClearFilters={() => { setSearchInput(''); router.push('/dashboard/customers') }}
+        />
 
         {/* Pagination */}
         <div className="bg-white rounded-lg border p-4">

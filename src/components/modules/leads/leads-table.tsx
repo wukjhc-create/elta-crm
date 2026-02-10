@@ -16,6 +16,7 @@ import {
 import { LeadStatusBadge } from './lead-status-badge'
 import { LeadForm } from './lead-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
+import { EmptyState } from '@/components/shared/empty-state'
 import { deleteLead, updateLeadStatus } from '@/lib/actions/leads'
 import { useToast } from '@/components/ui/toast'
 import { LEAD_SOURCE_LABELS, LEAD_STATUSES, LEAD_STATUS_LABELS, type LeadWithRelations, type LeadStatus } from '@/types/leads.types'
@@ -25,9 +26,11 @@ interface LeadsTableProps {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSort?: (column: string) => void
+  filtered?: boolean
+  onClearFilters?: () => void
 }
 
-export function LeadsTable({ leads, sortBy, sortOrder, onSort }: LeadsTableProps) {
+export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClearFilters }: LeadsTableProps) {
   const router = useRouter()
   const toast = useToast()
   const [editingLead, setEditingLead] = useState<LeadWithRelations | null>(null)
@@ -108,15 +111,13 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort }: LeadsTableProps
 
   if (leads.length === 0) {
     return (
-      <div className="bg-white rounded-lg border p-12 text-center">
-        <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <Mail className="w-8 h-8 text-gray-400" />
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-1">Ingen leads endnu</h3>
-        <p className="text-gray-500">
-          Kom i gang ved at oprette din første lead.
-        </p>
-      </div>
+      <EmptyState
+        icon={Mail}
+        title={filtered ? 'Ingen leads fundet' : 'Ingen leads endnu'}
+        description={filtered ? 'Prøv at ændre dine søgekriterier.' : 'Kom i gang ved at oprette din første lead.'}
+        filtered={filtered}
+        onClearFilters={onClearFilters}
+      />
     )
   }
 

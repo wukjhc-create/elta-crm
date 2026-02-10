@@ -233,7 +233,15 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
           )}
         </div>
 
-        <OffersTable offers={offers} companySettings={companySettings} sortBy={sort?.sortBy} sortOrder={sort?.sortOrder} onSort={handleSort} />
+        <OffersTable
+          offers={offers}
+          companySettings={companySettings}
+          sortBy={sort?.sortBy}
+          sortOrder={sort?.sortOrder}
+          onSort={handleSort}
+          filtered={!!hasActiveFilters}
+          onClearFilters={clearAllFilters}
+        />
 
         {/* Pagination */}
         <div className="bg-white rounded-lg border p-4">

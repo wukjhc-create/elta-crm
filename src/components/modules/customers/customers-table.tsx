@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { CustomerForm } from './customer-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
+import { EmptyState } from '@/components/shared/empty-state'
 import { deleteCustomer, toggleCustomerActive } from '@/lib/actions/customers'
 import { useToast } from '@/components/ui/toast'
 import type { CustomerWithRelations } from '@/types/customers.types'
@@ -27,9 +28,11 @@ interface CustomersTableProps {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSort?: (column: string) => void
+  filtered?: boolean
+  onClearFilters?: () => void
 }
 
-export function CustomersTable({ customers, sortBy, sortOrder, onSort }: CustomersTableProps) {
+export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered, onClearFilters }: CustomersTableProps) {
   const router = useRouter()
   const toast = useToast()
   const [editingCustomer, setEditingCustomer] = useState<CustomerWithRelations | null>(null)
@@ -107,15 +110,13 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort }: Custome
 
   if (customers.length === 0) {
     return (
-      <div className="bg-white rounded-lg border p-12 text-center">
-        <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <Building className="w-8 h-8 text-gray-400" />
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-1">Ingen kunder endnu</h3>
-        <p className="text-gray-500">
-          Kom i gang ved at oprette din første kunde.
-        </p>
-      </div>
+      <EmptyState
+        icon={Building}
+        title={filtered ? 'Ingen kunder fundet' : 'Ingen kunder endnu'}
+        description={filtered ? 'Prøv at ændre dine søgekriterier.' : 'Kom i gang ved at oprette din første kunde.'}
+        filtered={filtered}
+        onClearFilters={onClearFilters}
+      />
     )
   }
 

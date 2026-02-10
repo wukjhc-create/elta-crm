@@ -18,6 +18,7 @@ import {
 import { OfferStatusBadge } from './offer-status-badge'
 import { OfferForm } from './offer-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
+import { EmptyState } from '@/components/shared/empty-state'
 import { deleteOffer, updateOfferStatus } from '@/lib/actions/offers'
 import { useToast } from '@/components/ui/toast'
 import { OFFER_STATUSES, OFFER_STATUS_LABELS, type OfferWithRelations, type OfferStatus } from '@/types/offers.types'
@@ -29,9 +30,11 @@ interface OffersTableProps {
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   onSort?: (column: string) => void
+  filtered?: boolean
+  onClearFilters?: () => void
 }
 
-export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort }: OffersTableProps) {
+export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort, filtered, onClearFilters }: OffersTableProps) {
   const router = useRouter()
   const toast = useToast()
   const [editingOffer, setEditingOffer] = useState<OfferWithRelations | null>(null)
@@ -118,15 +121,13 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
 
   if (offers.length === 0) {
     return (
-      <div className="bg-white rounded-lg border p-12 text-center">
-        <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <FileText className="w-8 h-8 text-gray-400" />
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-1">Ingen tilbud endnu</h3>
-        <p className="text-gray-500">
-          Kom i gang ved at oprette dit første tilbud.
-        </p>
-      </div>
+      <EmptyState
+        icon={FileText}
+        title={filtered ? 'Ingen tilbud fundet' : 'Ingen tilbud endnu'}
+        description={filtered ? 'Prøv at ændre dine søgekriterier.' : 'Kom i gang ved at oprette dit første tilbud.'}
+        filtered={filtered}
+        onClearFilters={onClearFilters}
+      />
     )
   }
 

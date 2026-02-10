@@ -223,7 +223,14 @@ export function LeadsPageClient({ leads, pagination, filters, sort }: LeadsPageC
           )}
         </div>
 
-        <LeadsTable leads={leads} sortBy={sort?.sortBy} sortOrder={sort?.sortOrder} onSort={handleSort} />
+        <LeadsTable
+          leads={leads}
+          sortBy={sort?.sortBy}
+          sortOrder={sort?.sortOrder}
+          onSort={handleSort}
+          filtered={!!hasActiveFilters}
+          onClearFilters={clearAllFilters}
+        />
 
         {/* Pagination */}
         <div className="bg-white rounded-lg border p-4">

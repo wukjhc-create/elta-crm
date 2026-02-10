@@ -289,7 +289,15 @@ export function ProjectsPageClient() {
             </button>
           </div>
         ) : (
-          <ProjectsTable projects={projects} onRefresh={loadProjects} sortBy={sortBy || undefined} sortOrder={sortOrder} onSort={handleSort} />
+          <ProjectsTable
+            projects={projects}
+            onRefresh={loadProjects}
+            sortBy={sortBy || undefined}
+            sortOrder={sortOrder}
+            onSort={handleSort}
+            filtered={!!hasActiveFilters}
+            onClearFilters={clearFilters}
+          />
         )}
       </div>
 
