@@ -13,8 +13,9 @@ import {
   Building2,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { deleteProject } from '@/lib/actions/projects'
+import { deleteProject, updateProjectStatus } from '@/lib/actions/projects'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './project-status-badge'
+import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, type ProjectStatus } from '@/types/projects.types'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { useConfirm } from '@/components/shared/confirm-dialog'
@@ -38,6 +39,48 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
   const [editingProject, setEditingProject] = useState<ProjectWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkActing, setIsBulkActing] = useState(false)
+
+  const allSelected = projects.length > 0 && selectedIds.size === projects.length
+  const someSelected = selectedIds.size > 0
+
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(projects.map((p) => p.id)))
+  }
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    const ok = await confirm({
+      title: 'Slet projekter',
+      description: `Er du sikker på, at du vil slette ${selectedIds.size} projekter? Alle opgaver og tidsregistreringer slettes også.`,
+      confirmLabel: 'Slet alle',
+    })
+    if (!ok) return
+    setIsBulkActing(true)
+    await Promise.allSettled(Array.from(selectedIds).map((id) => deleteProject(id)))
+    toast.success(`${selectedIds.size} projekter slettet`)
+    setSelectedIds(new Set())
+    setIsBulkActing(false)
+    onRefresh?.()
+  }
+
+  const handleBulkStatusChange = async (status: ProjectStatus) => {
+    setIsBulkActing(true)
+    await Promise.allSettled(Array.from(selectedIds).map((id) => updateProjectStatus(id, status)))
+    toast.success(`${selectedIds.size} projekter opdateret til ${PROJECT_STATUS_LABELS[status]}`)
+    setSelectedIds(new Set())
+    setIsBulkActing(false)
+    onRefresh?.()
+  }
 
   const handleDelete = async (id: string) => {
     const ok = await confirm({
@@ -98,10 +141,47 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
 
   return (
     <>
+      {/* Bulk action bar */}
+      {someSelected && (
+        <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+          <span className="text-sm font-medium text-blue-800">
+            {selectedIds.size} valgt
+          </span>
+          <div className="flex gap-2 ml-auto">
+            {PROJECT_STATUSES.map((status) => (
+              <button
+                key={status}
+                onClick={() => handleBulkStatusChange(status)}
+                disabled={isBulkActing}
+                className="px-3 py-1 text-xs font-medium border rounded-md hover:bg-white disabled:opacity-50"
+              >
+                {PROJECT_STATUS_LABELS[status]}
+              </button>
+            ))}
+            <button
+              onClick={handleBulkDelete}
+              disabled={isBulkActing}
+              className="px-3 py-1 text-xs font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50"
+            >
+              Slet
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b text-left text-sm text-muted-foreground">
+              <th className="pb-3 w-10 pl-2">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  className="rounded border-gray-300"
+                  aria-label="Vælg alle"
+                />
+              </th>
               <SortableHeader label="Projekt" column="project_number" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
               <SortableHeader label="Kunde" column="customer_id" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
               <SortableHeader label="Status" column="status" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
@@ -121,6 +201,15 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
 
               return (
                 <tr key={project.id} className="border-b hover:bg-muted/50">
+                  <td className="py-3 pl-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(project.id)}
+                      onChange={() => toggleOne(project.id)}
+                      className="rounded border-gray-300"
+                      aria-label={`Vælg ${project.name}`}
+                    />
+                  </td>
                   <td className="py-3">
                     <Link
                       href={`/dashboard/projects/${project.id}`}
