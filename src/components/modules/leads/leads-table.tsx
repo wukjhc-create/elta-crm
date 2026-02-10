@@ -15,9 +15,9 @@ import {
 } from 'lucide-react'
 import { LeadStatusBadge } from './lead-status-badge'
 import { LeadForm } from './lead-form'
-import { deleteLead } from '@/lib/actions/leads'
+import { deleteLead, updateLeadStatus } from '@/lib/actions/leads'
 import { useToast } from '@/components/ui/toast'
-import { LEAD_SOURCE_LABELS, type LeadWithRelations } from '@/types/leads.types'
+import { LEAD_SOURCE_LABELS, LEAD_STATUSES, LEAD_STATUS_LABELS, type LeadWithRelations, type LeadStatus } from '@/types/leads.types'
 
 interface LeadsTableProps {
   leads: LeadWithRelations[]
@@ -29,6 +29,50 @@ export function LeadsTable({ leads }: LeadsTableProps) {
   const [editingLead, setEditingLead] = useState<LeadWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkActing, setIsBulkActing] = useState(false)
+
+  const allSelected = leads.length > 0 && selectedIds.size === leads.length
+  const someSelected = selectedIds.size > 0
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(leads.map((l) => l.id)))
+    }
+  }
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Er du sikker på, at du vil slette ${selectedIds.size} leads?`)) return
+    setIsBulkActing(true)
+    await Promise.allSettled(Array.from(selectedIds).map((id) => deleteLead(id)))
+    toast.success(`${selectedIds.size} leads slettet`)
+    setSelectedIds(new Set())
+    setIsBulkActing(false)
+    router.refresh()
+  }
+
+  const handleBulkStatusChange = async (status: LeadStatus) => {
+    setIsBulkActing(true)
+    await Promise.allSettled(Array.from(selectedIds).map((id) => updateLeadStatus(id, status)))
+    toast.success(`${selectedIds.size} leads opdateret til ${LEAD_STATUS_LABELS[status]}`)
+    setSelectedIds(new Set())
+    setIsBulkActing(false)
+    router.refresh()
+  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Er du sikker på, at du vil slette denne lead?')) {
@@ -74,11 +118,57 @@ export function LeadsTable({ leads }: LeadsTableProps) {
 
   return (
     <>
+      {/* Bulk Action Bar */}
+      {someSelected && (
+        <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-2 mb-2 flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium text-primary">
+            {selectedIds.size} valgt
+          </span>
+          <div className="h-4 w-px bg-gray-300" />
+          <select
+            onChange={(e) => {
+              if (e.target.value) handleBulkStatusChange(e.target.value as LeadStatus)
+              e.target.value = ''
+            }}
+            disabled={isBulkActing}
+            className="text-sm border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+            defaultValue=""
+          >
+            <option value="" disabled>Skift status...</option>
+            {LEAD_STATUSES.map((s) => (
+              <option key={s} value={s}>{LEAD_STATUS_LABELS[s]}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleBulkDelete}
+            disabled={isBulkActing}
+            className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+          >
+            Slet valgte
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-sm text-gray-500 hover:text-gray-700 ml-auto"
+          >
+            Ryd valg
+          </button>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="pl-4 pr-2 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                    aria-label="Vælg alle"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Firma / Kontakt
                 </th>
@@ -106,8 +196,17 @@ export function LeadsTable({ leads }: LeadsTableProps) {
               {leads.map((lead) => (
                 <tr
                   key={lead.id}
-                  className="hover:bg-gray-50 transition-colors"
+                  className={`hover:bg-gray-50 transition-colors ${selectedIds.has(lead.id) ? 'bg-primary/5' : ''}`}
                 >
+                  <td className="pl-4 pr-2 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(lead.id)}
+                      onChange={() => toggleOne(lead.id)}
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                      aria-label={`Vælg ${lead.company_name}`}
+                    />
+                  </td>
                   <td className="px-6 py-4">
                     <div>
                       <Link

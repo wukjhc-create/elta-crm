@@ -31,6 +31,43 @@ export function CustomersTable({ customers }: CustomersTableProps) {
   const [editingCustomer, setEditingCustomer] = useState<CustomerWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkActing, setIsBulkActing] = useState(false)
+
+  const allSelected = customers.length > 0 && selectedIds.size === customers.length
+  const someSelected = selectedIds.size > 0
+
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(customers.map((c) => c.id)))
+  }
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Er du sikker på, at du vil slette ${selectedIds.size} kunder?`)) return
+    setIsBulkActing(true)
+    await Promise.allSettled(Array.from(selectedIds).map((id) => deleteCustomer(id)))
+    toast.success(`${selectedIds.size} kunder slettet`)
+    setSelectedIds(new Set())
+    setIsBulkActing(false)
+    router.refresh()
+  }
+
+  const handleBulkToggleActive = async (active: boolean) => {
+    setIsBulkActing(true)
+    await Promise.allSettled(Array.from(selectedIds).map((id) => toggleCustomerActive(id, active)))
+    toast.success(`${selectedIds.size} kunder ${active ? 'aktiveret' : 'deaktiveret'}`)
+    setSelectedIds(new Set())
+    setIsBulkActing(false)
+    router.refresh()
+  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Er du sikker på, at du vil slette denne kunde?')) {
@@ -80,11 +117,57 @@ export function CustomersTable({ customers }: CustomersTableProps) {
 
   return (
     <>
+      {/* Bulk Action Bar */}
+      {someSelected && (
+        <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-2 mb-2 flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium text-primary">
+            {selectedIds.size} valgt
+          </span>
+          <div className="h-4 w-px bg-gray-300" />
+          <button
+            onClick={() => handleBulkToggleActive(true)}
+            disabled={isBulkActing}
+            className="text-sm text-green-600 hover:text-green-800 font-medium disabled:opacity-50"
+          >
+            Aktivér
+          </button>
+          <button
+            onClick={() => handleBulkToggleActive(false)}
+            disabled={isBulkActing}
+            className="text-sm text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50"
+          >
+            Deaktivér
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            disabled={isBulkActing}
+            className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+          >
+            Slet valgte
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-sm text-gray-500 hover:text-gray-700 ml-auto"
+          >
+            Ryd valg
+          </button>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="pl-4 pr-2 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                    aria-label="Vælg alle"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Kunde
                 </th>
@@ -112,8 +195,17 @@ export function CustomersTable({ customers }: CustomersTableProps) {
               {customers.map((customer) => (
                 <tr
                   key={customer.id}
-                  className="hover:bg-gray-50 transition-colors"
+                  className={`hover:bg-gray-50 transition-colors ${selectedIds.has(customer.id) ? 'bg-primary/5' : ''}`}
                 >
+                  <td className="pl-4 pr-2 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(customer.id)}
+                      onChange={() => toggleOne(customer.id)}
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                      aria-label={`Vælg ${customer.company_name}`}
+                    />
+                  </td>
                   <td className="px-6 py-4">
                     <div>
                       <Link
