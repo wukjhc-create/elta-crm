@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
+import { useToast } from '@/components/ui/toast'
 import { generateCsv, downloadCsv, csvDate, csvDateTime, csvCurrency, csvBoolean } from '@/lib/utils/csv-export'
 import type {
   ExportCustomer,
@@ -116,6 +117,7 @@ const EXPORT_CONFIG: Record<ExportType, { filename: string; label: string }> = {
 
 export function ExportButton({ type, filters, className }: ExportButtonProps) {
   const [loading, setLoading] = useState(false)
+  const toast = useToast()
   const config = EXPORT_CONFIG[type]
 
   async function handleExport() {
@@ -162,8 +164,8 @@ export function ExportButton({ type, filters, className }: ExportButtonProps) {
       if (csv) {
         downloadCsv(csv, filename)
       }
-    } catch {
-      // Silent fail - button shows loading state returns to normal
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Eksport fejlede. Prøv igen.')
     } finally {
       setLoading(false)
     }
