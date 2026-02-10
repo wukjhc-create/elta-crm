@@ -30,6 +30,20 @@ export const OFFER_STATUS_COLORS: Record<OfferStatus, string> = {
   expired: 'bg-orange-100 text-orange-800',
 }
 
+// Valid status transitions: from → allowed destinations
+export const OFFER_STATUS_TRANSITIONS: Record<OfferStatus, OfferStatus[]> = {
+  draft: ['sent'],
+  sent: ['viewed', 'accepted', 'rejected', 'expired', 'draft'],
+  viewed: ['accepted', 'rejected', 'expired', 'draft'],
+  accepted: ['draft'],
+  rejected: ['draft'],
+  expired: ['draft'],
+}
+
+export function isValidOfferTransition(from: OfferStatus, to: OfferStatus): boolean {
+  return OFFER_STATUS_TRANSITIONS[from]?.includes(to) ?? false
+}
+
 // Common units
 export const OFFER_UNITS = [
   { value: 'stk', label: 'Stk.' },

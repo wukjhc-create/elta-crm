@@ -12,6 +12,7 @@ import {
   updateTimeEntrySchema,
 } from '@/lib/validations/projects'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
+import { isValidProjectTransition, PROJECT_STATUS_LABELS } from '@/types/projects.types'
 import type {
   Project,
   ProjectWithRelations,
@@ -354,6 +355,24 @@ export async function updateProjectStatus(
   try {
     const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'projekt ID')
+
+    // Fetch current status for transition validation
+    const { data: current, error: fetchError } = await supabase
+      .from('projects')
+      .select('status')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !current) {
+      return { success: false, error: 'Projektet blev ikke fundet' }
+    }
+
+    if (!isValidProjectTransition(current.status as ProjectStatus, status)) {
+      return {
+        success: false,
+        error: `Kan ikke ændre status fra "${PROJECT_STATUS_LABELS[current.status as ProjectStatus]}" til "${PROJECT_STATUS_LABELS[status]}"`,
+      }
+    }
 
     const { data, error } = await supabase
       .from('projects')

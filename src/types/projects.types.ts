@@ -44,6 +44,19 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   done: 'Færdig',
 }
 
+// Valid status transitions: from → allowed destinations
+export const PROJECT_STATUS_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
+  planning: ['active', 'cancelled'],
+  active: ['on_hold', 'completed', 'cancelled'],
+  on_hold: ['active', 'cancelled'],
+  completed: ['active'],
+  cancelled: ['planning'],
+}
+
+export function isValidProjectTransition(from: ProjectStatus, to: ProjectStatus): boolean {
+  return PROJECT_STATUS_TRANSITIONS[from]?.includes(to) ?? false
+}
+
 // Status colors
 export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
   planning: 'bg-gray-100 text-gray-800',

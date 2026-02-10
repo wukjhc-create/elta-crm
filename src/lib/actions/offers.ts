@@ -20,6 +20,7 @@ import {
   generateOfferEmailHtml,
   generateOfferEmailText,
 } from '@/lib/email/templates/offer-email'
+import { isValidOfferTransition, OFFER_STATUS_LABELS } from '@/types/offers.types'
 import type {
   Offer,
   OfferWithRelations,
@@ -385,6 +386,24 @@ export async function updateOfferStatus(
     const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(id, 'tilbud ID')
 
+    // Fetch current status for transition validation
+    const { data: current, error: fetchError } = await supabase
+      .from('offers')
+      .select('status')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !current) {
+      return { success: false, error: 'Tilbuddet blev ikke fundet' }
+    }
+
+    if (!isValidOfferTransition(current.status as OfferStatus, status)) {
+      return {
+        success: false,
+        error: `Kan ikke ændre status fra "${OFFER_STATUS_LABELS[current.status as OfferStatus]}" til "${OFFER_STATUS_LABELS[status]}"`,
+      }
+    }
+
     const updateData: Record<string, unknown> = { status }
 
     // Set timestamp based on status
@@ -420,18 +439,10 @@ export async function updateOfferStatus(
     }
 
     // Log activity
-    const statusLabels: Record<OfferStatus, string> = {
-      draft: 'Kladde',
-      sent: 'Sendt',
-      viewed: 'Set',
-      accepted: 'Accepteret',
-      rejected: 'Afvist',
-      expired: 'Udløbet',
-    }
     await logOfferActivity(
       id,
       'status_change',
-      `Status ændret til "${statusLabels[status]}"`,
+      `Status ændret til "${OFFER_STATUS_LABELS[status]}"`,
       userId,
       { newStatus: status }
     )
@@ -443,7 +454,7 @@ export async function updateOfferStatus(
       entity_id: id,
       entity_name: data.title,
       action: auditAction,
-      action_description: `Tilbud ${statusLabels[status].toLowerCase()}`,
+      action_description: `Tilbud ${OFFER_STATUS_LABELS[status].toLowerCase()}`,
       changes: { status: { old: 'previous', new: status } },
       metadata: {
         offer_number: data.offer_number,
