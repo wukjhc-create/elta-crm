@@ -25,6 +25,7 @@ import { TaskBoard } from '@/components/modules/projects/task-board'
 import { TimeEntriesList } from '@/components/modules/projects/time-entries-list'
 import { TimeEntryForm } from '@/components/modules/projects/time-entry-form'
 import { CalculationFeedback } from '@/components/modules/projects/calculation-feedback'
+import { ProjectActivityTimeline } from '@/components/modules/projects/project-activity-timeline'
 import { useToast } from '@/components/ui/toast'
 import type { ProjectWithRelations, ProjectTaskWithRelations, TimeEntryWithRelations } from '@/types/projects.types'
 
@@ -32,7 +33,7 @@ interface ProjectDetailClientProps {
   projectId: string
 }
 
-type TabType = 'overview' | 'tasks' | 'time'
+type TabType = 'overview' | 'tasks' | 'time' | 'activity'
 
 export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   const router = useRouter()
@@ -223,6 +224,17 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
             <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">
               {timeEntries.length}
             </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('activity')}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px transition-colors ${
+              activeTab === 'activity'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            Aktivitet
           </button>
         </nav>
       </div>
@@ -447,6 +459,13 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
             tasks={tasks}
             onRefresh={loadData}
           />
+        </div>
+      )}
+
+      {activeTab === 'activity' && (
+        <div className="bg-white border rounded-lg p-4">
+          <h3 className="font-medium mb-4">Aktivitetslog</h3>
+          <ProjectActivityTimeline tasks={tasks} timeEntries={timeEntries} />
         </div>
       )}
 
