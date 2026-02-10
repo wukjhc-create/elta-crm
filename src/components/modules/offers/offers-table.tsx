@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { OfferStatusBadge } from './offer-status-badge'
 import { OfferForm } from './offer-form'
+import { SortableHeader } from '@/components/shared/sortable-header'
 import { deleteOffer, updateOfferStatus } from '@/lib/actions/offers'
 import { useToast } from '@/components/ui/toast'
 import { OFFER_STATUSES, OFFER_STATUS_LABELS, type OfferWithRelations, type OfferStatus } from '@/types/offers.types'
@@ -25,9 +26,12 @@ import type { CompanySettings } from '@/types/company-settings.types'
 interface OffersTableProps {
   offers: OfferWithRelations[]
   companySettings?: CompanySettings | null
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  onSort?: (column: string) => void
 }
 
-export function OffersTable({ offers, companySettings }: OffersTableProps) {
+export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort }: OffersTableProps) {
   const router = useRouter()
   const toast = useToast()
   const [editingOffer, setEditingOffer] = useState<OfferWithRelations | null>(null)
@@ -179,24 +183,14 @@ export function OffersTable({ offers, companySettings }: OffersTableProps) {
                     aria-label="Vælg alle"
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tilbud
-                </th>
+                <SortableHeader label="Tilbud" column="title" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Kunde / Lead
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Beløb
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Gyldig til
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Oprettet
-                </th>
+                <SortableHeader label="Status" column="status" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Beløb" column="final_amount" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Gyldig til" column="valid_until" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <th className="relative px-6 py-3">
                   <span className="sr-only">Handlinger</span>
                 </th>

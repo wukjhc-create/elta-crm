@@ -17,15 +17,19 @@ import {
   XCircle,
 } from 'lucide-react'
 import { CustomerForm } from './customer-form'
+import { SortableHeader } from '@/components/shared/sortable-header'
 import { deleteCustomer, toggleCustomerActive } from '@/lib/actions/customers'
 import { useToast } from '@/components/ui/toast'
 import type { CustomerWithRelations } from '@/types/customers.types'
 
 interface CustomersTableProps {
   customers: CustomerWithRelations[]
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  onSort?: (column: string) => void
 }
 
-export function CustomersTable({ customers }: CustomersTableProps) {
+export function CustomersTable({ customers, sortBy, sortOrder, onSort }: CustomersTableProps) {
   const router = useRouter()
   const toast = useToast()
   const [editingCustomer, setEditingCustomer] = useState<CustomerWithRelations | null>(null)
@@ -168,24 +172,14 @@ export function CustomersTable({ customers }: CustomersTableProps) {
                     aria-label="Vælg alle"
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Kunde
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Kundenr.
-                </th>
+                <SortableHeader label="Kunde" column="company_name" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Kundenr." column="customer_number" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Kontakt
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  By
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Oprettet
-                </th>
+                <SortableHeader label="By" column="billing_city" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Status" column="is_active" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <th className="relative px-6 py-3">
                   <span className="sr-only">Handlinger</span>
                 </th>

@@ -50,6 +50,10 @@ export function ProjectsPageClient() {
   const [priorityFilter, setPriorityFilter] = useState<ProjectPriority | ''>(
     (searchParams.get('priority') as ProjectPriority) || ''
   )
+  const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || '')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(
+    (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc'
+  )
   const [currentPage, setCurrentPage] = useState(
     parseInt(searchParams.get('page') || '1', 10)
   )
@@ -65,6 +69,8 @@ export function ProjectsPageClient() {
         search: search || undefined,
         status: statusFilter || undefined,
         priority: priorityFilter || undefined,
+        sortBy: sortBy || undefined,
+        sortOrder: sortBy ? sortOrder : undefined,
         page: currentPage,
         pageSize: pageSize,
       })
@@ -86,7 +92,7 @@ export function ProjectsPageClient() {
     } finally {
       setIsLoading(false)
     }
-  }, [search, statusFilter, priorityFilter, currentPage, pageSize])
+  }, [search, statusFilter, priorityFilter, sortBy, sortOrder, currentPage, pageSize])
 
   useEffect(() => {
     loadProjects()
@@ -98,12 +104,14 @@ export function ProjectsPageClient() {
     if (search) params.set('search', search)
     if (statusFilter) params.set('status', statusFilter)
     if (priorityFilter) params.set('priority', priorityFilter)
+    if (sortBy) params.set('sortBy', sortBy)
+    if (sortBy) params.set('sortOrder', sortOrder)
     if (currentPage > 1) params.set('page', currentPage.toString())
     if (pageSize !== 25) params.set('pageSize', pageSize.toString())
 
     const newUrl = params.toString() ? `?${params.toString()}` : '/dashboard/projects'
     router.replace(newUrl, { scroll: false })
-  }, [search, statusFilter, priorityFilter, currentPage, pageSize, router])
+  }, [search, statusFilter, priorityFilter, sortBy, sortOrder, currentPage, pageSize, router])
 
   const clearFilters = () => {
     setSearch('')
@@ -118,6 +126,16 @@ export function ProjectsPageClient() {
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size)
+    setCurrentPage(1)
+  }
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortOrder('asc')
+    }
     setCurrentPage(1)
   }
 
@@ -271,7 +289,7 @@ export function ProjectsPageClient() {
             </button>
           </div>
         ) : (
-          <ProjectsTable projects={projects} onRefresh={loadProjects} />
+          <ProjectsTable projects={projects} onRefresh={loadProjects} sortBy={sortBy || undefined} sortOrder={sortOrder} onSort={handleSort} />
         )}
       </div>
 

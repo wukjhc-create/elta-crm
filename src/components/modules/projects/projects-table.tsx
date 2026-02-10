@@ -15,6 +15,7 @@ import {
 import { formatDate } from '@/lib/utils'
 import { deleteProject } from '@/lib/actions/projects'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './project-status-badge'
+import { SortableHeader } from '@/components/shared/sortable-header'
 import { ProjectForm } from './project-form'
 import { useToast } from '@/components/ui/toast'
 import type { ProjectWithRelations } from '@/types/projects.types'
@@ -22,9 +23,12 @@ import type { ProjectWithRelations } from '@/types/projects.types'
 interface ProjectsTableProps {
   projects: ProjectWithRelations[]
   onRefresh?: () => void
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  onSort?: (column: string) => void
 }
 
-export function ProjectsTable({ projects, onRefresh }: ProjectsTableProps) {
+export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort }: ProjectsTableProps) {
   const toast = useToast()
   const [editingProject, setEditingProject] = useState<ProjectWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -87,13 +91,13 @@ export function ProjectsTable({ projects, onRefresh }: ProjectsTableProps) {
         <table className="w-full">
           <thead>
             <tr className="border-b text-left text-sm text-muted-foreground">
-              <th className="pb-3 font-medium">Projekt</th>
-              <th className="pb-3 font-medium">Kunde</th>
-              <th className="pb-3 font-medium">Status</th>
-              <th className="pb-3 font-medium">Prioritet</th>
-              <th className="pb-3 font-medium">Tidsplan</th>
-              <th className="pb-3 font-medium">Timer</th>
-              <th className="pb-3 font-medium">Budget</th>
+              <SortableHeader label="Projekt" column="project_number" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
+              <SortableHeader label="Kunde" column="customer_id" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
+              <SortableHeader label="Status" column="status" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
+              <SortableHeader label="Prioritet" column="priority" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
+              <SortableHeader label="Tidsplan" column="start_date" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
+              <SortableHeader label="Timer" column="actual_hours" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
+              <SortableHeader label="Budget" column="budget" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} className="pb-3 font-medium text-sm text-muted-foreground normal-case tracking-normal" />
               <th className="pb-3 font-medium">Projektleder</th>
               <th className="pb-3 font-medium w-10"></th>
             </tr>

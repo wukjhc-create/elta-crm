@@ -17,6 +17,8 @@ interface PageProps {
     search?: string
     status?: LeadStatus
     source?: LeadSource
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
   }>
 }
 
@@ -27,6 +29,8 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const search = params.search || undefined
   const status = params.status || undefined
   const source = params.source || undefined
+  const sortBy = params.sortBy || undefined
+  const sortOrder = params.sortOrder || undefined
 
   const result = await getLeads({
     page,
@@ -34,6 +38,8 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     search,
     status,
     source,
+    sortBy,
+    sortOrder,
   })
 
   if (!result.success || !result.data) {
@@ -56,6 +62,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         pageSize: result.data.pageSize,
       }}
       filters={{ search, status, source }}
+      sort={{ sortBy, sortOrder }}
     />
   )
 }

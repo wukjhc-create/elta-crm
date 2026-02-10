@@ -23,13 +23,19 @@ interface Filters {
   source?: LeadSource
 }
 
+interface SortData {
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
 interface LeadsPageClientProps {
   leads: LeadWithRelations[]
   pagination: PaginationData
   filters: Filters
+  sort?: SortData
 }
 
-export function LeadsPageClient({ leads, pagination, filters }: LeadsPageClientProps) {
+export function LeadsPageClient({ leads, pagination, filters, sort }: LeadsPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
@@ -82,6 +88,11 @@ export function LeadsPageClient({ leads, pagination, filters }: LeadsPageClientP
 
   const handleSourceFilter = (value: string) => {
     updateURL({ source: value || undefined })
+  }
+
+  const handleSort = (column: string) => {
+    const newOrder = sort?.sortBy === column && sort?.sortOrder === 'asc' ? 'desc' : 'asc'
+    updateURL({ sortBy: column, sortOrder: newOrder })
   }
 
   const clearAllFilters = () => {
@@ -212,7 +223,7 @@ export function LeadsPageClient({ leads, pagination, filters }: LeadsPageClientP
           )}
         </div>
 
-        <LeadsTable leads={leads} />
+        <LeadsTable leads={leads} sortBy={sort?.sortBy} sortOrder={sort?.sortOrder} onSort={handleSort} />
 
         {/* Pagination */}
         <div className="bg-white rounded-lg border p-4">

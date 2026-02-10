@@ -21,13 +21,19 @@ interface Filters {
   is_active?: boolean
 }
 
+interface SortData {
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
 interface CustomersPageClientProps {
   customers: CustomerWithRelations[]
   pagination: PaginationData
   filters: Filters
+  sort?: SortData
 }
 
-export function CustomersPageClient({ customers, pagination, filters }: CustomersPageClientProps) {
+export function CustomersPageClient({ customers, pagination, filters, sort }: CustomersPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
@@ -76,6 +82,11 @@ export function CustomersPageClient({ customers, pagination, filters }: Customer
 
   const handleStatusFilter = (value: string) => {
     updateURL({ is_active: value || undefined })
+  }
+
+  const handleSort = (column: string) => {
+    const newOrder = sort?.sortBy === column && sort?.sortOrder === 'asc' ? 'desc' : 'asc'
+    updateURL({ sortBy: column, sortOrder: newOrder })
   }
 
   return (
@@ -168,7 +179,7 @@ export function CustomersPageClient({ customers, pagination, filters }: Customer
           )}
         </div>
 
-        <CustomersTable customers={customers} />
+        <CustomersTable customers={customers} sortBy={sort?.sortBy} sortOrder={sort?.sortOrder} onSort={handleSort} />
 
         {/* Pagination */}
         <div className="bg-white rounded-lg border p-4">

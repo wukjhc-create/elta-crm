@@ -15,15 +15,19 @@ import {
 } from 'lucide-react'
 import { LeadStatusBadge } from './lead-status-badge'
 import { LeadForm } from './lead-form'
+import { SortableHeader } from '@/components/shared/sortable-header'
 import { deleteLead, updateLeadStatus } from '@/lib/actions/leads'
 import { useToast } from '@/components/ui/toast'
 import { LEAD_SOURCE_LABELS, LEAD_STATUSES, LEAD_STATUS_LABELS, type LeadWithRelations, type LeadStatus } from '@/types/leads.types'
 
 interface LeadsTableProps {
   leads: LeadWithRelations[]
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  onSort?: (column: string) => void
 }
 
-export function LeadsTable({ leads }: LeadsTableProps) {
+export function LeadsTable({ leads, sortBy, sortOrder, onSort }: LeadsTableProps) {
   const router = useRouter()
   const toast = useToast()
   const [editingLead, setEditingLead] = useState<LeadWithRelations | null>(null)
@@ -169,24 +173,14 @@ export function LeadsTable({ leads }: LeadsTableProps) {
                     aria-label="Vælg alle"
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Firma / Kontakt
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Kilde
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Værdi
-                </th>
+                <SortableHeader label="Firma / Kontakt" column="company_name" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Status" column="status" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Kilde" column="source" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
+                <SortableHeader label="Værdi" column="value" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tildelt
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Oprettet
-                </th>
+                <SortableHeader label="Oprettet" column="created_at" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort || (() => {})} />
                 <th className="relative px-6 py-3">
                   <span className="sr-only">Handlinger</span>
                 </th>

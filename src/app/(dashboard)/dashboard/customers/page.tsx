@@ -15,6 +15,8 @@ interface PageProps {
     pageSize?: string
     search?: string
     is_active?: string
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
   }>
 }
 
@@ -24,12 +26,16 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const pageSize = params.pageSize ? parseInt(params.pageSize, 10) : 25
   const search = params.search || undefined
   const is_active = params.is_active === 'true' ? true : params.is_active === 'false' ? false : undefined
+  const sortBy = params.sortBy || undefined
+  const sortOrder = params.sortOrder || undefined
 
   const result = await getCustomers({
     page,
     pageSize,
     search,
     is_active,
+    sortBy,
+    sortOrder,
   })
 
   if (!result.success || !result.data) {
@@ -52,6 +58,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
         pageSize: result.data.pageSize,
       }}
       filters={{ search, is_active }}
+      sort={{ sortBy, sortOrder }}
     />
   )
 }

@@ -29,14 +29,20 @@ interface Filters {
   status?: OfferStatus
 }
 
+interface SortData {
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
 interface OffersPageClientProps {
   offers: OfferWithRelations[]
   pagination: PaginationData
   filters: Filters
+  sort?: SortData
   companySettings?: CompanySettings | null
 }
 
-export function OffersPageClient({ offers, pagination, filters, companySettings }: OffersPageClientProps) {
+export function OffersPageClient({ offers, pagination, filters, sort, companySettings }: OffersPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
@@ -114,6 +120,11 @@ export function OffersPageClient({ offers, pagination, filters, companySettings 
 
   const handleStatusFilter = (value: string) => {
     updateURL({ status: value || undefined })
+  }
+
+  const handleSort = (column: string) => {
+    const newOrder = sort?.sortBy === column && sort?.sortOrder === 'asc' ? 'desc' : 'asc'
+    updateURL({ sortBy: column, sortOrder: newOrder })
   }
 
   const clearAllFilters = () => {
@@ -222,7 +233,7 @@ export function OffersPageClient({ offers, pagination, filters, companySettings 
           )}
         </div>
 
-        <OffersTable offers={offers} companySettings={companySettings} />
+        <OffersTable offers={offers} companySettings={companySettings} sortBy={sort?.sortBy} sortOrder={sort?.sortOrder} onSort={handleSort} />
 
         {/* Pagination */}
         <div className="bg-white rounded-lg border p-4">

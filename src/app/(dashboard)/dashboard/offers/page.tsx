@@ -17,6 +17,8 @@ interface PageProps {
     pageSize?: string
     search?: string
     status?: OfferStatus
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
   }>
 }
 
@@ -26,6 +28,8 @@ export default async function OffersPage({ searchParams }: PageProps) {
   const pageSize = params.pageSize ? parseInt(params.pageSize, 10) : 25
   const search = params.search || undefined
   const status = params.status || undefined
+  const sortBy = params.sortBy || undefined
+  const sortOrder = params.sortOrder || undefined
 
   const [offersResult, settingsResult] = await Promise.all([
     getOffers({
@@ -33,6 +37,8 @@ export default async function OffersPage({ searchParams }: PageProps) {
       pageSize,
       search,
       status,
+      sortBy,
+      sortOrder,
     }),
     getCompanySettings(),
   ])
@@ -57,6 +63,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
         pageSize: offersResult.data.pageSize,
       }}
       filters={{ search, status }}
+      sort={{ sortBy, sortOrder }}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />
   )
