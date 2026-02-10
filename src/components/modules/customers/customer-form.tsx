@@ -82,6 +82,8 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isDirty])
 
+  useEffect(() => { setFocus('company_name') }, [setFocus])
+
   const copyBillingToShipping = () => {
     const values = getValues()
     setValue('shipping_address', values.billing_address)

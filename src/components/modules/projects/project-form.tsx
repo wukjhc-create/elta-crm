@@ -49,6 +49,7 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
     register,
     handleSubmit,
     watch,
+    setFocus,
     formState: { errors, isDirty },
   } = useForm<CreateProjectInput>({
     resolver: zodResolver(createProjectSchema),
@@ -91,6 +92,8 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [handleEscape])
+
+  useEffect(() => { setFocus('name') }, [setFocus])
 
   const customerId = watch('customer_id')
 

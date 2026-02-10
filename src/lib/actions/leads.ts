@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logCreate, logUpdate, logDelete, logStatusChange } from '@/lib/actions/audit'
+import { isValidLeadTransition, LEAD_STATUS_LABELS } from '@/types/leads.types'
 import type { Lead, LeadWithRelations, LeadActivity, LeadStatus } from '@/types/leads.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
@@ -412,12 +413,23 @@ export async function updateLeadStatus(
     const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(id, 'lead ID')
 
-    // Get old status
-    const { data: oldLead } = await supabase
+    // Get old status and validate transition
+    const { data: oldLead, error: fetchError } = await supabase
       .from('leads')
       .select('status')
       .eq('id', id)
       .single()
+
+    if (fetchError || !oldLead) {
+      return { success: false, error: 'Lead blev ikke fundet' }
+    }
+
+    if (!isValidLeadTransition(oldLead.status as LeadStatus, status)) {
+      return {
+        success: false,
+        error: `Kan ikke ændre status fra "${LEAD_STATUS_LABELS[oldLead.status as LeadStatus]}" til "${LEAD_STATUS_LABELS[status]}"`,
+      }
+    }
 
     const { data, error } = await supabase
       .from('leads')

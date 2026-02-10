@@ -89,6 +89,16 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
     router.refresh()
   }
 
+  const handleStatusChange = async (id: string, status: LeadStatus) => {
+    const result = await updateLeadStatus(id, status)
+    if (result.success) {
+      toast.success(`Status ændret til ${LEAD_STATUS_LABELS[status]}`)
+    } else {
+      toast.error('Kunne ikke ændre status', result.error)
+    }
+    router.refresh()
+  }
+
   const handleDelete = async (id: string) => {
     const ok = await confirm({
       title: 'Slet lead',
@@ -240,7 +250,10 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <LeadStatusBadge status={lead.status} />
+                    <LeadStatusBadge
+                      status={lead.status}
+                      onStatusChange={(newStatus) => handleStatusChange(lead.id, newStatus)}
+                    />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
                     {LEAD_SOURCE_LABELS[lead.source]}

@@ -82,6 +82,8 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
     return () => document.removeEventListener('keydown', handleEscape)
   }, [handleEscape])
 
+  useEffect(() => { setFocus('company_name') }, [setFocus])
+
   useEffect(() => {
     async function loadTeamMembers() {
       const result = await getTeamMembers()

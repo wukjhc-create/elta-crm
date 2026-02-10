@@ -75,6 +75,7 @@ export function OfferForm({ offer, companySettings, calculatorData, onClose, onS
     register,
     handleSubmit,
     watch,
+    setFocus,
     formState: { errors, isDirty },
   } = useForm<CreateOfferInput>({
     resolver: zodResolver(createOfferSchema),
@@ -118,6 +119,8 @@ export function OfferForm({ offer, companySettings, calculatorData, onClose, onS
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [handleEscape])
+
+  useEffect(() => { setFocus('title') }, [setFocus])
 
   const customerId = watch('customer_id')
 

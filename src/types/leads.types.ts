@@ -44,6 +44,21 @@ export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   other: 'Andet',
 }
 
+// Valid status transitions: from → allowed destinations
+export const LEAD_STATUS_TRANSITIONS: Record<LeadStatus, LeadStatus[]> = {
+  new: ['contacted', 'lost'],
+  contacted: ['qualified', 'lost'],
+  qualified: ['proposal', 'lost'],
+  proposal: ['negotiation', 'won', 'lost'],
+  negotiation: ['won', 'lost'],
+  won: [],
+  lost: ['new'],
+}
+
+export function isValidLeadTransition(from: LeadStatus, to: LeadStatus): boolean {
+  return LEAD_STATUS_TRANSITIONS[from]?.includes(to) ?? false
+}
+
 // Status colors for badges
 export const LEAD_STATUS_COLORS: Record<LeadStatus, string> = {
   new: 'bg-blue-100 text-blue-800',
