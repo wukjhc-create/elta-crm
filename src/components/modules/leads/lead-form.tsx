@@ -8,6 +8,7 @@ import { X, Loader2 } from 'lucide-react'
 import { createLeadSchema, type CreateLeadInput } from '@/lib/validations/leads'
 import { createLead, updateLead, getTeamMembers } from '@/lib/actions/leads'
 import { FormField, inputClass } from '@/components/shared/form-field'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import {
   LEAD_STATUSES,
   LEAD_SOURCES,
@@ -31,18 +32,13 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
   >([])
 
   const isEditing = !!lead
-
-  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
-  useEffect(() => {
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [handleEscape])
+  const { confirm: confirmUnsaved, ConfirmDialog } = useConfirm()
 
   const {
     register,
     handleSubmit,
     setFocus,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateLeadInput>({
     resolver: zodResolver(createLeadSchema),
     defaultValues: lead
@@ -66,6 +62,25 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
           tags: [],
         },
   })
+
+  const safeClose = async () => {
+    if (isDirty) {
+      const ok = await confirmUnsaved({
+        title: 'Ugemte ændringer',
+        description: 'Du har ændringer der ikke er gemt. Vil du kassere dem?',
+        confirmLabel: 'Kassér',
+        variant: 'warning',
+      })
+      if (!ok) return
+    }
+    onClose()
+  }
+
+  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') safeClose() }, [isDirty])
+  useEffect(() => {
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [handleEscape])
 
   useEffect(() => {
     async function loadTeamMembers() {
@@ -125,7 +140,7 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
             {isEditing ? 'Rediger Lead' : 'Opret Ny Lead'}
           </h2>
           <button
-            onClick={onClose}
+            onClick={safeClose}
             className="p-1 hover:bg-gray-100 rounded-full"
             aria-label="Luk"
           >
@@ -206,7 +221,7 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button
               type="button"
-              onClick={onClose}
+              onClick={safeClose}
               className="px-4 py-2 border rounded-md hover:bg-gray-50"
               disabled={isLoading}
             >
@@ -227,6 +242,7 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
           </div>
         </form>
       </div>
+      {ConfirmDialog}
     </div>
   )
 }

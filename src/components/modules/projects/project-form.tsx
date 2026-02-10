@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X } from 'lucide-react'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import { createProjectSchema, type CreateProjectInput } from '@/lib/validations/projects'
 import {
   createProject,
@@ -42,18 +43,13 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
   >([])
 
   const isEditing = !!project
-
-  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }, [onClose])
-  useEffect(() => {
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [handleEscape])
+  const { confirm: confirmUnsaved, ConfirmDialog } = useConfirm()
 
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateProjectInput>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: project
@@ -76,6 +72,25 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
           priority: 'medium',
         },
   })
+
+  const safeClose = async () => {
+    if (isDirty) {
+      const ok = await confirmUnsaved({
+        title: 'Ugemte ændringer',
+        description: 'Du har ændringer der ikke er gemt. Vil du kassere dem?',
+        confirmLabel: 'Kassér',
+        variant: 'warning',
+      })
+      if (!ok) return
+    }
+    onClose()
+  }
+
+  const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') safeClose() }, [isDirty])
+  useEffect(() => {
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [handleEscape])
 
   const customerId = watch('customer_id')
 
@@ -159,7 +174,7 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
           <h2 id="project-form-title" className="text-xl font-semibold">
             {isEditing ? 'Rediger Projekt' : 'Opret Nyt Projekt'}
           </h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
+          <button onClick={safeClose} className="p-1 hover:bg-gray-100 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -386,7 +401,7 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button
               type="button"
-              onClick={onClose}
+              onClick={safeClose}
               className="px-4 py-2 border rounded-md hover:bg-gray-50"
               disabled={isLoading}
             >
@@ -402,6 +417,7 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
           </div>
         </form>
       </div>
+      {ConfirmDialog}
     </div>
   )
 }

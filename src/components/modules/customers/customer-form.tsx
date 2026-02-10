@@ -8,6 +8,7 @@ import { X, Copy, Loader2 } from 'lucide-react'
 import { createCustomerSchema, type CreateCustomerInput } from '@/lib/validations/customers'
 import { createCustomer, updateCustomer } from '@/lib/actions/customers'
 import { FormField, inputClass } from '@/components/shared/form-field'
+import { useConfirm } from '@/components/shared/confirm-dialog'
 import type { Customer } from '@/types/customers.types'
 
 interface CustomerFormProps {
@@ -22,12 +23,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
   const [isLoading, setIsLoading] = useState(false)
 
   const isEditing = !!customer
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  const { confirm: confirmUnsaved, ConfirmDialog } = useConfirm()
 
   const {
     register,
@@ -35,7 +31,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
     setValue,
     getValues,
     setFocus,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateCustomerInput>({
     resolver: zodResolver(createCustomerSchema),
     defaultValues: customer
@@ -66,6 +62,25 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
           is_active: true,
         },
   })
+
+  const safeClose = async () => {
+    if (isDirty) {
+      const ok = await confirmUnsaved({
+        title: 'Ugemte ændringer',
+        description: 'Du har ændringer der ikke er gemt. Vil du kassere dem?',
+        confirmLabel: 'Kassér',
+        variant: 'warning',
+      })
+      if (!ok) return
+    }
+    onClose()
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') safeClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isDirty])
 
   const copyBillingToShipping = () => {
     const values = getValues()
@@ -125,7 +140,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
             {isEditing ? 'Rediger Kunde' : 'Opret Ny Kunde'}
           </h2>
           <button
-            onClick={onClose}
+            onClick={safeClose}
             className="p-1 hover:bg-gray-100 rounded-full"
             aria-label="Luk"
           >
@@ -321,7 +336,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button
               type="button"
-              onClick={onClose}
+              onClick={safeClose}
               className="px-4 py-2 border rounded-md hover:bg-gray-50"
               disabled={isLoading}
             >
@@ -342,6 +357,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
           </div>
         </form>
       </div>
+      {ConfirmDialog}
     </div>
   )
 }
