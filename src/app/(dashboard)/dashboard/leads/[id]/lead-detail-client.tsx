@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
+import { Breadcrumb } from '@/components/shared/breadcrumb'
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   Mail,
@@ -109,24 +109,21 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
   return (
     <>
       <div className="space-y-6">
+        <Breadcrumb items={[
+          { label: 'Leads', href: '/dashboard/leads' },
+          { label: lead.company_name },
+        ]} />
+
         {/* Header */}
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard/leads"
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {lead.company_name}
-                </h1>
-                <LeadStatusBadge status={lead.status} />
-              </div>
-              <p className="text-gray-600 mt-1">{lead.contact_person}</p>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900">
+                {lead.company_name}
+              </h1>
+              <LeadStatusBadge status={lead.status} />
             </div>
+            <p className="text-gray-600 mt-1">{lead.contact_person}</p>
           </div>
           <div className="flex items-center gap-2">
             <button

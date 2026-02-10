@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Breadcrumb } from '@/components/shared/breadcrumb'
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   Building2,
@@ -113,14 +113,13 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/projects" className="p-2 hover:bg-muted rounded-lg">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div className="animate-pulse">
-            <div className="h-8 w-48 bg-muted rounded" />
-            <div className="h-4 w-32 bg-muted rounded mt-2" />
-          </div>
+        <Breadcrumb items={[
+          { label: 'Projekter', href: '/dashboard/projects' },
+          { label: 'Indlæser...' },
+        ]} />
+        <div className="animate-pulse">
+          <div className="h-8 w-48 bg-muted rounded" />
+          <div className="h-4 w-32 bg-muted rounded mt-2" />
         </div>
       </div>
     )
@@ -129,14 +128,11 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   if (!project) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/projects" className="p-2 hover:bg-muted rounded-lg">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold">Projekt ikke fundet</h1>
-          </div>
-        </div>
+        <Breadcrumb items={[
+          { label: 'Projekter', href: '/dashboard/projects' },
+          { label: 'Ikke fundet' },
+        ]} />
+        <h1 className="text-2xl font-bold">Projekt ikke fundet</h1>
       </div>
     )
   }
@@ -149,20 +145,20 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
 
   return (
     <div className="space-y-6">
+      <Breadcrumb items={[
+        { label: 'Projekter', href: '/dashboard/projects' },
+        { label: project.project_number },
+      ]} />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Link href="/dashboard/projects" className="p-2 hover:bg-muted rounded-lg">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{project.project_number}</h1>
-              <ProjectStatusBadge status={project.status} />
-              <ProjectPriorityBadge priority={project.priority} />
-            </div>
-            <p className="text-lg text-muted-foreground">{project.name}</p>
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">{project.project_number}</h1>
+            <ProjectStatusBadge status={project.status} />
+            <ProjectPriorityBadge priority={project.priority} />
           </div>
+          <p className="text-lg text-muted-foreground">{project.name}</p>
         </div>
         <div className="flex items-center gap-2">
           <button

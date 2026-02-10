@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
+import { Breadcrumb } from '@/components/shared/breadcrumb'
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   Mail,
@@ -127,37 +127,34 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
   return (
     <>
       <div className="space-y-6">
+        <Breadcrumb items={[
+          { label: 'Kunder', href: '/dashboard/customers' },
+          { label: customer.company_name },
+        ]} />
+
         {/* Header */}
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard/customers"
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {customer.company_name}
-                </h1>
-                {customer.is_active ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    <CheckCircle className="w-3 h-3" />
-                    Aktiv
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    <XCircle className="w-3 h-3" />
-                    Inaktiv
-                  </span>
-                )}
-              </div>
-              <p className="text-gray-600 mt-1">
-                Kundenr. {customer.customer_number}
-                {customer.vat_number && ` • CVR: ${customer.vat_number}`}
-              </p>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900">
+                {customer.company_name}
+              </h1>
+              {customer.is_active ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <CheckCircle className="w-3 h-3" />
+                  Aktiv
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  <XCircle className="w-3 h-3" />
+                  Inaktiv
+                </span>
+              )}
             </div>
+            <p className="text-gray-600 mt-1">
+              Kundenr. {customer.customer_number}
+              {customer.vat_number && ` • CVR: ${customer.vat_number}`}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button

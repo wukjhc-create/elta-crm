@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { Breadcrumb } from '@/components/shared/breadcrumb'
 import {
   Plus,
   Pencil,
@@ -187,6 +188,11 @@ export default function CalculationDetailClient({
 
   return (
     <div className="space-y-6">
+      <Breadcrumb items={[
+        { label: 'Kalkulationer', href: '/dashboard/calculations' },
+        { label: calculation.name },
+      ]} />
+
       {/* Actions */}
       <div className="flex gap-2 flex-wrap justify-between">
         <div className="flex gap-2 flex-wrap">

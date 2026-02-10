@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
+import { Breadcrumb } from '@/components/shared/breadcrumb'
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   Plus,
@@ -345,26 +345,23 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   return (
     <>
       <div className="space-y-6">
+        <Breadcrumb items={[
+          { label: 'Tilbud', href: '/dashboard/offers' },
+          { label: offer.title },
+        ]} />
+
         {/* Header */}
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard/offers"
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {offer.title}
-                </h1>
-                <OfferStatusBadge status={offer.status} />
-              </div>
-              <p className="text-gray-600 mt-1 font-mono">
-                {offer.offer_number}
-              </p>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900">
+                {offer.title}
+              </h1>
+              <OfferStatusBadge status={offer.status} />
             </div>
+            <p className="text-gray-600 mt-1 font-mono">
+              {offer.offer_number}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {/* Send buttons - only show for draft/sent/viewed with customer */}
