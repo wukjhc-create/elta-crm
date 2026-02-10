@@ -265,7 +265,10 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <OfferStatusBadge status={offer.status} />
+                    <OfferStatusBadge
+                      status={offer.status}
+                      onStatusChange={(newStatus) => handleStatusChange(offer.id, newStatus)}
+                    />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">

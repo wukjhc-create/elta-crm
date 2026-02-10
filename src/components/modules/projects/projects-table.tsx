@@ -107,6 +107,16 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
     }
   }
 
+  const handleStatusChange = async (id: string, status: ProjectStatus) => {
+    const result = await updateProjectStatus(id, status)
+    if (result.success) {
+      toast.success(`Status ændret til ${PROJECT_STATUS_LABELS[status]}`)
+    } else {
+      toast.error('Kunne ikke ændre status', result.error)
+    }
+    onRefresh?.()
+  }
+
   const formatHours = (hours: number | null) => {
     if (hours === null || hours === undefined) return '-'
     return `${hours}t`
@@ -242,7 +252,10 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
                     )}
                   </td>
                   <td className="py-3">
-                    <ProjectStatusBadge status={project.status} />
+                    <ProjectStatusBadge
+                      status={project.status}
+                      onStatusChange={(newStatus) => handleStatusChange(project.id, newStatus)}
+                    />
                   </td>
                   <td className="py-3 hidden md:table-cell">
                     <ProjectPriorityBadge priority={project.priority} />
