@@ -24,22 +24,32 @@ import {
   Search,
   Loader2,
   Package,
-  TrendingUp,
-  TrendingDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
   Filter,
 } from 'lucide-react'
 import {
   getSupplierProducts,
   getSupplierProductCategories,
 } from '@/lib/actions/suppliers'
-import type { SupplierProductWithSupplier } from '@/types/suppliers.types'
+import type { SupplierProductWithSupplier, SupplierProductFilters } from '@/types/suppliers.types'
 import { formatDate as formatDateUtil } from '@/lib/utils'
+
+type SortColumn = SupplierProductFilters['sortBy']
 
 interface SupplierProductsTableProps {
   supplierId: string
   supplierName?: string
+}
+
+function SortIcon({ column, currentSort, currentOrder }: { column: string; currentSort?: string; currentOrder?: 'asc' | 'desc' }) {
+  if (currentSort !== column) return <ChevronsUpDown className="w-3.5 h-3.5 text-gray-300" />
+  return currentOrder === 'asc'
+    ? <ChevronUp className="w-3.5 h-3.5 text-primary" />
+    : <ChevronDown className="w-3.5 h-3.5 text-primary" />
 }
 
 export function SupplierProductsTable({
@@ -55,25 +65,35 @@ export function SupplierProductsTable({
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [sortBy, setSortBy] = useState<SortColumn>('supplier_name')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const pageSize = 25
 
   useEffect(() => {
     loadProducts()
     loadCategories()
-  }, [supplierId, page, category])
+  }, [supplierId, page, category, sortBy, sortOrder])
 
   useEffect(() => {
-    // Reset to page 1 when search changes
     setPage(1)
   }, [search])
 
   useEffect(() => {
-    // Debounce search
     const timeout = setTimeout(() => {
       loadProducts()
     }, 300)
     return () => clearTimeout(timeout)
   }, [search])
+
+  const handleSort = (column: SortColumn) => {
+    if (sortBy === column) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortOrder('asc')
+    }
+    setPage(1)
+  }
 
   const loadProducts = async () => {
     setLoading(true)
@@ -81,6 +101,8 @@ export function SupplierProductsTable({
       supplier_id: supplierId,
       search: search || undefined,
       category: category || undefined,
+      sortBy,
+      sortOrder,
       page,
       pageSize,
     })
@@ -111,6 +133,8 @@ export function SupplierProductsTable({
     if (!date) return '-'
     return formatDateUtil(date)
   }
+
+  const sortableHeaderClass = 'cursor-pointer select-none hover:bg-gray-100/50 transition-colors'
 
   return (
     <div className="space-y-4">
@@ -148,8 +172,8 @@ export function SupplierProductsTable({
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>
           {total.toLocaleString('da-DK')} produkter
-          {category && <> i "{category}"</>}
-          {search && <> matchende "{search}"</>}
+          {category && <> i &quot;{category}&quot;</>}
+          {search && <> matchende &quot;{search}&quot;</>}
         </span>
       </div>
 
@@ -158,14 +182,39 @@ export function SupplierProductsTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[150px]">Varenummer</TableHead>
-              <TableHead>Navn</TableHead>
-              <TableHead className="w-[120px]">Kategori</TableHead>
-              <TableHead className="w-[100px] text-right">Kostpris</TableHead>
+              <TableHead className={`w-[150px] ${sortableHeaderClass}`} onClick={() => handleSort('supplier_sku')}>
+                <div className="flex items-center gap-1">
+                  Varenummer
+                  <SortIcon column="supplier_sku" currentSort={sortBy} currentOrder={sortOrder} />
+                </div>
+              </TableHead>
+              <TableHead className={sortableHeaderClass} onClick={() => handleSort('supplier_name')}>
+                <div className="flex items-center gap-1">
+                  Navn
+                  <SortIcon column="supplier_name" currentSort={sortBy} currentOrder={sortOrder} />
+                </div>
+              </TableHead>
+              <TableHead className={`w-[120px] ${sortableHeaderClass}`} onClick={() => handleSort('category')}>
+                <div className="flex items-center gap-1">
+                  Kategori
+                  <SortIcon column="category" currentSort={sortBy} currentOrder={sortOrder} />
+                </div>
+              </TableHead>
+              <TableHead className={`w-[100px] text-right ${sortableHeaderClass}`} onClick={() => handleSort('cost_price')}>
+                <div className="flex items-center gap-1 justify-end">
+                  Kostpris
+                  <SortIcon column="cost_price" currentSort={sortBy} currentOrder={sortOrder} />
+                </div>
+              </TableHead>
               <TableHead className="w-[100px] text-right">Listepris</TableHead>
               <TableHead className="w-[100px] text-right">Salgspris</TableHead>
               <TableHead className="w-[80px]">Status</TableHead>
-              <TableHead className="w-[100px]">Opdateret</TableHead>
+              <TableHead className={`w-[100px] ${sortableHeaderClass}`} onClick={() => handleSort('updated_at')}>
+                <div className="flex items-center gap-1">
+                  Opdateret
+                  <SortIcon column="updated_at" currentSort={sortBy} currentOrder={sortOrder} />
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
