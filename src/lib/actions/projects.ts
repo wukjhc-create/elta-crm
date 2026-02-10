@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import {
   createProjectSchema,
@@ -187,7 +186,7 @@ export async function getProject(id: string): Promise<ActionResult<ProjectWithRe
 
 // Generate next project number
 async function generateProjectNumber(): Promise<string> {
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
   const currentYear = new Date().getFullYear().toString().slice(-2)
   const prefix = `P${currentYear}`
 
@@ -721,7 +720,7 @@ export async function createProjectFromOffer(
   offerFinalAmount: number
 ): Promise<ActionResult<Project>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Generate project number
     const projectNumber = await generateProjectNumber()

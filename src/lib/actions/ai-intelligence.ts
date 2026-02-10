@@ -10,7 +10,6 @@
  * - Price explanations
  */
 
-import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { revalidatePath } from 'next/cache'
 import { parseProjectDescription, getKeywordCategories } from '@/lib/engines/project-intake'
@@ -86,7 +85,7 @@ export async function saveProjectContext(
  */
 export async function getProjectContext(calculationId: string) {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('project_contexts')
@@ -178,7 +177,7 @@ export async function saveRiskAssessments(
   risks: RiskAssessmentCreate[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     if (risks.length === 0) {
       return { success: true }
@@ -210,7 +209,7 @@ export async function saveRiskAssessments(
  */
 export async function getRiskAssessments(calculationId: string) {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('risk_assessments')
@@ -273,7 +272,7 @@ export async function generateOfferTextsAction(
   context: OfferTextContext
 ): Promise<{ success: true; data: ReturnType<typeof assembleOfferTexts> } | { success: false; error: string }> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     // Fetch all active templates
     const { data: templates, error } = await supabase
@@ -427,7 +426,7 @@ export async function savePriceExplanation(
  */
 export async function getPriceExplanation(offerId: string) {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('price_explanations')
@@ -529,7 +528,7 @@ export async function createCalculationSnapshot(
  */
 export async function getCalculationSnapshots(calculationId: string) {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('calculation_snapshots')

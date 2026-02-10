@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import {
   createCustomerSchema,
   updateCustomerSchema,
@@ -130,7 +129,7 @@ export async function getCustomer(id: string): Promise<ActionResult<CustomerWith
 
 // Generate next customer number
 async function generateCustomerNumber(): Promise<string> {
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
 
   const { data } = await supabase
     .from('customers')

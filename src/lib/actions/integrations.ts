@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import type { ActionResult } from '@/types/common.types'
 import type {
   Integration,
@@ -428,7 +427,7 @@ export async function triggerWebhooks(
   eventType: WebhookEventType,
   payload: WebhookPayload
 ): Promise<{ triggered: number; succeeded: number; failed: number }> {
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
 
   // Find all active webhooks for this event type
   const { data: webhooks, error: webhookError } = await supabase
@@ -573,7 +572,7 @@ export async function buildOfferWebhookPayload(
   offerId: string,
   eventType: WebhookEventType
 ): Promise<WebhookPayload | null> {
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
 
   const { data: offer, error } = await supabase
     .from('offers')
@@ -617,7 +616,7 @@ export async function buildProjectWebhookPayload(
   projectId: string,
   eventType: WebhookEventType
 ): Promise<WebhookPayload | null> {
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
 
   const { data: project, error } = await supabase
     .from('projects')

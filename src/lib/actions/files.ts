@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { revalidatePath } from 'next/cache'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES, FILE_SIGNED_URL_EXPIRY_SECONDS } from '@/lib/constants'

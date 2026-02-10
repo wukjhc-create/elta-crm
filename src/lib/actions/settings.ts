@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import type {
@@ -34,7 +33,7 @@ export interface UpdateProfileInput {
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('company_settings')
@@ -100,7 +99,7 @@ export async function getSmtpSettings(): Promise<ActionResult<{
   fromName: string | null
 }>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('company_settings')

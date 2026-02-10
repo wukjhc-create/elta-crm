@@ -85,7 +85,10 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
     loadData()
   }, [loadData])
 
+  const [actingRuleId, setActingRuleId] = useState<string | null>(null)
+
   const handleToggle = async (ruleId: string) => {
+    setActingRuleId(ruleId)
     const result = await toggleMarginRule(ruleId)
     if (result.success) {
       toast.success('Regel opdateret')
@@ -93,11 +96,13 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
     } else {
       toast.error('Fejl', result.error)
     }
+    setActingRuleId(null)
   }
 
   const handleDelete = async (rule: SupplierMarginRule) => {
     if (!confirm(`Er du sikker på at du vil slette denne ${MARGIN_RULE_TYPE_LABELS[rule.rule_type]}-regel?`)) return
 
+    setActingRuleId(rule.id)
     const result = await deleteMarginRule(rule.id)
     if (result.success) {
       toast.success('Regel slettet')
@@ -105,6 +110,7 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
     } else {
       toast.error('Fejl', result.error)
     }
+    setActingRuleId(null)
   }
 
   const handleEdit = (rule: SupplierMarginRule) => {
@@ -229,7 +235,8 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                       {/* Toggle */}
                       <button
                         onClick={() => handleToggle(rule.id)}
-                        className="shrink-0"
+                        disabled={actingRuleId === rule.id}
+                        className="shrink-0 disabled:opacity-50"
                         title={rule.is_active ? 'Deaktiver' : 'Aktiver'}
                       >
                         {rule.is_active
@@ -278,7 +285,8 @@ export function MarginRulesManager({ supplierId, supplierName }: MarginRulesMana
                         </button>
                         <button
                           onClick={() => handleDelete(rule)}
-                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"
+                          disabled={actingRuleId === rule.id}
+                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 disabled:opacity-50"
                           title="Slet"
                         >
                           <Trash2 className="h-4 w-4" />

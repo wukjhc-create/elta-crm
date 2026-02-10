@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 
 export type SearchResultType = 'lead' | 'customer' | 'offer' | 'project'
 
@@ -25,7 +25,7 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
   }
 
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
     const searchTerm = `%${query.trim().toLowerCase()}%`
     const results: SearchResult[] = []
     const counts: Record<SearchResultType, number> = { lead: 0, customer: 0, offer: 0, project: 0 }

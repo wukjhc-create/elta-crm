@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
 import {
   createOfferSchema,
   updateOfferSchema,
@@ -161,7 +160,7 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
 
 // Generate next offer number
 async function generateOfferNumber(): Promise<string> {
-  const supabase = await createClient()
+  const { supabase } = await getAuthenticatedClient()
   const currentYear = new Date().getFullYear()
   const prefix = `TILBUD-${currentYear}-`
 

@@ -37,7 +37,7 @@ import type {
 
 export async function getSmsSettings(): Promise<ActionResult<SmsSettings>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('company_settings')
@@ -106,7 +106,7 @@ export async function getSmsTemplates(options?: {
   active_only?: boolean
 }): Promise<SmsTemplate[]> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('sms_templates')
@@ -137,7 +137,7 @@ export async function getSmsTemplates(options?: {
 
 export async function getSmsTemplate(id: string): Promise<ActionResult<SmsTemplate>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('sms_templates')
@@ -269,7 +269,7 @@ export async function getSmsMessages(options?: {
   limit?: number
 }): Promise<SmsMessage[]> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
       .from('sms_messages')

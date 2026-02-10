@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import type { ActionResult } from '@/types/common.types'
 import type {
   InstallationType,
@@ -403,7 +402,7 @@ export async function createSystemAlert(
   alert: Omit<SystemAlert, 'id' | 'is_read' | 'is_dismissed' | 'read_at' | 'dismissed_at' | 'dismissed_by' | 'created_at'>
 ): Promise<ActionResult<SystemAlert>> {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
       .from('system_alerts')

@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { createMessageSchema } from '@/lib/validations/messages'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
@@ -401,7 +400,7 @@ export async function getRelatedEntities(): Promise<
   }>
 > {
   try {
-    const supabase = await createClient()
+    const { supabase } = await getAuthenticatedClient()
 
     const [leadsResult, customersResult, projectsResult] = await Promise.all([
       supabase
