@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Copy, Loader2 } from 'lucide-react'
 import { createCustomerSchema, type CreateCustomerInput } from '@/lib/validations/customers'
 import { createCustomer, updateCustomer } from '@/lib/actions/customers'
+import { FormField, inputClass } from '@/components/shared/form-field'
 import type { Customer } from '@/types/customers.types'
 
 interface CustomerFormProps {
@@ -33,6 +34,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
     handleSubmit,
     setValue,
     getValues,
+    setFocus,
     formState: { errors },
   } = useForm<CreateCustomerInput>({
     resolver: zodResolver(createCustomerSchema),
@@ -137,112 +139,41 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-6">
+        <form onSubmit={handleSubmit(onSubmit, (fieldErrors) => {
+          const firstField = Object.keys(fieldErrors)[0] as keyof CreateCustomerInput
+          if (firstField) setFocus(firstField)
+        })} className="p-4 space-y-6">
           {/* Basic info section */}
           <div>
             <h3 className="text-lg font-medium mb-4">Grundlæggende oplysninger</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label htmlFor="company_name" className="text-sm font-medium">
-                  Firmanavn *
-                </label>
-                <input
-                  {...register('company_name')}
-                  id="company_name"
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={isLoading}
-                />
-                {errors.company_name && (
-                  <p className="text-sm text-red-600">{errors.company_name.message}</p>
-                )}
-              </div>
+              <FormField label="Firmanavn" htmlFor="company_name" required error={errors.company_name}>
+                <input {...register('company_name')} id="company_name" type="text" className={inputClass(!!errors.company_name)} disabled={isLoading} />
+              </FormField>
 
-              <div className="space-y-1">
-                <label htmlFor="vat_number" className="text-sm font-medium">
-                  CVR-nummer
-                </label>
-                <input
-                  {...register('vat_number')}
-                  id="vat_number"
-                  type="text"
-                  placeholder="DK12345678"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={isLoading}
-                />
-              </div>
+              <FormField label="CVR-nummer" htmlFor="vat_number" error={errors.vat_number}>
+                <input {...register('vat_number')} id="vat_number" type="text" placeholder="DK12345678" className={inputClass(!!errors.vat_number)} disabled={isLoading} />
+              </FormField>
 
-              <div className="space-y-1">
-                <label htmlFor="contact_person" className="text-sm font-medium">
-                  Kontaktperson *
-                </label>
-                <input
-                  {...register('contact_person')}
-                  id="contact_person"
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={isLoading}
-                />
-                {errors.contact_person && (
-                  <p className="text-sm text-red-600">{errors.contact_person.message}</p>
-                )}
-              </div>
+              <FormField label="Kontaktperson" htmlFor="contact_person" required error={errors.contact_person}>
+                <input {...register('contact_person')} id="contact_person" type="text" className={inputClass(!!errors.contact_person)} disabled={isLoading} />
+              </FormField>
 
-              <div className="space-y-1">
-                <label htmlFor="email" className="text-sm font-medium">
-                  E-mail *
-                </label>
-                <input
-                  {...register('email')}
-                  id="email"
-                  type="email"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={isLoading}
-                />
-                {errors.email && (
-                  <p className="text-sm text-red-600">{errors.email.message}</p>
-                )}
-              </div>
+              <FormField label="E-mail" htmlFor="email" required error={errors.email}>
+                <input {...register('email')} id="email" type="email" className={inputClass(!!errors.email)} disabled={isLoading} />
+              </FormField>
 
-              <div className="space-y-1">
-                <label htmlFor="phone" className="text-sm font-medium">
-                  Telefon
-                </label>
-                <input
-                  {...register('phone')}
-                  id="phone"
-                  type="tel"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={isLoading}
-                />
-              </div>
+              <FormField label="Telefon" htmlFor="phone" error={errors.phone}>
+                <input {...register('phone')} id="phone" type="tel" className={inputClass(!!errors.phone)} disabled={isLoading} />
+              </FormField>
 
-              <div className="space-y-1">
-                <label htmlFor="mobile" className="text-sm font-medium">
-                  Mobil
-                </label>
-                <input
-                  {...register('mobile')}
-                  id="mobile"
-                  type="tel"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={isLoading}
-                />
-              </div>
+              <FormField label="Mobil" htmlFor="mobile" error={errors.mobile}>
+                <input {...register('mobile')} id="mobile" type="tel" className={inputClass(!!errors.mobile)} disabled={isLoading} />
+              </FormField>
 
-              <div className="space-y-1 md:col-span-2">
-                <label htmlFor="website" className="text-sm font-medium">
-                  Hjemmeside
-                </label>
-                <input
-                  {...register('website')}
-                  id="website"
-                  type="url"
-                  placeholder="https://example.com"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={isLoading}
-                />
-              </div>
+              <FormField label="Hjemmeside" htmlFor="website" error={errors.website} className="md:col-span-2">
+                <input {...register('website')} id="website" type="url" placeholder="https://example.com" className={inputClass(!!errors.website)} disabled={isLoading} />
+              </FormField>
             </div>
           </div>
 

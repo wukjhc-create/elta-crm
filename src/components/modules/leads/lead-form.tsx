@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Loader2 } from 'lucide-react'
 import { createLeadSchema, type CreateLeadInput } from '@/lib/validations/leads'
 import { createLead, updateLead, getTeamMembers } from '@/lib/actions/leads'
+import { FormField, inputClass } from '@/components/shared/form-field'
 import {
   LEAD_STATUSES,
   LEAD_SOURCES,
@@ -40,6 +41,7 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
   const {
     register,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<CreateLeadInput>({
     resolver: zodResolver(createLeadSchema),
@@ -137,215 +139,68 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit, (fieldErrors) => {
+          const firstField = Object.keys(fieldErrors)[0] as keyof CreateLeadInput
+          if (firstField) setFocus(firstField)
+        })} className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Company name */}
-            <div className="space-y-1">
-              <label htmlFor="company_name" className="text-sm font-medium">
-                Firmanavn *
-              </label>
-              <input
-                {...register('company_name')}
-                id="company_name"
-                type="text"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              />
-              {errors.company_name && (
-                <p className="text-sm text-red-600">
-                  {errors.company_name.message}
-                </p>
-              )}
-            </div>
+            <FormField label="Firmanavn" htmlFor="company_name" required error={errors.company_name}>
+              <input {...register('company_name')} id="company_name" type="text" className={inputClass(!!errors.company_name)} disabled={isLoading} />
+            </FormField>
 
-            {/* Contact person */}
-            <div className="space-y-1">
-              <label htmlFor="contact_person" className="text-sm font-medium">
-                Kontaktperson *
-              </label>
-              <input
-                {...register('contact_person')}
-                id="contact_person"
-                type="text"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              />
-              {errors.contact_person && (
-                <p className="text-sm text-red-600">
-                  {errors.contact_person.message}
-                </p>
-              )}
-            </div>
+            <FormField label="Kontaktperson" htmlFor="contact_person" required error={errors.contact_person}>
+              <input {...register('contact_person')} id="contact_person" type="text" className={inputClass(!!errors.contact_person)} disabled={isLoading} />
+            </FormField>
 
-            {/* Email */}
-            <div className="space-y-1">
-              <label htmlFor="email" className="text-sm font-medium">
-                E-mail *
-              </label>
-              <input
-                {...register('email')}
-                id="email"
-                type="email"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              />
-              {errors.email && (
-                <p className="text-sm text-red-600">{errors.email.message}</p>
-              )}
-            </div>
+            <FormField label="E-mail" htmlFor="email" required error={errors.email}>
+              <input {...register('email')} id="email" type="email" className={inputClass(!!errors.email)} disabled={isLoading} />
+            </FormField>
 
-            {/* Phone */}
-            <div className="space-y-1">
-              <label htmlFor="phone" className="text-sm font-medium">
-                Telefon
-              </label>
-              <input
-                {...register('phone')}
-                id="phone"
-                type="tel"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              />
-              {errors.phone && (
-                <p className="text-sm text-red-600">{errors.phone.message}</p>
-              )}
-            </div>
+            <FormField label="Telefon" htmlFor="phone" error={errors.phone}>
+              <input {...register('phone')} id="phone" type="tel" className={inputClass(!!errors.phone)} disabled={isLoading} />
+            </FormField>
 
-            {/* Status */}
-            <div className="space-y-1">
-              <label htmlFor="status" className="text-sm font-medium">
-                Status
-              </label>
-              <select
-                {...register('status')}
-                id="status"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              >
+            <FormField label="Status" htmlFor="status">
+              <select {...register('status')} id="status" className={inputClass()} disabled={isLoading}>
                 {LEAD_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {LEAD_STATUS_LABELS[status]}
-                  </option>
+                  <option key={status} value={status}>{LEAD_STATUS_LABELS[status]}</option>
                 ))}
               </select>
-            </div>
+            </FormField>
 
-            {/* Source */}
-            <div className="space-y-1">
-              <label htmlFor="source" className="text-sm font-medium">
-                Kilde *
-              </label>
-              <select
-                {...register('source')}
-                id="source"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              >
+            <FormField label="Kilde" htmlFor="source" required error={errors.source}>
+              <select {...register('source')} id="source" className={inputClass(!!errors.source)} disabled={isLoading}>
                 {LEAD_SOURCES.map((source) => (
-                  <option key={source} value={source}>
-                    {LEAD_SOURCE_LABELS[source]}
-                  </option>
+                  <option key={source} value={source}>{LEAD_SOURCE_LABELS[source]}</option>
                 ))}
               </select>
-              {errors.source && (
-                <p className="text-sm text-red-600">{errors.source.message}</p>
-              )}
-            </div>
+            </FormField>
 
-            {/* Value */}
-            <div className="space-y-1">
-              <label htmlFor="value" className="text-sm font-medium">
-                Forventet værdi (DKK)
-              </label>
-              <input
-                {...register('value', { valueAsNumber: true })}
-                id="value"
-                type="number"
-                min="0"
-                step="1000"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              />
-              {errors.value && (
-                <p className="text-sm text-red-600">{errors.value.message}</p>
-              )}
-            </div>
+            <FormField label="Forventet værdi (DKK)" htmlFor="value" error={errors.value}>
+              <input {...register('value', { valueAsNumber: true })} id="value" type="number" min="0" step="1000" className={inputClass(!!errors.value)} disabled={isLoading} />
+            </FormField>
 
-            {/* Probability */}
-            <div className="space-y-1">
-              <label htmlFor="probability" className="text-sm font-medium">
-                Sandsynlighed (%)
-              </label>
-              <input
-                {...register('probability', { valueAsNumber: true })}
-                id="probability"
-                type="number"
-                min="0"
-                max="100"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              />
-              {errors.probability && (
-                <p className="text-sm text-red-600">
-                  {errors.probability.message}
-                </p>
-              )}
-            </div>
+            <FormField label="Sandsynlighed (%)" htmlFor="probability" error={errors.probability}>
+              <input {...register('probability', { valueAsNumber: true })} id="probability" type="number" min="0" max="100" className={inputClass(!!errors.probability)} disabled={isLoading} />
+            </FormField>
 
-            {/* Expected close date */}
-            <div className="space-y-1">
-              <label
-                htmlFor="expected_close_date"
-                className="text-sm font-medium"
-              >
-                Forventet lukkedato
-              </label>
-              <input
-                {...register('expected_close_date')}
-                id="expected_close_date"
-                type="date"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              />
-            </div>
+            <FormField label="Forventet lukkedato" htmlFor="expected_close_date">
+              <input {...register('expected_close_date')} id="expected_close_date" type="date" className={inputClass()} disabled={isLoading} />
+            </FormField>
 
-            {/* Assigned to */}
-            <div className="space-y-1">
-              <label htmlFor="assigned_to" className="text-sm font-medium">
-                Tildelt til
-              </label>
-              <select
-                {...register('assigned_to')}
-                id="assigned_to"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              >
+            <FormField label="Tildelt til" htmlFor="assigned_to">
+              <select {...register('assigned_to')} id="assigned_to" className={inputClass()} disabled={isLoading}>
                 <option value="">Ikke tildelt</option>
                 {teamMembers.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.full_name || member.email}
-                  </option>
+                  <option key={member.id} value={member.id}>{member.full_name || member.email}</option>
                 ))}
               </select>
-            </div>
+            </FormField>
           </div>
 
-          {/* Notes */}
-          <div className="space-y-1">
-            <label htmlFor="notes" className="text-sm font-medium">
-              Noter
-            </label>
-            <textarea
-              {...register('notes')}
-              id="notes"
-              rows={4}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              disabled={isLoading}
-            />
-            {errors.notes && (
-              <p className="text-sm text-red-600">{errors.notes.message}</p>
-            )}
-          </div>
+          <FormField label="Noter" htmlFor="notes" error={errors.notes}>
+            <textarea {...register('notes')} id="notes" rows={4} className={`${inputClass(!!errors.notes)} resize-none`} disabled={isLoading} />
+          </FormField>
 
           {/* Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t">
