@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
+import { CopyButton } from '@/components/shared/copy-button'
 import {
   Pencil,
   Trash2,
@@ -154,7 +155,10 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">{project.project_number}</h1>
+            <h1 className="text-2xl font-bold inline-flex items-center gap-2">
+              {project.project_number}
+              <CopyButton value={project.project_number} label="projektnummer" />
+            </h1>
             <ProjectStatusBadge status={project.status} />
             <ProjectPriorityBadge priority={project.priority} />
           </div>

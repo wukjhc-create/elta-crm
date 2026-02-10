@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
+import { CopyButton } from '@/components/shared/copy-button'
 import {
   Pencil,
   Trash2,
@@ -151,8 +152,9 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
                 </span>
               )}
             </div>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-600 mt-1 inline-flex items-center gap-1">
               Kundenr. {customer.customer_number}
+              <CopyButton value={customer.customer_number} label="kundenummer" />
               {customer.vat_number && ` • CVR: ${customer.vat_number}`}
             </p>
           </div>

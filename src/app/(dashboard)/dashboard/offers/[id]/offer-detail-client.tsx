@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
+import { CopyButton } from '@/components/shared/copy-button'
 import {
   Pencil,
   Trash2,
@@ -359,8 +360,9 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
               </h1>
               <OfferStatusBadge status={offer.status} />
             </div>
-            <p className="text-gray-600 mt-1 font-mono">
+            <p className="text-gray-600 mt-1 font-mono inline-flex items-center gap-1">
               {offer.offer_number}
+              <CopyButton value={offer.offer_number} label="tilbudsnummer" />
             </p>
           </div>
           <div className="flex items-center gap-2">

@@ -19,6 +19,7 @@ import { OfferStatusBadge } from './offer-status-badge'
 import { OfferForm } from './offer-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
+import { CopyButton } from '@/components/shared/copy-button'
 import { deleteOffer, updateOfferStatus } from '@/lib/actions/offers'
 import { useToast } from '@/components/ui/toast'
 import { OFFER_STATUSES, OFFER_STATUS_LABELS, type OfferWithRelations, type OfferStatus } from '@/types/offers.types'
@@ -220,8 +221,9 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       >
                         {offer.title}
                       </Link>
-                      <div className="text-sm text-gray-500 font-mono">
+                      <div className="text-sm text-gray-500 font-mono inline-flex items-center gap-1">
                         {offer.offer_number}
+                        <CopyButton value={offer.offer_number} label="tilbudsnummer" />
                       </div>
                     </div>
                   </td>

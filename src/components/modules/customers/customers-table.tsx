@@ -19,6 +19,7 @@ import {
 import { CustomerForm } from './customer-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
+import { CopyButton } from '@/components/shared/copy-button'
 import { deleteCustomer, toggleCustomerActive } from '@/lib/actions/customers'
 import { useToast } from '@/components/ui/toast'
 import type { CustomerWithRelations } from '@/types/customers.types'
@@ -217,8 +218,9 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-mono text-gray-600">
+                    <span className="text-sm font-mono text-gray-600 inline-flex items-center gap-1">
                       {customer.customer_number}
+                      <CopyButton value={customer.customer_number} label="kundenummer" />
                     </span>
                   </td>
                   <td className="px-6 py-4 hidden lg:table-cell">
