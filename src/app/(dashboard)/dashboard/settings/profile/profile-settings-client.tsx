@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
-import { updateProfile, uploadProfileAvatar, deleteProfileAvatar, type Profile, type UpdateProfileInput } from '@/lib/actions/settings'
+import { updateProfile, uploadProfileAvatar, deleteProfileAvatar } from '@/lib/actions/settings'
+import type { Profile, UpdateProfileInput } from '@/types/settings.types'
 import { User, Phone, Building2, Mail, Save, Loader2, Camera, Trash2 } from 'lucide-react'
 
 interface ProfileSettingsClientProps {

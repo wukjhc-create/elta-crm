@@ -4,21 +4,7 @@ import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helper
 import { revalidatePath } from 'next/cache'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES, FILE_SIGNED_URL_EXPIRY_SECONDS } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
-
-export interface UploadedFile {
-  id: string
-  name: string
-  original_name: string
-  size: number
-  mime_type: string
-  path: string
-  url: string
-  bucket: string
-  entity_type: 'lead' | 'customer' | 'offer' | 'project' | 'message' | 'portal'
-  entity_id: string
-  uploaded_by: string
-  created_at: string
-}
+import type { UploadedFile } from '@/types/files.types'
 
 // Validate file before upload
 function validateFile(file: File): { valid: boolean; error?: string } {

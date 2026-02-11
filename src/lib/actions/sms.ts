@@ -14,6 +14,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { SMS_CONFIG, PORTAL_TOKEN_EXPIRY_DAYS } from '@/lib/constants'
+import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type {
   SmsTemplate,
@@ -137,6 +138,7 @@ export async function getSmsTemplates(options?: {
 
 export async function getSmsTemplate(id: string): Promise<ActionResult<SmsTemplate>> {
   try {
+    validateUUID(id, 'SMS template ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -215,6 +217,7 @@ export async function updateSmsTemplate(
   input: SmsTemplateUpdate
 ): Promise<ActionResult<SmsTemplate>> {
   try {
+    validateUUID(id, 'SMS template ID')
     const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -239,6 +242,7 @@ export async function updateSmsTemplate(
 
 export async function deleteSmsTemplate(id: string): Promise<ActionResult<void>> {
   try {
+    validateUUID(id, 'SMS template ID')
     const { supabase, userId } = await getAuthenticatedClient()
 
     const { error } = await supabase

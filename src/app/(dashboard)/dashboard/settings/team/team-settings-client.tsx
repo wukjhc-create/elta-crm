@@ -8,9 +8,8 @@ import {
   inviteTeamMember,
   cancelInvitation,
   resendInvitation,
-  type Profile,
-  type TeamInvitation,
 } from '@/lib/actions/settings'
+import type { Profile, TeamInvitation } from '@/types/settings.types'
 import { formatTimeAgo } from '@/lib/utils/format'
 import {
   User,

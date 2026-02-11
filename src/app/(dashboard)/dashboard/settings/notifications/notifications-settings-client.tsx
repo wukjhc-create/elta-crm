@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
-import { saveNotificationPreferences, type NotificationPreferences } from '@/lib/actions/settings'
+import { saveNotificationPreferences } from '@/lib/actions/settings'
+import type { NotificationPreferences } from '@/types/settings.types'
 import { Bell, Mail, MessageSquare, FileText, Users, Save, Loader2, Info } from 'lucide-react'
 
 interface PreferenceConfig {

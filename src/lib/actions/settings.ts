@@ -8,27 +8,7 @@ import type {
   UpdateCompanySettingsInput,
 } from '@/types/company-settings.types'
 import type { ActionResult } from '@/types/common.types'
-
-// Profile types
-export interface Profile {
-  id: string
-  email: string
-  full_name: string | null
-  avatar_url: string | null
-  role: string
-  phone: string | null
-  department: string | null
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface UpdateProfileInput {
-  full_name?: string
-  phone?: string
-  department?: string
-  avatar_url?: string
-}
+import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
@@ -531,16 +511,6 @@ export async function updateTeamMember(
 // Team Invitations
 // =====================================================
 
-export interface TeamInvitation {
-  id: string
-  email: string
-  role: string
-  invited_by: string
-  invited_by_name: string | null
-  created_at: string
-  status: 'pending' | 'accepted' | 'expired'
-}
-
 export async function inviteTeamMember(
   email: string,
   role: string = 'user',
@@ -676,10 +646,6 @@ export async function cancelInvitation(invitationId: string): Promise<ActionResu
 // ============================================
 // Notification Preferences
 // ============================================
-
-export interface NotificationPreferences {
-  [key: string]: { email: boolean; push: boolean }
-}
 
 export async function getNotificationPreferences(): Promise<ActionResult<NotificationPreferences>> {
   try {

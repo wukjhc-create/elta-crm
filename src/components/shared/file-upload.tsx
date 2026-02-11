@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { Upload, X, File, Loader2, Trash2, Download, AlertCircle } from 'lucide-react'
-import { uploadFile, deleteFile, getFiles, type UploadedFile } from '@/lib/actions/files'
+import { uploadFile, deleteFile, getFiles } from '@/lib/actions/files'
+import type { UploadedFile } from '@/types/files.types'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from '@/lib/constants'
 import { formatBytes } from '@/lib/utils/format'
 

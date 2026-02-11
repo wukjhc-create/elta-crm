@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, User, Users, FileText, FolderKanban, X } from 'lucide-react'
-import { globalSearch, type SearchResult, type SearchResultType } from '@/lib/actions/search'
+import { globalSearch } from '@/lib/actions/search'
+import type { SearchResult, SearchResultType } from '@/types/search.types'
 
 const typeConfig: Record<SearchResultType, { icon: typeof User; label: string; color: string }> = {
   lead: { icon: User, label: 'Lead', color: 'text-blue-600 bg-blue-50' },
