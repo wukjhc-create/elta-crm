@@ -1,4 +1,4 @@
-import { getGlobalFactors } from '@/lib/actions/kalkia'
+import { getGlobalFactors } from '@/lib/actions/kalkia-settings'
 import GlobalFactorsClient from './global-factors-client'
 
 export const metadata = {

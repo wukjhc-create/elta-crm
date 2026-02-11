@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getKalkiaNode } from '@/lib/actions/kalkia'
+import { getKalkiaNode } from '@/lib/actions/kalkia-nodes'
 import { getComponentCategories } from '@/lib/actions/components'
 import KalkiaNodeDetailClient from './kalkia-node-detail-client'
 

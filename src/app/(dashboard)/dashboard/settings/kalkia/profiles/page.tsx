@@ -1,4 +1,4 @@
-import { getBuildingProfiles } from '@/lib/actions/kalkia'
+import { getBuildingProfiles } from '@/lib/actions/kalkia-settings'
 import BuildingProfilesClient from './building-profiles-client'
 
 export const metadata = {

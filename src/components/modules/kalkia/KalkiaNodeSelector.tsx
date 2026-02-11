@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { searchKalkiaNodes } from '@/lib/actions/kalkia'
+import { searchKalkiaNodes } from '@/lib/actions/kalkia-nodes'
 import { formatTimeSeconds } from '@/lib/utils/format'
 import type { KalkiaNodeSummary, KalkiaCalculationItemInput } from '@/types/kalkia.types'
 

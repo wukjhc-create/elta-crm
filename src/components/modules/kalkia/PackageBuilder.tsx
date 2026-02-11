@@ -41,7 +41,7 @@ import { CalibrationPresetPicker } from './CalibrationPresetPicker'
 import { CalculationPreview, type CalculationItem, type ItemOverrides } from './CalculationPreview'
 import { CreateOfferModal } from './CreateOfferModal'
 import { MaterialSummary } from './MaterialSummary'
-import { getBuildingProfiles } from '@/lib/actions/kalkia'
+import { getBuildingProfiles } from '@/lib/actions/kalkia-settings'
 import type { CalibrationPreset } from '@/types/quick-jobs.types'
 import type {
   KalkiaBuildingProfile,

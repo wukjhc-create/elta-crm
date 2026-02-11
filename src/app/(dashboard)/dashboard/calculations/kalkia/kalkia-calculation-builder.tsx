@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/toast'
 import { PackageBuilder } from '@/components/modules/kalkia'
 import type { CalculationItem } from '@/components/modules/kalkia'
 import type { CalculationResult } from '@/types/kalkia.types'
-import { savePackageBuilderCalculation, cloneCalculationAsTemplate } from '@/lib/actions/kalkia'
+import { savePackageBuilderCalculation, cloneCalculationAsTemplate } from '@/lib/actions/kalkia-calculations'
 
 export default function KalkiaCalculationBuilder() {
   const router = useRouter()

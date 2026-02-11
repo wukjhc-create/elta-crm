@@ -14,7 +14,8 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { getBuildingProfiles, getGlobalFactors, getKalkiaNodes } from '@/lib/actions/kalkia'
+import { getKalkiaNodes } from '@/lib/actions/kalkia-nodes'
+import { getBuildingProfiles, getGlobalFactors } from '@/lib/actions/kalkia-settings'
 import { getRoomTypes, getMaterials, getOfferTextTemplates } from '@/lib/actions/component-intelligence'
 
 export const metadata = {

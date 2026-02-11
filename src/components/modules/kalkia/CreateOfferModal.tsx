@@ -28,7 +28,7 @@ import {
 import { useToast } from '@/components/ui/toast'
 import { formatCurrency } from '@/lib/utils/format'
 import { getCustomersForSelect } from '@/lib/actions/offers'
-import { createOfferFromCalculation } from '@/lib/actions/kalkia'
+import { createOfferFromCalculation } from '@/lib/actions/kalkia-calculations'
 import type { CalculationItem } from './CalculationPreview'
 import type { CalculationResult } from '@/types/kalkia.types'
 

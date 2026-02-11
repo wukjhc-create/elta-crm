@@ -51,7 +51,7 @@ import {
   unlinkMaterialFromSupplierProduct,
   getSupplierOptionsForMaterial,
   syncMaterialPricesFromSupplier,
-} from '@/lib/actions/kalkia'
+} from '@/lib/actions/kalkia-supplier-prices'
 import { formatTimeSeconds, formatCurrency } from '@/lib/utils/format'
 
 // Extended variant type with materials from server

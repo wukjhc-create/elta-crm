@@ -1,4 +1,4 @@
-import { getKalkiaNodes } from '@/lib/actions/kalkia'
+import { getKalkiaNodes } from '@/lib/actions/kalkia-nodes'
 import { getComponentCategories } from '@/lib/actions/components'
 import KalkiaNodesClient from './kalkia-nodes-client'
 
