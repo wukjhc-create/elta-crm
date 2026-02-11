@@ -3,6 +3,7 @@
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Types
@@ -109,7 +110,7 @@ export async function getPriceChangeAlerts(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching price alerts:', error)
+      logger.error('Database error fetching price alerts', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -225,7 +226,7 @@ export async function getAffectedOffers(
       .in('offers.status', ['draft', 'sent', 'pending'])
 
     if (liError) {
-      console.error('Database error fetching affected offers:', liError)
+      logger.error('Database error fetching affected offers', { error: liError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -347,7 +348,7 @@ export async function getPriceTrends(
       .limit(options?.limit || 100)
 
     if (prodError) {
-      console.error('Database error fetching products:', prodError)
+      logger.error('Database error fetching products', { error: prodError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -449,7 +450,7 @@ export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPric
       .eq('is_active', true)
 
     if (supplierError) {
-      console.error('Database error fetching suppliers:', supplierError)
+      logger.error('Database error fetching suppliers', { error: supplierError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -598,7 +599,7 @@ export async function getProductPriceHistory(
       .limit(options?.limit || 50)
 
     if (error) {
-      console.error('Database error fetching price history:', error)
+      logger.error('Database error fetching price history', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

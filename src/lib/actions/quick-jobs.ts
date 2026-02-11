@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { QuickJob, CalibrationPreset } from '@/types/quick-jobs.types'
 import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -36,7 +37,7 @@ export async function getQuickJobs(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching quick jobs:', error)
+      logger.error('Database error fetching quick jobs', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -60,7 +61,7 @@ export async function getQuickJob(id: string): Promise<ActionResult<QuickJob>> {
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Job ikke fundet' }
       }
-      console.error('Database error fetching quick job:', error)
+      logger.error('Database error fetching quick job', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -87,7 +88,7 @@ export async function incrementQuickJobUsage(id: string): Promise<ActionResult<v
     return { success: true }
   } catch (err) {
     // Non-critical, don't fail
-    console.error('Could not increment usage:', err)
+    logger.error('Could not increment usage', { error: err })
     return { success: true }
   }
 }
@@ -109,7 +110,7 @@ export async function getCalibrationPresets(): Promise<ActionResult<CalibrationP
       .order('name')
 
     if (error) {
-      console.error('Database error fetching calibration presets:', error)
+      logger.error('Database error fetching calibration presets', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -133,7 +134,7 @@ export async function getCalibrationPreset(id: string): Promise<ActionResult<Cal
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Profil ikke fundet' }
       }
-      console.error('Database error fetching calibration preset:', error)
+      logger.error('Database error fetching calibration preset', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -158,7 +159,7 @@ export async function getDefaultCalibrationPreset(): Promise<ActionResult<Calibr
       if (error.code === 'PGRST116') {
         return { success: true, data: null }
       }
-      console.error('Database error fetching default preset:', error)
+      logger.error('Database error fetching default preset', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -200,7 +201,7 @@ export async function createCalibrationPreset(input: {
       .single()
 
     if (error) {
-      console.error('Database error creating calibration preset:', error)
+      logger.error('Database error creating calibration preset', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -238,7 +239,7 @@ export async function updateCalibrationPreset(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Profil ikke fundet' }
       }
-      console.error('Database error updating calibration preset:', error)
+      logger.error('Database error updating calibration preset', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -259,7 +260,7 @@ export async function deleteCalibrationPreset(id: string): Promise<ActionResult<
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting calibration preset:', error)
+      logger.error('Database error deleting calibration preset', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

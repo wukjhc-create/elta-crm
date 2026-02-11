@@ -20,6 +20,7 @@ import type {
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
   try {
@@ -92,12 +93,12 @@ export async function getCalculations(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting calculations:', countResult.error)
+      logger.error('Database error counting calculations', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching calculations:', dataResult.error)
+      logger.error('Database error fetching calculations', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -145,7 +146,7 @@ export async function getCalculation(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kalkulationen blev ikke fundet' }
       }
-      console.error('Database error fetching calculation:', error)
+      logger.error('Database error fetching calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -222,7 +223,7 @@ export async function createCalculation(
       .single()
 
     if (error) {
-      console.error('Database error creating calculation:', error)
+      logger.error('Database error creating calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -299,7 +300,7 @@ export async function updateCalculation(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kalkulationen blev ikke fundet' }
       }
-      console.error('Database error updating calculation:', error)
+      logger.error('Database error updating calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -322,7 +323,7 @@ export async function deleteCalculation(id: string): Promise<ActionResult> {
       if (error.code === '23503') {
         return { success: false, error: 'Kalkulationen kan ikke slettes da den bruges i tilbud' }
       }
-      console.error('Database error deleting calculation:', error)
+      logger.error('Database error deleting calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -353,7 +354,7 @@ export async function duplicateCalculation(
       if (fetchError.code === 'PGRST116') {
         return { success: false, error: 'Kalkulationen blev ikke fundet' }
       }
-      console.error('Database error fetching calculation to duplicate:', fetchError)
+      logger.error('Database error fetching calculation to duplicate', { error: fetchError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -386,7 +387,7 @@ export async function duplicateCalculation(
       .single()
 
     if (createError) {
-      console.error('Database error creating duplicate calculation:', createError)
+      logger.error('Database error creating duplicate calculation', { error: createError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -421,7 +422,7 @@ export async function duplicateCalculation(
         .insert(newRows)
 
       if (rowsError) {
-        console.error('Error copying calculation rows:', rowsError)
+        logger.error('Error copying calculation rows', { error: rowsError })
         // Don't fail the whole operation, just warn
       }
     }
@@ -446,7 +447,7 @@ export async function getCalculationsForSelect(): Promise<
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Database error fetching calculations for select:', error)
+      logger.error('Database error fetching calculations for select', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -478,7 +479,7 @@ export async function getCalculationRows(
       .order('position')
 
     if (error) {
-      console.error('Database error fetching calculation rows:', error)
+      logger.error('Database error fetching calculation rows', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -559,7 +560,7 @@ export async function createCalculationRow(
       if (error.code === '23503') {
         return { success: false, error: 'Ugyldig kalkulation, produkt eller leverandør reference' }
       }
-      console.error('Database error creating calculation row:', error)
+      logger.error('Database error creating calculation row', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -648,7 +649,7 @@ export async function updateCalculationRow(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Linjen blev ikke fundet' }
       }
-      console.error('Database error updating calculation row:', error)
+      logger.error('Database error updating calculation row', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -671,7 +672,7 @@ export async function deleteCalculationRow(
     const { error } = await supabase.from('calculation_rows').delete().eq('id', id)
 
     if (error) {
-      console.error('Database error deleting calculation row:', error)
+      logger.error('Database error deleting calculation row', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -708,7 +709,7 @@ export async function addProductToCalculation(
       if (productError.code === 'PGRST116') {
         return { success: false, error: 'Produktet blev ikke fundet' }
       }
-      console.error('Database error fetching product:', productError)
+      logger.error('Database error fetching product', { error: productError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -748,7 +749,7 @@ export async function addProductToCalculation(
       .single()
 
     if (error) {
-      console.error('Database error adding product to calculation:', error)
+      logger.error('Database error adding product to calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -786,7 +787,7 @@ export async function reorderCalculationRows(
 
     const failed = results.find((r) => r.error)
     if (failed?.error) {
-      console.error('Database error reordering calculation row:', failed.error)
+      logger.error('Database error reordering calculation row', { error: failed.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -822,7 +823,7 @@ export async function updateCalculationROI(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kalkulationen blev ikke fundet' }
       }
-      console.error('Database error updating calculation ROI:', error)
+      logger.error('Database error updating calculation ROI', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -889,7 +890,7 @@ export async function createQuickCalculation(
       .in('code', uniqueCodes)
 
     if (compError) {
-      console.error('Database error fetching components:', compError)
+      logger.error('Database error fetching components', { error: compError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -913,7 +914,7 @@ export async function createQuickCalculation(
       .single()
 
     if (calcError) {
-      console.error('Database error creating calculation:', calcError)
+      logger.error('Database error creating calculation', { error: calcError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -1010,7 +1011,7 @@ export async function createQuickCalculation(
         .insert(rows)
 
       if (rowsError) {
-        console.error('Error inserting calculation rows:', rowsError)
+        logger.error('Error inserting calculation rows', { error: rowsError })
         // Don't fail completely, but log the error
       }
     }

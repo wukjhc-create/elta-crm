@@ -3,6 +3,7 @@
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
 import type { SearchResultType, SearchResult, SearchResponse } from '@/types/search.types'
+import { logger } from '@/lib/utils/logger'
 
 export async function globalSearch(query: string): Promise<SearchResponse> {
   if (!query || query.trim().length < 2) {
@@ -95,7 +96,7 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
 
     return { success: true, results, counts }
   } catch (error) {
-    console.error('Search error:', error)
+    logger.error('Search error', { error: error })
     return { success: false, error: 'Søgning fejlede' }
   }
 }

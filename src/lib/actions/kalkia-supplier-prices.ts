@@ -6,6 +6,7 @@ import type { KalkiaVariantMaterial } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { CALC_DEFAULTS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Supplier Integration for Materials
@@ -62,7 +63,7 @@ export async function linkMaterialToSupplierProduct(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Materiale ikke fundet' }
       }
-      console.error('Database error linking material to supplier product:', error)
+      logger.error('Database error linking material to supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -97,7 +98,7 @@ export async function unlinkMaterialFromSupplierProduct(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Materiale ikke fundet' }
       }
-      console.error('Database error unlinking material from supplier product:', error)
+      logger.error('Database error unlinking material from supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -154,7 +155,7 @@ export async function getSupplierOptionsForMaterial(
       .limit(20)
 
     if (error) {
-      console.error('Database error fetching supplier options:', error)
+      logger.error('Database error fetching supplier options', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -201,7 +202,7 @@ export async function syncMaterialPricesFromSupplier(
       .not('supplier_product_id', 'is', null)
 
     if (materialsError) {
-      console.error('Database error fetching materials:', materialsError)
+      logger.error('Database error fetching materials', { error: materialsError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -218,7 +219,7 @@ export async function syncMaterialPricesFromSupplier(
       .in('id', supplierProductIds)
 
     if (spError) {
-      console.error('Database error fetching supplier products:', spError)
+      logger.error('Database error fetching supplier products', { error: spError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -413,7 +414,7 @@ export async function loadSupplierPricesForVariant(
       .not('supplier_product_id', 'is', null)
 
     if (materialsError) {
-      console.error('Database error loading materials:', materialsError)
+      logger.error('Database error loading materials', { error: materialsError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -430,7 +431,7 @@ export async function loadSupplierPricesForVariant(
       .in('id', supplierProductIds)
 
     if (spError) {
-      console.error('Database error loading supplier products:', spError)
+      logger.error('Database error loading supplier products', { error: spError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -591,7 +592,7 @@ export async function loadSupplierPricesForCalculation(
       .not('variant_id', 'is', null)
 
     if (rowsError) {
-      console.error('Database error loading calculation rows:', rowsError)
+      logger.error('Database error loading calculation rows', { error: rowsError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -673,7 +674,7 @@ export async function refreshSupplierPricesForCalculation(
       .not('variant_id', 'is', null)
 
     if (rowsError) {
-      console.error('Database error fetching calculation rows:', rowsError)
+      logger.error('Database error fetching calculation rows', { error: rowsError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -710,7 +711,7 @@ export async function refreshSupplierPricesForCalculation(
       .not('supplier_product_id', 'is', null)
 
     if (materialsError) {
-      console.error('Database error loading materials:', materialsError)
+      logger.error('Database error loading materials', { error: materialsError })
       throw new Error('DATABASE_ERROR')
     }
 

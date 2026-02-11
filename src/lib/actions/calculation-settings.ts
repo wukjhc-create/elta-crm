@@ -12,6 +12,7 @@ import type {
 import { validateUUID } from '@/lib/validations/common'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { DEFAULT_TAX_RATE, DEFAULT_CURRENCY, OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 // =====================================================
 // CALCULATION SETTINGS
 // =====================================================
@@ -26,7 +27,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
       .order('setting_key')
 
     if (error) {
-      console.error('Database error fetching calculation settings:', error)
+      logger.error('Database error fetching calculation settings', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -139,7 +140,7 @@ export async function getAllSettings(): Promise<ActionResult<CalculationSetting[
       .order('setting_key')
 
     if (error) {
-      console.error('Database error fetching all settings:', error)
+      logger.error('Database error fetching all settings', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -174,7 +175,7 @@ export async function updateSetting(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Indstillingen blev ikke fundet' }
       }
-      console.error('Database error updating setting:', error)
+      logger.error('Database error updating setting', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -254,7 +255,7 @@ export async function getProjectTemplates(): Promise<ActionResult<ProjectTemplat
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching project templates:', error)
+      logger.error('Database error fetching project templates', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -279,7 +280,7 @@ export async function getProjectTemplate(id: string): Promise<ActionResult<Proje
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Skabelonen blev ikke fundet' }
       }
-      console.error('Database error fetching project template:', error)
+      logger.error('Database error fetching project template', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -308,7 +309,7 @@ export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching room types:', error)
+      logger.error('Database error fetching room types', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -336,7 +337,7 @@ export async function getRoomType(code: string): Promise<ActionResult<RoomType>>
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Rumtypen blev ikke fundet' }
       }
-      console.error('Database error fetching room type:', error)
+      logger.error('Database error fetching room type', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -365,7 +366,7 @@ export async function calculateTotals(calculationId: string): Promise<ActionResu
       .single()
 
     if (error) {
-      console.error('Database error calculating totals:', error)
+      logger.error('Database error calculating totals', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -403,7 +404,7 @@ export async function calculateTotals(calculationId: string): Promise<ActionResu
       .eq('id', calculationId)
 
     if (updateError) {
-      console.error('Database error updating calculation totals:', updateError)
+      logger.error('Database error updating calculation totals', { error: updateError })
       // Don't throw - we still have valid results
     }
 
@@ -461,7 +462,7 @@ export async function getComponentsWithPricing(): Promise<ActionResult<{
       .order('code')
 
     if (error) {
-      console.error('Database error fetching components with pricing:', error)
+      logger.error('Database error fetching components with pricing', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -478,7 +479,7 @@ export async function getComponentsWithPricing(): Promise<ActionResult<{
       .order('sort_order')
 
     if (varError) {
-      console.error('Database error fetching variants:', varError)
+      logger.error('Database error fetching variants', { error: varError })
     }
 
     // Create lookup map for variants by component

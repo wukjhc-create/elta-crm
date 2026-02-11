@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { SupplierAPIClientFactory } from '@/lib/services/supplier-api-client'
 import { BATCH_CONFIG } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 // Vercel cron secret for authentication
 const CRON_SECRET = process.env.CRON_SECRET
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
       .eq('suppliers.is_active', true)
 
     if (scheduleError) {
-      console.error('Error fetching schedules:', scheduleError)
+      logger.error('Error fetching schedules', { error: scheduleError })
       return NextResponse.json({ error: 'Failed to fetch schedules' }, { status: 500 })
     }
 
@@ -185,7 +186,7 @@ export async function GET(request: Request) {
               // Batch insert price history records
               if (priceHistoryBatch.length > 0) {
                 const { error: historyError } = await supabase.from('price_history').insert(priceHistoryBatch)
-                if (historyError) console.error('Price history insert error:', historyError)
+                if (historyError) logger.error('Price history insert error', { error: historyError })
               }
             } catch (batchError) {
               errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${batchError instanceof Error ? batchError.message : 'Unknown error'}`)
@@ -279,7 +280,7 @@ export async function GET(request: Request) {
       results,
     })
   } catch (error) {
-    console.error('Cron job error:', error)
+    logger.error('Cron job error', { error })
     return NextResponse.json(
       {
         error: 'Internal server error',

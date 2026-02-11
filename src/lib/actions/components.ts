@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import { validateUUID } from '@/lib/validations/common'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Types
@@ -98,7 +99,7 @@ export async function getComponentCategories(): Promise<ActionResult<ComponentCa
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching component categories:', error)
+      logger.error('Database error fetching component categories', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -126,7 +127,7 @@ export async function getComponents(): Promise<ActionResult<Component[]>> {
       .order('name')
 
     if (error) {
-      console.error('Database error fetching components:', error)
+      logger.error('Database error fetching components', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -157,7 +158,7 @@ export async function getComponentsByCategory(categorySlug?: string): Promise<Ac
         .single()
 
       if (catError && catError.code !== 'PGRST116') {
-        console.error('Database error fetching category:', catError)
+        logger.error('Database error fetching category', { error: catError })
         throw new Error('DATABASE_ERROR')
       }
 
@@ -172,7 +173,7 @@ export async function getComponentsByCategory(categorySlug?: string): Promise<Ac
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching components:', error)
+      logger.error('Database error fetching components', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -205,7 +206,7 @@ export async function getComponentWithDetails(id: string): Promise<ActionResult<
       if (compError.code === 'PGRST116') {
         return { success: false, error: 'Komponenten blev ikke fundet' }
       }
-      console.error('Database error fetching component:', compError)
+      logger.error('Database error fetching component', { error: compError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -221,7 +222,7 @@ export async function getComponentWithDetails(id: string): Promise<ActionResult<
       .order('sort_order')
 
     if (varError) {
-      console.error('Database error fetching variants:', varError)
+      logger.error('Database error fetching variants', { error: varError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -233,7 +234,7 @@ export async function getComponentWithDetails(id: string): Promise<ActionResult<
       .order('sort_order')
 
     if (matError) {
-      console.error('Database error fetching materials:', matError)
+      logger.error('Database error fetching materials', { error: matError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -281,7 +282,7 @@ export async function updateComponent(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Komponenten blev ikke fundet' }
       }
-      console.error('Database error updating component:', error)
+      logger.error('Database error updating component', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -328,7 +329,7 @@ export async function createVariant(
       .limit(1)
 
     if (orderError) {
-      console.error('Database error fetching sort order:', orderError)
+      logger.error('Database error fetching sort order', { error: orderError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -342,7 +343,7 @@ export async function createVariant(
         .eq('component_id', componentId)
 
       if (updateError) {
-        console.error('Database error updating defaults:', updateError)
+        logger.error('Database error updating defaults', { error: updateError })
         throw new Error('DATABASE_ERROR')
       }
     }
@@ -368,7 +369,7 @@ export async function createVariant(
       if (error.code === '23505') {
         return { success: false, error: 'En variant med dette navn findes allerede' }
       }
-      console.error('Database error creating variant:', error)
+      logger.error('Database error creating variant', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -408,7 +409,7 @@ export async function updateVariant(
         .neq('id', id)
 
       if (updateError) {
-        console.error('Database error updating defaults:', updateError)
+        logger.error('Database error updating defaults', { error: updateError })
         throw new Error('DATABASE_ERROR')
       }
     }
@@ -424,7 +425,7 @@ export async function updateVariant(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Varianten blev ikke fundet' }
       }
-      console.error('Database error updating variant:', error)
+      logger.error('Database error updating variant', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -451,7 +452,7 @@ export async function deleteVariant(id: string, componentId: string): Promise<Ac
       if (error.code === '23503') {
         return { success: false, error: 'Varianten kan ikke slettes da den bruges i kalkulationer' }
       }
-      console.error('Database error deleting variant:', error)
+      logger.error('Database error deleting variant', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -496,7 +497,7 @@ export async function createMaterial(
       .limit(1)
 
     if (orderError) {
-      console.error('Database error fetching sort order:', orderError)
+      logger.error('Database error fetching sort order', { error: orderError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -519,7 +520,7 @@ export async function createMaterial(
       .single()
 
     if (error) {
-      console.error('Database error creating material:', error)
+      logger.error('Database error creating material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -560,7 +561,7 @@ export async function updateMaterial(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Materialet blev ikke fundet' }
       }
-      console.error('Database error updating material:', error)
+      logger.error('Database error updating material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -584,7 +585,7 @@ export async function deleteMaterial(id: string, componentId: string): Promise<A
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting material:', error)
+      logger.error('Database error deleting material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -612,7 +613,7 @@ export async function getVariantMaterials(variantId: string): Promise<ActionResu
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching variant materials:', error)
+      logger.error('Database error fetching variant materials', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -653,7 +654,7 @@ export async function createVariantMaterial(
       .limit(1)
 
     if (orderError) {
-      console.error('Database error fetching sort order:', orderError)
+      logger.error('Database error fetching sort order', { error: orderError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -676,7 +677,7 @@ export async function createVariantMaterial(
       .single()
 
     if (error) {
-      console.error('Database error creating variant material:', error)
+      logger.error('Database error creating variant material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -700,7 +701,7 @@ export async function deleteVariantMaterial(id: string, componentId: string): Pr
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting variant material:', error)
+      logger.error('Database error deleting variant material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -763,7 +764,7 @@ export async function getCalcComponentsBrowse(
       .limit(limit)
 
     if (error) {
-      console.error('Database error fetching browse components:', error)
+      logger.error('Database error fetching browse components', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -797,7 +798,7 @@ export async function searchCalcComponents(
       .limit(limit)
 
     if (error) {
-      console.error('Database error searching components:', error)
+      logger.error('Database error searching components', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -848,7 +849,7 @@ export async function getCalcComponentForCalculation(
       if (compError.code === 'PGRST116') {
         return { success: false, error: 'Komponenten blev ikke fundet' }
       }
-      console.error('Database error fetching component:', compError)
+      logger.error('Database error fetching component', { error: compError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -862,7 +863,7 @@ export async function getCalcComponentForCalculation(
       .order('sort_order')
 
     if (varError) {
-      console.error('Database error fetching variants:', varError)
+      logger.error('Database error fetching variants', { error: varError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -874,7 +875,7 @@ export async function getCalcComponentForCalculation(
       .order('sort_order')
 
     if (matError) {
-      console.error('Database error fetching materials:', matError)
+      logger.error('Database error fetching materials', { error: matError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -887,7 +888,7 @@ export async function getCalcComponentForCalculation(
       .order('sort_order')
 
     if (ruleError) {
-      console.error('Database error fetching labor rules:', ruleError)
+      logger.error('Database error fetching labor rules', { error: ruleError })
       throw new Error('DATABASE_ERROR')
     }
 

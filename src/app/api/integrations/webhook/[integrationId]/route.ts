@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 /**
  * INBOUND WEBHOOK ENDPOINT
@@ -251,7 +252,7 @@ export async function POST(
       message: processed ? 'Webhook processed' : 'Webhook received',
     })
   } catch (error) {
-    console.error('Webhook processing error:', error)
+    logger.error('Webhook processing error', { error })
 
     // Try to log the error
     try {

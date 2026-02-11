@@ -11,6 +11,7 @@ import type {
 } from '@/types/offer-activities.types'
 import type { ActionResult } from '@/types/common.types'
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/utils/logger'
 
 // Log an activity for an offer
 // Uses optional auth because this is called from both
@@ -45,7 +46,7 @@ export async function logOfferActivity(
       .single()
 
     if (error) {
-      console.error('Error logging offer activity:', error)
+      logger.error('Error logging offer activity', { error: error })
       return { success: false, error: 'Kunne ikke logge aktivitet' }
     }
 
@@ -73,7 +74,7 @@ export async function getOfferActivities(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching offer activities:', error)
+      logger.error('Error fetching offer activities', { error: error })
       return { success: false, error: 'Kunne ikke hente aktiviteter' }
     }
 
@@ -111,7 +112,7 @@ export async function logOfferActivities(
       .insert(activityRecords)
 
     if (error) {
-      console.error('Error logging offer activities:', error)
+      logger.error('Error logging offer activities', { error: error })
       return { success: false, error: 'Kunne ikke logge aktiviteter' }
     }
 

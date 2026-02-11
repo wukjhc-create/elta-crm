@@ -15,6 +15,7 @@ import type {
 } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Kalkia Variants CRUD
@@ -41,7 +42,7 @@ export async function getKalkiaVariants(
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching kalkia variants:', error)
+      logger.error('Database error fetching kalkia variants', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -96,7 +97,7 @@ export async function createKalkiaVariant(
       if (error.code === '23505') {
         return { success: false, error: 'En variant med denne kode eksisterer allerede for denne node' }
       }
-      console.error('Database error creating kalkia variant:', error)
+      logger.error('Database error creating kalkia variant', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -170,7 +171,7 @@ export async function updateKalkiaVariant(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Varianten blev ikke fundet' }
       }
-      console.error('Database error updating kalkia variant:', error)
+      logger.error('Database error updating kalkia variant', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -192,7 +193,7 @@ export async function deleteKalkiaVariant(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting kalkia variant:', error)
+      logger.error('Database error deleting kalkia variant', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -238,7 +239,7 @@ export async function createKalkiaVariantMaterial(
       .single()
 
     if (error) {
-      console.error('Database error creating kalkia variant material:', error)
+      logger.error('Database error creating kalkia variant material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -292,7 +293,7 @@ export async function updateKalkiaVariantMaterial(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Materialet blev ikke fundet' }
       }
-      console.error('Database error updating kalkia variant material:', error)
+      logger.error('Database error updating kalkia variant material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -314,7 +315,7 @@ export async function deleteKalkiaVariantMaterial(id: string): Promise<ActionRes
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting kalkia variant material:', error)
+      logger.error('Database error deleting kalkia variant material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

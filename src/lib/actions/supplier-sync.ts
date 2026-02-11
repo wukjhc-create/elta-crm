@@ -6,6 +6,7 @@ import { SupplierAPIClientFactory, type ProductPrice } from '@/lib/services/supp
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { BATCH_CONFIG } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Types
@@ -453,7 +454,7 @@ export async function getProductPriceComparison(
           })
         }
       } catch (err) {
-        console.error(`Price comparison search failed for supplier ${supplier.code}:`, err)
+        logger.error(`Price comparison search failed for supplier ${supplier.code}`, { error: err })
       }
     }
 

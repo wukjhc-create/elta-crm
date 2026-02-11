@@ -23,6 +23,7 @@ import type {
   UploadAttachmentResult,
 } from '@/types/portal.types'
 import type { ActionResult } from '@/types/common.types'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Portal Token Management (for employees)
@@ -55,14 +56,14 @@ export async function createPortalToken(
       .single()
 
     if (error) {
-      console.error('Error creating portal token:', error)
+      logger.error('Error creating portal token', { error: error })
       return { success: false, error: 'Kunne ikke oprette portal-adgang' }
     }
 
     revalidatePath('/customers')
     return { success: true, data: tokenData as PortalAccessToken }
   } catch (error) {
-    console.error('Error in createPortalToken:', error)
+    logger.error('Error in createPortalToken', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -81,13 +82,13 @@ export async function getPortalTokens(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching portal tokens:', error)
+      logger.error('Error fetching portal tokens', { error: error })
       return { success: false, error: 'Kunne ikke hente portal-adgange' }
     }
 
     return { success: true, data: data as PortalAccessToken[] }
   } catch (error) {
-    console.error('Error in getPortalTokens:', error)
+    logger.error('Error in getPortalTokens', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -105,14 +106,14 @@ export async function deactivatePortalToken(
       .eq('id', tokenId)
 
     if (error) {
-      console.error('Error deactivating token:', error)
+      logger.error('Error deactivating token', { error: error })
       return { success: false, error: 'Kunne ikke deaktivere adgang' }
     }
 
     revalidatePath('/customers')
     return { success: true }
   } catch (error) {
-    console.error('Error in deactivatePortalToken:', error)
+    logger.error('Error in deactivatePortalToken', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -168,7 +169,7 @@ export async function validatePortalToken(
 
     return { success: true, data: session }
   } catch (error) {
-    console.error('Error in validatePortalToken:', error)
+    logger.error('Error in validatePortalToken', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -195,7 +196,7 @@ export async function getPortalOffers(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching portal offers:', error)
+      logger.error('Error fetching portal offers', { error: error })
       return { success: false, error: 'Kunne ikke hente tilbud' }
     }
 
@@ -267,7 +268,7 @@ export async function getPortalOffers(
 
     return { success: true, data: offersWithItems }
   } catch (error) {
-    console.error('Error in getPortalOffers:', error)
+    logger.error('Error in getPortalOffers', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -295,7 +296,7 @@ export async function getPortalOffer(
       .single()
 
     if (error || !offer) {
-      console.error('Error fetching offer:', error)
+      logger.error('Error fetching offer', { error: error })
       return { success: false, error: 'Tilbud ikke fundet' }
     }
 
@@ -322,7 +323,7 @@ export async function getPortalOffer(
       const payload = await buildOfferWebhookPayload(offerId, 'offer.viewed')
       if (payload) {
         triggerWebhooks('offer.viewed', payload).catch(err => {
-          console.error('Error triggering webhooks:', err)
+          logger.error('Error triggering webhooks', { error: err })
         })
       }
     }
@@ -372,7 +373,7 @@ export async function getPortalOffer(
 
     return { success: true, data: portalOffer }
   } catch (error) {
-    console.error('Error in getPortalOffer:', error)
+    logger.error('Error in getPortalOffer', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -430,7 +431,7 @@ export async function acceptOffer(
       })
 
     if (signatureError) {
-      console.error('Error creating signature:', signatureError)
+      logger.error('Error creating signature', { error: signatureError })
       return { success: false, error: 'Kunne ikke gemme underskrift' }
     }
 
@@ -444,7 +445,7 @@ export async function acceptOffer(
       .eq('id', data.offer_id)
 
     if (updateError) {
-      console.error('Error updating offer:', updateError)
+      logger.error('Error updating offer', { error: updateError })
       return { success: false, error: 'Kunne ikke opdatere tilbud' }
     }
 
@@ -475,7 +476,7 @@ export async function acceptOffer(
         { projectId: projectResult.data.id, projectNumber: projectResult.data.project_number }
       )
     } else {
-      console.error('Error auto-creating project:', projectResult.error)
+      logger.error('Error auto-creating project', { error: projectResult.error })
       // Don't fail the offer acceptance if project creation fails
     }
 
@@ -483,7 +484,7 @@ export async function acceptOffer(
     const payload = await buildOfferWebhookPayload(data.offer_id, 'offer.accepted')
     if (payload) {
       triggerWebhooks('offer.accepted', payload).catch(err => {
-        console.error('Error triggering webhooks:', err)
+        logger.error('Error triggering webhooks', { error: err })
       })
     }
 
@@ -492,7 +493,7 @@ export async function acceptOffer(
 
     return { success: true }
   } catch (error) {
-    console.error('Error in acceptOffer:', error)
+    logger.error('Error in acceptOffer', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -543,7 +544,7 @@ export async function rejectOffer(
       .eq('id', offerId)
 
     if (updateError) {
-      console.error('Error rejecting offer:', updateError)
+      logger.error('Error rejecting offer', { error: updateError })
       return { success: false, error: 'Kunne ikke afvise tilbud' }
     }
 
@@ -560,7 +561,7 @@ export async function rejectOffer(
     const payload = await buildOfferWebhookPayload(offerId, 'offer.rejected')
     if (payload) {
       triggerWebhooks('offer.rejected', payload).catch(err => {
-        console.error('Error triggering webhooks:', err)
+        logger.error('Error triggering webhooks', { error: err })
       })
     }
 
@@ -568,7 +569,7 @@ export async function rejectOffer(
 
     return { success: true }
   } catch (error) {
-    console.error('Error in rejectOffer:', error)
+    logger.error('Error in rejectOffer', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -609,13 +610,13 @@ export async function getPortalMessages(
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching portal messages:', error)
+      logger.error('Error fetching portal messages', { error: error })
       return { success: false, error: 'Kunne ikke hente beskeder' }
     }
 
     return { success: true, data: data as PortalMessageWithRelations[] }
   } catch (error) {
-    console.error('Error in getPortalMessages:', error)
+    logger.error('Error in getPortalMessages', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -654,13 +655,13 @@ export async function sendPortalMessage(
       .single()
 
     if (error) {
-      console.error('Error sending portal message:', error)
+      logger.error('Error sending portal message', { error: error })
       return { success: false, error: 'Kunne ikke sende besked' }
     }
 
     return { success: true, data: message as PortalMessage }
   } catch (error) {
-    console.error('Error in sendPortalMessage:', error)
+    logger.error('Error in sendPortalMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -697,7 +698,7 @@ export async function sendEmployeeMessage(
       .single()
 
     if (error) {
-      console.error('Error sending employee message:', error)
+      logger.error('Error sending employee message', { error: error })
       return { success: false, error: 'Kunne ikke sende besked' }
     }
 
@@ -705,7 +706,7 @@ export async function sendEmployeeMessage(
     revalidatePath('/offers')
     return { success: true, data: messageData as PortalMessage }
   } catch (error) {
-    console.error('Error in sendEmployeeMessage:', error)
+    logger.error('Error in sendEmployeeMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -731,13 +732,13 @@ export async function markPortalMessagesAsRead(
       .eq('sender_type', 'employee')
 
     if (error) {
-      console.error('Error marking messages as read:', error)
+      logger.error('Error marking messages as read', { error: error })
       return { success: false, error: 'Kunne ikke markere som læst' }
     }
 
     return { success: true }
   } catch (error) {
-    console.error('Error in markPortalMessagesAsRead:', error)
+    logger.error('Error in markPortalMessagesAsRead', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -762,13 +763,13 @@ export async function getUnreadPortalMessageCount(
     const { count, error } = await query
 
     if (error) {
-      console.error('Error fetching unread count:', error)
+      logger.error('Error fetching unread count', { error: error })
       return { success: false, error: 'Kunne ikke hente antal ulæste' }
     }
 
     return { success: true, data: count || 0 }
   } catch (error) {
-    console.error('Error in getUnreadPortalMessageCount:', error)
+    logger.error('Error in getUnreadPortalMessageCount', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -806,13 +807,13 @@ export async function getCustomerPortalMessages(
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching customer portal messages:', error)
+      logger.error('Error fetching customer portal messages', { error: error })
       return { success: false, error: 'Kunne ikke hente beskeder' }
     }
 
     return { success: true, data: data as PortalMessageWithRelations[] }
   } catch (error) {
-    console.error('Error in getCustomerPortalMessages:', error)
+    logger.error('Error in getCustomerPortalMessages', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -831,13 +832,13 @@ export async function markCustomerMessagesAsRead(
       .eq('sender_type', 'customer')
 
     if (error) {
-      console.error('Error marking customer messages as read:', error)
+      logger.error('Error marking customer messages as read', { error: error })
       return { success: false, error: 'Kunne ikke markere som læst' }
     }
 
     return { success: true }
   } catch (error) {
-    console.error('Error in markCustomerMessagesAsRead:', error)
+    logger.error('Error in markCustomerMessagesAsRead', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -907,7 +908,7 @@ export async function uploadPortalAttachment(
       })
 
     if (uploadError) {
-      console.error('Error uploading file:', uploadError)
+      logger.error('Error uploading file', { error: uploadError })
       return { success: false, error: 'Kunne ikke uploade fil' }
     }
 
@@ -927,7 +928,7 @@ export async function uploadPortalAttachment(
       },
     }
   } catch (error) {
-    console.error('Error in uploadPortalAttachment:', error)
+    logger.error('Error in uploadPortalAttachment', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -986,7 +987,7 @@ export async function uploadEmployeeAttachment(
       })
 
     if (uploadError) {
-      console.error('Error uploading file:', uploadError)
+      logger.error('Error uploading file', { error: uploadError })
       return { success: false, error: 'Kunne ikke uploade fil' }
     }
 
@@ -1006,7 +1007,7 @@ export async function uploadEmployeeAttachment(
       },
     }
   } catch (error) {
-    console.error('Error in uploadEmployeeAttachment:', error)
+    logger.error('Error in uploadEmployeeAttachment', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -1025,13 +1026,13 @@ export async function getAttachmentUrl(
       .createSignedUrl(path, 3600) // 1 hour
 
     if (error) {
-      console.error('Error getting signed URL:', error)
+      logger.error('Error getting signed URL', { error: error })
       return { success: false, error: 'Kunne ikke hente fil-URL' }
     }
 
     return { success: true, data: data.signedUrl }
   } catch (error) {
-    console.error('Error in getAttachmentUrl:', error)
+    logger.error('Error in getAttachmentUrl', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

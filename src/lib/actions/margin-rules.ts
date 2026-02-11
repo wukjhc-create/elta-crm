@@ -9,6 +9,7 @@ import type {
   MarginRuleType,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Margin Rules CRUD
 // =====================================================
@@ -31,7 +32,7 @@ export async function getSupplierMarginRules(
       .order('rule_type')
 
     if (error) {
-      console.error('Database error fetching margin rules:', error)
+      logger.error('Database error fetching margin rules', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -98,7 +99,7 @@ export async function createMarginRule(
       .single()
 
     if (error) {
-      console.error('Database error creating margin rule:', error)
+      logger.error('Database error creating margin rule', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -156,7 +157,7 @@ export async function updateMarginRule(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Marginregel ikke fundet' }
       }
-      console.error('Database error updating margin rule:', error)
+      logger.error('Database error updating margin rule', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -182,7 +183,7 @@ export async function deleteMarginRule(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting margin rule:', error)
+      logger.error('Database error deleting margin rule', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -222,7 +223,7 @@ export async function toggleMarginRule(id: string): Promise<ActionResult<Supplie
       .single()
 
     if (error) {
-      console.error('Database error toggling margin rule:', error)
+      logger.error('Database error toggling margin rule', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -271,7 +272,7 @@ export async function getEffectiveMargin(
     })
 
     if (error) {
-      console.error('Database error getting effective margin:', error)
+      logger.error('Database error getting effective margin', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -324,7 +325,7 @@ export async function calculateSalePrice(
     })
 
     if (error) {
-      console.error('Database error calculating sale price:', error)
+      logger.error('Database error calculating sale price', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -376,7 +377,7 @@ export async function setDefaultSupplierMargin(
         .single()
 
       if (error) {
-        console.error('Database error updating default margin:', error)
+        logger.error('Database error updating default margin', { error: error })
         throw new Error('DATABASE_ERROR')
       }
 
@@ -400,7 +401,7 @@ export async function setDefaultSupplierMargin(
         .single()
 
       if (error) {
-        console.error('Database error creating default margin:', error)
+        logger.error('Database error creating default margin', { error: error })
         throw new Error('DATABASE_ERROR')
       }
 
@@ -433,7 +434,7 @@ export async function getMarginRuleSummary(
       .eq('supplier_id', supplierId)
 
     if (error) {
-      console.error('Database error getting margin rule summary:', error)
+      logger.error('Database error getting margin rule summary', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

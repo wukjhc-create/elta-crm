@@ -12,6 +12,7 @@ import type {
 } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Kalkia Building Profiles
@@ -27,7 +28,7 @@ export async function getBuildingProfiles(): Promise<ActionResult<KalkiaBuilding
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching building profiles:', error)
+      logger.error('Database error fetching building profiles', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -83,7 +84,7 @@ export async function updateBuildingProfile(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Profilen blev ikke fundet' }
       }
-      console.error('Database error updating building profile:', error)
+      logger.error('Database error updating building profile', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -108,7 +109,7 @@ export async function getGlobalFactors(): Promise<ActionResult<KalkiaGlobalFacto
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching global factors:', error)
+      logger.error('Database error fetching global factors', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -163,7 +164,7 @@ export async function updateGlobalFactor(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Faktoren blev ikke fundet' }
       }
-      console.error('Database error updating global factor:', error)
+      logger.error('Database error updating global factor', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

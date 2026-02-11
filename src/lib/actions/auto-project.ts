@@ -22,6 +22,7 @@ import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/
 import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Types
@@ -112,7 +113,7 @@ export async function analyzeProjectDescription(
       .single()
 
     if (interpError) {
-      console.error('Failed to save interpretation:', interpError)
+      logger.error('Failed to save interpretation', { error: interpError })
       // Continue anyway, just won't be persisted
     }
 
@@ -143,7 +144,7 @@ export async function analyzeProjectDescription(
       .single()
 
     if (calcError) {
-      console.error('Failed to save calculation:', calcError)
+      logger.error('Failed to save calculation', { error: calcError })
     }
 
     const calculationId = savedCalc?.id || result.data.calculation.id
@@ -163,7 +164,7 @@ export async function analyzeProjectDescription(
       const { error: riskError } = await supabase.from('project_risks').insert(risksToInsert)
 
       if (riskError) {
-        console.error('Failed to save risks:', riskError)
+        logger.error('Failed to save risks', { error: riskError })
       }
     }
 
@@ -181,7 +182,7 @@ export async function analyzeProjectDescription(
       })
 
       if (offerError) {
-        console.error('Failed to save offer text:', offerError)
+        logger.error('Failed to save offer text', { error: offerError })
       }
     }
 

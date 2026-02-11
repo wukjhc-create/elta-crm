@@ -10,6 +10,7 @@ import type {
   CustomerEffectivePrice,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Customer-Supplier Price Agreements
 // =====================================================
@@ -28,7 +29,7 @@ export async function getCustomerSupplierPrices(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Database error fetching customer supplier prices:', error)
+      logger.error('Database error fetching customer supplier prices', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -59,7 +60,7 @@ export async function upsertCustomerSupplierPrice(
       .single()
 
     if (error) {
-      console.error('Database error upserting customer supplier price:', error)
+      logger.error('Database error upserting customer supplier price', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -83,7 +84,7 @@ export async function deleteCustomerSupplierPrice(
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting customer supplier price:', error)
+      logger.error('Database error deleting customer supplier price', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -119,7 +120,7 @@ export async function getCustomerProductPrices(
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching customer product prices:', error)
+      logger.error('Database error fetching customer product prices', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -163,7 +164,7 @@ export async function upsertCustomerProductPrice(
       .single()
 
     if (error) {
-      console.error('Database error upserting customer product price:', error)
+      logger.error('Database error upserting customer product price', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -194,7 +195,7 @@ export async function getCustomerEffectivePrice(
       })
 
     if (error) {
-      console.error('Database error getting effective price:', error)
+      logger.error('Database error getting effective price', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -235,7 +236,7 @@ export async function getBestPriceForCustomer(
       })
 
     if (error) {
-      console.error('Database error getting best price:', error)
+      logger.error('Database error getting best price', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

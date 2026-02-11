@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES, FILE_SIGNED_URL_EXPIRY_SECONDS } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
 import type { UploadedFile } from '@/types/files.types'
+import { logger } from '@/lib/utils/logger'
 
 // Validate file before upload
 function validateFile(file: File): { valid: boolean; error?: string } {
@@ -72,7 +73,7 @@ export async function uploadFile(
       })
 
     if (uploadError) {
-      console.error('Error uploading file:', uploadError)
+      logger.error('Error uploading file', { error: uploadError })
       return { success: false, error: 'Kunne ikke uploade filen' }
     }
 
@@ -102,14 +103,14 @@ export async function uploadFile(
     if (dbError) {
       // If DB insert fails, try to delete the uploaded file
       await supabase.storage.from('attachments').remove([filePath])
-      console.error('Error creating file record:', dbError)
+      logger.error('Error creating file record', { error: dbError })
       return { success: false, error: 'Kunne ikke registrere filen' }
     }
 
     revalidatePath(`/dashboard/${entityType}s/${entityId}`)
     return { success: true, data: fileRecord as UploadedFile }
   } catch (error) {
-    console.error('Error in uploadFile:', error)
+    logger.error('Error in uploadFile', { error: error })
     return { success: false, error: 'Der opstod en fejl ved upload' }
   }
 }
@@ -130,13 +131,13 @@ export async function getFiles(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching files:', error)
+      logger.error('Error fetching files', { error: error })
       return { success: false, error: 'Kunne ikke hente filer' }
     }
 
     return { success: true, data: data as UploadedFile[] }
   } catch (error) {
-    console.error('Error in getFiles:', error)
+    logger.error('Error in getFiles', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -163,7 +164,7 @@ export async function deleteFile(fileId: string): Promise<ActionResult> {
       .remove([file.path])
 
     if (storageError) {
-      console.error('Error deleting file from storage:', storageError)
+      logger.error('Error deleting file from storage', { error: storageError })
       // Continue to delete from DB even if storage delete fails
     }
 
@@ -174,7 +175,7 @@ export async function deleteFile(fileId: string): Promise<ActionResult> {
       .eq('id', fileId)
 
     if (dbError) {
-      console.error('Error deleting file record:', dbError)
+      logger.error('Error deleting file record', { error: dbError })
       return { success: false, error: 'Kunne ikke slette filen' }
     }
 
@@ -183,7 +184,7 @@ export async function deleteFile(fileId: string): Promise<ActionResult> {
     }
     return { success: true }
   } catch (error) {
-    console.error('Error in deleteFile:', error)
+    logger.error('Error in deleteFile', { error: error })
     return { success: false, error: 'Der opstod en fejl ved sletning' }
   }
 }
@@ -201,13 +202,13 @@ export async function getSignedUrl(
       .createSignedUrl(filePath, expiresIn)
 
     if (error) {
-      console.error('Error creating signed URL:', error)
+      logger.error('Error creating signed URL', { error: error })
       return { success: false, error: 'Kunne ikke oprette download-link' }
     }
 
     return { success: true, data: data.signedUrl }
   } catch (error) {
-    console.error('Error in getSignedUrl:', error)
+    logger.error('Error in getSignedUrl', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

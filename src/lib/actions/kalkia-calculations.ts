@@ -27,6 +27,7 @@ import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { KalkiaCalculationEngine, createDefaultContext } from '@/lib/services/kalkia-engine'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { DEFAULT_TAX_RATE, CALC_DEFAULTS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Kalkia Calculations CRUD
@@ -84,12 +85,12 @@ export async function getKalkiaCalculations(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting kalkia calculations:', countResult.error)
+      logger.error('Database error counting kalkia calculations', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching kalkia calculations:', dataResult.error)
+      logger.error('Database error fetching kalkia calculations', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -138,7 +139,7 @@ export async function getKalkiaCalculation(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kalkulationen blev ikke fundet' }
       }
-      console.error('Database error fetching kalkia calculation:', error)
+      logger.error('Database error fetching kalkia calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -189,7 +190,7 @@ export async function createKalkiaCalculation(
       .single()
 
     if (error) {
-      console.error('Database error creating kalkia calculation:', error)
+      logger.error('Database error creating kalkia calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -247,7 +248,7 @@ export async function updateKalkiaCalculation(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kalkulationen blev ikke fundet' }
       }
-      console.error('Database error updating kalkia calculation:', error)
+      logger.error('Database error updating kalkia calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -270,7 +271,7 @@ export async function deleteKalkiaCalculation(id: string): Promise<ActionResult>
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting kalkia calculation:', error)
+      logger.error('Database error deleting kalkia calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -417,7 +418,7 @@ export async function savePackageBuilderCalculation(
       .single()
 
     if (calcError) {
-      console.error('Database error creating calculation:', calcError)
+      logger.error('Database error creating calculation', { error: calcError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -457,7 +458,7 @@ export async function savePackageBuilderCalculation(
         .insert(rows)
 
       if (rowsError) {
-        console.error('Database error creating calculation rows:', rowsError)
+        logger.error('Database error creating calculation rows', { error: rowsError })
         // Don't fail the whole operation, just log
       }
     }
@@ -690,7 +691,7 @@ export async function createOfferFromCalculation(
       .single()
 
     if (offerError || !offer) {
-      console.error('Error creating offer:', offerError)
+      logger.error('Error creating offer', { error: offerError })
       return { success: false, error: 'Kunne ikke oprette tilbud' }
     }
 
@@ -734,7 +735,7 @@ export async function createOfferFromCalculation(
       .insert(lineItems)
 
     if (lineItemsError) {
-      console.error('Error creating line items:', lineItemsError)
+      logger.error('Error creating line items', { error: lineItemsError })
       // Don't fail the whole operation, the offer was created
     }
 

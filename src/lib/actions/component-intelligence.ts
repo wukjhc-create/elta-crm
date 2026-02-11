@@ -21,6 +21,7 @@ import type {
 } from '@/types/component-intelligence.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -40,7 +41,7 @@ export async function getRoomTypes(): Promise<ActionResult<RoomType[]>> {
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching room types:', error)
+      logger.error('Database error fetching room types', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -90,7 +91,7 @@ export async function createRoomType(
       .single()
 
     if (error) {
-      console.error('Database error creating room type:', error)
+      logger.error('Database error creating room type', { error: error })
       if (error.code === '23505') {
         return { success: false, error: 'En rumtype med denne kode eksisterer allerede' }
       }
@@ -119,7 +120,7 @@ export async function updateRoomType(
       .single()
 
     if (error) {
-      console.error('Database error updating room type:', error)
+      logger.error('Database error updating room type', { error: error })
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Rumtype ikke fundet' }
       }
@@ -144,7 +145,7 @@ export async function deleteRoomType(id: string): Promise<ActionResult<void>> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting room type:', error)
+      logger.error('Database error deleting room type', { error: error })
       if (error.code === '23503') {
         return { success: false, error: 'Rumtypen bruges af andre data og kan ikke slettes' }
       }
@@ -171,7 +172,7 @@ export async function getRoomComponentSuggestions(
     })
 
     if (error) {
-      console.error('Database error getting room suggestions:', error)
+      logger.error('Database error getting room suggestions', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -212,7 +213,7 @@ export async function getRoomTemplates(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching room templates:', error)
+      logger.error('Database error fetching room templates', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -238,7 +239,7 @@ export async function createRoomTemplate(
       .single()
 
     if (error) {
-      console.error('Database error creating room template:', error)
+      logger.error('Database error creating room template', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -334,7 +335,7 @@ export async function getMaterials(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching materials:', error)
+      logger.error('Database error fetching materials', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -387,7 +388,7 @@ export async function createMaterial(
       if (error.code === '23505') {
         return { success: false, error: 'SKU eksisterer allerede' }
       }
-      console.error('Database error creating material:', error)
+      logger.error('Database error creating material', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -539,7 +540,7 @@ export async function updateMaterialPrice(
       })
 
     if (historyError) {
-      console.error('Error recording price history:', historyError)
+      logger.error('Error recording price history', { error: historyError })
       // Continue anyway - price update is more important
     }
 
@@ -599,7 +600,7 @@ export async function getOfferTextTemplates(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching offer templates:', error)
+      logger.error('Database error fetching offer templates', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -625,7 +626,7 @@ export async function createOfferTextTemplate(
       .single()
 
     if (error) {
-      console.error('Database error creating offer template:', error)
+      logger.error('Database error creating offer template', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

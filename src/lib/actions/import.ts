@@ -18,6 +18,7 @@ import type {
   ColumnMappings,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 /**
  * Get importer config based on supplier code
  */
@@ -210,7 +211,7 @@ export async function executeImport(
       .single()
 
     if (batchError || !batch) {
-      console.error('Error creating import batch:', batchError)
+      logger.error('Error creating import batch', { error: batchError })
       return { success: false, error: 'Kunne ikke starte import' }
     }
 
@@ -511,12 +512,12 @@ export async function getImportBatches(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting import batches:', countResult.error)
+      logger.error('Database error counting import batches', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching import batches:', dataResult.error)
+      logger.error('Database error fetching import batches', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -555,7 +556,7 @@ export async function getImportBatch(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Import batch ikke fundet' }
       }
-      console.error('Database error fetching import batch:', error)
+      logger.error('Database error fetching import batch', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -630,7 +631,7 @@ export async function getPriceChangesFromImport(
       .order('change_percentage', { ascending: false })
 
     if (error) {
-      console.error('Database error fetching price changes:', error)
+      logger.error('Database error fetching price changes', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

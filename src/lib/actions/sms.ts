@@ -31,6 +31,7 @@ import type {
   calculateSmsParts,
   formatPhoneE164,
 } from '@/types/sms.types'
+import { logger } from '@/lib/utils/logger'
 
 // ============================================
 // SMS SETTINGS
@@ -46,7 +47,7 @@ export async function getSmsSettings(): Promise<ActionResult<SmsSettings>> {
       .single()
 
     if (error) {
-      console.error('Error fetching SMS settings:', error)
+      logger.error('Error fetching SMS settings', { error: error })
       return { success: false, error: 'Kunne ikke hente SMS indstillinger' }
     }
 
@@ -60,7 +61,7 @@ export async function getSmsSettings(): Promise<ActionResult<SmsSettings>> {
       },
     }
   } catch (error) {
-    console.error('Error in getSmsSettings:', error)
+    logger.error('Error in getSmsSettings', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -86,14 +87,14 @@ export async function updateSmsSettings(settings: Partial<{
       .not('id', 'is', null)
 
     if (error) {
-      console.error('Error updating SMS settings:', error)
+      logger.error('Error updating SMS settings', { error: error })
       return { success: false, error: 'Kunne ikke opdatere SMS indstillinger' }
     }
 
     revalidatePath('/dashboard/settings/sms')
     return { success: true }
   } catch (error) {
-    console.error('Error in updateSmsSettings:', error)
+    logger.error('Error in updateSmsSettings', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -125,13 +126,13 @@ export async function getSmsTemplates(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching SMS templates:', error)
+      logger.error('Error fetching SMS templates', { error: error })
       return []
     }
 
     return data as SmsTemplate[]
   } catch (error) {
-    console.error('Error in getSmsTemplates:', error)
+    logger.error('Error in getSmsTemplates', { error: error })
     return []
   }
 }
@@ -148,13 +149,13 @@ export async function getSmsTemplate(id: string): Promise<ActionResult<SmsTempla
       .single()
 
     if (error) {
-      console.error('Error fetching SMS template:', error)
+      logger.error('Error fetching SMS template', { error: error })
       return { success: false, error: 'Kunne ikke hente SMS skabelon' }
     }
 
     return { success: true, data: data as SmsTemplate }
   } catch (error) {
-    console.error('Error in getSmsTemplate:', error)
+    logger.error('Error in getSmsTemplate', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -170,13 +171,13 @@ export async function getSmsTemplateByCode(code: string): Promise<ActionResult<S
       .single()
 
     if (error) {
-      console.error('Error fetching SMS template by code:', error)
+      logger.error('Error fetching SMS template by code', { error: error })
       return { success: false, error: 'Kunne ikke hente SMS skabelon' }
     }
 
     return { success: true, data: data as SmsTemplate }
   } catch (error) {
-    console.error('Error in getSmsTemplateByCode:', error)
+    logger.error('Error in getSmsTemplateByCode', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -197,7 +198,7 @@ export async function createSmsTemplate(
       .single()
 
     if (error) {
-      console.error('Error creating SMS template:', error)
+      logger.error('Error creating SMS template', { error: error })
       if (error.code === '23505') {
         return { success: false, error: 'En skabelon med denne kode findes allerede' }
       }
@@ -207,7 +208,7 @@ export async function createSmsTemplate(
     revalidatePath('/dashboard/settings/sms')
     return { success: true, data: data as SmsTemplate }
   } catch (error) {
-    console.error('Error in createSmsTemplate:', error)
+    logger.error('Error in createSmsTemplate', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -228,14 +229,14 @@ export async function updateSmsTemplate(
       .single()
 
     if (error) {
-      console.error('Error updating SMS template:', error)
+      logger.error('Error updating SMS template', { error: error })
       return { success: false, error: 'Kunne ikke opdatere SMS skabelon' }
     }
 
     revalidatePath('/dashboard/settings/sms')
     return { success: true, data: data as SmsTemplate }
   } catch (error) {
-    console.error('Error in updateSmsTemplate:', error)
+    logger.error('Error in updateSmsTemplate', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -251,14 +252,14 @@ export async function deleteSmsTemplate(id: string): Promise<ActionResult<void>>
       .eq('id', id)
 
     if (error) {
-      console.error('Error deleting SMS template:', error)
+      logger.error('Error deleting SMS template', { error: error })
       return { success: false, error: 'Kunne ikke slette SMS skabelon' }
     }
 
     revalidatePath('/dashboard/settings/sms')
     return { success: true }
   } catch (error) {
-    console.error('Error in deleteSmsTemplate:', error)
+    logger.error('Error in deleteSmsTemplate', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -295,13 +296,13 @@ export async function getSmsMessages(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching SMS messages:', error)
+      logger.error('Error fetching SMS messages', { error: error })
       return []
     }
 
     return data as SmsMessage[]
   } catch (error) {
-    console.error('Error in getSmsMessages:', error)
+    logger.error('Error in getSmsMessages', { error: error })
     return []
   }
 }
@@ -322,13 +323,13 @@ export async function createSmsMessage(
       .single()
 
     if (error) {
-      console.error('Error creating SMS message:', error)
+      logger.error('Error creating SMS message', { error: error })
       return { success: false, error: 'Kunne ikke oprette SMS besked' }
     }
 
     return { success: true, data: data as SmsMessage }
   } catch (error) {
-    console.error('Error in createSmsMessage:', error)
+    logger.error('Error in createSmsMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -409,7 +410,7 @@ export async function generateSmsPreview(input: {
       .single()
 
     if (offerError || !offer) {
-      console.error('Error fetching offer:', offerError)
+      logger.error('Error fetching offer', { error: offerError })
       return { success: false, error: 'Kunne ikke finde tilbuddet' }
     }
 
@@ -466,7 +467,7 @@ export async function generateSmsPreview(input: {
 
     return { success: true, data: preview }
   } catch (error) {
-    console.error('Error in generateSmsPreview:', error)
+    logger.error('Error in generateSmsPreview', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -507,7 +508,7 @@ async function sendViaGatewayApi(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('GatewayAPI error:', errorText)
+      logger.error('GatewayAPI error', { error: errorText })
       return { success: false, error: `GatewayAPI fejl: ${response.status}` }
     }
 
@@ -521,7 +522,7 @@ async function sendViaGatewayApi(
       },
     }
   } catch (error) {
-    console.error('Error sending via GatewayAPI:', error)
+    logger.error('Error sending via GatewayAPI', { error: error })
     return { success: false, error: 'Kunne ikke sende SMS via GatewayAPI' }
   }
 }
@@ -557,7 +558,7 @@ export async function testGatewayApiConnection(config: {
       },
     }
   } catch (error) {
-    console.error('Error testing GatewayAPI:', error)
+    logger.error('Error testing GatewayAPI', { error: error })
     return { success: false, error: 'Kunne ikke oprette forbindelse til GatewayAPI' }
   }
 }
@@ -585,7 +586,7 @@ export async function sendTestSms(
 
     return { success: true }
   } catch (error) {
-    console.error('Error sending test SMS:', error)
+    logger.error('Error sending test SMS', { error: error })
     return { success: false, error: 'Kunne ikke sende test SMS' }
   }
 }
@@ -761,7 +762,7 @@ export async function sendOfferSms(
       },
     }
   } catch (error) {
-    console.error('Error sending offer SMS:', error)
+    logger.error('Error sending offer SMS', { error: error })
     return { success: false, error: 'Der opstod en fejl ved afsendelse af SMS' }
   }
 }
@@ -788,13 +789,13 @@ export async function createSmsEvent(input: {
       .single()
 
     if (error) {
-      console.error('Error creating SMS event:', error)
+      logger.error('Error creating SMS event', { error: error })
       return { success: false, error: 'Kunne ikke oprette SMS event' }
     }
 
     return { success: true, data: data as SmsEvent }
   } catch (error) {
-    console.error('Error in createSmsEvent:', error)
+    logger.error('Error in createSmsEvent', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -822,7 +823,7 @@ export async function handleSmsWebhook(payload: {
       .single()
 
     if (!message) {
-      console.error('SMS message not found for webhook:', payload)
+      logger.error('SMS message not found for webhook', { error: payload })
       return { success: false, error: 'Besked ikke fundet' }
     }
 
@@ -851,7 +852,7 @@ export async function handleSmsWebhook(payload: {
 
     return { success: true }
   } catch (error) {
-    console.error('Error handling SMS webhook:', error)
+    logger.error('Error handling SMS webhook', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

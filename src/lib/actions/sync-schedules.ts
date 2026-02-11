@@ -10,6 +10,7 @@ import type {
   ScheduleRunStatus,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Sync Schedule CRUD
 // =====================================================
@@ -31,7 +32,7 @@ export async function getSupplierSyncSchedules(
       .order('sync_type')
 
     if (error) {
-      console.error('Database error fetching schedules:', error)
+      logger.error('Database error fetching schedules', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -79,7 +80,7 @@ export async function createSyncSchedule(
       if (error.code === '23505') {
         return { success: false, error: 'En plan af denne type eksisterer allerede for denne leverandør' }
       }
-      console.error('Database error creating schedule:', error)
+      logger.error('Database error creating schedule', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -138,7 +139,7 @@ export async function updateSyncSchedule(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Synkroniseringsplan ikke fundet' }
       }
-      console.error('Database error updating schedule:', error)
+      logger.error('Database error updating schedule', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -164,7 +165,7 @@ export async function deleteSyncSchedule(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting schedule:', error)
+      logger.error('Database error deleting schedule', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -213,7 +214,7 @@ export async function toggleSyncSchedule(id: string): Promise<ActionResult<Suppl
       .single()
 
     if (error) {
-      console.error('Database error toggling schedule:', error)
+      logger.error('Database error toggling schedule', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -315,7 +316,7 @@ export async function getSyncHistory(
       .limit(options?.limit || 20)
 
     if (error) {
-      console.error('Database error fetching sync history:', error)
+      logger.error('Database error fetching sync history', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

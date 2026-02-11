@@ -20,6 +20,7 @@ import type {
 import { CalculationIntelligenceEngine, detectAnomalies } from '@/lib/services/calculation-intelligence'
 import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Auth Helper
@@ -39,7 +40,7 @@ export async function getInstallationTypes(): Promise<ActionResult<InstallationT
       .order('sort_order')
 
     if (error) {
-      console.error('Error fetching installation types:', error)
+      logger.error('Error fetching installation types', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -64,7 +65,7 @@ export async function getRoomTemplates(): Promise<ActionResult<RoomTemplate[]>> 
       .order('sort_order')
 
     if (error) {
-      console.error('Error fetching room templates:', error)
+      logger.error('Error fetching room templates', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -88,7 +89,7 @@ export async function getComponentTimeData(): Promise<ActionResult<ComponentTime
       .eq('is_active', true)
 
     if (error) {
-      console.error('Error fetching component time data:', error)
+      logger.error('Error fetching component time data', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -115,7 +116,7 @@ export async function calculateProject(
     ])
 
     if (installTypesResult.error || roomTemplatesResult.error || componentTimeResult.error) {
-      console.error('Error loading reference data')
+      logger.error('Error loading reference data')
       throw new Error('DATABASE_ERROR')
     }
 
@@ -169,7 +170,7 @@ export async function saveRoomCalculation(
       .single()
 
     if (error) {
-      console.error('Error saving room calculation:', error)
+      logger.error('Error saving room calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -192,7 +193,7 @@ export async function getRoomCalculations(
       .order('sort_order')
 
     if (error) {
-      console.error('Error fetching room calculations:', error)
+      logger.error('Error fetching room calculations', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -213,7 +214,7 @@ export async function deleteRoomCalculation(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Error deleting room calculation:', error)
+      logger.error('Error deleting room calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -263,7 +264,7 @@ export async function runAnomalyDetection(
       .select()
 
     if (error) {
-      console.error('Error saving anomalies:', error)
+      logger.error('Error saving anomalies', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -286,7 +287,7 @@ export async function getCalculationAnomalies(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching anomalies:', error)
+      logger.error('Error fetching anomalies', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -314,7 +315,7 @@ export async function resolveAnomaly(
       .eq('id', id)
 
     if (error) {
-      console.error('Error resolving anomaly:', error)
+      logger.error('Error resolving anomaly', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -351,7 +352,7 @@ export async function getSystemAlerts(
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching alerts:', error)
+      logger.error('Error fetching alerts', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -412,7 +413,7 @@ export async function createSystemAlert(
       .single()
 
     if (error) {
-      console.error('Error creating alert:', error)
+      logger.error('Error creating alert', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -445,7 +446,7 @@ export async function getOfferTextTemplates(
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching offer templates:', error)
+      logger.error('Error fetching offer templates', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -674,7 +675,7 @@ export async function convertCalculationToOffer(
       .single()
 
     if (offerError || !offer) {
-      console.error('Error creating offer:', offerError)
+      logger.error('Error creating offer', { error: offerError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -702,7 +703,7 @@ export async function convertCalculationToOffer(
         .insert(lineItems)
 
       if (liError) {
-        console.error('Error creating line items:', liError)
+        logger.error('Error creating line items', { error: liError })
         // Don't fail - offer is created, just missing line items
       }
     }

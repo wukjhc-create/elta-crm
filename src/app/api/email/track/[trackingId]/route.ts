@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/utils/logger'
 
 // 1x1 transparent GIF
 const TRACKING_PIXEL = Buffer.from(
@@ -61,7 +62,7 @@ export async function GET(
     }
   } catch (error) {
     // Don't fail - tracking errors should be silent
-    console.error('Tracking error:', error)
+    logger.error('Tracking error', { error })
   }
 
   // Always return the tracking pixel

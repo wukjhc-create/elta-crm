@@ -27,6 +27,7 @@ import type {
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
   try {
@@ -51,7 +52,7 @@ export async function getProductCategories(): Promise<ActionResult<ProductCatego
       .order('name')
 
     if (error) {
-      console.error('Database error fetching product categories:', error)
+      logger.error('Database error fetching product categories', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -95,7 +96,7 @@ export async function getProductCategoriesHierarchy(): Promise<ActionResult<Prod
 
     return { success: true, data: rootCategories }
   } catch (error) {
-    console.error('Error in getProductCategoriesHierarchy:', error)
+    logger.error('Error in getProductCategoriesHierarchy', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -138,7 +139,7 @@ export async function createProductCategory(
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte parent-kategori findes ikke' }
       }
-      console.error('Database error creating product category:', error)
+      logger.error('Database error creating product category', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -199,7 +200,7 @@ export async function updateProductCategory(
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte parent-kategori findes ikke' }
       }
-      console.error('Database error updating product category:', error)
+      logger.error('Database error updating product category', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -221,7 +222,7 @@ export async function deleteProductCategory(id: string): Promise<ActionResult> {
       if (error.code === '23503') {
         return { success: false, error: 'Kategorien kan ikke slettes da den har tilknyttede produkter eller underkategorier' }
       }
-      console.error('Database error deleting product category:', error)
+      logger.error('Database error deleting product category', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -291,12 +292,12 @@ export async function getProducts(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting products:', countResult.error)
+      logger.error('Database error counting products', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching products:', dataResult.error)
+      logger.error('Database error fetching products', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -336,7 +337,7 @@ export async function getProduct(id: string): Promise<ActionResult<ProductWithCa
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Produktet blev ikke fundet' }
       }
-      console.error('Database error fetching product:', error)
+      logger.error('Database error fetching product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -389,7 +390,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult<Pr
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte kategori findes ikke' }
       }
-      console.error('Database error creating product:', error)
+      logger.error('Database error creating product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -452,7 +453,7 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte kategori findes ikke' }
       }
-      console.error('Database error updating product:', error)
+      logger.error('Database error updating product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -475,7 +476,7 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
       if (error.code === '23503') {
         return { success: false, error: 'Produktet kan ikke slettes da det er tilknyttet andre data' }
       }
-      console.error('Database error deleting product:', error)
+      logger.error('Database error deleting product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -500,7 +501,7 @@ export async function getProductsForSelect(): Promise<
       .order('name')
 
     if (error) {
-      console.error('Database error fetching products for select:', error)
+      logger.error('Database error fetching products for select', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -556,12 +557,12 @@ export async function getSuppliers(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting suppliers:', countResult.error)
+      logger.error('Database error counting suppliers', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching suppliers:', dataResult.error)
+      logger.error('Database error fetching suppliers', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -598,7 +599,7 @@ export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Leverandøren blev ikke fundet' }
       }
-      console.error('Database error fetching supplier:', error)
+      logger.error('Database error fetching supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -642,7 +643,7 @@ export async function createSupplier(formData: FormData): Promise<ActionResult<S
       if (error.code === '23505') {
         return { success: false, error: 'En leverandør med denne kode findes allerede' }
       }
-      console.error('Database error creating supplier:', error)
+      logger.error('Database error creating supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -696,7 +697,7 @@ export async function updateSupplier(formData: FormData): Promise<ActionResult<S
       if (error.code === '23505') {
         return { success: false, error: 'En leverandør med denne kode findes allerede' }
       }
-      console.error('Database error updating supplier:', error)
+      logger.error('Database error updating supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -718,7 +719,7 @@ export async function deleteSupplier(id: string): Promise<ActionResult> {
       if (error.code === '23503') {
         return { success: false, error: 'Leverandøren kan ikke slettes da den har tilknyttede produkter' }
       }
-      console.error('Database error deleting supplier:', error)
+      logger.error('Database error deleting supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -743,7 +744,7 @@ export async function getSuppliersForSelect(): Promise<
       .order('name')
 
     if (error) {
-      console.error('Database error fetching suppliers for select:', error)
+      logger.error('Database error fetching suppliers for select', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -814,12 +815,12 @@ export async function getSupplierProducts(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting supplier products:', countResult.error)
+      logger.error('Database error counting supplier products', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching supplier products:', dataResult.error)
+      logger.error('Database error fetching supplier products', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -889,7 +890,7 @@ export async function createSupplierProduct(
       if (error.code === '23503') {
         return { success: false, error: 'Leverandøren eller produktet findes ikke' }
       }
-      console.error('Database error creating supplier product:', error)
+      logger.error('Database error creating supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -960,7 +961,7 @@ export async function updateSupplierProduct(
       if (error.code === '23503') {
         return { success: false, error: 'Leverandøren eller produktet findes ikke' }
       }
-      console.error('Database error updating supplier product:', error)
+      logger.error('Database error updating supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -982,7 +983,7 @@ export async function deleteSupplierProduct(id: string): Promise<ActionResult> {
       if (error.code === '23503') {
         return { success: false, error: 'Leverandørproduktet kan ikke slettes da det er tilknyttet andre data' }
       }
-      console.error('Database error deleting supplier product:', error)
+      logger.error('Database error deleting supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

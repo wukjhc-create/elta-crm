@@ -10,6 +10,7 @@ import type {
 import type { ActionResult } from '@/types/common.types'
 import { MAX_IMAGE_SIZE } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
+import { logger } from '@/lib/utils/logger'
 
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
@@ -22,13 +23,13 @@ export async function getCompanySettings(): Promise<ActionResult<CompanySettings
       .single()
 
     if (error) {
-      console.error('Error fetching company settings:', error)
+      logger.error('Error fetching company settings', { error: error })
       return { success: false, error: 'Kunne ikke hente virksomhedsindstillinger' }
     }
 
     return { success: true, data: data as CompanySettings }
   } catch (error) {
-    console.error('Error in getCompanySettings:', error)
+    logger.error('Error in getCompanySettings', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -58,14 +59,14 @@ export async function updateCompanySettings(
       .single()
 
     if (error) {
-      console.error('Error updating company settings:', error)
+      logger.error('Error updating company settings', { error: error })
       return { success: false, error: 'Kunne ikke opdatere virksomhedsindstillinger' }
     }
 
     revalidatePath('/dashboard/settings')
     return { success: true, data: data as CompanySettings }
   } catch (error) {
-    console.error('Error in updateCompanySettings:', error)
+    logger.error('Error in updateCompanySettings', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -88,7 +89,7 @@ export async function getSmtpSettings(): Promise<ActionResult<{
       .single()
 
     if (error) {
-      console.error('Error fetching SMTP settings:', error)
+      logger.error('Error fetching SMTP settings', { error: error })
       return { success: false, error: 'Kunne ikke hente SMTP indstillinger' }
     }
 
@@ -104,7 +105,7 @@ export async function getSmtpSettings(): Promise<ActionResult<{
       },
     }
   } catch (error) {
-    console.error('Error in getSmtpSettings:', error)
+    logger.error('Error in getSmtpSettings', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -125,13 +126,13 @@ export async function getProfile(): Promise<ActionResult<Profile>> {
       .single()
 
     if (error) {
-      console.error('Error fetching profile:', error)
+      logger.error('Error fetching profile', { error: error })
       return { success: false, error: 'Kunne ikke hente profil' }
     }
 
     return { success: true, data: data as Profile }
   } catch (error) {
-    console.error('Error in getProfile:', error)
+    logger.error('Error in getProfile', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -154,14 +155,14 @@ export async function updateProfile(
       .single()
 
     if (error) {
-      console.error('Error updating profile:', error)
+      logger.error('Error updating profile', { error: error })
       return { success: false, error: 'Kunne ikke opdatere profil' }
     }
 
     revalidatePath('/dashboard/settings/profile')
     return { success: true, data: data as Profile }
   } catch (error) {
-    console.error('Error in updateProfile:', error)
+    logger.error('Error in updateProfile', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -426,7 +427,7 @@ export async function changePassword(
     })
 
     if (error) {
-      console.error('Error changing password:', error)
+      logger.error('Error changing password', { error: error })
       if (error.message.includes('password')) {
         return { success: false, error: 'Adgangskoden opfylder ikke kravene' }
       }
@@ -435,7 +436,7 @@ export async function changePassword(
 
     return { success: true, data: undefined }
   } catch (error) {
-    console.error('Error in changePassword:', error)
+    logger.error('Error in changePassword', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -455,13 +456,13 @@ export async function getTeamMembers(): Promise<ActionResult<Profile[]>> {
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Error fetching team members:', error)
+      logger.error('Error fetching team members', { error: error })
       return { success: false, error: 'Kunne ikke hente teammedlemmer' }
     }
 
     return { success: true, data: data as Profile[] }
   } catch (error) {
-    console.error('Error in getTeamMembers:', error)
+    logger.error('Error in getTeamMembers', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -496,14 +497,14 @@ export async function updateTeamMember(
       .single()
 
     if (error) {
-      console.error('Error updating team member:', error)
+      logger.error('Error updating team member', { error: error })
       return { success: false, error: 'Kunne ikke opdatere teammedlem' }
     }
 
     revalidatePath('/dashboard/settings/team')
     return { success: true, data: data as Profile }
   } catch (error) {
-    console.error('Error in updateTeamMember:', error)
+    logger.error('Error in updateTeamMember', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -560,7 +561,7 @@ export async function inviteTeamMember(
     })
 
     if (inviteError) {
-      console.error('Error inviting user:', inviteError)
+      logger.error('Error inviting user', { error: inviteError })
       return { success: false, error: 'Kunne ikke sende invitation. Tjek at email er gyldig.' }
     }
 
@@ -589,7 +590,7 @@ export async function getTeamInvitations(): Promise<ActionResult<TeamInvitation[
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching invitations:', error)
+      logger.error('Error fetching invitations', { error: error })
       return { success: false, error: 'Kunne ikke hente invitationer' }
     }
 
@@ -633,7 +634,7 @@ export async function cancelInvitation(invitationId: string): Promise<ActionResu
       .eq('id', invitationId)
 
     if (error) {
-      console.error('Error canceling invitation:', error)
+      logger.error('Error canceling invitation', { error: error })
       return { success: false, error: 'Kunne ikke annullere invitation' }
     }
 
@@ -727,7 +728,7 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
     })
 
     if (inviteError) {
-      console.error('Error resending invitation:', inviteError)
+      logger.error('Error resending invitation', { error: inviteError })
       return { success: false, error: 'Kunne ikke gensende invitation' }
     }
 

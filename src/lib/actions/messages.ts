@@ -12,6 +12,7 @@ import type {
   InboxFolder,
 } from '@/types/messages.types'
 import type { ActionResult } from '@/types/common.types'
+import { logger } from '@/lib/utils/logger'
 
 // Get messages for inbox
 export async function getMessages(
@@ -82,13 +83,13 @@ export async function getMessages(
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching messages:', error)
+      logger.error('Error fetching messages', { error: error })
       return { success: false, error: 'Kunne ikke hente beskeder' }
     }
 
     return { success: true, data: data as MessageWithRelations[] }
   } catch (error) {
-    console.error('Error in getMessages:', error)
+    logger.error('Error in getMessages', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -114,7 +115,7 @@ export async function getMessage(
       .single()
 
     if (error) {
-      console.error('Error fetching message:', error)
+      logger.error('Error fetching message', { error: error })
       return { success: false, error: 'Kunne ikke hente besked' }
     }
 
@@ -130,7 +131,7 @@ export async function getMessage(
       data: { ...data, replies: replies || [] } as MessageWithRelations,
     }
   } catch (error) {
-    console.error('Error in getMessage:', error)
+    logger.error('Error in getMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -147,13 +148,13 @@ export async function getUnreadCount(): Promise<ActionResult<number>> {
       .eq('status', 'unread')
 
     if (error) {
-      console.error('Error fetching unread count:', error)
+      logger.error('Error fetching unread count', { error: error })
       return { success: false, error: 'Kunne ikke hente antal ulæste' }
     }
 
     return { success: true, data: count || 0 }
   } catch (error) {
-    console.error('Error in getUnreadCount:', error)
+    logger.error('Error in getUnreadCount', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -202,14 +203,14 @@ export async function sendMessage(
       .single()
 
     if (error) {
-      console.error('Error sending message:', error)
+      logger.error('Error sending message', { error: error })
       return { success: false, error: 'Kunne ikke sende besked' }
     }
 
     revalidatePath('/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
-    console.error('Error in sendMessage:', error)
+    logger.error('Error in sendMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -233,14 +234,14 @@ export async function markAsRead(id: string): Promise<ActionResult<Message>> {
       .single()
 
     if (error) {
-      console.error('Error marking as read:', error)
+      logger.error('Error marking as read', { error: error })
       return { success: false, error: 'Kunne ikke markere som læst' }
     }
 
     revalidatePath('/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
-    console.error('Error in markAsRead:', error)
+    logger.error('Error in markAsRead', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -264,14 +265,14 @@ export async function markAsUnread(id: string): Promise<ActionResult<Message>> {
       .single()
 
     if (error) {
-      console.error('Error marking as unread:', error)
+      logger.error('Error marking as unread', { error: error })
       return { success: false, error: 'Kunne ikke markere som ulæst' }
     }
 
     revalidatePath('/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
-    console.error('Error in markAsUnread:', error)
+    logger.error('Error in markAsUnread', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -295,14 +296,14 @@ export async function archiveMessage(id: string): Promise<ActionResult<Message>>
       .single()
 
     if (error) {
-      console.error('Error archiving message:', error)
+      logger.error('Error archiving message', { error: error })
       return { success: false, error: 'Kunne ikke arkivere besked' }
     }
 
     revalidatePath('/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
-    console.error('Error in archiveMessage:', error)
+    logger.error('Error in archiveMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -328,14 +329,14 @@ export async function unarchiveMessage(
       .single()
 
     if (error) {
-      console.error('Error unarchiving message:', error)
+      logger.error('Error unarchiving message', { error: error })
       return { success: false, error: 'Kunne ikke gendanne besked' }
     }
 
     revalidatePath('/inbox')
     return { success: true, data: data as Message }
   } catch (error) {
-    console.error('Error in unarchiveMessage:', error)
+    logger.error('Error in unarchiveMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -353,14 +354,14 @@ export async function deleteMessage(id: string): Promise<ActionResult> {
       .eq('to_user_id', userId)
 
     if (error) {
-      console.error('Error deleting message:', error)
+      logger.error('Error deleting message', { error: error })
       return { success: false, error: 'Kunne ikke slette besked' }
     }
 
     revalidatePath('/inbox')
     return { success: true }
   } catch (error) {
-    console.error('Error in deleteMessage:', error)
+    logger.error('Error in deleteMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -380,13 +381,13 @@ export async function getTeamMembersForMessage(): Promise<
       .order('full_name')
 
     if (error) {
-      console.error('Error fetching team members:', error)
+      logger.error('Error fetching team members', { error: error })
       return { success: false, error: 'Kunne ikke hente teammedlemmer' }
     }
 
     return { success: true, data }
   } catch (error) {
-    console.error('Error in getTeamMembersForMessage:', error)
+    logger.error('Error in getTeamMembersForMessage', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -432,7 +433,7 @@ export async function getRelatedEntities(): Promise<
       },
     }
   } catch (error) {
-    console.error('Error in getRelatedEntities:', error)
+    logger.error('Error in getRelatedEntities', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

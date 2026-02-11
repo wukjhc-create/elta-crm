@@ -5,6 +5,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { encryptCredentials, decryptCredentials, isEncryptionConfigured, maskSensitive } from '@/lib/utils/encryption'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Types
@@ -81,7 +82,7 @@ export async function getSupplierCredentials(
       .order('credential_type')
 
     if (error) {
-      console.error('Database error fetching credentials:', error)
+      logger.error('Database error fetching credentials', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -141,7 +142,7 @@ export async function createSupplierCredential(
       if (error.code === '23505') {
         return { success: false, error: 'Loginoplysninger for denne type eksisterer allerede' }
       }
-      console.error('Database error creating credential:', error)
+      logger.error('Database error creating credential', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -218,7 +219,7 @@ export async function updateSupplierCredential(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Loginoplysninger ikke fundet' }
       }
-      console.error('Database error updating credential:', error)
+      logger.error('Database error updating credential', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -258,7 +259,7 @@ export async function deleteSupplierCredential(id: string): Promise<ActionResult
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting credential:', error)
+      logger.error('Database error deleting credential', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

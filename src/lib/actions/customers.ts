@@ -17,6 +17,7 @@ import type {
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // Get all customers with optional filtering and pagination
 export async function getCustomers(filters?: {
@@ -71,12 +72,12 @@ export async function getCustomers(filters?: {
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting customers:', countResult.error)
+      logger.error('Database error counting customers', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching customers:', dataResult.error)
+      logger.error('Database error fetching customers', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -117,7 +118,7 @@ export async function getCustomer(id: string): Promise<ActionResult<CustomerWith
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kunden blev ikke fundet' }
       }
-      console.error('Database error fetching customer:', error)
+      logger.error('Database error fetching customer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -223,7 +224,7 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       if (error.code === '23505') {
         return { success: false, error: 'En kunde med dette kundenummer findes allerede' }
       }
-      console.error('Database error creating customer:', error)
+      logger.error('Database error creating customer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -290,7 +291,7 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kunden blev ikke fundet' }
       }
-      console.error('Database error updating customer:', error)
+      logger.error('Database error updating customer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -331,7 +332,7 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       if (error.code === '23503') {
         return { success: false, error: 'Kunden kan ikke slettes da den har tilknyttede tilbud eller kontakter' }
       }
-      console.error('Database error deleting customer:', error)
+      logger.error('Database error deleting customer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -367,7 +368,7 @@ export async function toggleCustomerActive(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kunden blev ikke fundet' }
       }
-      console.error('Database error toggling customer status:', error)
+      logger.error('Database error toggling customer status', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -406,7 +407,7 @@ export async function getCustomerContacts(
       .order('name')
 
     if (error) {
-      console.error('Database error fetching customer contacts:', error)
+      logger.error('Database error fetching customer contacts', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -464,7 +465,7 @@ export async function createCustomerContact(
       if (error.code === '23503') {
         return { success: false, error: 'Kunden findes ikke' }
       }
-      console.error('Database error creating customer contact:', error)
+      logger.error('Database error creating customer contact', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -533,7 +534,7 @@ export async function updateCustomerContact(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Kontakten blev ikke fundet' }
       }
-      console.error('Database error updating customer contact:', error)
+      logger.error('Database error updating customer contact', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -560,7 +561,7 @@ export async function deleteCustomerContact(
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting customer contact:', error)
+      logger.error('Database error deleting customer contact', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

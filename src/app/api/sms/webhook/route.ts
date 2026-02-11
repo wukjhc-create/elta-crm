@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { handleSmsWebhook } from '@/lib/actions/sms'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 // GatewayAPI webhook payload structure
 interface GatewayApiWebhook {
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         userref: formData.get('userref') as string | undefined,
       }
     } else {
-      console.error('Unsupported content type:', contentType)
+      logger.error('Unsupported content type', { error: contentType })
       return NextResponse.json({ error: 'Unsupported content type' }, { status: 400 })
     }
 
@@ -76,14 +77,14 @@ export async function POST(request: NextRequest) {
     })
 
     if (!result.success) {
-      console.error('Error handling SMS webhook:', result.error)
+      logger.error('Error handling SMS webhook', { error: result.error })
       // Still return 200 to acknowledge receipt (GatewayAPI will retry on non-2xx)
     }
 
     // Return 200 OK to acknowledge receipt
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('SMS webhook error:', error)
+    logger.error('SMS webhook error', { error })
     // Return 200 to prevent retries for parsing errors
     return NextResponse.json({ error: 'Internal error' }, { status: 200 })
   }

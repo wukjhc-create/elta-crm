@@ -27,6 +27,7 @@ import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { triggerWebhooks, buildProjectWebhookPayload } from '@/lib/actions/integrations'
+import { logger } from '@/lib/utils/logger'
 
 // ==================== Projects ====================
 
@@ -110,12 +111,12 @@ export async function getProjects(filters?: {
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Error counting projects:', countResult.error)
+      logger.error('Error counting projects', { error: countResult.error })
       return { success: false, error: 'Kunne ikke hente projekter' }
     }
 
     if (dataResult.error) {
-      console.error('Error fetching projects:', dataResult.error)
+      logger.error('Error fetching projects', { error: dataResult.error })
       return { success: false, error: 'Kunne ikke hente projekter' }
     }
 
@@ -156,7 +157,7 @@ export async function getProject(id: string): Promise<ActionResult<ProjectWithRe
       .single()
 
     if (error) {
-      console.error('Error fetching project:', error)
+      logger.error('Error fetching project', { error: error })
       return { success: false, error: 'Kunne ikke hente projekt' }
     }
 
@@ -248,7 +249,7 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
       .single()
 
     if (error) {
-      console.error('Error creating project:', error)
+      logger.error('Error creating project', { error: error })
       return { success: false, error: 'Kunne ikke oprette projekt' }
     }
 
@@ -256,14 +257,14 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
     const payload = await buildProjectWebhookPayload(data.id, 'project.created')
     if (payload) {
       triggerWebhooks('project.created', payload).catch(err => {
-        console.error('Error triggering webhooks:', err)
+        logger.error('Error triggering webhooks', { error: err })
       })
     }
 
     revalidatePath('/projects')
     return { success: true, data: data as Project }
   } catch (error) {
-    console.error('Error in createProject:', error)
+    logger.error('Error in createProject', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -312,7 +313,7 @@ export async function updateProject(formData: FormData): Promise<ActionResult<Pr
       .single()
 
     if (error) {
-      console.error('Error updating project:', error)
+      logger.error('Error updating project', { error: error })
       return { success: false, error: 'Kunne ikke opdatere projekt' }
     }
 
@@ -320,7 +321,7 @@ export async function updateProject(formData: FormData): Promise<ActionResult<Pr
     revalidatePath(`/projects/${projectId}`)
     return { success: true, data: data as Project }
   } catch (error) {
-    console.error('Error in updateProject:', error)
+    logger.error('Error in updateProject', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -334,14 +335,14 @@ export async function deleteProject(id: string): Promise<ActionResult> {
     const { error } = await supabase.from('projects').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting project:', error)
+      logger.error('Error deleting project', { error: error })
       return { success: false, error: 'Kunne ikke slette projekt' }
     }
 
     revalidatePath('/projects')
     return { success: true }
   } catch (error) {
-    console.error('Error in deleteProject:', error)
+    logger.error('Error in deleteProject', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -381,7 +382,7 @@ export async function updateProjectStatus(
       .single()
 
     if (error) {
-      console.error('Error updating project status:', error)
+      logger.error('Error updating project status', { error: error })
       return { success: false, error: 'Kunne ikke opdatere status' }
     }
 
@@ -396,13 +397,13 @@ export async function updateProjectStatus(
     const payload = await buildProjectWebhookPayload(id, 'project.status_changed')
     if (payload) {
       triggerWebhooks('project.status_changed', payload).catch(err => {
-        console.error('Error triggering webhooks:', err)
+        logger.error('Error triggering webhooks', { error: err })
       })
 
       // Also trigger specific events (completed, cancelled)
       if (specificEvent) {
         triggerWebhooks(specificEvent, payload).catch(err => {
-          console.error('Error triggering webhooks:', err)
+          logger.error('Error triggering webhooks', { error: err })
         })
       }
     }
@@ -411,7 +412,7 @@ export async function updateProjectStatus(
     revalidatePath(`/projects/${id}`)
     return { success: true, data: data as Project }
   } catch (error) {
-    console.error('Error in updateProjectStatus:', error)
+    logger.error('Error in updateProjectStatus', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -454,14 +455,14 @@ export async function createTask(formData: FormData): Promise<ActionResult<Proje
       .single()
 
     if (error) {
-      console.error('Error creating task:', error)
+      logger.error('Error creating task', { error: error })
       return { success: false, error: 'Kunne ikke oprette opgave' }
     }
 
     revalidatePath(`/projects/${validated.data.project_id}`)
     return { success: true, data: data as ProjectTask }
   } catch (error) {
-    console.error('Error in createTask:', error)
+    logger.error('Error in createTask', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -515,14 +516,14 @@ export async function updateTask(formData: FormData): Promise<ActionResult<Proje
       .single()
 
     if (error) {
-      console.error('Error updating task:', error)
+      logger.error('Error updating task', { error: error })
       return { success: false, error: 'Kunne ikke opdatere opgave' }
     }
 
     revalidatePath(`/projects/${projectId}`)
     return { success: true, data: data as ProjectTask }
   } catch (error) {
-    console.error('Error in updateTask:', error)
+    logger.error('Error in updateTask', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -553,14 +554,14 @@ export async function updateTaskStatus(
       .single()
 
     if (error) {
-      console.error('Error updating task status:', error)
+      logger.error('Error updating task status', { error: error })
       return { success: false, error: 'Kunne ikke opdatere status' }
     }
 
     revalidatePath(`/projects/${projectId}`)
     return { success: true, data: data as ProjectTask }
   } catch (error) {
-    console.error('Error in updateTaskStatus:', error)
+    logger.error('Error in updateTaskStatus', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -575,14 +576,14 @@ export async function deleteTask(id: string, projectId: string): Promise<ActionR
     const { error } = await supabase.from('project_tasks').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting task:', error)
+      logger.error('Error deleting task', { error: error })
       return { success: false, error: 'Kunne ikke slette opgave' }
     }
 
     revalidatePath(`/projects/${projectId}`)
     return { success: true }
   } catch (error) {
-    console.error('Error in deleteTask:', error)
+    logger.error('Error in deleteTask', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -622,14 +623,14 @@ export async function createTimeEntry(
       .single()
 
     if (error) {
-      console.error('Error creating time entry:', error)
+      logger.error('Error creating time entry', { error: error })
       return { success: false, error: 'Kunne ikke oprette tidsregistrering' }
     }
 
     revalidatePath(`/projects/${validated.data.project_id}`)
     return { success: true, data: data as TimeEntry }
   } catch (error) {
-    console.error('Error in createTimeEntry:', error)
+    logger.error('Error in createTimeEntry', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -673,14 +674,14 @@ export async function updateTimeEntry(
       .single()
 
     if (error) {
-      console.error('Error updating time entry:', error)
+      logger.error('Error updating time entry', { error: error })
       return { success: false, error: 'Kunne ikke opdatere tidsregistrering' }
     }
 
     revalidatePath(`/projects/${projectId}`)
     return { success: true, data: data as TimeEntry }
   } catch (error) {
-    console.error('Error in updateTimeEntry:', error)
+    logger.error('Error in updateTimeEntry', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -698,14 +699,14 @@ export async function deleteTimeEntry(
     const { error } = await supabase.from('time_entries').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting time entry:', error)
+      logger.error('Error deleting time entry', { error: error })
       return { success: false, error: 'Kunne ikke slette tidsregistrering' }
     }
 
     revalidatePath(`/projects/${projectId}`)
     return { success: true }
   } catch (error) {
-    console.error('Error in deleteTimeEntry:', error)
+    logger.error('Error in deleteTimeEntry', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -743,7 +744,7 @@ export async function createProjectFromOffer(
     const createdBy = adminUser?.id
 
     if (!createdBy) {
-      console.error('No admin user found for project creation')
+      logger.error('No admin user found for project creation')
       return { success: false, error: 'Ingen bruger fundet til projektoprettelse' }
     }
 
@@ -786,7 +787,7 @@ export async function createProjectFromOffer(
       .single()
 
     if (error) {
-      console.error('Error creating project from offer:', error)
+      logger.error('Error creating project from offer', { error: error })
       return { success: false, error: 'Kunne ikke oprette projekt' }
     }
 
@@ -810,7 +811,7 @@ export async function createProjectFromOffer(
           .insert(tasks)
 
         if (tasksError) {
-          console.error('Error creating project tasks from offer:', tasksError)
+          logger.error('Error creating project tasks from offer', { error: tasksError })
           // Don't fail - project was created, tasks are supplementary
         }
       }
@@ -820,14 +821,14 @@ export async function createProjectFromOffer(
     const payload = await buildProjectWebhookPayload(data.id, 'project.created')
     if (payload) {
       triggerWebhooks('project.created', payload).catch(err => {
-        console.error('Error triggering webhooks:', err)
+        logger.error('Error triggering webhooks', { error: err })
       })
     }
 
     revalidatePath('/projects')
     return { success: true, data: data as Project }
   } catch (error) {
-    console.error('Error in createProjectFromOffer:', error)
+    logger.error('Error in createProjectFromOffer', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -848,13 +849,13 @@ export async function getCustomersForProjectSelect(): Promise<
       .order('company_name')
 
     if (error) {
-      console.error('Error fetching customers:', error)
+      logger.error('Error fetching customers', { error: error })
       return { success: false, error: 'Kunne ikke hente kunder' }
     }
 
     return { success: true, data }
   } catch (error) {
-    console.error('Error in getCustomersForProjectSelect:', error)
+    logger.error('Error in getCustomersForProjectSelect', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -873,13 +874,13 @@ export async function getTeamMembersForProject(): Promise<
       .order('full_name')
 
     if (error) {
-      console.error('Error fetching team members:', error)
+      logger.error('Error fetching team members', { error: error })
       return { success: false, error: 'Kunne ikke hente teammedlemmer' }
     }
 
     return { success: true, data }
   } catch (error) {
-    console.error('Error in getTeamMembersForProject:', error)
+    logger.error('Error in getTeamMembersForProject', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -900,13 +901,13 @@ export async function getOffersForProject(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching offers:', error)
+      logger.error('Error fetching offers', { error: error })
       return { success: false, error: 'Kunne ikke hente tilbud' }
     }
 
     return { success: true, data }
   } catch (error) {
-    console.error('Error in getOffersForProject:', error)
+    logger.error('Error in getOffersForProject', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -926,13 +927,13 @@ export async function getProjectTasks(
       .order('position')
 
     if (error) {
-      console.error('Error fetching tasks:', error)
+      logger.error('Error fetching tasks', { error: error })
       return { success: false, error: 'Kunne ikke hente opgaver' }
     }
 
     return { success: true, data: data as ProjectTaskWithRelations[] }
   } catch (error) {
-    console.error('Error in getProjectTasks:', error)
+    logger.error('Error in getProjectTasks', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
@@ -955,13 +956,13 @@ export async function getProjectTimeEntries(
       .order('date', { ascending: false })
 
     if (error) {
-      console.error('Error fetching time entries:', error)
+      logger.error('Error fetching time entries', { error: error })
       return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
     }
 
     return { success: true, data: data as TimeEntryWithRelations[] }
   } catch (error) {
-    console.error('Error in getProjectTimeEntries:', error)
+    logger.error('Error in getProjectTimeEntries', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

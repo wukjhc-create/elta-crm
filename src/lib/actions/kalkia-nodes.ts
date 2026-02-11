@@ -14,6 +14,7 @@ import type {
 } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Kalkia Nodes CRUD
@@ -71,7 +72,7 @@ export async function getKalkiaNodes(
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching kalkia nodes:', error)
+      logger.error('Database error fetching kalkia nodes', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -106,7 +107,7 @@ export async function getKalkiaNodeTree(
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching kalkia node tree:', error)
+      logger.error('Database error fetching kalkia node tree', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -167,7 +168,7 @@ export async function getKalkiaNode(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Noden blev ikke fundet' }
       }
-      console.error('Database error fetching kalkia node:', error)
+      logger.error('Database error fetching kalkia node', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -239,7 +240,7 @@ export async function createKalkiaNode(
       if (error.code === '23505') {
         return { success: false, error: 'En node med denne kode eksisterer allerede' }
       }
-      console.error('Database error creating kalkia node:', error)
+      logger.error('Database error creating kalkia node', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -303,7 +304,7 @@ export async function updateKalkiaNode(
       if (error.code === '23505') {
         return { success: false, error: 'En node med denne kode eksisterer allerede' }
       }
-      console.error('Database error updating kalkia node:', error)
+      logger.error('Database error updating kalkia node', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -337,7 +338,7 @@ export async function deleteKalkiaNode(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting kalkia node:', error)
+      logger.error('Database error deleting kalkia node', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -375,7 +376,7 @@ export async function getKalkiaBrowseNodes(
       .limit(limit)
 
     if (error) {
-      console.error('Database error fetching browse nodes:', error)
+      logger.error('Database error fetching browse nodes', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -421,7 +422,7 @@ export async function searchKalkiaNodes(
       .limit(limit)
 
     if (error) {
-      console.error('Database error searching kalkia nodes:', error)
+      logger.error('Database error searching kalkia nodes', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

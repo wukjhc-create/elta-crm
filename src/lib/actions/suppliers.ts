@@ -19,6 +19,7 @@ import type {
   SupplierOptionForMaterial,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Supplier CRUD
 // =====================================================
@@ -53,7 +54,7 @@ export async function getSuppliers(
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching suppliers:', error)
+      logger.error('Database error fetching suppliers', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -78,7 +79,7 @@ export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Leverandøren blev ikke fundet' }
       }
-      console.error('Database error fetching supplier:', error)
+      logger.error('Database error fetching supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -107,7 +108,7 @@ export async function createSupplier(
       if (error.code === '23505') {
         return { success: false, error: 'En leverandør med denne kode eksisterer allerede' }
       }
-      console.error('Database error creating supplier:', error)
+      logger.error('Database error creating supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -140,7 +141,7 @@ export async function updateSupplier(
       if (error.code === '23505') {
         return { success: false, error: 'En leverandør med denne kode eksisterer allerede' }
       }
-      console.error('Database error updating supplier:', error)
+      logger.error('Database error updating supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -163,7 +164,7 @@ export async function deleteSupplier(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting supplier:', error)
+      logger.error('Database error deleting supplier', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -192,7 +193,7 @@ export async function getSupplierSettings(
       .maybeSingle()
 
     if (error) {
-      console.error('Database error fetching supplier settings:', error)
+      logger.error('Database error fetching supplier settings', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -239,7 +240,7 @@ export async function updateSupplierSettings(
     }
 
     if (result.error) {
-      console.error('Database error updating supplier settings:', result.error)
+      logger.error('Database error updating supplier settings', { error: result.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -319,12 +320,12 @@ export async function getSupplierProducts(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting supplier products:', countResult.error)
+      logger.error('Database error counting supplier products', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching supplier products:', dataResult.error)
+      logger.error('Database error fetching supplier products', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -375,7 +376,7 @@ export async function searchSupplierProducts(
     const { data, error } = await dbQuery
 
     if (error) {
-      console.error('Database error searching supplier products:', error)
+      logger.error('Database error searching supplier products', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -402,7 +403,7 @@ export async function getSupplierProduct(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Produktet blev ikke fundet' }
       }
-      console.error('Database error fetching supplier product:', error)
+      logger.error('Database error fetching supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -431,7 +432,7 @@ export async function updateSupplierProduct(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Produktet blev ikke fundet' }
       }
-      console.error('Database error updating supplier product:', error)
+      logger.error('Database error updating supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -464,7 +465,7 @@ export async function getPriceHistory(
       .limit(limit)
 
     if (error) {
-      console.error('Database error fetching price history:', error)
+      logger.error('Database error fetching price history', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -511,7 +512,7 @@ export async function getSupplierOptionsForMaterial(
       .limit(20)
 
     if (error) {
-      console.error('Database error fetching supplier options:', error)
+      logger.error('Database error fetching supplier options', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -557,7 +558,7 @@ export async function getSupplierProductCategories(
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching categories:', error)
+      logger.error('Database error fetching categories', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

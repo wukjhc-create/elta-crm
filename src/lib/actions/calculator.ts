@@ -7,6 +7,7 @@ import type {
   CreateTemplateInput,
   TemplateWithCreator,
 } from '@/types/calculator.types'
+import { logger } from '@/lib/utils/logger'
 
 export async function getTemplates(): Promise<{
   success: boolean
@@ -22,13 +23,13 @@ export async function getTemplates(): Promise<{
       .order('name')
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
     return { success: true, data: data || [] }
   } catch (error) {
-    console.error('Error fetching templates:', error)
+    logger.error('Error fetching templates', { error: error })
     return { success: false, error: 'Kunne ikke hente skabeloner' }
   }
 }
@@ -56,14 +57,14 @@ export async function createTemplate(input: CreateTemplateInput): Promise<{
       .single()
 
     if (error) {
-      console.error('Supabase insert error:', error)
+      logger.error('Supabase insert error', { error: error })
       return { success: false, error: `Database fejl: ${error.message}` }
     }
 
     revalidatePath('/calc')
     return { success: true, data: { id: data.id } }
   } catch (error) {
-    console.error('Error creating template:', error)
+    logger.error('Error creating template', { error: error })
     const message = error instanceof Error ? error.message : 'Ukendt fejl'
     return { success: false, error: `Kunne ikke gemme skabelon: ${message}` }
   }
@@ -83,14 +84,14 @@ export async function deleteTemplate(id: string): Promise<{
       .eq('id', id)
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
     revalidatePath('/calc')
     return { success: true }
   } catch (error) {
-    console.error('Error deleting template:', error)
+    logger.error('Error deleting template', { error: error })
     return { success: false, error: 'Kunne ikke slette skabelon' }
   }
 }

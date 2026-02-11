@@ -31,6 +31,7 @@ import type {
 } from '@/types/ai-intelligence.types'
 import type { OfferTextContext } from '@/lib/engines/offer-text-engine'
 import type { OfferTextTemplate } from '@/types/component-intelligence.types'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // PROJECT INTAKE ACTIONS
@@ -46,7 +47,7 @@ export async function parseProjectDescriptionAction(
     const result = parseProjectDescription(input)
     return { success: true, data: result }
   } catch (error) {
-    console.error('Error parsing project description:', error)
+    logger.error('Error parsing project description', { error: error })
     return { success: false, error: 'Kunne ikke analysere projektbeskrivelsen' }
   }
 }
@@ -70,14 +71,14 @@ export async function saveProjectContext(
       .single()
 
     if (error) {
-      console.error('Error saving project context:', error)
+      logger.error('Error saving project context', { error: error })
       return { success: false, error: 'Kunne ikke gemme projektkontekst' }
     }
 
     revalidatePath('/dashboard/ai-project')
     return { success: true, id: data.id }
   } catch (error) {
-    console.error('Error saving project context:', error)
+    logger.error('Error saving project context', { error: error })
     return { success: false, error: 'Uventet fejl ved gemning af projektkontekst' }
   }
 }
@@ -98,13 +99,13 @@ export async function getProjectContext(calculationId: string) {
       .single()
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching project context:', error)
+      logger.error('Error fetching project context', { error: error })
       return null
     }
 
     return data
   } catch (error) {
-    console.error('Error fetching project context:', error)
+    logger.error('Error fetching project context', { error: error })
     return null
   }
 }
@@ -130,7 +131,7 @@ export async function analyzeRisksAction(
     const result = analyzeProjectRisks(input)
     return { success: true, data: result }
   } catch (error) {
-    console.error('Error analyzing risks:', error)
+    logger.error('Error analyzing risks', { error: error })
     return { success: false, error: 'Kunne ikke analysere risici' }
   }
 }
@@ -142,7 +143,7 @@ export async function quickRiskCheckAction(input: RiskAnalysisInput) {
   try {
     return quickRiskCheck(input)
   } catch (error) {
-    console.error('Error in quick risk check:', error)
+    logger.error('Error in quick risk check', { error: error })
     return { level: 'low' as const, count: 0, topIssue: null }
   }
 }
@@ -154,7 +155,7 @@ export async function getObsPointsAction(input: RiskAnalysisInput) {
   try {
     return getOfferObsPoints(input)
   } catch (error) {
-    console.error('Error getting OBS points:', error)
+    logger.error('Error getting OBS points', { error: error })
     return []
   }
 }
@@ -166,7 +167,7 @@ export async function getMarginRecommendationAction(input: RiskAnalysisInput) {
   try {
     return getRecommendedMargin(input)
   } catch (error) {
-    console.error('Error getting margin recommendation:', error)
+    logger.error('Error getting margin recommendation', { error: error })
     return { minimumMargin: MONITORING_CONFIG.MARGIN_WARNING_THRESHOLD, recommendedMargin: CALC_DEFAULTS.MARGINS.MATERIALS, reason: 'Standard margin' }
   }
 }
@@ -195,14 +196,14 @@ export async function saveRiskAssessments(
       )
 
     if (error) {
-      console.error('Error saving risk assessments:', error)
+      logger.error('Error saving risk assessments', { error: error })
       return { success: false, error: 'Kunne ikke gemme risikovurderinger' }
     }
 
     revalidatePath('/dashboard/calculations')
     return { success: true }
   } catch (error) {
-    console.error('Error saving risk assessments:', error)
+    logger.error('Error saving risk assessments', { error: error })
     return { success: false, error: 'Uventet fejl ved gemning af risikovurderinger' }
   }
 }
@@ -221,13 +222,13 @@ export async function getRiskAssessments(calculationId: string) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching risk assessments:', error)
+      logger.error('Error fetching risk assessments', { error: error })
       return []
     }
 
     return data || []
   } catch (error) {
-    console.error('Error fetching risk assessments:', error)
+    logger.error('Error fetching risk assessments', { error: error })
     return []
   }
 }
@@ -253,13 +254,13 @@ export async function acknowledgeRisk(
       .eq('id', riskId)
 
     if (error) {
-      console.error('Error acknowledging risk:', error)
+      logger.error('Error acknowledging risk', { error: error })
       return { success: false, error: 'Kunne ikke kvittere risiko' }
     }
 
     return { success: true }
   } catch (error) {
-    console.error('Error acknowledging risk:', error)
+    logger.error('Error acknowledging risk', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -285,14 +286,14 @@ export async function generateOfferTextsAction(
       .order('priority', { ascending: false })
 
     if (error) {
-      console.error('Error fetching templates:', error)
+      logger.error('Error fetching templates', { error: error })
       return { success: false, error: 'Kunne ikke hente tekstskabeloner' }
     }
 
     const result = assembleOfferTexts(templates as OfferTextTemplate[], context)
     return { success: true, data: result }
   } catch (error) {
-    console.error('Error generating offer texts:', error)
+    logger.error('Error generating offer texts', { error: error })
     return { success: false, error: 'Kunne ikke generere tilbudstekster' }
   }
 }
@@ -332,12 +333,12 @@ export async function generateAndSaveOfferContent(
       })
 
     if (logError) {
-      console.error('Error logging generation:', logError)
+      logger.error('Error logging generation', { error: logError })
     }
 
     return { success: true }
   } catch (error) {
-    console.error('Error generating offer content:', error)
+    logger.error('Error generating offer content', { error: error })
     return { success: false, error: 'Uventet fejl ved generering af tilbudsindhold' }
   }
 }
@@ -356,7 +357,7 @@ export async function generatePriceExplanationAction(
     const result = generatePriceExplanation(input)
     return { success: true, data: result }
   } catch (error) {
-    console.error('Error generating price explanation:', error)
+    logger.error('Error generating price explanation', { error: error })
     return { success: false, error: 'Kunne ikke generere prisforklaring' }
   }
 }
@@ -368,7 +369,7 @@ export async function getSimplePriceSummary(input: PriceExplanationInput): Promi
   try {
     return generateSimpleSummary(input)
   } catch (error) {
-    console.error('Error generating simple summary:', error)
+    logger.error('Error generating simple summary', { error: error })
     return ''
   }
 }
@@ -380,7 +381,7 @@ export async function getBulletPriceSummary(input: PriceExplanationInput): Promi
   try {
     return generateBulletSummary(input)
   } catch (error) {
-    console.error('Error generating bullet summary:', error)
+    logger.error('Error generating bullet summary', { error: error })
     return []
   }
 }
@@ -413,7 +414,7 @@ export async function savePriceExplanation(
       .single()
 
     if (error) {
-      console.error('Error saving price explanation:', error)
+      logger.error('Error saving price explanation', { error: error })
       return { success: false, error: 'Kunne ikke gemme prisforklaring' }
     }
 
@@ -421,7 +422,7 @@ export async function savePriceExplanation(
     if (offerId) revalidatePath('/dashboard/offers')
     return { success: true, id: data.id }
   } catch (error) {
-    console.error('Error saving price explanation:', error)
+    logger.error('Error saving price explanation', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -442,13 +443,13 @@ export async function getPriceExplanation(offerId: string) {
       .single()
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching price explanation:', error)
+      logger.error('Error fetching price explanation', { error: error })
       return null
     }
 
     return data
   } catch (error) {
-    console.error('Error fetching price explanation:', error)
+    logger.error('Error fetching price explanation', { error: error })
     return null
   }
 }
@@ -517,7 +518,7 @@ export async function createCalculationSnapshot(
       .single()
 
     if (error) {
-      console.error('Error creating snapshot:', error)
+      logger.error('Error creating snapshot', { error: error })
       return { success: false, error: 'Kunne ikke oprette snapshot' }
     }
 
@@ -525,7 +526,7 @@ export async function createCalculationSnapshot(
     if (offerId) revalidatePath('/dashboard/offers')
     return { success: true, id: snapshot.id }
   } catch (error) {
-    console.error('Error creating snapshot:', error)
+    logger.error('Error creating snapshot', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -544,13 +545,13 @@ export async function getCalculationSnapshots(calculationId: string) {
       .order('version', { ascending: false })
 
     if (error) {
-      console.error('Error fetching snapshots:', error)
+      logger.error('Error fetching snapshots', { error: error })
       return []
     }
 
     return data || []
   } catch (error) {
-    console.error('Error fetching snapshots:', error)
+    logger.error('Error fetching snapshots', { error: error })
     return []
   }
 }

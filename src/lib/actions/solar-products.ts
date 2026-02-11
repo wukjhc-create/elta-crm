@@ -21,6 +21,7 @@ import {
   isMountingSpecs,
 } from '@/types/solar-products.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Read Operations
 // =====================================================
@@ -48,7 +49,7 @@ export async function getSolarProducts(
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching solar products:', error)
+      logger.error('Database error fetching solar products', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -76,7 +77,7 @@ export async function getSolarProduct(id: string): Promise<ActionResult<SolarPro
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Produktet blev ikke fundet' }
       }
-      console.error('Database error fetching solar product:', error)
+      logger.error('Database error fetching solar product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -108,7 +109,7 @@ export async function getSolarProductByCode(code: string): Promise<ActionResult<
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Produktet blev ikke fundet' }
       }
-      console.error('Database error fetching solar product by code:', error)
+      logger.error('Database error fetching solar product by code', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -133,7 +134,7 @@ export async function getSolarProductsByType(): Promise<ActionResult<SolarProduc
       .order('name')
 
     if (error) {
-      console.error('Database error fetching solar products:', error)
+      logger.error('Database error fetching solar products', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -207,7 +208,7 @@ export async function createSolarProduct(
       if (error.code === '23505') {
         return { success: false, error: 'Et produkt med denne kode findes allerede' }
       }
-      console.error('Database error creating solar product:', error)
+      logger.error('Database error creating solar product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -249,7 +250,7 @@ export async function updateSolarProduct(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Produktet blev ikke fundet' }
       }
-      console.error('Database error updating solar product:', error)
+      logger.error('Database error updating solar product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -276,7 +277,7 @@ export async function deleteSolarProduct(id: string): Promise<ActionResult<void>
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting solar product:', error)
+      logger.error('Database error deleting solar product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -306,7 +307,7 @@ export async function getSolarAssumptions(): Promise<ActionResult<SolarAssumptio
       .eq('category', 'solar_assumptions')
 
     if (error) {
-      console.error('Database error fetching solar assumptions:', error)
+      logger.error('Database error fetching solar assumptions', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -415,7 +416,7 @@ export async function updateSolarAssumption(
       .eq('setting_key', key)
 
     if (error) {
-      console.error('Database error updating solar assumption:', error)
+      logger.error('Database error updating solar assumption', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

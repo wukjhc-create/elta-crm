@@ -197,7 +197,7 @@ export async function getEntityAuditLogs(
       .limit(50)
 
     if (error) {
-      console.error('Error fetching entity audit logs:', error)
+      logger.error('Error fetching entity audit logs', { error: error })
       return { success: false, error: 'Kunne ikke hente audit logs' }
     }
 
@@ -275,12 +275,12 @@ export async function getAuditLogs(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Error counting audit logs:', countResult.error)
+      logger.error('Error counting audit logs', { error: countResult.error })
       return { success: false, error: 'Kunne ikke hente audit logs' }
     }
 
     if (dataResult.error) {
-      console.error('Error fetching audit logs:', dataResult.error)
+      logger.error('Error fetching audit logs', { error: dataResult.error })
       return { success: false, error: 'Kunne ikke hente audit logs' }
     }
 
@@ -317,7 +317,7 @@ export async function getRecentAuditActivity(
       .limit(limit)
 
     if (error) {
-      console.error('Error fetching recent audit activity:', error)
+      logger.error('Error fetching recent audit activity', { error: error })
       return { success: false, error: 'Kunne ikke hente seneste aktivitet' }
     }
 

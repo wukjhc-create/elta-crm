@@ -13,6 +13,7 @@ import type {
   SyncLogFilters,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Sync Job CRUD
 // =====================================================
@@ -36,7 +37,7 @@ export async function getSyncJobs(
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error fetching sync jobs:', error)
+      logger.error('Database error fetching sync jobs', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -63,7 +64,7 @@ export async function getSyncJob(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Sync job ikke fundet' }
       }
-      console.error('Database error fetching sync job:', error)
+      logger.error('Database error fetching sync job', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -90,7 +91,7 @@ export async function createSyncJob(
       .single()
 
     if (error) {
-      console.error('Database error creating sync job:', error)
+      logger.error('Database error creating sync job', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -120,7 +121,7 @@ export async function updateSyncJob(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Sync job ikke fundet' }
       }
-      console.error('Database error updating sync job:', error)
+      logger.error('Database error updating sync job', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -144,7 +145,7 @@ export async function deleteSyncJob(
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting sync job:', error)
+      logger.error('Database error deleting sync job', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -184,7 +185,7 @@ async function startSyncLog(
       .single()
 
     if (error) {
-      console.error('Database error creating sync log:', error)
+      logger.error('Database error creating sync log', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -215,7 +216,7 @@ export async function updateSyncLog(
       .single()
 
     if (error) {
-      console.error('Database error updating sync log:', error)
+      logger.error('Database error updating sync log', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -277,7 +278,7 @@ async function completeSyncLog(
       .single()
 
     if (error) {
-      console.error('Database error completing sync log:', error)
+      logger.error('Database error completing sync log', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -351,7 +352,7 @@ export async function getSyncLogs(
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error || dataResult.error) {
-      console.error('Database error fetching sync logs:', countResult.error || dataResult.error)
+      logger.error('Database error fetching sync logs', { error: countResult.error || dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 

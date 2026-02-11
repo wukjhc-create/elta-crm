@@ -6,6 +6,7 @@ import { getCompanySettings } from '@/lib/actions/settings'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import type { OfferWithRelations } from '@/types/offers.types'
 import type { ReactElement, JSXElementConstructor } from 'react'
+import { logger } from '@/lib/utils/logger'
 
 export async function GET(
   request: NextRequest,
@@ -36,7 +37,7 @@ export async function GET(
       .single()
 
     if (offerError || !offer) {
-      console.error('Error fetching offer for PDF:', offerError)
+      logger.error('Error fetching offer for PDF', { error: offerError })
       return NextResponse.json(
         { error: 'Tilbud ikke fundet' },
         { status: 404 }
@@ -91,7 +92,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error generating PDF:', error)
+    logger.error('Error generating PDF', { error })
     return NextResponse.json(
       { error: 'Kunne ikke generere PDF' },
       { status: 500 }

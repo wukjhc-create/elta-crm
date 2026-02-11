@@ -9,6 +9,7 @@ import type { Lead, LeadWithRelations, LeadActivity, LeadStatus } from '@/types/
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // Get all leads with optional filtering and pagination
 export async function getLeads(filters?: {
@@ -77,12 +78,12 @@ export async function getLeads(filters?: {
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting leads:', countResult.error)
+      logger.error('Database error counting leads', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching leads:', dataResult.error)
+      logger.error('Database error fetching leads', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -120,7 +121,7 @@ export async function getLead(id: string): Promise<ActionResult<LeadWithRelation
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Lead blev ikke fundet' }
       }
-      console.error('Database error fetching lead:', error)
+      logger.error('Database error fetching lead', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -230,7 +231,7 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte bruger findes ikke' }
       }
-      console.error('Database error creating lead:', error)
+      logger.error('Database error creating lead', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -315,7 +316,7 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte bruger findes ikke' }
       }
-      console.error('Database error updating lead:', error)
+      logger.error('Database error updating lead', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -419,7 +420,7 @@ export async function deleteLead(id: string): Promise<ActionResult> {
       if (error.code === '23503') {
         return { success: false, error: 'Lead kan ikke slettes da det har tilknyttede data' }
       }
-      console.error('Database error deleting lead:', error)
+      logger.error('Database error deleting lead', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -471,7 +472,7 @@ export async function updateLeadStatus(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Lead blev ikke fundet' }
       }
-      console.error('Database error updating lead status:', error)
+      logger.error('Database error updating lead status', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -511,7 +512,7 @@ export async function getLeadActivities(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Database error fetching lead activities:', error)
+      logger.error('Database error fetching lead activities', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -546,7 +547,7 @@ export async function addLeadActivity(
       if (error.code === '23503') {
         return { success: false, error: 'Lead findes ikke' }
       }
-      console.error('Database error adding lead activity:', error)
+      logger.error('Database error adding lead activity', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -570,7 +571,7 @@ export async function getTeamMembers(): Promise<
       .order('full_name')
 
     if (error) {
-      console.error('Database error fetching team members:', error)
+      logger.error('Database error fetching team members', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

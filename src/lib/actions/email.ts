@@ -18,6 +18,7 @@ import { sendEmail } from '@/lib/email/email-service'
 import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createPortalToken } from '@/lib/actions/portal'
+import { logger } from '@/lib/utils/logger'
 import { formatCurrency, formatDateLongDK } from '@/lib/utils/format'
 import crypto from 'crypto'
 import type {
@@ -95,13 +96,13 @@ export async function getEmailTemplates(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching email templates:', error)
+      logger.error('Error fetching email templates', { error: error })
       return []
     }
 
     return data || []
   } catch (error) {
-    console.error('Error fetching email templates:', error)
+    logger.error('Error fetching email templates', { error: error })
     return []
   }
 }
@@ -117,13 +118,13 @@ export async function getEmailTemplate(id: string): Promise<EmailTemplate | null
       .single()
 
     if (error) {
-      console.error('Error fetching email template:', error)
+      logger.error('Error fetching email template', { error: error })
       return null
     }
 
     return data
   } catch (error) {
-    console.error('Error fetching email template:', error)
+    logger.error('Error fetching email template', { error: error })
     return null
   }
 }
@@ -140,13 +141,13 @@ export async function getEmailTemplateByCode(code: string): Promise<EmailTemplat
       .single()
 
     if (error) {
-      console.error('Error fetching email template by code:', error)
+      logger.error('Error fetching email template by code', { error: error })
       return null
     }
 
     return data
   } catch (error) {
-    console.error('Error fetching email template by code:', error)
+    logger.error('Error fetching email template by code', { error: error })
     return null
   }
 }
@@ -167,14 +168,14 @@ export async function createEmailTemplate(
       .single()
 
     if (error) {
-      console.error('Error creating email template:', error)
+      logger.error('Error creating email template', { error: error })
       return { success: false, error: 'Kunne ikke oprette skabelon' }
     }
 
     revalidatePath('/dashboard/settings/email')
     return { success: true, data }
   } catch (error) {
-    console.error('Error creating email template:', error)
+    logger.error('Error creating email template', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -192,14 +193,14 @@ export async function updateEmailTemplate(
       .eq('id', id)
 
     if (error) {
-      console.error('Error updating email template:', error)
+      logger.error('Error updating email template', { error: error })
       return { success: false, error: 'Kunne ikke opdatere skabelon' }
     }
 
     revalidatePath('/dashboard/settings/email')
     return { success: true }
   } catch (error) {
-    console.error('Error updating email template:', error)
+    logger.error('Error updating email template', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -214,14 +215,14 @@ export async function deleteEmailTemplate(id: string): Promise<{ success: boolea
       .eq('id', id)
 
     if (error) {
-      console.error('Error deleting email template:', error)
+      logger.error('Error deleting email template', { error: error })
       return { success: false, error: 'Kunne ikke slette skabelon' }
     }
 
     revalidatePath('/dashboard/settings/email')
     return { success: true }
   } catch (error) {
-    console.error('Error deleting email template:', error)
+    logger.error('Error deleting email template', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -269,7 +270,7 @@ export async function getEmailThreads(options?: {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching email threads:', error)
+      logger.error('Error fetching email threads', { error: error })
       return []
     }
 
@@ -283,7 +284,7 @@ export async function getEmailThreads(options?: {
         : thread.latest_message,
     }))
   } catch (error) {
-    console.error('Error fetching email threads:', error)
+    logger.error('Error fetching email threads', { error: error })
     return []
   }
 }
@@ -304,7 +305,7 @@ export async function getEmailThread(id: string): Promise<EmailThreadWithRelatio
       .single()
 
     if (error) {
-      console.error('Error fetching email thread:', error)
+      logger.error('Error fetching email thread', { error: error })
       return null
     }
 
@@ -317,7 +318,7 @@ export async function getEmailThread(id: string): Promise<EmailThreadWithRelatio
 
     return data
   } catch (error) {
-    console.error('Error fetching email thread:', error)
+    logger.error('Error fetching email thread', { error: error })
     return null
   }
 }
@@ -338,13 +339,13 @@ export async function createEmailThread(
       .single()
 
     if (error) {
-      console.error('Error creating email thread:', error)
+      logger.error('Error creating email thread', { error: error })
       return { success: false, error: 'Kunne ikke oprette e-mail tråd' }
     }
 
     return { success: true, data }
   } catch (error) {
-    console.error('Error creating email thread:', error)
+    logger.error('Error creating email thread', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -368,13 +369,13 @@ export async function getEmailMessages(threadId: string): Promise<EmailMessageWi
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Error fetching email messages:', error)
+      logger.error('Error fetching email messages', { error: error })
       return []
     }
 
     return data || []
   } catch (error) {
-    console.error('Error fetching email messages:', error)
+    logger.error('Error fetching email messages', { error: error })
     return []
   }
 }
@@ -398,13 +399,13 @@ export async function createEmailMessage(
       .single()
 
     if (error) {
-      console.error('Error creating email message:', error)
+      logger.error('Error creating email message', { error: error })
       return { success: false, error: 'Kunne ikke oprette e-mail' }
     }
 
     return { success: true, data }
   } catch (error) {
-    console.error('Error creating email message:', error)
+    logger.error('Error creating email message', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -424,13 +425,13 @@ export async function logEmailEvent(
       .insert(input)
 
     if (error) {
-      console.error('Error logging email event:', error)
+      logger.error('Error logging email event', { error: error })
       return { success: false, error: 'Kunne ikke logge event' }
     }
 
     return { success: true }
   } catch (error) {
-    console.error('Error logging email event:', error)
+    logger.error('Error logging email event', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -465,7 +466,7 @@ export async function trackEmailOpen(trackingId: string, metadata?: {
 
     return { success: true }
   } catch (error) {
-    console.error('Error tracking email open:', error)
+    logger.error('Error tracking email open', { error: error })
     return { success: false }
   }
 }
@@ -573,7 +574,7 @@ export async function generateEmailPreview(
       },
     }
   } catch (error) {
-    console.error('Error generating email preview:', error)
+    logger.error('Error generating email preview', { error: error })
     return { success: false, error: 'Kunne ikke generere forhåndsvisning' }
   }
 }
@@ -768,7 +769,7 @@ export async function sendOfferEmail(
       tracking_id: trackingId,
     }
   } catch (error) {
-    console.error('Error sending offer email:', error)
+    logger.error('Error sending offer email', { error: error })
     return { success: false, error: 'Uventet fejl ved afsendelse af e-mail' }
   }
 }
@@ -812,7 +813,7 @@ export async function resendEmail(
       bcc: message.bcc || undefined,
     })
   } catch (error) {
-    console.error('Error resending email:', error)
+    logger.error('Error resending email', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -929,7 +930,7 @@ export async function logIncomingEmail(
 
     return { success: true }
   } catch (error) {
-    console.error('Error logging incoming email:', error)
+    logger.error('Error logging incoming email', { error: error })
     return { success: false, error: 'Uventet fejl' }
   }
 }
@@ -1004,7 +1005,7 @@ export async function getEmailStats(options?: {
       click_rate: totalSent > 0 ? (totalClicked / totalSent) * 100 : 0,
     }
   } catch (error) {
-    console.error('Error getting email stats:', error)
+    logger.error('Error getting email stats', { error: error })
     return {
       total_sent: 0,
       total_opened: 0,
@@ -1041,7 +1042,7 @@ export async function testSmtpConnectionAction(
     const result = await verifySmtpConnection(config)
     return result
   } catch (error) {
-    console.error('Error testing SMTP connection:', error)
+    logger.error('Error testing SMTP connection', { error: error })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Uventet fejl',
@@ -1077,7 +1078,7 @@ export async function sendTestEmailAction(
       error: result.error,
     }
   } catch (error) {
-    console.error('Error sending test email:', error)
+    logger.error('Error sending test email', { error: error })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Uventet fejl',

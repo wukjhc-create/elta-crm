@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { MONITORING_CONFIG } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Background Intelligence Check
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
   async function insertAlert(alert: Record<string, unknown>) {
     const { error } = await supabase.from('system_alerts').insert(alert)
     if (error) {
-      console.error('Failed to insert system alert:', error.message, alert)
+      logger.error('Failed to insert system alert', { error: error.message, metadata: alert as Record<string, unknown> })
       results.errors.push(`Alert insert failed: ${error.message}`)
     }
   }
@@ -362,7 +363,7 @@ export async function GET(request: Request) {
       results,
     })
   } catch (error) {
-    console.error('Intelligence check error:', error)
+    logger.error('Intelligence check error', { error })
     results.errors.push(error instanceof Error ? error.message : 'Unknown error')
 
     return NextResponse.json({

@@ -21,6 +21,7 @@ import {
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { DEFAULT_PAGE_SIZE, CALC_DEFAULTS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -48,7 +49,7 @@ export async function getPackageCategories(): Promise<ActionResult<PackageCatego
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching package categories:', error)
+      logger.error('Database error fetching package categories', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -89,7 +90,7 @@ export async function getPackages(filters?: {
         .eq('category_id', filters.category_id)
 
       if (pkgError) {
-        console.error('Database error filtering by category:', pkgError)
+        logger.error('Database error filtering by category', { error: pkgError })
         throw new Error('DATABASE_ERROR')
       }
 
@@ -133,7 +134,7 @@ export async function getPackages(filters?: {
     const { data, error } = await dataQuery
 
     if (error) {
-      console.error('Database error fetching packages:', error)
+      logger.error('Database error fetching packages', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -161,7 +162,7 @@ export async function getPackage(id: string): Promise<ActionResult<Package>> {
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Pakken blev ikke fundet' }
       }
-      console.error('Database error fetching package:', error)
+      logger.error('Database error fetching package', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -194,7 +195,7 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
       if (pkgError.code === 'PGRST116') {
         return { success: false, error: 'Pakken blev ikke fundet' }
       }
-      console.error('Database error fetching package:', pkgError)
+      logger.error('Database error fetching package', { error: pkgError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -214,7 +215,7 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
       .order('sort_order')
 
     if (itemsError) {
-      console.error('Database error fetching package items:', itemsError)
+      logger.error('Database error fetching package items', { error: itemsError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -258,7 +259,7 @@ export async function createPackage(input: CreatePackageInput): Promise<ActionRe
       if (error.code === '23505') {
         return { success: false, error: 'En pakke med dette navn eller kode findes allerede' }
       }
-      console.error('Database error creating package:', error)
+      logger.error('Database error creating package', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -295,7 +296,7 @@ export async function updatePackage(input: UpdatePackageInput): Promise<ActionRe
       if (error.code === '23505') {
         return { success: false, error: 'En pakke med dette navn eller kode findes allerede' }
       }
-      console.error('Database error updating package:', error)
+      logger.error('Database error updating package', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -321,7 +322,7 @@ export async function deletePackage(id: string): Promise<ActionResult<void>> {
       if (error.code === '23503') {
         return { success: false, error: 'Pakken kan ikke slettes da den bruges i kalkulationer eller tilbud' }
       }
-      console.error('Database error deleting package:', error)
+      logger.error('Database error deleting package', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -349,7 +350,7 @@ export async function copyPackage(
       })
 
     if (error) {
-      console.error('Database error copying package:', error)
+      logger.error('Database error copying package', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -390,7 +391,7 @@ export async function getPackageItems(packageId: string): Promise<ActionResult<P
       .order('sort_order')
 
     if (error) {
-      console.error('Database error fetching package items:', error)
+      logger.error('Database error fetching package items', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -453,7 +454,7 @@ export async function createPackageItem(input: CreatePackageItemInput): Promise<
       if (error.code === '23503') {
         return { success: false, error: 'Ugyldig pakke, komponent eller produkt reference' }
       }
-      console.error('Database error creating package item:', error)
+      logger.error('Database error creating package item', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -497,7 +498,7 @@ export async function updatePackageItem(input: UpdatePackageItemInput): Promise<
       if (error.code === '23503') {
         return { success: false, error: 'Ugyldig komponent eller produkt reference' }
       }
-      console.error('Database error updating package item:', error)
+      logger.error('Database error updating package item', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -524,7 +525,7 @@ export async function deletePackageItem(id: string): Promise<ActionResult<void>>
       if (fetchError.code === 'PGRST116') {
         return { success: false, error: 'Element blev ikke fundet' }
       }
-      console.error('Database error fetching package item:', fetchError)
+      logger.error('Database error fetching package item', { error: fetchError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -534,7 +535,7 @@ export async function deletePackageItem(id: string): Promise<ActionResult<void>>
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting package item:', error)
+      logger.error('Database error deleting package item', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -569,7 +570,7 @@ export async function reorderPackageItems(
         .eq('package_id', packageId)
 
       if (error) {
-        console.error('Database error reordering package item:', error)
+        logger.error('Database error reordering package item', { error: error })
         throw new Error('DATABASE_ERROR')
       }
     }
@@ -607,7 +608,7 @@ export async function insertPackageIntoCalculation(
       })
 
     if (error) {
-      console.error('Database error inserting package into calculation:', error)
+      logger.error('Database error inserting package into calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -640,7 +641,7 @@ export async function insertPackageIntoOffer(
       })
 
     if (error) {
-      console.error('Database error inserting package into offer:', error)
+      logger.error('Database error inserting package into offer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -679,7 +680,7 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
       .order('code')
 
     if (error) {
-      console.error('Database error fetching components for picker:', error)
+      logger.error('Database error fetching components for picker', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -696,7 +697,7 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
       .order('sort_order')
 
     if (varError) {
-      console.error('Database error fetching variants:', varError)
+      logger.error('Database error fetching variants', { error: varError })
     }
 
     // Create lookup map for variants by component
@@ -756,7 +757,7 @@ export async function getProductsForPicker(): Promise<ActionResult<{
       .order('name')
 
     if (error) {
-      console.error('Database error fetching products for picker:', error)
+      logger.error('Database error fetching products for picker', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

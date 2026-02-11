@@ -29,6 +29,7 @@ import type {
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { logger } from '@/lib/utils/logger'
 
 // Get all offers with optional filtering and pagination
 export async function getOffers(filters?: {
@@ -95,12 +96,12 @@ export async function getOffers(filters?: {
     const [countResult, dataResult] = await Promise.all([countQuery, dataQuery])
 
     if (countResult.error) {
-      console.error('Database error counting offers:', countResult.error)
+      logger.error('Database error counting offers', { error: countResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
     if (dataResult.error) {
-      console.error('Database error fetching offers:', dataResult.error)
+      logger.error('Database error fetching offers', { error: dataResult.error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -143,7 +144,7 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Tilbuddet blev ikke fundet' }
       }
-      console.error('Database error fetching offer:', error)
+      logger.error('Database error fetching offer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -233,7 +234,7 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte kunde eller lead findes ikke' }
       }
-      console.error('Database error creating offer:', error)
+      logger.error('Database error creating offer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -318,7 +319,7 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       if (error.code === '23503') {
         return { success: false, error: 'Den valgte kunde eller lead findes ikke' }
       }
-      console.error('Database error updating offer:', error)
+      logger.error('Database error updating offer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -360,7 +361,7 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
       if (error.code === '23503') {
         return { success: false, error: 'Tilbuddet kan ikke slettes da det har tilknyttede data' }
       }
-      console.error('Database error deleting offer:', error)
+      logger.error('Database error deleting offer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -433,7 +434,7 @@ export async function updateOfferStatus(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Tilbuddet blev ikke fundet' }
       }
-      console.error('Database error updating offer status:', error)
+      logger.error('Database error updating offer status', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -475,7 +476,7 @@ export async function updateOfferStatus(
       if (payload) {
         // Fire and forget - don't block the response
         triggerWebhooks(webhookEvent, payload).catch(err => {
-          console.error('Error triggering webhooks:', err)
+          logger.error('Error triggering webhooks', { error: err })
         })
       }
     }
@@ -506,7 +507,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
       .single()
 
     if (offerError || !offer) {
-      console.error('Error fetching offer for send:', offerError)
+      logger.error('Error fetching offer for send', { error: offerError })
       return { success: false, error: 'Tilbud ikke fundet' }
     }
 
@@ -564,7 +565,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
         .single()
 
       if (tokenError || !tokenData) {
-        console.error('Error creating portal token:', tokenError)
+        logger.error('Error creating portal token', { error: tokenError })
         return { success: false, error: 'Kunne ikke oprette portal-adgang' }
       }
 
@@ -621,7 +622,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
     )
 
     if (!emailResult.success) {
-      console.error('Error sending offer email:', emailResult.error)
+      logger.error('Error sending offer email', { error: emailResult.error })
       return { success: false, error: `Kunne ikke sende email: ${emailResult.error}` }
     }
 
@@ -638,7 +639,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
       .single()
 
     if (updateError) {
-      console.error('Error updating offer status after send:', updateError)
+      logger.error('Error updating offer status after send', { error: updateError })
       // Email was sent, but status update failed - still log activities
     }
 
@@ -663,7 +664,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
     const payload = await buildOfferWebhookPayload(offerId, 'offer.sent')
     if (payload) {
       triggerWebhooks('offer.sent', payload).catch(err => {
-        console.error('Error triggering webhooks:', err)
+        logger.error('Error triggering webhooks', { error: err })
       })
     }
 
@@ -693,7 +694,7 @@ export async function getOfferLineItems(
       .order('position')
 
     if (error) {
-      console.error('Database error fetching line items:', error)
+      logger.error('Database error fetching line items', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -748,7 +749,7 @@ export async function createLineItem(
       if (error.code === '23503') {
         return { success: false, error: 'Tilbuddet findes ikke' }
       }
-      console.error('Database error creating line item:', error)
+      logger.error('Database error creating line item', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -813,7 +814,7 @@ export async function updateLineItem(
       if (error.code === 'PGRST116') {
         return { success: false, error: 'Linjen blev ikke fundet' }
       }
-      console.error('Database error updating line item:', error)
+      logger.error('Database error updating line item', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -840,7 +841,7 @@ export async function deleteLineItem(
       .eq('id', id)
 
     if (error) {
-      console.error('Database error deleting line item:', error)
+      logger.error('Database error deleting line item', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -867,7 +868,7 @@ export async function getCustomersForSelect(): Promise<
       .order('company_name')
 
     if (error) {
-      console.error('Database error fetching customers:', error)
+      logger.error('Database error fetching customers', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -891,7 +892,7 @@ export async function getLeadsForSelect(): Promise<
       .order('company_name')
 
     if (error) {
-      console.error('Database error fetching leads:', error)
+      logger.error('Database error fetching leads', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -926,7 +927,7 @@ export async function addProductToOffer(
       if (productError.code === 'PGRST116') {
         return { success: false, error: 'Produktet blev ikke fundet' }
       }
-      console.error('Database error fetching product:', productError)
+      logger.error('Database error fetching product', { error: productError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -969,7 +970,7 @@ export async function addProductToOffer(
       if (error.code === '23503') {
         return { success: false, error: 'Tilbuddet findes ikke' }
       }
-      console.error('Database error adding product to offer:', error)
+      logger.error('Database error adding product to offer', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -1015,7 +1016,7 @@ export async function importCalculationToOffer(
       if (calcError.code === 'PGRST116') {
         return { success: false, error: 'Kalkulationen blev ikke fundet' }
       }
-      console.error('Database error fetching calculation:', calcError)
+      logger.error('Database error fetching calculation', { error: calcError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -1114,7 +1115,7 @@ export async function importCalculationToOffer(
       if (insertError.code === '23503') {
         return { success: false, error: 'Tilbuddet findes ikke' }
       }
-      console.error('Database error importing calculation to offer:', insertError)
+      logger.error('Database error importing calculation to offer', { error: insertError })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -1281,7 +1282,7 @@ export async function createLineItemFromSupplierProduct(
       .single()
 
     if (error) {
-      console.error('Database error creating line item from supplier product:', error)
+      logger.error('Database error creating line item from supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -1358,7 +1359,7 @@ export async function searchSupplierProductsForOffer(
     const { data, error } = await dbQuery
 
     if (error) {
-      console.error('Database error searching supplier products:', error)
+      logger.error('Database error searching supplier products', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -1510,7 +1511,7 @@ export async function refreshLineItemPrice(
       .single()
 
     if (error) {
-      console.error('Database error updating line item price:', error)
+      logger.error('Database error updating line item price', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 

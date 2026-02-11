@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logIncomingEmail } from '@/lib/actions/email'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
 
 /**
  * INBOUND EMAIL WEBHOOK
@@ -186,7 +187,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!result.success) {
-      console.error('Failed to log incoming email:', result.error)
+      logger.error('Failed to log incoming email', { error: result.error })
       return NextResponse.json(
         { error: result.error || 'Failed to process email' },
         { status: 500 }
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
     // Return success (providers expect 200 OK)
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Inbound email webhook error:', error)
+    logger.error('Inbound email webhook error', { error })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -23,6 +23,7 @@ import type {
 } from '@/types/integrations.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // HELPERS
@@ -41,7 +42,7 @@ export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
       .order('name')
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -96,7 +97,7 @@ export async function createIntegration(
       .single()
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -123,7 +124,7 @@ export async function updateIntegration(
       .single()
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -145,7 +146,7 @@ export async function deleteIntegration(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -171,7 +172,7 @@ export async function toggleIntegration(
       .single()
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -197,7 +198,7 @@ export async function getWebhooks(integrationId: string): Promise<ActionResult<I
       .order('name')
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -220,7 +221,7 @@ export async function createWebhook(
       .single()
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -247,7 +248,7 @@ export async function updateWebhook(
       .single()
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -269,7 +270,7 @@ export async function deleteWebhook(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -295,7 +296,7 @@ export async function getEndpoints(integrationId: string): Promise<ActionResult<
       .order('name')
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -318,7 +319,7 @@ export async function createEndpoint(
       .single()
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -345,7 +346,7 @@ export async function updateEndpoint(
       .single()
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -366,7 +367,7 @@ export async function deleteEndpoint(id: string): Promise<ActionResult> {
       .eq('id', id)
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -419,7 +420,7 @@ export async function getIntegrationLogs(
     const { data, error } = await query
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
@@ -450,7 +451,7 @@ export async function getExternalReferences(
       .eq('entity_id', entityId)
 
     if (error) {
-      console.error('Database error:', error)
+      logger.error('Database error', { error: error })
       throw new Error('DATABASE_ERROR')
     }
 
