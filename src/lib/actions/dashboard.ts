@@ -4,6 +4,7 @@ import type { LeadStatus } from '@/types/leads.types'
 import type { OfferStatus } from '@/types/offers.types'
 import type { ProjectStatus } from '@/types/projects.types'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { DASHBOARD_LIMITS } from '@/lib/constants'
 
 export interface DashboardStats {
   leads: {
@@ -203,7 +204,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }
 }
 
-export async function getRecentActivity(limit = 10): Promise<RecentActivity[]> {
+export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_ACTIVITY): Promise<RecentActivity[]> {
   const { supabase } = await getAuthenticatedClient()
 
   // Fetch recent items from each table in parallel
@@ -213,22 +214,22 @@ export async function getRecentActivity(limit = 10): Promise<RecentActivity[]> {
         .from('leads')
         .select('id, contact_person, company_name, status, created_at')
         .order('created_at', { ascending: false })
-        .limit(5),
+        .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
       supabase
         .from('customers')
         .select('id, company_name, customer_number, created_at')
         .order('created_at', { ascending: false })
-        .limit(5),
+        .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
       supabase
         .from('offers')
         .select('id, offer_number, title, status, created_at')
         .order('created_at', { ascending: false })
-        .limit(5),
+        .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
       supabase
         .from('projects')
         .select('id, project_number, name, status, created_at')
         .order('created_at', { ascending: false })
-        .limit(5),
+        .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
     ])
 
   const activities: RecentActivity[] = []
@@ -301,7 +302,7 @@ export async function getRecentActivity(limit = 10): Promise<RecentActivity[]> {
   return activities.slice(0, limit)
 }
 
-export async function getUpcomingTasks(limit = 5): Promise<
+export async function getUpcomingTasks(limit: number = DASHBOARD_LIMITS.UPCOMING_TASKS): Promise<
   {
     id: string
     title: string
@@ -347,7 +348,7 @@ export async function getUpcomingTasks(limit = 5): Promise<
   })
 }
 
-export async function getPendingOffers(limit = 5): Promise<
+export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_OFFERS): Promise<
   {
     id: string
     offer_number: string
