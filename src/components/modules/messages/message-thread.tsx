@@ -154,12 +154,14 @@ export function MessageThread({
             onClick={handleDelete}
             className="p-2 hover:bg-red-50 text-red-600 rounded-md"
             title="Slet"
+            aria-label="Slet besked"
             disabled={isLoading}
           >
             <Trash2 className="w-4 h-4" />
           </button>
           <button
             onClick={onClose}
+            aria-label="Luk"
             className="p-2 hover:bg-muted rounded-md ml-2"
           >
             <X className="w-4 h-4" />

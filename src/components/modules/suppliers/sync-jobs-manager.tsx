@@ -375,7 +375,7 @@ function SyncJobForm({ supplierId, editingJob, onSuccess, onCancel }: SyncJobFor
     <form onSubmit={handleSubmit} className="bg-white border rounded-lg p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="font-semibold">{editingJob ? 'Rediger sync job' : 'Opret nyt sync job'}</h4>
-        <button type="button" onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+        <button type="button" onClick={onCancel} aria-label="Luk" className="text-gray-400 hover:text-gray-600">
           <X className="h-5 w-5" />
         </button>
       </div>
