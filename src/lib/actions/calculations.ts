@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { DEFAULT_TAX_RATE } from '@/lib/constants'
+import { DEFAULT_TAX_RATE, CALC_DEFAULTS } from '@/lib/constants'
 import {
   createCalculationSchema,
   updateCalculationSchema,
@@ -378,7 +378,7 @@ export async function duplicateCalculation(
         // Enhanced fields
         calculation_mode: original.calculation_mode || 'standard',
         default_hourly_rate: original.default_hourly_rate || 450,
-        materials_markup_percentage: original.materials_markup_percentage || 25,
+        materials_markup_percentage: original.materials_markup_percentage || CALC_DEFAULTS.MARGINS.MATERIALS,
         show_cost_breakdown: original.show_cost_breakdown || false,
         group_by_section: original.group_by_section ?? true,
       })

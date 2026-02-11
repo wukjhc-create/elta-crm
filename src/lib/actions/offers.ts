@@ -10,7 +10,7 @@ import {
 } from '@/lib/validations/offers'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
-import { PORTAL_TOKEN_EXPIRY_DAYS } from '@/lib/constants'
+import { PORTAL_TOKEN_EXPIRY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
@@ -1193,7 +1193,7 @@ export async function createLineItemFromSupplierProduct(
     }
 
     // Get effective margin from rules engine (DB function with full hierarchy)
-    let marginPercentage = options?.customMarginPercentage ?? supplierProduct.margin_percentage ?? 25
+    let marginPercentage = options?.customMarginPercentage ?? supplierProduct.margin_percentage ?? CALC_DEFAULTS.MARGINS.MATERIALS
     let effectiveCostPrice = supplierProduct.cost_price
     let fixedMarkup = 0
     let roundTo: number | null = null
@@ -1389,7 +1389,7 @@ export async function searchSupplierProductsForOffer(
       const customerPricing = customerPricingMap.get(sp.supplier_id)
 
       let effectiveCost = sp.cost_price || 0
-      let margin = sp.margin_percentage || 25
+      let margin = sp.margin_percentage || CALC_DEFAULTS.MARGINS.MATERIALS
 
       if (customerPricing) {
         effectiveCost = (sp.cost_price || 0) * (1 - customerPricing.discount / 100)
@@ -1470,7 +1470,7 @@ export async function refreshLineItemPrice(
     // Get customer-specific pricing if applicable
     const offerInfo = Array.isArray(lineItem.offers) ? lineItem.offers[0] : lineItem.offers
     let effectiveCostPrice = supplierProduct.cost_price
-    let marginPercentage = lineItem.supplier_margin_applied || 25
+    let marginPercentage = lineItem.supplier_margin_applied || CALC_DEFAULTS.MARGINS.MATERIALS
 
     if (offerInfo?.customer_id) {
       const { data: customerPricing } = await supabase

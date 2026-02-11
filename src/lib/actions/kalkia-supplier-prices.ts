@@ -5,6 +5,7 @@ import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { KalkiaVariantMaterial } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { CALC_DEFAULTS } from '@/lib/constants'
 
 // =====================================================
 // Supplier Integration for Materials
@@ -502,7 +503,7 @@ export async function loadSupplierPricesForVariant(
       const baseCost = sp.cost_price
       let effectiveCost = baseCost
       let discount = 0
-      let margin = sp.margin_percentage || sp.default_margin_percentage || 25
+      let margin = sp.margin_percentage || sp.default_margin_percentage || CALC_DEFAULTS.MARGINS.MATERIALS
       let priceSource = 'standard'
 
       // Check customer-specific product price

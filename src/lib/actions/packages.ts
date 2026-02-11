@@ -20,7 +20,7 @@ import {
 } from '@/lib/validations/packages'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
-import { DEFAULT_PAGE_SIZE } from '@/lib/constants'
+import { DEFAULT_PAGE_SIZE, CALC_DEFAULTS } from '@/lib/constants'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -246,7 +246,7 @@ export async function createPackage(input: CreatePackageInput): Promise<ActionRe
       .from('packages')
       .insert({
         ...validated,
-        default_markup_percentage: validated.default_markup_percentage ?? 25,
+        default_markup_percentage: validated.default_markup_percentage ?? CALC_DEFAULTS.MARGINS.MATERIALS,
         is_active: validated.is_active ?? true,
         is_template: validated.is_template ?? false,
         created_by: userId,

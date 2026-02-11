@@ -21,7 +21,7 @@ import type {
 import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
-import { OFFER_VALIDITY_DAYS } from '@/lib/constants'
+import { OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
 
 // =====================================================
 // Types
@@ -332,7 +332,7 @@ export async function getAnalysis(id: string): Promise<ActionResult<SavedAnalysi
                 material_cost: 0,
                 labor_cost: 0,
                 subtotal: 0,
-                margin_percentage: 25,
+                margin_percentage: CALC_DEFAULTS.MARGINS.MATERIALS,
                 margin_amount: 0,
                 risk_buffer_percentage: 5,
                 risk_buffer_amount: 0,
