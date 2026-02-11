@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import { ProfitSimulatorClient } from './profit-simulator-client'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Profit Simulator',
   description: 'Simuler profitabilitet med forskellige marginer og rabatter',

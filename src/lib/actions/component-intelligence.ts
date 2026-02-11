@@ -135,6 +135,7 @@ export async function updateRoomType(
 
 export async function deleteRoomType(id: string): Promise<ActionResult<void>> {
   try {
+    validateUUID(id, 'rum type ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
@@ -460,6 +461,7 @@ export async function updateMaterial(
 
 export async function deleteMaterial(id: string): Promise<ActionResult<void>> {
   try {
+    validateUUID(id, 'materiale ID')
     const { supabase } = await getAuthenticatedClient()
 
     // Soft delete by setting is_active = false

@@ -2,6 +2,7 @@
 
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { revalidatePath } from 'next/cache'
+import { validateUUID } from '@/lib/validations/common'
 import type {
   CreateTemplateInput,
   TemplateWithCreator,
@@ -73,6 +74,7 @@ export async function deleteTemplate(id: string): Promise<{
   error?: string
 }> {
   try {
+    validateUUID(id, 'template ID')
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase

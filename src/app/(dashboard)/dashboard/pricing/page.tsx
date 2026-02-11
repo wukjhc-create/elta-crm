@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import { PricingDashboardClient } from './pricing-client'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Prisovervågning',
   description: 'Overvåg prisændringer, påvirkede tilbud og leverandørtendenser',

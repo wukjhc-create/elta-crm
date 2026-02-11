@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import { RoomCalculatorClient } from './room-calculator-client'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Rum-kalkulator',
   description: 'Professionel rum-baseret el-kalkulation med automatisk tids- og materialeberegning',

@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { SecuritySettingsClient } from './security-settings-client'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Sikkerhed',
   description: 'Adgangskode og sikkerhedsindstillinger',

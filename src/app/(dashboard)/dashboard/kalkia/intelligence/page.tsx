@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import { IntelligenceDemoClient } from './intelligence-demo-client'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'AI Intelligence Demo | Kalkia',
   description: 'Demonstration af AI-assisterede projekt- og tilbudsfunktioner',

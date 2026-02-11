@@ -2,6 +2,8 @@ import { Metadata } from 'next'
 import { Suspense } from 'react'
 import { MessagesPageClient } from '@/components/modules/messages/messages-page-client'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Indbakke',
   description: 'Beskeder og kommunikation',

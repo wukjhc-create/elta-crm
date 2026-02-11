@@ -1,6 +1,8 @@
 import { SuppliersList } from '@/components/modules/suppliers'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Leverandører | Indstillinger',
 }
