@@ -98,7 +98,7 @@ export abstract class BaseSupplierAPIClient {
         }
         return true
       }
-      console.info(`[Supplier ${this.supplierId}] Credential loading failed: ${result.error || 'no data'}`)
+      logger.info(`Supplier ${this.supplierId} credential loading failed: ${result.error || 'no data'}`)
       return false
     } catch (error) {
       logger.error(`Supplier ${this.supplierId} credential decryption error`, { error })

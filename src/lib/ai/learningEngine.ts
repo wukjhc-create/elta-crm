@@ -15,6 +15,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Types
@@ -368,7 +369,7 @@ export async function getSuggestedRiskBuffer(complexityScore: number): Promise<n
  */
 export async function recordAdjustment(adjustment: Omit<Adjustment, 'applied_at'>): Promise<void> {
   // Log adjustment - could be expanded to store in database
-  console.info('Calibration adjustment applied:', adjustment.type, adjustment.component || adjustment.factor)
+  logger.info('Calibration adjustment applied', { metadata: { type: adjustment.type, component: adjustment.component || adjustment.factor } })
 }
 
 // =====================================================

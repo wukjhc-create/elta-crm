@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Log webhook payload for debugging
-    console.info('SMS webhook received:', payload.id, payload.status)
+    logger.info('SMS webhook received', { metadata: { id: payload.id, status: payload.status } })
 
     // Handle the webhook
     const result = await handleSmsWebhook({
