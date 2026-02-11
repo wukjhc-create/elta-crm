@@ -119,6 +119,8 @@ export function SupplierProductsTable({
     const result = await getSupplierProductCategories(supplierId)
     if (result.success && result.data) {
       setCategories(result.data)
+    } else if (!result.success) {
+      toast.error('Kunne ikke hente kategorier')
     }
   }
 

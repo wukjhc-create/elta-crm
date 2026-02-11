@@ -51,9 +51,11 @@ export function SupplierStatusCard({
         setStatus(result.data)
       } else {
         setStatus(null)
+        toast.error('Kunne ikke hente leverandørstatus')
       }
     } catch {
       setStatus(null)
+      toast.error('Kunne ikke hente leverandørstatus')
     }
     setLoading(false)
   }

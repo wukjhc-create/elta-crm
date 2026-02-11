@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getSystemAlerts, dismissAlert, markAlertRead } from '@/lib/actions/calculation-intelligence'
+import { useToast } from '@/components/ui/toast'
 import type { SystemAlert } from '@/types/calculation-intelligence.types'
 
 const SEVERITY_STYLES = {
@@ -26,6 +27,7 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export function SystemAlertsWidget() {
+  const toast = useToast()
   const [alerts, setAlerts] = useState<SystemAlert[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -41,15 +43,23 @@ export function SystemAlertsWidget() {
   }, [])
 
   const handleDismiss = async (id: string) => {
-    await dismissAlert(id)
-    setAlerts((prev) => prev.filter((a) => a.id !== id))
+    const result = await dismissAlert(id)
+    if (result.success) {
+      setAlerts((prev) => prev.filter((a) => a.id !== id))
+    } else {
+      toast.error('Kunne ikke afvise advarsel')
+    }
   }
 
   const handleMarkRead = async (id: string) => {
-    await markAlertRead(id)
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, is_read: true } : a))
-    )
+    const result = await markAlertRead(id)
+    if (result.success) {
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, is_read: true } : a))
+      )
+    } else {
+      toast.error('Kunne ikke markere som læst')
+    }
   }
 
   if (loading) {
@@ -96,6 +106,7 @@ export function SystemAlertsWidget() {
               className="text-xs opacity-50 hover:opacity-100 ml-2"
               onClick={() => handleDismiss(alert.id)}
               title="Afvis"
+              aria-label="Afvis advarsel"
             >
               x
             </button>

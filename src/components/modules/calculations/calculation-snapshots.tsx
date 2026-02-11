@@ -54,7 +54,7 @@ export function CalculationSnapshots({ calculation }: CalculationSnapshotsProps)
         const data = await getCalculationSnapshots(calculation.id)
         setSnapshots(data)
       } catch {
-        // No snapshots - fine
+        toast.error('Kunne ikke hente snapshots')
       } finally {
         setIsLoading(false)
       }
@@ -111,8 +111,12 @@ export function CalculationSnapshots({ calculation }: CalculationSnapshotsProps)
       if (result.success) {
         toast.success('Snapshot oprettet')
         // Reload snapshots
-        const data = await getCalculationSnapshots(calculation.id)
-        setSnapshots(data)
+        try {
+          const data = await getCalculationSnapshots(calculation.id)
+          setSnapshots(data)
+        } catch {
+          toast.error('Kunne ikke genindlæse snapshots')
+        }
         setIsExpanded(true)
       } else {
         toast.error(result.error || 'Kunne ikke oprette snapshot')

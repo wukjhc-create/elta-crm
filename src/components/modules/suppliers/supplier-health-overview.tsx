@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useToast } from '@/components/ui/toast'
 import {
   CheckCircle2,
   XCircle,
@@ -33,6 +34,7 @@ interface SupplierHealthOverviewProps {
 }
 
 export function SupplierHealthOverview({ className }: SupplierHealthOverviewProps) {
+  const toast = useToast()
   const [summary, setSummary] = useState<HealthSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -54,9 +56,11 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
         })
       } else {
         setSummary(null)
+        toast.error('Kunne ikke hente systemstatus')
       }
     } catch {
       setSummary(null)
+      toast.error('Kunne ikke hente systemstatus')
     }
     setLoading(false)
   }

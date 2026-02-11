@@ -73,6 +73,8 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
     if (result.success && result.data) {
       setBatches(result.data.data)
       setTotalPages(result.data.totalPages)
+    } else if (!result.success) {
+      toast.error('Kunne ikke hente importhistorik')
     }
     setLoading(false)
   }
@@ -85,6 +87,8 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
       const result = await getPriceChangesFromImport(batch.id)
       if (result.success && result.data) {
         setPriceChanges(result.data)
+      } else if (!result.success) {
+        toast.error('Kunne ikke hente prisændringer')
       }
     } else {
       setPriceChanges([])
