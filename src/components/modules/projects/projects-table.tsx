@@ -69,8 +69,13 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
     })
     if (!ok) return
     setIsBulkActing(true)
-    await Promise.allSettled(Array.from(selectedIds).map((id) => deleteProject(id)))
-    toast.success(`${selectedIds.size} projekter slettet`)
+    const results = await Promise.allSettled(Array.from(selectedIds).map((id) => deleteProject(id)))
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    if (failed > 0) {
+      toast.error(`${failed} af ${selectedIds.size} projekter kunne ikke slettes`)
+    } else {
+      toast.success(`${selectedIds.size} projekter slettet`)
+    }
     setSelectedIds(new Set())
     setIsBulkActing(false)
     onRefresh?.()
@@ -78,8 +83,13 @@ export function ProjectsTable({ projects, onRefresh, sortBy, sortOrder, onSort, 
 
   const handleBulkStatusChange = async (status: ProjectStatus) => {
     setIsBulkActing(true)
-    await Promise.allSettled(Array.from(selectedIds).map((id) => updateProjectStatus(id, status)))
-    toast.success(`${selectedIds.size} projekter opdateret til ${PROJECT_STATUS_LABELS[status]}`)
+    const results = await Promise.allSettled(Array.from(selectedIds).map((id) => updateProjectStatus(id, status)))
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    if (failed > 0) {
+      toast.error(`${failed} af ${selectedIds.size} projekter kunne ikke opdateres`)
+    } else {
+      toast.success(`${selectedIds.size} projekter opdateret til ${PROJECT_STATUS_LABELS[status]}`)
+    }
     setSelectedIds(new Set())
     setIsBulkActing(false)
     onRefresh?.()

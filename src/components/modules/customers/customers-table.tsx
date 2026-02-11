@@ -69,8 +69,13 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
     })
     if (!ok) return
     setIsBulkActing(true)
-    await Promise.allSettled(Array.from(selectedIds).map((id) => deleteCustomer(id)))
-    toast.success(`${selectedIds.size} kunder slettet`)
+    const results = await Promise.allSettled(Array.from(selectedIds).map((id) => deleteCustomer(id)))
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    if (failed > 0) {
+      toast.error(`${failed} af ${selectedIds.size} kunder kunne ikke slettes`)
+    } else {
+      toast.success(`${selectedIds.size} kunder slettet`)
+    }
     setSelectedIds(new Set())
     setIsBulkActing(false)
     router.refresh()
@@ -78,8 +83,13 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
 
   const handleBulkToggleActive = async (active: boolean) => {
     setIsBulkActing(true)
-    await Promise.allSettled(Array.from(selectedIds).map((id) => toggleCustomerActive(id, active)))
-    toast.success(`${selectedIds.size} kunder ${active ? 'aktiveret' : 'deaktiveret'}`)
+    const results = await Promise.allSettled(Array.from(selectedIds).map((id) => toggleCustomerActive(id, active)))
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    if (failed > 0) {
+      toast.error(`${failed} af ${selectedIds.size} kunder kunne ikke opdateres`)
+    } else {
+      toast.success(`${selectedIds.size} kunder ${active ? 'aktiveret' : 'deaktiveret'}`)
+    }
     setSelectedIds(new Set())
     setIsBulkActing(false)
     router.refresh()

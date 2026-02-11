@@ -73,8 +73,13 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
     })
     if (!ok) return
     setIsBulkActing(true)
-    await Promise.allSettled(Array.from(selectedIds).map((id) => deleteLead(id)))
-    toast.success(`${selectedIds.size} leads slettet`)
+    const results = await Promise.allSettled(Array.from(selectedIds).map((id) => deleteLead(id)))
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    if (failed > 0) {
+      toast.error(`${failed} af ${selectedIds.size} leads kunne ikke slettes`)
+    } else {
+      toast.success(`${selectedIds.size} leads slettet`)
+    }
     setSelectedIds(new Set())
     setIsBulkActing(false)
     router.refresh()
@@ -82,8 +87,13 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
 
   const handleBulkStatusChange = async (status: LeadStatus) => {
     setIsBulkActing(true)
-    await Promise.allSettled(Array.from(selectedIds).map((id) => updateLeadStatus(id, status)))
-    toast.success(`${selectedIds.size} leads opdateret til ${LEAD_STATUS_LABELS[status]}`)
+    const results = await Promise.allSettled(Array.from(selectedIds).map((id) => updateLeadStatus(id, status)))
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    if (failed > 0) {
+      toast.error(`${failed} af ${selectedIds.size} leads kunne ikke opdateres`)
+    } else {
+      toast.success(`${selectedIds.size} leads opdateret til ${LEAD_STATUS_LABELS[status]}`)
+    }
     setSelectedIds(new Set())
     setIsBulkActing(false)
     router.refresh()

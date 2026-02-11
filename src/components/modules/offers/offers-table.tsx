@@ -72,8 +72,13 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
     })
     if (!ok) return
     setIsBulkActing(true)
-    await Promise.allSettled(Array.from(selectedIds).map((id) => deleteOffer(id)))
-    toast.success(`${selectedIds.size} tilbud slettet`)
+    const results = await Promise.allSettled(Array.from(selectedIds).map((id) => deleteOffer(id)))
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    if (failed > 0) {
+      toast.error(`${failed} af ${selectedIds.size} tilbud kunne ikke slettes`)
+    } else {
+      toast.success(`${selectedIds.size} tilbud slettet`)
+    }
     setSelectedIds(new Set())
     setIsBulkActing(false)
     router.refresh()
@@ -81,8 +86,13 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
 
   const handleBulkStatusChange = async (status: OfferStatus) => {
     setIsBulkActing(true)
-    await Promise.allSettled(Array.from(selectedIds).map((id) => updateOfferStatus(id, status)))
-    toast.success(`${selectedIds.size} tilbud opdateret til ${OFFER_STATUS_LABELS[status]}`)
+    const results = await Promise.allSettled(Array.from(selectedIds).map((id) => updateOfferStatus(id, status)))
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length
+    if (failed > 0) {
+      toast.error(`${failed} af ${selectedIds.size} tilbud kunne ikke opdateres`)
+    } else {
+      toast.success(`${selectedIds.size} tilbud opdateret til ${OFFER_STATUS_LABELS[status]}`)
+    }
     setSelectedIds(new Set())
     setIsBulkActing(false)
     router.refresh()
