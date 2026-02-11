@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { testSupplierAPIConnection, syncSupplierPrices } from '@/lib/actions/supplier-sync'
 import { getSupplierHealth, type SupplierHealth } from '@/lib/actions/supplier-health'
+import { formatTimeAgo } from '@/lib/utils/format'
 
 interface SupplierStatusCardProps {
   supplierId: string
@@ -40,8 +41,28 @@ export function SupplierStatusCard({
   const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
-    loadStatus()
-  }, [supplierId])
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const result = await getSupplierHealth(supplierId)
+        if (cancelled) return
+        if (result.success && result.data) {
+          setStatus(result.data)
+        } else {
+          setStatus(null)
+          toast.error('Kunne ikke hente leverandørstatus')
+        }
+      } catch {
+        if (cancelled) return
+        setStatus(null)
+        toast.error('Kunne ikke hente leverandørstatus')
+      }
+      if (!cancelled) setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [supplierId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadStatus() {
     setLoading(true)
@@ -171,7 +192,7 @@ export function SupplierStatusCard({
             <div className="text-gray-500">Sidste sync</div>
             <div className="font-medium">
               {status?.lastSuccessfulSync
-                ? formatRelativeTime(new Date(status.lastSuccessfulSync))
+                ? formatTimeAgo(status.lastSuccessfulSync)
                 : 'Aldrig'}
             </div>
           </div>
@@ -252,18 +273,3 @@ export function SupplierStatusCard({
   )
 }
 
-// Helper to format relative time
-function formatRelativeTime(date: Date): string {
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMins < 1) return 'Lige nu'
-  if (diffMins < 60) return `${diffMins} min siden`
-  if (diffHours < 24) return `${diffHours} timer siden`
-  if (diffDays === 1) return 'I går'
-  if (diffDays < 7) return `${diffDays} dage siden`
-  return date.toLocaleDateString('da-DK')
-}

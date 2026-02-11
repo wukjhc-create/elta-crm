@@ -17,6 +17,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
+import { formatTimeAgo } from '@/lib/utils/format'
 
 interface HealthSummary {
   totalSuppliers: number
@@ -40,8 +41,32 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
-    loadSummary()
-  }, [])
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const { getSystemHealthSummary } = await import('@/lib/actions/supplier-health')
+        const result = await getSystemHealthSummary()
+        if (cancelled) return
+        if (result.success && result.data) {
+          setSummary({
+            ...result.data,
+            lastGlobalSync: result.data.lastGlobalSync ? new Date(result.data.lastGlobalSync) : null,
+          })
+        } else {
+          setSummary(null)
+          toast.error('Kunne ikke hente systemstatus')
+        }
+      } catch {
+        if (cancelled) return
+        setSummary(null)
+        toast.error('Kunne ikke hente systemstatus')
+      }
+      if (!cancelled) setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadSummary() {
     setLoading(true)
@@ -49,7 +74,6 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
       const { getSystemHealthSummary } = await import('@/lib/actions/supplier-health')
       const result = await getSystemHealthSummary()
       if (result.success && result.data) {
-        // Convert string date to Date object if needed
         setSummary({
           ...result.data,
           lastGlobalSync: result.data.lastGlobalSync ? new Date(result.data.lastGlobalSync) : null,
@@ -155,7 +179,7 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
             <Clock className="w-4 h-4 text-gray-400" />
             <span className="text-sm font-medium">
               {summary.lastGlobalSync
-                ? formatRelativeTime(summary.lastGlobalSync)
+                ? formatTimeAgo(summary.lastGlobalSync)
                 : 'Aldrig'}
             </span>
           </div>
@@ -218,17 +242,3 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
   )
 }
 
-// Helper to format relative time
-function formatRelativeTime(date: Date): string {
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMins < 1) return 'Nu'
-  if (diffMins < 60) return `${diffMins}m`
-  if (diffHours < 24) return `${diffHours}t`
-  if (diffDays === 1) return 'I går'
-  return `${diffDays}d`
-}

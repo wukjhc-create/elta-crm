@@ -23,7 +23,7 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Debounced search
+  // Debounced search with stale-result prevention
   useEffect(() => {
     if (query.length < 2) {
       setResults([])
@@ -31,18 +31,23 @@ export function GlobalSearch() {
       return
     }
 
+    let cancelled = false
     const timer = setTimeout(async () => {
       setIsLoading(true)
       const response = await globalSearch(query)
-      setIsLoading(false)
+      if (cancelled) return
 
+      setIsLoading(false)
       if (response.success && response.results) {
         setResults(response.results)
         setIsOpen(response.results.length > 0)
       }
     }, 300)
 
-    return () => clearTimeout(timer)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [query])
 
   // Close on click outside
