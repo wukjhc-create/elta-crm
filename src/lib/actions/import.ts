@@ -296,42 +296,51 @@ export async function executeImport(
 
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
         const rowBatch = validRows.slice(i, i + BATCH_SIZE)
+        const now = new Date().toISOString()
 
-        for (const row of rowBatch) {
-          const existingId = row.existingProductId
-          const existingPrice = existingPriceMap.get(row.parsed.sku)
+        // Separate updates from inserts
+        const toUpdate = rowBatch.filter((r) => r.existingProductId)
+        const toInsert = rowBatch.filter((r) => !r.existingProductId)
 
-          if (existingId) {
-            // Update existing product
-            const updateResult = await supabase
-              .from('supplier_products')
-              .update({
-                supplier_name: row.parsed.name,
-                cost_price: row.parsed.cost_price,
-                list_price: row.parsed.list_price,
-                unit: row.parsed.unit,
-                category: row.parsed.category,
-                sub_category: row.parsed.sub_category,
-                manufacturer: row.parsed.manufacturer,
-                ean: row.parsed.ean,
-                min_order_quantity: row.parsed.min_order_quantity,
-                last_synced_at: new Date().toISOString(),
-              })
-              .eq('id', existingId)
+        // Parallelize updates (each row needs individual update due to different IDs)
+        if (toUpdate.length > 0) {
+          const updateResults = await Promise.allSettled(
+            toUpdate.map((row) =>
+              supabase
+                .from('supplier_products')
+                .update({
+                  supplier_name: row.parsed.name,
+                  cost_price: row.parsed.cost_price,
+                  list_price: row.parsed.list_price,
+                  unit: row.parsed.unit,
+                  category: row.parsed.category,
+                  sub_category: row.parsed.sub_category,
+                  manufacturer: row.parsed.manufacturer,
+                  ean: row.parsed.ean,
+                  min_order_quantity: row.parsed.min_order_quantity,
+                  last_synced_at: now,
+                })
+                .eq('id', row.existingProductId!)
+            )
+          )
 
-            if (!updateResult.error) {
+          // Count successes and collect price changes
+          const priceHistoryBatch: Array<Record<string, unknown>> = []
+          for (let j = 0; j < toUpdate.length; j++) {
+            const result = updateResults[j]
+            if (result.status === 'fulfilled' && !result.value.error) {
               updatedProducts++
+              const row = toUpdate[j]
+              const existingPrice = existingPriceMap.get(row.parsed.sku)
 
-              // Track price change
               if (existingPrice && row.parsed.cost_price !== null) {
                 const oldPrice = existingPrice.cost
                 const newPrice = row.parsed.cost_price
 
                 if (oldPrice !== newPrice) {
                   const changePercent = calculatePriceChange(oldPrice, newPrice)
-
                   priceChanges.push({
-                    supplier_product_id: existingId,
+                    supplier_product_id: row.existingProductId!,
                     supplier_sku: row.parsed.sku,
                     product_name: row.parsed.name,
                     old_cost_price: oldPrice,
@@ -340,10 +349,8 @@ export async function executeImport(
                     new_list_price: row.parsed.list_price,
                     change_percentage: changePercent,
                   })
-
-                  // Record price history
-                  await supabase.from('price_history').insert({
-                    supplier_product_id: existingId,
+                  priceHistoryBatch.push({
+                    supplier_product_id: row.existingProductId,
                     old_cost_price: oldPrice,
                     new_cost_price: newPrice,
                     old_list_price: existingPrice.list,
@@ -355,11 +362,20 @@ export async function executeImport(
                 }
               }
             }
-          } else {
-            // Insert new product
-            const insertResult = await supabase
-              .from('supplier_products')
-              .insert({
+          }
+
+          // Batch-insert price history records
+          if (priceHistoryBatch.length > 0) {
+            await supabase.from('price_history').insert(priceHistoryBatch)
+          }
+        }
+
+        // Batch-insert new products
+        if (toInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from('supplier_products')
+            .insert(
+              toInsert.map((row) => ({
                 supplier_id: supplierId,
                 supplier_sku: row.parsed.sku,
                 supplier_name: row.parsed.name,
@@ -372,12 +388,12 @@ export async function executeImport(
                 ean: row.parsed.ean,
                 min_order_quantity: row.parsed.min_order_quantity,
                 is_available: true,
-                last_synced_at: new Date().toISOString(),
-              })
+                last_synced_at: now,
+              }))
+            )
 
-            if (!insertResult.error) {
-              newProducts++
-            }
+          if (!insertError) {
+            newProducts += toInsert.length
           }
         }
       }
