@@ -11,9 +11,9 @@ import { MONITORING_CONFIG } from '@/lib/constants'
 const CRON_SECRET = process.env.CRON_SECRET
 
 export async function GET(request: Request) {
-  // Verify authorization
+  // Verify authorization - fail-secure when CRON_SECRET is not configured
   const authHeader = request.headers.get('authorization')
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -238,15 +238,41 @@ export async function GET(request: Request) {
       .eq('is_active', true)
 
     if (suppliers) {
+      // Batch-load last sync per supplier to avoid N+1 queries
+      const supplierIds = suppliers.map(s => s.id)
+
+      const { data: allSyncLogs } = await supabase
+        .from('supplier_sync_logs')
+        .select('supplier_id, completed_at, status')
+        .in('supplier_id', supplierIds)
+        .order('completed_at', { ascending: false })
+
+      // Build map of supplier_id → most recent sync log
+      const lastSyncBySupplier = new Map<string, { completed_at: string | null; status: string }>()
+      for (const log of allSyncLogs || []) {
+        if (!lastSyncBySupplier.has(log.supplier_id)) {
+          lastSyncBySupplier.set(log.supplier_id, log)
+        }
+      }
+
+      // Batch-load product counts for suppliers without syncs
+      const suppliersWithoutSync = suppliers.filter(s => !lastSyncBySupplier.has(s.id))
+      const productCountBySupplier = new Map<string, number>()
+
+      if (suppliersWithoutSync.length > 0) {
+        const { data: productCounts } = await supabase
+          .from('supplier_products')
+          .select('supplier_id')
+          .in('supplier_id', suppliersWithoutSync.map(s => s.id))
+
+        for (const row of productCounts || []) {
+          productCountBySupplier.set(row.supplier_id, (productCountBySupplier.get(row.supplier_id) || 0) + 1)
+        }
+      }
+
+      // Now process all suppliers without additional queries
       for (const supplier of suppliers) {
-        // Check last sync
-        const { data: lastSync } = await supabase
-          .from('supplier_sync_logs')
-          .select('completed_at, status')
-          .eq('supplier_id', supplier.id)
-          .order('completed_at', { ascending: false })
-          .limit(1)
-          .single()
+        const lastSync = lastSyncBySupplier.get(supplier.id)
 
         if (lastSync) {
           const lastSyncDate = new Date(lastSync.completed_at || '')
@@ -288,12 +314,7 @@ export async function GET(request: Request) {
           }
         } else {
           // Never synced
-          const { count } = await supabase
-            .from('supplier_products')
-            .select('*', { count: 'exact', head: true })
-            .eq('supplier_id', supplier.id)
-
-          if ((count || 0) === 0) {
+          if ((productCountBySupplier.get(supplier.id) || 0) === 0) {
             await insertAlert({
               alert_type: 'supplier_offline',
               severity: 'info',

@@ -475,45 +475,6 @@ export async function getPriceHistory(
 }
 
 // =====================================================
-// Preferred Supplier Logic
-// =====================================================
-
-export async function getPreferredSupplierForProduct(
-  productSku: string
-): Promise<ActionResult<SupplierProductWithSupplier | null>> {
-  try {
-    const { supabase } = await getAuthenticatedClient()
-
-    const { data, error } = await supabase
-      .from('v_supplier_products_with_supplier')
-      .select('*')
-      .eq('supplier_sku', productSku)
-      .eq('is_available', true)
-      .eq('supplier_is_active', true)
-      .order('is_preferred', { ascending: false })
-      .order('cost_price', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) {
-      console.error('Database error fetching preferred supplier:', error)
-      throw new Error('DATABASE_ERROR')
-    }
-
-    return { success: true, data: data as SupplierProductWithSupplier | null }
-  } catch (err) {
-    return { success: false, error: formatError(err, 'Kunne ikke finde foretrukken leverandør') }
-  }
-}
-
-export async function calculateMarginPrice(
-  costPrice: number,
-  marginPercentage: number
-): Promise<number> {
-  return costPrice * (1 + marginPercentage / 100)
-}
-
-// =====================================================
 // Supplier Options for Material Linking
 // =====================================================
 
