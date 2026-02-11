@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { getImportBatches, getImportBatch, getPriceChangesFromImport } from '@/lib/actions/import'
 import type { ImportBatchSummary, ImportStatus, PriceChange } from '@/types/suppliers.types'
-import { formatDateTimeDK, formatDurationMs, formatCurrency } from '@/lib/utils/format'
+import { formatDateTimeDK, formatDurationMs, formatCurrency, formatBytes } from '@/lib/utils/format'
 
 interface ImportHistoryProps {
   supplierId?: string
@@ -104,12 +104,7 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
   }
 
 
-  const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return '-'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+  const formatFileSize = (bytes: number | null) => bytes ? formatBytes(bytes) : '-'
 
   if (loading && batches.length === 0) {
     return (

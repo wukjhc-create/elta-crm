@@ -74,6 +74,7 @@ export async function saveProjectContext(
       return { success: false, error: 'Kunne ikke gemme projektkontekst' }
     }
 
+    revalidatePath('/dashboard/ai-project')
     return { success: true, id: data.id }
   } catch (error) {
     console.error('Error saving project context:', error)
@@ -198,6 +199,7 @@ export async function saveRiskAssessments(
       return { success: false, error: 'Kunne ikke gemme risikovurderinger' }
     }
 
+    revalidatePath('/dashboard/calculations')
     return { success: true }
   } catch (error) {
     console.error('Error saving risk assessments:', error)
@@ -415,6 +417,8 @@ export async function savePriceExplanation(
       return { success: false, error: 'Kunne ikke gemme prisforklaring' }
     }
 
+    if (calculationId) revalidatePath('/dashboard/calculations')
+    if (offerId) revalidatePath('/dashboard/offers')
     return { success: true, id: data.id }
   } catch (error) {
     console.error('Error saving price explanation:', error)
@@ -517,6 +521,8 @@ export async function createCalculationSnapshot(
       return { success: false, error: 'Kunne ikke oprette snapshot' }
     }
 
+    if (calculationId) revalidatePath('/dashboard/calculations')
+    if (offerId) revalidatePath('/dashboard/offers')
     return { success: true, id: snapshot.id }
   } catch (error) {
     console.error('Error creating snapshot:', error)

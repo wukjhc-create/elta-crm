@@ -6,6 +6,7 @@ import { X, Send, User, Paperclip, File, Image, FileText, Loader2, Download } fr
 import { sendPortalMessage, markPortalMessagesAsRead, uploadPortalAttachment } from '@/lib/actions/portal'
 import type { PortalSession, PortalMessageWithRelations, PortalAttachment } from '@/types/portal.types'
 import { MAX_FILE_SIZE } from '@/lib/constants'
+import { formatBytes } from '@/lib/utils/format'
 
 interface PortalChatProps {
   token: string
@@ -177,11 +178,7 @@ export function PortalChat({
     })
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+  const formatFileSize = (bytes: number) => formatBytes(bytes)
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) return <Image className="w-4 h-4" />
@@ -377,11 +374,7 @@ function AttachmentDisplay({
 }) {
   const isImage = attachment.type.startsWith('image/')
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+  const formatFileSize = (bytes: number) => formatBytes(bytes)
 
   if (isImage) {
     return (
