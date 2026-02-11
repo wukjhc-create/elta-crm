@@ -65,84 +65,63 @@ export interface ReportsSummary {
 }
 
 // =====================================================
-// Summary
+// Summary (parallelized)
 // =====================================================
 
 export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>> {
   try {
     const { supabase } = await getAuthenticatedClient()
 
-    // Get accepted offers total
-    const { data: acceptedOffers } = await supabase
-      .from('offers')
-      .select('final_amount')
-      .eq('status', 'accepted')
-
-    const total_revenue = (acceptedOffers || []).reduce((sum, o) => sum + (o.final_amount || 0), 0)
-
-    // Get pending value
-    const { data: pendingOffers } = await supabase
-      .from('offers')
-      .select('final_amount')
-      .in('status', ['sent', 'viewed'])
-
-    const pending_value = (pendingOffers || []).reduce((sum, o) => sum + (o.final_amount || 0), 0)
-
-    // Get acceptance rate
-    const { count: acceptedCount } = await supabase
-      .from('offers')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'accepted')
-
-    const { count: rejectedCount } = await supabase
-      .from('offers')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'rejected')
-
-    const decided = (acceptedCount || 0) + (rejectedCount || 0)
-    const acceptance_rate = decided > 0 ? ((acceptedCount || 0) / decided) * 100 : 0
-
-    // Average offer value
-    const { data: allOffers } = await supabase
-      .from('offers')
-      .select('final_amount')
-      .not('status', 'eq', 'draft')
-
-    const avg_offer_value =
-      allOffers && allOffers.length > 0
-        ? allOffers.reduce((sum, o) => sum + (o.final_amount || 0), 0) / allOffers.length
-        : 0
-
-    // Active projects count
-    const { count: active_projects } = await supabase
-      .from('projects')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'active')
-
-    // This month's hours
     const monthStart = new Date()
     monthStart.setDate(1)
     monthStart.setHours(0, 0, 0, 0)
 
-    const { data: monthEntries } = await supabase
-      .from('time_entries')
-      .select('hours, billable')
-      .gte('date', monthStart.toISOString())
+    // Execute all queries in parallel
+    const [
+      acceptedOffersResult,
+      pendingOffersResult,
+      acceptedCountResult,
+      rejectedCountResult,
+      allOffersResult,
+      activeProjectsResult,
+      monthEntriesResult,
+      topCustomerResult,
+    ] = await Promise.all([
+      supabase.from('offers').select('final_amount').eq('status', 'accepted'),
+      supabase.from('offers').select('final_amount').in('status', ['sent', 'viewed']),
+      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'accepted'),
+      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
+      supabase.from('offers').select('final_amount').not('status', 'eq', 'draft'),
+      supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('time_entries').select('hours, billable').gte('date', monthStart.toISOString()),
+      supabase.from('offers').select('customer_id, final_amount, customer:customers(company_name)').eq('status', 'accepted'),
+    ])
 
-    const total_hours_this_month = (monthEntries || []).reduce((sum, e) => sum + (e.hours || 0), 0)
-    const billable_hours_this_month = (monthEntries || []).reduce(
+    // Calculate revenue
+    const total_revenue = (acceptedOffersResult.data || []).reduce((sum, o) => sum + (o.final_amount || 0), 0)
+    const pending_value = (pendingOffersResult.data || []).reduce((sum, o) => sum + (o.final_amount || 0), 0)
+
+    // Acceptance rate
+    const decided = (acceptedCountResult.count || 0) + (rejectedCountResult.count || 0)
+    const acceptance_rate = decided > 0 ? ((acceptedCountResult.count || 0) / decided) * 100 : 0
+
+    // Average offer value
+    const allOffers = allOffersResult.data || []
+    const avg_offer_value = allOffers.length > 0
+      ? allOffers.reduce((sum, o) => sum + (o.final_amount || 0), 0) / allOffers.length
+      : 0
+
+    // Hours
+    const monthEntries = monthEntriesResult.data || []
+    const total_hours_this_month = monthEntries.reduce((sum, e) => sum + (e.hours || 0), 0)
+    const billable_hours_this_month = monthEntries.reduce(
       (sum, e) => sum + (e.billable ? e.hours || 0 : 0),
       0,
     )
 
-    // Top customer by revenue
-    const { data: topCustomerData } = await supabase
-      .from('offers')
-      .select('customer_id, final_amount, customer:customers(company_name)')
-      .eq('status', 'accepted')
-
+    // Top customer
     const customerRevenue = new Map<string, { name: string; revenue: number }>()
-    for (const offer of topCustomerData || []) {
+    for (const offer of topCustomerResult.data || []) {
       if (!offer.customer_id) continue
       const customerData = offer.customer as unknown as { company_name: string } | null
       const existing = customerRevenue.get(offer.customer_id)
@@ -172,7 +151,7 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
         pending_value,
         acceptance_rate,
         avg_offer_value,
-        active_projects: active_projects || 0,
+        active_projects: activeProjectsResult.count || 0,
         total_hours_this_month,
         billable_hours_this_month,
         top_customer_name,
@@ -185,7 +164,7 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
 }
 
 // =====================================================
-// Revenue by Period
+// Revenue by Period (single bulk query)
 // =====================================================
 
 export async function getRevenueByPeriod(
@@ -195,35 +174,65 @@ export async function getRevenueByPeriod(
     const { supabase } = await getAuthenticatedClient()
 
     const now = new Date()
-    const periods: RevenueByPeriod[] = []
+    const rangeStart = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
+
+    // Fetch all relevant offers in a single query instead of 2*N queries
+    const [acceptedResult, sentResult] = await Promise.all([
+      supabase
+        .from('offers')
+        .select('final_amount, accepted_at')
+        .eq('status', 'accepted')
+        .gte('accepted_at', rangeStart.toISOString()),
+      supabase
+        .from('offers')
+        .select('final_amount, created_at')
+        .in('status', ['sent', 'viewed'])
+        .gte('created_at', rangeStart.toISOString()),
+    ])
+
+    // Build period map
+    const periodMap = new Map<string, RevenueByPeriod>()
+    const periodKeys: string[] = []
 
     for (let i = months - 1; i >= 0; i--) {
       const periodStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const periodEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59)
       const label = periodStart.toLocaleDateString('da-DK', { year: 'numeric', month: 'short' })
-
-      const { data: accepted } = await supabase
-        .from('offers')
-        .select('final_amount')
-        .eq('status', 'accepted')
-        .gte('accepted_at', periodStart.toISOString())
-        .lte('accepted_at', periodEnd.toISOString())
-
-      const { data: sent } = await supabase
-        .from('offers')
-        .select('final_amount')
-        .in('status', ['sent', 'viewed'])
-        .gte('created_at', periodStart.toISOString())
-        .lte('created_at', periodEnd.toISOString())
-
-      periods.push({
+      const key = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, '0')}`
+      periodKeys.push(key)
+      periodMap.set(key, {
         period: label,
-        accepted_count: accepted?.length || 0,
-        accepted_revenue: (accepted || []).reduce((sum, o) => sum + (o.final_amount || 0), 0),
-        sent_count: sent?.length || 0,
-        sent_value: (sent || []).reduce((sum, o) => sum + (o.final_amount || 0), 0),
+        accepted_count: 0,
+        accepted_revenue: 0,
+        sent_count: 0,
+        sent_value: 0,
       })
     }
+
+    // Group accepted offers by month
+    for (const offer of acceptedResult.data || []) {
+      if (!offer.accepted_at) continue
+      const d = new Date(offer.accepted_at)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const period = periodMap.get(key)
+      if (period) {
+        period.accepted_count++
+        period.accepted_revenue += offer.final_amount || 0
+      }
+    }
+
+    // Group sent offers by month
+    for (const offer of sentResult.data || []) {
+      if (!offer.created_at) continue
+      const d = new Date(offer.created_at)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const period = periodMap.get(key)
+      if (period) {
+        period.sent_count++
+        period.sent_value += offer.final_amount || 0
+      }
+    }
+
+    const periods = periodKeys.map(key => periodMap.get(key)!)
 
     return { success: true, data: periods }
   } catch (err) {
