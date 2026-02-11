@@ -109,8 +109,6 @@ export function CreateOfferModal({
     c.customer_number.toLowerCase().includes(customerSearch.toLowerCase())
   )
 
-  const formatPrice = formatCurrency
-
   const handleSubmit = async () => {
     if (!title.trim()) {
       setError('Titel er påkrævet')
@@ -186,7 +184,7 @@ export function CreateOfferModal({
               <div>
                 <span className="text-blue-600">Total:</span>
                 <span className="ml-2 font-medium">
-                  {result ? formatPrice(result.finalAmount) : '-'}
+                  {result ? formatCurrency(result.finalAmount) : '-'}
                 </span>
               </div>
             </div>

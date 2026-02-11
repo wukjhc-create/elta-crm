@@ -64,8 +64,6 @@ export function PackagePickerDialog({
     loadPackages(search || undefined)
   }
 
-  const formatPrice = formatCurrency
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -135,7 +133,7 @@ export function PackagePickerDialog({
                     </div>
                   </div>
                   <span className="font-medium text-sm">
-                    {formatPrice(pkg.total_sale_price)}
+                    {formatCurrency(pkg.total_sale_price)}
                   </span>
                 </div>
               </button>
