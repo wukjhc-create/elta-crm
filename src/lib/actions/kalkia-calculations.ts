@@ -20,6 +20,7 @@ import type {
   KalkiaCalculationFilters,
   KalkiaCalculationItemInput,
   CalculationResult,
+  CalculatedItem,
 } from '@/types/kalkia.types'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
@@ -529,7 +530,7 @@ export async function calculateFromNodes(
     const nodeMap = new Map((nodesData || []).map((n) => [n.id, n]))
 
     // Calculate each item
-    const calculatedItems: unknown[] = []
+    const calculatedItems: CalculatedItem[] = []
 
     for (const input of items) {
       const nodeData = nodeMap.get(input.nodeId)
@@ -557,7 +558,7 @@ export async function calculateFromNodes(
 
     // Calculate final pricing
     const result = engine.calculateFinalPricing(
-      calculatedItems as never[],
+      calculatedItems,
       marginPercentage,
       discountPercentage,
       vatPercentage,

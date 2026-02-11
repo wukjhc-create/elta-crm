@@ -78,12 +78,26 @@ export async function POST(
       )
     }
 
-    // Optional: Verify webhook signature/API key
+    // Verify webhook signature/API key
     const authHeader = request.headers.get('Authorization') ||
                        request.headers.get('X-API-Key') ||
                        request.headers.get('X-Webhook-Secret')
 
-    if (integration.api_key && authHeader) {
+    if (integration.api_key) {
+      if (!authHeader) {
+        await logWebhook(supabase, integrationId, {
+          success: false,
+          error_message: 'Missing authentication header',
+          response_status: 401,
+          duration_ms: Date.now() - startTime,
+        })
+
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+
       const providedKey = authHeader.replace('Bearer ', '')
       const expected = Buffer.from(integration.api_key)
       const provided = Buffer.from(providedKey)
@@ -102,6 +116,15 @@ export async function POST(
           { status: 401 }
         )
       }
+    }
+
+    // Reject oversized payloads (max 1MB)
+    const contentLength = parseInt(request.headers.get('content-length') || '0')
+    if (contentLength > 1_048_576) {
+      return NextResponse.json(
+        { error: 'Payload too large' },
+        { status: 413 }
+      )
     }
 
     // Parse payload

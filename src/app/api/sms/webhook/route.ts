@@ -23,6 +23,12 @@ interface GatewayApiWebhook {
 
 export async function POST(request: NextRequest) {
   try {
+    // Reject oversized payloads (max 64KB for SMS status callbacks)
+    const contentLength = parseInt(request.headers.get('content-length') || '0')
+    if (contentLength > 65_536) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+    }
+
     // GatewayAPI sends webhooks as form-urlencoded or JSON
     const contentType = request.headers.get('content-type') || ''
 

@@ -124,6 +124,15 @@ function normalizePayload(payload: InboundEmailPayload) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Reject oversized payloads (max 5MB for emails with attachments)
+    const contentLength = parseInt(request.headers.get('content-length') || '0')
+    if (contentLength > 5_242_880) {
+      return NextResponse.json(
+        { error: 'Payload too large' },
+        { status: 413 }
+      )
+    }
+
     // Get content type to handle different formats
     const contentType = request.headers.get('content-type') || ''
 
