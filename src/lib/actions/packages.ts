@@ -20,6 +20,7 @@ import {
 } from '@/lib/validations/packages'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { DEFAULT_PAGE_SIZE } from '@/lib/constants'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -71,7 +72,7 @@ export async function getPackages(filters?: {
   try {
     const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
-    const pageSize = filters?.pageSize || 24
+    const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
 
     // Validate optional category_id

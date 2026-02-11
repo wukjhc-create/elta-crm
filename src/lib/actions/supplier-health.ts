@@ -2,6 +2,7 @@
 
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { SUPPLIER_API_CONFIG } from '@/lib/constants'
 
 // =====================================================
 // Types
@@ -42,7 +43,7 @@ export async function getSupplierHealth(
 ): Promise<ActionResult<SupplierHealth>> {
   try {
     const { supabase } = await getAuthenticatedClient()
-    const maxCacheAge = 24 * 60 * 60 * 1000 // 24 hours
+    const maxCacheAge = SUPPLIER_API_CONFIG.CACHE_TTL_MS
 
     // Get supplier info
     const { data: supplier } = await supabase
@@ -140,7 +141,7 @@ export async function getSupplierHealth(
 export async function getSystemHealthSummary(): Promise<ActionResult<SystemHealthSummary>> {
   try {
     const { supabase } = await getAuthenticatedClient()
-    const maxCacheAge = 24 * 60 * 60 * 1000
+    const maxCacheAge = SUPPLIER_API_CONFIG.CACHE_TTL_MS
 
     // Get all active suppliers
     const { data: suppliers } = await supabase
