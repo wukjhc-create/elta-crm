@@ -21,6 +21,7 @@ import {
   importProductsFromAPI,
   getProductPriceComparison,
 } from '@/lib/actions/supplier-sync'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface ProductPrice {
   sku: string
@@ -58,13 +59,6 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
   const [comparingProduct, setComparingProduct] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 2,
-    }).format(price)
-  }
 
   const handleSearch = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -289,10 +283,10 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                         )}
                       </td>
                       <td className="px-4 py-3 text-right font-medium">
-                        {formatPrice(product.costPrice)}
+                        {formatCurrency(product.costPrice, 'DKK', 2)}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500">
-                        {product.listPrice ? formatPrice(product.listPrice) : '-'}
+                        {product.listPrice ? formatCurrency(product.listPrice, 'DKK', 2) : '-'}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-500">
                         {product.unit}
@@ -383,7 +377,7 @@ export function SupplierAPISearch({ supplierId, supplierName }: SupplierAPISearc
                           </div>
                           <div className="flex items-center gap-4">
                             <span className={`font-medium ${idx === 0 ? 'text-green-700' : ''}`}>
-                              {formatPrice(comp.price.costPrice)}
+                              {formatCurrency(comp.price.costPrice, 'DKK', 2)}
                             </span>
                             <Badge variant={comp.price.isAvailable ? 'default' : 'secondary'}>
                               {comp.price.isAvailable ? 'På lager' : 'Ikke på lager'}

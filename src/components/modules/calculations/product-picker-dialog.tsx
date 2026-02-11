@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface Product {
   id: string
@@ -39,12 +40,6 @@ export default function ProductPickerDialog({
       product.sku?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-    }).format(price)
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -83,7 +78,7 @@ export default function ProductPickerDialog({
                   )}
                 </div>
                 <div className="text-right">
-                  <div className="font-medium">{formatPrice(product.list_price)}</div>
+                  <div className="font-medium">{formatCurrency(product.list_price)}</div>
                 </div>
               </button>
             ))

@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import type { CalculationResult } from '@/types/kalkia.types'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, formatTimeSeconds } from '@/lib/utils/format'
 
 interface KalkiaCalculationBreakdownProps {
   result: CalculationResult
@@ -24,14 +24,6 @@ export function KalkiaCalculationBreakdown({
   showDetails = true,
 }: KalkiaCalculationBreakdownProps) {
   const formatAmount = (amount: number) => formatCurrency(amount, 'DKK', 2)
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    if (hours === 0) return `${minutes} min`
-    if (minutes === 0) return `${hours} timer`
-    return `${hours}t ${minutes}m`
-  }
 
   const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`
@@ -51,24 +43,24 @@ export function KalkiaCalculationBreakdown({
           <CardContent className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Direkte tid</span>
-              <span>{formatTime(result.totalDirectTimeSeconds)}</span>
+              <span>{formatTimeSeconds(result.totalDirectTimeSeconds)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">
                 Indirekte tid ({formatPercent(result.factorsUsed.indirectTimeFactor * 100)})
               </span>
-              <span>{formatTime(result.totalIndirectTimeSeconds)}</span>
+              <span>{formatTimeSeconds(result.totalIndirectTimeSeconds)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">
                 Personlig tid ({formatPercent(result.factorsUsed.personalTimeFactor * 100)})
               </span>
-              <span>{formatTime(result.totalPersonalTimeSeconds)}</span>
+              <span>{formatTimeSeconds(result.totalPersonalTimeSeconds)}</span>
             </div>
             <Separator />
             <div className="flex justify-between font-medium">
               <span>Total arbejdstid</span>
-              <span>{formatTime(result.totalLaborTimeSeconds)}</span>
+              <span>{formatTimeSeconds(result.totalLaborTimeSeconds)}</span>
             </div>
             <div className="text-xs text-gray-500 text-right">
               = {result.totalLaborHours.toFixed(2)} timer

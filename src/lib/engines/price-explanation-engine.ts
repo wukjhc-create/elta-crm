@@ -25,22 +25,11 @@ import type {
   ProjectType,
   BuildingType,
 } from '@/types/ai-intelligence.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 // =====================================================
 // FORMATTING UTILITIES
 // =====================================================
-
-/**
- * Format number as Danish currency
- */
-function formatPrice(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
 
 /**
  * Format number as percentage
@@ -108,7 +97,7 @@ function generateSummary(input: PriceExplanationInput): string {
 function generateLaborExplanation(input: PriceExplanationInput): string {
   const laborPercent = (input.labor_cost / input.total_price) * 100
 
-  let explanation = `Arbejdsløn udgør ${formatPrice(input.labor_cost)} (${formatPercent(laborPercent)} af totalprisen). `
+  let explanation = `Arbejdsløn udgør ${formatCurrency(input.labor_cost)} (${formatPercent(laborPercent)} af totalprisen). `
 
   if (laborPercent > 60) {
     explanation += 'Denne type arbejde er primært arbejdstid, da installationen kræver faglig ekspertise.'
@@ -127,7 +116,7 @@ function generateLaborExplanation(input: PriceExplanationInput): string {
 function generateMaterialExplanation(input: PriceExplanationInput): string {
   const materialPercent = (input.material_cost / input.total_price) * 100
 
-  let explanation = `Materialer udgør ${formatPrice(input.material_cost)} (${formatPercent(materialPercent)} af totalprisen). `
+  let explanation = `Materialer udgør ${formatCurrency(input.material_cost)} (${formatPercent(materialPercent)} af totalprisen). `
 
   explanation += 'Alle materialer er af professionel kvalitet og leveres af anerkendte leverandører.'
 
@@ -330,7 +319,7 @@ export function generateSimpleSummary(input: PriceExplanationInput): string {
   const materialPercent = 100 - laborPercent
 
   return `
-Den samlede pris på ${formatPrice(input.total_price)} inkluderer alt: materialer (${materialPercent}%) og professionel installation (${laborPercent}%).
+Den samlede pris på ${formatCurrency(input.total_price)} inkluderer alt: materialer (${materialPercent}%) og professionel installation (${laborPercent}%).
 Arbejdet udføres af autoriseret el-installatør med fuld garanti.
 Alle materialer er professionel kvalitet fra anerkendte leverandører.
   `.trim()
@@ -348,10 +337,10 @@ export function generateBulletSummary(input: PriceExplanationInput): string[] {
   const totalItems = input.components.reduce((sum, c) => sum + c.quantity, 0)
 
   return [
-    `✓ Samlet pris: ${formatPrice(input.total_price)} inkl. moms`,
+    `✓ Samlet pris: ${formatCurrency(input.total_price)} inkl. moms`,
     `✓ ${totalItems} enheder fordelt på ${componentCount} typer installation`,
-    `✓ Materialer: ${formatPrice(input.material_cost)} (${100 - laborPercent}%)`,
-    `✓ Installation: ${formatPrice(input.labor_cost)} (${laborPercent}%)`,
+    `✓ Materialer: ${formatCurrency(input.material_cost)} (${100 - laborPercent}%)`,
+    `✓ Installation: ${formatCurrency(input.labor_cost)} (${laborPercent}%)`,
     `✓ Alt arbejde udføres af autoriseret el-installatør`,
     `✓ Inkl. garanti og professionelle materialer`,
   ]
@@ -374,10 +363,10 @@ export function formatPriceBreakdownHtml(input: PriceExplanationInput): string {
   html += '<tr><th>Kategori</th><th>Beløb</th><th>Andel</th></tr>'
 
   for (const cat of result.breakdown.categories || []) {
-    html += `<tr><td>${cat.name}</td><td>${formatPrice(cat.amount)}</td><td>${formatPercent(cat.percentage)}</td></tr>`
+    html += `<tr><td>${cat.name}</td><td>${formatCurrency(cat.amount)}</td><td>${formatPercent(cat.percentage)}</td></tr>`
   }
 
-  html += `<tr class="total"><td><strong>I alt</strong></td><td><strong>${formatPrice(input.total_price)}</strong></td><td><strong>100%</strong></td></tr>`
+  html += `<tr class="total"><td><strong>I alt</strong></td><td><strong>${formatCurrency(input.total_price)}</strong></td><td><strong>100%</strong></td></tr>`
   html += '</table>'
 
   // What's included

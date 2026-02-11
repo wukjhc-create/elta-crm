@@ -22,6 +22,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
 import type { CalculationResult } from '@/types/kalkia.types'
 
 export interface ItemOverrides {
@@ -99,20 +100,6 @@ export function CalculationPreview({
     })
   }
 
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   const formatPercent = (value: number) => {
     return new Intl.NumberFormat('da-DK', {
@@ -195,11 +182,11 @@ export function CalculationPreview({
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                       <span className={`flex items-center gap-1 ${hasOverrides && item.overrides?.timeMinutes !== undefined ? 'text-orange-600 font-medium' : ''}`}>
                         <Clock className="w-3 h-3" />
-                        {formatTime(effectiveTime * item.quantity)}
+                        {formatTimeMinutes(effectiveTime * item.quantity)}
                       </span>
                       {effectiveSalePrice > 0 && (
                         <span className={hasOverrides && item.overrides?.salePrice !== undefined ? 'text-orange-600 font-medium' : ''}>
-                          {formatPrice(effectiveSalePrice * item.quantity)}
+                          {formatCurrency(effectiveSalePrice * item.quantity)}
                         </span>
                       )}
                     </div>
@@ -259,12 +246,12 @@ export function CalculationPreview({
                         )}
                         <div className="flex justify-between border-t pt-1 mt-1">
                           <span className="text-gray-600">Tid pr. stk:</span>
-                          <span className="font-semibold text-blue-600">{formatTime(item.calculatedTimeMinutes)}</span>
+                          <span className="font-semibold text-blue-600">{formatTimeMinutes(item.calculatedTimeMinutes)}</span>
                         </div>
                         {item.quantity > 1 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">× {item.quantity} stk =</span>
-                            <span className="font-semibold text-blue-600">{formatTime(item.calculatedTimeMinutes * item.quantity)}</span>
+                            <span className="font-semibold text-blue-600">{formatTimeMinutes(item.calculatedTimeMinutes * item.quantity)}</span>
                           </div>
                         )}
                       </div>
@@ -290,7 +277,7 @@ export function CalculationPreview({
                                 </span>
                                 {mat.costPrice > 0 && (
                                   <span className="font-medium text-gray-700 w-16 text-right">
-                                    {formatPrice(mat.costPrice * mat.quantity * item.quantity)}
+                                    {formatCurrency(mat.costPrice * mat.quantity * item.quantity)}
                                   </span>
                                 )}
                               </div>
@@ -301,7 +288,7 @@ export function CalculationPreview({
                             <div className="flex items-center justify-between text-xs bg-blue-50 rounded px-2 py-1 mt-1 border-t border-blue-100">
                               <span className="text-blue-700 font-medium">Materialer i alt</span>
                               <span className="font-semibold text-blue-700">
-                                {formatPrice(
+                                {formatCurrency(
                                   item.materials!.reduce((sum, m) => sum + (m.costPrice * m.quantity * item.quantity), 0)
                                 )}
                               </span>
@@ -431,7 +418,7 @@ export function CalculationPreview({
                               <div className="flex justify-between">
                                 <span className="text-orange-700">Tid tilpasset:</span>
                                 <span className="font-medium text-orange-800">
-                                  {formatTime(item.overrides.timeMinutes)} <span className="text-orange-500 line-through">{formatTime(item.calculatedTimeMinutes)}</span>
+                                  {formatTimeMinutes(item.overrides.timeMinutes)} <span className="text-orange-500 line-through">{formatTimeMinutes(item.calculatedTimeMinutes)}</span>
                                 </span>
                               </div>
                             )}
@@ -439,7 +426,7 @@ export function CalculationPreview({
                               <div className="flex justify-between">
                                 <span className="text-orange-700">Kostpris tilpasset:</span>
                                 <span className="font-medium text-orange-800">
-                                  {formatPrice(item.overrides.costPrice)} <span className="text-orange-500 line-through">{formatPrice(item.costPrice)}</span>
+                                  {formatCurrency(item.overrides.costPrice)} <span className="text-orange-500 line-through">{formatCurrency(item.costPrice)}</span>
                                 </span>
                               </div>
                             )}
@@ -447,7 +434,7 @@ export function CalculationPreview({
                               <div className="flex justify-between">
                                 <span className="text-orange-700">Salgspris tilpasset:</span>
                                 <span className="font-medium text-orange-800">
-                                  {formatPrice(item.overrides.salePrice)} <span className="text-orange-500 line-through">{formatPrice(item.salePrice)}</span>
+                                  {formatCurrency(item.overrides.salePrice)} <span className="text-orange-500 line-through">{formatCurrency(item.salePrice)}</span>
                                 </span>
                               </div>
                             )}
@@ -483,12 +470,12 @@ export function CalculationPreview({
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="bg-white rounded p-2">
                 <p className="text-gray-500 text-xs">Direkte tid</p>
-                <p className="font-semibold">{formatTime(Math.round(result.totalDirectTimeSeconds / 60))}</p>
+                <p className="font-semibold">{formatTimeMinutes(Math.round(result.totalDirectTimeSeconds / 60))}</p>
               </div>
               <div className="bg-white rounded p-2">
                 <p className="text-gray-500 text-xs">Total arbejdstid</p>
                 <p className="font-semibold text-blue-600">
-                  {formatTime(Math.round(result.totalLaborTimeSeconds / 60))}
+                  {formatTimeMinutes(Math.round(result.totalLaborTimeSeconds / 60))}
                 </p>
               </div>
             </div>
@@ -499,7 +486,7 @@ export function CalculationPreview({
                 <div className="flex items-center justify-between">
                   <span className="text-blue-700 text-xs">Effektiv timepris</span>
                   <span className="font-semibold text-blue-800">
-                    {formatPrice(
+                    {formatCurrency(
                       hourlyRate *
                       (laborType?.rateMultiplier || 1) *
                       (timeAdjustment?.multiplier || 1)
@@ -524,11 +511,11 @@ export function CalculationPreview({
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="bg-white rounded p-2">
                 <p className="text-gray-500 text-xs">Materialer</p>
-                <p className="font-semibold">{formatPrice(result.totalMaterialCost)}</p>
+                <p className="font-semibold">{formatCurrency(result.totalMaterialCost)}</p>
               </div>
               <div className="bg-white rounded p-2">
                 <p className="text-gray-500 text-xs">Arbejdsløn</p>
-                <p className="font-semibold">{formatPrice(result.totalLaborCost)}</p>
+                <p className="font-semibold">{formatCurrency(result.totalLaborCost)}</p>
               </div>
             </div>
 
@@ -536,33 +523,33 @@ export function CalculationPreview({
             <div className="bg-white rounded p-3 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Kostpris</span>
-                <span>{formatPrice(result.costPrice)}</span>
+                <span>{formatCurrency(result.costPrice)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Overhead</span>
-                <span>{formatPrice(result.overheadAmount)}</span>
+                <span>{formatCurrency(result.overheadAmount)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Avance</span>
-                <span>{formatPrice(result.marginAmount)}</span>
+                <span>{formatCurrency(result.marginAmount)}</span>
               </div>
               <div className="border-t pt-2 flex justify-between text-sm font-semibold">
                 <span>Pris ekskl. moms</span>
-                <span>{formatPrice(result.salePriceExclVat)}</span>
+                <span>{formatCurrency(result.salePriceExclVat)}</span>
               </div>
               {result.discountAmount > 0 && (
                 <div className="flex justify-between text-sm text-red-600">
                   <span>Rabat</span>
-                  <span>-{formatPrice(result.discountAmount)}</span>
+                  <span>-{formatCurrency(result.discountAmount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Moms (25%)</span>
-                <span>{formatPrice(result.vatAmount)}</span>
+                <span>{formatCurrency(result.vatAmount)}</span>
               </div>
               <div className="border-t pt-2 flex justify-between text-lg font-bold">
                 <span>Total inkl. moms</span>
-                <span className="text-green-600">{formatPrice(result.finalAmount)}</span>
+                <span className="text-green-600">{formatCurrency(result.finalAmount)}</span>
               </div>
             </div>
 
@@ -572,7 +559,7 @@ export function CalculationPreview({
                 <CardContent className="py-2 px-3">
                   <p className="text-green-700 text-xs">Dækningsbidrag (DB)</p>
                   <p className="font-bold text-green-800">
-                    {formatPrice(result.dbAmount)}
+                    {formatCurrency(result.dbAmount)}
                     <span className="text-xs font-normal ml-1">
                       ({formatPercent(result.dbPercentage)})
                     </span>
@@ -583,7 +570,7 @@ export function CalculationPreview({
                 <CardContent className="py-2 px-3">
                   <p className="text-blue-700 text-xs">DB pr. time</p>
                   <p className="font-bold text-blue-800">
-                    {formatPrice(result.dbPerHour)}
+                    {formatCurrency(result.dbPerHour)}
                   </p>
                 </CardContent>
               </Card>
@@ -592,7 +579,7 @@ export function CalculationPreview({
         ) : (
           <div className="flex items-center gap-2 text-amber-600 text-sm">
             <AlertCircle className="w-4 h-4" />
-            <span>{totalItems} komponenter, {formatTime(totalTime)} total tid</span>
+            <span>{totalItems} komponenter, {formatTimeMinutes(totalTime)} total tid</span>
           </div>
         )}
       </div>

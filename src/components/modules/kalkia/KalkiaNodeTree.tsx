@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { formatTimeSeconds, formatCurrency } from '@/lib/utils/format'
 import type { KalkiaNodeWithRelations, KalkiaNodeType } from '@/types/kalkia.types'
 
 interface KalkiaNodeTreeProps {
@@ -62,22 +63,6 @@ function TreeNode({
   const isExpanded = expandedNodes.has(node.id)
   const isSelected = selectedNodeId === node.id
 
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m`
-    const hours = Math.floor(minutes / 60)
-    return `${hours}t`
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price)
-  }
 
   return (
     <div>
@@ -122,13 +107,13 @@ function TreeNode({
         {showTime && node.base_time_seconds > 0 && (
           <span className="text-xs text-gray-500 flex items-center gap-1 ml-auto">
             <Clock className="w-3 h-3" />
-            {formatTime(node.base_time_seconds)}
+            {formatTimeSeconds(node.base_time_seconds)}
           </span>
         )}
 
         {showPrice && node.default_sale_price > 0 && (
           <span className="text-xs text-gray-500 ml-2">
-            {formatPrice(node.default_sale_price)}
+            {formatCurrency(node.default_sale_price)}
           </span>
         )}
 

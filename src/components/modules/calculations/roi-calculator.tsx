@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { CalculationMode, EnhancedROIData } from '@/types/calculations.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface ROICalculatorProps {
   mode: CalculationMode
@@ -99,14 +100,6 @@ export default function ROICalculator({
     }
   }, [calculatedValues, onChange, readOnly])
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price)
-  }
 
   const formatNumber = (num: number, decimals = 1) => {
     return new Intl.NumberFormat('da-DK', {
@@ -138,7 +131,7 @@ export default function ROICalculator({
         {/* Investment amount (from calculation) */}
         <div className="bg-gray-50 rounded-lg p-3">
           <Label className="text-xs text-gray-500">Investeringsbeløb</Label>
-          <div className="text-lg font-bold">{formatPrice(investmentAmount)}</div>
+          <div className="text-lg font-bold">{formatCurrency(investmentAmount)}</div>
         </div>
 
         {/* Solar-specific inputs */}
@@ -250,14 +243,14 @@ export default function ROICalculator({
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Årlig besparelse</span>
             <span className="font-medium text-green-600">
-              {formatPrice(calculatedValues.annualSavings || 0)}
+              {formatCurrency(calculatedValues.annualSavings || 0)}
             </span>
           </div>
 
           {/* 25 Year Total */}
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Total besparelse (25 år)</span>
-            <span className="font-medium">{formatPrice(calculatedValues.totalSavings25Years || 0)}</span>
+            <span className="font-medium">{formatCurrency(calculatedValues.totalSavings25Years || 0)}</span>
           </div>
 
           {/* ROI */}

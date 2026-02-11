@@ -60,6 +60,31 @@ export function formatSmartDate(date: string | Date | null | undefined): string 
 }
 
 // =====================================================
+// Time Duration Formatting
+// =====================================================
+
+/**
+ * Format minutes to human-readable: "2t 30m" or "45 min"
+ */
+export function formatTimeMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
+}
+
+/**
+ * Format seconds to human-readable: "2 t 30 min" or "45 min"
+ */
+export function formatTimeSeconds(seconds: number): string {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (hours === 0) return `${minutes} min`
+  if (minutes === 0) return `${hours} t`
+  return `${hours} t ${minutes} min`
+}
+
+// =====================================================
 // Number/Currency Formatting
 // =====================================================
 

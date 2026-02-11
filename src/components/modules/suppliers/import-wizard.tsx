@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { previewImport, executeImport } from '@/lib/actions/import'
 import type { ImportPreview, ImportResult, PriceChange } from '@/types/suppliers.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface ImportWizardProps {
   supplierId: string
@@ -154,14 +155,6 @@ export function ImportWizard({
     setProgress(0)
   }
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return '-'
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 2,
-    }).format(price)
-  }
 
   return (
     <div className="space-y-6">
@@ -321,10 +314,10 @@ export function ImportWizard({
                         <TableCell className="font-mono text-sm">{row.parsed.sku}</TableCell>
                         <TableCell className="max-w-[300px] truncate">{row.parsed.name}</TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          {formatPrice(row.parsed.cost_price)}
+                          {row.parsed.cost_price !== null ? formatCurrency(row.parsed.cost_price, 'DKK', 2) : '-'}
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          {formatPrice(row.parsed.list_price)}
+                          {row.parsed.list_price !== null ? formatCurrency(row.parsed.list_price, 'DKK', 2) : '-'}
                         </TableCell>
                         <TableCell>
                           {row.isValid ? (
@@ -456,13 +449,13 @@ export function ImportWizard({
                         <TableCell className="font-mono text-sm">{change.supplier_sku}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{change.product_name}</TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          {formatPrice(change.old_cost_price)}
+                          {change.old_cost_price !== null ? formatCurrency(change.old_cost_price, 'DKK', 2) : '-'}
                         </TableCell>
                         <TableCell className="text-center">
                           <ArrowRight className="w-4 h-4 text-gray-400 mx-auto" />
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          {formatPrice(change.new_cost_price)}
+                          {change.new_cost_price !== null ? formatCurrency(change.new_cost_price, 'DKK', 2) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           <span className={`flex items-center justify-end gap-1 text-sm ${

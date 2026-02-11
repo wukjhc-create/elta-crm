@@ -51,6 +51,7 @@ import {
   type ComponentMaterial,
   type VariantMaterial,
 } from '@/lib/actions/components'
+import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
 
 interface ComponentDetailClientProps {
   component: ComponentWithDetails
@@ -124,20 +125,6 @@ export default function ComponentDetailClient({
     setExpandedVariants(newExpanded)
   }
 
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   // Save component
   const handleSaveComponent = () => {
@@ -440,7 +427,7 @@ export default function ComponentDetailClient({
                     <span className="text-sm text-gray-500">Basis tid</span>
                     <p className="font-medium flex items-center gap-2">
                       <Clock className="w-4 h-4" />
-                      {formatTime(component.base_time_minutes)}
+                      {formatTimeMinutes(component.base_time_minutes)}
                     </p>
                   </div>
                   <div>
@@ -449,11 +436,11 @@ export default function ComponentDetailClient({
                   </div>
                   <div>
                     <span className="text-sm text-gray-500">Kostpris</span>
-                    <p className="font-medium">{formatPrice(component.default_cost_price || 0)}</p>
+                    <p className="font-medium">{formatCurrency(component.default_cost_price || 0)}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-500">Salgspris</span>
-                    <p className="font-medium">{formatPrice(component.default_sale_price || 0)}</p>
+                    <p className="font-medium">{formatCurrency(component.default_sale_price || 0)}</p>
                   </div>
                   {component.description && (
                     <div className="col-span-2">
@@ -513,7 +500,7 @@ export default function ComponentDetailClient({
                                 )}
                               </div>
                               <div className="text-sm text-gray-500 mt-1">
-                                Tid: {formatTime(calculatedTime)}
+                                Tid: {formatTimeMinutes(calculatedTime)}
                                 {variant.time_multiplier !== 1 && (
                                   <span className="ml-2">({variant.time_multiplier}x)</span>
                                 )}
@@ -635,7 +622,7 @@ export default function ComponentDetailClient({
                           <span>{material.quantity} {material.unit}</span>
                           {(material.cost_price > 0 || material.sale_price > 0) && (
                             <span className="text-xs">
-                              ({formatPrice(material.cost_price ?? 0)} / {formatPrice(material.sale_price ?? 0)})
+                              ({formatCurrency(material.cost_price ?? 0)} / {formatCurrency(material.sale_price ?? 0)})
                             </span>
                           )}
                         </div>

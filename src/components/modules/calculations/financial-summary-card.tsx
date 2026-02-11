@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { Calculation } from '@/types/calculations.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface FinancialSummaryCardProps {
   calculation: Calculation
@@ -27,14 +28,6 @@ export default function FinancialSummaryCard({
   const [showCostDetails, setShowCostDetails] = useState(false)
   const [showMarginDetails, setShowMarginDetails] = useState(false)
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(price)
-  }
 
   const formatPercent = (value: number) => {
     return new Intl.NumberFormat('da-DK', {
@@ -81,25 +74,25 @@ export default function FinancialSummaryCard({
                     <Package className="w-4 h-4" />
                     Materialer
                   </span>
-                  <span>{formatPrice(calculation.total_materials_cost || 0)}</span>
+                  <span>{formatCurrency(calculation.total_materials_cost || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-gray-500">
                     <Clock className="w-4 h-4" />
                     Arbejdslon
                   </span>
-                  <span>{formatPrice(calculation.total_labor_cost || 0)}</span>
+                  <span>{formatCurrency(calculation.total_labor_cost || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-gray-500">
                     <Truck className="w-4 h-4" />
                     Andet
                   </span>
-                  <span>{formatPrice(calculation.total_other_costs || 0)}</span>
+                  <span>{formatCurrency(calculation.total_other_costs || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-medium border-t pt-2">
                   <span className="text-gray-700">Total omkostninger</span>
-                  <span>{formatPrice(totalCosts)}</span>
+                  <span>{formatCurrency(totalCosts)}</span>
                 </div>
               </div>
             )}
@@ -109,7 +102,7 @@ export default function FinancialSummaryCard({
         {/* Subtotal */}
         <div className="flex justify-between">
           <span className="text-gray-500">Subtotal (ekskl. moms)</span>
-          <span className="font-medium">{formatPrice(calculation.subtotal)}</span>
+          <span className="font-medium">{formatCurrency(calculation.subtotal)}</span>
         </div>
 
         {/* Margin Details (Internal view only) */}
@@ -133,11 +126,11 @@ export default function FinancialSummaryCard({
                 {/* Variable vs Fixed Costs */}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">Variable omkostninger</span>
-                  <span>{formatPrice(calculation.total_variable_costs || 0)}</span>
+                  <span>{formatCurrency(calculation.total_variable_costs || 0)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">Faste omkostninger</span>
-                  <span>{formatPrice(calculation.total_fixed_costs || 0)}</span>
+                  <span>{formatCurrency(calculation.total_fixed_costs || 0)}</span>
                 </div>
 
                 {/* Contribution Margin */}
@@ -148,7 +141,7 @@ export default function FinancialSummaryCard({
                   </span>
                   <div className="text-right">
                     <span className="font-medium">
-                      {formatPrice(calculation.contribution_margin || 0)}
+                      {formatCurrency(calculation.contribution_margin || 0)}
                     </span>
                     <Badge variant="outline" className="ml-2 text-xs">
                       {formatPercent(calculation.contribution_margin_ratio || 0)}
@@ -168,7 +161,7 @@ export default function FinancialSummaryCard({
                           : 'text-red-600'
                       )}
                     >
-                      {formatPrice(calculation.gross_profit || 0)}
+                      {formatCurrency(calculation.gross_profit || 0)}
                     </span>
                     <Badge
                       variant="outline"
@@ -192,7 +185,7 @@ export default function FinancialSummaryCard({
         {calculation.margin_percentage > 0 && (
           <div className="flex justify-between">
             <span className="text-gray-500">Avance ({calculation.margin_percentage}%)</span>
-            <span className="text-green-600">+{formatPrice(calculation.margin_amount)}</span>
+            <span className="text-green-600">+{formatCurrency(calculation.margin_amount)}</span>
           </div>
         )}
 
@@ -200,20 +193,20 @@ export default function FinancialSummaryCard({
         {calculation.discount_percentage > 0 && (
           <div className="flex justify-between">
             <span className="text-gray-500">Rabat ({calculation.discount_percentage}%)</span>
-            <span className="text-red-600">-{formatPrice(calculation.discount_amount)}</span>
+            <span className="text-red-600">-{formatCurrency(calculation.discount_amount)}</span>
           </div>
         )}
 
         {/* Tax */}
         <div className="flex justify-between border-t pt-2">
           <span className="text-gray-500">Moms ({calculation.tax_percentage}%)</span>
-          <span>{formatPrice(calculation.tax_amount)}</span>
+          <span>{formatCurrency(calculation.tax_amount)}</span>
         </div>
 
         {/* Final Amount */}
         <div className="flex justify-between border-t pt-2 text-lg font-bold">
           <span>Total inkl. moms</span>
-          <span>{formatPrice(calculation.final_amount)}</span>
+          <span>{formatCurrency(calculation.final_amount)}</span>
         </div>
 
         {/* Quick Stats for Internal View */}

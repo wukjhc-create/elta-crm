@@ -33,6 +33,7 @@ import { getRoomTypes, getRoomComponentSuggestions } from '@/lib/actions/compone
 import { getCalcComponentForCalculation } from '@/lib/actions/components'
 import { v4 as uuidv4 } from 'uuid'
 import type { RoomType, RoomComponentSuggestion } from '@/types/component-intelligence.types'
+import { formatTimeMinutes } from '@/lib/utils/format'
 import type { CalculationItem } from './CalculationPreview'
 
 interface RoomCalculatorProps {
@@ -185,13 +186,6 @@ export function RoomCalculator({ onAddItems, className = '' }: RoomCalculatorPro
     if (roomType?.typical_size_m2) {
       setRoomSize(roomType.typical_size_m2)
     }
-  }
-
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
   }
 
   // Calculate estimated total time from suggestions
@@ -354,7 +348,7 @@ export function RoomCalculator({ onAddItems, className = '' }: RoomCalculatorPro
             <div className="text-sm text-gray-600">
               <span className="font-medium">{suggestions.length}</span> komponenter
               <span className="mx-2">•</span>
-              <span className="font-medium">~{formatTime(estimatedTotalTime)}</span> estimeret
+              <span className="font-medium">~{formatTimeMinutes(estimatedTotalTime)}</span> estimeret
             </div>
           </div>
 

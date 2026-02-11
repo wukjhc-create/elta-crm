@@ -20,6 +20,7 @@ import {
   getCalculationSnapshots,
 } from '@/lib/actions/ai-intelligence'
 import type { CalculationWithRelations } from '@/types/calculations.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface CalculationSnapshotsProps {
   calculation: CalculationWithRelations
@@ -61,13 +62,6 @@ export function CalculationSnapshots({ calculation }: CalculationSnapshotsProps)
     load()
   }, [calculation.id])
 
-  const formatPrice = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(amount)
-  }
 
   const handleCreateSnapshot = async () => {
     setIsCreating(true)
@@ -179,7 +173,7 @@ export function CalculationSnapshots({ calculation }: CalculationSnapshotsProps)
               <span className="text-muted-foreground">
                 Seneste: v{snapshots[0].version}
               </span>
-              <span className="font-medium">{formatPrice(snapshots[0].total_price)}</span>
+              <span className="font-medium">{formatCurrency(snapshots[0].total_price)}</span>
             </div>
             {snapshots.length > 1 && (
               <button
@@ -205,7 +199,7 @@ export function CalculationSnapshots({ calculation }: CalculationSnapshotsProps)
                     )}
                     <div className="grid grid-cols-2 gap-1">
                       <span className="text-gray-500">Pris:</span>
-                      <span className="text-right font-medium">{formatPrice(snap.total_price)}</span>
+                      <span className="text-right font-medium">{formatCurrency(snap.total_price)}</span>
                       <span className="text-gray-500">Margin:</span>
                       <span className="text-right">{snap.margin_percentage.toFixed(1)}%</span>
                       <span className="text-gray-500">Komponenter:</span>

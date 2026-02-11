@@ -52,6 +52,7 @@ import {
   getSupplierOptionsForMaterial,
   syncMaterialPricesFromSupplier,
 } from '@/lib/actions/kalkia'
+import { formatTimeSeconds, formatCurrency } from '@/lib/utils/format'
 
 // Extended variant type with materials from server
 interface VariantWithMaterials {
@@ -123,22 +124,6 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
   const Icon = nodeTypeIcons[node.node_type]
   const colorClass = nodeTypeColors[node.node_type]
 
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds} sek`
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 2,
-    }).format(price)
-  }
 
   const toggleVariant = (variantId: string) => {
     const newExpanded = new Set(expandedVariants)
@@ -261,7 +246,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
           <CardContent>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-gray-400" />
-              <span className="text-xl font-bold">{formatTime(node.base_time_seconds)}</span>
+              <span className="text-xl font-bold">{formatTimeSeconds(node.base_time_seconds)}</span>
             </div>
           </CardContent>
         </Card>
@@ -271,7 +256,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
             <CardTitle className="text-sm font-medium text-gray-500">Kostpris</CardTitle>
           </CardHeader>
           <CardContent>
-            <span className="text-xl font-bold">{formatPrice(node.default_cost_price)}</span>
+            <span className="text-xl font-bold">{formatCurrency(node.default_cost_price, 'DKK', 2)}</span>
           </CardContent>
         </Card>
 
@@ -280,7 +265,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
             <CardTitle className="text-sm font-medium text-gray-500">Salgspris</CardTitle>
           </CardHeader>
           <CardContent>
-            <span className="text-xl font-bold">{formatPrice(node.default_sale_price)}</span>
+            <span className="text-xl font-bold">{formatCurrency(node.default_sale_price, 'DKK', 2)}</span>
           </CardContent>
         </Card>
       </div>
@@ -405,7 +390,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                               Tidsmultiplikator: {variant.time_multiplier}x
                             </span>
                             {variant.extra_time_seconds > 0 && (
-                              <span>+{formatTime(variant.extra_time_seconds)}</span>
+                              <span>+{formatTimeSeconds(variant.extra_time_seconds)}</span>
                             )}
                             <span>
                               Prismultiplikator: {variant.price_multiplier}x
@@ -477,12 +462,12 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                                 <TableCell>{material.unit}</TableCell>
                                 <TableCell className="text-right">
                                   {material.cost_price
-                                    ? formatPrice(material.cost_price)
+                                    ? formatCurrency(material.cost_price, 'DKK', 2)
                                     : '-'}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   {material.sale_price
-                                    ? formatPrice(material.sale_price)
+                                    ? formatCurrency(material.sale_price, 'DKK', 2)
                                     : '-'}
                                 </TableCell>
                                 <TableCell>
@@ -584,7 +569,7 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                     </TableCell>
                     <TableCell className="text-right">
                       {rule.extra_time_seconds > 0
-                        ? formatTime(rule.extra_time_seconds)
+                        ? formatTimeSeconds(rule.extra_time_seconds)
                         : '-'}
                     </TableCell>
                   </TableRow>
@@ -676,11 +661,11 @@ export default function KalkiaNodeDetailClient({ node, categories }: KalkiaNodeD
                     </div>
                     <div className="text-xs mt-1">
                       <span className="text-gray-600">
-                        Kost: {formatPrice(option.cost_price)}
+                        Kost: {formatCurrency(option.cost_price, 'DKK', 2)}
                       </span>
                       {option.list_price && (
                         <span className="text-gray-500 ml-2">
-                          Liste: {formatPrice(option.list_price)}
+                          Liste: {formatCurrency(option.list_price, 'DKK', 2)}
                         </span>
                       )}
                     </div>

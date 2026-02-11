@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import type { KalkiaNodeSummary, KalkiaNodeType } from '@/types/kalkia.types'
 import { KALKIA_NODE_TYPE_LABELS } from '@/types/kalkia.types'
+import { formatTimeSeconds, formatCurrency } from '@/lib/utils/format'
 
 interface ComponentCategory {
   id: string
@@ -73,23 +74,6 @@ export default function KalkiaNodesClient({ nodes, categories }: KalkiaNodesClie
 
     return matchesSearch && matchesCategory && matchesType && matchesDepth
   })
-
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   // Group by path prefix (root nodes)
   const groupedNodes = filteredNodes.reduce(
@@ -262,12 +246,12 @@ export default function KalkiaNodesClient({ nodes, categories }: KalkiaNodesClie
                                   {node.base_time_seconds > 0 && (
                                     <span className="flex items-center gap-1">
                                       <Clock className="w-3 h-3" />
-                                      {formatTime(node.base_time_seconds)}
+                                      {formatTimeSeconds(node.base_time_seconds)}
                                     </span>
                                   )}
                                   {node.default_sale_price > 0 && (
                                     <span>
-                                      {formatPrice(node.default_sale_price)}
+                                      {formatCurrency(node.default_sale_price)}
                                     </span>
                                   )}
                                   {node.variant_count > 0 && (

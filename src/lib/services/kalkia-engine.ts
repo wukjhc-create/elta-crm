@@ -458,21 +458,8 @@ export class KalkiaCalculationEngine {
 // Standalone Calculation Functions
 // =====================================================
 
-/**
- * Format seconds to hours and minutes string
- */
-export function formatTimeSeconds(seconds: number): string {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-
-  if (hours === 0) {
-    return `${minutes} min`
-  }
-  if (minutes === 0) {
-    return `${hours} t`
-  }
-  return `${hours} t ${minutes} min`
-}
+// Re-export from centralized format utilities
+export { formatTimeSeconds } from '@/lib/utils/format'
 
 /**
  * Format time seconds to decimal hours

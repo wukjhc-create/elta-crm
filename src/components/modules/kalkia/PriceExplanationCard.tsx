@@ -20,6 +20,7 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { generatePriceExplanationAction, getBulletPriceSummary } from '@/lib/actions/ai-intelligence'
 import type { PriceExplanationInput, PriceExplanationResult } from '@/types/ai-intelligence.types'
+import { formatCurrency } from '@/lib/utils/format'
 import {
   DollarSign,
   CheckCircle,
@@ -44,14 +45,6 @@ interface PriceExplanationCardProps {
   className?: string
 }
 
-function formatPrice(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
 
 function formatPercent(value: number): string {
   return `${Math.round(value)}%`
@@ -80,7 +73,7 @@ function BreakdownBar({ categories }: { categories: Array<{ name: string; amount
           <div key={cat.name} className="flex items-center gap-2 text-sm">
             <div className={`w-3 h-3 rounded-full ${colors[idx % colors.length]}`} />
             <span className="text-muted-foreground">{cat.name}</span>
-            <span className="font-medium">{formatPrice(cat.amount)}</span>
+            <span className="font-medium">{formatCurrency(cat.amount)}</span>
             <span className="text-muted-foreground">({formatPercent(cat.percentage)})</span>
           </div>
         ))}
@@ -219,7 +212,7 @@ export function PriceExplanationCard({
           <>
             {/* Price header */}
             <div className="text-center py-4 bg-muted/30 rounded-lg">
-              <div className="text-3xl font-bold text-green-600">{formatPrice(input.total_price)}</div>
+              <div className="text-3xl font-bold text-green-600">{formatCurrency(input.total_price)}</div>
               <div className="text-sm text-muted-foreground">inkl. moms</div>
             </div>
 
@@ -370,15 +363,15 @@ export function PriceSummaryCompact({ input }: { input: PriceExplanationInput })
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">Materialer</span>
-        <span>{formatPrice(input.material_cost)} ({materialPercent}%)</span>
+        <span>{formatCurrency(input.material_cost)} ({materialPercent}%)</span>
       </div>
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">Arbejdsløn</span>
-        <span>{formatPrice(input.labor_cost)} ({laborPercent}%)</span>
+        <span>{formatCurrency(input.labor_cost)} ({laborPercent}%)</span>
       </div>
       <div className="flex justify-between font-medium pt-2 border-t">
         <span>I alt</span>
-        <span className="text-green-600">{formatPrice(input.total_price)}</span>
+        <span className="text-green-600">{formatCurrency(input.total_price)}</span>
       </div>
     </div>
   )

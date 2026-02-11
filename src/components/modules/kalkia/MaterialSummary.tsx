@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { CalculationItem } from './CalculationPreview'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface MaterialSummaryProps {
   items: CalculationItem[]
@@ -130,13 +131,6 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
     )
   }, [filteredMaterials])
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -299,11 +293,11 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
                 <span className="text-gray-500 ml-1">{mat.unit}</span>
               </div>
               <div className="col-span-2 text-right text-sm font-medium">
-                {formatPrice(mat.totalCost)}
+                {formatCurrency(mat.totalCost)}
               </div>
               <div className="col-span-3 text-right">
                 <span className={`text-sm font-medium ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatPrice(margin)}
+                  {formatCurrency(margin)}
                 </span>
                 <span className="text-xs text-gray-500 ml-1">
                   ({marginPercent.toFixed(1)}%)
@@ -319,16 +313,16 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <p className="text-xs text-gray-500">Total kostpris</p>
-            <p className="text-lg font-semibold">{formatPrice(totals.totalCost)}</p>
+            <p className="text-lg font-semibold">{formatCurrency(totals.totalCost)}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500">Total salgspris</p>
-            <p className="text-lg font-semibold">{formatPrice(totals.totalSale)}</p>
+            <p className="text-lg font-semibold">{formatCurrency(totals.totalSale)}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500">Total DB</p>
             <p className={`text-lg font-semibold ${totals.totalSale - totals.totalCost >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatPrice(totals.totalSale - totals.totalCost)}
+              {formatCurrency(totals.totalSale - totals.totalCost)}
             </p>
           </div>
         </div>

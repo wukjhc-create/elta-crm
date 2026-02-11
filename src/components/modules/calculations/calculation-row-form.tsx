@@ -29,6 +29,7 @@ import {
   type CalculationRowType,
   type CostCategory,
 } from '@/types/calculations.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface CalculationRowFormProps {
   calculationId: string
@@ -92,12 +93,6 @@ export default function CalculationRowForm({
     return qty * price * (1 - discount / 100)
   }
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-    }).format(price)
-  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -306,7 +301,7 @@ export default function CalculationRowForm({
       <div className="bg-gray-50 p-4 rounded-lg">
         <div className="flex justify-between items-center">
           <span className="text-gray-600">Total</span>
-          <span className="text-xl font-bold">{formatPrice(calculateTotal())}</span>
+          <span className="text-xl font-bold">{formatCurrency(calculateTotal())}</span>
         </div>
       </div>
 

@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { getImportBatches, getImportBatch, getPriceChangesFromImport } from '@/lib/actions/import'
 import type { ImportBatchSummary, ImportStatus, PriceChange } from '@/types/suppliers.types'
-import { formatDateTimeDK, formatDurationMs } from '@/lib/utils/format'
+import { formatDateTimeDK, formatDurationMs, formatCurrency } from '@/lib/utils/format'
 
 interface ImportHistoryProps {
   supplierId?: string
@@ -103,13 +103,6 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
     return formatDurationMs(ms)
   }
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return '-'
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-    }).format(price)
-  }
 
   const formatFileSize = (bytes: number | null) => {
     if (!bytes) return '-'
@@ -341,13 +334,13 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
                                 {change.product_name}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm">
-                                {formatPrice(change.old_cost_price)}
+                                {change.old_cost_price !== null ? formatCurrency(change.old_cost_price) : '-'}
                               </TableCell>
                               <TableCell className="text-center">
                                 <ArrowRight className="w-4 h-4 text-gray-400 mx-auto" />
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm">
-                                {formatPrice(change.new_cost_price)}
+                                {change.new_cost_price !== null ? formatCurrency(change.new_cost_price) : '-'}
                               </TableCell>
                               <TableCell className="text-right">
                                 <span className={`flex items-center justify-end gap-1 text-sm ${

@@ -20,7 +20,7 @@ import { Pagination } from '@/components/shared/pagination'
 import type { PackageSummary, PackageCategory } from '@/types/packages.types'
 import type { PaginatedResponse } from '@/types/common.types'
 import { createPackage, deletePackage, copyPackage } from '@/lib/actions/packages'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, formatTimeMinutes } from '@/lib/utils/format'
 
 interface PackagesClientProps {
   initialPackages: PaginatedResponse<PackageSummary> | null
@@ -97,13 +97,6 @@ export default function PackagesClient({
         error(result.error || 'Kunne ikke kopiere pakke')
       }
     })
-  }
-
-  const formatTime = (minutes: number) => {
-    const h = Math.floor(minutes / 60)
-    const m = minutes % 60
-    if (h > 0) return `${h}t ${m}m`
-    return `${m}m`
   }
 
   return (
@@ -252,7 +245,7 @@ export default function PackagesClient({
                     </div>
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <Clock className="w-4 h-4" />
-                      {formatTime(pkg.total_time_minutes)}
+                      {formatTimeMinutes(pkg.total_time_minutes)}
                     </div>
                   </div>
 

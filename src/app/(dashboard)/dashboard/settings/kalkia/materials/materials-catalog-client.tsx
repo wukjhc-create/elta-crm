@@ -42,6 +42,7 @@ import {
 } from '@/lib/actions/component-intelligence'
 import type { Material, MaterialPriceHistory } from '@/types/component-intelligence.types'
 import { useToast } from '@/components/ui/toast'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface MaterialsCatalogClientProps {
   initialMaterials: Material[]
@@ -223,13 +224,6 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
     return matchesSearch && matchesFilter
   })
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 2,
-    }).format(price)
-  }
 
   const calculateMargin = (cost: number, sale: number) => {
     if (sale === 0) return 0
@@ -351,7 +345,7 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
               {calculateMargin(formData.cost_price || 0, formData.sale_price || 0).toFixed(1)}%
             </span>
             <span className="text-sm text-gray-500 ml-2">
-              ({formatPrice((formData.sale_price || 0) - (formData.cost_price || 0))} per {formData.unit})
+              ({formatCurrency((formData.sale_price || 0) - (formData.cost_price || 0), 'DKK', 2)} per {formData.unit})
             </span>
           </div>
         )}
@@ -545,11 +539,11 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
                   <div className="flex items-center gap-6">
                     <div className="text-right">
                       <div className="text-sm text-gray-500">Kostpris</div>
-                      <div className="font-medium">{formatPrice(material.cost_price)}</div>
+                      <div className="font-medium">{formatCurrency(material.cost_price, 'DKK', 2)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-sm text-gray-500">Salgspris</div>
-                      <div className="font-medium">{formatPrice(material.sale_price)}</div>
+                      <div className="font-medium">{formatCurrency(material.sale_price, 'DKK', 2)}</div>
                     </div>
                     <div className="text-right min-w-[60px]">
                       <div className="text-sm text-gray-500">Avance</div>
@@ -623,7 +617,7 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
                                 <div className="flex items-center gap-2">
                                   <span>Kost:</span>
                                   <span className={costChange > 0 ? 'text-red-600' : costChange < 0 ? 'text-green-600' : ''}>
-                                    {formatPrice(history.cost_price)}
+                                    {formatCurrency(history.cost_price, 'DKK', 2)}
                                     {costChange !== 0 && (
                                       costChange > 0 ? <TrendingUp className="w-3 h-3 inline ml-1" /> : <TrendingDown className="w-3 h-3 inline ml-1" />
                                     )}
@@ -632,7 +626,7 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
                                 <div className="flex items-center gap-2">
                                   <span>Salg:</span>
                                   <span className={saleChange > 0 ? 'text-green-600' : saleChange < 0 ? 'text-red-600' : ''}>
-                                    {formatPrice(history.sale_price)}
+                                    {formatCurrency(history.sale_price, 'DKK', 2)}
                                   </span>
                                 </div>
                               </div>

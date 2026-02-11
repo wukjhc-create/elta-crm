@@ -37,6 +37,7 @@ import {
 } from '@/lib/actions/suppliers'
 import type { SupplierProductWithSupplier, SupplierProductFilters } from '@/types/suppliers.types'
 import { formatDate as formatDateUtil } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils/format'
 
 type SortColumn = SupplierProductFilters['sortBy']
 
@@ -121,13 +122,6 @@ export function SupplierProductsTable({
     }
   }
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return '-'
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-    }).format(price)
-  }
 
   const formatDate = (date: string | null) => {
     if (!date) return '-'
@@ -256,13 +250,13 @@ export function SupplierProductsTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatPrice(product.cost_price)}
+                    {product.cost_price !== null ? formatCurrency(product.cost_price) : '-'}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatPrice(product.list_price)}
+                    {product.list_price !== null ? formatCurrency(product.list_price) : '-'}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm text-blue-600">
-                    {formatPrice(product.effective_sale_price)}
+                    {product.effective_sale_price !== null ? formatCurrency(product.effective_sale_price) : '-'}
                   </TableCell>
                   <TableCell>
                     <Badge variant={product.is_available ? 'default' : 'secondary'}>

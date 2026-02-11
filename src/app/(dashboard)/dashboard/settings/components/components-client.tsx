@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
 import type { Component, ComponentCategory } from '@/lib/actions/components'
 
 interface ComponentsClientProps {
@@ -44,20 +45,6 @@ export default function ComponentsClient({ components, categories }: ComponentsC
     return matchesSearch && matchesCategory
   })
 
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   // Group by category
   const groupedComponents = filteredComponents.reduce((acc, comp) => {
@@ -148,13 +135,13 @@ export default function ComponentsClient({ components, categories }: ComponentsC
                                 )}
                                 <span className="flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
-                                  {formatTime(comp.base_time_minutes)}
+                                  {formatTimeMinutes(comp.base_time_minutes)}
                                 </span>
                                 <span>
-                                  Kostpris: {formatPrice(comp.default_cost_price || 0)}
+                                  Kostpris: {formatCurrency(comp.default_cost_price || 0)}
                                 </span>
                                 <span>
-                                  Salgspris: {formatPrice(comp.default_sale_price || 0)}
+                                  Salgspris: {formatCurrency(comp.default_sale_price || 0)}
                                 </span>
                               </div>
                             </div>

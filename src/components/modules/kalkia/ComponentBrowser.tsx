@@ -33,6 +33,7 @@ import {
   type ComponentForCalculation,
   type ComponentVariant,
 } from '@/lib/actions/components'
+import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
 import type { CalculationItem } from './CalculationPreview'
 
 // Component item for calculation - matches what PackageBuilder expects
@@ -237,20 +238,6 @@ export function ComponentBrowser({
     setQuantity(1)
   }
 
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   const getCalculatedTime = (): number => {
     if (!selectedComponent) return 0
@@ -375,7 +362,7 @@ export function ComponentBrowser({
                           {comp.base_time_minutes > 0 && (
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              {formatTime(comp.base_time_minutes)}
+                              {formatTimeMinutes(comp.base_time_minutes)}
                             </span>
                           )}
                           {comp.variant_count > 0 && (
@@ -490,13 +477,13 @@ export function ComponentBrowser({
                   <div>
                     <span className="text-gray-500">Basistid:</span>
                     <span className="ml-2 font-medium">
-                      {formatTime(selectedComponent.base_time_minutes)}
+                      {formatTimeMinutes(selectedComponent.base_time_minutes)}
                     </span>
                   </div>
                   <div>
                     <span className="text-gray-500">Total tid:</span>
                     <span className="ml-2 font-medium text-blue-600">
-                      {formatTime(getCalculatedTime())}
+                      {formatTimeMinutes(getCalculatedTime())}
                     </span>
                   </div>
                   <div>
@@ -510,7 +497,7 @@ export function ComponentBrowser({
                     <div>
                       <span className="text-gray-500">Kostpris:</span>
                       <span className="ml-2 font-medium text-gray-600">
-                        {formatPrice(selectedComponent.default_cost_price)}
+                        {formatCurrency(selectedComponent.default_cost_price)}
                       </span>
                     </div>
                   )}
@@ -518,7 +505,7 @@ export function ComponentBrowser({
                     <div>
                       <span className="text-gray-500">Salgspris:</span>
                       <span className="ml-2 font-medium text-green-600">
-                        {formatPrice(selectedComponent.default_sale_price)}
+                        {formatCurrency(selectedComponent.default_sale_price)}
                       </span>
                     </div>
                   )}
@@ -526,7 +513,7 @@ export function ComponentBrowser({
                     <div className="col-span-2 pt-2 border-t mt-2">
                       <span className="text-gray-500">Est. DB:</span>
                       <span className="ml-2 font-semibold text-green-600">
-                        {formatPrice(selectedComponent.default_sale_price - selectedComponent.default_cost_price)}
+                        {formatCurrency(selectedComponent.default_sale_price - selectedComponent.default_cost_price)}
                         <span className="text-xs font-normal ml-1">
                           ({((selectedComponent.default_sale_price - selectedComponent.default_cost_price) / selectedComponent.default_sale_price * 100).toFixed(1)}%)
                         </span>

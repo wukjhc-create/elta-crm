@@ -48,6 +48,7 @@ import { deleteProduct } from '@/lib/actions/products'
 import type { ProductWithCategory, ProductCategory } from '@/types/products.types'
 import type { PaginatedResponse } from '@/types/common.types'
 import ProductForm from '@/components/modules/products/product-form'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface ProductsClientProps {
   initialProducts: PaginatedResponse<ProductWithCategory> | null
@@ -130,12 +131,6 @@ export default function ProductsClient({
     }
   }
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-    }).format(price)
-  }
 
   return (
     <div className="p-6 space-y-6">
@@ -247,10 +242,10 @@ export default function ProductsClient({
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {product.cost_price ? formatPrice(product.cost_price) : '-'}
+                    {product.cost_price ? formatCurrency(product.cost_price) : '-'}
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatPrice(product.list_price)}
+                    {formatCurrency(product.list_price)}
                   </TableCell>
                   <TableCell>
                     <Badge variant={product.is_active ? 'default' : 'secondary'}>

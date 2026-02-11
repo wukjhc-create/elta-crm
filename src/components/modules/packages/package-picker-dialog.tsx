@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { getPackages } from '@/lib/actions/packages'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, formatTimeMinutes } from '@/lib/utils/format'
 import { useToast } from '@/components/ui/toast'
 import type { PackageSummary } from '@/types/packages.types'
 
@@ -65,14 +65,6 @@ export function PackagePickerDialog({
   }
 
   const formatPrice = formatCurrency
-
-  const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    if (hours > 0 && mins > 0) return `${hours}t ${mins}m`
-    if (hours > 0) return `${hours}t`
-    return `${mins}m`
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -137,7 +129,7 @@ export function PackagePickerDialog({
                       {pkg.total_time_minutes > 0 && (
                         <span className="text-xs text-gray-400 flex items-center gap-0.5">
                           <Clock className="w-3 h-3" />
-                          {formatTime(pkg.total_time_minutes)}
+                          {formatTimeMinutes(pkg.total_time_minutes)}
                         </span>
                       )}
                     </div>

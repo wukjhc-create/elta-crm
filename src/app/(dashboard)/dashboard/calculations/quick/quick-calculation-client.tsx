@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
+import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
 import { createQuickCalculation } from '@/lib/actions/calculations'
 import type { ProjectTemplate, RoomType, CalculationSettings } from '@/types/calculation-settings.types'
 
@@ -256,23 +257,6 @@ export default function QuickCalculationClient({
   const dbAmount = grandTotal - totalCostWithLabor
   const dbPercentage = grandTotal > 0 ? (dbAmount / grandTotal) * 100 : 0
 
-  // Format time
-  const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return hours > 0 ? `${hours}t ${mins}m` : `${mins}m`
-  }
-
-  // Format price
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price)
-  }
-
   // Create calculation
   const handleCreate = () => {
     if (!projectName.trim()) {
@@ -487,7 +471,7 @@ export default function QuickCalculationClient({
                               <div className="flex items-center gap-4">
                                 <span className="text-sm text-gray-500">
                                   <Clock className="w-3 h-3 inline mr-1" />
-                                  {formatTime(comp.timeMinutes)}
+                                  {formatTimeMinutes(comp.timeMinutes)}
                                 </span>
                                 <div className="flex items-center gap-1">
                                   <Button
@@ -528,7 +512,7 @@ export default function QuickCalculationClient({
                               <option value="">+ Tilføj komponent...</option>
                               {components.map(comp => (
                                 <option key={comp.code} value={comp.code}>
-                                  {comp.name} ({formatTime(comp.base_time_minutes)})
+                                  {comp.name} ({formatTimeMinutes(comp.base_time_minutes)})
                                 </option>
                               ))}
                             </select>
@@ -559,31 +543,31 @@ export default function QuickCalculationClient({
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Samlet tid</span>
-                      <span className="font-medium">{formatTime(totals.totalTimeMinutes)}</span>
+                      <span className="font-medium">{formatTimeMinutes(totals.totalTimeMinutes)}</span>
                     </div>
                   </div>
 
                   <div className="border-t pt-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Materialer</span>
-                      <span>{formatPrice(totals.totalSalePrice)}</span>
+                      <span>{formatCurrency(totals.totalSalePrice)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">
-                        Arbejdsløn ({laborHours.toFixed(1)}t × {formatPrice(hourlyRate)})
+                        Arbejdsløn ({laborHours.toFixed(1)}t × {formatCurrency(hourlyRate)})
                       </span>
-                      <span>{formatPrice(laborCost)}</span>
+                      <span>{formatCurrency(laborCost)}</span>
                     </div>
                   </div>
 
                   <div className="border-t pt-4">
                     <div className="flex justify-between font-bold text-lg">
                       <span>Subtotal</span>
-                      <span>{formatPrice(grandTotal)}</span>
+                      <span>{formatCurrency(grandTotal)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-green-600 mt-2">
                       <span>DB</span>
-                      <span>{formatPrice(dbAmount)} ({dbPercentage.toFixed(1)}%)</span>
+                      <span>{formatCurrency(dbAmount)} ({dbPercentage.toFixed(1)}%)</span>
                     </div>
                   </div>
                 </CardContent>
@@ -670,7 +654,7 @@ export default function QuickCalculationClient({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Samlet arbejdstid</span>
-                      <span className="font-medium">{formatTime(totals.totalTimeMinutes)}</span>
+                      <span className="font-medium">{formatTimeMinutes(totals.totalTimeMinutes)}</span>
                     </div>
                   </div>
 
@@ -680,29 +664,29 @@ export default function QuickCalculationClient({
                         <Package className="w-4 h-4" />
                         Materialer
                       </span>
-                      <span>{formatPrice(totals.totalSalePrice)}</span>
+                      <span>{formatCurrency(totals.totalSalePrice)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="flex items-center gap-1 text-gray-500">
                         <Clock className="w-4 h-4" />
                         Arbejdsløn
                       </span>
-                      <span>{formatPrice(laborCost)}</span>
+                      <span>{formatCurrency(laborCost)}</span>
                     </div>
                   </div>
 
                   <div className="border-t pt-4">
                     <div className="flex justify-between text-lg font-bold">
                       <span>Subtotal</span>
-                      <span>{formatPrice(grandTotal)}</span>
+                      <span>{formatCurrency(grandTotal)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-gray-500 mt-1">
                       <span>+ moms (25%)</span>
-                      <span>{formatPrice(grandTotal * 0.25)}</span>
+                      <span>{formatCurrency(grandTotal * 0.25)}</span>
                     </div>
                     <div className="flex justify-between text-xl font-bold mt-2 pt-2 border-t">
                       <span>Total inkl. moms</span>
-                      <span>{formatPrice(grandTotal * 1.25)}</span>
+                      <span>{formatCurrency(grandTotal * 1.25)}</span>
                     </div>
                   </div>
 
@@ -710,7 +694,7 @@ export default function QuickCalculationClient({
                     <div className="flex justify-between text-green-600">
                       <span>Dækningsbidrag</span>
                       <span className="font-medium">
-                        {formatPrice(dbAmount)} ({dbPercentage.toFixed(1)}%)
+                        {formatCurrency(dbAmount)} ({dbPercentage.toFixed(1)}%)
                       </span>
                     </div>
                   </div>

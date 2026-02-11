@@ -35,7 +35,7 @@ import {
   reorderPackageItems,
 } from '@/lib/actions/packages'
 import { calculateFinancialSummary } from '@/lib/utils/packages'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, formatTimeMinutes } from '@/lib/utils/format'
 
 interface PackageDetailClientProps {
   initialPackage: PackageType & { items: PackageItem[] }
@@ -77,13 +77,6 @@ export default function PackageDetailClient({
 
   // Calculate financial summary
   const summary = calculateFinancialSummary(items)
-
-  const formatTime = (minutes: number) => {
-    const h = Math.floor(minutes / 60)
-    const m = minutes % 60
-    if (h > 0) return `${h}t ${m}m`
-    return `${m}m`
-  }
 
   const handleSavePackage = async () => {
     startTransition(async () => {
@@ -466,7 +459,7 @@ export default function PackageDetailClient({
                       )}
                     </div>
                     <div className="col-span-1 text-right text-sm text-muted-foreground">
-                      {formatTime(item.total_time)}
+                      {formatTimeMinutes(item.total_time)}
                     </div>
                     <div className="col-span-1 text-right font-medium">
                       {formatCurrency(item.total_sale)}

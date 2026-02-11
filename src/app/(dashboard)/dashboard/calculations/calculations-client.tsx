@@ -59,6 +59,7 @@ import {
 import type { PaginatedResponse } from '@/types/common.types'
 import CalculationForm from '@/components/modules/calculations/calculation-form'
 import { formatDate as formatDateUtil } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface CalculationsClientProps {
   initialCalculations: PaginatedResponse<CalculationWithRelations> | null
@@ -164,12 +165,6 @@ export default function CalculationsClient({
     }
   }
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-    }).format(price)
-  }
 
   const formatDate = (date: string) => {
     return formatDateUtil(date)
@@ -328,7 +323,7 @@ export default function CalculationsClient({
                     )}
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatPrice(calc.final_amount)}
+                    {formatCurrency(calc.final_amount)}
                   </TableCell>
                   <TableCell className="text-gray-500">
                     {formatDate(calc.created_at)}

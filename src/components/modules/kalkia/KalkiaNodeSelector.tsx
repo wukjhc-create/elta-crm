@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { searchKalkiaNodes } from '@/lib/actions/kalkia'
+import { formatTimeSeconds } from '@/lib/utils/format'
 import type { KalkiaNodeSummary, KalkiaCalculationItemInput } from '@/types/kalkia.types'
 
 interface KalkiaNodeSelectorProps {
@@ -61,15 +62,6 @@ export function KalkiaNodeSelector({ onAdd, existingNodeIds = [] }: KalkiaNodeSe
     const debounce = setTimeout(searchNodes, 300)
     return () => clearTimeout(debounce)
   }, [search, existingNodeIds])
-
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
 
   const handleAdd = () => {
     if (!selectedNode) return
@@ -158,7 +150,7 @@ export function KalkiaNodeSelector({ onAdd, existingNodeIds = [] }: KalkiaNodeSe
                               {node.base_time_seconds > 0 && (
                                 <span className="flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
-                                  {formatTime(node.base_time_seconds)}
+                                  {formatTimeSeconds(node.base_time_seconds)}
                                 </span>
                               )}
                               {node.variant_count > 0 && (
@@ -192,7 +184,7 @@ export function KalkiaNodeSelector({ onAdd, existingNodeIds = [] }: KalkiaNodeSe
                       {selectedNode.base_time_seconds > 0 && (
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {formatTime(selectedNode.base_time_seconds)}
+                          {formatTimeSeconds(selectedNode.base_time_seconds)}
                         </span>
                       )}
                     </div>

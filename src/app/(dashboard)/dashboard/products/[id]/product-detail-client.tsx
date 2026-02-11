@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/toast'
 import { deleteProduct } from '@/lib/actions/products'
 import ProductForm from '@/components/modules/products/product-form'
 import type { ProductWithCategory, ProductCategory } from '@/types/products.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface ProductDetailClientProps {
   product: ProductWithCategory
@@ -44,12 +45,6 @@ export default function ProductDetailClient({
     }
   }
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-    }).format(price)
-  }
 
   const margin =
     product.cost_price && product.list_price
@@ -117,14 +112,14 @@ export default function ProductDetailClient({
             <div className="flex justify-between items-center">
               <span className="text-gray-500">Listepris</span>
               <span className="text-xl font-bold">
-                {formatPrice(product.list_price)}
+                {formatCurrency(product.list_price)}
               </span>
             </div>
 
             {product.cost_price && (
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Kostpris</span>
-                <span>{formatPrice(product.cost_price)}</span>
+                <span>{formatCurrency(product.cost_price)}</span>
               </div>
             )}
 

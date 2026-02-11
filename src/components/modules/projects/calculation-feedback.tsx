@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { recordCalculationFeedback } from '@/lib/actions/auto-project'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface CalculationFeedbackProps {
   projectId: string
@@ -51,13 +52,6 @@ export function CalculationFeedback({
   const [lessonsLearned, setLessonsLearned] = useState('')
   const [suggestions, setSuggestions] = useState('')
 
-  const formatPrice = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(amount)
-  }
 
   const handleSubmit = async () => {
     const hours = parseFloat(finalActualHours)
@@ -196,7 +190,7 @@ export function CalculationFeedback({
             Estimeret materialekostnad
           </label>
           <div className="px-3 py-2 bg-gray-50 rounded-md border text-gray-600">
-            {budget ? formatPrice(budget) : 'Ikke angivet'}
+            {budget ? formatCurrency(budget) : 'Ikke angivet'}
           </div>
         </div>
         <div>

@@ -64,6 +64,7 @@ import {
   type EnhancedROIData,
 } from '@/types/calculations.types'
 import type { ProductCategory } from '@/types/products.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface CalculationDetailClientProps {
   calculation: CalculationWithRelations
@@ -177,12 +178,6 @@ export default function CalculationDetailClient({
     })
   }
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-    }).format(price)
-  }
 
   const nextPosition = rows.length > 0 ? Math.max(...rows.map((r) => r.position)) + 1 : 0
 
@@ -327,18 +322,18 @@ export default function CalculationDetailClient({
                         </TableCell>
                         <TableCell className="text-right">
                           {row.hourly_rate ? (
-                            <span>{formatPrice(row.hourly_rate)}/t</span>
+                            <span>{formatCurrency(row.hourly_rate)}/t</span>
                           ) : (
-                            formatPrice(row.sale_price)
+                            formatCurrency(row.sale_price)
                           )}
                         </TableCell>
                         {showInternalView && (
                           <TableCell className="text-right text-gray-500">
-                            {row.cost_price ? formatPrice(row.cost_price) : '-'}
+                            {row.cost_price ? formatCurrency(row.cost_price) : '-'}
                           </TableCell>
                         )}
                         <TableCell className="text-right font-medium">
-                          {formatPrice(row.total)}
+                          {formatCurrency(row.total)}
                         </TableCell>
                         {showInternalView && (
                           <TableCell className="text-right">
@@ -349,7 +344,7 @@ export default function CalculationDetailClient({
                                   : 'text-red-600'
                               }
                             >
-                              {formatPrice(row.profit_amount || 0)}
+                              {formatCurrency(row.profit_amount || 0)}
                             </span>
                           </TableCell>
                         )}
@@ -448,7 +443,7 @@ export default function CalculationDetailClient({
                 <>
                   <div className="flex justify-between border-t pt-2">
                     <span className="text-gray-500">Standard timepris</span>
-                    <span>{formatPrice(calculation.default_hourly_rate || 450)}</span>
+                    <span>{formatCurrency(calculation.default_hourly_rate || 450)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Materialemarkup</span>

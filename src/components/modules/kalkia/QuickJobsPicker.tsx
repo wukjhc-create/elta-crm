@@ -26,6 +26,7 @@ import { getQuickJobs, incrementQuickJobUsage } from '@/lib/actions/quick-jobs'
 import { getCalcComponentForCalculation } from '@/lib/actions/components'
 import { v4 as uuidv4 } from 'uuid'
 import type { QuickJob, QuickJobCategory, QUICK_JOB_CATEGORIES } from '@/types/quick-jobs.types'
+import { formatTimeMinutes } from '@/lib/utils/format'
 import type { CalculationItem } from './CalculationPreview'
 
 interface QuickJobsPickerProps {
@@ -170,13 +171,6 @@ export function QuickJobsPicker({
     setLoadingJob(null)
   }, [onAddItems, onClose])
 
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
-
   const getCategoryLabel = (cat: string) => {
     const labels: Record<string, string> = {
       residential: 'Bolig',
@@ -269,7 +263,7 @@ export function QuickJobsPicker({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{job.name}</p>
-                    <p className="text-xs text-gray-500">{formatTime(job.estimated_time_minutes)}</p>
+                    <p className="text-xs text-gray-500">{formatTimeMinutes(job.estimated_time_minutes)}</p>
                   </div>
                 </button>
               )
@@ -315,7 +309,7 @@ export function QuickJobsPicker({
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {formatTime(job.estimated_time_minutes)}
+                        {formatTimeMinutes(job.estimated_time_minutes)}
                       </span>
                       <span>{job.components.length} komponenter</span>
                       <Badge variant="outline" className="text-xs">

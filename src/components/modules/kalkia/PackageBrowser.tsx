@@ -31,6 +31,7 @@ import {
   getCalcComponentForCalculation,
 } from '@/lib/actions/components'
 import type { PackageCategory, PackageSummary } from '@/types/packages.types'
+import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
 import type { CalculationItem } from './CalculationPreview'
 
 interface PackageBrowserProps {
@@ -199,20 +200,6 @@ export function PackageBrowser({
     setLoadingPackage(false)
   }, [onAddItems])
 
-  const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return mins > 0 ? `${hours}t ${mins}m` : `${hours}t`
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
@@ -299,17 +286,17 @@ export function PackageBrowser({
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {formatTime(pkg.total_time_minutes)}
+                          {formatTimeMinutes(pkg.total_time_minutes)}
                         </span>
                         <span>{pkg.item_count} linjer</span>
                         {pkg.total_cost_price > 0 && (
                           <span className="text-gray-400">
                             <DollarSign className="w-3 h-3 inline" />
-                            {formatPrice(pkg.total_cost_price)}
+                            {formatCurrency(pkg.total_cost_price)}
                           </span>
                         )}
                         {pkg.total_sale_price > 0 && (
-                          <span className="font-medium">{formatPrice(pkg.total_sale_price)}</span>
+                          <span className="font-medium">{formatCurrency(pkg.total_sale_price)}</span>
                         )}
                         {pkg.db_percentage > 0 && (
                           <Badge variant="outline" className="text-xs text-green-600 border-green-300">
