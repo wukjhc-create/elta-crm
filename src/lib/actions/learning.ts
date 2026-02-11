@@ -89,7 +89,7 @@ export async function runAutoCalibration(): Promise<ActionResult<{ adjustments: 
       .from('profiles')
       .select('role')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Kun administratorer kan køre autokalibrering' }
@@ -117,7 +117,7 @@ export async function applyCalibration(
       .from('profiles')
       .select('role')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Kun administratorer kan anvende kalibreringer' }
@@ -128,7 +128,7 @@ export async function applyCalibration(
       .from('calc_components')
       .select('time_estimate')
       .eq('code', calibration.code)
-      .single()
+      .maybeSingle()
 
     const oldValue = currentComponent?.time_estimate || 0
 

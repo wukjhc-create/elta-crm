@@ -353,7 +353,7 @@ export async function savePackageBuilderCalculation(
         .from('kalkia_building_profiles')
         .select('*')
         .eq('id', input.buildingProfileId)
-        .single()
+        .maybeSingle()
       if (profileData) {
         buildingProfileSnapshot = profileData
       }

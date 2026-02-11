@@ -188,7 +188,7 @@ export async function sendMessage(
       .from('profiles')
       .select('full_name, email')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     const { data, error } = await supabase
       .from('messages')

@@ -360,7 +360,7 @@ export async function setDefaultSupplierMargin(
       .select('id')
       .eq('supplier_id', supplierId)
       .eq('rule_type', 'supplier')
-      .single()
+      .maybeSingle()
 
     if (existing) {
       // Update existing rule

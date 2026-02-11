@@ -916,7 +916,7 @@ export async function logIncomingEmail(
       .from('email_threads')
       .select('unread_count')
       .eq('id', threadId)
-      .single()
+      .maybeSingle()
 
     await supabase
       .from('email_threads')

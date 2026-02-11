@@ -50,7 +50,7 @@ export async function syncSupplierPrices(
       .from('suppliers')
       .select('id, code, name')
       .eq('id', supplierId)
-      .single()
+      .maybeSingle()
 
     if (supplierError || !supplier) {
       return { success: false, error: 'Leverandør ikke fundet' }
@@ -116,7 +116,7 @@ export async function syncSupplierPrices(
             .select('id, cost_price, list_price')
             .eq('supplier_id', supplierId)
             .eq('supplier_sku', sku)
-            .single()
+            .maybeSingle()
 
           if (productError || !existingProduct) continue
 
@@ -229,7 +229,7 @@ export async function searchSupplierAPI(
       .from('suppliers')
       .select('code, name')
       .eq('id', supplierId)
-      .single()
+      .maybeSingle()
 
     if (!supplier) {
       return { success: false, error: 'Leverandør ikke fundet' }
@@ -269,7 +269,7 @@ export async function getLiveProductPrice(
       .from('suppliers')
       .select('code, name')
       .eq('id', supplierId)
-      .single()
+      .maybeSingle()
 
     if (!supplier) {
       return { success: false, error: 'Leverandør ikke fundet' }
@@ -308,7 +308,7 @@ export async function testSupplierAPIConnection(
       .from('suppliers')
       .select('code, name')
       .eq('id', supplierId)
-      .single()
+      .maybeSingle()
 
     if (!supplier) {
       return { success: false, error: 'Leverandør ikke fundet' }
@@ -353,7 +353,7 @@ export async function importProductsFromAPI(
         .select('id')
         .eq('supplier_id', supplierId)
         .eq('supplier_sku', product.sku)
-        .single()
+        .maybeSingle()
 
       if (existing) {
         // Update existing

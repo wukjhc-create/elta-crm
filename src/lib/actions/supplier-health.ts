@@ -50,7 +50,7 @@ export async function getSupplierHealth(
       .from('suppliers')
       .select('id, name, code')
       .eq('id', supplierId)
-      .single()
+      .maybeSingle()
 
     if (!supplier) {
       return { success: false, error: 'Leverandør ikke fundet' }

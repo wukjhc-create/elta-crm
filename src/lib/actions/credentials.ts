@@ -330,7 +330,7 @@ export async function testSupplierConnection(
       .from('supplier_credentials')
       .select('id, supplier_id, credential_type, credentials_encrypted, api_endpoint')
       .eq('id', credentialId)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !credential) {
       return { success: false, error: 'Loginoplysninger ikke fundet' }
@@ -341,7 +341,7 @@ export async function testSupplierConnection(
       .from('suppliers')
       .select('code')
       .eq('id', credential.supplier_id)
-      .single()
+      .maybeSingle()
 
     const supplierCode = supplier?.code?.toUpperCase()
 

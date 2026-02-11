@@ -146,7 +146,7 @@ export async function updateKalkiaVariant(
         .from('kalkia_variants')
         .select('node_id')
         .eq('id', id)
-        .single()
+        .maybeSingle()
 
       if (variant) {
         await supabase

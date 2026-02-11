@@ -43,7 +43,7 @@ export async function createAuditLog(
       .from('profiles')
       .select('full_name, email')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     const userEmail = profile?.email || null
     const userName = profile?.full_name || null

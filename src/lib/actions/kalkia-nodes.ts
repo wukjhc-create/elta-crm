@@ -216,7 +216,7 @@ export async function createKalkiaNode(
         .from('kalkia_nodes')
         .select('path, depth')
         .eq('id', validated.data.parent_id)
-        .single()
+        .maybeSingle()
 
       if (parent) {
         path = `${parent.path}.${path}`
