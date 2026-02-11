@@ -129,6 +129,39 @@ export async function GET(request: Request) {
       .in('status', ['draft', 'sent'])
 
     if (activeOffers) {
+      // Collect all supplier_product_ids across all offers to batch-load current prices
+      const allSupplierProductIds = new Set<string>()
+      for (const offer of activeOffers) {
+        for (const li of (offer.line_items || []) as Array<{ supplier_product_id: string | null }>) {
+          if (li.supplier_product_id) allSupplierProductIds.add(li.supplier_product_id)
+        }
+      }
+
+      // Batch-load all supplier products at once (fixes N+1)
+      const supplierProductMap = new Map<string, { cost_price: number; supplier_name: string }>()
+      if (allSupplierProductIds.size > 0) {
+        const { data: supplierProducts } = await supabase
+          .from('supplier_products')
+          .select('id, cost_price, supplier_name')
+          .in('id', Array.from(allSupplierProductIds))
+
+        for (const sp of supplierProducts || []) {
+          supplierProductMap.set(sp.id, { cost_price: sp.cost_price, supplier_name: sp.supplier_name })
+        }
+      }
+
+      // Batch-load existing margin alerts to avoid per-offer queries
+      const offerIds = activeOffers.map(o => o.id)
+      const { data: existingMarginAlerts } = await supabase
+        .from('system_alerts')
+        .select('entity_id')
+        .eq('entity_type', 'offer')
+        .eq('alert_type', 'margin_below')
+        .eq('is_dismissed', false)
+        .in('entity_id', offerIds)
+
+      const offersWithMarginAlerts = new Set((existingMarginAlerts || []).map(a => a.entity_id))
+
       for (const offer of activeOffers) {
         const lineItems = offer.line_items || []
         const totalCost = lineItems.reduce(
@@ -143,34 +176,22 @@ export async function GET(request: Request) {
         if (totalCost > 0 && totalSale > 0) {
           const marginPct = ((totalSale - totalCost) / totalSale) * 100
 
-          if (marginPct < MONITORING_CONFIG.MARGIN_WARNING_THRESHOLD) {
-            // Check if we already have a recent alert for this offer
-            const { data: existingAlerts } = await supabase
-              .from('system_alerts')
-              .select('id')
-              .eq('entity_type', 'offer')
-              .eq('entity_id', offer.id)
-              .eq('alert_type', 'margin_below')
-              .eq('is_dismissed', false)
-              .limit(1)
-
-            if (!existingAlerts || existingAlerts.length === 0) {
-              await insertAlert({
-                alert_type: 'margin_below',
-                severity: marginPct < MONITORING_CONFIG.MARGIN_CRITICAL_THRESHOLD ? 'critical' : 'warning',
-                title: `Lav margin: ${offer.offer_number}`,
-                message: `Tilbud "${offer.title}" har kun ${marginPct.toFixed(1)}% margin (kostpris: ${totalCost.toFixed(0)} kr, salgspris: ${totalSale.toFixed(0)} kr)`,
-                details: {
-                  offer_number: offer.offer_number,
-                  total_cost: totalCost,
-                  total_sale: totalSale,
-                  margin_percentage: marginPct,
-                },
-                entity_type: 'offer',
-                entity_id: offer.id,
-              })
-              results.margin_warnings++
-            }
+          if (marginPct < MONITORING_CONFIG.MARGIN_WARNING_THRESHOLD && !offersWithMarginAlerts.has(offer.id)) {
+            await insertAlert({
+              alert_type: 'margin_below',
+              severity: marginPct < MONITORING_CONFIG.MARGIN_CRITICAL_THRESHOLD ? 'critical' : 'warning',
+              title: `Lav margin: ${offer.offer_number}`,
+              message: `Tilbud "${offer.title}" har kun ${marginPct.toFixed(1)}% margin (kostpris: ${totalCost.toFixed(0)} kr, salgspris: ${totalSale.toFixed(0)} kr)`,
+              details: {
+                offer_number: offer.offer_number,
+                total_cost: totalCost,
+                total_sale: totalSale,
+                margin_percentage: marginPct,
+              },
+              entity_type: 'offer',
+              entity_id: offer.id,
+            })
+            results.margin_warnings++
           }
         }
 
@@ -181,12 +202,7 @@ export async function GET(request: Request) {
         for (const item of supplierItems) {
           if (!item.supplier_product_id) continue
 
-          const { data: currentProduct } = await supabase
-            .from('supplier_products')
-            .select('cost_price, supplier_name')
-            .eq('id', item.supplier_product_id)
-            .single()
-
+          const currentProduct = supplierProductMap.get(item.supplier_product_id)
           if (currentProduct && item.cost_price) {
             const priceDiff = ((currentProduct.cost_price - item.cost_price) / item.cost_price) * 100
             if (Math.abs(priceDiff) > MONITORING_CONFIG.PRICE_CHANGE_OFFER_THRESHOLD) {

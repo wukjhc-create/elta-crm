@@ -265,6 +265,11 @@ export async function GET(request: Request) {
       .map((r) => r.value)
 
     const totalDuration = Date.now() - startTime
+    const succeeded = results.filter(r => r.status === 'success').length
+    const failed = results.filter(r => r.status === 'failed').length
+    const skipped = results.filter(r => r.status === 'skipped').length
+
+    console.info(`[Cron] Supplier sync completed in ${totalDuration}ms: ${succeeded} success, ${failed} failed, ${skipped} skipped`)
 
     return NextResponse.json({
       message: 'Sync completed',
