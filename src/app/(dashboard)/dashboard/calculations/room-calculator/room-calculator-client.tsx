@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
+import { formatCurrency } from '@/lib/utils/format'
 import {
   getInstallationTypes,
   getRoomTemplates,
@@ -283,7 +284,7 @@ export function RoomCalculatorClient() {
           onClick={() => setActiveTab('results')}
           disabled={!estimate}
         >
-          Resultat {estimate ? `(${formatDKK(estimate.final_amount)})` : ''}
+          Resultat {estimate ? `(${formatCurrency(estimate.final_amount)})` : ''}
         </button>
         <button
           className={`px-4 py-2 text-sm font-medium border-b-2 ${activeTab === 'profit' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
@@ -613,12 +614,12 @@ export function RoomCalculatorClient() {
         <div className="space-y-6">
           {/* Key Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <MetricCard label="Kostpris" value={formatDKK(estimate.cost_price)} />
-            <MetricCard label="Salgspris ekskl. moms" value={formatDKK(estimate.sale_price_excl_vat)} />
-            <MetricCard label="Moms" value={formatDKK(estimate.vat_amount)} />
+            <MetricCard label="Kostpris" value={formatCurrency(estimate.cost_price)} />
+            <MetricCard label="Salgspris ekskl. moms" value={formatCurrency(estimate.sale_price_excl_vat)} />
+            <MetricCard label="Moms" value={formatCurrency(estimate.vat_amount)} />
             <MetricCard
               label="Slutpris inkl. moms"
-              value={formatDKK(estimate.final_amount)}
+              value={formatCurrency(estimate.final_amount)}
               highlight
             />
             <MetricCard
@@ -626,7 +627,7 @@ export function RoomCalculatorClient() {
               value={`${estimate.db_percentage.toFixed(1)}%`}
               status={estimate.db_percentage < 15 ? 'warning' : estimate.db_percentage < 10 ? 'danger' : 'success'}
             />
-            <MetricCard label="DB/time" value={formatDKK(estimate.db_per_hour)} />
+            <MetricCard label="DB/time" value={formatCurrency(estimate.db_per_hour)} />
           </div>
 
           {/* Time and Material Summary */}
@@ -644,7 +645,7 @@ export function RoomCalculatorClient() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Arbejdsløn:</span>
-                  <span>{formatDKK(estimate.total_labor_cost)}</span>
+                  <span>{formatCurrency(estimate.total_labor_cost)}</span>
                 </div>
               </div>
             </div>
@@ -654,7 +655,7 @@ export function RoomCalculatorClient() {
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Materialekostpris:</span>
-                  <span className="font-medium">{formatDKK(estimate.total_material_cost)}</span>
+                  <span className="font-medium">{formatCurrency(estimate.total_material_cost)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Kabel (total):</span>
@@ -662,7 +663,7 @@ export function RoomCalculatorClient() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Overhead:</span>
-                  <span>{formatDKK(estimate.overhead_amount)}</span>
+                  <span>{formatCurrency(estimate.overhead_amount)}</span>
                 </div>
               </div>
             </div>
@@ -680,7 +681,7 @@ export function RoomCalculatorClient() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Tavleomk.:</span>
-                  <span>{formatDKK(estimate.panel_requirements.estimated_panel_cost)}</span>
+                  <span>{formatCurrency(estimate.panel_requirements.estimated_panel_cost)}</span>
                 </div>
               </div>
             </div>
@@ -706,10 +707,10 @@ export function RoomCalculatorClient() {
                         {(room.total_time_seconds / 3600).toFixed(1)}t
                       </span>
                       <span className="text-gray-500">
-                        Mat: {formatDKK(room.total_material_cost)}
+                        Mat: {formatCurrency(room.total_material_cost)}
                       </span>
                       <span className="font-medium">
-                        {formatDKK(room.total_cost)}
+                        {formatCurrency(room.total_cost)}
                       </span>
                     </div>
                   </div>
@@ -784,15 +785,15 @@ export function RoomCalculatorClient() {
                   <tr key={i} className="border-b last:border-0">
                     <td className="py-1.5">{ct.type}</td>
                     <td className="py-1.5 text-right">{ct.total_meters.toFixed(1)} m</td>
-                    <td className="py-1.5 text-right">{formatDKK(ct.estimated_cost_per_meter)}</td>
-                    <td className="py-1.5 text-right font-medium">{formatDKK(ct.total_cost)}</td>
+                    <td className="py-1.5 text-right">{formatCurrency(ct.estimated_cost_per_meter)}</td>
+                    <td className="py-1.5 text-right font-medium">{formatCurrency(ct.total_cost)}</td>
                   </tr>
                 ))}
                 <tr className="font-semibold">
                   <td className="pt-2">Total</td>
                   <td className="pt-2 text-right">{estimate.cable_summary.total_meters.toFixed(1)} m</td>
                   <td />
-                  <td className="pt-2 text-right">{formatDKK(estimate.cable_summary.total_cable_cost)}</td>
+                  <td className="pt-2 text-right">{formatCurrency(estimate.cable_summary.total_cable_cost)}</td>
                 </tr>
               </tbody>
             </table>
@@ -833,9 +834,9 @@ export function RoomCalculatorClient() {
         <div className="space-y-6">
           {/* Base costs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <MetricCard label="Materialekost" value={formatDKK(profitSim.material_cost)} />
-            <MetricCard label="Arbejdskost" value={formatDKK(profitSim.labor_cost)} />
-            <MetricCard label="Kostpris" value={formatDKK(profitSim.cost_price)} highlight />
+            <MetricCard label="Materialekost" value={formatCurrency(profitSim.material_cost)} />
+            <MetricCard label="Arbejdskost" value={formatCurrency(profitSim.labor_cost)} />
+            <MetricCard label="Kostpris" value={formatCurrency(profitSim.cost_price)} highlight />
           </div>
 
           {/* Scenario table */}
@@ -868,10 +869,10 @@ export function RoomCalculatorClient() {
                       <td className="px-4 py-2 font-medium">{s.name}</td>
                       <td className="px-4 py-2 text-right">{s.margin_percentage}%</td>
                       <td className="px-4 py-2 text-right">{s.discount_percentage}%</td>
-                      <td className="px-4 py-2 text-right">{formatDKK(s.net_price)}</td>
-                      <td className="px-4 py-2 text-right font-medium">{formatDKK(s.final_amount)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(s.net_price)}</td>
+                      <td className="px-4 py-2 text-right font-medium">{formatCurrency(s.final_amount)}</td>
                       <td className={`px-4 py-2 text-right ${s.db_amount < 0 ? 'text-red-600' : ''}`}>
-                        {formatDKK(s.db_amount)}
+                        {formatCurrency(s.db_amount)}
                       </td>
                       <td className={`px-4 py-2 text-right ${
                         s.db_percentage < 10 ? 'text-red-600' :
@@ -879,7 +880,7 @@ export function RoomCalculatorClient() {
                       }`}>
                         {s.db_percentage.toFixed(1)}%
                       </td>
-                      <td className="px-4 py-2 text-right">{formatDKK(s.db_per_hour)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(s.db_per_hour)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -949,15 +950,3 @@ function RiskBadge({ level }: { level: string }) {
   )
 }
 
-// =====================================================
-// Formatters
-// =====================================================
-
-function formatDKK(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}

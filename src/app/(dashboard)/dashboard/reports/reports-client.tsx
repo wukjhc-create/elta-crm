@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { formatCurrency } from '@/lib/utils/format'
 import {
   BarChart3,
   TrendingUp,
@@ -76,13 +77,13 @@ function RevenueChart({ data }: { data: RevenueByPeriod[] }) {
           return (
             <div key={d.period} className="flex-1 flex flex-col items-center gap-1">
               <span className="text-[10px] text-gray-500 font-medium">
-                {d.accepted_count > 0 ? formatDKK(d.accepted_revenue) : ''}
+                {d.accepted_count > 0 ? formatCurrency(d.accepted_revenue) : ''}
               </span>
               <div className="w-full flex flex-col items-center justify-end h-36">
                 <div
                   className="w-full max-w-12 bg-primary/80 rounded-t transition-all"
                   style={{ height: `${Math.max(height, 2)}%` }}
-                  title={`${formatDKK(d.accepted_revenue)} (${d.accepted_count} tilbud)`}
+                  title={`${formatCurrency(d.accepted_revenue)} (${d.accepted_count} tilbud)`}
                 />
               </div>
               <span className="text-[10px] text-gray-400">{d.period}</span>
@@ -138,7 +139,7 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
                     </span>
                   </td>
                   <td className="py-2.5 text-right font-medium text-gray-900">
-                    {formatDKK(c.total_revenue)}
+                    {formatCurrency(c.total_revenue)}
                   </td>
                 </tr>
               ))}
@@ -190,7 +191,7 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
                     </td>
                     <td className="py-2.5 text-gray-600">{p.customer_name || '—'}</td>
                     <td className="py-2.5 text-right text-gray-600">
-                      {p.budget ? formatDKK(p.budget) : '—'}
+                      {p.budget ? formatCurrency(p.budget) : '—'}
                     </td>
                     <td className="py-2.5 text-right text-gray-600">
                       {p.estimated_hours != null ? `${p.estimated_hours}t` : '—'}
@@ -280,18 +281,6 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
 }
 
 // =====================================================
-// Helper
-// =====================================================
-
-function formatDKK(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
-// =====================================================
 // Main
 // =====================================================
 
@@ -365,14 +354,14 @@ export default function ReportsClient() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard
             label="Total omsætning"
-            value={formatDKK(summary.total_revenue)}
+            value={formatCurrency(summary.total_revenue)}
             sublabel="Accepterede tilbud"
             icon={DollarSign}
             color="bg-green-100 text-green-600"
           />
           <KpiCard
             label="Afventer"
-            value={formatDKK(summary.pending_value)}
+            value={formatCurrency(summary.pending_value)}
             sublabel="Udestående tilbud"
             icon={TrendingUp}
             color="bg-blue-100 text-blue-600"
@@ -380,7 +369,7 @@ export default function ReportsClient() {
           <KpiCard
             label="Accept-rate"
             value={`${summary.acceptance_rate.toFixed(0)}%`}
-            sublabel={`Gns. tilbud: ${formatDKK(summary.avg_offer_value)}`}
+            sublabel={`Gns. tilbud: ${formatCurrency(summary.avg_offer_value)}`}
             icon={Target}
             color="bg-purple-100 text-purple-600"
           />

@@ -482,17 +482,8 @@ export function hoursToSeconds(hours: number): number {
   return hours * 3600
 }
 
-/**
- * Format Danish currency
- */
-export function formatDKK(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
-}
+// Re-export centralized formatter for backward compatibility
+export { formatCurrency as formatDKK } from '@/lib/utils/format'
 
 /**
  * Format percentage

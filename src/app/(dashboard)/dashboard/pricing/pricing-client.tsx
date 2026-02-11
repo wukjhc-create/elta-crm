@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { formatCurrency } from '@/lib/utils/format'
 import { AlertTriangle, TrendingUp, TrendingDown, ArrowUpDown, FileText, Package, RefreshCw, Activity } from 'lucide-react'
 import {
   getPriceChangeAlerts,
@@ -242,8 +243,8 @@ function AlertsTab({ alerts, isLoading }: { alerts: PriceChangeAlert[]; isLoadin
                     <div className="text-xs text-gray-400">{alert.supplier_sku}</div>
                   </td>
                   <td className="px-4 py-2.5 text-gray-600">{alert.supplier_name}</td>
-                  <td className="px-4 py-2.5 text-right text-gray-500">{formatDKK(alert.old_price)}</td>
-                  <td className="px-4 py-2.5 text-right font-medium">{formatDKK(alert.new_price)}</td>
+                  <td className="px-4 py-2.5 text-right text-gray-500">{formatCurrency(alert.old_price)}</td>
+                  <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(alert.new_price)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                       severity === 'critical' ? 'bg-red-100 text-red-700'
@@ -320,7 +321,7 @@ function AffectedOffersTab({ offers }: { offers: AffectedOffer[] }) {
                 <td className="px-4 py-2.5">
                   <StatusBadge status={offer.status} />
                 </td>
-                <td className="px-4 py-2.5 text-right font-medium">{formatDKK(offer.total_amount)}</td>
+                <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(offer.total_amount)}</td>
                 <td className="px-4 py-2.5 text-center">
                   <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-0.5 rounded-full">
                     {offer.affected_items}
@@ -328,7 +329,7 @@ function AffectedOffersTab({ offers }: { offers: AffectedOffer[] }) {
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <span className={`font-medium ${offer.potential_loss > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {offer.potential_loss > 0 ? '-' : '+'}{formatDKK(Math.abs(offer.potential_loss))}
+                    {offer.potential_loss > 0 ? '-' : '+'}{formatCurrency(Math.abs(offer.potential_loss))}
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-right text-xs text-gray-500">
@@ -463,7 +464,7 @@ function TrendsTab({
                     <td className="px-4 py-2.5">
                       <div className="font-medium truncate max-w-[250px]">{trend.product_name}</div>
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium">{formatDKK(trend.current_price)}</td>
+                    <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(trend.current_price)}</td>
                     <td className="px-4 py-2.5 text-right">
                       {trend.trend_30_days !== null ? (
                         <span className={`inline-flex items-center gap-1 ${trend.trend_30_days > 0 ? 'text-red-600' : trend.trend_30_days < 0 ? 'text-green-600' : 'text-gray-500'}`}>
@@ -579,12 +580,4 @@ function EmptyState({ message }: { message: string }) {
   )
 }
 
-function formatDKK(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
 

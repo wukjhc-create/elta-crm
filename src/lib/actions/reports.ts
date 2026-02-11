@@ -144,7 +144,7 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
     const customerRevenue = new Map<string, { name: string; revenue: number }>()
     for (const offer of topCustomerData || []) {
       if (!offer.customer_id) continue
-      const customerData = offer.customer as unknown as unknown as { company_name: string } | null
+      const customerData = offer.customer as unknown as { company_name: string } | null
       const existing = customerRevenue.get(offer.customer_id)
       if (existing) {
         existing.revenue += offer.final_amount || 0

@@ -18,6 +18,7 @@ import { sendEmail } from '@/lib/email/email-service'
 import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createPortalToken } from '@/lib/actions/portal'
+import { formatCurrency, formatDateLongDK } from '@/lib/utils/format'
 import crypto from 'crypto'
 import type {
   EmailTemplate,
@@ -46,30 +47,6 @@ function generateTrackingId(): string {
   return crypto.randomBytes(16).toString('hex')
 }
 
-// =====================================================
-// HELPER: Format Danish currency
-// =====================================================
-
-function formatDKK(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-  }).format(amount)
-}
-
-// =====================================================
-// HELPER: Format Danish date
-// =====================================================
-
-function formatDanishDate(date: string | Date): string {
-  const d = new Date(date)
-  return d.toLocaleDateString('da-DK', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
-}
 
 // =====================================================
 // HELPER: Render template with variables
@@ -556,8 +533,8 @@ export async function generateEmailPreview(
       offer_number: offer.offer_number || '',
       offer_title: offer.title || '',
       offer_description: offer.description || '',
-      total_amount: formatDKK(offer.final_amount || 0),
-      valid_until: offer.valid_until ? formatDanishDate(offer.valid_until) : '',
+      total_amount: formatCurrency(offer.final_amount || 0),
+      valid_until: offer.valid_until ? formatDateLongDK(offer.valid_until) : '',
       portal_link: portalLink,
       company_name: settings?.company_name || 'Elta Solar',
       company_email: settings?.company_email || '',

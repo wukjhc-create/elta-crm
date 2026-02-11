@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { formatCurrency } from '@/lib/utils/format'
 import { simulateProfit } from '@/lib/actions/calculation-intelligence'
 import type { ProfitSimulationResult } from '@/types/calculation-intelligence.types'
 
@@ -119,11 +120,11 @@ export function ProfitSimulatorClient() {
         <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-4 text-sm">
           <div>
             <span className="text-gray-500">Arbejdsløn:</span>
-            <span className="ml-2 font-medium">{formatDKK(hourlyRate * totalHours)}</span>
+            <span className="ml-2 font-medium">{formatCurrency(hourlyRate * totalHours)}</span>
           </div>
           <div>
             <span className="text-gray-500">Kostpris:</span>
-            <span className="ml-2 font-medium">{formatDKK(materialCost + (hourlyRate * totalHours))}</span>
+            <span className="ml-2 font-medium">{formatCurrency(materialCost + (hourlyRate * totalHours))}</span>
           </div>
           <div>
             <span className="text-gray-500">Arbejdsdage (8t):</span>
@@ -137,11 +138,11 @@ export function ProfitSimulatorClient() {
         <>
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <SummaryCard label="Materialekost" value={formatDKK(result.material_cost)} />
-            <SummaryCard label="Arbejdsløn" value={formatDKK(result.labor_cost)} />
-            <SummaryCard label="Kostpris" value={formatDKK(result.cost_price)} highlight />
-            <SummaryCard label="Overhead" value={formatDKK(result.overhead_amount)} />
-            <SummaryCard label="Salgsbasis" value={formatDKK(result.sales_basis)} />
+            <SummaryCard label="Materialekost" value={formatCurrency(result.material_cost)} />
+            <SummaryCard label="Arbejdsløn" value={formatCurrency(result.labor_cost)} />
+            <SummaryCard label="Kostpris" value={formatCurrency(result.cost_price)} highlight />
+            <SummaryCard label="Overhead" value={formatCurrency(result.overhead_amount)} />
+            <SummaryCard label="Salgsbasis" value={formatCurrency(result.sales_basis)} />
           </div>
 
           {/* Scenario Table */}
@@ -181,15 +182,15 @@ export function ProfitSimulatorClient() {
                         <td className="px-4 py-2.5 text-right">
                           {scenario.discount_percentage > 0 ? `${scenario.discount_percentage}%` : '-'}
                         </td>
-                        <td className="px-4 py-2.5 text-right">{formatDKK(scenario.net_price)}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold">{formatDKK(scenario.final_amount)}</td>
+                        <td className="px-4 py-2.5 text-right">{formatCurrency(scenario.net_price)}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold">{formatCurrency(scenario.final_amount)}</td>
                         <td className={`px-4 py-2.5 text-right ${dbColor}`}>
-                          {formatDKK(scenario.db_amount)}
+                          {formatCurrency(scenario.db_amount)}
                         </td>
                         <td className={`px-4 py-2.5 text-right ${dbColor} font-semibold`}>
                           {scenario.db_percentage.toFixed(1)}%
                         </td>
-                        <td className="px-4 py-2.5 text-right">{formatDKK(scenario.db_per_hour)}/t</td>
+                        <td className="px-4 py-2.5 text-right">{formatCurrency(scenario.db_per_hour)}/t</td>
                       </tr>
                     )
                   })}
@@ -218,7 +219,7 @@ export function ProfitSimulatorClient() {
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
-                    <div className="w-24 text-xs text-right font-medium">{formatDKK(scenario.final_amount)}</div>
+                    <div className="w-24 text-xs text-right font-medium">{formatCurrency(scenario.final_amount)}</div>
                   </div>
                 )
               })}
@@ -239,11 +240,3 @@ function SummaryCard({ label, value, highlight }: { label: string; value: string
   )
 }
 
-function formatDKK(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}

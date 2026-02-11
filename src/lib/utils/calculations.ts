@@ -93,21 +93,5 @@ export function calculateGrossProfit(
   return { grossProfit, grossProfitMargin }
 }
 
-// Format price in Danish Krone
-export function formatDKK(price: number, decimals: number = 2): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(price)
-}
-
-// Format percentage
-export function formatPercent(value: number, decimals: number = 1): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'percent',
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(value / 100)
-}
+// Re-export centralized formatters for backward compatibility
+export { formatCurrency as formatDKK, formatPercent } from '@/lib/utils/format'
