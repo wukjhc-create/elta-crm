@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
+import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 
 /**
  * INBOUND WEBHOOK ENDPOINT
@@ -120,7 +121,7 @@ export async function POST(
 
     // Reject oversized payloads (max 1MB)
     const contentLength = parseInt(request.headers.get('content-length') || '0')
-    if (contentLength > 1_048_576) {
+    if (contentLength > WEBHOOK_PAYLOAD_LIMITS.INTEGRATION) {
       return NextResponse.json(
         { error: 'Payload too large' },
         { status: 413 }

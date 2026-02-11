@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { X, Send, User, Paperclip, File, Image, FileText, Loader2, Download } from 'lucide-react'
 import { sendPortalMessage, markPortalMessagesAsRead, uploadPortalAttachment } from '@/lib/actions/portal'
 import type { PortalSession, PortalMessageWithRelations, PortalAttachment } from '@/types/portal.types'
+import { MAX_FILE_SIZE } from '@/lib/constants'
 
 interface PortalChatProps {
   token: string
@@ -13,9 +14,6 @@ interface PortalChatProps {
   offerId?: string
   onClose: () => void
 }
-
-// Max file size in bytes (10MB)
-const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 // Allowed file types
 const ALLOWED_TYPES = [

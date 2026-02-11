@@ -22,6 +22,7 @@ import {
   getCustomerPortalMessages,
 } from '@/lib/actions/portal'
 import type { PortalMessageWithRelations, PortalAttachment } from '@/types/portal.types'
+import { MAX_FILE_SIZE } from '@/lib/constants'
 
 interface EmployeeChatProps {
   customerId: string
@@ -31,8 +32,6 @@ interface EmployeeChatProps {
   isModal?: boolean
 }
 
-// Max file size in bytes (10MB)
-const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 // Allowed file types
 const ALLOWED_TYPES = [

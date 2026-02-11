@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { handleSmsWebhook } from '@/lib/actions/sms'
+import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 
 // GatewayAPI webhook payload structure
 interface GatewayApiWebhook {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
   try {
     // Reject oversized payloads (max 64KB for SMS status callbacks)
     const contentLength = parseInt(request.headers.get('content-length') || '0')
-    if (contentLength > 65_536) {
+    if (contentLength > WEBHOOK_PAYLOAD_LIMITS.SMS) {
       return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
     }
 

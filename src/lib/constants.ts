@@ -5,6 +5,14 @@ export const DEFAULT_LOCALE_CODE = 'da-DK'
 
 // File upload constants
 export const MAX_FILE_SIZE = parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE || '10485760') // 10MB
+export const MAX_IMAGE_SIZE = 2 * 1024 * 1024 // 2MB for profile/logo images
+
+// Webhook payload size limits
+export const WEBHOOK_PAYLOAD_LIMITS = {
+  SMS: 65_536, // 64KB
+  EMAIL: 5_242_880, // 5MB
+  INTEGRATION: 1_048_576, // 1MB
+} as const
 export const ALLOWED_FILE_TYPES =
   process.env.NEXT_PUBLIC_ALLOWED_FILE_TYPES?.split(',') || [
     '.pdf',

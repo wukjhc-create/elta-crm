@@ -7,6 +7,7 @@ import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createProjectFromOffer } from '@/lib/actions/projects'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
+import { MAX_FILE_SIZE } from '@/lib/constants'
 import type {
   PortalAccessToken,
   PortalAccessTokenWithCustomer,
@@ -867,7 +868,7 @@ export async function uploadPortalAttachment(
     }
 
     // Validate file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_FILE_SIZE) {
       return { success: false, error: 'Filen er for stor (max 10MB)' }
     }
 
@@ -948,7 +949,7 @@ export async function uploadEmployeeAttachment(
     }
 
     // Validate file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_FILE_SIZE) {
       return { success: false, error: 'Filen er for stor (max 10MB)' }
     }
 

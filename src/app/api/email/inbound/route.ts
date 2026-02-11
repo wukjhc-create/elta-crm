@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logIncomingEmail } from '@/lib/actions/email'
+import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 
 /**
  * INBOUND EMAIL WEBHOOK
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
   try {
     // Reject oversized payloads (max 5MB for emails with attachments)
     const contentLength = parseInt(request.headers.get('content-length') || '0')
-    if (contentLength > 5_242_880) {
+    if (contentLength > WEBHOOK_PAYLOAD_LIMITS.EMAIL) {
       return NextResponse.json(
         { error: 'Payload too large' },
         { status: 413 }

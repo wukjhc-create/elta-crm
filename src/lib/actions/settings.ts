@@ -8,6 +8,7 @@ import type {
   UpdateCompanySettingsInput,
 } from '@/types/company-settings.types'
 import type { ActionResult } from '@/types/common.types'
+import { MAX_IMAGE_SIZE } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 
 // Get company settings (singleton)
@@ -185,7 +186,7 @@ export async function uploadProfileAvatar(
       return { success: false, error: 'Kun PNG, JPEG og WebP er tilladt' }
     }
 
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > MAX_IMAGE_SIZE) {
       return { success: false, error: 'Profilbillede må maksimalt være 2 MB' }
     }
 
@@ -300,7 +301,7 @@ export async function uploadCompanyLogo(
     }
 
     // Validate file size (2MB max for logos)
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > MAX_IMAGE_SIZE) {
       return { success: false, error: 'Logo må maksimalt være 2 MB' }
     }
 
