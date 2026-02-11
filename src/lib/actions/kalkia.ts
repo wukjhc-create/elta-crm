@@ -1320,45 +1320,32 @@ export async function calculateFromNodes(
   try {
     const { supabase } = await getAuthenticatedClient()
 
-    // Get building profile if specified
-    let buildingProfile: KalkiaBuildingProfile | null = null
-    if (buildingProfileId) {
-      validateUUID(buildingProfileId, 'bygningsprofil ID')
-      const { data } = await supabase
-        .from('kalkia_building_profiles')
-        .select('*')
-        .eq('id', buildingProfileId)
-        .single()
-      buildingProfile = data as KalkiaBuildingProfile
-    }
-
-    // Get global factors
-    const { data: factorsData } = await supabase
-      .from('kalkia_global_factors')
-      .select('*')
-      .eq('is_active', true)
-
-    const globalFactors = (factorsData || []) as KalkiaGlobalFactor[]
-
-    // Create engine
-    const context = createDefaultContext(hourlyRate, buildingProfile, globalFactors)
-    const engine = new KalkiaCalculationEngine(context)
-
-    // Get all node IDs
+    // Parallelize all initial data loading
     const nodeIds = items.map((item) => item.nodeId)
 
-    // Fetch nodes with variants and materials
-    const { data: nodesData } = await supabase
-      .from('kalkia_nodes')
-      .select(`
+    const [profileResult, factorsResult, nodesResult] = await Promise.all([
+      buildingProfileId
+        ? (validateUUID(buildingProfileId, 'bygningsprofil ID'),
+          supabase.from('kalkia_building_profiles').select('*').eq('id', buildingProfileId).single())
+        : Promise.resolve({ data: null }),
+      supabase.from('kalkia_global_factors').select('*').eq('is_active', true),
+      supabase.from('kalkia_nodes').select(`
         *,
         variants:kalkia_variants(
           *,
           materials:kalkia_variant_materials(*)
         ),
         rules:kalkia_rules(*)
-      `)
-      .in('id', nodeIds)
+      `).in('id', nodeIds),
+    ])
+
+    const buildingProfile = profileResult.data as KalkiaBuildingProfile | null
+    const globalFactors = (factorsResult.data || []) as KalkiaGlobalFactor[]
+    const nodesData = nodesResult.data
+
+    // Create engine
+    const context = createDefaultContext(hourlyRate, buildingProfile, globalFactors)
+    const engine = new KalkiaCalculationEngine(context)
 
     const nodeMap = new Map((nodesData || []).map((n) => [n.id, n]))
 

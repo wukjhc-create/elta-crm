@@ -122,11 +122,12 @@ export class KalkiaCalculationEngine {
   private personalTimeFactor: number
   private overheadFactor: number
   private materialWasteFactor: number
+  private profileMultipliers: { time: number; difficulty: number; waste: number; overhead: number }
 
   constructor(context: CalculationContext) {
     this.context = context
 
-    // Extract factors
+    // Extract factors (once at construction)
     this.indirectTimeFactor = getFactorValue(
       context.globalFactors,
       'indirect_time',
@@ -147,6 +148,15 @@ export class KalkiaCalculationEngine {
       'material_waste',
       DEFAULT_MATERIAL_WASTE_FACTOR
     )
+
+    // Cache profile multipliers (constant per engine instance)
+    const profile = context.buildingProfile
+    this.profileMultipliers = {
+      time: profile?.time_multiplier ?? 1,
+      difficulty: profile?.difficulty_multiplier ?? 1,
+      waste: profile?.material_waste_multiplier ?? 1,
+      overhead: profile?.overhead_multiplier ?? 1,
+    }
   }
 
   /**
@@ -157,7 +167,7 @@ export class KalkiaCalculationEngine {
   }
 
   /**
-   * Get building profile multipliers
+   * Get building profile multipliers (cached)
    */
   getBuildingProfileMultipliers(): {
     time: number
@@ -165,13 +175,7 @@ export class KalkiaCalculationEngine {
     waste: number
     overhead: number
   } {
-    const profile = this.context.buildingProfile
-    return {
-      time: profile?.time_multiplier ?? 1,
-      difficulty: profile?.difficulty_multiplier ?? 1,
-      waste: profile?.material_waste_multiplier ?? 1,
-      overhead: profile?.overhead_multiplier ?? 1,
-    }
+    return this.profileMultipliers
   }
 
   /**
