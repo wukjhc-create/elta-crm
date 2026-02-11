@@ -299,7 +299,7 @@ export async function executeImport(
         const now = new Date().toISOString()
 
         // Separate updates from inserts
-        const toUpdate = rowBatch.filter((r) => r.existingProductId)
+        const toUpdate = rowBatch.filter((r): r is typeof r & { existingProductId: string } => !!r.existingProductId)
         const toInsert = rowBatch.filter((r) => !r.existingProductId)
 
         // Parallelize updates (each row needs individual update due to different IDs)
@@ -320,7 +320,7 @@ export async function executeImport(
                   min_order_quantity: row.parsed.min_order_quantity,
                   last_synced_at: now,
                 })
-                .eq('id', row.existingProductId!)
+                .eq('id', row.existingProductId)
             )
           )
 
@@ -340,7 +340,7 @@ export async function executeImport(
                 if (oldPrice !== newPrice) {
                   const changePercent = calculatePriceChange(oldPrice, newPrice)
                   priceChanges.push({
-                    supplier_product_id: row.existingProductId!,
+                    supplier_product_id: row.existingProductId,
                     supplier_sku: row.parsed.sku,
                     product_name: row.parsed.name,
                     old_cost_price: oldPrice,

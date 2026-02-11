@@ -420,7 +420,7 @@ export async function updateMaterial(
       .from('materials_catalog')
       .select('cost_price, sale_price')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     const { data, error } = await supabase
       .from('materials_catalog')
@@ -906,7 +906,7 @@ export async function bulkUpdateMaterialPrices(
         .from('materials_catalog')
         .select('cost_price, sale_price')
         .eq('id', id)
-        .single()
+        .maybeSingle()
 
       if (!current) continue
 

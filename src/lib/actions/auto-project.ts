@@ -243,12 +243,12 @@ export async function getAnalysis(id: string): Promise<ActionResult<SavedAnalysi
       return { success: false, error: 'Analyse ikke fundet' }
     }
 
-    // Get calculation
+    // Get calculation (may not exist yet)
     const { data: calculation } = await supabase
       .from('auto_calculations')
       .select('*')
       .eq('interpretation_id', id)
-      .single()
+      .maybeSingle()
 
     // Get risks
     const { data: risks } = await supabase
@@ -256,12 +256,14 @@ export async function getAnalysis(id: string): Promise<ActionResult<SavedAnalysi
       .select('*')
       .eq('interpretation_id', id)
 
-    // Get offer text
-    const { data: offerText } = await supabase
-      .from('auto_offer_texts')
-      .select('*')
-      .eq('calculation_id', calculation?.id)
-      .single()
+    // Get offer text (may not exist yet)
+    const { data: offerText } = calculation?.id
+      ? await supabase
+          .from('auto_offer_texts')
+          .select('*')
+          .eq('calculation_id', calculation.id)
+          .maybeSingle()
+      : { data: null }
 
     return {
       success: true,
