@@ -113,26 +113,39 @@ export async function getPriceChangeAlerts(options?: {
       throw new Error('DATABASE_ERROR')
     }
 
-    // Get affected offers and calculations counts
-    const alerts: PriceChangeAlert[] = []
+    // Batch fetch affected offer/calculation counts (avoids N+1)
+    const productIds = (data || []).map((row) => row.supplier_product_id).filter(Boolean)
 
-    for (const row of data || []) {
+    const [offerCountsResult, calcCountsResult] = await Promise.all([
+      productIds.length > 0
+        ? supabase
+            .from('offer_line_items')
+            .select('supplier_product_id')
+            .in('supplier_product_id', productIds)
+        : Promise.resolve({ data: [] }),
+      productIds.length > 0
+        ? supabase
+            .from('kalkia_variant_materials')
+            .select('supplier_product_id')
+            .in('supplier_product_id', productIds)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    // Build count maps
+    const offerCounts = new Map<string, number>()
+    for (const item of offerCountsResult.data || []) {
+      offerCounts.set(item.supplier_product_id, (offerCounts.get(item.supplier_product_id) || 0) + 1)
+    }
+    const calcCounts = new Map<string, number>()
+    for (const item of calcCountsResult.data || []) {
+      calcCounts.set(item.supplier_product_id, (calcCounts.get(item.supplier_product_id) || 0) + 1)
+    }
+
+    const alerts: PriceChangeAlert[] = (data || []).map((row) => {
       const sp = Array.isArray(row.supplier_products) ? row.supplier_products[0] : row.supplier_products
       const supplier = sp?.suppliers ? (Array.isArray(sp.suppliers) ? sp.suppliers[0] : sp.suppliers) : null
 
-      // Count affected offers (line items with this supplier product)
-      const { count: offerCount } = await supabase
-        .from('offer_line_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('supplier_product_id', row.supplier_product_id)
-
-      // Count affected calculations (materials linked to this product)
-      const { count: calcCount } = await supabase
-        .from('kalkia_variant_materials')
-        .select('id', { count: 'exact', head: true })
-        .eq('supplier_product_id', row.supplier_product_id)
-
-      alerts.push({
+      return {
         id: row.id,
         supplier_product_id: row.supplier_product_id,
         product_name: sp?.supplier_name || '',
@@ -143,10 +156,10 @@ export async function getPriceChangeAlerts(options?: {
         change_percentage: row.change_percentage,
         change_direction: row.change_percentage > 0 ? 'increase' : 'decrease',
         changed_at: row.created_at,
-        affects_offers: offerCount || 0,
-        affects_calculations: calcCount || 0,
-      })
-    }
+        affects_offers: offerCounts.get(row.supplier_product_id) || 0,
+        affects_calculations: calcCounts.get(row.supplier_product_id) || 0,
+      }
+    })
 
     return { success: true, data: alerts }
   } catch (err) {
@@ -337,24 +350,33 @@ export async function getPriceTrends(
       throw new Error('DATABASE_ERROR')
     }
 
-    const trends: PriceTrend[] = []
+    // Batch fetch all price history for these products (avoids N+1)
+    const productIds = (products || []).map((p) => p.id)
+    const { data: allHistory } = productIds.length > 0
+      ? await supabase
+          .from('price_history')
+          .select('supplier_product_id, old_cost_price, new_cost_price, created_at')
+          .in('supplier_product_id', productIds)
+          .order('created_at', { ascending: true })
+      : { data: [] as { supplier_product_id: string; old_cost_price: number; new_cost_price: number; created_at: string }[] }
 
-    for (const product of products || []) {
+    // Group history by product
+    const historyByProduct = new Map<string, typeof allHistory>()
+    for (const h of allHistory || []) {
+      const existing = historyByProduct.get(h.supplier_product_id) || []
+      existing.push(h)
+      historyByProduct.set(h.supplier_product_id, existing)
+    }
+
+    const trends: PriceTrend[] = (products || []).map((product) => {
       const supplier = Array.isArray(product.suppliers) ? product.suppliers[0] : product.suppliers
+      const history = historyByProduct.get(product.id) || []
 
-      // Get price history
-      const { data: history } = await supabase
-        .from('price_history')
-        .select('old_cost_price, new_cost_price, created_at')
-        .eq('supplier_product_id', product.id)
-        .order('created_at', { ascending: true })
-
-      // Calculate trends
       let price30DaysAgo: number | null = null
       let price90DaysAgo: number | null = null
       let changeCount30Days = 0
 
-      for (const h of history || []) {
+      for (const h of history) {
         const changeDate = new Date(h.created_at)
 
         if (changeDate <= date30DaysAgo && changeDate > date90DaysAgo) {
@@ -368,7 +390,6 @@ export async function getPriceTrends(
         }
       }
 
-      // Calculate percentage trends
       const currentPrice = product.cost_price
       const trend30Days = price30DaysAgo && currentPrice
         ? ((currentPrice - price30DaysAgo) / price30DaysAgo) * 100
@@ -377,7 +398,6 @@ export async function getPriceTrends(
         ? ((currentPrice - price90DaysAgo) / price90DaysAgo) * 100
         : null
 
-      // Determine volatility
       let volatility: 'stable' | 'moderate' | 'high' = 'stable'
       if (changeCount30Days >= 5) {
         volatility = 'high'
@@ -385,7 +405,7 @@ export async function getPriceTrends(
         volatility = 'moderate'
       }
 
-      trends.push({
+      return {
         supplier_product_id: product.id,
         product_name: product.supplier_name,
         supplier_name: supplier?.name || '',
@@ -396,8 +416,8 @@ export async function getPriceTrends(
         trend_90_days: trend90Days ? Math.round(trend90Days * 100) / 100 : null,
         volatility,
         change_count_30_days: changeCount30Days,
-      })
-    }
+      }
+    })
 
     return { success: true, data: trends }
   } catch (err) {
@@ -432,66 +452,67 @@ export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPric
       throw new Error('DATABASE_ERROR')
     }
 
-    const stats: SupplierPriceStats[] = []
+    // Parallelize all supplier stat queries (avoids N+1)
+    const stats = await Promise.all(
+      (suppliers || []).map(async (supplier) => {
+        const [
+          { count: totalProducts },
+          { count: staleProducts },
+          { data: priceChanges },
+          { data: lastSync },
+        ] = await Promise.all([
+          supabase
+            .from('supplier_products')
+            .select('id', { count: 'exact', head: true })
+            .eq('supplier_id', supplier.id),
+          supabase
+            .from('supplier_products')
+            .select('id', { count: 'exact', head: true })
+            .eq('supplier_id', supplier.id)
+            .or(`last_synced_at.is.null,last_synced_at.lt.${staleThreshold.toISOString()}`),
+          supabase
+            .from('price_history')
+            .select(`
+              change_percentage,
+              supplier_products!inner (
+                supplier_id
+              )
+            `)
+            .eq('supplier_products.supplier_id', supplier.id)
+            .gte('created_at', date30DaysAgo.toISOString()),
+          supabase
+            .from('supplier_sync_logs')
+            .select('started_at')
+            .eq('supplier_id', supplier.id)
+            .eq('status', 'completed')
+            .order('started_at', { ascending: false })
+            .limit(1)
+            .single(),
+        ])
 
-    for (const supplier of suppliers || []) {
-      // Get product counts
-      const { count: totalProducts } = await supabase
-        .from('supplier_products')
-        .select('id', { count: 'exact', head: true })
-        .eq('supplier_id', supplier.id)
+        const increases = priceChanges?.filter((pc) => pc.change_percentage > 0) || []
+        const decreases = priceChanges?.filter((pc) => pc.change_percentage < 0) || []
 
-      // Get stale products
-      const { count: staleProducts } = await supabase
-        .from('supplier_products')
-        .select('id', { count: 'exact', head: true })
-        .eq('supplier_id', supplier.id)
-        .or(`last_synced_at.is.null,last_synced_at.lt.${staleThreshold.toISOString()}`)
+        const avgIncrease = increases.length > 0
+          ? increases.reduce((sum, pc) => sum + pc.change_percentage, 0) / increases.length
+          : 0
 
-      // Get price changes in last 30 days
-      const { data: priceChanges } = await supabase
-        .from('price_history')
-        .select(`
-          change_percentage,
-          supplier_products!inner (
-            supplier_id
-          )
-        `)
-        .eq('supplier_products.supplier_id', supplier.id)
-        .gte('created_at', date30DaysAgo.toISOString())
+        const avgDecrease = decreases.length > 0
+          ? decreases.reduce((sum, pc) => sum + pc.change_percentage, 0) / decreases.length
+          : 0
 
-      const increases = priceChanges?.filter((pc) => pc.change_percentage > 0) || []
-      const decreases = priceChanges?.filter((pc) => pc.change_percentage < 0) || []
-
-      const avgIncrease = increases.length > 0
-        ? increases.reduce((sum, pc) => sum + pc.change_percentage, 0) / increases.length
-        : 0
-
-      const avgDecrease = decreases.length > 0
-        ? decreases.reduce((sum, pc) => sum + pc.change_percentage, 0) / decreases.length
-        : 0
-
-      // Get last sync
-      const { data: lastSync } = await supabase
-        .from('supplier_sync_logs')
-        .select('started_at')
-        .eq('supplier_id', supplier.id)
-        .eq('status', 'completed')
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      stats.push({
-        supplier_id: supplier.id,
-        supplier_name: supplier.name,
-        total_products: totalProducts || 0,
-        products_with_price_changes: priceChanges?.length || 0,
-        average_price_increase: Math.round(avgIncrease * 100) / 100,
-        average_price_decrease: Math.round(avgDecrease * 100) / 100,
-        last_sync_at: lastSync?.started_at || null,
-        stale_products: staleProducts || 0,
+        return {
+          supplier_id: supplier.id,
+          supplier_name: supplier.name,
+          total_products: totalProducts || 0,
+          products_with_price_changes: priceChanges?.length || 0,
+          average_price_increase: Math.round(avgIncrease * 100) / 100,
+          average_price_decrease: Math.round(avgDecrease * 100) / 100,
+          last_sync_at: lastSync?.started_at || null,
+          stale_products: staleProducts || 0,
+        }
       })
-    }
+    )
 
     return { success: true, data: stats }
   } catch (err) {

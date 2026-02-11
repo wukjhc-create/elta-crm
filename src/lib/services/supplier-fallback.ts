@@ -279,33 +279,43 @@ export class SupplierFallbackService {
 
       if (!supplier) return null
 
-      // Get recent sync logs
-      const { data: syncLogs } = await supabase
-        .from('supplier_sync_logs')
-        .select('status, started_at, duration_ms')
-        .eq('supplier_id', this.supplierId)
-        .order('started_at', { ascending: false })
-        .limit(10)
-
-      // Get cached product count
-      const { data: products } = await supabase
-        .from('supplier_products')
-        .select('id')
-        .eq('supplier_id', this.supplierId)
+      // Parallelize all remaining queries
+      const [
+        { data: syncLogs },
+        { data: products },
+      ] = await Promise.all([
+        supabase
+          .from('supplier_sync_logs')
+          .select('status, started_at, duration_ms')
+          .eq('supplier_id', this.supplierId)
+          .order('started_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('supplier_products')
+          .select('id')
+          .eq('supplier_id', this.supplierId),
+      ])
 
       const productIds = products?.map((p) => p.id) || []
 
-      const { count: cachedCount } = await supabase
-        .from('supplier_product_cache')
-        .select('id', { count: 'exact', head: true })
-        .in('supplier_product_id', productIds)
-        .eq('is_stale', false)
-
-      const { count: staleCount } = await supabase
-        .from('supplier_product_cache')
-        .select('id', { count: 'exact', head: true })
-        .in('supplier_product_id', productIds)
-        .eq('is_stale', true)
+      // Parallelize cache count queries
+      const [
+        { count: cachedCount },
+        { count: staleCount },
+      ] = productIds.length > 0
+        ? await Promise.all([
+            supabase
+              .from('supplier_product_cache')
+              .select('id', { count: 'exact', head: true })
+              .in('supplier_product_id', productIds)
+              .eq('is_stale', false),
+            supabase
+              .from('supplier_product_cache')
+              .select('id', { count: 'exact', head: true })
+              .in('supplier_product_id', productIds)
+              .eq('is_stale', true),
+          ])
+        : [{ count: 0 }, { count: 0 }]
 
       // Calculate health metrics
       const successfulSyncs = syncLogs?.filter((l) => l.status === 'completed') || []
@@ -372,17 +382,18 @@ export async function getAllSupplierHealth(): Promise<SupplierHealth[]> {
       .select('id')
       .eq('is_active', true)
 
-    const results: SupplierHealth[] = []
+    // Parallelize health checks for all suppliers
+    const healthResults = await Promise.allSettled(
+      (suppliers || []).map(async (supplier) => {
+        const service = new SupplierFallbackService(supplier.id)
+        return service.getHealthStatus()
+      })
+    )
 
-    for (const supplier of suppliers || []) {
-      const service = new SupplierFallbackService(supplier.id)
-      const health = await service.getHealthStatus()
-      if (health) {
-        results.push(health)
-      }
-    }
-
-    return results
+    return healthResults
+      .filter((r): r is PromiseFulfilledResult<SupplierHealth | null> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((h): h is SupplierHealth => h !== null)
   } catch {
     return []
   }
