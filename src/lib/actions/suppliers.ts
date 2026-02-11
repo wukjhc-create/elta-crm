@@ -49,7 +49,7 @@ export async function getSuppliers(
     // Sorting
     const sortBy = filters?.sortBy || 'name'
     const sortOrder = filters?.sortOrder || 'asc'
-    query = query.order(sortBy, { ascending: sortOrder === 'asc' })
+    query = query.order(sortBy, { ascending: sortOrder === 'asc' }).limit(200)
 
     const { data, error } = await query
 

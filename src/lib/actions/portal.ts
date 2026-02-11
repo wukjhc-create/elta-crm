@@ -194,6 +194,7 @@ export async function getPortalOffers(
       .eq('customer_id', customerId)
       .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
       .order('created_at', { ascending: false })
+      .limit(100)
 
     if (error) {
       logger.error('Error fetching portal offers', { error: error })

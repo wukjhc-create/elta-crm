@@ -34,6 +34,8 @@ export async function getSyncJobs(
       query = query.eq('supplier_id', supplierId)
     }
 
+    query = query.limit(200)
+
     const { data, error } = await query
 
     if (error) {

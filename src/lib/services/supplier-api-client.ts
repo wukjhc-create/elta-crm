@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getDecryptedCredentials, type CredentialInput } from '@/lib/actions/credentials'
 import { SUPPLIER_API_CONFIG } from '@/lib/constants'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Types
@@ -100,7 +101,7 @@ export abstract class BaseSupplierAPIClient {
       console.info(`[Supplier ${this.supplierId}] Credential loading failed: ${result.error || 'no data'}`)
       return false
     } catch (error) {
-      console.error(`[Supplier ${this.supplierId}] Credential decryption error:`, error)
+      logger.error(`Supplier ${this.supplierId} credential decryption error`, { error })
       return false
     }
   }

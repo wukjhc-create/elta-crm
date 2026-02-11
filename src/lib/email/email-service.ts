@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import type { Transporter } from 'nodemailer'
+import { logger } from '@/lib/utils/logger'
 
 export interface EmailOptions {
   to: string | string[]
@@ -77,7 +78,7 @@ export async function sendEmail(
       messageId: info.messageId,
     }
   } catch (error) {
-    console.error('Error sending email:', error)
+    logger.error('Error sending email', { error })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Kunne ikke sende email',
@@ -94,7 +95,7 @@ export async function verifySmtpConnection(
     await transporter.verify()
     return { success: true }
   } catch (error) {
-    console.error('SMTP verification failed:', error)
+    logger.error('SMTP verification failed', { error })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'SMTP forbindelse fejlede',

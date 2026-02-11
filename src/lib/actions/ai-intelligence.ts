@@ -220,6 +220,7 @@ export async function getRiskAssessments(calculationId: string) {
       .select('*')
       .eq('calculation_id', calculationId)
       .order('created_at', { ascending: false })
+      .limit(100)
 
     if (error) {
       logger.error('Error fetching risk assessments', { error: error })
@@ -284,6 +285,7 @@ export async function generateOfferTextsAction(
       .select('*')
       .eq('is_active', true)
       .order('priority', { ascending: false })
+      .limit(100)
 
     if (error) {
       logger.error('Error fetching templates', { error: error })
@@ -313,6 +315,7 @@ export async function generateAndSaveOfferContent(
       .from('offer_text_templates')
       .select('*')
       .eq('is_active', true)
+      .limit(100)
 
     if (templateError) {
       return { success: false, error: 'Kunne ikke hente skabeloner' }
@@ -543,6 +546,7 @@ export async function getCalculationSnapshots(calculationId: string) {
       .select('*')
       .eq('calculation_id', calculationId)
       .order('version', { ascending: false })
+      .limit(100)
 
     if (error) {
       logger.error('Error fetching snapshots', { error: error })

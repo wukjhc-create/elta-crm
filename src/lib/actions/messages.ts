@@ -78,7 +78,7 @@ export async function getMessages(
       query = query.eq('project_id', filters.project_id)
     }
 
-    query = query.order('created_at', { ascending: false })
+    query = query.order('created_at', { ascending: false }).limit(200)
 
     const { data, error } = await query
 

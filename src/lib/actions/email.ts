@@ -19,6 +19,7 @@ import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createPortalToken } from '@/lib/actions/portal'
 import { logger } from '@/lib/utils/logger'
+import { validateUUID } from '@/lib/validations/common'
 import { formatCurrency, formatDateLongDK } from '@/lib/utils/format'
 import crypto from 'crypto'
 import type {
@@ -110,6 +111,7 @@ export async function getEmailTemplates(options?: {
 export async function getEmailTemplate(id: string): Promise<EmailTemplate | null> {
   try {
     const { supabase } = await getAuthenticatedClient()
+    validateUUID(id, 'skabelon ID')
 
     const { data, error } = await supabase
       .from('email_templates')
@@ -186,6 +188,7 @@ export async function updateEmailTemplate(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { supabase } = await getAuthenticatedClient()
+    validateUUID(id, 'skabelon ID')
 
     const { error } = await supabase
       .from('email_templates')
@@ -208,6 +211,7 @@ export async function updateEmailTemplate(
 export async function deleteEmailTemplate(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { supabase } = await getAuthenticatedClient()
+    validateUUID(id, 'skabelon ID')
 
     const { error } = await supabase
       .from('email_templates')
@@ -292,6 +296,7 @@ export async function getEmailThreads(options?: {
 export async function getEmailThread(id: string): Promise<EmailThreadWithRelations | null> {
   try {
     const { supabase } = await getAuthenticatedClient()
+    validateUUID(id, 'tråd ID')
 
     const { data, error } = await supabase
       .from('email_threads')
@@ -357,6 +362,7 @@ export async function createEmailThread(
 export async function getEmailMessages(threadId: string): Promise<EmailMessageWithRelations[]> {
   try {
     const { supabase } = await getAuthenticatedClient()
+    validateUUID(threadId, 'tråd ID')
 
     const { data, error } = await supabase
       .from('email_messages')
@@ -784,6 +790,7 @@ export async function resendEmail(
 ): Promise<SendOfferEmailResult> {
   try {
     const { supabase } = await getAuthenticatedClient()
+    validateUUID(messageId, 'besked ID')
 
     // Get original message with thread
     const { data: message, error: msgError } = await supabase

@@ -5,6 +5,7 @@
  * that uses products and assumptions from the database.
  */
 
+import { logger } from '@/lib/utils/logger'
 import type {
   SolarAssumptions,
   PanelProduct,
@@ -53,11 +54,13 @@ export function buildCalculatorContext(
   const battery = productsByType.batteries.find((p) => p.code === input.batteryCode)
 
   if (!panel || !inverter || !mounting || !battery) {
-    console.error('Missing products for calculator context:', {
-      panel: input.panelCode,
-      inverter: input.inverterCode,
-      mounting: input.mountingCode,
-      battery: input.batteryCode,
+    logger.error('Missing products for calculator context', {
+      metadata: {
+        panel: input.panelCode,
+        inverter: input.inverterCode,
+        mounting: input.mountingCode,
+        battery: input.batteryCode,
+      },
     })
     return null
   }

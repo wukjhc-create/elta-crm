@@ -27,6 +27,7 @@ export async function getCustomerSupplierPrices(
       .select('*')
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
+      .limit(200)
 
     if (error) {
       logger.error('Database error fetching customer supplier prices', { error: error })
@@ -116,6 +117,8 @@ export async function getCustomerProductPrices(
       validateUUID(supplierProductId, 'leverandørprodukt ID')
       query = query.eq('supplier_product_id', supplierProductId)
     }
+
+    query = query.limit(200)
 
     const { data, error } = await query
 
