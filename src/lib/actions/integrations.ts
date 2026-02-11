@@ -40,7 +40,10 @@ export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
       .select('*')
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as Integration[] }
   } catch (err) {
@@ -92,7 +95,10 @@ export async function createIntegration(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true, data: data as Integration }
@@ -116,7 +122,10 @@ export async function updateIntegration(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true, data: data as Integration }
@@ -135,7 +144,10 @@ export async function deleteIntegration(id: string): Promise<ActionResult> {
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true }
@@ -158,7 +170,10 @@ export async function toggleIntegration(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true, data: data as Integration }
@@ -181,7 +196,10 @@ export async function getWebhooks(integrationId: string): Promise<ActionResult<I
       .eq('integration_id', integrationId)
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as IntegrationWebhook[] }
   } catch (err) {
@@ -201,7 +219,10 @@ export async function createWebhook(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true, data: data as IntegrationWebhook }
@@ -225,7 +246,10 @@ export async function updateWebhook(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true, data: data as IntegrationWebhook }
@@ -244,7 +268,10 @@ export async function deleteWebhook(id: string): Promise<ActionResult> {
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true }
@@ -267,7 +294,10 @@ export async function getEndpoints(integrationId: string): Promise<ActionResult<
       .eq('integration_id', integrationId)
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as IntegrationEndpoint[] }
   } catch (err) {
@@ -287,7 +317,10 @@ export async function createEndpoint(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true, data: data as IntegrationEndpoint }
@@ -311,7 +344,10 @@ export async function updateEndpoint(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true, data: data as IntegrationEndpoint }
@@ -329,7 +365,10 @@ export async function deleteEndpoint(id: string): Promise<ActionResult> {
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/dashboard/settings/integrations')
     return { success: true }
@@ -379,7 +418,10 @@ export async function getIntegrationLogs(
 
     const { data, error } = await query
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as IntegrationLogWithRelations[] }
   } catch (err) {
@@ -407,7 +449,10 @@ export async function getExternalReferences(
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data as ExternalReference[] }
   } catch (err) {

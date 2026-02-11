@@ -20,7 +20,10 @@ export async function getTemplates(): Promise<{
       .select('*')
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     return { success: true, data: data || [] }
   } catch (error) {
@@ -77,7 +80,10 @@ export async function deleteTemplate(id: string): Promise<{
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('DATABASE_ERROR')
+    }
 
     revalidatePath('/calc')
     return { success: true }
