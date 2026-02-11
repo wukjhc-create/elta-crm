@@ -172,7 +172,7 @@ export class SupplierFallbackService {
 
           result.set(product.id, {
             supplierProductId: product.id,
-            costPrice: product.cost_price!,
+            costPrice: product.cost_price ?? 0,
             listPrice: product.list_price,
             isAvailable: product.is_available ?? true,
             stockQuantity: null,

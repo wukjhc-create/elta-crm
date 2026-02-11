@@ -539,12 +539,14 @@ export async function calculateFromNodes(
         ? nodeData.variants?.find((v: KalkiaVariant) => v.id === input.variantId)
         : nodeData.variants?.find((v: KalkiaVariant) => v.is_default) || nodeData.variants?.[0]
 
-      const materials = variant?.materials || []
+      if (!variant) continue
+
+      const materials = variant.materials || []
       const rules = nodeData.rules || []
 
       const calculatedItem = engine.calculateItem(
         nodeData as KalkiaNode,
-        variant as KalkiaVariant,
+        variant,
         materials as KalkiaVariantMaterial[],
         rules as KalkiaRule[],
         input

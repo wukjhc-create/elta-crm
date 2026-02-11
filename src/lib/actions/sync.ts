@@ -245,14 +245,14 @@ async function completeSyncLog(
     const { supabase } = await getAuthenticatedClient()
     validateUUID(logId, 'sync log ID')
 
-    const startedAt = await supabase
+    const { data: logData } = await supabase
       .from('supplier_sync_logs')
       .select('started_at')
       .eq('id', logId)
       .single()
 
-    const durationMs = startedAt.data
-      ? Date.now() - new Date(startedAt.data.started_at).getTime()
+    const durationMs = logData?.started_at
+      ? Date.now() - new Date(logData.started_at).getTime()
       : null
 
     const { data, error } = await supabase

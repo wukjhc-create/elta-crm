@@ -111,14 +111,14 @@ export async function syncSupplierPrices(
 
         for (const [sku, price] of prices) {
           // Get existing product
-          const { data: existingProduct } = await supabase
+          const { data: existingProduct, error: productError } = await supabase
             .from('supplier_products')
             .select('id, cost_price, list_price')
             .eq('supplier_id', supplierId)
             .eq('supplier_sku', sku)
             .single()
 
-          if (!existingProduct) continue
+          if (productError || !existingProduct) continue
 
           const oldCostPrice = existingProduct.cost_price
           const newCostPrice = price.costPrice
