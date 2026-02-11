@@ -11,6 +11,7 @@ import type {
 } from '@/types/calculation-settings.types'
 import { validateUUID } from '@/lib/validations/common'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { DEFAULT_TAX_RATE, DEFAULT_CURRENCY, OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
 // =====================================================
 // CALCULATION SETTINGS
 // =====================================================
@@ -32,30 +33,30 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
     // Parse settings into structured format
     const settings: CalculationSettings = {
       hourly_rates: {
-        electrician: 495,
-        apprentice: 295,
-        master: 650,
-        helper: 350,
+        electrician: CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
+        apprentice: CALC_DEFAULTS.HOURLY_RATES.APPRENTICE,
+        master: CALC_DEFAULTS.HOURLY_RATES.MASTER,
+        helper: CALC_DEFAULTS.HOURLY_RATES.HELPER,
       },
       margins: {
-        materials: 25,
-        products: 20,
-        subcontractor: 10,
-        default_db_target: 35,
-        minimum_db: 20,
+        materials: CALC_DEFAULTS.MARGINS.MATERIALS,
+        products: CALC_DEFAULTS.MARGINS.PRODUCTS,
+        subcontractor: CALC_DEFAULTS.MARGINS.SUBCONTRACTOR,
+        default_db_target: CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET,
+        minimum_db: CALC_DEFAULTS.MARGINS.MINIMUM_DB,
       },
       work_hours: {
-        start: '07:00',
-        end: '15:30',
-        break_minutes: 30,
-        overtime_multiplier: 1.5,
-        weekend_multiplier: 2.0,
+        start: CALC_DEFAULTS.WORK_HOURS.START,
+        end: CALC_DEFAULTS.WORK_HOURS.END,
+        break_minutes: CALC_DEFAULTS.WORK_HOURS.BREAK_MINUTES,
+        overtime_multiplier: CALC_DEFAULTS.WORK_HOURS.OVERTIME_MULTIPLIER,
+        weekend_multiplier: CALC_DEFAULTS.WORK_HOURS.WEEKEND_MULTIPLIER,
       },
       defaults: {
-        vat_percentage: 25,
-        currency: 'DKK',
-        validity_days: 30,
-        payment_terms_days: 14,
+        vat_percentage: DEFAULT_TAX_RATE,
+        currency: DEFAULT_CURRENCY,
+        validity_days: OFFER_VALIDITY_DAYS,
+        payment_terms_days: CALC_DEFAULTS.PAYMENT_TERMS_DAYS,
       },
       labor_types: [],
     }
@@ -66,54 +67,54 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
 
       switch (setting.setting_key) {
         case 'hourly_rate_electrician':
-          settings.hourly_rates.electrician = (value.rate as number) || 495
+          settings.hourly_rates.electrician = (value.rate as number) || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN
           break
         case 'hourly_rate_apprentice':
-          settings.hourly_rates.apprentice = (value.rate as number) || 295
+          settings.hourly_rates.apprentice = (value.rate as number) || CALC_DEFAULTS.HOURLY_RATES.APPRENTICE
           break
         case 'hourly_rate_master':
-          settings.hourly_rates.master = (value.rate as number) || 650
+          settings.hourly_rates.master = (value.rate as number) || CALC_DEFAULTS.HOURLY_RATES.MASTER
           break
         case 'hourly_rate_helper':
-          settings.hourly_rates.helper = (value.rate as number) || 350
+          settings.hourly_rates.helper = (value.rate as number) || CALC_DEFAULTS.HOURLY_RATES.HELPER
           break
         case 'margin_materials':
-          settings.margins.materials = (value.percentage as number) || 25
+          settings.margins.materials = (value.percentage as number) || CALC_DEFAULTS.MARGINS.MATERIALS
           break
         case 'margin_products':
-          settings.margins.products = (value.percentage as number) || 20
+          settings.margins.products = (value.percentage as number) || CALC_DEFAULTS.MARGINS.PRODUCTS
           break
         case 'margin_subcontractor':
-          settings.margins.subcontractor = (value.percentage as number) || 10
+          settings.margins.subcontractor = (value.percentage as number) || CALC_DEFAULTS.MARGINS.SUBCONTRACTOR
           break
         case 'default_db_target':
-          settings.margins.default_db_target = (value.percentage as number) || 35
+          settings.margins.default_db_target = (value.percentage as number) || CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET
           break
         case 'minimum_db':
-          settings.margins.minimum_db = (value.percentage as number) || 20
+          settings.margins.minimum_db = (value.percentage as number) || CALC_DEFAULTS.MARGINS.MINIMUM_DB
           break
         case 'work_hours_standard':
-          settings.work_hours.start = (value.start as string) || '07:00'
-          settings.work_hours.end = (value.end as string) || '15:30'
-          settings.work_hours.break_minutes = (value.break_minutes as number) || 30
+          settings.work_hours.start = (value.start as string) || CALC_DEFAULTS.WORK_HOURS.START
+          settings.work_hours.end = (value.end as string) || CALC_DEFAULTS.WORK_HOURS.END
+          settings.work_hours.break_minutes = (value.break_minutes as number) || CALC_DEFAULTS.WORK_HOURS.BREAK_MINUTES
           break
         case 'work_hours_overtime':
-          settings.work_hours.overtime_multiplier = (value.multiplier as number) || 1.5
+          settings.work_hours.overtime_multiplier = (value.multiplier as number) || CALC_DEFAULTS.WORK_HOURS.OVERTIME_MULTIPLIER
           break
         case 'work_hours_weekend':
-          settings.work_hours.weekend_multiplier = (value.multiplier as number) || 2.0
+          settings.work_hours.weekend_multiplier = (value.multiplier as number) || CALC_DEFAULTS.WORK_HOURS.WEEKEND_MULTIPLIER
           break
         case 'default_vat':
-          settings.defaults.vat_percentage = (value.percentage as number) || 25
+          settings.defaults.vat_percentage = (value.percentage as number) || DEFAULT_TAX_RATE
           break
         case 'default_currency':
-          settings.defaults.currency = (value.code as string) || 'DKK'
+          settings.defaults.currency = (value.code as string) || DEFAULT_CURRENCY
           break
         case 'default_validity_days':
-          settings.defaults.validity_days = (value.days as number) || 30
+          settings.defaults.validity_days = (value.days as number) || OFFER_VALIDITY_DAYS
           break
         case 'default_payment_terms':
-          settings.defaults.payment_terms_days = (value.days as number) || 14
+          settings.defaults.payment_terms_days = (value.days as number) || CALC_DEFAULTS.PAYMENT_TERMS_DAYS
           break
         case 'labor_types':
           settings.labor_types = (value.types as typeof settings.labor_types) || []

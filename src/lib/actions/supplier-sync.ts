@@ -5,6 +5,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { SupplierAPIClientFactory, type ProductPrice } from '@/lib/services/supplier-api-client'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { BATCH_CONFIG } from '@/lib/constants'
 
 // =====================================================
 // Types
@@ -88,7 +89,7 @@ export async function syncSupplierPrices(
     }
 
     // Sync in batches
-    const batchSize = options?.batchSize || 50
+    const batchSize = options?.batchSize || BATCH_CONFIG.SUPPLIER_SYNC_BATCH_SIZE
     const errors: string[] = []
     let updatedProducts = 0
     let priceChanges = 0

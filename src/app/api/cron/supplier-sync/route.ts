@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { SupplierAPIClientFactory } from '@/lib/services/supplier-api-client'
+import { BATCH_CONFIG } from '@/lib/constants'
 
 // Vercel cron secret for authentication
 const CRON_SECRET = process.env.CRON_SECRET
@@ -115,7 +116,7 @@ export async function GET(request: Request) {
           let updatedProducts = 0
           let priceChanges = 0
           const errors: string[] = []
-          const batchSize = 50
+          const batchSize = BATCH_CONFIG.SUPPLIER_SYNC_BATCH_SIZE
 
           for (let i = 0; i < skus.length; i += batchSize) {
             // Check max duration

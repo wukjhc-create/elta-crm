@@ -11,6 +11,7 @@
  */
 
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { MONITORING_CONFIG, CALC_DEFAULTS } from '@/lib/constants'
 import { revalidatePath } from 'next/cache'
 import { parseProjectDescription, getKeywordCategories } from '@/lib/engines/project-intake'
 import { analyzeProjectRisks, quickRiskCheck, getOfferObsPoints, getRecommendedMargin } from '@/lib/engines/risk-engine'
@@ -165,7 +166,7 @@ export async function getMarginRecommendationAction(input: RiskAnalysisInput) {
     return getRecommendedMargin(input)
   } catch (error) {
     console.error('Error getting margin recommendation:', error)
-    return { minimumMargin: 15, recommendedMargin: 25, reason: 'Standard margin' }
+    return { minimumMargin: MONITORING_CONFIG.MARGIN_WARNING_THRESHOLD, recommendedMargin: CALC_DEFAULTS.MARGINS.MATERIALS, reason: 'Standard margin' }
   }
 }
 

@@ -67,6 +67,59 @@ export const SUPPLIER_API_CONFIG = {
   LM_WEBSITE_URL: 'https://www.lfrm.dk',
 } as const
 
+// Electrician calculation defaults
+export const CALC_DEFAULTS = {
+  HOURLY_RATES: {
+    ELECTRICIAN: 495,
+    APPRENTICE: 295,
+    MASTER: 650,
+    HELPER: 350,
+  },
+  MARGINS: {
+    MATERIALS: 25,
+    PRODUCTS: 20,
+    SUBCONTRACTOR: 10,
+    DEFAULT_DB_TARGET: 35,
+    MINIMUM_DB: 20,
+  },
+  WORK_HOURS: {
+    START: '07:00',
+    END: '15:30',
+    BREAK_MINUTES: 30,
+    OVERTIME_MULTIPLIER: 1.5,
+    WEEKEND_MULTIPLIER: 2.0,
+  },
+  PAYMENT_TERMS_DAYS: 14,
+} as const
+
+// Intelligence / monitoring thresholds
+export const MONITORING_CONFIG = {
+  MARGIN_WARNING_THRESHOLD: 15,
+  MARGIN_CRITICAL_THRESHOLD: 5,
+  PRICE_CHANGE_OFFER_THRESHOLD: 5,
+  PRICE_CRITICAL_CHANGE_THRESHOLD: 20,
+  SYNC_STALE_WARNING_DAYS: 7,
+  SYNC_STALE_CRITICAL_DAYS: 14,
+  STALE_PRODUCT_DAYS: 14,
+  STALE_PRODUCT_MIN_COUNT: 50,
+} as const
+
+// Batch processing
+export const BATCH_CONFIG = {
+  SUPPLIER_SYNC_BATCH_SIZE: 50,
+  MATERIAL_UPDATE_BATCH_SIZE: 10,
+  API_CONCURRENT_REQUESTS: 5,
+  IMPORT_PREVIEW_LIMIT: 100,
+} as const
+
+// Dashboard widget limits
+export const DASHBOARD_LIMITS = {
+  RECENT_ACTIVITY: 10,
+  ACTIVITY_PER_TABLE: 5,
+  UPCOMING_TASKS: 5,
+  PENDING_OFFERS: 5,
+} as const
+
 // Lead statuses
 export const LEAD_STATUSES = [
   { value: 'new', label: 'Ny', color: 'blue' },

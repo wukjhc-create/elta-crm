@@ -44,6 +44,7 @@ import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { KalkiaCalculationEngine, createDefaultContext } from '@/lib/services/kalkia-engine'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { DEFAULT_TAX_RATE, CALC_DEFAULTS } from '@/lib/constants'
 // =====================================================
 // Kalkia Nodes
 // =====================================================
@@ -984,10 +985,10 @@ export async function createKalkiaCalculation(
       description: formData.get('description') as string || null,
       customer_id: formData.get('customer_id') as string || null,
       building_profile_id: formData.get('building_profile_id') as string || null,
-      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : 495,
+      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
       margin_percentage: formData.get('margin_percentage') ? Number(formData.get('margin_percentage')) : 0,
       discount_percentage: formData.get('discount_percentage') ? Number(formData.get('discount_percentage')) : 0,
-      vat_percentage: formData.get('vat_percentage') ? Number(formData.get('vat_percentage')) : 25,
+      vat_percentage: formData.get('vat_percentage') ? Number(formData.get('vat_percentage')) : DEFAULT_TAX_RATE,
       overhead_percentage: formData.get('overhead_percentage') ? Number(formData.get('overhead_percentage')) : 12,
       risk_percentage: formData.get('risk_percentage') ? Number(formData.get('risk_percentage')) : 0,
       is_template: formData.get('is_template') === 'true',
@@ -1038,10 +1039,10 @@ export async function updateKalkiaCalculation(
       description: formData.get('description') as string || null,
       customer_id: formData.get('customer_id') as string || null,
       building_profile_id: formData.get('building_profile_id') as string || null,
-      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : 495,
+      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
       margin_percentage: formData.get('margin_percentage') ? Number(formData.get('margin_percentage')) : 0,
       discount_percentage: formData.get('discount_percentage') ? Number(formData.get('discount_percentage')) : 0,
-      vat_percentage: formData.get('vat_percentage') ? Number(formData.get('vat_percentage')) : 25,
+      vat_percentage: formData.get('vat_percentage') ? Number(formData.get('vat_percentage')) : DEFAULT_TAX_RATE,
       overhead_percentage: formData.get('overhead_percentage') ? Number(formData.get('overhead_percentage')) : 12,
       risk_percentage: formData.get('risk_percentage') ? Number(formData.get('risk_percentage')) : 0,
       is_template: formData.get('is_template') === 'true',
@@ -1214,7 +1215,7 @@ export async function savePackageBuilderCalculation(
         discount_percentage: input.settings.discountPercentage,
         discount_amount: input.result?.discountAmount || 0,
         net_price: input.result?.netPrice || 0,
-        vat_percentage: 25,
+        vat_percentage: DEFAULT_TAX_RATE,
         vat_amount: input.result?.vatAmount || 0,
         final_amount: input.result?.finalAmount || 0,
 
@@ -1311,10 +1312,10 @@ export async function cloneCalculationAsTemplate(
 export async function calculateFromNodes(
   items: KalkiaCalculationItemInput[],
   buildingProfileId: string | null,
-  hourlyRate: number = 495,
+  hourlyRate: number = CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
   marginPercentage: number = 0,
   discountPercentage: number = 0,
-  vatPercentage: number = 25,
+  vatPercentage: number = DEFAULT_TAX_RATE,
   riskPercentage: number = 0
 ): Promise<ActionResult<{ items: unknown[]; result: CalculationResult }>> {
   try {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { MONITORING_CONFIG } from '@/lib/constants'
 
 // =====================================================
 // Background Intelligence Check
@@ -31,6 +32,14 @@ export async function GET(request: Request) {
     supplier_health: 0,
     anomalies: 0,
     errors: [] as string[],
+  }
+
+  async function insertAlert(alert: Record<string, unknown>) {
+    const { error } = await supabase.from('system_alerts').insert(alert)
+    if (error) {
+      console.error('Failed to insert system alert:', error.message, alert)
+      results.errors.push(`Alert insert failed: ${error.message}`)
+    }
   }
 
   try {
@@ -73,7 +82,7 @@ export async function GET(request: Request) {
               if (rule.threshold_percentage && change.change_percentage > rule.threshold_percentage) {
                 shouldAlert = true
                 alertTitle = `Prisstigning: ${change.supplier_product?.supplier_name || 'Ukendt'}`
-                severity = change.change_percentage > 20 ? 'critical' : 'warning'
+                severity = change.change_percentage > MONITORING_CONFIG.PRICE_CRITICAL_CHANGE_THRESHOLD ? 'critical' : 'warning'
               }
             } else if (rule.alert_type === 'price_decrease' && change.change_percentage < 0) {
               if (rule.threshold_percentage && Math.abs(change.change_percentage) > rule.threshold_percentage) {
@@ -84,7 +93,7 @@ export async function GET(request: Request) {
             }
 
             if (shouldAlert) {
-              await supabase.from('system_alerts').insert({
+              await insertAlert({
                 alert_type: rule.alert_type,
                 severity,
                 title: alertTitle,
@@ -134,7 +143,7 @@ export async function GET(request: Request) {
         if (totalCost > 0 && totalSale > 0) {
           const marginPct = ((totalSale - totalCost) / totalSale) * 100
 
-          if (marginPct < 15) {
+          if (marginPct < MONITORING_CONFIG.MARGIN_WARNING_THRESHOLD) {
             // Check if we already have a recent alert for this offer
             const { data: existingAlerts } = await supabase
               .from('system_alerts')
@@ -146,9 +155,9 @@ export async function GET(request: Request) {
               .limit(1)
 
             if (!existingAlerts || existingAlerts.length === 0) {
-              await supabase.from('system_alerts').insert({
+              await insertAlert({
                 alert_type: 'margin_below',
-                severity: marginPct < 5 ? 'critical' : 'warning',
+                severity: marginPct < MONITORING_CONFIG.MARGIN_CRITICAL_THRESHOLD ? 'critical' : 'warning',
                 title: `Lav margin: ${offer.offer_number}`,
                 message: `Tilbud "${offer.title}" har kun ${marginPct.toFixed(1)}% margin (kostpris: ${totalCost.toFixed(0)} kr, salgspris: ${totalSale.toFixed(0)} kr)`,
                 details: {
@@ -180,8 +189,8 @@ export async function GET(request: Request) {
 
           if (currentProduct && item.cost_price) {
             const priceDiff = ((currentProduct.cost_price - item.cost_price) / item.cost_price) * 100
-            if (Math.abs(priceDiff) > 5) {
-              await supabase.from('system_alerts').insert({
+            if (Math.abs(priceDiff) > MONITORING_CONFIG.PRICE_CHANGE_OFFER_THRESHOLD) {
+              await insertAlert({
                 alert_type: priceDiff > 0 ? 'price_increase' : 'price_decrease',
                 severity: 'warning',
                 title: `Prisændring påvirker tilbud ${offer.offer_number}`,
@@ -227,10 +236,10 @@ export async function GET(request: Request) {
           const lastSyncDate = new Date(lastSync.completed_at || '')
           const daysSinceSync = (Date.now() - lastSyncDate.getTime()) / (1000 * 60 * 60 * 24)
 
-          if (daysSinceSync > 7) {
-            await supabase.from('system_alerts').insert({
+          if (daysSinceSync > MONITORING_CONFIG.SYNC_STALE_WARNING_DAYS) {
+            await insertAlert({
               alert_type: 'supplier_offline',
-              severity: daysSinceSync > 14 ? 'critical' : 'warning',
+              severity: daysSinceSync > MONITORING_CONFIG.SYNC_STALE_CRITICAL_DAYS ? 'critical' : 'warning',
               title: `Leverandørsync forældet: ${supplier.name}`,
               message: `Sidste sync for ${supplier.name} var for ${Math.round(daysSinceSync)} dage siden. Priser kan være forældede.`,
               details: {
@@ -246,7 +255,7 @@ export async function GET(request: Request) {
           }
 
           if (lastSync.status === 'failed') {
-            await supabase.from('system_alerts').insert({
+            await insertAlert({
               alert_type: 'sync_failed' as string,
               severity: 'critical',
               title: `Sync fejl: ${supplier.name}`,
@@ -269,7 +278,7 @@ export async function GET(request: Request) {
             .eq('supplier_id', supplier.id)
 
           if ((count || 0) === 0) {
-            await supabase.from('system_alerts').insert({
+            await insertAlert({
               alert_type: 'supplier_offline',
               severity: 'info',
               title: `Ingen produkter: ${supplier.name}`,
@@ -291,18 +300,19 @@ export async function GET(request: Request) {
     // 4. Stale Product Cache Detection
     // =====================================================
 
-    const { data: staleProducts, count: staleCount } = await supabase
+    const staleDays = MONITORING_CONFIG.STALE_PRODUCT_DAYS
+    const { count: staleCount } = await supabase
       .from('supplier_products')
       .select('*', { count: 'exact', head: true })
-      .lt('last_synced_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
+      .lt('last_synced_at', new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString())
       .eq('is_available', true)
 
-    if ((staleCount || 0) > 50) {
-      await supabase.from('system_alerts').insert({
+    if ((staleCount || 0) > MONITORING_CONFIG.STALE_PRODUCT_MIN_COUNT) {
+      await insertAlert({
         alert_type: 'supplier_offline',
         severity: 'warning',
         title: `${staleCount} forældede produktpriser`,
-        message: `Der er ${staleCount} aktive produkter med priser ældre end 14 dage. Overvej at køre en fuld synkronisering.`,
+        message: `Der er ${staleCount} aktive produkter med priser ældre end ${staleDays} dage. Overvej at køre en fuld synkronisering.`,
         details: { stale_count: staleCount },
         entity_type: 'supplier_product',
         entity_id: null,
