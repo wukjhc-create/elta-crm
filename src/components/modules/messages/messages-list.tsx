@@ -90,9 +90,10 @@ export function MessagesList({
 
   if (messages.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Mail className="w-12 h-12 mx-auto mb-2 opacity-50" />
-        <p>Ingen beskeder i denne mappe.</p>
+      <div className="bg-white rounded-lg border p-12 text-center text-muted-foreground">
+        <Mail className="w-12 h-12 mx-auto mb-3 opacity-30" />
+        <p className="font-medium">Ingen beskeder i denne mappe.</p>
+        <p className="text-sm mt-1">Nye beskeder vises her.</p>
       </div>
     )
   }

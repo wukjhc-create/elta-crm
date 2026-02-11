@@ -56,9 +56,10 @@ export function TimeEntriesList({
 
   if (timeEntries.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
-        <p>Ingen tidsregistreringer endnu.</p>
+      <div className="bg-white rounded-lg border p-12 text-center text-muted-foreground">
+        <Clock className="w-12 h-12 mx-auto mb-3 opacity-30" />
+        <p className="font-medium">Ingen tidsregistreringer endnu.</p>
+        <p className="text-sm mt-1">Registrer tid for at se oversigten her.</p>
       </div>
     )
   }

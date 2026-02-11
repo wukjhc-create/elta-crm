@@ -178,9 +178,9 @@ export function SupplierProductsTable({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white rounded-lg border overflow-hidden overflow-x-auto">
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-gray-50">
             <TableRow>
               <TableHead className={`w-[150px] ${sortableHeaderClass}`} onClick={() => handleSort('supplier_sku')}>
                 <div className="flex items-center gap-1">
