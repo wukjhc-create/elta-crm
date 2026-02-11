@@ -8,6 +8,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getDecryptedCredentials, type CredentialInput } from '@/lib/actions/credentials'
 import { SUPPLIER_API_CONFIG } from '@/lib/constants'
+import { sanitizeSearchTerm } from '@/lib/validations/common'
 
 // =====================================================
 // Types
@@ -580,7 +581,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
         .limit(params.limit || 50)
 
       if (params.query) {
-        query = query.or(`supplier_sku.ilike.%${params.query}%,supplier_name.ilike.%${params.query}%`)
+        query = query.or(`supplier_sku.ilike.%${sanitizeSearchTerm(params.query)}%,supplier_name.ilike.%${sanitizeSearchTerm(params.query)}%`)
       }
       if (params.sku) {
         query = query.eq('supplier_sku', params.sku)
@@ -854,7 +855,7 @@ export class LMAPIClient extends BaseSupplierAPIClient {
         .limit(params.limit || 50)
 
       if (params.query) {
-        query = query.or(`supplier_sku.ilike.%${params.query}%,supplier_name.ilike.%${params.query}%`)
+        query = query.or(`supplier_sku.ilike.%${sanitizeSearchTerm(params.query)}%,supplier_name.ilike.%${sanitizeSearchTerm(params.query)}%`)
       }
 
       const { data } = await query

@@ -142,7 +142,7 @@ export async function checkDuplicateLead(
     let query = supabase
       .from('leads')
       .select('id, company_name, email, status')
-      .or(`email.ilike.${email},company_name.ilike.${companyName}`)
+      .or(`email.ilike.${sanitizeSearchTerm(email)},company_name.ilike.${sanitizeSearchTerm(companyName)}`)
       .limit(5)
 
     if (excludeId) {

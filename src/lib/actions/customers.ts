@@ -159,7 +159,7 @@ export async function checkDuplicateCustomer(
     let query = supabase
       .from('customers')
       .select('id, company_name, customer_number, email')
-      .or(`email.ilike.${email},company_name.ilike.${companyName}`)
+      .or(`email.ilike.${sanitizeSearchTerm(email)},company_name.ilike.${sanitizeSearchTerm(companyName)}`)
       .limit(5)
 
     if (excludeId) {
