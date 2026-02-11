@@ -306,11 +306,6 @@ const styles = StyleSheet.create({
 })
 
 
-// Format date
-function formatDate(dateString: string): string {
-  return formatDateLongDK(dateString)
-}
-
 interface OfferPdfProps {
   offer: OfferWithRelations
   companySettings: CompanySettings
@@ -374,12 +369,12 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
         <View style={styles.datesRow}>
           <View style={styles.dateItem}>
             <Text style={styles.dateLabel}>Dato:</Text>
-            <Text style={styles.dateValue}>{formatDate(offer.created_at)}</Text>
+            <Text style={styles.dateValue}>{formatDateLongDK(offer.created_at)}</Text>
           </View>
           {offer.valid_until && (
             <View style={styles.dateItem}>
               <Text style={styles.dateLabel}>Gyldig til:</Text>
-              <Text style={styles.dateValue}>{formatDate(offer.valid_until)}</Text>
+              <Text style={styles.dateValue}>{formatDateLongDK(offer.valid_until)}</Text>
             </View>
           )}
         </View>

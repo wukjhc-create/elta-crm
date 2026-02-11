@@ -121,12 +121,8 @@ function getActionLabel(action: AuditAction): string {
   return ACTION_OPTIONS.find(o => o.value === action)?.label || action
 }
 
-function formatDate(dateString: string): string {
-  return formatDateTimeDK(dateString)
-}
-
 function formatRelativeTime(dateString: string): string {
-  return formatTimeAgo(dateString) || formatDate(dateString)
+  return formatTimeAgo(dateString) || formatDateTimeDK(dateString)
 }
 
 export function AuditLogClient() {
@@ -335,7 +331,7 @@ export function AuditLogClient() {
                     </div>
 
                     {/* Time */}
-                    <div className="col-span-2 flex items-center text-sm text-gray-500" title={formatDate(entry.created_at)}>
+                    <div className="col-span-2 flex items-center text-sm text-gray-500" title={formatDateTimeDK(entry.created_at)}>
                       {formatRelativeTime(entry.created_at)}
                     </div>
 
@@ -416,7 +412,7 @@ export function AuditLogClient() {
                         {entry.entity_id && <span>Entitet ID: {entry.entity_id}</span>}
                         {entry.user_id && <span>Bruger ID: {entry.user_id}</span>}
                         {entry.ip_address && <span>IP: {entry.ip_address}</span>}
-                        <span>{formatDate(entry.created_at)}</span>
+                        <span>{formatDateTimeDK(entry.created_at)}</span>
                       </div>
                     </div>
                   )}

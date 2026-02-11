@@ -451,8 +451,8 @@ export async function getProductPriceComparison(
             price: searchResult.products[0],
           })
         }
-      } catch {
-        // Skip suppliers with errors
+      } catch (err) {
+        console.error(`Price comparison search failed for supplier ${supplier.code}:`, err)
       }
     }
 

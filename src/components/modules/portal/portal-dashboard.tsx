@@ -44,10 +44,6 @@ export function PortalDashboard({
 
   const currency = companySettings?.default_currency || 'DKK'
 
-  const formatDate = (dateStr: string) => {
-    return formatDateUtil(dateStr)
-  }
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'sent':
@@ -174,7 +170,7 @@ export function PortalDashboard({
                       {formatCurrency(offer.final_amount, currency)}
                     </p>
                     <p className="text-sm text-gray-500">
-                      {formatDate(offer.created_at)}
+                      {formatDateUtil(offer.created_at)}
                     </p>
                   </div>
 

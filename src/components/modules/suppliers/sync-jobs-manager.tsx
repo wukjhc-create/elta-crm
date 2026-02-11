@@ -61,10 +61,6 @@ function formatDuration(ms: number | null): string {
   return formatDurationMs(ms)
 }
 
-function formatDate(dateString: string | null): string {
-  return formatDateTimeDK(dateString) || '\u2014'
-}
-
 export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerProps) {
   const toast = useToast()
   const [jobs, setJobs] = useState<SupplierSyncJobWithSupplier[]>([])
@@ -224,7 +220,7 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
                         )}
                         <span>Kørsler: {job.total_runs}</span>
                         {job.last_run_at && (
-                          <span>Sidst: {formatDate(job.last_run_at)}</span>
+                          <span>Sidst: {formatDateTimeDK(job.last_run_at) || '\u2014'}</span>
                         )}
                       </div>
                     </div>
@@ -274,7 +270,7 @@ export function SyncJobsManager({ supplierId, supplierName }: SyncJobsManagerPro
                                   <div className="flex items-center gap-2 text-sm">
                                     <span className="font-medium">{logStatus.label}</span>
                                     <span className="text-gray-400">|</span>
-                                    <span className="text-gray-500">{formatDate(log.started_at)}</span>
+                                    <span className="text-gray-500">{formatDateTimeDK(log.started_at) || '\u2014'}</span>
                                     <span className="text-gray-400">|</span>
                                     <span className="text-gray-500">{formatDuration(log.duration_ms)}</span>
                                   </div>

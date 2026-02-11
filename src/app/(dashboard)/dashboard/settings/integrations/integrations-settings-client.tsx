@@ -445,10 +445,6 @@ export function IntegrationsSettingsClient() {
     toast.success('URL kopieret')
   }
 
-  const formatDate = (date: string) => {
-    return formatDateTimeDK(date)
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -593,7 +589,7 @@ export function IntegrationsSettingsClient() {
                     {selectedIntegration.last_sync_at && (
                       <div>
                         <Label className="text-gray-500 text-xs">Sidst synkroniseret</Label>
-                        <p className="font-medium">{formatDate(selectedIntegration.last_sync_at)}</p>
+                        <p className="font-medium">{formatDateTimeDK(selectedIntegration.last_sync_at)}</p>
                       </div>
                     )}
                   </div>
@@ -806,7 +802,7 @@ export function IntegrationsSettingsClient() {
                               )}
                             </div>
                             <span className="text-xs text-gray-500">
-                              {formatDate(log.created_at)}
+                              {formatDateTimeDK(log.created_at)}
                             </span>
                           </div>
                           {log.request_url && (

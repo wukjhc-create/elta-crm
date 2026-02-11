@@ -166,10 +166,6 @@ export default function CalculationsClient({
   }
 
 
-  const formatDate = (date: string) => {
-    return formatDateUtil(date)
-  }
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -326,7 +322,7 @@ export default function CalculationsClient({
                     {formatCurrency(calc.final_amount)}
                   </TableCell>
                   <TableCell className="text-gray-500">
-                    {formatDate(calc.created_at)}
+                    {formatDateUtil(calc.created_at)}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

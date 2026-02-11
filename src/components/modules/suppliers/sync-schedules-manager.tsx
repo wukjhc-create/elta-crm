@@ -92,10 +92,6 @@ function formatDuration(ms: number | null): string {
   return formatDurationMs(ms)
 }
 
-function formatDate(dateString: string | null): string {
-  return formatDateTimeDK(dateString) || '\u2014'
-}
-
 function formatRelativeDate(dateString: string | null): string {
   if (!dateString) return '—'
   const date = new Date(dateString)
@@ -232,7 +228,7 @@ export function SyncSchedulesManager({ supplierId, supplierName }: SyncSchedules
               {nextRun ? formatRelativeDate(nextRun.next_run_at) : '—'}
             </div>
             {nextRun && (
-              <div className="text-xs text-gray-400 mt-1">{formatDate(nextRun.next_run_at)}</div>
+              <div className="text-xs text-gray-400 mt-1">{formatDateTimeDK(nextRun.next_run_at) || '\u2014'}</div>
             )}
           </div>
           <div className="bg-white border rounded-lg p-4">
@@ -329,7 +325,7 @@ export function SyncSchedulesManager({ supplierId, supplierName }: SyncSchedules
                           <span>Næste: {formatRelativeDate(schedule.next_run_at)}</span>
                         )}
                         {schedule.last_run_at && (
-                          <span>Sidst: {formatDate(schedule.last_run_at)}</span>
+                          <span>Sidst: {formatDateTimeDK(schedule.last_run_at) || '\u2014'}</span>
                         )}
                         {schedule.last_run_duration_ms && (
                           <span>Varighed: {formatDuration(schedule.last_run_duration_ms)}</span>
@@ -407,7 +403,7 @@ export function SyncSchedulesManager({ supplierId, supplierName }: SyncSchedules
                                       {STATUS_LABELS[entry.status as ScheduleRunStatus] || entry.status}
                                     </span>
                                     <span className="text-gray-400">|</span>
-                                    <span className="text-gray-500">{formatDate(entry.started_at)}</span>
+                                    <span className="text-gray-500">{formatDateTimeDK(entry.started_at) || '\u2014'}</span>
                                     <span className="text-gray-400">|</span>
                                     <span className="text-gray-500">{formatDuration(entry.duration_ms)}</span>
                                     <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">

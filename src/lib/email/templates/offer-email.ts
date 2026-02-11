@@ -9,11 +9,6 @@ interface OfferEmailParams {
 }
 
 
-// Format date
-function formatDate(dateString: string): string {
-  return formatDateLongDK(dateString)
-}
-
 export function generateOfferEmailHtml({
   offer,
   companySettings,
@@ -167,13 +162,13 @@ export function generateOfferEmailHtml({
 
         <div class="detail-row">
           <span class="detail-label">Dato:</span>
-          <span class="detail-value">${formatDate(offer.created_at)}</span>
+          <span class="detail-value">${formatDateLongDK(offer.created_at)}</span>
         </div>
 
         ${offer.valid_until ? `
         <div class="detail-row">
           <span class="detail-label">Gyldig til:</span>
-          <span class="detail-value">${formatDate(offer.valid_until)}</span>
+          <span class="detail-value">${formatDateLongDK(offer.valid_until)}</span>
         </div>
         ` : ''}
 
@@ -210,7 +205,7 @@ export function generateOfferEmailHtml({
 
       ${offer.valid_until ? `
       <div class="note">
-        <strong>Bemærk:</strong> Dette tilbud er gyldigt til ${formatDate(offer.valid_until)}.
+        <strong>Bemærk:</strong> Dette tilbud er gyldigt til ${formatDateLongDK(offer.valid_until)}.
       </div>
       ` : ''}
 
@@ -264,8 +259,8 @@ TILBUDSDETALJER
 Titel: ${offer.title}
 ${offer.description ? `Beskrivelse: ${offer.description}` : ''}
 Tilbudsnummer: ${offer.offer_number}
-Dato: ${formatDate(offer.created_at)}
-${offer.valid_until ? `Gyldig til: ${formatDate(offer.valid_until)}` : ''}
+Dato: ${formatDateLongDK(offer.created_at)}
+${offer.valid_until ? `Gyldig til: ${formatDateLongDK(offer.valid_until)}` : ''}
 
 Subtotal: ${formatCurrency(offer.total_amount, offer.currency, 2)}
 ${offer.discount_percentage > 0 ? `Rabat (${offer.discount_percentage}%): -${formatCurrency(offer.discount_amount, offer.currency, 2)}` : ''}
@@ -277,7 +272,7 @@ SE OG ACCEPTER TILBUD
 Klik på linket nedenfor for at se det fulde tilbud og acceptere det digitalt:
 ${portalUrl}
 
-${offer.valid_until ? `Bemærk: Dette tilbud er gyldigt til ${formatDate(offer.valid_until)}.` : ''}
+${offer.valid_until ? `Bemærk: Dette tilbud er gyldigt til ${formatDateLongDK(offer.valid_until)}.` : ''}
 
 Har du spørgsmål til tilbuddet, er du velkommen til at kontakte os.
 

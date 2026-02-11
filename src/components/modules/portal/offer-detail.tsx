@@ -43,10 +43,6 @@ export function OfferDetail({
 
   const currency = companySettings?.default_currency || 'DKK'
 
-  const formatDate = (dateStr: string | null) => {
-    return formatDateLongDK(dateStr) || '-'
-  }
-
   const isExpired = offer.valid_until && new Date(offer.valid_until) < new Date()
   const canRespond = (offer.status === 'sent' || offer.status === 'viewed') && !isExpired
 
@@ -102,7 +98,7 @@ export function OfferDetail({
             {offer.valid_until && (
               <span className="text-sm text-gray-500 flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
-                Gyldig til: {formatDate(offer.valid_until)}
+                Gyldig til: {formatDateLongDK(offer.valid_until) || '-'}
               </span>
             )}
           </div>
@@ -216,7 +212,7 @@ export function OfferDetail({
                   <p className="text-sm text-green-700 mt-1">
                     Underskrevet af {offer.signature.signer_name} (
                     {offer.signature.signer_email}) den{' '}
-                    {formatDate(offer.signature.signed_at)}
+                    {formatDateLongDK(offer.signature.signed_at) || '-'}
                   </p>
                 </div>
               </div>
@@ -297,7 +293,7 @@ export function OfferDetail({
                 <div>
                   <p className="text-sm font-medium">Tilbud oprettet</p>
                   <p className="text-xs text-gray-500">
-                    {formatDate(offer.created_at)}
+                    {formatDateLongDK(offer.created_at) || '-'}
                   </p>
                 </div>
               </div>
@@ -310,7 +306,7 @@ export function OfferDetail({
                   <div>
                     <p className="text-sm font-medium">Tilbud sendt</p>
                     <p className="text-xs text-gray-500">
-                      {formatDate(offer.sent_at)}
+                      {formatDateLongDK(offer.sent_at) || '-'}
                     </p>
                   </div>
                 </div>
@@ -324,7 +320,7 @@ export function OfferDetail({
                   <div>
                     <p className="text-sm font-medium">Tilbud set</p>
                     <p className="text-xs text-gray-500">
-                      {formatDate(offer.viewed_at)}
+                      {formatDateLongDK(offer.viewed_at) || '-'}
                     </p>
                   </div>
                 </div>
@@ -338,7 +334,7 @@ export function OfferDetail({
                   <div>
                     <p className="text-sm font-medium">Tilbud accepteret</p>
                     <p className="text-xs text-gray-500">
-                      {formatDate(offer.accepted_at)}
+                      {formatDateLongDK(offer.accepted_at) || '-'}
                     </p>
                   </div>
                 </div>
@@ -352,7 +348,7 @@ export function OfferDetail({
                   <div>
                     <p className="text-sm font-medium">Tilbud afvist</p>
                     <p className="text-xs text-gray-500">
-                      {formatDate(offer.rejected_at)}
+                      {formatDateLongDK(offer.rejected_at) || '-'}
                     </p>
                   </div>
                 </div>

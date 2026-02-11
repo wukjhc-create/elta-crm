@@ -274,7 +274,7 @@ function AlertsTab({ alerts, isLoading }: { alerts: PriceChangeAlert[]; isLoadin
                     </div>
                   </td>
                   <td className="px-4 py-2.5 text-right text-xs text-gray-500">
-                    {formatDate(alert.changed_at)}
+                    {formatDateUtil(alert.changed_at)}
                   </td>
                 </tr>
               )
@@ -332,7 +332,7 @@ function AffectedOffersTab({ offers }: { offers: AffectedOffer[] }) {
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-right text-xs text-gray-500">
-                  {formatDate(offer.created_at)}
+                  {formatDateUtil(offer.created_at)}
                 </td>
               </tr>
             ))}
@@ -354,7 +354,7 @@ function SuppliersTab({ stats }: { stats: SupplierPriceStats[] }) {
             <h3 className="font-semibold text-lg">{stat.supplier_name}</h3>
             {stat.last_sync_at && (
               <span className="text-xs text-gray-400">
-                Synk: {formatDate(stat.last_sync_at)}
+                Synk: {formatDateUtil(stat.last_sync_at)}
               </span>
             )}
           </div>
@@ -588,6 +588,3 @@ function formatDKK(amount: number): string {
   }).format(amount)
 }
 
-function formatDate(dateStr: string): string {
-  return formatDateUtil(dateStr)
-}

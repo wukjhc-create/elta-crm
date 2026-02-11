@@ -113,11 +113,6 @@ export function SmsTimeline({ offerId, customerId, limit = 10 }: SmsTimelineProp
 function SmsMessageCard({ message }: { message: SmsMessage }) {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return null
-    return formatDateTimeDK(dateStr)
-  }
-
   return (
     <div
       className="border rounded-lg p-3 hover:bg-muted/50 cursor-pointer transition-colors"
@@ -157,26 +152,26 @@ function SmsMessageCard({ message }: { message: SmsMessage }) {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="flex items-center gap-1 text-muted-foreground">
               <Clock className="h-3 w-3" />
-              Oprettet: {formatDate(message.created_at)}
+              Oprettet: {formatDateTimeDK(message.created_at)}
             </div>
 
             {message.sent_at && (
               <div className="flex items-center gap-1 text-muted-foreground">
                 <CheckCircle className="h-3 w-3" />
-                Sendt: {formatDate(message.sent_at)}
+                Sendt: {formatDateTimeDK(message.sent_at)}
               </div>
             )}
 
             {message.delivered_at && (
               <div className="flex items-center gap-1 text-green-600">
                 <CheckCircle className="h-3 w-3" />
-                Leveret: {formatDate(message.delivered_at)}
+                Leveret: {formatDateTimeDK(message.delivered_at)}
               </div>
             )}
 
             {message.failed_at && (
               <div className="flex items-center gap-1 text-red-600">
-                Fejlet: {formatDate(message.failed_at)}
+                Fejlet: {formatDateTimeDK(message.failed_at)}
               </div>
             )}
           </div>

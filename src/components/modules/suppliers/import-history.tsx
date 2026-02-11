@@ -93,10 +93,6 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
     setLoadingChanges(false)
   }
 
-  const formatDate = (date: string) => {
-    return formatDateTimeDK(date)
-  }
-
   const formatDuration = (start: string | null, end: string | null) => {
     if (!start || !end) return '-'
     const ms = new Date(end).getTime() - new Date(start).getTime()
@@ -149,7 +145,7 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
                       <div>
                         <p className="font-medium">{batch.filename || 'Unavngivet'}</p>
                         <p className="text-xs text-gray-500">
-                          {formatDate(batch.created_at)}
+                          {formatDateTimeDK(batch.created_at)}
                         </p>
                       </div>
                     </TableCell>
@@ -372,10 +368,10 @@ export function ImportHistory({ supplierId }: ImportHistoryProps) {
               <div className="flex items-center gap-4 text-xs text-gray-500">
                 <span>
                   <Clock className="w-3 h-3 inline mr-1" />
-                  Startet: {selectedBatch.started_at ? formatDate(selectedBatch.started_at) : '-'}
+                  Startet: {selectedBatch.started_at ? formatDateTimeDK(selectedBatch.started_at) : '-'}
                 </span>
                 <span>
-                  Afsluttet: {selectedBatch.completed_at ? formatDate(selectedBatch.completed_at) : '-'}
+                  Afsluttet: {selectedBatch.completed_at ? formatDateTimeDK(selectedBatch.completed_at) : '-'}
                 </span>
                 <span>
                   Varighed: {formatDuration(selectedBatch.started_at, selectedBatch.completed_at)}

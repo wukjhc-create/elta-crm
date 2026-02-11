@@ -123,11 +123,6 @@ export function SupplierProductsTable({
   }
 
 
-  const formatDate = (date: string | null) => {
-    if (!date) return '-'
-    return formatDateUtil(date)
-  }
-
   const sortableHeaderClass = 'cursor-pointer select-none hover:bg-gray-100/50 transition-colors'
 
   return (
@@ -264,7 +259,7 @@ export function SupplierProductsTable({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs text-gray-500">
-                    {formatDate(product.last_synced_at || product.updated_at)}
+                    {(product.last_synced_at || product.updated_at) ? formatDateUtil(product.last_synced_at || product.updated_at) : '-'}
                   </TableCell>
                 </TableRow>
               ))

@@ -97,10 +97,6 @@ export function PortalAccess({
     setTimeout(() => setCopiedToken(null), 2000)
   }
 
-  const formatDate = (dateStr: string | null) => {
-    return formatDateTimeDK(dateStr) || '-'
-  }
-
   const activeTokens = tokens.filter((t) => t.is_active)
 
   return (
@@ -176,11 +172,11 @@ export function PortalAccess({
               <div className="flex items-center gap-4 text-xs text-gray-400">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
-                  Oprettet: {formatDate(token.created_at)}
+                  Oprettet: {formatDateTimeDK(token.created_at) || '-'}
                 </span>
                 {token.last_accessed_at && (
                   <span>
-                    Sidst brugt: {formatDate(token.last_accessed_at)}
+                    Sidst brugt: {formatDateTimeDK(token.last_accessed_at) || '-'}
                   </span>
                 )}
               </div>
@@ -191,7 +187,7 @@ export function PortalAccess({
                     <span className="text-red-500">Udløbet</span>
                   ) : (
                     <span className="text-gray-500">
-                      Udløber: {formatDate(token.expires_at)}
+                      Udløber: {formatDateTimeDK(token.expires_at) || '-'}
                     </span>
                   )}
                 </div>
