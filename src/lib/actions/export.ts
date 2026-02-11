@@ -9,6 +9,7 @@
 
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { sanitizeSearchTerm } from '@/lib/validations/common'
 
 // =====================================================
 // Types
@@ -106,7 +107,7 @@ export async function exportCustomers(filters?: {
       .limit(MAX_EXPORT_ROWS)
 
     if (filters?.search) {
-      const term = `%${filters.search}%`
+      const term = `%${sanitizeSearchTerm(filters.search)}%`
       query = query.or(`company_name.ilike.${term},contact_person.ilike.${term},email.ilike.${term}`)
     }
 
@@ -141,7 +142,7 @@ export async function exportLeads(filters?: {
       .limit(MAX_EXPORT_ROWS)
 
     if (filters?.search) {
-      const term = `%${filters.search}%`
+      const term = `%${sanitizeSearchTerm(filters.search)}%`
       query = query.or(`company_name.ilike.${term},contact_person.ilike.${term},email.ilike.${term}`)
     }
 
@@ -194,7 +195,7 @@ export async function exportOffers(filters?: {
       .limit(MAX_EXPORT_ROWS)
 
     if (filters?.search) {
-      const term = `%${filters.search}%`
+      const term = `%${sanitizeSearchTerm(filters.search)}%`
       query = query.or(`title.ilike.${term},offer_number.ilike.${term}`)
     }
 
@@ -246,7 +247,7 @@ export async function exportProjects(filters?: {
       .limit(MAX_EXPORT_ROWS)
 
     if (filters?.search) {
-      const term = `%${filters.search}%`
+      const term = `%${sanitizeSearchTerm(filters.search)}%`
       query = query.or(`name.ilike.${term},project_number.ilike.${term}`)
     }
 
@@ -305,7 +306,7 @@ export async function exportCalculations(filters?: {
       .limit(MAX_EXPORT_ROWS)
 
     if (filters?.search) {
-      const term = `%${filters.search}%`
+      const term = `%${sanitizeSearchTerm(filters.search)}%`
       query = query.or(`name.ilike.${term}`)
     }
 

@@ -20,7 +20,7 @@ import type {
   UpdateOfferTextInput,
 } from '@/types/component-intelligence.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
-import { validateUUID } from '@/lib/validations/common'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -323,7 +323,8 @@ export async function getMaterials(options?: {
     }
 
     if (options?.search) {
-      query = query.or(`name.ilike.%${options.search}%,sku.ilike.%${options.search}%,description.ilike.%${options.search}%`)
+      const sanitized = sanitizeSearchTerm(options.search)
+      query = query.or(`name.ilike.%${sanitized}%,sku.ilike.%${sanitized}%,description.ilike.%${sanitized}%`)
     }
 
     if (options?.limit) {

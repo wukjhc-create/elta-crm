@@ -1,6 +1,7 @@
 'use server'
 
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { sanitizeSearchTerm } from '@/lib/validations/common'
 import type { SearchResultType, SearchResult, SearchResponse } from '@/types/search.types'
 
 export async function globalSearch(query: string): Promise<SearchResponse> {
@@ -10,7 +11,7 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
 
   try {
     const { supabase } = await getAuthenticatedClient()
-    const searchTerm = `%${query.trim().toLowerCase()}%`
+    const searchTerm = `%${sanitizeSearchTerm(query.trim().toLowerCase())}%`
 
     // Execute all four searches in parallel
     const [leadsResult, customersResult, offersResult, projectsResult] = await Promise.all([

@@ -1347,7 +1347,7 @@ export async function searchSupplierProductsForOffer(
         )
       `)
       .eq('suppliers.is_active', true)
-      .or(`supplier_sku.ilike.%${query}%,supplier_name.ilike.%${query}%`)
+      .or(`supplier_sku.ilike.%${sanitizeSearchTerm(query)}%,supplier_name.ilike.%${sanitizeSearchTerm(query)}%`)
       .limit(options?.limit || 20)
 
     if (options?.supplierId) {
