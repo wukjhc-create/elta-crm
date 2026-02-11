@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { DEFAULT_TAX_RATE } from '@/lib/constants'
 import {
   createCalculationSchema,
   updateCalculationSchema,
@@ -905,7 +906,7 @@ export async function createQuickCalculation(
         calculation_mode: input.calculationMode,
         default_hourly_rate: input.hourlyRate,
         customer_id: input.customerId || null,
-        tax_percentage: 25,
+        tax_percentage: DEFAULT_TAX_RATE,
         created_by: userId,
       })
       .select()

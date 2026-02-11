@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { DEFAULT_TAX_RATE } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
 import type {
   InstallationType,
@@ -644,7 +645,7 @@ export async function convertCalculationToOffer(
 
     const discountPct = options?.discount_percentage || 0
     const discountAmount = subtotal * (discountPct / 100)
-    const taxPct = 25
+    const taxPct = DEFAULT_TAX_RATE
     const taxAmount = (subtotal - discountAmount) * (taxPct / 100)
     const finalAmount = subtotal - discountAmount + taxAmount
 
