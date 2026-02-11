@@ -375,8 +375,8 @@ export function getOfferObsPoints(input: RiskAnalysisInput): string[] {
   const result = analyzeProjectRisks(input)
 
   return result.customer_visible_risks
-    .filter(r => r.customer_message)
-    .map(r => r.customer_message!)
+    .filter((r): r is typeof r & { customer_message: string } => Boolean(r.customer_message))
+    .map(r => r.customer_message)
 }
 
 /**

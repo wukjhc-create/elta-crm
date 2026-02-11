@@ -129,6 +129,7 @@ export function CustomersPageClient({ customers, pagination, filters, sort }: Cu
                 {searchInput && (
                   <button
                     onClick={handleClearSearch}
+                    aria-label="Ryd søgning"
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
                     <X className="w-4 h-4" />
@@ -162,7 +163,7 @@ export function CustomersPageClient({ customers, pagination, filters, sort }: Cu
               {filters.search && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                   Søgning: {filters.search}
-                  <button onClick={handleClearSearch} className="hover:text-red-600">
+                  <button onClick={handleClearSearch} aria-label="Ryd søgefilter" className="hover:text-red-600">
                     <X className="w-3 h-3" />
                   </button>
                 </span>

@@ -115,6 +115,7 @@ export function GlobalSearch() {
         {query ? (
           <button
             onClick={clearSearch}
+            aria-label="Ryd søgning"
             className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-200 rounded"
           >
             <X className="w-4 h-4 text-gray-400" />
