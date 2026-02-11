@@ -826,11 +826,18 @@ export class LMAPIClient extends BaseSupplierAPIClient {
   async getProductPrices(skus: string[]): Promise<Map<string, ProductPrice>> {
     const result = new Map<string, ProductPrice>()
 
-    // LM may not support batch requests, fetch individually
-    for (const sku of skus) {
-      const price = await this.getProductPrice(sku)
-      if (price) {
-        result.set(sku, price)
+    // LM doesn't support batch requests - fetch with controlled concurrency
+    const CONCURRENCY = 5
+    for (let i = 0; i < skus.length; i += CONCURRENCY) {
+      const batch = skus.slice(i, i + CONCURRENCY)
+      const prices = await Promise.allSettled(
+        batch.map((sku) => this.getProductPrice(sku))
+      )
+      for (let j = 0; j < prices.length; j++) {
+        const res = prices[j]
+        if (res.status === 'fulfilled' && res.value) {
+          result.set(batch[j], res.value)
+        }
       }
     }
 

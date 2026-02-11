@@ -1889,10 +1889,10 @@ export async function syncMaterialPricesFromSupplier(
       (supplierProducts || []).map((sp) => [sp.id, sp])
     )
 
-    let updated = 0
+    // Collect updates to execute in parallel
+    const toUpdate: Array<{ id: string; cost_price: number; sale_price: number | null }> = []
     let skipped = 0
 
-    // Update each material with auto_update_price enabled
     for (const material of materials) {
       if (!material.auto_update_price) {
         skipped++
@@ -1905,29 +1905,29 @@ export async function syncMaterialPricesFromSupplier(
         continue
       }
 
-      // Check if prices are different
-      if (
-        sp.cost_price === material.cost_price &&
-        sp.list_price === material.sale_price
-      ) {
+      if (sp.cost_price === material.cost_price && sp.list_price === material.sale_price) {
         skipped++
         continue
       }
 
-      // Update material prices
-      const { error: updateError } = await supabase
-        .from('kalkia_variant_materials')
-        .update({
-          cost_price: sp.cost_price,
-          sale_price: sp.list_price,
-        })
-        .eq('id', material.id)
+      toUpdate.push({ id: material.id, cost_price: sp.cost_price, sale_price: sp.list_price })
+    }
 
-      if (!updateError) {
-        updated++
-      } else {
-        skipped++
-      }
+    // Execute all updates in parallel (batches of 10 to avoid overwhelming DB)
+    let updated = 0
+    const BATCH_SIZE = 10
+    for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
+      const batch = toUpdate.slice(i, i + BATCH_SIZE)
+      const results = await Promise.allSettled(
+        batch.map((item) =>
+          supabase
+            .from('kalkia_variant_materials')
+            .update({ cost_price: item.cost_price, sale_price: item.sale_price })
+            .eq('id', item.id)
+        )
+      )
+      updated += results.filter((r) => r.status === 'fulfilled' && !(r.value as { error: unknown }).error).length
+      skipped += results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && (r.value as { error: unknown }).error)).length
     }
 
     revalidatePath('/dashboard/settings/kalkia/nodes')
@@ -1984,7 +1984,8 @@ export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult
         (supplierProducts || []).map((sp) => [sp.id, sp])
       )
 
-      let updated = 0
+      // Collect updates to execute in parallel
+      const toUpdate: Array<{ id: string; cost_price: number; sale_price: number | null }> = []
       let skipped = 0
 
       for (const material of materials) {
@@ -1994,27 +1995,29 @@ export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult
           continue
         }
 
-        if (
-          sp.cost_price === material.cost_price &&
-          sp.list_price === material.sale_price
-        ) {
+        if (sp.cost_price === material.cost_price && sp.list_price === material.sale_price) {
           skipped++
           continue
         }
 
-        const { error: updateError } = await supabase
-          .from('kalkia_variant_materials')
-          .update({
-            cost_price: sp.cost_price,
-            sale_price: sp.list_price,
-          })
-          .eq('id', material.id)
+        toUpdate.push({ id: material.id, cost_price: sp.cost_price, sale_price: sp.list_price })
+      }
 
-        if (!updateError) {
-          updated++
-        } else {
-          skipped++
-        }
+      // Execute all updates in parallel (batches of 10)
+      let updated = 0
+      const BATCH_SIZE = 10
+      for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
+        const batch = toUpdate.slice(i, i + BATCH_SIZE)
+        const results = await Promise.allSettled(
+          batch.map((item) =>
+            supabase
+              .from('kalkia_variant_materials')
+              .update({ cost_price: item.cost_price, sale_price: item.sale_price })
+              .eq('id', item.id)
+          )
+        )
+        updated += results.filter((r) => r.status === 'fulfilled' && !(r.value as { error: unknown }).error).length
+        skipped += results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && (r.value as { error: unknown }).error)).length
       }
 
       revalidatePath('/dashboard/settings/kalkia')
@@ -2106,12 +2109,20 @@ export async function loadSupplierPricesForVariant(
     if (customerId) {
       validateUUID(customerId, 'kunde ID')
 
-      // Customer-supplier agreements
-      const { data: customerSupplierPrices } = await supabase
-        .from('customer_supplier_prices')
-        .select('supplier_id, discount_percentage, custom_margin_percentage')
-        .eq('customer_id', customerId)
-        .eq('is_active', true)
+      // Parallelize customer pricing queries
+      const [{ data: customerSupplierPrices }, { data: customerProductPrices }] = await Promise.all([
+        supabase
+          .from('customer_supplier_prices')
+          .select('supplier_id, discount_percentage, custom_margin_percentage')
+          .eq('customer_id', customerId)
+          .eq('is_active', true),
+        supabase
+          .from('customer_product_prices')
+          .select('supplier_product_id, custom_cost_price, custom_list_price, custom_discount_percentage')
+          .eq('customer_id', customerId)
+          .eq('is_active', true)
+          .in('supplier_product_id', supplierProductIds),
+      ])
 
       if (customerSupplierPrices) {
         customerDiscountMap = new Map(
@@ -2121,14 +2132,6 @@ export async function loadSupplierPricesForVariant(
           ])
         )
       }
-
-      // Customer-specific product prices
-      const { data: customerProductPrices } = await supabase
-        .from('customer_product_prices')
-        .select('supplier_product_id, custom_cost_price, custom_list_price, custom_discount_percentage')
-        .eq('customer_id', customerId)
-        .eq('is_active', true)
-        .in('supplier_product_id', supplierProductIds)
 
       if (customerProductPrices) {
         customerProductPriceMap = new Map(
@@ -2417,25 +2420,36 @@ export async function refreshSupplierPricesForCalculation(
     let failedCount = 0
     let priceChanges = 0
 
-    // Refresh prices from each supplier
-    for (const [key, supplierMaterials] of materialsBySupplier) {
-      const [supplierId, supplierCode] = key.split(':')
+    // Refresh prices from each supplier in parallel
+    const supplierResults = await Promise.allSettled(
+      Array.from(materialsBySupplier.entries()).map(async ([key, supplierMaterials]) => {
+        const [supplierId, supplierCode] = key.split(':')
+        let refreshed = 0
+        let failed = 0
+        let changes = 0
 
-      try {
         const client = await SupplierAPIClientFactory.getClient(supplierId, supplierCode)
         if (!client) {
-          failedCount += supplierMaterials.length
-          continue
+          return { refreshed: 0, failed: supplierMaterials.length, changes: 0 }
         }
 
         const skus = supplierMaterials.map((m) => m.sku)
         const prices = await client.getProductPrices(skus)
+        const now = new Date().toISOString()
+
+        // Collect updates and history records
+        const productUpdates: Array<() => Promise<unknown>> = []
+        const historyRecords: Array<Record<string, unknown>> = []
 
         for (const material of supplierMaterials) {
           const newPrice = prices.get(material.sku)
-          if (newPrice) {
-            // Update supplier product with new price
-            if (material.oldPrice !== newPrice.costPrice) {
+          if (!newPrice) {
+            failed++
+            continue
+          }
+
+          if (material.oldPrice !== newPrice.costPrice) {
+            productUpdates.push(async () => {
               await supabase
                 .from('supplier_products')
                 .update({
@@ -2443,30 +2457,46 @@ export async function refreshSupplierPricesForCalculation(
                   list_price: newPrice.listPrice,
                   is_available: newPrice.isAvailable,
                   lead_time_days: newPrice.leadTimeDays,
-                  last_synced_at: new Date().toISOString(),
+                  last_synced_at: now,
                 })
                 .eq('id', material.supplierProductId)
+            })
 
-              // Record price change
-              if (material.oldPrice) {
-                const changePercent = ((newPrice.costPrice - material.oldPrice) / material.oldPrice) * 100
-                await supabase.from('price_history').insert({
-                  supplier_product_id: material.supplierProductId,
-                  old_cost_price: material.oldPrice,
-                  new_cost_price: newPrice.costPrice,
-                  change_percentage: Math.round(changePercent * 100) / 100,
-                  change_source: 'api_sync',
-                })
-                priceChanges++
-              }
+            if (material.oldPrice) {
+              const changePercent = ((newPrice.costPrice - material.oldPrice) / material.oldPrice) * 100
+              historyRecords.push({
+                supplier_product_id: material.supplierProductId,
+                old_cost_price: material.oldPrice,
+                new_cost_price: newPrice.costPrice,
+                change_percentage: Math.round(changePercent * 100) / 100,
+                change_source: 'api_sync',
+              })
+              changes++
             }
-            refreshedCount++
-          } else {
-            failedCount++
           }
+          refreshed++
         }
-      } catch {
-        failedCount += supplierMaterials.length
+
+        // Execute product updates in parallel + batch insert history
+        await Promise.all([
+          ...productUpdates.map((fn) => fn()),
+          historyRecords.length > 0
+            ? supabase.from('price_history').insert(historyRecords)
+            : Promise.resolve(),
+        ])
+
+        return { refreshed, failed, changes }
+      })
+    )
+
+    for (const result of supplierResults) {
+      if (result.status === 'fulfilled') {
+        refreshedCount += result.value.refreshed
+        failedCount += result.value.failed
+        priceChanges += result.value.changes
+      } else {
+        // Count entire supplier batch as failed
+        failedCount++
       }
     }
 
