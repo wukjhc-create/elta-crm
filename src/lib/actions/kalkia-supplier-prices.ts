@@ -5,7 +5,7 @@ import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { KalkiaVariantMaterial } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
-import { CALC_DEFAULTS } from '@/lib/constants'
+import { CALC_DEFAULTS, BATCH_CONFIG, MONITORING_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -253,7 +253,7 @@ export async function syncMaterialPricesFromSupplier(
 
     // Execute all updates in parallel (batches of 10 to avoid overwhelming DB)
     let updated = 0
-    const BATCH_SIZE = 10
+    const BATCH_SIZE = BATCH_CONFIG.MATERIAL_UPDATE_BATCH_SIZE
     for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
       const batch = toUpdate.slice(i, i + BATCH_SIZE)
       const results = await Promise.allSettled(
@@ -288,7 +288,7 @@ export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult
 
     if (error) {
       // If the function doesn't exist, do it manually
-      console.info('RPC sync_all_material_prices_from_suppliers not available, syncing manually')
+      logger.warn('RPC sync_all_material_prices_from_suppliers not available, syncing manually')
 
       // Get all materials with supplier links and auto_update enabled
       const { data: materials, error: materialsError } = await supabase
@@ -343,7 +343,7 @@ export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult
 
       // Execute all updates in parallel (batches of 10)
       let updated = 0
-      const BATCH_SIZE = 10
+      const BATCH_SIZE = BATCH_CONFIG.MATERIAL_UPDATE_BATCH_SIZE
       for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
         const batch = toUpdate.slice(i, i + BATCH_SIZE)
         const results = await Promise.allSettled(
@@ -535,7 +535,7 @@ export async function loadSupplierPricesForVariant(
 
       // Check if price is stale (not synced in 7+ days)
       const lastSynced = sp.last_synced_at ? new Date(sp.last_synced_at) : null
-      const isStale = !lastSynced || (Date.now() - lastSynced.getTime() > 7 * 24 * 60 * 60 * 1000)
+      const isStale = !lastSynced || (Date.now() - lastSynced.getTime() > MONITORING_CONFIG.SYNC_STALE_WARNING_DAYS * 24 * 60 * 60 * 1000)
 
       priceMap.set(material.id, {
         materialId: material.id,

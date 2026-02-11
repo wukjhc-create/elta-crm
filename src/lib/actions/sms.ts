@@ -13,7 +13,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
-import { SMS_CONFIG, PORTAL_TOKEN_EXPIRY_DAYS } from '@/lib/constants'
+import { SMS_CONFIG, PORTAL_TOKEN_EXPIRY_DAYS, APP_URL } from '@/lib/constants'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -434,7 +434,7 @@ export async function generateSmsPreview(input: {
 
     // Build variables
     const portalToken = await getOrCreatePortalToken(offer.id, offer.customer_id)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = APP_URL
 
     const variables: Record<string, string> = {
       customer_name: offer.customer?.contact_person || offer.customer?.company_name || 'Kunde',
@@ -486,7 +486,7 @@ async function sendViaGatewayApi(
   userRef?: string
 ): Promise<ActionResult<{ gatewayId: string; cost: number }>> {
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = APP_URL
 
     // GatewayAPI uses Basic Auth with API key and secret
     const authString = Buffer.from(`${config.apiKey}:${config.secret}`).toString('base64')

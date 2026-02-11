@@ -20,6 +20,7 @@ import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createPortalToken } from '@/lib/actions/portal'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
+import { APP_URL } from '@/lib/constants'
 import { formatCurrency, formatDateLongDK } from '@/lib/utils/format'
 import crypto from 'crypto'
 import type {
@@ -534,7 +535,7 @@ export async function generateEmailPreview(
       }
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = APP_URL
     const portalLink = `${appUrl}/portal/${portalToken}/offers/${offer.id}`
     const trackingPixel = `${appUrl}/api/email/track/pixel?t=${generateTrackingId()}`
 
@@ -676,7 +677,7 @@ export async function sendOfferEmail(
 
     // Create message record
     const trackingId = generateTrackingId()
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = APP_URL
     const trackingPixel = `${appUrl}/api/email/track/${trackingId}`
 
     // Inject tracking pixel into HTML

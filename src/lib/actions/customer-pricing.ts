@@ -89,6 +89,7 @@ export async function deleteCustomerSupplierPrice(
       throw new Error('DATABASE_ERROR')
     }
 
+    revalidatePath('/dashboard/customers')
     return { success: true }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke slette kundeaftale') }
