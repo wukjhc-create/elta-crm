@@ -340,10 +340,14 @@ export async function createSmsMessage(
 /**
  * Render template with variables
  */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function renderTemplate(template: string, variables: Record<string, string>): string {
   let rendered = template
   for (const [key, value] of Object.entries(variables)) {
-    const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g')
+    const regex = new RegExp(`\\{\\{\\s*${escapeRegExp(key)}\\s*\\}\\}`, 'g')
     rendered = rendered.replace(regex, value || '')
   }
   return rendered

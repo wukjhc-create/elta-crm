@@ -52,11 +52,15 @@ function generateTrackingId(): string {
 // HELPER: Render template with variables
 // =====================================================
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function renderTemplate(template: string, variables: Record<string, string>): string {
   let result = template
   for (const [key, value] of Object.entries(variables)) {
-    // Replace {{key}} and {{#if key}}...{{/if}} patterns
-    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value || '')
+    // Replace {{key}} patterns - escape key to prevent ReDoS
+    result = result.replace(new RegExp(`\\{\\{${escapeRegExp(key)}\\}\\}`, 'g'), value || '')
   }
   // Remove any remaining unmatched variables
   result = result.replace(/\{\{[^}]+\}\}/g, '')
@@ -545,7 +549,7 @@ export async function generateEmailPreview(
     }
 
     // Render template
-    const subject = renderTemplate(template.subject_template, variables)
+    const subject = renderTemplate(template.subject_template, variables).replace(/[\r\n]/g, '')
     const bodyHtml = renderTemplate(template.body_html_template, variables)
     const bodyText = template.body_text_template
       ? renderTemplate(template.body_text_template, variables)

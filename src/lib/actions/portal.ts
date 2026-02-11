@@ -503,6 +503,9 @@ export async function rejectOffer(
   reason?: string
 ): Promise<ActionResult> {
   try {
+    // Validate and limit reason length
+    const safeReason = reason?.slice(0, 2000) || undefined
+
     // Validate token first
     const sessionResult = await validatePortalToken(token)
     if (!sessionResult.success || !sessionResult.data) {
@@ -534,7 +537,7 @@ export async function rejectOffer(
       .update({
         status: 'rejected',
         rejected_at: new Date().toISOString(),
-        notes: reason ? `Afvist med begrundelse: ${reason}` : undefined,
+        notes: safeReason ? `Afvist med begrundelse: ${safeReason}` : undefined,
       })
       .eq('id', offerId)
 
@@ -547,9 +550,9 @@ export async function rejectOffer(
     await logOfferActivity(
       offerId,
       'rejected',
-      reason ? `Tilbud afvist: ${reason}` : 'Tilbud afvist',
+      safeReason ? `Tilbud afvist: ${safeReason}` : 'Tilbud afvist',
       null,
-      { reason: reason || null }
+      { reason: safeReason || null }
     )
 
     // Trigger webhooks for offer.rejected
