@@ -489,19 +489,19 @@ export async function getSolarCalculatorData(): Promise<
       getSolarAssumptions(),
     ])
 
-    if (!productsResult.success) {
-      return { success: false, error: productsResult.error }
+    if (!productsResult.success || !productsResult.data) {
+      return { success: false, error: productsResult.error || 'Ingen produktdata' }
     }
 
-    if (!assumptionsResult.success) {
-      return { success: false, error: assumptionsResult.error }
+    if (!assumptionsResult.success || !assumptionsResult.data) {
+      return { success: false, error: assumptionsResult.error || 'Ingen antagelsesdata' }
     }
 
     return {
       success: true,
       data: {
-        products: productsResult.data!,
-        assumptions: assumptionsResult.data!,
+        products: productsResult.data,
+        assumptions: assumptionsResult.data,
       },
     }
   } catch (err) {

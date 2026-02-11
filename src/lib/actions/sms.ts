@@ -643,6 +643,9 @@ export async function sendOfferSms(
     if (!smsSettings.enabled) {
       return { success: false, error: 'SMS er deaktiveret. Aktiver det i Indstillinger → SMS.' }
     }
+    if (!smsSettings.apiKey || !smsSettings.secret) {
+      return { success: false, error: 'SMS API nøgle og secret mangler. Konfigurer det i Indstillinger → SMS.' }
+    }
 
     // Generate preview to get message content
     const previewResult = await generateSmsPreview({
@@ -690,8 +693,8 @@ export async function sendOfferSms(
     // Send via GatewayAPI
     const sendResult = await sendViaGatewayApi(
       {
-        apiKey: smsSettings.apiKey!,
-        secret: smsSettings.secret!,
+        apiKey: smsSettings.apiKey,
+        secret: smsSettings.secret,
         senderName: smsSettings.senderName || 'Elta Solar',
       },
       formatPhone(phone),
@@ -713,7 +716,10 @@ export async function sendOfferSms(
       return { success: false, error: sendResult.error }
     }
 
-    const gatewayData = sendResult.data!
+    const gatewayData = sendResult.data
+    if (!gatewayData) {
+      return { success: false, error: 'Gateway returnerede ingen data' }
+    }
 
     // Update message with gateway info
     await supabase

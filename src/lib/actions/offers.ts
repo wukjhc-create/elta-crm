@@ -1079,7 +1079,7 @@ export async function importCalculationToOffer(
     }> = []
 
     let currentSection: string | null = null
-    let positionCounter = nextPosition!
+    let positionCounter = nextPosition ?? 0
 
     for (const row of rowsToImport) {
       // Add section header if section changed and grouping is enabled

@@ -621,15 +621,15 @@ export async function sendOfferEmail(
 
     // Get SMTP settings
     const smtpResult = await getSmtpSettings()
-    if (!smtpResult.success || !smtpResult.data?.host) {
+    if (!smtpResult.success || !smtpResult.data?.host || !smtpResult.data?.user || !smtpResult.data?.password) {
       return { success: false, error: 'SMTP er ikke konfigureret. Gå til Indstillinger → E-mail.' }
     }
 
     const smtpConfig = {
-      host: smtpResult.data.host!,
+      host: smtpResult.data.host,
       port: smtpResult.data.port || 587,
-      user: smtpResult.data.user!,
-      password: smtpResult.data.password!,
+      user: smtpResult.data.user,
+      password: smtpResult.data.password,
       fromEmail: smtpResult.data.fromEmail || preview.from_email,
       fromName: smtpResult.data.fromName || preview.from_name,
     }

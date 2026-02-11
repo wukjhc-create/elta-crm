@@ -79,9 +79,15 @@ export async function getProductCategoriesHierarchy(): Promise<ActionResult<Prod
 
     // Second pass: build hierarchy
     result.data.forEach((cat) => {
-      const category = categoryMap.get(cat.id)!
-      if (cat.parent_id && categoryMap.has(cat.parent_id)) {
-        categoryMap.get(cat.parent_id)!.children!.push(category)
+      const category = categoryMap.get(cat.id)
+      if (!category) return
+      if (cat.parent_id) {
+        const parent = categoryMap.get(cat.parent_id)
+        if (parent?.children) {
+          parent.children.push(category)
+        } else {
+          rootCategories.push(category)
+        }
       } else {
         rootCategories.push(category)
       }

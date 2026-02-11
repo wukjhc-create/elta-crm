@@ -262,7 +262,8 @@ export async function getAffectedOffers(
       if (!rawOffer) continue
       const offer = rawOffer as OfferData
 
-      const priceChange = priceChangeMap.get(li.supplier_product_id!)
+      if (!li.supplier_product_id) continue
+      const priceChange = priceChangeMap.get(li.supplier_product_id)
       const potentialLoss = priceChange
         ? (priceChange.new - (li.supplier_cost_price_at_creation || priceChange.old)) * li.quantity
         : 0
