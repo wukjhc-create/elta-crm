@@ -60,6 +60,7 @@ import {
 } from '@/types/offers.types'
 import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 import type { CompanySettings } from '@/types/company-settings.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
@@ -213,13 +214,6 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   }
 
   const currency = companySettings?.default_currency || 'DKK'
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
 
   const lineItems = offer.line_items || []
   const nextPosition = lineItems.length > 0
@@ -562,7 +556,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                             {item.quantity} {item.unit}
                           </td>
                           <td className="py-3 text-right">
-                            {formatCurrency(item.unit_price)}
+                            {formatCurrency(item.unit_price, currency, 2)}
                           </td>
                           <td className="py-3 text-right">
                             {item.discount_percentage > 0
@@ -570,7 +564,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                               : '-'}
                           </td>
                           <td className="py-3 text-right font-medium">
-                            {formatCurrency(item.total)}
+                            {formatCurrency(item.total, currency, 2)}
                           </td>
                           <td className="py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -601,7 +595,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                 <div className="mt-4 pt-4 border-t space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Subtotal:</span>
-                    <span>{formatCurrency(offer.total_amount)}</span>
+                    <span>{formatCurrency(offer.total_amount, currency, 2)}</span>
                   </div>
                   {offer.discount_percentage > 0 && (
                     <div className="flex justify-between text-sm">
@@ -609,7 +603,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                         Rabat ({offer.discount_percentage}%):
                       </span>
                       <span className="text-red-600">
-                        -{formatCurrency(offer.discount_amount)}
+                        -{formatCurrency(offer.discount_amount, currency, 2)}
                       </span>
                     </div>
                   )}
@@ -617,11 +611,11 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                     <span className="text-gray-500">
                       Moms ({offer.tax_percentage}%):
                     </span>
-                    <span>{formatCurrency(offer.tax_amount)}</span>
+                    <span>{formatCurrency(offer.tax_amount, currency, 2)}</span>
                   </div>
                   <div className="flex justify-between text-lg font-semibold pt-2 border-t">
                     <span>Total:</span>
-                    <span>{formatCurrency(offer.final_amount)}</span>
+                    <span>{formatCurrency(offer.final_amount, currency, 2)}</span>
                   </div>
                 </div>
               )}
@@ -913,7 +907,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                       )}
                     </div>
                     <div className="text-right">
-                      <div className="font-medium">{formatCurrency(product.list_price)}</div>
+                      <div className="font-medium">{formatCurrency(product.list_price, currency, 2)}</div>
                     </div>
                   </button>
                 ))
@@ -962,7 +956,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                       <div className="font-medium">{calc.name}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-medium">{formatCurrency(calc.final_amount)}</div>
+                      <div className="font-medium">{formatCurrency(calc.final_amount, currency, 2)}</div>
                     </div>
                   </button>
                 ))
@@ -1046,13 +1040,6 @@ function OfferPdfView({
   onClose: () => void
 }) {
   const currency = companySettings?.default_currency || 'DKK'
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
 
   const lineItems = offer.line_items || []
 
@@ -1180,8 +1167,8 @@ function OfferPdfView({
                   <td className="py-2 text-right">
                     {item.quantity} {item.unit}
                   </td>
-                  <td className="py-2 text-right">{formatCurrency(item.unit_price)}</td>
-                  <td className="py-2 text-right">{formatCurrency(item.total)}</td>
+                  <td className="py-2 text-right">{formatCurrency(item.unit_price, currency, 2)}</td>
+                  <td className="py-2 text-right">{formatCurrency(item.total, currency, 2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1193,21 +1180,21 @@ function OfferPdfView({
           <div className="w-64 space-y-2">
             <div className="flex justify-between">
               <span>Subtotal:</span>
-              <span>{formatCurrency(offer.total_amount)}</span>
+              <span>{formatCurrency(offer.total_amount, currency, 2)}</span>
             </div>
             {offer.discount_percentage > 0 && (
               <div className="flex justify-between text-red-600">
                 <span>Rabat ({offer.discount_percentage}%):</span>
-                <span>-{formatCurrency(offer.discount_amount)}</span>
+                <span>-{formatCurrency(offer.discount_amount, currency, 2)}</span>
               </div>
             )}
             <div className="flex justify-between">
               <span>Moms ({offer.tax_percentage}%):</span>
-              <span>{formatCurrency(offer.tax_amount)}</span>
+              <span>{formatCurrency(offer.tax_amount, currency, 2)}</span>
             </div>
             <div className="flex justify-between text-lg font-bold pt-2 border-t-2">
               <span>Total:</span>
-              <span>{formatCurrency(offer.final_amount)}</span>
+              <span>{formatCurrency(offer.final_amount, currency, 2)}</span>
             </div>
           </div>
         </div>

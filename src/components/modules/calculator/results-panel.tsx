@@ -11,7 +11,7 @@ import {
   BarChart3,
 } from 'lucide-react'
 import { type CalculatorResults } from '@/types/calculator.types'
-import { formatCurrency, formatNumber } from '@/lib/utils/calculator'
+import { formatCurrency, formatNumber } from '@/lib/utils/format'
 
 interface ResultsPanelProps {
   results: CalculatorResults

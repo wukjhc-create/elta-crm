@@ -25,6 +25,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useToast } from '@/components/ui/toast'
+import { formatCurrency } from '@/lib/utils/format'
 import { getCustomersForSelect } from '@/lib/actions/offers'
 import { createOfferFromCalculation } from '@/lib/actions/kalkia'
 import type { CalculationItem } from './CalculationPreview'
@@ -60,6 +62,7 @@ export function CreateOfferModal({
   onSuccess,
 }: CreateOfferModalProps) {
   const router = useRouter()
+  const toast = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [loadingCustomers, setLoadingCustomers] = useState(false)
@@ -78,11 +81,16 @@ export function CreateOfferModal({
   useEffect(() => {
     const loadCustomers = async () => {
       setLoadingCustomers(true)
-      const result = await getCustomersForSelect()
-      if (result.success && result.data) {
-        setCustomers(result.data)
+      try {
+        const result = await getCustomersForSelect()
+        if (result.success && result.data) {
+          setCustomers(result.data)
+        }
+      } catch {
+        toast.error('Kunne ikke hente kunder')
+      } finally {
+        setLoadingCustomers(false)
       }
-      setLoadingCustomers(false)
     }
     if (open) {
       loadCustomers()
@@ -101,13 +109,7 @@ export function CreateOfferModal({
     c.customer_number.toLowerCase().includes(customerSearch.toLowerCase())
   )
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
+  const formatPrice = formatCurrency
 
   const handleSubmit = async () => {
     if (!title.trim()) {

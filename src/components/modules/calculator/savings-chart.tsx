@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { type YearlyProjection } from '@/types/calculator.types'
-import { formatCurrency, formatNumber } from '@/lib/utils/calculator'
+import { formatCurrency, formatNumber } from '@/lib/utils/format'
 
 interface SavingsChartProps {
   projections: YearlyProjection[]

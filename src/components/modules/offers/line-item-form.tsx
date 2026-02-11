@@ -12,6 +12,7 @@ import {
 import { createLineItem, updateLineItem } from '@/lib/actions/offers'
 import { OFFER_UNITS, type OfferLineItem } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface LineItemFormProps {
   offerId: string
@@ -75,13 +76,6 @@ export function LineItemForm({
   const calculatedTotal = quantity * unitPrice * (1 - discountPercentage / 100)
 
   const currency = companySettings?.default_currency || 'DKK'
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
 
   const onSubmit = async (data: CreateLineItemInput) => {
     try {
@@ -243,7 +237,7 @@ export function LineItemForm({
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Linje total:</span>
               <span className="text-lg font-semibold">
-                {formatCurrency(calculatedTotal)}
+                {formatCurrency(calculatedTotal, currency, 2)}
               </span>
             </div>
           </div>

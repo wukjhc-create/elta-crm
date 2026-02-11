@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import type { CalculationResult } from '@/types/kalkia.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface KalkiaCalculationBreakdownProps {
   result: CalculationResult
@@ -22,13 +23,7 @@ export function KalkiaCalculationBreakdown({
   result,
   showDetails = true,
 }: KalkiaCalculationBreakdownProps) {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
+  const formatAmount = (amount: number) => formatCurrency(amount, 'DKK', 2)
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
@@ -94,28 +89,28 @@ export function KalkiaCalculationBreakdown({
           <CardContent className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Materialer</span>
-              <span>{formatCurrency(result.totalMaterialCost)}</span>
+              <span>{formatAmount(result.totalMaterialCost)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">
                 Materialespild ({formatPercent(result.factorsUsed.materialWasteFactor * 100)})
               </span>
-              <span>{formatCurrency(result.totalMaterialWaste)}</span>
+              <span>{formatAmount(result.totalMaterialWaste)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Arbejdslon</span>
-              <span>{formatCurrency(result.totalLaborCost)}</span>
+              <span>{formatAmount(result.totalLaborCost)}</span>
             </div>
             {result.totalOtherCosts > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Ovrige omkostninger</span>
-                <span>{formatCurrency(result.totalOtherCosts)}</span>
+                <span>{formatAmount(result.totalOtherCosts)}</span>
               </div>
             )}
             <Separator />
             <div className="flex justify-between font-medium">
               <span>Kostpris</span>
-              <span>{formatCurrency(result.costPrice)}</span>
+              <span>{formatAmount(result.costPrice)}</span>
             </div>
           </CardContent>
         </Card>
@@ -132,50 +127,50 @@ export function KalkiaCalculationBreakdown({
         <CardContent className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Kostpris</span>
-            <span>{formatCurrency(result.costPrice)}</span>
+            <span>{formatAmount(result.costPrice)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">
               Overhead ({formatPercent(result.factorsUsed.overheadFactor * 100)})
             </span>
-            <span>{formatCurrency(result.overheadAmount)}</span>
+            <span>{formatAmount(result.overheadAmount)}</span>
           </div>
           {result.riskAmount > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Risikotillaeg</span>
-              <span>{formatCurrency(result.riskAmount)}</span>
+              <span>{formatAmount(result.riskAmount)}</span>
             </div>
           )}
           <div className="flex justify-between text-sm font-medium">
             <span>Salgsgrundlag</span>
-            <span>{formatCurrency(result.salesBasis)}</span>
+            <span>{formatAmount(result.salesBasis)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Avance</span>
-            <span>{formatCurrency(result.marginAmount)}</span>
+            <span>{formatAmount(result.marginAmount)}</span>
           </div>
           <div className="flex justify-between font-medium">
             <span>Salgspris (ekskl. moms)</span>
-            <span>{formatCurrency(result.salePriceExclVat)}</span>
+            <span>{formatAmount(result.salePriceExclVat)}</span>
           </div>
           {result.discountAmount > 0 && (
             <div className="flex justify-between text-sm text-red-600">
               <span>Rabat</span>
-              <span>-{formatCurrency(result.discountAmount)}</span>
+              <span>-{formatAmount(result.discountAmount)}</span>
             </div>
           )}
           <div className="flex justify-between">
             <span>Nettopris</span>
-            <span className="font-medium">{formatCurrency(result.netPrice)}</span>
+            <span className="font-medium">{formatAmount(result.netPrice)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Moms (25%)</span>
-            <span>{formatCurrency(result.vatAmount)}</span>
+            <span>{formatAmount(result.vatAmount)}</span>
           </div>
           <Separator />
           <div className="flex justify-between text-lg font-bold">
             <span>Total (inkl. moms)</span>
-            <span className="text-green-600">{formatCurrency(result.finalAmount)}</span>
+            <span className="text-green-600">{formatAmount(result.finalAmount)}</span>
           </div>
         </CardContent>
       </Card>
@@ -192,7 +187,7 @@ export function KalkiaCalculationBreakdown({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(result.dbAmount)}
+                {formatAmount(result.dbAmount)}
               </div>
               <div className="text-xs text-gray-600">Daekningsbidrag</div>
             </div>
@@ -204,7 +199,7 @@ export function KalkiaCalculationBreakdown({
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(result.dbPerHour)}
+                {formatAmount(result.dbPerHour)}
               </div>
               <div className="text-xs text-gray-600">DB/time</div>
             </div>

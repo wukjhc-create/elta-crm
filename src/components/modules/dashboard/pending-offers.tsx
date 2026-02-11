@@ -3,6 +3,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { FileText, Eye, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface Offer {
   id: string
@@ -16,15 +17,6 @@ interface Offer {
 
 interface PendingOffersProps {
   offers: Offer[]
-}
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 export function PendingOffers({ offers }: PendingOffersProps) {

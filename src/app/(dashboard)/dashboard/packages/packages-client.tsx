@@ -20,6 +20,7 @@ import { Pagination } from '@/components/shared/pagination'
 import type { PackageSummary, PackageCategory } from '@/types/packages.types'
 import type { PaginatedResponse } from '@/types/common.types'
 import { createPackage, deletePackage, copyPackage } from '@/lib/actions/packages'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface PackagesClientProps {
   initialPackages: PaginatedResponse<PackageSummary> | null
@@ -103,15 +104,6 @@ export default function PackagesClient({
     const m = minutes % 60
     if (h > 0) return `${h}t ${m}m`
     return `${m}m`
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
   }
 
   return (

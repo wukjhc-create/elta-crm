@@ -15,6 +15,7 @@ import type { PortalSession, PortalOffer, PortalMessageWithRelations } from '@/t
 import type { CompanySettings } from '@/types/company-settings.types'
 import { PortalChat } from './portal-chat'
 import { formatDate as formatDateUtil } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface PortalDashboardProps {
   token: string
@@ -42,13 +43,6 @@ export function PortalDashboard({
   )
 
   const currency = companySettings?.default_currency || 'DKK'
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 0,
-    }).format(amount)
-  }
 
   const formatDate = (dateStr: string) => {
     return formatDateUtil(dateStr)
@@ -177,7 +171,7 @@ export function PortalDashboard({
                 <div className="flex items-center gap-6">
                   <div className="text-right">
                     <p className="font-semibold text-gray-900">
-                      {formatCurrency(offer.final_amount)}
+                      {formatCurrency(offer.final_amount, currency)}
                     </p>
                     <p className="text-sm text-gray-500">
                       {formatDate(offer.created_at)}

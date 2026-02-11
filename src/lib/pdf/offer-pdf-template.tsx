@@ -8,7 +8,7 @@ import {
   Font,
 } from '@react-pdf/renderer'
 import type { OfferWithRelations, OfferLineItem } from '@/types/offers.types'
-import { formatDateLongDK } from '@/lib/utils/format'
+import { formatDateLongDK, formatCurrency } from '@/lib/utils/format'
 import type { CompanySettings } from '@/types/company-settings.types'
 
 // Register fonts (using system fonts for simplicity)
@@ -305,14 +305,6 @@ const styles = StyleSheet.create({
   },
 })
 
-// Format currency
-function formatCurrency(amount: number, currency: string = 'DKK'): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount)
-}
 
 // Format date
 function formatDate(dateString: string): string {
@@ -455,10 +447,10 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
                     {item.quantity} {item.unit}
                   </Text>
                   <Text style={styles.colUnitPrice}>
-                    {formatCurrency(item.unit_price, offer.currency)}
+                    {formatCurrency(item.unit_price, offer.currency, 2)}
                   </Text>
                   <Text style={styles.colTotal}>
-                    {formatCurrency(item.total, offer.currency)}
+                    {formatCurrency(item.total, offer.currency, 2)}
                   </Text>
                 </View>
               )
@@ -472,7 +464,7 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal:</Text>
               <Text style={styles.totalValue}>
-                {formatCurrency(offer.total_amount, offer.currency)}
+                {formatCurrency(offer.total_amount, offer.currency, 2)}
               </Text>
             </View>
             {offer.discount_percentage > 0 && (
@@ -481,7 +473,7 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
                   Rabat ({offer.discount_percentage}%):
                 </Text>
                 <Text style={styles.totalValueDiscount}>
-                  -{formatCurrency(offer.discount_amount, offer.currency)}
+                  -{formatCurrency(offer.discount_amount, offer.currency, 2)}
                 </Text>
               </View>
             )}
@@ -490,13 +482,13 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
                 Moms ({offer.tax_percentage}%):
               </Text>
               <Text style={styles.totalValue}>
-                {formatCurrency(offer.tax_amount, offer.currency)}
+                {formatCurrency(offer.tax_amount, offer.currency, 2)}
               </Text>
             </View>
             <View style={styles.grandTotalRow}>
               <Text style={styles.grandTotalLabel}>TOTAL:</Text>
               <Text style={styles.grandTotalValue}>
-                {formatCurrency(offer.final_amount, offer.currency)}
+                {formatCurrency(offer.final_amount, offer.currency, 2)}
               </Text>
             </View>
           </View>

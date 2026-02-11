@@ -14,6 +14,7 @@ import {
 import { useToast } from '@/components/ui/toast'
 import type { CalculationSettings } from '@/types/calculation-settings.types'
 import { updateHourlyRate, updateMargin, updateSetting } from '@/lib/actions/calculation-settings'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface CalculationSettingsClientProps {
   initialSettings: CalculationSettings | null
@@ -145,15 +146,6 @@ export default function CalculationSettingsClient({
         handleSaveDefaults()
         break
     }
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
   }
 
   return (

@@ -1,6 +1,6 @@
 import type { OfferWithRelations } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
-import { formatDateLongDK } from '@/lib/utils/format'
+import { formatDateLongDK, formatCurrency } from '@/lib/utils/format'
 
 interface OfferEmailParams {
   offer: OfferWithRelations
@@ -8,14 +8,6 @@ interface OfferEmailParams {
   portalUrl: string
 }
 
-// Format currency
-function formatCurrency(amount: number, currency: string = 'DKK'): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount)
-}
 
 // Format date
 function formatDate(dateString: string): string {
@@ -187,24 +179,24 @@ export function generateOfferEmailHtml({
 
         <div class="detail-row">
           <span class="detail-label">Subtotal:</span>
-          <span class="detail-value">${formatCurrency(offer.total_amount, offer.currency)}</span>
+          <span class="detail-value">${formatCurrency(offer.total_amount, offer.currency, 2)}</span>
         </div>
 
         ${offer.discount_percentage > 0 ? `
         <div class="detail-row">
           <span class="detail-label">Rabat (${offer.discount_percentage}%):</span>
-          <span class="detail-value" style="color: #dc2626;">-${formatCurrency(offer.discount_amount, offer.currency)}</span>
+          <span class="detail-value" style="color: #dc2626;">-${formatCurrency(offer.discount_amount, offer.currency, 2)}</span>
         </div>
         ` : ''}
 
         <div class="detail-row">
           <span class="detail-label">Moms (${offer.tax_percentage}%):</span>
-          <span class="detail-value">${formatCurrency(offer.tax_amount, offer.currency)}</span>
+          <span class="detail-value">${formatCurrency(offer.tax_amount, offer.currency, 2)}</span>
         </div>
 
         <div class="detail-row" style="padding-top: 15px; margin-top: 10px; border-top: 2px solid #0066cc;">
           <span class="detail-label" style="font-size: 18px; font-weight: bold;">Total:</span>
-          <span class="total-amount">${formatCurrency(offer.final_amount, offer.currency)}</span>
+          <span class="total-amount">${formatCurrency(offer.final_amount, offer.currency, 2)}</span>
         </div>
       </div>
 
@@ -275,10 +267,10 @@ Tilbudsnummer: ${offer.offer_number}
 Dato: ${formatDate(offer.created_at)}
 ${offer.valid_until ? `Gyldig til: ${formatDate(offer.valid_until)}` : ''}
 
-Subtotal: ${formatCurrency(offer.total_amount, offer.currency)}
-${offer.discount_percentage > 0 ? `Rabat (${offer.discount_percentage}%): -${formatCurrency(offer.discount_amount, offer.currency)}` : ''}
-Moms (${offer.tax_percentage}%): ${formatCurrency(offer.tax_amount, offer.currency)}
-TOTAL: ${formatCurrency(offer.final_amount, offer.currency)}
+Subtotal: ${formatCurrency(offer.total_amount, offer.currency, 2)}
+${offer.discount_percentage > 0 ? `Rabat (${offer.discount_percentage}%): -${formatCurrency(offer.discount_amount, offer.currency, 2)}` : ''}
+Moms (${offer.tax_percentage}%): ${formatCurrency(offer.tax_amount, offer.currency, 2)}
+TOTAL: ${formatCurrency(offer.final_amount, offer.currency, 2)}
 
 SE OG ACCEPTER TILBUD
 ---------------------

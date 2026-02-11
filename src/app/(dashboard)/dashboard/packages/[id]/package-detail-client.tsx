@@ -35,6 +35,7 @@ import {
   reorderPackageItems,
 } from '@/lib/actions/packages'
 import { calculateFinancialSummary } from '@/lib/utils/packages'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface PackageDetailClientProps {
   initialPackage: PackageType & { items: PackageItem[] }
@@ -76,15 +77,6 @@ export default function PackageDetailClient({
 
   // Calculate financial summary
   const summary = calculateFinancialSummary(items)
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
 
   const formatTime = (minutes: number) => {
     const h = Math.floor(minutes / 60)

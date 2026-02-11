@@ -6,6 +6,7 @@ import { X, Check, RotateCcw } from 'lucide-react'
 import { acceptOffer } from '@/lib/actions/portal'
 import type { PortalSession, PortalOffer } from '@/types/portal.types'
 import type { CompanySettings } from '@/types/company-settings.types'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface SignatureDialogProps {
   token: string
@@ -164,13 +165,6 @@ export function SignatureDialog({
   }
 
   const currency = companySettings?.default_currency || 'DKK'
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 0,
-    }).format(amount)
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -204,7 +198,7 @@ export function SignatureDialog({
               {offer.offer_number} - {offer.title}
             </p>
             <p className="text-2xl font-bold text-primary mt-2">
-              {formatCurrency(offer.final_amount)}
+              {formatCurrency(offer.final_amount, currency)}
             </p>
           </div>
 

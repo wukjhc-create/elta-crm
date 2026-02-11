@@ -10,7 +10,7 @@ import type {
   CalculatorInput,
   TemplateWithCreator,
 } from '@/types/calculator.types'
-import { formatCurrency } from '@/lib/utils/calculator'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface SaveTemplateDialogProps {
   isOpen: boolean

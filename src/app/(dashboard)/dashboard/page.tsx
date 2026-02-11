@@ -18,6 +18,7 @@ import {
   getPendingOffers,
 } from '@/lib/actions/dashboard'
 import { getCompanySettings } from '@/lib/actions/settings'
+import { formatCurrency } from '@/lib/utils/format'
 import {
   StatCard,
   RecentActivity,
@@ -56,15 +57,6 @@ export default async function DashboardPage() {
   ])
 
   const companySettings = settingsResult.success && settingsResult.data ? settingsResult.data : null
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
 
   return (
     <div className="space-y-6">

@@ -127,18 +127,7 @@ export function calculateSolarSystem(input: CalculatorInput): CalculatorResults 
   }
 }
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
-export function formatNumber(num: number): string {
-  return new Intl.NumberFormat('da-DK').format(num)
-}
+export { formatCurrency, formatNumber } from '@/lib/utils/format'
 
 // Helper function to convert template to calculator input
 export function templateToInput(template: CalculatorTemplate): CalculatorInput {

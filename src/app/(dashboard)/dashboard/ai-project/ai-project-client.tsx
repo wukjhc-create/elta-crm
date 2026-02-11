@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
+import { formatCurrency } from '@/lib/utils/format'
 import {
   Loader2,
   Sparkles,
@@ -757,15 +758,6 @@ function RiskCard({ risk }: { risk: RiskFactor }) {
 // =====================================================
 // Helpers
 // =====================================================
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
 
 function getBuildingTypeName(type: string): string {
   const names: Record<string, string> = {

@@ -20,7 +20,7 @@ import type { CompanySettings } from '@/types/company-settings.types'
 import { SignatureDialog } from './signature-dialog'
 import { RejectDialog } from './reject-dialog'
 import { PortalChat } from './portal-chat'
-import { formatDateLongDK } from '@/lib/utils/format'
+import { formatDateLongDK, formatCurrency } from '@/lib/utils/format'
 
 interface OfferDetailProps {
   token: string
@@ -42,13 +42,6 @@ export function OfferDetail({
   const [showChat, setShowChat] = useState(false)
 
   const currency = companySettings?.default_currency || 'DKK'
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
 
   const formatDate = (dateStr: string | null) => {
     return formatDateLongDK(dateStr) || '-'
@@ -153,10 +146,10 @@ export function OfferDetail({
                         {item.quantity} {item.unit}
                       </td>
                       <td className="px-6 py-4 text-right text-gray-600">
-                        {formatCurrency(item.unit_price)}
+                        {formatCurrency(item.unit_price, currency, 2)}
                       </td>
                       <td className="px-6 py-4 text-right font-medium text-gray-900">
-                        {formatCurrency(item.total)}
+                        {formatCurrency(item.total, currency, 2)}
                       </td>
                     </tr>
                   ))}
@@ -169,7 +162,7 @@ export function OfferDetail({
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Subtotal</span>
                 <span className="text-gray-900">
-                  {formatCurrency(offer.total_amount)}
+                  {formatCurrency(offer.total_amount, currency, 2)}
                 </span>
               </div>
               {offer.discount_amount > 0 && (
@@ -178,7 +171,7 @@ export function OfferDetail({
                     Rabat ({offer.discount_percentage}%)
                   </span>
                   <span className="text-green-600">
-                    -{formatCurrency(offer.discount_amount)}
+                    -{formatCurrency(offer.discount_amount, currency, 2)}
                   </span>
                 </div>
               )}
@@ -187,13 +180,13 @@ export function OfferDetail({
                   Moms ({offer.tax_percentage}%)
                 </span>
                 <span className="text-gray-900">
-                  {formatCurrency(offer.tax_amount)}
+                  {formatCurrency(offer.tax_amount, currency, 2)}
                 </span>
               </div>
               <div className="flex justify-between text-lg font-bold pt-2 border-t">
                 <span>Total</span>
                 <span className="text-primary">
-                  {formatCurrency(offer.final_amount)}
+                  {formatCurrency(offer.final_amount, currency, 2)}
                 </span>
               </div>
             </div>

@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { useToast } from '@/components/ui/toast'
 import {
   Select,
   SelectContent,
@@ -47,23 +48,29 @@ export function PackageBrowser({
   const [loading, setLoading] = useState(true)
   const [loadingPackage, setLoadingPackage] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const toast = useToast()
 
   // Load packages and categories
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
-      const [packagesResult, categoriesResult] = await Promise.all([
-        getPackages({ is_active: true }),
-        getPackageCategories(),
-      ])
+      try {
+        const [packagesResult, categoriesResult] = await Promise.all([
+          getPackages({ is_active: true }),
+          getPackageCategories(),
+        ])
 
-      if (packagesResult.success && packagesResult.data) {
-        setPackages(packagesResult.data as unknown as PackageSummary[])
+        if (packagesResult.success && packagesResult.data) {
+          setPackages(packagesResult.data as unknown as PackageSummary[])
+        }
+        if (categoriesResult.success && categoriesResult.data) {
+          setCategories(categoriesResult.data)
+        }
+      } catch {
+        toast.error('Kunne ikke hente pakker')
+      } finally {
+        setLoading(false)
       }
-      if (categoriesResult.success && categoriesResult.data) {
-        setCategories(categoriesResult.data)
-      }
-      setLoading(false)
     }
     loadData()
   }, [])
@@ -96,6 +103,7 @@ export function PackageBrowser({
     try {
       const result = await getPackageWithItems(pkg.id)
       if (!result.success || !result.data) {
+        toast.error('Kunne ikke hente pakkeindhold')
         setLoadingPackage(false)
         return
       }

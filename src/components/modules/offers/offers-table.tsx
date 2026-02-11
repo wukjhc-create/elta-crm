@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
-import { formatSmartDate } from '@/lib/utils/format'
+import { formatSmartDate, formatCurrency } from '@/lib/utils/format'
 import {
   MoreHorizontal,
   Pencil,
@@ -124,13 +124,6 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
   }
 
   const currency = companySettings?.default_currency || 'DKK'
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: currency,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
 
   if (offers.length === 0) {
     return (
@@ -279,10 +272,10 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {formatCurrency(offer.final_amount)}
+                      {formatCurrency(offer.final_amount, currency)}
                     </div>
                     <div className="text-xs text-gray-500">
-                      ekskl. moms: {formatCurrency(offer.total_amount - offer.discount_amount)}
+                      ekskl. moms: {formatCurrency(offer.total_amount - offer.discount_amount, currency)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">

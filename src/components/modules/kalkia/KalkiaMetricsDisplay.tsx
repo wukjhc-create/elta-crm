@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface KalkiaMetricsDisplayProps {
   dbAmount: number
@@ -31,15 +32,6 @@ export function KalkiaMetricsDisplay({
   finalAmount,
   compact = false,
 }: KalkiaMetricsDisplayProps) {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
-
   const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`
   }

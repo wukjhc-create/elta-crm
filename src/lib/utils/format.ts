@@ -77,13 +77,16 @@ export function formatBytes(bytes: number, decimals: number = 1): string {
 }
 
 /**
- * Format number as Danish currency (DKK)
+ * Format number as Danish currency
+ * @param currency - Currency code (default: 'DKK')
+ * @param decimals - Number of decimal places (default: 0 for whole numbers)
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number, currency: string = 'DKK', decimals: number = 0): string {
   return new Intl.NumberFormat('da-DK', {
     style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 2,
+    currency,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(amount)
 }
 

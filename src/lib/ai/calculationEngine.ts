@@ -258,14 +258,7 @@ export function calculateProject(
 // Utility Functions
 // =====================================================
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
+export { formatCurrency } from '@/lib/utils/format'
 
 export function formatHours(hours: number): string {
   if (hours < 1) {

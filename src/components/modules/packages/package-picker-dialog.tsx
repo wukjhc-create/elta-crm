@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { getPackages } from '@/lib/actions/packages'
+import { formatCurrency } from '@/lib/utils/format'
+import { useToast } from '@/components/ui/toast'
 import type { PackageSummary } from '@/types/packages.types'
 
 interface PackagePickerDialogProps {
@@ -33,6 +35,7 @@ export function PackagePickerDialog({
   const [packages, setPackages] = useState<PackageSummary[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const toast = useToast()
 
   useEffect(() => {
     if (open) {
@@ -51,7 +54,7 @@ export function PackagePickerDialog({
         setPackages(result.data.data)
       }
     } catch {
-      // Failed to load
+      toast.error('Kunne ikke hente pakker')
     } finally {
       setIsLoading(false)
     }
@@ -61,13 +64,7 @@ export function PackagePickerDialog({
     loadPackages(search || undefined)
   }
 
-  const formatPrice = (amount: number) => {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: 'DKK',
-      minimumFractionDigits: 0,
-    }).format(amount)
-  }
+  const formatPrice = formatCurrency
 
   const formatTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60)
