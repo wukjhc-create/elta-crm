@@ -602,6 +602,23 @@ interface CalculationItemForOffer {
   }[]
 }
 
+interface ElectricalDataForOffer {
+  /** Panel configuration summary */
+  panel_description?: string
+  /** Panel material cost */
+  panel_cost?: number
+  /** Cable summary text */
+  cable_summary?: string
+  /** Total cable cost */
+  cable_cost?: number
+  /** Compliance notes to add as OBS points */
+  compliance_notes?: string[]
+  /** Electrical warnings */
+  warnings?: string[]
+  /** Total electrical material cost (panel + cables + breakers) */
+  total_electrical_cost?: number
+}
+
 interface CreateOfferFromCalculationInput {
   title: string
   description: string | null
@@ -615,6 +632,8 @@ interface CreateOfferFromCalculationInput {
     marginPercentage: number
     discountPercentage: number
   }
+  /** Optional electrical calculation data to include in the offer */
+  electrical?: ElectricalDataForOffer
 }
 
 /**
@@ -730,6 +749,50 @@ export async function createOfferFromCalculation(
       }
     })
 
+    // Add electrical line items if present
+    if (input.electrical) {
+      const elec = input.electrical
+      const electricalPosition = lineItems.length
+
+      if (elec.panel_cost && elec.panel_cost > 0) {
+        lineItems.push({
+          offer_id: offer.id,
+          position: electricalPosition,
+          description: elec.panel_description || 'Tavlearbejde (hovedtavle, automatsikringer, HPFI)',
+          quantity: 1,
+          unit: 'stk',
+          unit_price: elec.panel_cost * (1 + (input.settings.marginPercentage / 100)),
+          cost_price: elec.panel_cost,
+          discount_percentage: 0,
+          total: elec.panel_cost * (1 + (input.settings.marginPercentage / 100)),
+          line_type: 'calculation' as const,
+          supplier_product_id: null,
+          supplier_cost_price_at_creation: null,
+          supplier_margin_applied: null,
+          supplier_name_at_creation: null,
+        })
+      }
+
+      if (elec.cable_cost && elec.cable_cost > 0) {
+        lineItems.push({
+          offer_id: offer.id,
+          position: electricalPosition + 1,
+          description: elec.cable_summary || 'Kabler og installationsmateriale',
+          quantity: 1,
+          unit: 'stk',
+          unit_price: elec.cable_cost * (1 + (input.settings.marginPercentage / 100)),
+          cost_price: elec.cable_cost,
+          discount_percentage: 0,
+          total: elec.cable_cost * (1 + (input.settings.marginPercentage / 100)),
+          line_type: 'calculation' as const,
+          supplier_product_id: null,
+          supplier_cost_price_at_creation: null,
+          supplier_margin_applied: null,
+          supplier_name_at_creation: null,
+        })
+      }
+    }
+
     const { error: lineItemsError } = await supabase
       .from('offer_line_items')
       .insert(lineItems)
@@ -739,11 +802,26 @@ export async function createOfferFromCalculation(
       // Don't fail the whole operation, the offer was created
     }
 
+    // Build activity description including electrical info
+    let activityDesc = `Tilbud oprettet fra kalkulation med ${input.items.length} komponenter`
+    if (input.electrical) {
+      const notes: string[] = []
+      if (input.electrical.compliance_notes?.length) {
+        notes.push(...input.electrical.compliance_notes)
+      }
+      if (input.electrical.warnings?.length) {
+        notes.push(...input.electrical.warnings)
+      }
+      if (notes.length > 0) {
+        activityDesc += `. El-beregning: ${notes.join('; ')}`
+      }
+    }
+
     // Log activity
     await supabase.from('offer_activities').insert({
       offer_id: offer.id,
       activity_type: 'created',
-      description: `Tilbud oprettet fra kalkulation med ${input.items.length} komponenter`,
+      description: activityDesc,
       performed_by: userId,
     })
 
