@@ -17,6 +17,7 @@ import {
 } from '@/lib/ai/learningEngine'
 import type { ActionResult } from '@/types/common.types'
 import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 
 // =====================================================
@@ -191,13 +192,16 @@ export async function recordProjectFeedback(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const { supabase } = await getAuthenticatedClient()
+    validateUUID(data.calculation_id, 'calculation_id')
+    if (data.offer_id) validateUUID(data.offer_id, 'offer_id')
+    if (data.project_id) validateUUID(data.project_id, 'project_id')
 
     // Get estimated values from calculation
     const { data: calc } = await supabase
       .from('auto_calculations')
       .select('total_hours, material_cost')
       .eq('id', data.calculation_id)
-      .single()
+      .maybeSingle()
 
     const estimated_hours = calc?.total_hours
     const estimated_material_cost = calc?.material_cost
@@ -499,13 +503,11 @@ export async function getLearningSystemStatus(): Promise<
       .eq('status', 'completed')
       .gt('actual_hours', 0)
 
-    // Count projects without feedback
-    const { data: projectsNoFeedback } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('status', 'completed')
-      .gt('actual_hours', 0)
-      .limit(200)
+    // Count projects with feedback (via calculation_feedback.project_id)
+    const { count: projectsWithFeedback } = await supabase
+      .from('calculation_feedback')
+      .select('*', { count: 'exact', head: true })
+      .not('project_id', 'is', null)
 
     // Get calibration readiness
     const calibrations = await analyzeComponentCalibration()
@@ -523,7 +525,7 @@ export async function getLearningSystemStatus(): Promise<
 
     const feedbackTotal = feedbackCount ?? 0
     const projectTotal = projectsWithActuals ?? 0
-    const noFeedbackCount = (projectsNoFeedback?.length ?? 0) - feedbackTotal
+    const noFeedbackCount = projectTotal - (projectsWithFeedback ?? 0)
 
     return {
       success: true,
@@ -590,6 +592,7 @@ export async function getAccuracyTrends(
         .select('hours_variance_percentage, material_variance_percentage, offer_accepted')
         .gte('created_at', start.toISOString())
         .lt('created_at', end.toISOString())
+        .limit(500)
 
       if (!data || data.length === 0) {
         hours_accuracy.push(0)

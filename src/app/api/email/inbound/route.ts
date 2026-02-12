@@ -3,6 +3,8 @@ import { logIncomingEmail } from '@/lib/actions/email'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * INBOUND EMAIL WEBHOOK
  *

@@ -4,6 +4,8 @@ import { timingSafeEqual } from 'crypto'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * INBOUND WEBHOOK ENDPOINT
  *

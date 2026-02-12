@@ -12,6 +12,8 @@ import { handleSmsWebhook } from '@/lib/actions/sms'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 
+export const dynamic = 'force-dynamic'
+
 // GatewayAPI webhook payload structure
 interface GatewayApiWebhook {
   id: number // GatewayAPI message ID

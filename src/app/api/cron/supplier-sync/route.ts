@@ -8,10 +8,13 @@
  */
 
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { SupplierAPIClientFactory } from '@/lib/services/supplier-api-client'
 import { BATCH_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+
+export const dynamic = 'force-dynamic'
 
 // Vercel cron secret for authentication
 const CRON_SECRET = process.env.CRON_SECRET
@@ -20,7 +23,13 @@ export async function GET(request: Request) {
   try {
     // Verify cron secret - fail-secure when CRON_SECRET is not configured
     const authHeader = request.headers.get('authorization')
-    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+    const expected = `Bearer ${CRON_SECRET}`
+    if (
+      !CRON_SECRET ||
+      !authHeader ||
+      authHeader.length !== expected.length ||
+      !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+    ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

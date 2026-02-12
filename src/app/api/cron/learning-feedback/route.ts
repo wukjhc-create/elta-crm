@@ -9,6 +9,7 @@
  */
 
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { collectFeedbackFromProjects, autoCalibrate } from '@/lib/ai/learningEngine'
 import { logger } from '@/lib/utils/logger'
 
@@ -20,7 +21,13 @@ export async function GET(request: Request) {
   try {
     // Verify cron secret - fail-secure when not configured
     const authHeader = request.headers.get('authorization')
-    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+    const expected = `Bearer ${CRON_SECRET}`
+    if (
+      !CRON_SECRET ||
+      !authHeader ||
+      authHeader.length !== expected.length ||
+      !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+    ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -48,18 +55,11 @@ export async function GET(request: Request) {
       duration_ms: duration,
       feedback_created: feedbackCreated,
       calibrations_suggested: suggestedAdjustments.length,
-      suggested_adjustments: suggestedAdjustments.map(a => ({
-        component: a.component,
-        type: a.type,
-        old_value: a.old_value,
-        new_value: a.new_value,
-        reason: a.reason,
-      })),
     })
   } catch (error) {
     logger.error('Learning feedback cron error', { error })
     return NextResponse.json(
-      { error: 'Internal server error', message: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'crypto'
 import { MONITORING_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+
+export const dynamic = 'force-dynamic'
 
 // =====================================================
 // Background Intelligence Check
@@ -14,7 +17,13 @@ const CRON_SECRET = process.env.CRON_SECRET
 export async function GET(request: Request) {
   // Verify authorization - fail-secure when CRON_SECRET is not configured
   const authHeader = request.headers.get('authorization')
-  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+  const expected = `Bearer ${CRON_SECRET}`
+  if (
+    !CRON_SECRET ||
+    !authHeader ||
+    authHeader.length !== expected.length ||
+    !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

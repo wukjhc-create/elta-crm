@@ -20,7 +20,7 @@ import {
   type VolumeBracket,
 } from '@/lib/services/price-engine'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
-import { validateUUID } from '@/lib/validations/common'
+import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -73,6 +73,7 @@ export async function compareProductPrices(
     }
 
     // Search for matching products across suppliers
+    const safeTerm = sanitizeSearchTerm(searchTerm)
     const { data: products, error } = await supabase
       .from('supplier_products')
       .select(`
@@ -90,7 +91,7 @@ export async function compareProductPrices(
           name
         )
       `)
-      .or(`name.ilike.%${searchTerm}%,supplier_sku.ilike.%${searchTerm}%`)
+      .or(`name.ilike.%${safeTerm}%,supplier_sku.ilike.%${safeTerm}%`)
       .eq('is_active', true)
       .limit(50)
 

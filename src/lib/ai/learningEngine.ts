@@ -78,11 +78,12 @@ export interface ComplexityCalibration {
 export async function analyzeLearningMetrics(): Promise<LearningMetrics> {
   const supabase = await createClient()
 
-  // Get all feedback records
+  // Get feedback records (capped for safety)
   const { data: feedback } = await supabase
     .from('calculation_feedback')
     .select('*')
     .not('actual_hours', 'is', null)
+    .limit(1000)
 
   if (!feedback || feedback.length === 0) {
     return getDefaultMetrics()
@@ -229,7 +230,7 @@ function getDefaultMetrics(): LearningMetrics {
 export async function analyzeComponentCalibration(): Promise<ComponentCalibration[]> {
   const supabase = await createClient()
 
-  // Get calculations with feedback
+  // Get calculations with feedback (capped for safety)
   const { data: calculations } = await supabase
     .from('auto_calculations')
     .select(
@@ -241,6 +242,7 @@ export async function analyzeComponentCalibration(): Promise<ComponentCalibratio
     `
     )
     .not('calculation_feedback.actual_hours', 'is', null)
+    .limit(500)
 
   if (!calculations || calculations.length === 0) {
     return []
@@ -263,6 +265,7 @@ export async function analyzeComponentCalibration(): Promise<ComponentCalibratio
 
     const actualHours = feedback[0].actual_hours
     const estimatedHours = calc.total_hours
+    if (!estimatedHours || estimatedHours === 0) continue
     const ratio = actualHours / estimatedHours
 
     // Distribute actual time proportionally to components
@@ -319,7 +322,7 @@ export async function analyzeComponentCalibration(): Promise<ComponentCalibratio
 export async function getSuggestedRiskBuffer(complexityScore: number): Promise<number> {
   const supabase = await createClient()
 
-  // Get feedback for similar complexity projects
+  // Get feedback for similar complexity projects (capped for safety)
   const { data: feedback } = await supabase
     .from('calculation_feedback')
     .select(
@@ -333,6 +336,7 @@ export async function getSuggestedRiskBuffer(complexityScore: number): Promise<n
     `
     )
     .not('hours_variance_percentage', 'is', null)
+    .limit(500)
 
   if (!feedback || feedback.length < 5) {
     // Not enough data, use defaults based on complexity
@@ -371,7 +375,7 @@ export async function recordAdjustment(adjustment: Omit<Adjustment, 'applied_at'
   const supabase = await createClient()
 
   // Store in calculation_feedback as audit trail
-  await supabase
+  const { error } = await supabase
     .from('calculation_feedback')
     .insert({
       lessons_learned: `Kalibrering: ${adjustment.component || adjustment.factor} ${adjustment.type} justeret fra ${adjustment.old_value} til ${adjustment.new_value}`,
@@ -381,7 +385,11 @@ export async function recordAdjustment(adjustment: Omit<Adjustment, 'applied_at'
       }],
     })
 
-  logger.info('Calibration adjustment recorded', { metadata: { type: adjustment.type, component: adjustment.component || adjustment.factor } })
+  if (error) {
+    logger.error('Failed to record calibration adjustment', { error, metadata: { type: adjustment.type, component: adjustment.component || adjustment.factor } })
+  } else {
+    logger.info('Calibration adjustment recorded', { metadata: { type: adjustment.type, component: adjustment.component || adjustment.factor } })
+  }
 }
 
 // =====================================================
