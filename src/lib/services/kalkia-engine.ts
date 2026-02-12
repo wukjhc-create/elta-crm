@@ -16,6 +16,8 @@ import type {
   CalculationResult,
   KalkiaCalculationItemInput,
 } from '@/types/kalkia.types'
+import type { CableSizingResult } from '@/types/electrical.types'
+import { calculateCableSize } from '@/lib/services/electrical-engine'
 
 // =====================================================
 // Default Values
@@ -449,6 +451,113 @@ export class KalkiaCalculationEngine {
         personalTimeFactor: this.personalTimeFactor,
         overheadFactor: effectiveOverheadFactor,
         materialWasteFactor: this.materialWasteFactor,
+      },
+    }
+  }
+
+  // =====================================================
+  // Electrical Enrichment
+  // =====================================================
+
+  /**
+   * Enrich a calculated item with cable sizing information.
+   * Uses the electrical engine to determine optimal cable size based on
+   * the node's electrical properties (if available in conditions).
+   *
+   * @param item - The calculated item to enrich
+   * @param powerWatts - Power consumption in watts (from node metadata or conditions)
+   * @param cableLength - Cable run length in meters
+   * @param installationMethod - Installation method code (default B2)
+   * @returns The item with cable_sizing and any warnings
+   */
+  enrichWithCableSizing(
+    item: CalculatedItem,
+    powerWatts: number,
+    cableLength: number,
+    installationMethod: 'A1' | 'A2' | 'B1' | 'B2' | 'C' | 'E' | 'F' = 'B2'
+  ): CalculatedItem & { cable_sizing?: CableSizingResult; electrical_warnings?: string[] } {
+    if (powerWatts <= 0 || cableLength <= 0) {
+      return item
+    }
+
+    const is3Phase = powerWatts > 3680 // Over 16A on single phase → likely 3-phase
+    const voltage = is3Phase ? 400 : 230
+    const phase = is3Phase ? '3-phase' as const : '1-phase' as const
+
+    const cableSizing = calculateCableSize({
+      power_watts: powerWatts,
+      voltage,
+      phase,
+      power_factor: 1.0,
+      length_meters: cableLength,
+      installation_method: installationMethod,
+      core_count: 3,
+      cable_type: 'PVT',
+    })
+
+    const electrical_warnings: string[] = [...cableSizing.warnings]
+
+    // Add cable cost to material cost
+    const enrichedItem = {
+      ...item,
+      materialCost: item.materialCost + cableSizing.total_cable_cost,
+      totalCost: item.totalCost + cableSizing.total_cable_cost,
+      cable_sizing: cableSizing,
+      electrical_warnings,
+    }
+
+    return enrichedItem
+  }
+
+  /**
+   * Calculate full pricing with electrical analysis summary.
+   * Extends calculateFinalPricing with cable and compliance info.
+   */
+  calculateFinalPricingWithElectrical(
+    items: (CalculatedItem & { cable_sizing?: CableSizingResult; electrical_warnings?: string[] })[],
+    marginPercentage?: number,
+    discountPercentage?: number,
+    vatPercentage?: number,
+    riskPercentage?: number
+  ): CalculationResult & {
+    electrical_summary?: {
+      total_cable_cost: number
+      total_cable_meters: number
+      cable_types: string[]
+      warnings: string[]
+      all_compliant: boolean
+    }
+  } {
+    const baseResult = this.calculateFinalPricing(
+      items, marginPercentage, discountPercentage, vatPercentage, riskPercentage
+    )
+
+    const itemsWithCable = items.filter(i => i.cable_sizing)
+
+    if (itemsWithCable.length === 0) {
+      return baseResult
+    }
+
+    const totalCableCost = itemsWithCable.reduce((s, i) => s + (i.cable_sizing?.total_cable_cost ?? 0), 0)
+    const totalCableMeters = itemsWithCable.reduce((s, i) => {
+      const sizing = i.cable_sizing
+      if (!sizing) return s
+      // Cable length isn't directly stored; estimate from cost
+      return s + (sizing.cost_per_meter > 0 ? sizing.total_cable_cost / sizing.cost_per_meter : 0)
+    }, 0)
+
+    const cableTypes = [...new Set(itemsWithCable.map(i => i.cable_sizing?.cable_designation).filter(Boolean) as string[])]
+    const warnings = itemsWithCable.flatMap(i => i.electrical_warnings ?? [])
+    const allCompliant = itemsWithCable.every(i => i.cable_sizing?.compliant !== false)
+
+    return {
+      ...baseResult,
+      electrical_summary: {
+        total_cable_cost: Math.round(totalCableCost * 100) / 100,
+        total_cable_meters: Math.round(totalCableMeters * 100) / 100,
+        cable_types: cableTypes,
+        warnings: [...new Set(warnings)],
+        all_compliant: allCompliant,
       },
     }
   }

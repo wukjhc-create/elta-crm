@@ -120,6 +120,50 @@ export const BATCH_CONFIG = {
   IMPORT_PREVIEW_LIMIT: 100,
 } as const
 
+// Electrical calculation defaults (DS/HD 60364)
+export const ELECTRICAL_DEFAULTS = {
+  // Standard voltages in Denmark
+  VOLTAGE_1PHASE: 230,
+  VOLTAGE_3PHASE: 400,
+  // Maximum voltage drop percentages
+  MAX_VOLTAGE_DROP_LIGHTING: 3,
+  MAX_VOLTAGE_DROP_OTHER: 5,
+  MAX_VOLTAGE_DROP_TOTAL: 4, // Danish recommendation
+  // Standard appliance power ratings (watts)
+  APPLIANCE_POWER: {
+    OVEN_3PHASE: 3600,
+    INDUCTION: 7200,
+    EV_CHARGER_11KW: 11000,
+    EV_CHARGER_22KW: 22000,
+    WASHING_MACHINE: 2200,
+    DRYER: 2500,
+    DISHWASHER: 2200,
+    FLOOR_HEATING_PER_M2: 100,
+    LED_SPOT: 10,
+    LED_CEILING: 40,
+    LED_PANEL: 60,
+    STANDARD_OUTLET: 230, // For diversity calculation
+    VENTILATION: 150,
+  },
+  // Circuit defaults
+  MAX_OUTLETS_PER_CIRCUIT: 10,
+  MAX_LIGHTS_PER_CIRCUIT: 20,
+  // RCD sensitivity
+  RCD_STANDARD_MA: 30,
+  RCD_FIRE_PROTECTION_MA: 300,
+  // Panel spare capacity target
+  PANEL_SPARE_CAPACITY_PERCENT: 20,
+} as const
+
+// Learning engine configuration
+export const LEARNING_CONFIG = {
+  MIN_SAMPLE_SIZE: 3,
+  HIGH_CONFIDENCE_THRESHOLD: 0.8,
+  SIGNIFICANT_VARIANCE_PERCENT: 15,
+  MAX_FEEDBACK_PER_COLLECTION: 100,
+  PROFITABILITY_THRESHOLD: 1.1, // Within 10% of estimate = profitable
+} as const
+
 // Dashboard widget limits
 export const DASHBOARD_LIMITS = {
   RECENT_ACTIVITY: 10,
