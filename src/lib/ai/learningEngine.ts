@@ -443,29 +443,44 @@ export async function collectFeedbackFromProjects(): Promise<number> {
 
   if (!projects || projects.length === 0) return 0
 
+  // Batch-load: collect offer IDs, then fetch calcs + existing feedback in 2 queries
+  const offerIds: string[] = []
+  for (const project of projects) {
+    const offer = Array.isArray(project.offers) ? project.offers[0] : project.offers
+    if (offer?.id) offerIds.push(offer.id)
+  }
+
+  const { data: allCalcs } = await supabase
+    .from('auto_calculations')
+    .select('id, offer_id, total_hours, material_cost')
+    .in('offer_id', offerIds)
+    .limit(100)
+
+  const calcsByOfferId = new Map<string, { id: string; offer_id: string; total_hours: number; material_cost: number }>()
+  for (const calc of allCalcs || []) {
+    calcsByOfferId.set(calc.offer_id, calc)
+  }
+
+  const calcIds = Array.from(calcsByOfferId.values()).map(c => c.id)
+  const { data: existingFeedbacks } = calcIds.length > 0
+    ? await supabase
+        .from('calculation_feedback')
+        .select('calculation_id')
+        .in('calculation_id', calcIds)
+        .limit(100)
+    : { data: [] }
+
+  const existingCalcIds = new Set((existingFeedbacks || []).map(f => f.calculation_id))
+
   let created = 0
 
   for (const project of projects) {
     const offer = Array.isArray(project.offers) ? project.offers[0] : project.offers
     if (!offer) continue
 
-    // Find calculation linked to this offer
-    const { data: calc } = await supabase
-      .from('auto_calculations')
-      .select('id, total_hours, material_cost')
-      .eq('offer_id', offer.id)
-      .maybeSingle()
-
+    const calc = calcsByOfferId.get(offer.id)
     if (!calc) continue
-
-    // Skip if feedback already exists
-    const { data: existing } = await supabase
-      .from('calculation_feedback')
-      .select('id')
-      .eq('calculation_id', calc.id)
-      .maybeSingle()
-
-    if (existing) continue
+    if (existingCalcIds.has(calc.id)) continue
 
     const estimatedHours = calc.total_hours || 0
     const actualHours = project.actual_hours || 0

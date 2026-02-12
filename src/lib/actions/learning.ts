@@ -305,6 +305,37 @@ export async function collectProjectFeedback(): Promise<
       return { success: true, data: { processed: 0, created: 0, skipped: 0 } }
     }
 
+    // Batch-load: get all offer IDs, then load calcs + existing feedback in 2 queries
+    const offerIds: string[] = []
+    for (const project of projects) {
+      const offer = Array.isArray(project.offers) ? project.offers[0] : project.offers
+      if (offer?.id) offerIds.push(offer.id)
+    }
+
+    // Batch: get all auto_calculations for these offers
+    const { data: allCalcs } = await supabase
+      .from('auto_calculations')
+      .select('id, offer_id, total_hours, material_cost')
+      .in('offer_id', offerIds)
+      .limit(200)
+
+    const calcsByOfferId = new Map<string, { id: string; total_hours: number; material_cost: number }>()
+    for (const calc of allCalcs || []) {
+      calcsByOfferId.set(calc.offer_id, calc)
+    }
+
+    // Batch: get all existing feedback for these calculation IDs
+    const calcIds = Array.from(calcsByOfferId.values()).map(c => c.id)
+    const { data: existingFeedbacks } = calcIds.length > 0
+      ? await supabase
+          .from('calculation_feedback')
+          .select('calculation_id')
+          .in('calculation_id', calcIds)
+          .limit(200)
+      : { data: [] }
+
+    const existingCalcIds = new Set((existingFeedbacks || []).map(f => f.calculation_id))
+
     let created = 0
     let skipped = 0
 
@@ -315,27 +346,13 @@ export async function collectProjectFeedback(): Promise<
         continue
       }
 
-      // Find related auto_calculation via offer
-      const { data: calc } = await supabase
-        .from('auto_calculations')
-        .select('id, total_hours, material_cost')
-        .eq('offer_id', offer.id)
-        .maybeSingle()
-
+      const calc = calcsByOfferId.get(offer.id)
       if (!calc) {
-        // Try linking via project interpretation
         skipped++
         continue
       }
 
-      // Check if feedback already exists
-      const { data: existingFeedback } = await supabase
-        .from('calculation_feedback')
-        .select('id')
-        .eq('calculation_id', calc.id)
-        .maybeSingle()
-
-      if (existingFeedback) {
+      if (existingCalcIds.has(calc.id)) {
         skipped++
         continue
       }
@@ -361,7 +378,7 @@ export async function collectProjectFeedback(): Promise<
             : null,
           estimated_material_cost: calc.material_cost,
           offer_accepted: offer.status === 'accepted',
-          project_profitable: actual_hours <= estimated_hours * 1.1, // Within 10% is profitable
+          project_profitable: actual_hours <= estimated_hours * 1.1,
           lessons_learned: `Auto-indsamlet fra projekt "${project.name}"`,
         })
 
