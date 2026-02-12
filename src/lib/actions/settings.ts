@@ -20,11 +20,15 @@ export async function getCompanySettings(): Promise<ActionResult<CompanySettings
     const { data, error } = await supabase
       .from('company_settings')
       .select('*')
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching company settings', { error: error })
       return { success: false, error: 'Kunne ikke hente virksomhedsindstillinger' }
+    }
+
+    if (!data) {
+      return { success: false, error: 'Virksomhedsindstillinger ikke fundet' }
     }
 
     return { success: true, data: data as CompanySettings }
@@ -45,7 +49,7 @@ export async function updateCompanySettings(
     const { data: existing } = await supabase
       .from('company_settings')
       .select('id')
-      .single()
+      .maybeSingle()
 
     if (!existing) {
       return { success: false, error: 'Kunne ikke finde virksomhedsindstillinger' }
@@ -86,11 +90,15 @@ export async function getSmtpSettings(): Promise<ActionResult<{
     const { data, error } = await supabase
       .from('company_settings')
       .select('smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_email, smtp_from_name')
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching SMTP settings', { error: error })
       return { success: false, error: 'Kunne ikke hente SMTP indstillinger' }
+    }
+
+    if (!data) {
+      return { success: false, error: 'SMTP indstillinger ikke konfigureret' }
     }
 
     return {
@@ -123,11 +131,15 @@ export async function getProfile(): Promise<ActionResult<Profile>> {
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching profile', { error: error })
       return { success: false, error: 'Kunne ikke hente profil' }
+    }
+
+    if (!data) {
+      return { success: false, error: 'Profil ikke fundet' }
     }
 
     return { success: true, data: data as Profile }
@@ -196,7 +208,7 @@ export async function uploadProfileAvatar(
       .from('profiles')
       .select('avatar_url')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (currentProfile?.avatar_url) {
       const oldPath = currentProfile.avatar_url.split('/attachments/')[1]
@@ -244,7 +256,7 @@ export async function deleteProfileAvatar(): Promise<ActionResult<void>> {
       .from('profiles')
       .select('avatar_url')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (currentProfile?.avatar_url) {
       const filePath = currentProfile.avatar_url.split('/attachments/')[1]
@@ -284,7 +296,7 @@ export async function uploadCompanyLogo(
       .from('profiles')
       .select('role')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Kun administratorer kan uploade logo' }
@@ -330,7 +342,7 @@ export async function uploadCompanyLogo(
     const { data: existing } = await supabase
       .from('company_settings')
       .select('id, company_logo_url')
-      .single()
+      .maybeSingle()
 
     if (!existing) {
       return { success: false, error: 'Virksomhedsindstillinger ikke fundet' }
@@ -369,7 +381,7 @@ export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
       .from('profiles')
       .select('role')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Kun administratorer kan slette logo' }
@@ -378,7 +390,7 @@ export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
     const { data: existing } = await supabase
       .from('company_settings')
       .select('id, company_logo_url')
-      .single()
+      .maybeSingle()
 
     if (!existing) {
       return { success: false, error: 'Virksomhedsindstillinger ikke fundet' }
@@ -480,7 +492,7 @@ export async function updateTeamMember(
       .from('profiles')
       .select('role')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (currentProfile?.role !== 'admin') {
       return { success: false, error: 'Kun administratorer kan ændre teammedlemmer' }
@@ -525,7 +537,7 @@ export async function inviteTeamMember(
       .from('profiles')
       .select('role, full_name')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Kun administratorer kan invitere teammedlemmer' }
@@ -622,7 +634,7 @@ export async function cancelInvitation(invitationId: string): Promise<ActionResu
       .from('profiles')
       .select('role')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Kun administratorer kan annullere invitationer' }
@@ -657,10 +669,14 @@ export async function getNotificationPreferences(): Promise<ActionResult<Notific
       .from('profiles')
       .select('notification_preferences')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (error) {
       return { success: false, error: 'Kunne ikke hente notifikationspræferencer' }
+    }
+
+    if (!data) {
+      return { success: false, error: 'Profil ikke fundet' }
     }
 
     return { success: true, data: (data.notification_preferences as NotificationPreferences) || {} }
@@ -703,7 +719,7 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
       .from('profiles')
       .select('role')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (profile?.role !== 'admin') {
       return { success: false, error: 'Kun administratorer kan gensende invitationer' }
@@ -715,7 +731,7 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
       .select('email, role')
       .eq('id', invitationId)
       .eq('status', 'pending')
-      .single()
+      .maybeSingle()
 
     if (!invitation) {
       return { success: false, error: 'Invitation ikke fundet' }

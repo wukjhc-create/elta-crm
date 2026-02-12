@@ -60,14 +60,15 @@ export async function getSyncJob(
       .from('v_supplier_sync_jobs')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Sync job ikke fundet' }
-      }
       logger.error('Database error fetching sync job', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Sync job ikke fundet' }
     }
 
     return { success: true, data: data as SupplierSyncJobWithSupplier }
@@ -252,7 +253,7 @@ async function completeSyncLog(
       .from('supplier_sync_logs')
       .select('started_at')
       .eq('id', logId)
-      .single()
+      .maybeSingle()
 
     const durationMs = logData?.started_at
       ? Date.now() - new Date(logData.started_at).getTime()

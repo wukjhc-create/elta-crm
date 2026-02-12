@@ -143,7 +143,7 @@ export async function validatePortalToken(
       `)
       .eq('token', token)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (error || !tokenData) {
       return { success: false, error: 'Ugyldig eller udløbet adgang' }
@@ -294,7 +294,7 @@ export async function getPortalOffer(
       .select('*')
       .eq('id', offerId)
       .eq('customer_id', customerId)
-      .single()
+      .maybeSingle()
 
     if (error || !offer) {
       logger.error('Error fetching offer', { error: error })
@@ -341,7 +341,7 @@ export async function getPortalOffer(
       .from('offer_signatures')
       .select('*')
       .eq('offer_id', offerId)
-      .single()
+      .maybeSingle()
 
     const portalOffer: PortalOffer = {
       id: offer.id,
@@ -400,7 +400,7 @@ export async function acceptOffer(
       .select('id, status, customer_id, title, final_amount')
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
-      .single()
+      .maybeSingle()
 
     if (offerError || !offer) {
       return { success: false, error: 'Tilbud ikke fundet' }
@@ -524,7 +524,7 @@ export async function rejectOffer(
       .select('id, status, customer_id')
       .eq('id', offerId)
       .eq('customer_id', customerId)
-      .single()
+      .maybeSingle()
 
     if (offerError || !offer) {
       return { success: false, error: 'Tilbud ikke fundet' }
@@ -682,7 +682,7 @@ export async function sendEmployeeMessage(
       .from('profiles')
       .select('full_name')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     const { data: messageData, error } = await supabase
       .from('portal_messages')

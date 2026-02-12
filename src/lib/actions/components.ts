@@ -155,9 +155,9 @@ export async function getComponentsByCategory(categorySlug?: string): Promise<Ac
         .from('calc_component_categories')
         .select('id')
         .eq('slug', categorySlug)
-        .single()
+        .maybeSingle()
 
-      if (catError && catError.code !== 'PGRST116') {
+      if (catError) {
         logger.error('Database error fetching category', { error: catError })
         throw new Error('DATABASE_ERROR')
       }
@@ -200,12 +200,9 @@ export async function getComponentWithDetails(id: string): Promise<ActionResult<
         category:calc_component_categories(*)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (compError) {
-      if (compError.code === 'PGRST116') {
-        return { success: false, error: 'Komponenten blev ikke fundet' }
-      }
       logger.error('Database error fetching component', { error: compError })
       throw new Error('DATABASE_ERROR')
     }
@@ -843,14 +840,15 @@ export async function getCalcComponentForCalculation(
       query = query.eq('code', code)
     }
 
-    const { data: component, error: compError } = await query.single()
+    const { data: component, error: compError } = await query.maybeSingle()
 
     if (compError) {
-      if (compError.code === 'PGRST116') {
-        return { success: false, error: 'Komponenten blev ikke fundet' }
-      }
       logger.error('Database error fetching component', { error: compError })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!component) {
+      return { success: false, error: 'Komponenten blev ikke fundet' }
     }
 
     const componentId = component.id

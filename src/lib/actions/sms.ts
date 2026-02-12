@@ -44,11 +44,15 @@ export async function getSmsSettings(): Promise<ActionResult<SmsSettings>> {
     const { data, error } = await supabase
       .from('company_settings')
       .select('sms_gateway_api_key, sms_gateway_secret, sms_sender_name, sms_enabled')
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching SMS settings', { error: error })
       return { success: false, error: 'Kunne ikke hente SMS indstillinger' }
+    }
+
+    if (!data) {
+      return { success: false, error: 'SMS indstillinger ikke konfigureret' }
     }
 
     return {
@@ -146,11 +150,15 @@ export async function getSmsTemplate(id: string): Promise<ActionResult<SmsTempla
       .from('sms_templates')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching SMS template', { error: error })
       return { success: false, error: 'Kunne ikke hente SMS skabelon' }
+    }
+
+    if (!data) {
+      return { success: false, error: 'SMS skabelon ikke fundet' }
     }
 
     return { success: true, data: data as SmsTemplate }
@@ -168,7 +176,7 @@ export async function getSmsTemplateByCode(code: string): Promise<ActionResult<S
       .from('sms_templates')
       .select('*')
       .eq('code', code)
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching SMS template by code', { error: error })
@@ -407,7 +415,7 @@ export async function generateSmsPreview(input: {
         customer:customers(*)
       `)
       .eq('id', input.offer_id)
-      .single()
+      .maybeSingle()
 
     if (offerError || !offer) {
       logger.error('Error fetching offer', { error: offerError })
@@ -418,7 +426,7 @@ export async function generateSmsPreview(input: {
     const { data: settings } = await supabase
       .from('company_settings')
       .select('company_name, sms_sender_name')
-      .single()
+      .maybeSingle()
 
     // Get template if specified
     let template: SmsTemplate | null = null
@@ -427,7 +435,7 @@ export async function generateSmsPreview(input: {
         .from('sms_templates')
         .select('*')
         .eq('code', input.template_code)
-        .single()
+        .maybeSingle()
 
       template = data as SmsTemplate | null
     }
@@ -609,7 +617,7 @@ async function getOrCreatePortalToken(offerId: string, customerId: string): Prom
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (existing?.token) {
     return existing.token
@@ -675,7 +683,7 @@ export async function sendOfferSms(
       .from('offers')
       .select('customer_id')
       .eq('id', input.offer_id)
-      .single()
+      .maybeSingle()
 
     // Create message record first
     const messageResult = await createSmsMessage({
@@ -743,7 +751,7 @@ export async function sendOfferSms(
       .from('offers')
       .select('status')
       .eq('id', input.offer_id)
-      .single()
+      .maybeSingle()
 
     if (currentOffer?.status === 'draft') {
       await supabase
@@ -820,7 +828,7 @@ export async function handleSmsWebhook(payload: {
       .from('sms_messages')
       .select('id')
       .or(`gateway_id.eq.${payload.id},id.eq.${payload.userref || ''}`)
-      .single()
+      .maybeSingle()
 
     if (!message) {
       logger.error('SMS message not found for webhook', { error: payload })

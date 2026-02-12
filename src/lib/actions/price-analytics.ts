@@ -489,7 +489,7 @@ export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPric
             .eq('status', 'completed')
             .order('started_at', { ascending: false })
             .limit(1)
-            .single(),
+            .maybeSingle(),
         ])
 
         const increases = priceChanges?.filter((pc) => pc.change_percentage > 0) || []

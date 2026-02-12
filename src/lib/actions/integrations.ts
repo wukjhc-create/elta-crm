@@ -66,13 +66,14 @@ export async function getIntegration(id: string): Promise<ActionResult<Integrati
         creator:profiles!integrations_created_by_fkey(id, full_name, email)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Integration ikke fundet' }
-      }
       throw error
+    }
+
+    if (!data) {
+      return { success: false, error: 'Integration ikke fundet' }
     }
 
     return { success: true, data: data as IntegrationWithRelations }
@@ -628,7 +629,7 @@ export async function buildOfferWebhookPayload(
       line_items:offer_line_items(description, quantity, unit, unit_price, total)
     `)
     .eq('id', offerId)
-    .single()
+    .maybeSingle()
 
   if (error || !offer) return null
 
@@ -672,7 +673,7 @@ export async function buildProjectWebhookPayload(
       offer:offers(id, offer_number)
     `)
     .eq('id', projectId)
-    .single()
+    .maybeSingle()
 
   if (error || !project) return null
 
@@ -717,7 +718,7 @@ export async function exportOfferToIntegration(
       .from('integrations')
       .select('*')
       .eq('id', integrationId)
-      .single()
+      .maybeSingle()
 
     if (intError || !integration) {
       return { success: false, error: 'Integration ikke fundet' }
@@ -734,7 +735,7 @@ export async function exportOfferToIntegration(
       .eq('integration_id', integrationId)
       .eq('operation', 'create_order')
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (!endpoint) {
       return { success: false, error: 'Ingen aktiv endpoint for ordre-oprettelse' }
@@ -841,7 +842,7 @@ export async function testIntegrationConnection(
       .from('integrations')
       .select('*')
       .eq('id', integrationId)
-      .single()
+      .maybeSingle()
 
     if (error || !integration) {
       return { success: false, error: 'Integration ikke fundet' }

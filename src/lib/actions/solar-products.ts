@@ -71,14 +71,15 @@ export async function getSolarProduct(id: string): Promise<ActionResult<SolarPro
       .from('solar_products')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Produktet blev ikke fundet' }
-      }
       logger.error('Database error fetching solar product', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Produktet blev ikke fundet' }
     }
 
     return { success: true, data: data as SolarProduct }
@@ -103,14 +104,15 @@ export async function getSolarProductByCode(code: string): Promise<ActionResult<
       .select('*')
       .eq('code', code)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Produktet blev ikke fundet' }
-      }
       logger.error('Database error fetching solar product by code', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Produktet blev ikke fundet' }
     }
 
     return { success: true, data: data as SolarProduct }
@@ -402,7 +404,7 @@ export async function updateSolarAssumption(
       .from('calculation_settings')
       .select('setting_value')
       .eq('setting_key', key)
-      .single()
+      .maybeSingle()
 
     const existingValue = existing?.setting_value as Record<string, unknown> | null
     const updatedValue = {

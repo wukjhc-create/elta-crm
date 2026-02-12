@@ -112,14 +112,15 @@ export async function getCustomer(id: string): Promise<ActionResult<CustomerWith
         contacts:customer_contacts(*)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Kunden blev ikke fundet' }
-      }
       logger.error('Database error fetching customer', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Kunden blev ikke fundet' }
     }
 
     return { success: true, data: data as CustomerWithRelations }
@@ -324,7 +325,7 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       .from('customers')
       .select('company_name, customer_number')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     const { error } = await supabase.from('customers').delete().eq('id', id)
 

@@ -118,7 +118,7 @@ export async function getEmailTemplate(id: string): Promise<EmailTemplate | null
       .from('email_templates')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching email template', { error: error })
@@ -141,7 +141,7 @@ export async function getEmailTemplateByCode(code: string): Promise<EmailTemplat
       .select('*')
       .eq('code', code)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching email template by code', { error: error })
@@ -308,7 +308,7 @@ export async function getEmailThread(id: string): Promise<EmailThreadWithRelatio
         messages:email_messages(*)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching email thread', { error: error })
@@ -455,7 +455,7 @@ export async function trackEmailOpen(trackingId: string, metadata?: {
       .from('email_messages')
       .select('id')
       .eq('tracking_id', trackingId)
-      .single()
+      .maybeSingle()
 
     if (findError || !message) {
       return { success: false }
@@ -496,7 +496,7 @@ export async function generateEmailPreview(
         customer:customers(*)
       `)
       .eq('id', input.offer_id)
-      .single()
+      .maybeSingle()
 
     if (offerError || !offer) {
       return { success: false, error: 'Tilbud ikke fundet' }
@@ -521,7 +521,7 @@ export async function generateEmailPreview(
       .eq('customer_id', offer.customer_id)
       .eq('is_active', true)
       .gt('expires_at', new Date().toISOString())
-      .single()
+      .maybeSingle()
 
     if (existingToken) {
       portalToken = existingToken.token
@@ -604,7 +604,7 @@ export async function sendOfferEmail(
         customer:customers(*)
       `)
       .eq('id', input.offer_id)
-      .single()
+      .maybeSingle()
 
     if (offerError || !offer) {
       return { success: false, error: 'Tilbud ikke fundet' }
@@ -801,7 +801,7 @@ export async function resendEmail(
         thread:email_threads(*)
       `)
       .eq('id', messageId)
-      .single()
+      .maybeSingle()
 
     if (msgError || !message) {
       return { success: false, error: 'Besked ikke fundet' }
@@ -853,7 +853,7 @@ export async function logIncomingEmail(
         .from('offers')
         .select('id')
         .eq('offer_number', offerNumberMatch[0])
-        .single()
+        .maybeSingle()
 
       if (offer) {
         const { data: threads } = await supabase

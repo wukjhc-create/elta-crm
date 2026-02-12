@@ -115,14 +115,15 @@ export async function getLead(id: string): Promise<ActionResult<LeadWithRelation
       .from('leads')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Lead blev ikke fundet' }
-      }
       logger.error('Database error fetching lead', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Lead blev ikke fundet' }
     }
 
     return { success: true, data: data as LeadWithRelations }
@@ -298,7 +299,7 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       .from('leads')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     const { id: leadId, ...updateData } = validated.data
 
@@ -412,7 +413,7 @@ export async function deleteLead(id: string): Promise<ActionResult> {
       .from('leads')
       .select('company_name')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     const { error } = await supabase.from('leads').delete().eq('id', id)
 
@@ -448,7 +449,7 @@ export async function updateLeadStatus(
       .from('leads')
       .select('status')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !oldLead) {
       return { success: false, error: 'Lead blev ikke fundet' }

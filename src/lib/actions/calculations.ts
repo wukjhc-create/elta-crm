@@ -140,12 +140,9 @@ export async function getCalculation(
         )
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Kalkulationen blev ikke fundet' }
-      }
       logger.error('Database error fetching calculation', { error: error })
       throw new Error('DATABASE_ERROR')
     }
@@ -348,12 +345,9 @@ export async function duplicateCalculation(
       .from('calculations')
       .select('*, rows:calculation_rows(*)')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return { success: false, error: 'Kalkulationen blev ikke fundet' }
-      }
       logger.error('Database error fetching calculation to duplicate', { error: fetchError })
       throw new Error('DATABASE_ERROR')
     }
@@ -703,12 +697,9 @@ export async function addProductToCalculation(
       .from('product_catalog')
       .select('*')
       .eq('id', productId)
-      .single()
+      .maybeSingle()
 
     if (productError) {
-      if (productError.code === 'PGRST116') {
-        return { success: false, error: 'Produktet blev ikke fundet' }
-      }
       logger.error('Database error fetching product', { error: productError })
       throw new Error('DATABASE_ERROR')
     }

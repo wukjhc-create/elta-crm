@@ -138,14 +138,15 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
         lead:leads(id, company_name, contact_person, email)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Tilbuddet blev ikke fundet' }
-      }
       logger.error('Database error fetching offer', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Tilbuddet blev ikke fundet' }
     }
 
     // Sort line items by position
@@ -353,7 +354,7 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
       .from('offers')
       .select('title, offer_number')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     const { error } = await supabase.from('offers').delete().eq('id', id)
 
@@ -391,7 +392,7 @@ export async function updateOfferStatus(
       .from('offers')
       .select('status')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !current) {
       return { success: false, error: 'Tilbuddet blev ikke fundet' }
@@ -504,7 +505,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
         customer:customers(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
       `)
       .eq('id', offerId)
-      .single()
+      .maybeSingle()
 
     if (offerError || !offer) {
       logger.error('Error fetching offer for send', { error: offerError })
@@ -921,14 +922,15 @@ export async function addProductToOffer(
       .from('product_catalog')
       .select('*')
       .eq('id', productId)
-      .single()
+      .maybeSingle()
 
     if (productError) {
-      if (productError.code === 'PGRST116') {
-        return { success: false, error: 'Produktet blev ikke fundet' }
-      }
       logger.error('Database error fetching product', { error: productError })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!product) {
+      return { success: false, error: 'Produktet blev ikke fundet' }
     }
 
     // Get current max position if not specified
@@ -1010,14 +1012,15 @@ export async function importCalculationToOffer(
       .from('calculations')
       .select('*, rows:calculation_rows(*)')
       .eq('id', calculationId)
-      .single()
+      .maybeSingle()
 
     if (calcError) {
-      if (calcError.code === 'PGRST116') {
-        return { success: false, error: 'Kalkulationen blev ikke fundet' }
-      }
       logger.error('Database error fetching calculation', { error: calcError })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!calculation) {
+      return { success: false, error: 'Kalkulationen blev ikke fundet' }
     }
 
     // Extract options with defaults
@@ -1163,7 +1166,7 @@ export async function createLineItemFromSupplierProduct(
       .from('offers')
       .select('customer_id')
       .eq('id', offerId)
-      .single()
+      .maybeSingle()
 
     // Get supplier product with supplier info
     const { data: supplierProduct, error: spError } = await supabase
@@ -1183,7 +1186,7 @@ export async function createLineItemFromSupplierProduct(
         )
       `)
       .eq('id', supplierProductId)
-      .single()
+      .maybeSingle()
 
     if (spError || !supplierProduct) {
       return { success: false, error: 'Leverandør produkt ikke fundet' }
@@ -1220,7 +1223,7 @@ export async function createLineItemFromSupplierProduct(
         .eq('customer_id', offer.customer_id)
         .eq('supplier_id', supplierProduct.supplier_id)
         .eq('is_active', true)
-        .single()
+        .maybeSingle()
 
       if (customerPricing) {
         if (customerPricing.discount_percentage) {
@@ -1247,7 +1250,7 @@ export async function createLineItemFromSupplierProduct(
         .eq('offer_id', offerId)
         .order('position', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
       position = (maxPos?.position || 0) + 1
     }
@@ -1447,7 +1450,7 @@ export async function refreshLineItemPrice(
         )
       `)
       .eq('id', lineItemId)
-      .single()
+      .maybeSingle()
 
     if (liError || !lineItem) {
       return { success: false, error: 'Linje ikke fundet' }
@@ -1462,7 +1465,7 @@ export async function refreshLineItemPrice(
       .from('supplier_products')
       .select('cost_price, supplier_id')
       .eq('id', lineItem.supplier_product_id)
-      .single()
+      .maybeSingle()
 
     if (spError || !supplierProduct?.cost_price) {
       return { success: false, error: 'Kunne ikke hente leverandør pris' }
@@ -1480,7 +1483,7 @@ export async function refreshLineItemPrice(
         .eq('customer_id', offerInfo.customer_id)
         .eq('supplier_id', supplierProduct.supplier_id)
         .eq('is_active', true)
-        .single()
+        .maybeSingle()
 
       if (customerPricing) {
         if (customerPricing.discount_percentage) {

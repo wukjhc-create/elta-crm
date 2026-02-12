@@ -154,11 +154,15 @@ export async function getProject(id: string): Promise<ActionResult<ProjectWithRe
         time_entries(*, task:project_tasks(id, title))
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching project', { error: error })
       return { success: false, error: 'Kunne ikke hente projekt' }
+    }
+
+    if (!data) {
+      return { success: false, error: 'Projektet blev ikke fundet' }
     }
 
     // Sort tasks by status and position
@@ -361,7 +365,7 @@ export async function updateProjectStatus(
       .from('projects')
       .select('status')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !current) {
       return { success: false, error: 'Projektet blev ikke fundet' }
@@ -739,7 +743,7 @@ export async function createProjectFromOffer(
       .eq('role', 'admin')
       .eq('is_active', true)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     const createdBy = adminUser?.id
 

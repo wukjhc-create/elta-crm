@@ -133,14 +133,15 @@ export async function getKalkiaCalculation(
         created_by_profile:profiles!created_by(id, full_name, email)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Kalkulationen blev ikke fundet' }
-      }
       logger.error('Database error fetching kalkia calculation', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Kalkulationen blev ikke fundet' }
     }
 
     // Sort rows by position
@@ -507,7 +508,7 @@ export async function calculateFromNodes(
     const [profileResult, factorsResult, nodesResult] = await Promise.all([
       buildingProfileId
         ? (validateUUID(buildingProfileId, 'bygningsprofil ID'),
-          supabase.from('kalkia_building_profiles').select('*').eq('id', buildingProfileId).single())
+          supabase.from('kalkia_building_profiles').select('*').eq('id', buildingProfileId).maybeSingle())
         : Promise.resolve({ data: null }),
       supabase.from('kalkia_global_factors').select('*').eq('is_active', true),
       supabase.from('kalkia_nodes').select(`
@@ -650,7 +651,7 @@ export async function createOfferFromCalculation(
       .from('customers')
       .select('id, company_name')
       .eq('id', input.customerId)
-      .single()
+      .maybeSingle()
 
     if (customerError || !customer) {
       return { success: false, error: 'Kunde ikke fundet' }

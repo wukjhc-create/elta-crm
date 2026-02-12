@@ -162,14 +162,15 @@ export async function getKalkiaNode(
         parent:kalkia_nodes!parent_id(id, code, name)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Noden blev ikke fundet' }
-      }
       logger.error('Database error fetching kalkia node', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Noden blev ikke fundet' }
     }
 
     return { success: true, data: data as KalkiaNodeWithRelations }

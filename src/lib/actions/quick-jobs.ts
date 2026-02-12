@@ -55,14 +55,15 @@ export async function getQuickJob(id: string): Promise<ActionResult<QuickJob>> {
       .from('quick_jobs')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Job ikke fundet' }
-      }
       logger.error('Database error fetching quick job', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Job ikke fundet' }
     }
 
     return { success: true, data }
@@ -128,14 +129,15 @@ export async function getCalibrationPreset(id: string): Promise<ActionResult<Cal
       .from('calibration_presets')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Profil ikke fundet' }
-      }
       logger.error('Database error fetching calibration preset', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Profil ikke fundet' }
     }
 
     return { success: true, data }
@@ -153,14 +155,15 @@ export async function getDefaultCalibrationPreset(): Promise<ActionResult<Calibr
       .select('*')
       .eq('is_default', true)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: true, data: null }
-      }
       logger.error('Database error fetching default preset', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: true, data: null }
     }
 
     return { success: true, data }

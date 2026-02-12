@@ -152,7 +152,7 @@ export async function deleteFile(fileId: string): Promise<ActionResult> {
       .from('files')
       .select('*')
       .eq('id', fileId)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !file) {
       return { success: false, error: 'Filen blev ikke fundet' }

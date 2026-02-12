@@ -291,10 +291,7 @@ export async function GET(request: Request) {
   } catch (error) {
     logger.error('Cron job error', { error })
     return NextResponse.json(
-      {
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

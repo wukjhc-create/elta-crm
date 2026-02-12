@@ -73,14 +73,15 @@ export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
       .from('suppliers')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Leverandøren blev ikke fundet' }
-      }
       logger.error('Database error fetching supplier', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Leverandøren blev ikke fundet' }
     }
 
     return { success: true, data: data as Supplier }
@@ -397,14 +398,15 @@ export async function getSupplierProduct(
       .from('v_supplier_products_with_supplier')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Produktet blev ikke fundet' }
-      }
       logger.error('Database error fetching supplier product', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Produktet blev ikke fundet' }
     }
 
     return { success: true, data: data as SupplierProductWithSupplier }

@@ -30,7 +30,7 @@ export async function linkMaterialToSupplierProduct(
       .from('supplier_products')
       .select('id, cost_price, list_price, supplier_name')
       .eq('id', supplierProductId)
-      .single()
+      .maybeSingle()
 
     if (spError || !supplierProduct) {
       return { success: false, error: 'Leverandørprodukt ikke fundet' }

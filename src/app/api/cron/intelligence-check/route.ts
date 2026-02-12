@@ -373,12 +373,11 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     logger.error('Intelligence check error', { error })
-    results.errors.push(error instanceof Error ? error.message : 'Unknown error')
 
     return NextResponse.json({
       success: false,
       timestamp: new Date().toISOString(),
-      results,
+      error: 'Internal server error',
     }, { status: 500 })
   }
 }

@@ -51,7 +51,7 @@ export async function previewImport(
       .from('suppliers')
       .select('id, code, name')
       .eq('id', supplierId)
-      .single()
+      .maybeSingle()
 
     if (supplierError || !supplier) {
       return { success: false, error: 'Leverandøren blev ikke fundet' }
@@ -182,7 +182,7 @@ export async function executeImport(
       .from('suppliers')
       .select('id, code, name')
       .eq('id', supplierId)
-      .single()
+      .maybeSingle()
 
     if (supplierError || !supplier) {
       return { success: false, error: 'Leverandøren blev ikke fundet' }
@@ -550,14 +550,15 @@ export async function getImportBatch(
       .from('v_import_batches_summary')
       .select('*')
       .eq('id', batchId)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Import batch ikke fundet' }
-      }
       logger.error('Database error fetching import batch', { error: error })
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Import batch ikke fundet' }
     }
 
     return { success: true, data: data as ImportBatchSummary }
@@ -582,7 +583,7 @@ export async function retryImport(
       .from('import_batches')
       .select('*')
       .eq('id', batchId)
-      .single()
+      .maybeSingle()
 
     if (error || !batch) {
       return { success: false, error: 'Import batch ikke fundet' }

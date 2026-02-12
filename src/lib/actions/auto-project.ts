@@ -238,7 +238,7 @@ export async function getAnalysis(id: string): Promise<ActionResult<SavedAnalysi
       .from('project_interpretations')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (interpError || !interpretation) {
       return { success: false, error: 'Analyse ikke fundet' }

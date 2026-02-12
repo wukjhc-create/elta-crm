@@ -96,9 +96,9 @@ export async function getProjectContext(calculationId: string) {
       .eq('calculation_id', calculationId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       logger.error('Error fetching project context', { error: error })
       return null
     }
@@ -443,9 +443,9 @@ export async function getPriceExplanation(offerId: string) {
       .eq('offer_id', offerId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       logger.error('Error fetching price explanation', { error: error })
       return null
     }

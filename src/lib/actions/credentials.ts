@@ -292,13 +292,14 @@ export async function getDecryptedCredentials(
       .eq('supplier_id', supplierId)
       .eq('credential_type', credentialType)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Ingen aktive loginoplysninger fundet' }
-      }
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Ingen aktive loginoplysninger fundet' }
     }
 
     const credentials = await decryptCredentials(data.credentials_encrypted) as CredentialInput
@@ -432,9 +433,13 @@ export async function getMaskedCredentials(
       .from('supplier_credentials')
       .select('credentials_encrypted')
       .eq('id', credentialId)
-      .single()
+      .maybeSingle()
 
     if (error) {
+      return { success: false, error: 'Loginoplysninger ikke fundet' }
+    }
+
+    if (!data) {
       return { success: false, error: 'Loginoplysninger ikke fundet' }
     }
 

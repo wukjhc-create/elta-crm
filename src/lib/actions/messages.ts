@@ -112,11 +112,15 @@ export async function getMessage(
         project:projects(id, project_number, name)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
       logger.error('Error fetching message', { error: error })
       return { success: false, error: 'Kunne ikke hente besked' }
+    }
+
+    if (!data) {
+      return { success: false, error: 'Beskeden blev ikke fundet' }
     }
 
     // Get replies to this message

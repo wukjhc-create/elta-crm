@@ -208,7 +208,7 @@ export async function toggleMarginRule(id: string): Promise<ActionResult<Supplie
       .from('supplier_margin_rules')
       .select('is_active')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !current) {
       return { success: false, error: 'Marginregel ikke fundet' }

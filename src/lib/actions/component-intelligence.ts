@@ -60,13 +60,14 @@ export async function getRoomType(id: string): Promise<ActionResult<RoomType>> {
       .from('room_types')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Rumtype ikke fundet' }
-      }
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Rumtype ikke fundet' }
     }
 
     return { success: true, data }
@@ -354,13 +355,14 @@ export async function getMaterial(id: string): Promise<ActionResult<Material>> {
       .from('materials_catalog')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Materiale ikke fundet' }
-      }
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!data) {
+      return { success: false, error: 'Materiale ikke fundet' }
     }
 
     return { success: true, data }
@@ -522,7 +524,7 @@ export async function updateMaterialPrice(
       .from('materials_catalog')
       .select('cost_price, sale_price')
       .eq('id', materialId)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !current) {
       return { success: false, error: 'Materiale ikke fundet' }
@@ -711,13 +713,14 @@ export async function calculateIntelligentTime(
         time_profile
       `)
       .eq('id', componentId)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Komponent ikke fundet' }
-      }
       throw new Error('DATABASE_ERROR')
+    }
+
+    if (!component) {
+      return { success: false, error: 'Komponent ikke fundet' }
     }
 
     const timeProfile = (component.time_profile || 'linear') as TimeProfile

@@ -156,12 +156,9 @@ export async function getPackage(id: string): Promise<ActionResult<Package>> {
         category:package_categories(*)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Pakken blev ikke fundet' }
-      }
       logger.error('Database error fetching package', { error: error })
       throw new Error('DATABASE_ERROR')
     }
@@ -189,12 +186,9 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
         category:package_categories(*)
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (pkgError) {
-      if (pkgError.code === 'PGRST116') {
-        return { success: false, error: 'Pakken blev ikke fundet' }
-      }
       logger.error('Database error fetching package', { error: pkgError })
       throw new Error('DATABASE_ERROR')
     }
@@ -435,7 +429,7 @@ export async function createPackageItem(input: CreatePackageItemInput): Promise<
         .eq('package_id', itemData.package_id)
         .order('sort_order', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
       itemData.sort_order = (maxOrder?.sort_order || 0) + 1
     }
@@ -519,12 +513,9 @@ export async function deletePackageItem(id: string): Promise<ActionResult<void>>
       .from('package_items')
       .select('package_id')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return { success: false, error: 'Element blev ikke fundet' }
-      }
       logger.error('Database error fetching package item', { error: fetchError })
       throw new Error('DATABASE_ERROR')
     }

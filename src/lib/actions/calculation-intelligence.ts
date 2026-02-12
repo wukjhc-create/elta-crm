@@ -521,7 +521,7 @@ export async function generateOfferFromCalculation(
         building_profile:kalkia_building_profiles(*)
       `)
       .eq('id', calculationId)
-      .single()
+      .maybeSingle()
 
     if (calcError || !calculation) {
       return { success: false, error: 'Kalkulation ikke fundet' }

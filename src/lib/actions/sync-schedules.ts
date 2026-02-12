@@ -190,7 +190,7 @@ export async function toggleSyncSchedule(id: string): Promise<ActionResult<Suppl
       .from('supplier_sync_schedules')
       .select('is_enabled, cron_expression')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (fetchError || !current) {
       return { success: false, error: 'Synkroniseringsplan ikke fundet' }
@@ -248,7 +248,7 @@ export async function runSyncNow(scheduleId: string): Promise<ActionResult<{ mes
         )
       `)
       .eq('id', scheduleId)
-      .single()
+      .maybeSingle()
 
     if (scheduleError || !schedule) {
       return { success: false, error: 'Synkroniseringsplan ikke fundet' }

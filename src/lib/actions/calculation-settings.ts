@@ -274,12 +274,9 @@ export async function getProjectTemplate(id: string): Promise<ActionResult<Proje
       .from('project_templates')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Skabelonen blev ikke fundet' }
-      }
       logger.error('Database error fetching project template', { error: error })
       throw new Error('DATABASE_ERROR')
     }
@@ -331,12 +328,9 @@ export async function getRoomType(code: string): Promise<ActionResult<RoomType>>
       .from('room_types')
       .select('*')
       .eq('code', code.trim())
-      .single()
+      .maybeSingle()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: false, error: 'Rumtypen blev ikke fundet' }
-      }
       logger.error('Database error fetching room type', { error: error })
       throw new Error('DATABASE_ERROR')
     }
