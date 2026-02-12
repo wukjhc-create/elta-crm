@@ -250,6 +250,299 @@ export async function recordProjectFeedback(
 }
 
 // =====================================================
+// Auto-Feedback Pipeline
+// =====================================================
+
+/**
+ * Automatically collect feedback from completed projects.
+ * Connects: project.actual_hours (from time_entries) → calculation_feedback
+ *
+ * This should be called periodically (e.g., daily via cron or admin dashboard)
+ * to keep the learning engine fed with real data.
+ */
+export async function collectProjectFeedback(): Promise<
+  ActionResult<{ processed: number; created: number; skipped: number }>
+> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Verify admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan køre feedback-indsamling' }
+    }
+
+    // Find completed projects with actual_hours that don't have feedback yet
+    // Chain: project → offer → auto_calculations → calculation_feedback
+    const { data: projects } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        name,
+        actual_hours,
+        status,
+        offer_id,
+        offers!inner (
+          id,
+          total_amount,
+          status
+        )
+      `)
+      .eq('status', 'completed')
+      .gt('actual_hours', 0)
+      .limit(100)
+
+    if (!projects || projects.length === 0) {
+      return { success: true, data: { processed: 0, created: 0, skipped: 0 } }
+    }
+
+    let created = 0
+    let skipped = 0
+
+    for (const project of projects) {
+      const offer = Array.isArray(project.offers) ? project.offers[0] : project.offers
+      if (!offer) {
+        skipped++
+        continue
+      }
+
+      // Find related auto_calculation via offer
+      const { data: calc } = await supabase
+        .from('auto_calculations')
+        .select('id, total_hours, material_cost')
+        .eq('offer_id', offer.id)
+        .maybeSingle()
+
+      if (!calc) {
+        // Try linking via project interpretation
+        skipped++
+        continue
+      }
+
+      // Check if feedback already exists
+      const { data: existingFeedback } = await supabase
+        .from('calculation_feedback')
+        .select('id')
+        .eq('calculation_id', calc.id)
+        .maybeSingle()
+
+      if (existingFeedback) {
+        skipped++
+        continue
+      }
+
+      // Calculate variances
+      const estimated_hours = calc.total_hours || 0
+      const actual_hours = project.actual_hours || 0
+      const hours_variance = estimated_hours > 0
+        ? ((actual_hours - estimated_hours) / estimated_hours) * 100
+        : null
+
+      // Create feedback record
+      const { error } = await supabase
+        .from('calculation_feedback')
+        .insert({
+          calculation_id: calc.id,
+          offer_id: offer.id,
+          project_id: project.id,
+          estimated_hours,
+          actual_hours,
+          hours_variance_percentage: hours_variance !== null
+            ? Math.round(hours_variance * 10) / 10
+            : null,
+          estimated_material_cost: calc.material_cost,
+          offer_accepted: offer.status === 'accepted',
+          project_profitable: actual_hours <= estimated_hours * 1.1, // Within 10% is profitable
+          lessons_learned: `Auto-indsamlet fra projekt "${project.name}"`,
+        })
+
+      if (!error) {
+        created++
+      } else {
+        skipped++
+      }
+    }
+
+    revalidatePath('/dashboard')
+    return {
+      success: true,
+      data: { processed: projects.length, created, skipped },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke indsamle feedback') }
+  }
+}
+
+/**
+ * Run auto-calibration and apply high-confidence adjustments to the database.
+ * This is the "close the loop" function that makes the system self-improving.
+ *
+ * - Analyzes component calibrations from the learning engine
+ * - Applies adjustments where confidence ≥ 0.8 and variance > 15%
+ * - Records all changes in calculation_feedback as audit trail
+ * - Updates kalkia_nodes base_time_seconds for matching components
+ */
+export async function runAutoCalibrationAndApply(): Promise<
+  ActionResult<{ analyzed: number; applied: number; adjustments: Adjustment[] }>
+> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Verify admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (profile?.role !== 'admin') {
+      return { success: false, error: 'Kun administratorer kan køre autokalibrering' }
+    }
+
+    // Get calibration suggestions
+    const calibrations = await analyzeComponentCalibration()
+    const appliedAdjustments: Adjustment[] = []
+
+    for (const cal of calibrations) {
+      // Only apply if confidence is high and variance is significant
+      if (cal.confidence < 0.8 || Math.abs(cal.variance_percentage) <= 15) {
+        continue
+      }
+
+      // Update calc_components time_estimate
+      const { error: compError } = await supabase
+        .from('calc_components')
+        .update({
+          time_estimate: cal.suggested_time_minutes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('code', cal.code)
+
+      if (compError) continue
+
+      // Also update kalkia_nodes base_time_seconds if matching node exists
+      const suggestedSeconds = Math.round(cal.suggested_time_minutes * 60)
+      await supabase
+        .from('kalkia_nodes')
+        .update({
+          base_time_seconds: suggestedSeconds,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('code', cal.code)
+
+      const adjustment: Adjustment = {
+        type: 'time',
+        component: cal.code,
+        old_value: cal.current_time_minutes,
+        new_value: cal.suggested_time_minutes,
+        reason: `Auto-kalibrering: ${cal.sample_size} projekter viste ${cal.variance_percentage > 0 ? 'underestimering' : 'overestimering'} på ${Math.abs(cal.variance_percentage).toFixed(1)}% (konfidens: ${(cal.confidence * 100).toFixed(0)}%)`,
+        applied_at: new Date().toISOString(),
+      }
+
+      appliedAdjustments.push(adjustment)
+
+      // Record in feedback as audit trail
+      await supabase
+        .from('calculation_feedback')
+        .insert({
+          lessons_learned: `Auto-kalibrering: ${cal.code} justeret fra ${cal.current_time_minutes}min til ${cal.suggested_time_minutes}min`,
+          adjustment_suggestions: [{ ...adjustment, applied_by: userId }],
+        })
+    }
+
+    revalidatePath('/dashboard/settings')
+    return {
+      success: true,
+      data: {
+        analyzed: calibrations.length,
+        applied: appliedAdjustments.length,
+        adjustments: appliedAdjustments,
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke køre autokalibrering') }
+  }
+}
+
+/**
+ * Get learning system status overview.
+ * Shows data pipeline health and calibration readiness.
+ */
+export async function getLearningSystemStatus(): Promise<
+  ActionResult<{
+    feedback_count: number
+    projects_with_actuals: number
+    projects_without_feedback: number
+    calibrations_ready: number
+    calibrations_pending: number
+    last_calibration_at: string | null
+    pipeline_healthy: boolean
+  }>
+> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    // Count feedback records
+    const { count: feedbackCount } = await supabase
+      .from('calculation_feedback')
+      .select('*', { count: 'exact', head: true })
+
+    // Count completed projects with actual hours
+    const { count: projectsWithActuals } = await supabase
+      .from('projects')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'completed')
+      .gt('actual_hours', 0)
+
+    // Count projects without feedback
+    const { data: projectsNoFeedback } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('status', 'completed')
+      .gt('actual_hours', 0)
+      .limit(200)
+
+    // Get calibration readiness
+    const calibrations = await analyzeComponentCalibration()
+    const ready = calibrations.filter(c => c.confidence >= 0.8 && Math.abs(c.variance_percentage) > 15)
+    const pending = calibrations.filter(c => c.confidence < 0.8)
+
+    // Last calibration
+    const { data: lastAdj } = await supabase
+      .from('calculation_feedback')
+      .select('created_at')
+      .not('adjustment_suggestions', 'eq', '[]')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const feedbackTotal = feedbackCount ?? 0
+    const projectTotal = projectsWithActuals ?? 0
+    const noFeedbackCount = (projectsNoFeedback?.length ?? 0) - feedbackTotal
+
+    return {
+      success: true,
+      data: {
+        feedback_count: feedbackTotal,
+        projects_with_actuals: projectTotal,
+        projects_without_feedback: Math.max(0, noFeedbackCount),
+        calibrations_ready: ready.length,
+        calibrations_pending: pending.length,
+        last_calibration_at: lastAdj?.created_at ?? null,
+        pipeline_healthy: feedbackTotal > 0 || projectTotal === 0,
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente systemstatus') }
+  }
+}
+
+// =====================================================
 // Statistics Actions
 // =====================================================
 

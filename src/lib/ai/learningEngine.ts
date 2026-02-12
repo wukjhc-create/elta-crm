@@ -368,38 +368,124 @@ export async function getSuggestedRiskBuffer(complexityScore: number): Promise<n
  * Record an adjustment made to the system
  */
 export async function recordAdjustment(adjustment: Omit<Adjustment, 'applied_at'>): Promise<void> {
-  // Log adjustment - could be expanded to store in database
-  logger.info('Calibration adjustment applied', { metadata: { type: adjustment.type, component: adjustment.component || adjustment.factor } })
+  const supabase = await createClient()
+
+  // Store in calculation_feedback as audit trail
+  await supabase
+    .from('calculation_feedback')
+    .insert({
+      lessons_learned: `Kalibrering: ${adjustment.component || adjustment.factor} ${adjustment.type} justeret fra ${adjustment.old_value} til ${adjustment.new_value}`,
+      adjustment_suggestions: [{
+        ...adjustment,
+        applied_at: new Date().toISOString(),
+      }],
+    })
+
+  logger.info('Calibration adjustment recorded', { metadata: { type: adjustment.type, component: adjustment.component || adjustment.factor } })
 }
 
 // =====================================================
-// Auto-Calibration (for future use)
+// Auto-Calibration
 // =====================================================
 
 /**
- * Apply automatic calibrations based on learning
- * This should be run periodically (e.g., weekly)
+ * Analyze component calibrations and return suggested adjustments.
+ * Does NOT apply changes - use learning.ts runAutoCalibrationAndApply() for that.
  */
 export async function autoCalibrate(): Promise<Adjustment[]> {
   const adjustments: Adjustment[] = []
 
-  // Analyze component times
   const componentCalibrations = await analyzeComponentCalibration()
 
   for (const cal of componentCalibrations) {
-    // Only auto-adjust if confidence is high and variance is significant
+    // Only suggest if confidence is high and variance is significant
     if (cal.confidence >= 0.8 && Math.abs(cal.variance_percentage) > 15) {
-      // In production, this would update the database
       adjustments.push({
         type: 'time',
         component: cal.code,
         old_value: cal.current_time_minutes,
         new_value: cal.suggested_time_minutes,
-        reason: `${cal.sample_size} projekterer viste ${cal.variance_percentage > 0 ? 'underestimering' : 'overestimering'} på ${Math.abs(cal.variance_percentage)}%`,
+        reason: `${cal.sample_size} projekter viste ${cal.variance_percentage > 0 ? 'underestimering' : 'overestimering'} på ${Math.abs(cal.variance_percentage).toFixed(1)}%`,
         applied_at: new Date().toISOString(),
       })
     }
   }
 
   return adjustments
+}
+
+/**
+ * Collect feedback from completed projects automatically.
+ * Finds projects with actual_hours that don't have feedback records yet.
+ * Returns the number of new feedback records created.
+ */
+export async function collectFeedbackFromProjects(): Promise<number> {
+  const supabase = await createClient()
+
+  // Find completed projects with actual hours
+  const { data: projects } = await supabase
+    .from('projects')
+    .select(`
+      id, name, actual_hours, offer_id,
+      offers!inner (id, status)
+    `)
+    .eq('status', 'completed')
+    .gt('actual_hours', 0)
+    .limit(50)
+
+  if (!projects || projects.length === 0) return 0
+
+  let created = 0
+
+  for (const project of projects) {
+    const offer = Array.isArray(project.offers) ? project.offers[0] : project.offers
+    if (!offer) continue
+
+    // Find calculation linked to this offer
+    const { data: calc } = await supabase
+      .from('auto_calculations')
+      .select('id, total_hours, material_cost')
+      .eq('offer_id', offer.id)
+      .maybeSingle()
+
+    if (!calc) continue
+
+    // Skip if feedback already exists
+    const { data: existing } = await supabase
+      .from('calculation_feedback')
+      .select('id')
+      .eq('calculation_id', calc.id)
+      .maybeSingle()
+
+    if (existing) continue
+
+    const estimatedHours = calc.total_hours || 0
+    const actualHours = project.actual_hours || 0
+    const variance = estimatedHours > 0
+      ? ((actualHours - estimatedHours) / estimatedHours) * 100
+      : null
+
+    const { error } = await supabase
+      .from('calculation_feedback')
+      .insert({
+        calculation_id: calc.id,
+        offer_id: offer.id,
+        project_id: project.id,
+        estimated_hours: estimatedHours,
+        actual_hours: actualHours,
+        hours_variance_percentage: variance !== null ? Math.round(variance * 10) / 10 : null,
+        estimated_material_cost: calc.material_cost,
+        offer_accepted: (offer as { status: string }).status === 'accepted',
+        project_profitable: actualHours <= estimatedHours * 1.1,
+        lessons_learned: `Auto-indsamlet fra projekt "${project.name}"`,
+      })
+
+    if (!error) created++
+  }
+
+  if (created > 0) {
+    logger.info(`Auto-collected ${created} feedback records from completed projects`)
+  }
+
+  return created
 }

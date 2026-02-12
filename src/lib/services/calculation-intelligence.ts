@@ -22,6 +22,8 @@ import type {
   CreateRoomCalculationInput,
   ProjectCalculationInput,
 } from '@/types/calculation-intelligence.types'
+import type { ElectricalProjectResult, LoadEntry, ElectricalRoomInput } from '@/types/electrical.types'
+import { calculateElectricalProject } from '@/lib/services/electrical-engine'
 
 // =====================================================
 // Constants
@@ -747,6 +749,164 @@ export class CalculationIntelligenceEngine {
     )
 
     return obsPoints
+  }
+
+  // =====================================================
+  // Enhanced Electrical Project Calculation
+  // =====================================================
+
+  /**
+   * Calculate project with full electrical engineering analysis.
+   * Uses the ElectricalEngine for cable sizing, load analysis,
+   * panel configuration, and DS/HD 60364 compliance checking.
+   */
+  calculateProjectWithElectrical(
+    input: ProjectCalculationInput
+  ): ProjectEstimate & { electrical?: ElectricalProjectResult } {
+    // First get the standard estimate
+    const baseEstimate = this.calculateProject(input)
+
+    // Build electrical input from rooms
+    const electricalRooms: ElectricalRoomInput[] = input.rooms.map(room => {
+      const loads: LoadEntry[] = []
+      const points = room.points || {}
+
+      // Convert room points to electrical loads
+      const outletCount = (points.outlets || 0) + (points.outlets_countertop || 0) + (points.outlets_ip44 || 0)
+      if (outletCount > 0) {
+        loads.push({
+          description: `Stikkontakter ${room.room_name}`,
+          category: 'socket_outlet',
+          rated_power_watts: 230,
+          quantity: outletCount,
+          power_factor: 1.0,
+        })
+      }
+
+      const lightCount = (points.ceiling_lights || 0) + (points.spots || 0) + (points.udendørs_lamper || 0)
+      if (lightCount > 0) {
+        loads.push({
+          description: `Belysning ${room.room_name}`,
+          category: 'lighting',
+          rated_power_watts: 60, // Average LED + driver
+          quantity: lightCount,
+          power_factor: 0.95,
+        })
+      }
+
+      if (points.ovn_tilslutning) {
+        loads.push({
+          description: 'Ovn (3-fase)',
+          category: 'cooking',
+          rated_power_watts: 3600,
+          quantity: points.ovn_tilslutning,
+          power_factor: 1.0,
+        })
+      }
+
+      if (points.induktion_tilslutning) {
+        loads.push({
+          description: 'Induktionskogeplade',
+          category: 'cooking',
+          rated_power_watts: 7200,
+          quantity: points.induktion_tilslutning,
+          power_factor: 0.95,
+        })
+      }
+
+      if (points.elbil_lader) {
+        loads.push({
+          description: 'EV-lader',
+          category: 'ev_charger',
+          rated_power_watts: 11000,
+          quantity: points.elbil_lader,
+          power_factor: 0.99,
+          is_continuous: true,
+        })
+      }
+
+      if (points.gulvvarme_tilslutning) {
+        loads.push({
+          description: 'Gulvvarme',
+          category: 'heating',
+          rated_power_watts: 100 * (room.size_m2 || 10), // ~100W/m²
+          quantity: points.gulvvarme_tilslutning,
+          power_factor: 1.0,
+        })
+      }
+
+      if (points.vaskemaskine) {
+        loads.push({
+          description: 'Vaskemaskine',
+          category: 'fixed_appliance',
+          rated_power_watts: 2200,
+          quantity: points.vaskemaskine,
+          power_factor: 0.85,
+        })
+      }
+
+      if (points.tørretumbler) {
+        loads.push({
+          description: 'Tørretumbler',
+          category: 'fixed_appliance',
+          rated_power_watts: 2500,
+          quantity: points.tørretumbler,
+          power_factor: 0.85,
+        })
+      }
+
+      if (points.opvaskemaskine) {
+        loads.push({
+          description: 'Opvaskemaskine',
+          category: 'fixed_appliance',
+          rated_power_watts: 2200,
+          quantity: points.opvaskemaskine,
+          power_factor: 0.85,
+        })
+      }
+
+      const isWetRoom = ['bathroom', 'outdoor', 'utility'].includes(room.room_type)
+
+      return {
+        name: room.room_name,
+        room_type: room.room_type,
+        area_m2: room.size_m2 || 10,
+        floor: room.floor_number || 0,
+        is_wet_room: isWetRoom,
+        installation_type: room.installation_type_id || undefined,
+        ceiling_height_m: room.ceiling_height_m || 2.5,
+        loads,
+      }
+    })
+
+    // Run electrical calculations
+    try {
+      const electricalResult = calculateElectricalProject({
+        building_type: 'residential',
+        building_year: input.building_age_years ? (new Date().getFullYear() - input.building_age_years) : undefined,
+        supply_phase: '3-phase', // Most Danish installations are 3-phase
+        is_renovation: (input.building_age_years ?? 0) > 0,
+        default_installation_method: 'B2',
+        rooms: electricalRooms,
+      })
+
+      // Merge electrical warnings into the estimate
+      baseEstimate.warnings.push(...electricalResult.warnings)
+
+      // Add compliance issues as OBS points
+      if (!electricalResult.compliance.compliant) {
+        for (const issue of electricalResult.compliance.issues) {
+          if (issue.severity === 'error') {
+            baseEstimate.obs_points.push(`FEJL: ${issue.description} (${issue.standard_ref})`)
+          }
+        }
+      }
+
+      return { ...baseEstimate, electrical: electricalResult }
+    } catch {
+      // If electrical calculation fails, return base estimate
+      return { ...baseEstimate, electrical: undefined }
+    }
   }
 
   // =====================================================
