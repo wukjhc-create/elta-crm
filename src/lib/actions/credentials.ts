@@ -347,8 +347,48 @@ export async function testSupplierConnection(
 
     const supplierCode = supplier?.code?.toUpperCase()
 
+    // Branch by credential type
+    if (credential.credential_type === 'ftp') {
+      // ===== FTP Connection Test =====
+      const decrypted = await decryptCredentials(credential.credentials_encrypted) as CredentialInput
+      const { buildFtpCredentials, testFtpConnection } = await import('@/lib/services/supplier-ftp-sync')
+
+      try {
+        const ftpCreds = buildFtpCredentials(
+          { username: decrypted.username, password: decrypted.password, api_endpoint: credential.api_endpoint || undefined },
+          supplierCode || 'UNKNOWN'
+        )
+        const ftpResult = await testFtpConnection(ftpCreds)
+        const ftpStatus: TestStatus = ftpResult.success ? 'success' : 'failed'
+
+        await supabase
+          .from('supplier_credentials')
+          .update({
+            last_test_at: new Date().toISOString(),
+            last_test_status: ftpStatus,
+            last_test_error: ftpResult.error || null,
+          })
+          .eq('id', credentialId)
+
+        revalidatePath('/dashboard/settings/suppliers')
+        return {
+          success: ftpResult.success,
+          data: { status: ftpStatus, message: ftpResult.success ? 'FTP forbindelse OK' : (ftpResult.error || 'FTP fejl') },
+          error: !ftpResult.success ? ftpResult.error : undefined,
+        }
+      } catch (ftpErr) {
+        const errMsg = ftpErr instanceof Error ? ftpErr.message : 'Ukendt FTP fejl'
+        await supabase
+          .from('supplier_credentials')
+          .update({ last_test_at: new Date().toISOString(), last_test_status: 'failed', last_test_error: errMsg })
+          .eq('id', credentialId)
+
+        return { success: false, data: { status: 'failed', message: errMsg }, error: errMsg }
+      }
+    }
+
+    // ===== API Connection Test =====
     if (!supplierCode || !['AO', 'LM'].includes(supplierCode)) {
-      // Update status for unsupported suppliers
       await supabase
         .from('supplier_credentials')
         .update({
@@ -365,7 +405,6 @@ export async function testSupplierConnection(
       }
     }
 
-    // Use the real API client to test connection (dynamic import to avoid circular dependency)
     const { SupplierAPIClientFactory } = await import('@/lib/services/supplier-api-client')
     SupplierAPIClientFactory.clearCache()
     const client = await SupplierAPIClientFactory.getClient(credential.supplier_id, supplierCode)
@@ -387,12 +426,9 @@ export async function testSupplierConnection(
       }
     }
 
-    // Run the actual connection test (loads credentials, attempts auth, updates status)
     const result = await client.testConnection()
-
     const testStatus: TestStatus = result.success ? 'success' : 'failed'
 
-    // Update credential with test result
     await supabase
       .from('supplier_credentials')
       .update({

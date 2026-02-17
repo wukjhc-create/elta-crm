@@ -11,6 +11,8 @@ import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { SupplierAPIClientFactory } from '@/lib/services/supplier-api-client'
+import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp-sync'
+import { decryptCredentials } from '@/lib/utils/encryption'
 import { BATCH_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 
@@ -70,17 +72,6 @@ export async function GET(request: Request) {
       })
     }
 
-    type SyncResult = {
-      supplierId: string
-      supplierName: string
-      syncType: string
-      status: 'success' | 'failed' | 'skipped'
-      productsUpdated?: number
-      priceChanges?: number
-      error?: string
-      durationMs: number
-    }
-
     // Process all schedules in parallel
     const syncResults = await Promise.allSettled(
       schedules.map(async (schedule): Promise<SyncResult> => {
@@ -97,6 +88,14 @@ export async function GET(request: Request) {
             .from('supplier_sync_schedules')
             .update({ last_run_at: new Date().toISOString(), last_run_status: 'running' })
             .eq('id', schedule.id)
+
+          // Branch by sync type
+          if (schedule.sync_type === 'ftp') {
+            // =============== FTP SYNC ===============
+            return await executeFtpSyncSchedule(supabase, schedule, supplier, syncStartTime)
+          }
+
+          // =============== API SYNC (default) ===============
 
           // Get API client
           const client = await SupplierAPIClientFactory.getClient(schedule.supplier_id, supplier.code || '')
@@ -294,6 +293,242 @@ export async function GET(request: Request) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  }
+}
+
+// =====================================================
+// FTP Sync Handler
+// =====================================================
+
+type ScheduleRecord = {
+  id: string
+  supplier_id: string
+  sync_type: string
+  cron_expression: string
+  max_duration_minutes: number | null
+  retry_on_failure: boolean
+  max_retries: number | null
+}
+
+type SupplierRecord = {
+  id: string
+  name: string
+  code: string | null
+  is_active: boolean
+}
+
+type SyncResult = {
+  supplierId: string
+  supplierName: string
+  syncType: string
+  status: 'success' | 'failed' | 'skipped'
+  productsUpdated?: number
+  priceChanges?: number
+  newProducts?: number
+  error?: string
+  durationMs: number
+}
+
+/**
+ * Execute FTP-based sync for a supplier schedule.
+ * Downloads catalog CSV from FTP, parses it, and upserts products.
+ */
+async function executeFtpSyncSchedule(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  schedule: ScheduleRecord,
+  supplier: SupplierRecord,
+  syncStartTime: number
+): Promise<SyncResult> {
+  const supplierCode = supplier.code?.toUpperCase() || ''
+
+  // Get FTP credentials from database
+  const { data: credRow, error: credError } = await supabase
+    .from('supplier_credentials')
+    .select('credentials_encrypted, api_endpoint')
+    .eq('supplier_id', schedule.supplier_id)
+    .eq('credential_type', 'ftp')
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (credError || !credRow) {
+    const durationMs = Date.now() - syncStartTime
+    await supabase.from('supplier_sync_schedules').update({ last_run_status: 'skipped', last_run_duration_ms: durationMs }).eq('id', schedule.id)
+    return { supplierId: schedule.supplier_id, supplierName: supplier.name, syncType: 'ftp', status: 'skipped', error: 'No FTP credentials configured', durationMs }
+  }
+
+  // Decrypt and build FTP credentials
+  const decrypted = await decryptCredentials(credRow.credentials_encrypted) as Record<string, string>
+  const ftpCreds = buildFtpCredentials(
+    { username: decrypted.username, password: decrypted.password, api_endpoint: credRow.api_endpoint || undefined },
+    supplierCode
+  )
+
+  // Execute FTP download + parse
+  const ftpResult = await executeFtpSync(ftpCreds, supplierCode)
+  const rows = ftpResult.rows
+
+  if (rows.length === 0) {
+    const durationMs = Date.now() - syncStartTime
+    await supabase.from('supplier_sync_schedules').update({ last_run_status: 'skipped', last_run_duration_ms: durationMs }).eq('id', schedule.id)
+    return { supplierId: schedule.supplier_id, supplierName: supplier.name, syncType: 'ftp', status: 'skipped', error: 'FTP file contained no valid rows', durationMs }
+  }
+
+  // Load existing products for this supplier (for upsert matching)
+  const { data: existingProducts } = await supabase
+    .from('supplier_products')
+    .select('id, supplier_sku, cost_price, list_price')
+    .eq('supplier_id', schedule.supplier_id)
+
+  const productsBySku = new Map((existingProducts || []).map((p) => [p.supplier_sku, p]))
+  const now = new Date().toISOString()
+
+  let updatedProducts = 0
+  let newProducts = 0
+  let priceChanges = 0
+  const errors: string[] = []
+  const priceHistoryBatch: Array<Record<string, unknown>> = []
+  const batchSize = BATCH_CONFIG.SUPPLIER_SYNC_BATCH_SIZE
+
+  // Process parsed rows in batches
+  for (let i = 0; i < rows.length; i += batchSize) {
+    // Check max duration
+    if (schedule.max_duration_minutes) {
+      const elapsedMinutes = (Date.now() - syncStartTime) / 60000
+      if (elapsedMinutes >= schedule.max_duration_minutes) {
+        errors.push(`Sync stopped: exceeded max duration of ${schedule.max_duration_minutes} minutes`)
+        break
+      }
+    }
+
+    const batch = rows.slice(i, i + batchSize)
+
+    try {
+      const updateFns: Array<() => Promise<unknown>> = []
+
+      for (const row of batch) {
+        if (!row.parsed.sku || row.errors.length > 0) continue
+
+        const existing = productsBySku.get(row.parsed.sku)
+
+        if (existing) {
+          // Update existing product
+          const oldCost = existing.cost_price
+          const newCost = row.parsed.cost_price
+
+          updateFns.push(async () => {
+            const { error } = await supabase
+              .from('supplier_products')
+              .update({
+                supplier_name: row.parsed.name || undefined,
+                cost_price: newCost,
+                list_price: row.parsed.list_price,
+                unit: row.parsed.unit || undefined,
+                category: row.parsed.category || undefined,
+                ean: row.parsed.ean || undefined,
+                manufacturer: row.parsed.manufacturer || undefined,
+                is_available: true,
+                last_synced_at: now,
+              })
+              .eq('id', existing.id)
+            if (error) throw error
+          })
+
+          updatedProducts++
+
+          // Track price change
+          if (oldCost !== null && newCost !== null && oldCost !== newCost) {
+            const changePct = oldCost > 0 ? ((newCost - oldCost) / oldCost) * 100 : 0
+            priceHistoryBatch.push({
+              supplier_product_id: existing.id,
+              old_cost_price: oldCost,
+              new_cost_price: newCost,
+              old_list_price: existing.list_price,
+              new_list_price: row.parsed.list_price,
+              change_percentage: Math.round(changePct * 100) / 100,
+              change_source: 'ftp_sync',
+            })
+            priceChanges++
+          }
+        } else {
+          // Insert new product
+          updateFns.push(async () => {
+            const { error } = await supabase
+              .from('supplier_products')
+              .insert({
+                supplier_id: schedule.supplier_id,
+                supplier_sku: row.parsed.sku,
+                supplier_name: row.parsed.name || row.parsed.sku,
+                cost_price: row.parsed.cost_price || 0,
+                list_price: row.parsed.list_price,
+                unit: row.parsed.unit || 'stk',
+                category: row.parsed.category || null,
+                ean: row.parsed.ean || null,
+                manufacturer: row.parsed.manufacturer || null,
+                is_available: true,
+                last_synced_at: now,
+              })
+            if (error) throw error
+          })
+          newProducts++
+        }
+      }
+
+      // Execute batch updates/inserts in parallel
+      const updateResults = await Promise.allSettled(updateFns.map((fn) => fn()))
+      const failedUpdates = updateResults.filter((r) => r.status === 'rejected')
+      if (failedUpdates.length > 0) {
+        errors.push(`FTP batch ${Math.floor(i / batchSize) + 1}: ${failedUpdates.length} upserts failed`)
+      }
+    } catch (batchError) {
+      errors.push(`FTP batch ${Math.floor(i / batchSize) + 1}: ${batchError instanceof Error ? batchError.message : 'Unknown error'}`)
+    }
+  }
+
+  // Batch insert price history records
+  if (priceHistoryBatch.length > 0) {
+    const { error: historyError } = await supabase.from('price_history').insert(priceHistoryBatch)
+    if (historyError) logger.error('Price history insert error (FTP)', { error: historyError })
+  }
+
+  const durationMs = Date.now() - syncStartTime
+  const status = errors.length === 0 ? 'success' : 'partial'
+
+  // Update schedule and create sync log
+  await Promise.all([
+    supabase.from('supplier_sync_schedules').update({
+      last_run_status: status,
+      last_run_duration_ms: durationMs,
+      last_run_items_processed: updatedProducts + newProducts,
+      next_run_at: getNextRunTime(schedule.cron_expression),
+    }).eq('id', schedule.id),
+    supabase.from('supplier_sync_logs').insert({
+      supplier_id: schedule.supplier_id,
+      sync_job_id: null,
+      job_type: 'ftp',
+      status: status === 'success' ? 'completed' : 'partial',
+      trigger_type: 'scheduled',
+      started_at: new Date(syncStartTime).toISOString(),
+      completed_at: new Date().toISOString(),
+      duration_ms: durationMs,
+      total_items: rows.length,
+      processed_items: updatedProducts + newProducts,
+      new_items: newProducts,
+      updated_items: updatedProducts,
+      price_changes_count: priceChanges,
+      error_message: errors.length > 0 ? errors.join('; ') : null,
+    }),
+  ])
+
+  return {
+    supplierId: schedule.supplier_id,
+    supplierName: supplier.name,
+    syncType: 'ftp',
+    status: errors.length === 0 ? 'success' : 'failed',
+    productsUpdated: updatedProducts,
+    newProducts,
+    priceChanges,
+    error: errors.length > 0 ? errors.join('; ') : undefined,
+    durationMs,
   }
 }
 
