@@ -14,6 +14,35 @@ import type {
 } from '@/types/customer-tasks.types'
 
 // =====================================================
+// HELPERS
+// =====================================================
+
+type ProfileMap = Record<string, { id: string; full_name: string | null; email: string }>
+
+async function enrichWithProfiles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tasks: CustomerTaskWithRelations[]
+): Promise<CustomerTaskWithRelations[]> {
+  const assignedIds = [...new Set(tasks.map((t) => t.assigned_to).filter(Boolean))] as string[]
+  if (assignedIds.length === 0) return tasks
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', assignedIds)
+
+  const profileMap: ProfileMap = {}
+  for (const p of profiles || []) {
+    profileMap[p.id] = p
+  }
+
+  return tasks.map((t) => ({
+    ...t,
+    assigned_profile: t.assigned_to ? profileMap[t.assigned_to] || null : null,
+  }))
+}
+
+// =====================================================
 // READ
 // =====================================================
 
@@ -24,14 +53,7 @@ export async function getCustomerTasks(
 
   const { data, error } = await supabase
     .from('customer_tasks')
-    .select(`
-      *,
-      assigned_profile:profiles!customer_tasks_assigned_to_fkey (
-        id,
-        full_name,
-        email
-      )
-    `)
+    .select('*')
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
 
@@ -40,7 +62,7 @@ export async function getCustomerTasks(
     return []
   }
 
-  return (data || []) as unknown as CustomerTaskWithRelations[]
+  return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
 }
 
 export async function getAllTasks(options?: {
@@ -55,12 +77,7 @@ export async function getAllTasks(options?: {
     .from('customer_tasks')
     .select(`
       *,
-      assigned_profile:profiles!customer_tasks_assigned_to_fkey (
-        id,
-        full_name,
-        email
-      ),
-      customer:customers!customer_tasks_customer_id_fkey (
+      customer:customers (
         id,
         company_name,
         customer_number
@@ -88,7 +105,7 @@ export async function getAllTasks(options?: {
     return []
   }
 
-  return (data || []) as unknown as CustomerTaskWithRelations[]
+  return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
 }
 
 export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations[]> {
@@ -103,12 +120,7 @@ export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations
     .from('customer_tasks')
     .select(`
       *,
-      assigned_profile:profiles!customer_tasks_assigned_to_fkey (
-        id,
-        full_name,
-        email
-      ),
-      customer:customers!customer_tasks_customer_id_fkey (
+      customer:customers (
         id,
         company_name,
         customer_number
@@ -125,7 +137,7 @@ export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations
     return []
   }
 
-  return (data || []) as unknown as CustomerTaskWithRelations[]
+  return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
 }
 
 export async function getActiveProfiles(): Promise<
