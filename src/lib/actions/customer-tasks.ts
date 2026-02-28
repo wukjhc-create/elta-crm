@@ -43,6 +43,54 @@ export async function getCustomerTasks(
   return (data || []) as unknown as CustomerTaskWithRelations[]
 }
 
+export async function getAllTasks(options?: {
+  status?: string
+  priority?: string
+  assignedTo?: string
+  search?: string
+}): Promise<CustomerTaskWithRelations[]> {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('customer_tasks')
+    .select(`
+      *,
+      assigned_profile:profiles!customer_tasks_assigned_to_fkey (
+        id,
+        full_name,
+        email
+      ),
+      customer:customers!customer_tasks_customer_id_fkey (
+        id,
+        company_name,
+        customer_number
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (options?.status && options.status !== 'all') {
+    query = query.eq('status', options.status)
+  }
+  if (options?.priority && options.priority !== 'all') {
+    query = query.eq('priority', options.priority)
+  }
+  if (options?.assignedTo && options.assignedTo !== 'all') {
+    query = query.eq('assigned_to', options.assignedTo)
+  }
+  if (options?.search) {
+    query = query.ilike('title', `%${options.search}%`)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    logger.error('Failed to fetch all tasks', { error })
+    return []
+  }
+
+  return (data || []) as unknown as CustomerTaskWithRelations[]
+}
+
 export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations[]> {
   const supabase = await createClient()
 
