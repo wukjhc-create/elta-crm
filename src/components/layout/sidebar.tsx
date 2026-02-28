@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { APP_NAME } from '@/lib/constants'
@@ -92,8 +93,8 @@ const navSections: NavSection[] = [
         ),
       },
       {
-        name: 'Indbakke',
-        href: '/dashboard/inbox',
+        name: 'Mail',
+        href: '/dashboard/mail',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -101,6 +102,20 @@ const navSections: NavSection[] = [
               strokeLinejoin="round"
               strokeWidth={2}
               d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
+          </svg>
+        ),
+      },
+      {
+        name: 'Opgaver',
+        href: '/dashboard/tasks',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
             />
           </svg>
         ),
@@ -230,6 +245,29 @@ function isNavActive(pathname: string, item: NavItem): boolean {
 
 export function Sidebar() {
   const pathname = usePathname()
+  const [taskCount, setTaskCount] = useState(0)
+  const [overdueCount, setOverdueCount] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    async function fetchCount() {
+      try {
+        const { getAllTasks } = await import('@/lib/actions/customer-tasks')
+        const tasks = await getAllTasks()
+        const now = new Date()
+        const active = tasks.filter((t) => t.status !== 'done')
+        if (mounted) {
+          setTaskCount(active.length)
+          setOverdueCount(active.filter((t) => t.due_date && new Date(t.due_date) < now).length)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 60_000)
+    return () => { mounted = false; clearInterval(interval) }
+  }, [])
 
   return (
     <div className="flex w-64 flex-col bg-gray-900">
@@ -266,6 +304,20 @@ export function Sidebar() {
                   >
                     {item.icon}
                     {item.name}
+                    {item.href === '/dashboard/tasks' && (taskCount > 0 || overdueCount > 0) && (
+                      <span className="ml-auto inline-flex items-center gap-1">
+                        {overdueCount > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-red-500 text-white">
+                            {overdueCount}
+                          </span>
+                        )}
+                        {taskCount > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-amber-500 text-white">
+                            {taskCount}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </Link>
                 )
               })}
