@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { APP_NAME } from '@/lib/constants'
@@ -244,6 +245,23 @@ function isNavActive(pathname: string, item: NavItem): boolean {
 
 export function Sidebar() {
   const pathname = usePathname()
+  const [taskCount, setTaskCount] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    async function fetchCount() {
+      try {
+        const { getAllTasks } = await import('@/lib/actions/customer-tasks')
+        const tasks = await getAllTasks()
+        if (mounted) setTaskCount(tasks.filter((t) => t.status !== 'done').length)
+      } catch {
+        // ignore
+      }
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 60_000)
+    return () => { mounted = false; clearInterval(interval) }
+  }, [])
 
   return (
     <div className="flex w-64 flex-col bg-gray-900">
@@ -280,6 +298,11 @@ export function Sidebar() {
                   >
                     {item.icon}
                     {item.name}
+                    {item.href === '/dashboard/tasks' && taskCount > 0 && (
+                      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-amber-500 text-white">
+                        {taskCount}
+                      </span>
+                    )}
                   </Link>
                 )
               })}
