@@ -246,6 +246,7 @@ function isNavActive(pathname: string, item: NavItem): boolean {
 export function Sidebar() {
   const pathname = usePathname()
   const [taskCount, setTaskCount] = useState(0)
+  const [overdueCount, setOverdueCount] = useState(0)
 
   useEffect(() => {
     let mounted = true
@@ -253,7 +254,12 @@ export function Sidebar() {
       try {
         const { getAllTasks } = await import('@/lib/actions/customer-tasks')
         const tasks = await getAllTasks()
-        if (mounted) setTaskCount(tasks.filter((t) => t.status !== 'done').length)
+        const now = new Date()
+        const active = tasks.filter((t) => t.status !== 'done')
+        if (mounted) {
+          setTaskCount(active.length)
+          setOverdueCount(active.filter((t) => t.due_date && new Date(t.due_date) < now).length)
+        }
       } catch {
         // ignore
       }
@@ -298,9 +304,18 @@ export function Sidebar() {
                   >
                     {item.icon}
                     {item.name}
-                    {item.href === '/dashboard/tasks' && taskCount > 0 && (
-                      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-amber-500 text-white">
-                        {taskCount}
+                    {item.href === '/dashboard/tasks' && (taskCount > 0 || overdueCount > 0) && (
+                      <span className="ml-auto inline-flex items-center gap-1">
+                        {overdueCount > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-red-500 text-white">
+                            {overdueCount}
+                          </span>
+                        )}
+                        {taskCount > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-amber-500 text-white">
+                            {taskCount}
+                          </span>
+                        )}
                       </span>
                     )}
                   </Link>
