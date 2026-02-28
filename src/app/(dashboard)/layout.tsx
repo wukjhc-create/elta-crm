@@ -3,6 +3,7 @@ import { getUser } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { CommandPalette } from '@/components/layout/command-palette'
+import { TaskReminderOverlay } from '@/components/layout/task-reminder-overlay'
 
 export default async function DashboardLayout({
   children,
@@ -31,6 +32,7 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
+      <TaskReminderOverlay />
     </div>
   )
 }
