@@ -11,7 +11,6 @@ import {
   FolderKanban,
   BarChart3,
   Send,
-  Loader2,
   ExternalLink,
 } from 'lucide-react'
 import {
@@ -61,9 +60,23 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
     return (
       <div className="bg-white rounded-lg border p-6">
         <h2 className="text-lg font-semibold mb-4">Aktivitetsoversigt</h2>
-        <div className="flex items-center justify-center py-8 text-gray-400">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          Indlæser...
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="flex items-center gap-2 px-3 py-2">
+                <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-6 bg-muted animate-pulse rounded" />
+              </div>
+              <div className="ml-6 space-y-1.5">
+                <div className="flex items-center gap-2 py-2 px-3 bg-gray-50 rounded">
+                  <div className="h-4 w-40 bg-muted animate-pulse rounded" />
+                  <div className="h-5 w-14 bg-muted animate-pulse rounded-full ml-auto" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     )
