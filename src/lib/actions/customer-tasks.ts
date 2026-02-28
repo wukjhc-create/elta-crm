@@ -301,3 +301,90 @@ export async function snoozeTask(
   revalidatePath('/dashboard/tasks')
   return { success: true }
 }
+
+// =====================================================
+// PRICE ALERTS (system_alerts)
+// =====================================================
+
+export interface PriceAlert {
+  id: string
+  alert_type: string
+  severity: string
+  title: string
+  message: string
+  details: Record<string, unknown>
+  entity_type: string | null
+  entity_id: string | null
+  is_read: boolean
+  created_at: string
+}
+
+export async function getUnreadPriceAlerts(): Promise<PriceAlert[]> {
+  try {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('system_alerts')
+      .select('*')
+      .eq('alert_type', 'price_change')
+      .eq('is_read', false)
+      .eq('is_dismissed', false)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (error) {
+      logger.error('Failed to fetch price alerts', { error })
+      return []
+    }
+
+    return data || []
+  } catch {
+    return []
+  }
+}
+
+export async function dismissPriceAlert(
+  alertId: string
+): Promise<{ success: boolean }> {
+  try {
+    const supabase = await createClient()
+
+    const { error } = await supabase
+      .from('system_alerts')
+      .update({
+        is_dismissed: true,
+        dismissed_at: new Date().toISOString(),
+      })
+      .eq('id', alertId)
+
+    if (error) {
+      logger.error('Failed to dismiss price alert', { error })
+      return { success: false }
+    }
+
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function markPriceAlertRead(
+  alertId: string
+): Promise<{ success: boolean }> {
+  try {
+    const supabase = await createClient()
+
+    const { error } = await supabase
+      .from('system_alerts')
+      .update({
+        is_read: true,
+        read_at: new Date().toISOString(),
+      })
+      .eq('id', alertId)
+
+    if (error) return { success: false }
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}

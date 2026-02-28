@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Search, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Search, Loader2, TrendingUp } from 'lucide-react'
 import type { QuoteLineItem } from '@/types/quote-templates.types'
 import { OFFER_UNITS } from '@/types/offers.types'
 import { formatCurrency } from '@/lib/utils/format'
@@ -69,8 +69,12 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
       return {
         ...item,
         description: product.product_name,
-        unitPrice: product.list_price || product.estimated_sale_price || product.cost_price,
+        unitPrice: product.estimated_sale_price || product.list_price || product.cost_price,
         unit: product.unit || 'stk',
+        costPrice: product.cost_price,
+        listPrice: product.list_price ?? undefined,
+        supplierSku: product.supplier_sku,
+        supplierName: product.supplier_name,
       }
     })
     onChange(updated)
@@ -82,19 +86,26 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
 
+  // Dækningsbidrag
+  const totalCost = items.reduce((sum, item) => sum + (item.costPrice || 0) * item.quantity, 0)
+  const hasCostData = items.some((item) => item.costPrice && item.costPrice > 0)
+  const contributionMargin = subtotal - totalCost
+  const contributionPct = subtotal > 0 ? (contributionMargin / subtotal) * 100 : 0
+
   // Track sections for display
   let currentSection = ''
 
   return (
     <div className="space-y-3">
       {/* Table header */}
-      <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 px-1">
-        <div className="col-span-5">Beskrivelse</div>
-        <div className="col-span-1 text-right">Antal</div>
-        <div className="col-span-2">Enhed</div>
-        <div className="col-span-2 text-right">Enhedspris</div>
-        <div className="col-span-1 text-right">Total</div>
-        <div className="col-span-1" />
+      <div className="grid grid-cols-[1fr_60px_80px_90px_90px_70px_32px] gap-2 text-xs font-medium text-gray-500 px-1">
+        <div>Beskrivelse</div>
+        <div className="text-right">Antal</div>
+        <div>Enhed</div>
+        <div className="text-right">Vejl. pris</div>
+        <div className="text-right">Enhedspris</div>
+        <div className="text-right">Total</div>
+        <div />
       </div>
 
       {/* Items */}
@@ -112,24 +123,36 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
               </div>
             )}
 
-            <div className="grid grid-cols-12 gap-2 items-center">
-              <DescriptionInput
-                value={item.description}
-                onChange={(val) => updateItem(index, 'description', val)}
-                onProductSelect={(product) => handleProductSelect(index, product)}
-              />
+            <div className="grid grid-cols-[1fr_60px_80px_90px_90px_70px_32px] gap-2 items-start">
+              {/* Description + supplier info */}
+              <div>
+                <DescriptionInput
+                  value={item.description}
+                  onChange={(val) => updateItem(index, 'description', val)}
+                  onProductSelect={(product) => handleProductSelect(index, product)}
+                />
+                {item.supplierSku && (
+                  <div className="flex items-center gap-2 mt-0.5 px-1">
+                    <span className="text-[10px] text-gray-400 truncate">
+                      {item.supplierSku} | {item.supplierName}
+                      {item.costPrice ? ` | Netto: ${formatCurrency(item.costPrice, 'DKK', 2)}` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <input
                 type="number"
                 value={item.quantity}
                 onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
                 min={0}
                 step={1}
-                className="col-span-1 px-2 py-1.5 border rounded text-sm text-right"
+                className="px-2 py-1.5 border rounded text-sm text-right"
               />
               <select
                 value={item.unit}
                 onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                className="col-span-2 px-2 py-1.5 border rounded text-sm"
+                className="px-2 py-1.5 border rounded text-sm"
               >
                 {OFFER_UNITS.map((u) => (
                   <option key={u.value} value={u.value}>
@@ -137,21 +160,27 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
                   </option>
                 ))}
               </select>
+
+              {/* Vejledende pris */}
+              <div className="text-right py-1.5 text-sm text-gray-400">
+                {item.listPrice ? formatCurrency(item.listPrice, 'DKK', 0) : '—'}
+              </div>
+
               <input
                 type="number"
                 value={item.unitPrice}
                 onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                 min={0}
                 step={0.01}
-                className="col-span-2 px-2 py-1.5 border rounded text-sm text-right"
+                className="px-2 py-1.5 border rounded text-sm text-right"
               />
-              <div className="col-span-1 text-right text-sm font-medium text-gray-700">
+              <div className="text-right text-sm font-medium text-gray-700 py-1.5">
                 {formatCurrency(lineTotal, 'DKK', 0)}
               </div>
               <button
                 type="button"
                 onClick={() => removeItem(index)}
-                className="col-span-1 p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
                 title="Slet linje"
               >
                 <Trash2 className="w-4 h-4" />
@@ -179,12 +208,32 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
         </button>
       </div>
 
-      {/* Subtotal */}
-      <div className="flex justify-end pt-3 border-t">
-        <div className="text-sm">
-          <span className="text-gray-500 mr-3">Subtotal:</span>
-          <span className="font-semibold">{formatCurrency(subtotal, 'DKK', 2)}</span>
+      {/* Subtotal + Dækningsbidrag */}
+      <div className="pt-3 border-t space-y-1">
+        <div className="flex justify-end">
+          <div className="text-sm">
+            <span className="text-gray-500 mr-3">Subtotal:</span>
+            <span className="font-semibold">{formatCurrency(subtotal, 'DKK', 2)}</span>
+          </div>
         </div>
+
+        {hasCostData && (
+          <div className="flex justify-end">
+            <div className="text-sm space-y-0.5 text-right border-t border-dashed pt-1 mt-1">
+              <div>
+                <span className="text-gray-400 mr-3">Indkøb (netto):</span>
+                <span className="text-gray-500">{formatCurrency(totalCost, 'DKK', 2)}</span>
+              </div>
+              <div className="flex items-center justify-end gap-1">
+                <TrendingUp className={`w-3.5 h-3.5 ${contributionPct >= 20 ? 'text-green-500' : contributionPct >= 10 ? 'text-amber-500' : 'text-red-500'}`} />
+                <span className="text-gray-500 mr-3">Dækningsbidrag:</span>
+                <span className={`font-semibold ${contributionPct >= 20 ? 'text-green-600' : contributionPct >= 10 ? 'text-amber-600' : 'text-red-600'}`}>
+                  {formatCurrency(contributionMargin, 'DKK', 2)} ({contributionPct.toFixed(1)}%)
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -262,7 +311,7 @@ function DescriptionInput({
   }, [])
 
   return (
-    <div ref={containerRef} className="col-span-5 relative">
+    <div ref={containerRef} className="relative">
       <div className="relative">
         <input
           type="text"
@@ -280,7 +329,7 @@ function DescriptionInput({
       </div>
 
       {showDropdown && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg max-h-64 overflow-auto">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg max-h-72 overflow-auto">
           {noResults && results.length === 0 ? (
             <div className="px-3 py-2 text-xs text-gray-400">Ingen produkter fundet</div>
           ) : (
@@ -289,7 +338,7 @@ function DescriptionInput({
                 key={product.id}
                 type="button"
                 onClick={() => handleSelect(product)}
-                className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b last:border-b-0 transition-colors"
+                className="w-full text-left px-3 py-2.5 hover:bg-blue-50 border-b last:border-b-0 transition-colors"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -299,10 +348,17 @@ function DescriptionInput({
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-medium text-gray-700">
-                      {formatCurrency(product.list_price || product.estimated_sale_price, 'DKK', 2)}
+                    <p className="text-xs text-gray-400">
+                      Netto: {formatCurrency(product.cost_price, 'DKK', 2)}
                     </p>
-                    <p className="text-xs text-gray-400">{product.unit}</p>
+                    <p className="text-sm font-semibold text-green-700">
+                      {formatCurrency(product.estimated_sale_price, 'DKK', 2)}
+                    </p>
+                    {product.list_price && product.list_price !== product.estimated_sale_price && (
+                      <p className="text-[10px] text-gray-400">
+                        Vejl: {formatCurrency(product.list_price, 'DKK', 0)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </button>

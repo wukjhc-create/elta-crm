@@ -204,7 +204,31 @@ export async function importFromFtp(
       if (histErr) logger.error('Price history insert error (manual FTP)', { error: histErr })
     }
 
-    // 7. Create import batch audit record
+    // 7. Auto-opret prisalarm hvis prisændringer
+    if (priceChanges > 0) {
+      try {
+        await supabase.from('system_alerts').insert({
+          alert_type: 'price_change',
+          severity: priceChanges > 50 ? 'critical' : priceChanges > 10 ? 'warning' : 'info',
+          title: `Prisændring: ${priceChanges} varer fra ${supplier.name}`,
+          message: `FTP-import fandt ${priceChanges} prisændringer.\nNye: ${newProducts} | Opdaterede: ${updatedProducts} | Total: ${rows.length}`,
+          details: {
+            supplier_code: code,
+            supplier_name: supplier.name,
+            file_name: ftpResult.file_name,
+            new_products: newProducts,
+            updated_products: updatedProducts,
+            price_changes: priceChanges,
+          },
+          entity_type: 'supplier',
+          entity_id: supplier.id,
+        })
+      } catch (alertErr) {
+        logger.warn('Could not create price alert', { error: alertErr })
+      }
+    }
+
+    // 8. Create import batch audit record
     try {
       await supabase.from('import_batches').insert({
         supplier_id: supplier.id,

@@ -11,6 +11,7 @@ import {
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { PORTAL_TOKEN_EXPIRY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
+import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
@@ -1332,6 +1333,12 @@ export async function searchSupplierProductsForOffer(
   try {
     const { supabase } = await getAuthenticatedClient()
 
+    // Hent global produkt-avance fra indstillinger (auto-markup)
+    const calcResult = await getCalculationSettings()
+    const defaultProductMargin = calcResult.success && calcResult.data
+      ? calcResult.data.margins.products
+      : CALC_DEFAULTS.MARGINS.PRODUCTS
+
     let dbQuery = supabase
       .from('supplier_products')
       .select(`
@@ -1393,7 +1400,7 @@ export async function searchSupplierProductsForOffer(
       const customerPricing = customerPricingMap.get(sp.supplier_id)
 
       let effectiveCost = sp.cost_price || 0
-      let margin = sp.margin_percentage || CALC_DEFAULTS.MARGINS.MATERIALS
+      let margin = sp.margin_percentage || defaultProductMargin
 
       if (customerPricing) {
         effectiveCost = (sp.cost_price || 0) * (1 - customerPricing.discount / 100)

@@ -14,6 +14,10 @@ export interface QuoteLineItem {
   unit: string             // from OFFER_UNITS ('stk','time','kWp' etc.)
   unitPrice: number
   section?: string         // 'Materialer', 'Arbejdsløn' etc.
+  costPrice?: number       // Indkøbspris fra leverandør (netto)
+  listPrice?: number       // Vejledende pris fra leverandør
+  supplierSku?: string     // Varenummer hos leverandør
+  supplierName?: string    // Leverandørnavn (f.eks. "AO")
 }
 
 export interface QuoteCustomerData {
