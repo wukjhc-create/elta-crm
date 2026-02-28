@@ -8,6 +8,7 @@ import {
   Clock,
   X,
   ExternalLink,
+  FileText,
 } from 'lucide-react'
 import { getMyPendingReminders, completeCustomerTask, snoozeTask } from '@/lib/actions/customer-tasks'
 import { TASK_PRIORITY_CONFIG } from '@/types/customer-tasks.types'
@@ -130,15 +131,27 @@ function ReminderCard({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-gray-900 truncate">{reminder.title}</p>
-            {reminder.customer && (
-              <a
-                href={`/dashboard/customers/${reminder.customer.id}`}
-                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-0.5"
-              >
-                {reminder.customer.company_name}
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              {reminder.offer && (
+                <a
+                  href={`/dashboard/offers/${reminder.offer.id}`}
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+                >
+                  <FileText className="w-3 h-3" />
+                  {reminder.offer.offer_number}
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              {reminder.customer && (
+                <a
+                  href={`/dashboard/customers/${reminder.customer.id}`}
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                >
+                  {reminder.customer.company_name}
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
           </div>
           <button
             onClick={onDismiss}

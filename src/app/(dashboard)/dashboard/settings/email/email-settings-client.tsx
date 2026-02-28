@@ -40,7 +40,7 @@ import {
   updateEmailTemplate,
   createEmailTemplate,
   deleteEmailTemplate,
-  testSmtpConnectionAction,
+  testEmailConnectionAction,
   sendTestEmailAction,
   getEmailStats,
 } from '@/lib/actions/email'
@@ -167,20 +167,13 @@ export function EmailSettingsClient({
     setSmtpTestResult(null)
 
     try {
-      const result = await testSmtpConnectionAction({
-        host: smtpHost,
-        port: parseInt(smtpPort) || 587,
-        user: smtpUser,
-        password: smtpPassword,
-        fromEmail: smtpFromEmail,
-        fromName: smtpFromName,
-      })
+      const result = await testEmailConnectionAction()
 
       setSmtpTestResult({
         success: result.success,
         message: result.success
-          ? 'Forbindelse til SMTP server lykkedes!'
-          : result.error || 'Kunne ikke oprette forbindelse',
+          ? 'Microsoft Graph API er konfigureret korrekt!'
+          : result.error || 'Microsoft Graph er ikke konfigureret',
       })
     } catch (error) {
       setSmtpTestResult({
@@ -200,17 +193,7 @@ export function EmailSettingsClient({
 
     setIsSendingTest(true)
     try {
-      const result = await sendTestEmailAction(
-        testEmailAddress,
-        {
-          host: smtpHost,
-          port: parseInt(smtpPort) || 587,
-          user: smtpUser,
-          password: smtpPassword,
-          fromEmail: smtpFromEmail,
-          fromName: smtpFromName,
-        }
-      )
+      const result = await sendTestEmailAction(testEmailAddress)
 
       if (result.success) {
         toast?.success('Sendt', `Test e-mail sendt til ${testEmailAddress}`)

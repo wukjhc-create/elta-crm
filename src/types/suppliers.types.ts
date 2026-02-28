@@ -230,6 +230,8 @@ export interface ParsedRow {
     name: string
     cost_price: number | null
     list_price: number | null
+    gross_price?: number | null      // Bruttopris (before discount)
+    discount_pct?: number | null     // Rabat% (discount percentage)
     unit?: string
     category?: string
     sub_category?: string

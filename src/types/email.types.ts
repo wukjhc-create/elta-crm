@@ -247,6 +247,7 @@ export interface SendOfferEmailInput {
   subject?: string // Override template subject
   body_html?: string // Override template body
   body_text?: string
+  sender_name?: string // Logged-in user's display name for From field
   cc?: string[]
   bcc?: string[]
   attachments?: EmailAttachment[]

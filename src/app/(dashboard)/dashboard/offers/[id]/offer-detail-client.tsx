@@ -28,6 +28,7 @@ import {
   Calculator,
   MessageSquare,
   Plug,
+  ClipboardCheck,
 } from 'lucide-react'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
@@ -35,6 +36,7 @@ import { LineItemForm } from '@/components/modules/offers/line-item-form'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
+import { OfferTaskForm } from '@/components/modules/offers/offer-task-form'
 import { insertPackageIntoOffer } from '@/lib/actions/packages'
 import { SendEmailModal, EmailTimeline } from '@/components/email'
 import { SendSmsModal, SmsTimeline } from '@/components/sms'
@@ -92,6 +94,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   const [isExporting, setIsExporting] = useState(false)
   const [availableIntegrations, setAvailableIntegrations] = useState<{ id: string; name: string }[]>([])
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showTaskForm, setShowTaskForm] = useState(false)
 
   // Load activities on mount
   useEffect(() => {
@@ -417,6 +420,13 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                 <Plug className="w-4 h-4" />
               )}
               Eksporter
+            </button>
+            <button
+              onClick={() => setShowTaskForm(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-amber-200 text-amber-700 rounded-md hover:bg-amber-50"
+            >
+              <ClipboardCheck className="w-4 h-4" />
+              Opret Opgave
             </button>
             <button
               onClick={() => setShowEditForm(true)}
@@ -996,6 +1006,17 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
         onOpenChange={setShowPackagePicker}
         onSelect={handleAddPackage}
       />
+
+      {/* Offer Task Form */}
+      {showTaskForm && (
+        <OfferTaskForm
+          offerId={offer.id}
+          offerTitle={offer.title}
+          customerId={offer.customer?.id || null}
+          onClose={() => setShowTaskForm(false)}
+          onSuccess={() => setShowTaskForm(false)}
+        />
+      )}
 
       {/* Export to Integration Dialog */}
       {showExportDialog && (

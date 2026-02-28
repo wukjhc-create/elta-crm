@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { validatePortalToken, getPortalOffers, getPortalMessages } from '@/lib/actions/portal'
+import { validatePortalToken, getPortalOffers, getPortalMessages, getPortalDocuments } from '@/lib/actions/portal'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { PortalDashboard } from '@/components/modules/portal/portal-dashboard'
 
@@ -22,10 +22,11 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
   const session = sessionResult.data
 
   // Fetch data
-  const [offersResult, messagesResult, settingsResult] = await Promise.all([
+  const [offersResult, messagesResult, settingsResult, documentsResult] = await Promise.all([
     getPortalOffers(token),
     getPortalMessages(token),
     getCompanySettings(),
+    getPortalDocuments(token),
   ])
 
   return (
@@ -34,6 +35,7 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
       session={session}
       offers={offersResult.data || []}
       messages={messagesResult.data || []}
+      documents={documentsResult.data || []}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />
   )

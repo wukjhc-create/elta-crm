@@ -15,6 +15,9 @@ import {
   Clock,
   Loader2,
   ArrowRight,
+  Mail,
+  MailCheck,
+  MailX,
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatTimeAgo } from '@/lib/utils/format'
@@ -30,6 +33,15 @@ interface HealthSummary {
   criticalIssues: string[]
 }
 
+interface EmailSyncHealth {
+  lastSync: Date | null
+  lastStatus: string
+  lastError: string | null
+  totalSynced: number
+  unidentifiedCount: number
+  aoMatchCount: number
+}
+
 interface SupplierHealthOverviewProps {
   className?: string
 }
@@ -37,6 +49,7 @@ interface SupplierHealthOverviewProps {
 export function SupplierHealthOverview({ className }: SupplierHealthOverviewProps) {
   const toast = useToast()
   const [summary, setSummary] = useState<HealthSummary | null>(null)
+  const [emailSync, setEmailSync] = useState<EmailSyncHealth | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -45,9 +58,20 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
     async function load() {
       setLoading(true)
       try {
-        const { getSystemHealthSummary } = await import('@/lib/actions/supplier-health')
-        const result = await getSystemHealthSummary()
+        const [{ getSystemHealthSummary }, { getGraphSyncState, getIncomingEmailStats }] =
+          await Promise.all([
+            import('@/lib/actions/supplier-health'),
+            import('@/lib/actions/incoming-emails'),
+          ])
+
+        const [result, syncState, emailStats] = await Promise.all([
+          getSystemHealthSummary(),
+          getGraphSyncState(),
+          getIncomingEmailStats(),
+        ])
+
         if (cancelled) return
+
         if (result.success && result.data) {
           setSummary({
             ...result.data,
@@ -55,8 +79,16 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
           })
         } else {
           setSummary(null)
-          toast.error('Kunne ikke hente systemstatus')
         }
+
+        setEmailSync({
+          lastSync: syncState?.last_sync_at ? new Date(syncState.last_sync_at) : null,
+          lastStatus: syncState?.last_sync_status || 'never',
+          lastError: syncState?.last_sync_error || null,
+          totalSynced: syncState?.emails_synced_total || 0,
+          unidentifiedCount: emailStats.unidentified,
+          aoMatchCount: emailStats.aoMatches,
+        })
       } catch {
         if (cancelled) return
         setSummary(null)
@@ -71,8 +103,18 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
   async function loadSummary() {
     setLoading(true)
     try {
-      const { getSystemHealthSummary } = await import('@/lib/actions/supplier-health')
-      const result = await getSystemHealthSummary()
+      const [{ getSystemHealthSummary }, { getGraphSyncState, getIncomingEmailStats }] =
+        await Promise.all([
+          import('@/lib/actions/supplier-health'),
+          import('@/lib/actions/incoming-emails'),
+        ])
+
+      const [result, syncState, emailStats] = await Promise.all([
+        getSystemHealthSummary(),
+        getGraphSyncState(),
+        getIncomingEmailStats(),
+      ])
+
       if (result.success && result.data) {
         setSummary({
           ...result.data,
@@ -82,6 +124,15 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
         setSummary(null)
         toast.error('Kunne ikke hente systemstatus')
       }
+
+      setEmailSync({
+        lastSync: syncState?.last_sync_at ? new Date(syncState.last_sync_at) : null,
+        lastStatus: syncState?.last_sync_status || 'never',
+        lastError: syncState?.last_sync_error || null,
+        totalSynced: syncState?.emails_synced_total || 0,
+        unidentifiedCount: emailStats.unidentified,
+        aoMatchCount: emailStats.aoMatches,
+      })
     } catch {
       setSummary(null)
       toast.error('Kunne ikke hente systemstatus')
@@ -229,11 +280,79 @@ export function SupplierHealthOverview({ className }: SupplierHealthOverviewProp
         </div>
       )}
 
+      {/* Email Sync Status */}
+      {emailSync && (
+        <div className="border-t">
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-50">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Mail className="w-4 h-4 text-gray-500" />
+              Mail Bridge
+            </div>
+            {emailSync.lastStatus === 'success' ? (
+              <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                Online
+              </Badge>
+            ) : emailSync.lastStatus === 'failed' ? (
+              <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
+                Fejl
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-600">
+                Ikke synket
+              </Badge>
+            )}
+          </div>
+          <div className="grid grid-cols-3 divide-x px-0 py-0">
+            <div className="p-3 text-center">
+              <div className="flex items-center justify-center gap-1 mb-0.5">
+                {emailSync.lastStatus === 'success' ? (
+                  <MailCheck className="w-3.5 h-3.5 text-green-500" />
+                ) : emailSync.lastStatus === 'failed' ? (
+                  <MailX className="w-3.5 h-3.5 text-red-500" />
+                ) : (
+                  <Mail className="w-3.5 h-3.5 text-gray-400" />
+                )}
+                <span className="text-lg font-bold">{emailSync.totalSynced}</span>
+              </div>
+              <div className="text-[10px] text-gray-500">Synkroniseret</div>
+            </div>
+            <div className="p-3 text-center">
+              <div className="text-lg font-bold text-yellow-600">
+                {emailSync.unidentifiedCount}
+              </div>
+              <div className="text-[10px] text-gray-500">Uidentificerede</div>
+            </div>
+            <div className="p-3 text-center">
+              <div className="text-lg font-bold text-blue-600">
+                {emailSync.aoMatchCount}
+              </div>
+              <div className="text-[10px] text-gray-500">AO-match</div>
+            </div>
+          </div>
+          {emailSync.lastSync && (
+            <div className="px-4 py-1.5 text-[10px] text-gray-400 text-center border-t">
+              Sidst synkroniseret: {formatTimeAgo(emailSync.lastSync)}
+            </div>
+          )}
+          {emailSync.lastError && (
+            <div className="px-4 py-2 bg-red-50 border-t">
+              <div className="text-xs text-red-700 truncate">{emailSync.lastError}</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="p-4 border-t">
-        <Link href="/dashboard/settings/suppliers">
+      <div className="p-4 border-t flex gap-2">
+        <Link href="/dashboard/settings/suppliers" className="flex-1">
           <Button variant="ghost" size="sm" className="w-full">
-            Se alle leverandører
+            Leverandører
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </Link>
+        <Link href="/dashboard/mail" className="flex-1">
+          <Button variant="ghost" size="sm" className="w-full">
+            Mail
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </Link>

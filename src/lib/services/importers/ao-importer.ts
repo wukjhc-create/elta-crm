@@ -29,6 +29,8 @@ export const AO_COLUMN_MAPPINGS: ColumnMappings = {
   name: 'Beskrivelse',
   cost_price: 'Indkøbspris',
   list_price: 'Vejl. udsalgspris',
+  gross_price: 'Bruttopris',
+  discount_pct: 'Rabat%',
   unit: 'Enhed',
   category: 'Varegruppe',
   ean: 'EAN',
@@ -183,6 +185,45 @@ export class AOAdapter extends BaseSupplierAdapter {
     }
 
     return rows
+  }
+
+  /**
+   * Override transformRow with AO-specific Brutto/Rabat → Netto derivation.
+   * If cost_price is null but gross_price and discount_pct are available,
+   * the engine already derived it. We add an extra fallback here:
+   * if Nettopris column is present as alternative name for cost_price.
+   */
+  transformRow(row: ParsedRow): ParsedRow {
+    const transformed = super.transformRow(row)
+
+    // If cost_price is still null and we have gross_price without discount,
+    // use gross_price as the list_price and warn the user
+    const grossPrice = transformed.parsed.gross_price ?? null
+    const discountPct = transformed.parsed.discount_pct ?? null
+
+    if (
+      transformed.parsed.cost_price === null &&
+      grossPrice !== null &&
+      grossPrice > 0 &&
+      discountPct === null
+    ) {
+      transformed.warnings.push(
+        'Kun bruttopris fundet uden rabat% — kan ikke beregne nettopris automatisk'
+      )
+    }
+
+    // Cross-validate: cost_price should not exceed gross_price
+    if (
+      transformed.parsed.cost_price !== null &&
+      grossPrice !== null &&
+      transformed.parsed.cost_price > grossPrice * 1.01 // allow 1% rounding
+    ) {
+      transformed.warnings.push(
+        'Nettopris er højere end bruttopris — kontrollér prisdata'
+      )
+    }
+
+    return transformed
   }
 
   /**

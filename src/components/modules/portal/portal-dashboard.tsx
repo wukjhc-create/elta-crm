@@ -10,8 +10,11 @@ import {
   XCircle,
   Eye,
   ChevronRight,
+  Download,
+  FolderOpen,
 } from 'lucide-react'
 import type { PortalSession, PortalOffer, PortalMessageWithRelations } from '@/types/portal.types'
+import type { PortalDocument } from '@/lib/actions/portal'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { PortalChat } from './portal-chat'
 import { formatDate as formatDateUtil } from '@/lib/utils'
@@ -22,6 +25,7 @@ interface PortalDashboardProps {
   session: PortalSession
   offers: PortalOffer[]
   messages: PortalMessageWithRelations[]
+  documents?: PortalDocument[]
   companySettings?: CompanySettings | null
 }
 
@@ -30,6 +34,7 @@ export function PortalDashboard({
   session,
   offers,
   messages,
+  documents = [],
   companySettings,
 }: PortalDashboardProps) {
   const [showChat, setShowChat] = useState(false)
@@ -196,6 +201,44 @@ export function PortalDashboard({
           </div>
         )}
       </div>
+
+      {/* Documents */}
+      {documents.length > 0 && (
+        <div className="bg-white rounded-xl border shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">Dokumenter</h2>
+          </div>
+          <div className="divide-y">
+            {documents.map((doc) => (
+              <a
+                key={doc.id}
+                href={doc.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between p-6 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <FolderOpen className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{doc.title}</p>
+                    {doc.description && (
+                      <p className="text-sm text-gray-500">{doc.description}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-gray-400">
+                    {formatDateUtil(doc.created_at)}
+                  </span>
+                  <Download className="w-4 h-4 text-gray-400" />
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Chat Modal */}
       {showChat && (

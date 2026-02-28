@@ -81,6 +81,11 @@ export async function getAllTasks(options?: {
         id,
         company_name,
         customer_number
+      ),
+      offer:offers (
+        id,
+        title,
+        offer_number
       )
     `)
     .order('created_at', { ascending: false })
@@ -124,6 +129,11 @@ export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations
         id,
         company_name,
         customer_number
+      ),
+      offer:offers (
+        id,
+        title,
+        offer_number
       )
     `)
     .eq('assigned_to', user.id)
@@ -172,6 +182,7 @@ export async function createCustomerTask(
 
   const { error } = await supabase.from('customer_tasks').insert({
     customer_id: input.customer_id,
+    offer_id: input.offer_id || null,
     title: input.title,
     description: input.description || null,
     priority: input.priority || 'normal',
@@ -188,6 +199,7 @@ export async function createCustomerTask(
 
   revalidatePath(`/dashboard/customers/${input.customer_id}`)
   revalidatePath('/dashboard/tasks')
+  revalidatePath('/dashboard/offers')
   return { success: true }
 }
 

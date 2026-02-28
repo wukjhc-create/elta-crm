@@ -8,6 +8,7 @@ export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 export interface CustomerTask {
   id: string
   customer_id: string
+  offer_id: string | null
   title: string
   description: string | null
   status: TaskStatus
@@ -33,10 +34,16 @@ export interface CustomerTaskWithRelations extends CustomerTask {
     company_name: string
     customer_number: string
   } | null
+  offer?: {
+    id: string
+    title: string
+    offer_number: string
+  } | null
 }
 
 export interface CreateCustomerTaskInput {
   customer_id: string
+  offer_id?: string
   title: string
   description?: string
   priority?: TaskPriority

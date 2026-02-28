@@ -112,6 +112,14 @@ export const MONITORING_CONFIG = {
   STALE_PRODUCT_MIN_COUNT: 50,
 } as const
 
+// Microsoft Graph / Mail Bridge
+export const GRAPH_CONFIG = {
+  DEFAULT_MAILBOX: 'crm@eltasolar.dk',
+  MAX_MESSAGES_PER_POLL: 50,
+  MAX_PAGES_PER_SYNC: 5,
+  SYNC_INTERVAL_MINUTES: 5,
+} as const
+
 // Batch processing
 export const BATCH_CONFIG = {
   SUPPLIER_SYNC_BATCH_SIZE: 50,

@@ -14,6 +14,7 @@ import {
   ExternalLink,
   ClipboardCheck,
   Filter,
+  FileText,
 } from 'lucide-react'
 import {
   getAllTasks,
@@ -264,7 +265,16 @@ function TaskRow({
         <p className={`text-sm font-medium truncate ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
           {task.title}
         </p>
-        {task.description && (
+        {task.offer && (
+          <Link
+            href={`/dashboard/offers/${task.offer.id}`}
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-0.5"
+          >
+            <FileText className="w-3 h-3" />
+            {task.offer.offer_number}
+          </Link>
+        )}
+        {task.description && !task.offer && (
           <p className="text-xs text-gray-400 truncate mt-0.5">{task.description}</p>
         )}
       </div>

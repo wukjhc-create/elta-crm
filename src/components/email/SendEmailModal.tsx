@@ -43,7 +43,9 @@ import {
   CheckCircle,
   FileText,
   RefreshCw,
+  Paperclip,
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 interface SendEmailModalProps {
   open: boolean
@@ -67,11 +69,32 @@ export function SendEmailModal({
   const [subject, setSubject] = useState('')
   const [bodyHtml, setBodyHtml] = useState('')
   const [isEditing, setIsEditing] = useState(false)
+  const [includePdf, setIncludePdf] = useState(true)
+  const [senderName, setSenderName] = useState<string>('')
 
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Load current user name for sender field
+  useEffect(() => {
+    if (open && !senderName) {
+      const supabase = createClient()
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user) {
+          supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', data.user.id)
+            .maybeSingle()
+            .then(({ data: profile }) => {
+              if (profile?.full_name) setSenderName(profile.full_name)
+            })
+        }
+      })
+    }
+  }, [open, senderName])
 
   // Load templates
   useEffect(() => {
@@ -137,6 +160,8 @@ export function SendEmailModal({
         template_code: selectedTemplate,
         subject: isEditing ? subject : undefined,
         body_html: isEditing ? bodyHtml : undefined,
+        sender_name: senderName || undefined,
+        include_pdf: includePdf,
       })
 
       if (result.success) {
@@ -219,16 +244,41 @@ export function SendEmailModal({
             </div>
           ) : preview ? (
             <>
-              {/* Recipient info */}
+              {/* Sender / recipient info */}
               <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
                 <div>
                   <Label className="text-xs text-muted-foreground">Fra</Label>
-                  <p className="text-sm">{preview.from_name} &lt;{preview.from_email}&gt;</p>
+                  <p className="text-sm">
+                    {senderName
+                      ? `${senderName} | ${preview.from_name}`
+                      : preview.from_name
+                    } &lt;{preview.from_email}&gt;
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Svar-til: {preview.from_email}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">Til</Label>
                   <p className="text-sm">{preview.to_name} &lt;{preview.to_email}&gt;</p>
                 </div>
+              </div>
+
+              {/* PDF attachment toggle */}
+              <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={includePdf}
+                    onChange={(e) => setIncludePdf(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <Paperclip className="h-4 w-4 text-muted-foreground" />
+                  Vedhæft tilbuds-PDF
+                </label>
+                {includePdf && (
+                  <Badge variant="secondary" className="text-xs">PDF vedhæftes</Badge>
+                )}
               </div>
 
               {/* Subject */}

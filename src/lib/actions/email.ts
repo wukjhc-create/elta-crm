@@ -14,8 +14,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { revalidatePath } from 'next/cache'
-import { sendEmail } from '@/lib/email/email-service'
-import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
+import { isGraphConfigured, sendEmailViaGraph, getMailbox } from '@/lib/services/microsoft-graph'
+import { getCompanySettings } from '@/lib/actions/settings'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createPortalToken } from '@/lib/actions/portal'
 import { logger } from '@/lib/utils/logger'
@@ -563,9 +563,8 @@ export async function generateEmailPreview(
       ? renderTemplate(template.body_text_template, variables)
       : ''
 
-    // Get SMTP settings for from address
-    const smtpResult = await getSmtpSettings()
-    const smtpSettings = smtpResult.success ? smtpResult.data : null
+    // Get Graph mailbox for from address
+    const graphMailbox = isGraphConfigured() ? getMailbox() : ''
 
     return {
       success: true,
@@ -573,8 +572,8 @@ export async function generateEmailPreview(
         subject,
         body_html: bodyHtml,
         body_text: bodyText,
-        from_email: smtpSettings?.fromEmail || settings?.company_email || '',
-        from_name: smtpSettings?.fromName || settings?.company_name || 'Elta Solar',
+        from_email: graphMailbox || settings?.company_email || '',
+        from_name: settings?.company_name || 'Elta Solar',
         to_email: offer.customer?.email || '',
         to_name: offer.customer?.contact_person || offer.customer?.company_name || '',
         variables,
@@ -594,7 +593,18 @@ export async function sendOfferEmail(
   input: SendOfferEmailInput
 ): Promise<SendOfferEmailResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Resolve sender name: explicit > profile > fallback
+    let senderName = input.sender_name
+    if (!senderName) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .maybeSingle()
+      senderName = profile?.full_name || undefined
+    }
 
     // Get offer with customer
     const { data: offer, error: offerError } = await supabase
@@ -631,19 +641,50 @@ export async function sendOfferEmail(
     const bodyHtml = input.body_html || preview.body_html
     const bodyText = input.body_text || preview.body_text
 
-    // Get SMTP settings
-    const smtpResult = await getSmtpSettings()
-    if (!smtpResult.success || !smtpResult.data?.host || !smtpResult.data?.user || !smtpResult.data?.password) {
-      return { success: false, error: 'SMTP er ikke konfigureret. Gå til Indstillinger → E-mail.' }
+    // Check Microsoft Graph configuration
+    if (!isGraphConfigured()) {
+      return { success: false, error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET.' }
     }
+    const fromEmail = getMailbox()
 
-    const smtpConfig = {
-      host: smtpResult.data.host,
-      port: smtpResult.data.port || 587,
-      user: smtpResult.data.user,
-      password: smtpResult.data.password,
-      fromEmail: smtpResult.data.fromEmail || preview.from_email,
-      fromName: smtpResult.data.fromName || preview.from_name,
+    // Build attachments array (PDF + any extra)
+    const emailAttachments: Array<{ filename: string; content: Buffer | string; contentType?: string }> = []
+
+    // Generate and attach PDF if requested
+    if (input.include_pdf) {
+      try {
+        const { renderToBuffer } = await import('@react-pdf/renderer')
+        const { OfferPdfDocument } = await import('@/lib/pdf/offer-pdf-template')
+        const settingsResult = await getCompanySettings()
+
+        if (settingsResult.success && settingsResult.data) {
+          // Fetch full offer with line items for PDF
+          const { data: fullOffer } = await supabase
+            .from('offers')
+            .select(`*, line_items:offer_line_items(*), customer:customers(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)`)
+            .eq('id', input.offer_id)
+            .single()
+
+          if (fullOffer) {
+            if (fullOffer.line_items) {
+              fullOffer.line_items.sort((a: { position: number }, b: { position: number }) => a.position - b.position)
+            }
+            const pdfDoc = OfferPdfDocument({
+              offer: fullOffer as any,
+              companySettings: settingsResult.data,
+            }) as any
+            const pdfBuffer = await renderToBuffer(pdfDoc)
+            emailAttachments.push({
+              filename: `${fullOffer.offer_number || 'tilbud'}.pdf`,
+              content: Buffer.from(pdfBuffer),
+              contentType: 'application/pdf',
+            })
+          }
+        }
+      } catch (pdfError) {
+        logger.error('Failed to generate PDF attachment', { error: pdfError })
+        // Continue without PDF — don't block the email
+      }
     }
 
     // Create or get thread
@@ -688,8 +729,8 @@ export async function sendOfferEmail(
     const messageResult = await createEmailMessage({
       thread_id: thread.id,
       direction: 'outbound',
-      from_email: smtpConfig.fromEmail,
-      from_name: smtpConfig.fromName,
+      from_email: fromEmail,
+      from_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',
       to_email: offer.customer.email,
       to_name: offer.customer.contact_person || offer.customer.company_name || undefined,
       subject,
@@ -714,16 +755,19 @@ export async function sendOfferEmail(
       .update({ tracking_id: trackingId })
       .eq('id', message.id)
 
-    // Actually send the email
-    const emailResult = await sendEmail(
-      {
-        to: offer.customer.email,
-        subject,
-        html: finalHtml,
-        text: bodyText,
-      },
-      smtpConfig
-    )
+    // Actually send the email via Microsoft Graph
+    const emailResult = await sendEmailViaGraph({
+      to: offer.customer.email,
+      subject,
+      html: finalHtml,
+      senderName,
+      replyTo: fromEmail,
+      attachments: emailAttachments.map(att => ({
+        filename: att.filename,
+        content: att.content instanceof Buffer ? att.content : Buffer.from(att.content as string),
+        contentType: att.contentType || 'application/octet-stream',
+      })),
+    })
 
     if (!emailResult.success) {
       // Update message status to failed
@@ -766,6 +810,25 @@ export async function sendOfferEmail(
       tracking_id: trackingId,
       subject,
     })
+
+    // Auto-opret opfølgningsopgave (3 dages påmindelse)
+    try {
+      const reminderDate = new Date()
+      reminderDate.setDate(reminderDate.getDate() + 3)
+
+      await supabase.from('customer_tasks').insert({
+        customer_id: offer.customer_id,
+        offer_id: offer.id,
+        title: `Følg op: ${offer.title || offer.offer_number} — intet svar modtaget`,
+        description: `Automatisk opfølgning oprettet ved afsendelse af tilbud til ${offer.customer.email}.`,
+        priority: 'normal',
+        assigned_to: userId,
+        reminder_at: reminderDate.toISOString(),
+        created_by: userId,
+      })
+    } catch (taskErr) {
+      logger.warn('Failed to create follow-up task', { error: taskErr })
+    }
 
     revalidatePath(`/dashboard/offers/${offer.id}`)
 
@@ -1026,31 +1089,20 @@ export async function getEmailStats(options?: {
 }
 
 // =====================================================
-// SMTP TESTING ACTIONS
+// EMAIL TESTING ACTIONS (via Graph API)
 // =====================================================
 
-import { verifySmtpConnection } from '@/lib/email/email-service'
-
-export interface SmtpTestConfig {
-  host: string
-  port: number
-  user: string
-  password: string
-  fromEmail: string
-  fromName: string
-}
-
 /**
- * Test SMTP connection
+ * Test Graph API connection
  */
-export async function testSmtpConnectionAction(
-  config: SmtpTestConfig
-): Promise<{ success: boolean; error?: string }> {
+export async function testEmailConnectionAction(): Promise<{ success: boolean; error?: string }> {
   try {
-    const result = await verifySmtpConnection(config)
-    return result
+    if (!isGraphConfigured()) {
+      return { success: false, error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET.' }
+    }
+    return { success: true }
   } catch (error) {
-    logger.error('Error testing SMTP connection', { error: error })
+    logger.error('Error testing Graph connection', { error: error })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Uventet fejl',
@@ -1059,27 +1111,26 @@ export async function testSmtpConnectionAction(
 }
 
 /**
- * Send test email
+ * Send test email via Graph API
  */
 export async function sendTestEmailAction(
-  toEmail: string,
-  config: SmtpTestConfig
+  toEmail: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const result = await sendEmail(
-      {
-        to: toEmail,
-        subject: 'Test e-mail fra Elta CRM',
-        html: `
-          <h1>Test e-mail</h1>
-          <p>Dette er en test e-mail fra Elta CRM.</p>
-          <p>Hvis du modtager denne e-mail, er SMTP konfigurationen korrekt.</p>
-          <p>Sendt: ${new Date().toLocaleString('da-DK')}</p>
-        `,
-        text: 'Test e-mail fra Elta CRM. SMTP konfigurationen virker.',
-      },
-      config
-    )
+    if (!isGraphConfigured()) {
+      return { success: false, error: 'Microsoft Graph er ikke konfigureret.' }
+    }
+
+    const result = await sendEmailViaGraph({
+      to: toEmail,
+      subject: 'Test e-mail fra Elta CRM',
+      html: `
+        <h1>Test e-mail</h1>
+        <p>Dette er en test e-mail fra Elta CRM.</p>
+        <p>Hvis du modtager denne e-mail, er Microsoft Graph konfigurationen korrekt.</p>
+        <p>Sendt: ${new Date().toLocaleString('da-DK')}</p>
+      `,
+    })
 
     return {
       success: result.success,

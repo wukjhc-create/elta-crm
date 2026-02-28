@@ -7,6 +7,8 @@ import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createProjectFromOffer } from '@/lib/actions/projects'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
+import { sendEmail } from '@/lib/email/email-service'
+import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
 import { MAX_FILE_SIZE } from '@/lib/constants'
 import type {
   PortalAccessToken,
@@ -487,6 +489,49 @@ export async function acceptOffer(
       triggerWebhooks('offer.accepted', payload).catch(err => {
         logger.error('Error triggering webhooks', { error: err })
       })
+    }
+
+    // Send automatic email confirmation to CRM mailbox
+    try {
+      const [smtpResult, settingsResult] = await Promise.all([
+        getSmtpSettings(),
+        getCompanySettings(),
+      ])
+      const crmMailbox = process.env.GRAPH_MAILBOX || 'crm@eltasolar.dk'
+      const companyName = settingsResult.data?.company_name || 'Elta Solar'
+
+      const smtpConfig = smtpResult.success && smtpResult.data
+        ? {
+            host: smtpResult.data.host || undefined,
+            port: smtpResult.data.port || undefined,
+            user: smtpResult.data.user || undefined,
+            password: smtpResult.data.password || undefined,
+            fromEmail: smtpResult.data.fromEmail || undefined,
+            fromName: smtpResult.data.fromName || undefined,
+          }
+        : undefined
+
+      await sendEmail({
+        to: crmMailbox,
+        subject: `Tilbud accepteret: ${offer.title}`,
+        html: `
+          <h2>Tilbud accepteret</h2>
+          <p>Kunden har accepteret et tilbud via kundeportalen.</p>
+          <table style="border-collapse:collapse;margin:16px 0;">
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tilbud:</td><td style="font-weight:600;">${offer.title}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Underskrevet af:</td><td>${data.signer_name} (${data.signer_email})</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Beløb:</td><td style="font-weight:600;">${new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(offer.final_amount)}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tidspunkt:</td><td>${new Date().toLocaleString('da-DK')}</td></tr>
+          </table>
+          <p>Se tilbuddet i CRM: <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app'}/dashboard/offers">Gå til Tilbud</a></p>
+          <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
+          <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ${companyName} CRM.</p>
+        `,
+        text: `Tilbud accepteret\n\nKunden har accepteret tilbud: ${offer.title}\nUnderskrevet af: ${data.signer_name} (${data.signer_email})\nBeløb: ${offer.final_amount} DKK\nTidspunkt: ${new Date().toLocaleString('da-DK')}\n\nSe tilbuddet i CRM-systemet.`,
+      }, smtpConfig)
+    } catch (emailError) {
+      logger.error('Failed to send acceptance confirmation email', { error: emailError })
+      // Non-critical — don't fail the acceptance
     }
 
     revalidatePath('/offers')
@@ -1034,6 +1079,52 @@ export async function getAttachmentUrl(
     return { success: true, data: data.signedUrl }
   } catch (error) {
     logger.error('Error in getAttachmentUrl', { error: error })
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// =====================================================
+// Portal Documents
+// =====================================================
+
+export interface PortalDocument {
+  id: string
+  title: string
+  description: string | null
+  document_type: string
+  file_url: string
+  file_name: string
+  mime_type: string
+  created_at: string
+}
+
+// Get documents visible to portal customer
+export async function getPortalDocuments(
+  token: string
+): Promise<ActionResult<PortalDocument[]>> {
+  try {
+    const sessionResult = await validatePortalToken(token)
+    if (!sessionResult.success || !sessionResult.data) {
+      return { success: false, error: sessionResult.error }
+    }
+
+    const supabase = await createClient()
+    const customerId = sessionResult.data.customer_id
+
+    const { data, error } = await supabase
+      .from('customer_documents')
+      .select('id, title, description, document_type, file_url, file_name, mime_type, created_at')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      logger.error('Error fetching portal documents', { error })
+      return { success: false, error: 'Kunne ikke hente dokumenter' }
+    }
+
+    return { success: true, data: data as PortalDocument[] }
+  } catch (error) {
+    logger.error('Error in getPortalDocuments', { error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

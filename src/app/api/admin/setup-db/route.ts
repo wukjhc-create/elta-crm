@@ -161,6 +161,18 @@ GRANT ALL ON customer_tasks TO authenticated;
 GRANT ALL ON customer_tasks TO service_role;
     `.trim(),
   },
+  {
+    name: '00054_customer_tasks_offer_id',
+    check_table: 'customer_tasks',
+    check_column: 'offer_id',
+    sql: `
+ALTER TABLE customer_tasks
+  ADD COLUMN IF NOT EXISTS offer_id uuid REFERENCES offers(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_customer_tasks_offer_id ON customer_tasks(offer_id)
+  WHERE offer_id IS NOT NULL;
+    `.trim(),
+  },
 ]
 
 function getProjectRef(): string | null {
@@ -219,6 +231,21 @@ async function runSqlViaDatabaseUrl(sql: string): Promise<{ success: boolean; er
   }
 }
 
+async function checkColumnExists(tableName: string, columnName: string): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return false
+
+  const res = await fetch(`${url}/rest/v1/${tableName}?select=${columnName}&limit=1`, {
+    headers: {
+      'apikey': key,
+      'Authorization': `Bearer ${key}`,
+    },
+  })
+
+  return res.ok
+}
+
 async function checkTableExists(tableName: string): Promise<boolean> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -254,8 +281,21 @@ export async function POST(request: Request) {
   for (const migration of MIGRATIONS) {
     // Check if table already exists
     const exists = await checkTableExists(migration.check_table)
-    if (exists) {
+    if (exists && !('check_column' in migration)) {
       results.push({ migration: migration.name, status: 'already_exists' })
+      continue
+    }
+    // For column-add migrations: check if column exists by querying it
+    if (exists && 'check_column' in migration && migration.check_column) {
+      const colExists = await checkColumnExists(migration.check_table, migration.check_column)
+      if (colExists) {
+        results.push({ migration: migration.name, status: 'already_exists' })
+        continue
+      }
+    }
+    if (!exists && 'check_column' in migration) {
+      // Table doesn't exist yet, skip column migration
+      results.push({ migration: migration.name, status: 'skipped_no_table' })
       continue
     }
 

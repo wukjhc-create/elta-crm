@@ -7,6 +7,8 @@ export interface EmailOptions {
   subject: string
   html: string
   text?: string
+  replyTo?: string
+  senderName?: string
   attachments?: Array<{
     filename: string
     content: Buffer | string
@@ -56,14 +58,20 @@ export async function sendEmail(
 
     // Get from address
     const fromEmail = config?.fromEmail || process.env.SMTP_FROM_EMAIL
-    const fromName = config?.fromName || process.env.SMTP_FROM_NAME || 'Elta Solar'
+    const defaultFromName = config?.fromName || process.env.SMTP_FROM_NAME || 'Elta Solar'
+
+    // Dynamic sender: "Jens Jensen | Elta Solar" or fallback to default
+    const displayName = options.senderName
+      ? `${options.senderName} | ${defaultFromName}`
+      : defaultFromName
 
     if (!fromEmail) {
       throw new Error('From email is not configured')
     }
 
     const mailOptions = {
-      from: `"${fromName}" <${fromEmail}>`,
+      from: `"${displayName}" <${fromEmail}>`,
+      replyTo: options.replyTo || fromEmail,
       to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
       subject: options.subject,
       html: options.html,

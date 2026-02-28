@@ -139,8 +139,14 @@ export function detectColumnMappings(
       detected.sku = index
     } else if (normalizedHeader.includes('beskriv') || normalizedHeader.includes('benævn') || normalizedHeader === 'navn' || normalizedHeader === 'name') {
       detected.name = index
-    } else if (normalizedHeader.includes('indkøb') || normalizedHeader.includes('netto') || normalizedHeader.includes('kostpris')) {
+    } else if (normalizedHeader.includes('indkøb') || normalizedHeader === 'nettopris' || normalizedHeader.includes('kostpris')) {
       detected.cost_price = index
+    } else if (normalizedHeader === 'netto' && !detected.cost_price) {
+      detected.cost_price = index
+    } else if (normalizedHeader.includes('bruttopris') || normalizedHeader === 'brutto') {
+      detected.gross_price = index
+    } else if (normalizedHeader.includes('rabat') || normalizedHeader === 'discount' || normalizedHeader === 'rabat%') {
+      detected.discount_pct = index
     } else if (normalizedHeader.includes('vejl') || normalizedHeader.includes('liste') || normalizedHeader.includes('udsalg')) {
       detected.list_price = index
     } else if (normalizedHeader === 'enhed' || normalizedHeader === 'unit') {
@@ -297,6 +303,8 @@ export class ImportEngine {
     const name = getValue('name').trim()
     const costPriceStr = getValue('cost_price')
     const listPriceStr = getValue('list_price')
+    const grossPriceStr = getValue('gross_price')
+    const discountPctStr = getValue('discount_pct')
     const unit = getValue('unit').trim() || 'stk'
     const category = getValue('category').trim() || undefined
     const subCategory = getValue('sub_category').trim() || undefined
@@ -304,11 +312,22 @@ export class ImportEngine {
     const ean = getValue('ean').trim() || undefined
     const minQtyStr = getValue('min_order_quantity')
 
+    const grossPrice = parseDanishNumber(grossPriceStr)
+    const discountPct = parseDanishNumber(discountPctStr)
+    let costPrice = parseDanishNumber(costPriceStr)
+
+    // If cost_price is missing but gross_price + discount are available, derive it
+    if (costPrice === null && grossPrice !== null && grossPrice > 0 && discountPct !== null) {
+      costPrice = Math.round(grossPrice * (1 - discountPct / 100) * 100) / 100
+    }
+
     return {
       sku,
       name,
-      cost_price: parseDanishNumber(costPriceStr),
+      cost_price: costPrice,
       list_price: parseDanishNumber(listPriceStr),
+      gross_price: grossPrice,
+      discount_pct: discountPct,
       unit,
       category,
       sub_category: subCategory,

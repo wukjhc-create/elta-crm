@@ -16,9 +16,11 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  ClipboardCheck,
 } from 'lucide-react'
 import { OfferStatusBadge } from './offer-status-badge'
 import { OfferForm } from './offer-form'
+import { OfferTaskForm } from './offer-task-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
 import { EmptyState } from '@/components/shared/empty-state'
 import { CopyButton } from '@/components/shared/copy-button'
@@ -43,6 +45,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
   const [editingOffer, setEditingOffer] = useState<OfferWithRelations | null>(null)
+  const [taskOffer, setTaskOffer] = useState<OfferWithRelations | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -367,6 +370,16 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                               )}
 
                               <button
+                                onClick={() => {
+                                  setTaskOffer(offer)
+                                  setOpenMenuId(null)
+                                }}
+                                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-amber-700 hover:bg-amber-50"
+                              >
+                                <ClipboardCheck className="w-4 h-4" />
+                                Opret Opgave
+                              </button>
+                              <button
                                 onClick={() => handleDelete(offer.id)}
                                 disabled={deletingId === offer.id}
                                 className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
@@ -393,6 +406,15 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
           companySettings={companySettings}
           onClose={() => setEditingOffer(null)}
           onSuccess={() => router.refresh()}
+        />
+      )}
+      {taskOffer && (
+        <OfferTaskForm
+          offerId={taskOffer.id}
+          offerTitle={taskOffer.title}
+          customerId={taskOffer.customer?.id || null}
+          onClose={() => setTaskOffer(null)}
+          onSuccess={() => { setTaskOffer(null); router.refresh() }}
         />
       )}
       {ConfirmDialog}
