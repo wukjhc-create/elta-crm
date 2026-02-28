@@ -17,6 +17,9 @@ import {
   TrendingUp,
   Plus,
   Brain,
+  ClipboardCheck,
+  Circle,
+  Loader2,
 } from 'lucide-react'
 
 interface CommandItem {
@@ -35,6 +38,13 @@ export function CommandPalette() {
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const [taskResults, setTaskResults] = useState<CommandItem[]>([])
+  const [customerResults, setCustomerResults] = useState<CommandItem[]>([])
+  const [leadResults, setLeadResults] = useState<CommandItem[]>([])
+  const [offerResults, setOfferResults] = useState<CommandItem[]>([])
+  const [projectResults, setProjectResults] = useState<CommandItem[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const navigate = useCallback(
     (path: string) => {
@@ -51,8 +61,9 @@ export function CommandPalette() {
     { id: 'nav-leads', label: 'Leads', section: 'Navigation', icon: <BarChart3 className="w-4 h-4" />, action: () => navigate('/dashboard/leads'), keywords: ['emner', 'pipeline'] },
     { id: 'nav-customers', label: 'Kunder', section: 'Navigation', icon: <Users className="w-4 h-4" />, action: () => navigate('/dashboard/customers'), keywords: ['kontakter', 'firmaer'] },
     { id: 'nav-offers', label: 'Tilbud', section: 'Navigation', icon: <FileText className="w-4 h-4" />, action: () => navigate('/dashboard/offers'), keywords: ['quotes', 'salg'] },
-    { id: 'nav-projects', label: 'Projekter', section: 'Navigation', icon: <FolderKanban className="w-4 h-4" />, action: () => navigate('/dashboard/projects'), keywords: ['opgaver', 'tasks'] },
-    { id: 'nav-inbox', label: 'Indbakke', section: 'Navigation', icon: <Mail className="w-4 h-4" />, action: () => navigate('/dashboard/inbox'), keywords: ['beskeder', 'messages'] },
+    { id: 'nav-projects', label: 'Projekter', section: 'Navigation', icon: <FolderKanban className="w-4 h-4" />, action: () => navigate('/dashboard/projects'), keywords: ['projekter'] },
+    { id: 'nav-mail', label: 'Mail', section: 'Navigation', icon: <Mail className="w-4 h-4" />, action: () => navigate('/dashboard/mail'), keywords: ['email', 'beskeder', 'indbakke'] },
+    { id: 'nav-tasks', label: 'Opgaver', section: 'Navigation', icon: <ClipboardCheck className="w-4 h-4" />, action: () => navigate('/dashboard/tasks'), keywords: ['tasks', 'påmindelser', 'todo'] },
     { id: 'nav-calculations', label: 'Kalkulationer', section: 'Navigation', icon: <Calculator className="w-4 h-4" />, action: () => navigate('/dashboard/calculations'), keywords: ['beregninger'] },
     { id: 'nav-products', label: 'Produkter', section: 'Navigation', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/products'), keywords: ['varer', 'katalog'] },
     { id: 'nav-packages', label: 'Pakker', section: 'Navigation', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/packages'), keywords: ['bundter'] },
@@ -74,15 +85,137 @@ export function CommandPalette() {
     { id: 'settings-suppliers', label: 'Leverandører', section: 'Indstillinger', icon: <Package className="w-4 h-4" />, action: () => navigate('/dashboard/settings/suppliers'), keywords: ['grossist', 'ao', 'lemvigh'] },
   ]
 
+  // Live search: tasks + customers
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+
+    if (!open || query.trim().length < 2) {
+      setTaskResults([])
+      setCustomerResults([])
+      setLeadResults([])
+      setOfferResults([])
+      setProjectResults([])
+      setIsSearching(false)
+      return
+    }
+
+    setIsSearching(true)
+    searchTimer.current = setTimeout(async () => {
+      const q = query.trim()
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+
+      // Search tasks, customers, leads, offers in parallel
+      const [tasksRes, customersRes, leadsRes, offersRes, projectsRes] = await Promise.allSettled([
+        import('@/lib/actions/customer-tasks').then(({ getAllTasks }) => getAllTasks({ search: q })),
+        supabase
+          .from('customers')
+          .select('id, company_name, contact_person, email, customer_number')
+          .or(`company_name.ilike.%${q}%,contact_person.ilike.%${q}%,email.ilike.%${q}%,customer_number.ilike.%${q}%`)
+          .limit(5)
+          .then(({ data }) => data || []),
+        supabase
+          .from('leads')
+          .select('id, company_name, contact_person, email, status')
+          .or(`company_name.ilike.%${q}%,contact_person.ilike.%${q}%,email.ilike.%${q}%`)
+          .limit(5)
+          .then(({ data }) => data || []),
+        supabase
+          .from('offers')
+          .select('id, offer_number, title, status, total')
+          .or(`title.ilike.%${q}%,offer_number.ilike.%${q}%`)
+          .limit(5)
+          .then(({ data }) => data || []),
+        supabase
+          .from('projects')
+          .select('id, project_number, name, status')
+          .or(`name.ilike.%${q}%,project_number.ilike.%${q}%`)
+          .limit(5)
+          .then(({ data }) => data || []),
+      ])
+
+      // Tasks
+      if (tasksRes.status === 'fulfilled') {
+        setTaskResults(tasksRes.value.slice(0, 5).map((t: any) => ({
+          id: `task-${t.id}`,
+          label: t.title,
+          section: 'Opgaver',
+          icon: <Circle className={`w-4 h-4 ${t.status === 'done' ? 'text-green-500' : t.status === 'in_progress' ? 'text-blue-500' : 'text-amber-500'}`} />,
+          action: () => navigate(`/dashboard/customers/${t.customer_id}`),
+          keywords: [],
+        })))
+      } else { setTaskResults([]) }
+
+      // Customers
+      if (customersRes.status === 'fulfilled') {
+        setCustomerResults(customersRes.value.map((c: any) => ({
+          id: `customer-${c.id}`,
+          label: c.company_name,
+          section: 'Kunder',
+          icon: <Users className="w-4 h-4" />,
+          action: () => navigate(`/dashboard/customers/${c.id}`),
+          keywords: [],
+        })))
+      } else { setCustomerResults([]) }
+
+      // Leads
+      if (leadsRes.status === 'fulfilled') {
+        setLeadResults(leadsRes.value.map((l: any) => ({
+          id: `lead-${l.id}`,
+          label: `${l.company_name || l.contact_person}`,
+          section: 'Leads',
+          icon: <BarChart3 className="w-4 h-4" />,
+          action: () => navigate(`/dashboard/leads/${l.id}`),
+          keywords: [],
+        })))
+      } else { setLeadResults([]) }
+
+      // Offers
+      if (offersRes.status === 'fulfilled') {
+        setOfferResults(offersRes.value.map((o: any) => ({
+          id: `offer-${o.id}`,
+          label: `${o.offer_number ? o.offer_number + ' — ' : ''}${o.title}`,
+          section: 'Tilbud',
+          icon: <FileText className="w-4 h-4" />,
+          action: () => navigate(`/dashboard/offers/${o.id}`),
+          keywords: [],
+        })))
+      } else { setOfferResults([]) }
+
+      // Projects
+      if (projectsRes.status === 'fulfilled') {
+        setProjectResults(projectsRes.value.map((p: any) => ({
+          id: `project-${p.id}`,
+          label: `${p.project_number ? p.project_number + ' — ' : ''}${p.name}`,
+          section: 'Projekter',
+          icon: <FolderKanban className="w-4 h-4" />,
+          action: () => navigate(`/dashboard/projects/${p.id}`),
+          keywords: [],
+        })))
+      } else { setProjectResults([]) }
+
+      setIsSearching(false)
+    }, 300)
+
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
+  }, [query, open, navigate])
+
   const filtered = query.trim()
-    ? commands.filter((cmd) => {
-        const q = query.toLowerCase()
-        return (
-          cmd.label.toLowerCase().includes(q) ||
-          cmd.section.toLowerCase().includes(q) ||
-          cmd.keywords?.some((k) => k.includes(q))
-        )
-      })
+    ? [
+        ...commands.filter((cmd) => {
+          const q = query.toLowerCase()
+          return (
+            cmd.label.toLowerCase().includes(q) ||
+            cmd.section.toLowerCase().includes(q) ||
+            cmd.keywords?.some((k) => k.includes(q))
+          )
+        }),
+        ...customerResults,
+        ...leadResults,
+        ...offerResults,
+        ...projectResults,
+        ...taskResults,
+      ]
     : commands
 
   // Group by section
@@ -176,7 +309,7 @@ export function CommandPalette() {
 
         {/* Results */}
         <div ref={listRef} className="max-h-80 overflow-y-auto py-2">
-          {flatFiltered.length === 0 ? (
+          {flatFiltered.length === 0 && !isSearching ? (
             <div className="px-4 py-8 text-center text-sm text-gray-500">
               Ingen resultater for &quot;{query}&quot;
             </div>
@@ -208,6 +341,12 @@ export function CommandPalette() {
                 })}
               </div>
             ))
+          )}
+          {isSearching && (
+            <div className="px-4 py-2 flex items-center gap-2 text-xs text-gray-400">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Søger...
+            </div>
           )}
         </div>
 
