@@ -50,20 +50,21 @@ export function LineItemsTable({
   return (
     <div>
       <div className="overflow-x-auto">
-        <table className="min-w-full">
+        <table className="min-w-full text-sm">
           <thead>
-            <tr className="border-b">
-              <th className="text-left py-2 text-sm font-medium text-gray-500">#</th>
-              <th className="text-left py-2 text-sm font-medium text-gray-500">Beskrivelse</th>
-              <th className="text-right py-2 text-sm font-medium text-gray-500">Antal</th>
+            <tr className="border-b bg-gray-50/50">
+              <th className="text-left py-2 px-2 font-medium text-gray-500 w-8">#</th>
+              <th className="text-left py-2 px-2 font-medium text-gray-500">Beskrivelse</th>
+              <th className="text-right py-2 px-2 font-medium text-gray-500 w-16">Antal</th>
+              <th className="text-left py-2 px-2 font-medium text-gray-500 w-16">Enhed</th>
               {showCostData && (
                 <>
-                  <th className="text-right py-2 text-sm font-medium text-gray-500">Indkøb</th>
-                  <th className="text-right py-2 text-sm font-medium text-gray-500">Avance</th>
+                  <th className="text-right py-2 px-2 font-medium text-gray-500 w-24">Kostpris</th>
+                  <th className="text-right py-2 px-2 font-medium text-gray-500 w-20">Avance</th>
                 </>
               )}
-              <th className="text-right py-2 text-sm font-medium text-gray-500">Salgspris</th>
-              <th className="text-right py-2 text-sm font-medium text-gray-500">Total</th>
+              <th className="text-right py-2 px-2 font-medium text-gray-500 w-24">Salgspris</th>
+              <th className="text-right py-2 px-2 font-medium text-gray-500 w-28">Total</th>
               {renderActions && <th className="w-20"></th>}
             </tr>
           </thead>
@@ -74,10 +75,10 @@ export function LineItemsTable({
 
               return (
                 <tr key={item.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 text-sm text-gray-500">
+                  <td className="py-2.5 px-2 text-gray-400">
                     {item.position ?? idx + 1}
                   </td>
-                  <td className="py-3">
+                  <td className="py-2.5 px-2">
                     <div className="flex items-center gap-2">
                       {item.image_url && (
                         <img
@@ -86,34 +87,41 @@ export function LineItemsTable({
                           className="w-8 h-8 rounded object-contain border bg-white shrink-0"
                         />
                       )}
-                      <span>{item.description}</span>
+                      <span className="font-medium text-gray-900">{item.description}</span>
                     </div>
                   </td>
-                  <td className="py-3 text-right">
-                    {item.quantity} {item.unit || 'stk'}
+                  <td className="py-2.5 px-2 text-right text-gray-700">
+                    {item.quantity}
+                  </td>
+                  <td className="py-2.5 px-2 text-gray-500">
+                    {item.unit || 'stk'}
                   </td>
                   {showCostData && (
                     <>
-                      <td className="py-3 text-right text-xs text-gray-500">
-                        {costPrice ? formatCurrency(costPrice, currency, 2) : '-'}
+                      <td className="py-2.5 px-2 text-right text-gray-500">
+                        {costPrice ? formatCurrency(costPrice, currency, 2) : (
+                          <span className="text-gray-300">-</span>
+                        )}
                       </td>
-                      <td className="py-3 text-right">
+                      <td className="py-2.5 px-2 text-right">
                         {marginPct != null ? (
-                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${getDBBadgeClasses(marginPct, thresholds)}`}>
+                          <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full ${getDBBadgeClasses(marginPct, thresholds)}`}>
                             {marginPct}%
                           </span>
-                        ) : '-'}
+                        ) : (
+                          <span className="text-gray-300">-</span>
+                        )}
                       </td>
                     </>
                   )}
-                  <td className="py-3 text-right">
+                  <td className="py-2.5 px-2 text-right text-gray-700">
                     {formatCurrency(item.unit_price, currency, 2)}
                   </td>
-                  <td className="py-3 text-right font-medium">
+                  <td className="py-2.5 px-2 text-right font-semibold text-gray-900">
                     {formatCurrency(item.total, currency, 2)}
                   </td>
                   {renderActions && (
-                    <td className="py-3 text-right">
+                    <td className="py-2.5 px-2 text-right">
                       {renderActions(item)}
                     </td>
                   )}
@@ -126,15 +134,18 @@ export function LineItemsTable({
 
       {/* DB Summary Footer */}
       {showDBSummary && items.length > 0 && db.hasAnyCost && (
-        <div className="mt-4 pt-4 border-t">
-          <div className="flex justify-between items-center text-sm p-2 rounded bg-gray-50">
+        <div className="mt-3 pt-3 border-t">
+          <div className="flex justify-between items-center text-sm p-3 rounded-lg bg-gray-50 border">
             <span className="text-gray-600 font-medium">Samlet dækningsbidrag:</span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <span className="text-xs text-gray-400">
-                Indkøb: {formatCurrency(db.totalCost, currency, 2)}
+                Kostpris: {formatCurrency(db.totalCost, currency, 2)}
               </span>
-              <span className={`font-bold ${getDBAmountColor(db.dbPercentage, thresholds)}`}>
-                {formatCurrency(db.dbAmount, currency, 2)} ({db.dbPercentage}%)
+              <span className={`font-bold text-base ${getDBAmountColor(db.dbPercentage, thresholds)}`}>
+                {formatCurrency(db.dbAmount, currency, 2)}
+              </span>
+              <span className={`inline-flex text-sm font-bold px-2.5 py-1 rounded-full ${getDBBadgeClasses(db.dbPercentage, thresholds)}`}>
+                {db.dbPercentage}%
               </span>
             </div>
           </div>

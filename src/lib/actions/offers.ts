@@ -835,9 +835,22 @@ export async function updateLineItem(
     // Calculate total
     const total = calculateLineTotal(updateData.quantity || 1, updateData.unit_price || 0, updateData.discount_percentage || 0)
 
+    // Extract cost/margin tracking fields
+    const costPrice = formData.get('cost_price') ? Number(formData.get('cost_price')) : null
+    const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
+    const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
+    const imageUrl = formData.get('image_url') as string || undefined
+
     const { data, error } = await supabase
       .from('offer_line_items')
-      .update({ ...updateData, total })
+      .update({
+        ...updateData,
+        total,
+        cost_price: costPrice,
+        supplier_margin_applied: supplierMargin,
+        supplier_cost_price_at_creation: supplierCostAtCreation,
+        ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
+      })
       .eq('id', lineItemId)
       .select()
       .single()
