@@ -1,180 +1,204 @@
-# Plan: 5 Hovedopgaver — Marts 2026
+# Plan: Fase 2 — Marts 2026
 
-## Status Oversigt
-
-| # | Opgave | Prioritet | Estimeret kompleksitet |
-|---|--------|-----------|----------------------|
-| 1 | Live AO/LM søgning i Monteringstilbud | Høj | Stor |
-| 2 | Færdiggør 'Opret kunde' i Mail | Medium | Lille |
-| 3 | Aktivér Nagging To-Do pop-ups | Medium | Mellem |
-| 4 | SMTP → Graph API (settings UI) | Lav | Lille |
-| 5 | ENCRYPTION_KEY fix | Lav | Minimal |
+## Status: Forrige plan (Fase 1) er FÆRDIG
+Alle 5 opgaver gennemført i commit `4353c1c`.
 
 ---
 
-## Opgave 1: Live AO/LM søgning i 'Nyt Monteringstilbud'
+## Nye Opgaver — Prioriteret rækkefølge
 
-### Nuværende tilstand
-- `QuoteLineItemsEditor` → `DescriptionInput` søger kun i **lokal** `supplier_products` tabel
-- API-klienter eksisterer allerede: `AOAPIClient.searchProducts()` og `LMAPIClient.searchProducts()`
-- Ingen produktbilleder vises noget sted
-- Ingen kundespecifik pris sendes med fra mail-editoren
-
-### Plan
-
-**Trin 1.1 — Ny server action: `searchSupplierProductsLive()`** i `src/lib/actions/offers.ts`
-- Modtager `query`, `supplierId?`, `customerId?`, `limit?`
-- Kalder `SupplierAPIClientFactory.getClient()` → `searchProducts()` for hver aktiv leverandør
-- Returnerer resultater med: `image_url`, `product_name`, `cost_price`, `list_price`, `unit`, `supplier_sku`, `supplier_name`, `is_available`, `stock_qty`, `delivery_days`
-- Fallback til lokal DB-søgning hvis API fejler (eksisterende `searchSupplierProductsForOffer`)
-
-**Trin 1.2 — Udvid `DescriptionInput` autocomplete**
-- Tilføj toggle/tabs: "Lokal" vs "Live API" søgning
-- Ved "Live API": kald `searchSupplierProductsLive()` i stedet
-- Vis produktbillede (thumbnail) i dropdown hvis `image_url` er tilgængelig
-- Vis leverandørnavn, varenummer, nettopris, vejledende pris, lagerstatus
-- Send `customerId` med hvis emailen er koblet til en kunde
-
-**Trin 1.3 — Udvid `QuoteLineItem` type**
-- Tilføj `imageUrl?: string` og `supplierProductId?: string`
-- Populér felterne ved valg fra live-søgning
-- Vis thumbnail i linjeitem-rækken (lille billede ved siden af beskrivelse)
-
-**Trin 1.4 — Tilpas PDF-generering** (valgfrit, fase 2)
-- Inkludér produktbilleder i tilbuds-PDF hvis tilgængelige
-
-### Filer der ændres
-- `src/lib/actions/offers.ts` — ny action
-- `src/app/(dashboard)/dashboard/mail/components/quote-line-items-editor.tsx` — UI
-- `src/app/(dashboard)/dashboard/mail/components/quote-form-dialog.tsx` — evt. videregivelse af customerId
+| # | Opgave | Prioritet | Kompleksitet |
+|---|--------|-----------|-------------|
+| 1 | PDF auto-attach ved tilbuds-email | Høj | Mellem |
+| 2 | Opgaver: Opret + inline edit på /tasks | Høj | Mellem |
+| 3 | Leads kanban pipeline board | Høj | Stor |
+| 4 | Portal PDF-download for kunden | Medium | Lille |
+| 5 | Navigation-fix: Indbakke i sidebar + settings-kort | Medium | Lille |
+| 6 | Rapporter: Excel/CSV eksport | Lav | Mellem |
 
 ---
 
-## Opgave 2: Færdiggør 'Opret kunde' i Mail-modulet
+## Opgave 1: PDF auto-attach ved tilbuds-email
 
-### Nuværende tilstand
-- Knappen virker og kalder `createCustomerFromEmail(emailId)` korrekt
-- **4 steder bruger `alert()`** i stedet for toast — dårlig UX
-- Ingen loading-state eller double-click beskyttelse
-- `createCustomerFromEmail` bruger gammel auth-pattern (`supabase.auth.getUser()`)
-- Mangler UUID-validering på `emailId`
-- Lead-insert har ingen fejlhåndtering
+### Problem
+Når en medarbejder klikker "Send Tilbud" på tilbudssiden (`/dashboard/offers/[id]`), åbnes `SendEmailModal` — men PDF'en vedhæftes IKKE automatisk. Medarbejderen skal manuelt downloade PDF'en og vedhæfte den udenfor systemet.
+
+System B ("Den Gyldne Knap" i mail-modulet) gør dette korrekt — PDF genereres, vedhæftes og sendes i ét klik. Men System A (offers-modulet) mangler denne flow.
 
 ### Plan
 
-**Trin 2.1 — Opdater `handleCreateCustomer` i `mail-client.tsx`**
-- Erstat alle 4 `alert()` med toast-notifikationer
-- Tilføj `isCreatingCustomer` loading-state
-- Disable knappen under kørsel + vis spinner
-- Vis success-toast med link til den nye kunde
+**Trin 1.1 — Udvid `sendOfferEmail` i `email.ts`**
+- Generer PDF automatisk via `/api/offers/[id]/pdf` (eller direkte `renderToBuffer`)
+- Vedhæft PDF som base64 attachment via `sendEmailViaGraph()`
+- Opdater offer status til `sent` automatisk efter succesfuld afsendelse
 
-**Trin 2.2 — Opdater `createCustomerFromEmail` i `incoming-emails.ts`**
-- Skift til `getAuthenticatedClient()` pattern
-- Tilføj `validateUUID(emailId, 'emailId')`
-- Tilføj fejlhåndtering på lead-insert
-- Returnér `customerName` i resultatet (til bedre toast-besked)
+**Trin 1.2 — Opdater `SendEmailModal` i `offer-detail-client.tsx`**
+- Tilføj "Vedhæft PDF" toggle (default: ON)
+- Vis PDF-filnavn i modal når toggled on
+- Loading-state mens PDF genereres + email sendes
+
+**Trin 1.3 — Auto-statusskift**
+- Når email sendes succesfuldt → sæt offer status til `sent`
+- Vis toast med bekræftelse
 
 ### Filer der ændres
-- `src/app/(dashboard)/dashboard/mail/mail-client.tsx` — UI forbedringer
-- `src/lib/actions/incoming-emails.ts` — server action cleanup
+- `src/lib/actions/email.ts` — `sendOfferEmail()` med PDF attachment
+- `src/components/email/SendEmailModal.tsx` — PDF toggle
+- `src/app/(dashboard)/dashboard/offers/[id]/offer-detail-client.tsx` — status-opdatering
 
 ---
 
-## Opgave 3: Aktivér Nagging To-Do pop-ups
+## Opgave 2: Opgaver — Opret + inline edit på /tasks
 
-### Nuværende tilstand
-- `TaskReminderOverlay` er monteret globalt i dashboard layout ✅
-- Poller hver 60 sekunder ✅
-- **BUG**: `getUnreadPriceAlerts()` filtrerer på `alert_type = 'price_change'` — men cron skriver `'price_increase'`/`'price_decrease'`. Prisadvarsler vises ALDRIG.
-- **BUG**: Task-dismiss er kun client-side (`Set<string>`) — forsvinder ved refresh
-- `ftp-service.ts` skriver `'price_change'` som ikke er i `AlertType` typen
+### Problem
+- `/dashboard/tasks` har ingen "Opret opgave" knap — tomme-tilstand siger "Opret opgaver fra kundekortet"
+- Ingen edit eller slet-handlinger i task-rækkerne
+- Ingen `in_progress` shortcut fra listen
 
 ### Plan
 
-**Trin 3.1 — Fix prisalarm-filter i `customer-tasks.ts`**
-- Ændr `getUnreadPriceAlerts()` til at filtrere: `.in('alert_type', ['price_change', 'price_increase', 'price_decrease'])`
-- Alternativt: normaliser `ftp-service.ts` til at bruge `'price_increase'`/`'price_decrease'`
+**Trin 2.1 — Tilføj "Ny opgave" knap til tasks-siden**
+- Knap i header ved siden af titel
+- Åbner en modal med: titel, beskrivelse, kunde-vælger, tilbud-vælger (valgfri), prioritet, ansvarlig, forfaldsdato, påmindelsestidspunkt
+- Bruger `createCustomerTask()` server action
 
-**Trin 3.2 — Gør task-dismiss persistent**
-- Tilføj `is_dismissed` og `dismissed_at` kolonner til `customer_tasks` (migration)
-- Opdater `handleDismiss` til at kalde en ny server action `dismissCustomerTask(taskId)`
-- Fjern client-side `dismissed` Set
+**Trin 2.2 — Tilføj inline handlinger til task-rækker**
+- Hover-reveal knapper: Rediger (åbner edit-modal), Slet (med bekræftelse), Markér i gang
+- Klik på rækken → åbner edit-modal
+- Status-dropdown direkte i rækken (pending → in_progress → done)
 
-**Trin 3.3 — Forbedre overlay UX**
-- Tilføj lyd/vibration-notifikation for nye opgaver (valgfrit)
-- Vis antal i sidebar-badge (notification count)
-- Tilføj "Se alle opgaver" link til en opgaveside
+**Trin 2.3 — Tilføj "Udførte opgaver" toggle**
+- Checkbox/toggle der viser/skjuler done-tasks
+- Default: skjult (som på kundekortet)
 
 ### Filer der ændres
-- `src/lib/actions/customer-tasks.ts` — fix filter + ny dismiss action
-- `src/components/layout/task-reminder-overlay.tsx` — persistent dismiss
-- `src/lib/services/ftp-service.ts` — normaliser alert_type (valgfrit)
-- Ny migration: tilføj `is_dismissed`/`dismissed_at` til `customer_tasks`
+- `src/app/(dashboard)/dashboard/tasks/tasks-page-client.tsx` — ny knap + inline actions
+- Evt. ny komponent: `TaskFormDialog` (genbruges fra customer-tasks)
 
 ---
 
-## Opgave 4: Erstat SMTP med Microsoft Graph API (Settings UI)
+## Opgave 3: Leads kanban pipeline board
 
-### Nuværende tilstand
-- Graph API er allerede den faktiske email-transport ✅
-- Settings-siden viser stadig "SMTP Konfiguration" tab med 6 ubrugte felter
-- "Test forbindelse" og "Send test" knapper er gated på `!smtpHost` — så de virker ikke uden at udfylde SMTP-felter (som ikke bruges)
-- Alt email-sending bruger `sendEmailViaGraph()` fra `microsoft-graph.ts`
+### Problem
+- Leads har kun listevisning
+- Ingen visuel pipeline/funnel — medarbejdere kan ikke drage leads mellem statusser
+- Dashboard viser pipeline-tal men ingen interaktiv board
 
 ### Plan
 
-**Trin 4.1 — Erstat SMTP-tab med Graph API info**
-- Omdøb tab: "SMTP Konfiguration" → "E-mail Forbindelse (Microsoft Graph)"
-- Fjern 6 SMTP input-felter og tilhørende state
-- Vis read-only info: "E-mail sendes via Microsoft Graph API"
-- Vis forbindelsesstatus (grøn/rød badge) via `testGraphConnection()`
-- Vis konfigureret postkasse (`GRAPH_MAILBOX` / `crm@eltasolar.dk`)
+**Trin 3.1 — Byg `LeadsPipelineBoard` komponent**
+- Kanban-kolonner for hver status: Ny → Kontaktet → Kvalificeret → Tilbud → Forhandling → Vundet → Tabt
+- Hvert lead-kort viser: firmanavn, kontaktperson, deal-værdi, dage siden oprettelse
+- Farve-kodede kolonner
+- Kolonne-header med antal og samlet deal-værdi
 
-**Trin 4.2 — Fix test/send knapper**
-- Fjern `!smtpHost` guard fra begge knapper
-- "Test forbindelse" kalder `testEmailConnectionAction()` direkte
-- "Send test" kalder `sendTestEmailAction()` direkte
-- Fjern `handleSaveSmtp` funktion og "Gem SMTP" knap
+**Trin 3.2 — Drag-and-drop statusskift**
+- Drag et lead fra én kolonne til en anden → kalder `updateLead(id, { status: newStatus })`
+- Optimistic update + revert ved fejl
+- Brug `@dnd-kit/core` eller simpel HTML5 drag-and-drop
+
+**Trin 3.3 — Toggle mellem liste og board**
+- Tabs i leads-siden header: "Liste" | "Pipeline"
+- Gem præference i URL param (`?view=list` / `?view=board`)
 
 ### Filer der ændres
-- `src/app/(dashboard)/dashboard/settings/email/email-settings-client.tsx` — fuld omskrivning af tab 1
+- Ny: `src/components/modules/leads/leads-pipeline-board.tsx`
+- `src/app/(dashboard)/dashboard/leads/leads-page-client.tsx` — view toggle
+- `src/lib/actions/leads.ts` — evt. ny `updateLeadStatus()` action
 
 ---
 
-## Opgave 5: ENCRYPTION_KEY fix
+## Opgave 4: Portal PDF-download for kunden
 
-### Nuværende tilstand
-- `.env.local` har korrekt `ENCRYPTION_KEY=B9YHoa...` (base64) ✅
-- `encryption.ts` læser `process.env.ENCRYPTION_KEY` korrekt ✅
-- `.env.example` har FORKERT navn `SUPPLIER_ENCRYPTION_KEY` og forkert generation-instruktion (`-hex` i stedet for `-base64`)
+### Problem
+- Kunder der besøger portalen kan se tilbudets linjer i HTML — men kan IKKE downloade en PDF
+- PDF'er vises kun i "Dokumenter" sektionen hvis System B (gyldne knap) har delt dem
+- System A tilbud har ingen PDF tilgængelig for kunden
 
 ### Plan
 
-**Trin 5.1 — Fix `.env.example`**
-- Omdøb `SUPPLIER_ENCRYPTION_KEY` → `ENCRYPTION_KEY`
-- Ret instruktion: `openssl rand -hex 32` → `openssl rand -base64 32`
+**Trin 4.1 — Tilføj "Download PDF" knap til portal tilbudsdetalje**
+- Ny API-route: `/api/portal/offers/[id]/pdf` der validerer portal-token + genererer PDF
+- Knap i `offer-detail.tsx` (portal): "Download som PDF"
+- Bruger samme `OfferPdfDocument` template som System A
 
-**Trin 5.2 — Verificér Vercel deployment**
-- Sikr at `ENCRYPTION_KEY` er sat i Vercel environment variables
-- Tilføj note i CLAUDE.md om korrekt variabelnavn
+**Trin 4.2 — Sikkerhed**
+- Valider at offer tilhører token's customer
+- Rate-limit: max 10 PDF-downloads per time per token
 
 ### Filer der ændres
-- `.env.example` — ret variabelnavn + instruktion
+- Ny: `src/app/api/portal/offers/[id]/pdf/route.ts`
+- `src/components/modules/portal/offer-detail.tsx` — download-knap
+
+---
+
+## Opgave 5: Navigation-fix
+
+### Problem
+- "Indbakke" (intern messaging) er IKKE i sidebar — kun tilgængelig via dashboard stat-kort
+- Solcelle-kalkulator (`/dashboard/calc`) er skjult
+- Email og SMS settings-sider eksisterer men har ingen kort på settings-indekssiden
+
+### Plan
+
+**Trin 5.1 — Tilføj Indbakke til sidebar**
+- Tilføj under "Mail" med `MessageCircle` ikon
+- Vis ulæste-badge (rød) som de andre nav-items
+
+**Trin 5.2 — Tilføj Email + SMS kort til settings-indeks**
+- To nye kort: "E-mail" (Graph API forbindelse, skabeloner) og "SMS" (GatewayAPI)
+- Link til eksisterende `/dashboard/settings/email` og `/dashboard/settings/sms`
+
+**Trin 5.3 — Konsolidér kalkulator-links**
+- Omdøb "Kalkulationer" i sidebar til at inkludere en dropdown/sub-items
+- Eller tilføj "Solcelle-kalkulator" som separat sidebar-item under Værktøjer
+
+### Filer der ændres
+- `src/components/layout/sidebar.tsx` — nye items
+- `src/app/(dashboard)/dashboard/settings/page.tsx` — nye kort
+
+---
+
+## Opgave 6: Rapporter — Excel/CSV eksport
+
+### Problem
+- Rapportsiden viser data men har ingen eksport
+- Medarbejdere kan ikke downloade kundelister, tilbudsoversigter eller tidsregistreringer
+
+### Plan
+
+**Trin 6.1 — CSV eksport-funktion**
+- Utility: `exportToCSV(data, columns, filename)` med dansk separator (`;`)
+- Understøtter: Kunder, Leads, Tilbud, Tidsregistreringer, Projekter
+
+**Trin 6.2 — Eksport-knapper på rapportsiden**
+- "Eksportér CSV" knap på hver rapport-sektion
+- Inkludér dato-filter (fra/til) i eksporten
+
+**Trin 6.3 — Eksport fra liste-sider**
+- Tilføj "Eksportér" knap til kunder/leads/tilbud liste-sider
+- Eksporterer den filtrerede visning (inkl. aktive filtre)
+
+### Filer der ændres
+- Ny: `src/lib/utils/csv-export.ts`
+- `src/app/(dashboard)/dashboard/reports/reports-client.tsx` — eksport-knapper
+- Evt. liste-sider for kunder/leads/tilbud
 
 ---
 
 ## Anbefalet rækkefølge
 
-1. **Opgave 5** (5 min) — Hurtig fix, eliminerer fremtidige forvirring
-2. **Opgave 4** (30 min) — Rydder op i settings UI
-3. **Opgave 2** (30 min) — Polerer eksisterende feature
-4. **Opgave 3** (45 min) — Fixer bugs i reminder-systemet
-5. **Opgave 1** (2-3 timer) — Største opgave, kræver live API integration
+1. **Opgave 5** (20 min) — Navigation-fix, hurtige forbedringer
+2. **Opgave 2** (45 min) — Opgaver med opret + edit
+3. **Opgave 4** (30 min) — Portal PDF-download
+4. **Opgave 1** (1 time) — PDF auto-attach ved email
+5. **Opgave 6** (45 min) — CSV eksport
+6. **Opgave 3** (2 timer) — Leads kanban (størst opgave)
 
 ---
 
-## Kendte risici
+## Kendte afhængigheder
 
-- AO/LM API endpoints er placeholder-URLs (`SUPPLIER_API_CONFIG`) — live integration kræver ægte API-dokumentation og credentials
-- AO/LM API'erne returnerer muligvis ikke billede-URLs — skal verificeres mod faktisk API-response
-- Nightly cron kører kun dagligt (Vercel Hobby) — prisadvarsler kan være op til 24 timer forsinkede
+- Opgave 1 og 4 deler PDF-generering — ændringer i PDF-template påvirker begge
+- Opgave 3 kan kræve `@dnd-kit/core` som ny dependency (eller HTML5 native drag)
+- Opgave 6's CSV-utility kan genbruges i andre moduler

@@ -90,6 +90,38 @@ const settingsCards = [
     ),
   },
   {
+    href: '/dashboard/settings/email',
+    title: 'E-mail',
+    subtitle: 'Microsoft Graph API',
+    description: 'Administrer e-mail forbindelse via Microsoft Graph, skabeloner og afsendelsesindstillinger',
+    iconBg: 'bg-sky-100',
+    iconColor: 'text-sky-600',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+      />
+    ),
+  },
+  {
+    href: '/dashboard/settings/sms',
+    title: 'SMS',
+    subtitle: 'GatewayAPI',
+    description: 'Konfigurer SMS-notifikationer via GatewayAPI, skabeloner og afsendelseslog',
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+      />
+    ),
+  },
+  {
     href: '/dashboard/settings/integrations',
     title: 'Integrationer',
     subtitle: 'Tredjepartsapps',

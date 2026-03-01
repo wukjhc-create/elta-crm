@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -29,6 +29,7 @@ import {
   MessageSquare,
   Plug,
   ClipboardCheck,
+  Search,
 } from 'lucide-react'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
@@ -47,6 +48,8 @@ import {
   sendOffer,
   addProductToOffer,
   importCalculationToOffer,
+  createLineItemFromSupplierProduct,
+  searchSupplierProductsForOffer,
 } from '@/lib/actions/offers'
 import { getIntegrations, exportOfferToIntegration } from '@/lib/actions/integrations'
 import { getProductsForSelect } from '@/lib/actions/products'
@@ -95,6 +98,24 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
   const [availableIntegrations, setAvailableIntegrations] = useState<{ id: string; name: string }[]>([])
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
+  const [showSupplierSearch, setShowSupplierSearch] = useState(false)
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState('')
+  const [supplierSearchResults, setSupplierSearchResults] = useState<Array<{
+    id: string
+    supplier_id: string
+    supplier_name: string
+    supplier_code: string
+    supplier_sku: string
+    product_name: string
+    cost_price: number
+    list_price: number | null
+    estimated_sale_price: number
+    unit: string
+    is_available: boolean
+  }>>([])
+  const [isSearchingSupplier, setIsSearchingSupplier] = useState(false)
+  const [isAddingSupplierProduct, setIsAddingSupplierProduct] = useState<string | null>(null)
+  const supplierSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load activities on mount
   useEffect(() => {
@@ -193,6 +214,40 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     } else {
       toast.error('Kunne ikke tilføje pakke', result.error)
     }
+  }
+
+  const handleSupplierSearch = (query: string) => {
+    setSupplierSearchQuery(query)
+    if (supplierSearchTimer.current) clearTimeout(supplierSearchTimer.current)
+    if (!query || query.length < 2) {
+      setSupplierSearchResults([])
+      return
+    }
+    supplierSearchTimer.current = setTimeout(async () => {
+      setIsSearchingSupplier(true)
+      const result = await searchSupplierProductsForOffer(query, {
+        customerId: offer.customer_id || undefined,
+        limit: 15,
+      })
+      if (result.success && result.data) {
+        setSupplierSearchResults(result.data)
+      }
+      setIsSearchingSupplier(false)
+    }, 400)
+  }
+
+  const handleAddSupplierProduct = async (productId: string) => {
+    setIsAddingSupplierProduct(productId)
+    const result = await createLineItemFromSupplierProduct(offer.id, productId, 1)
+    if (result.success) {
+      toast.success('Leverandørprodukt tilføjet')
+      setSupplierSearchQuery('')
+      setSupplierSearchResults([])
+      router.refresh()
+    } else {
+      toast.error('Kunne ikke tilføje produkt', result.error)
+    }
+    setIsAddingSupplierProduct(null)
   }
 
   const handleDeleteLineItem = async (lineItemId: string) => {
@@ -509,6 +564,13 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                     Fra kalkulation
                   </button>
                   <button
+                    onClick={() => setShowSupplierSearch(!showSupplierSearch)}
+                    className={`inline-flex items-center gap-1 text-sm border rounded px-2 py-1 ${showSupplierSearch ? 'bg-blue-50 text-blue-700 border-blue-300' : 'text-gray-600 hover:text-primary'}`}
+                  >
+                    <Search className="w-4 h-4" />
+                    Søg leverandør
+                  </button>
+                  <button
                     onClick={() => setShowLineItemForm(true)}
                     className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                   >
@@ -517,6 +579,78 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                   </button>
                 </div>
               </div>
+
+              {/* Supplier product search */}
+              {showSupplierSearch && (
+                <div className="mb-4 border rounded-lg p-4 bg-gray-50">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={supplierSearchQuery}
+                      onChange={(e) => handleSupplierSearch(e.target.value)}
+                      placeholder="Indtast varenummer eller produktnavn (f.eks. AO-1234567)..."
+                      className="w-full pl-10 pr-4 py-2.5 border rounded-md text-sm"
+                      autoFocus
+                    />
+                    {isSearchingSupplier && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-blue-500" />
+                    )}
+                  </div>
+
+                  {supplierSearchResults.length > 0 && (
+                    <div className="mt-3 max-h-[320px] overflow-y-auto divide-y border rounded-md bg-white">
+                      {supplierSearchResults.map((p) => (
+                        <div
+                          key={`${p.supplier_id}-${p.supplier_sku}`}
+                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                                p.supplier_code === 'AO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {p.supplier_code}
+                              </span>
+                              <span className="text-xs text-gray-400 font-mono">{p.supplier_sku}</span>
+                              {p.is_available === false && (
+                                <span className="text-[10px] text-red-500 font-medium">Ikke på lager</span>
+                              )}
+                            </div>
+                            <p className="text-sm font-medium text-gray-900 truncate mt-0.5">{p.product_name}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xs text-gray-400">Netto</div>
+                            <div className="text-sm font-medium">{formatCurrency(p.cost_price, currency, 2)}</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xs text-gray-400">Salgspris</div>
+                            <div className="text-sm font-semibold text-green-700">{formatCurrency(p.estimated_sale_price, currency, 2)}</div>
+                          </div>
+                          <button
+                            onClick={() => handleAddSupplierProduct(p.id)}
+                            disabled={isAddingSupplierProduct === p.id}
+                            className="shrink-0 inline-flex items-center gap-1 rounded bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          >
+                            {isAddingSupplierProduct === p.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Plus className="w-3 h-3" />
+                            )}
+                            Tilføj
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {supplierSearchQuery.length >= 2 && !isSearchingSupplier && supplierSearchResults.length === 0 && (
+                    <p className="mt-3 text-sm text-gray-400 text-center py-4">
+                      Ingen produkter fundet for &quot;{supplierSearchQuery}&quot;
+                    </p>
+                  )}
+                </div>
+              )}
 
               {lineItems.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
