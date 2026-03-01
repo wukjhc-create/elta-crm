@@ -6,6 +6,7 @@
 
 import type { ProjectEstimate, OfferTextTemplate } from '@/types/calculation-intelligence.types'
 import type { KalkiaCalculationWithRelations } from '@/types/kalkia.types'
+import { calculateDBPercentage } from '@/lib/logic/pricing'
 
 // =====================================================
 // Types
@@ -541,7 +542,7 @@ export class OfferAutomationEngine {
   private analyzeMargin(estimate: ProjectEstimate): MarginAnalysis {
     const costPrice = estimate.cost_price
     const salePrice = estimate.sale_price_excl_vat
-    const marginPct = salePrice > 0 ? ((salePrice - costPrice) / salePrice) * 100 : 0
+    const marginPct = calculateDBPercentage(costPrice, salePrice)
     const dbPct = estimate.db_percentage
     const dbPerHour = estimate.db_per_hour
     const hours = estimate.total_labor_hours

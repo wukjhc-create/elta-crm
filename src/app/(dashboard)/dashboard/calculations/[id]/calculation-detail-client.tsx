@@ -18,6 +18,7 @@ import {
   FileText,
   Loader2,
 } from 'lucide-react'
+import { CALC_DEFAULTS } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -443,11 +444,11 @@ export default function CalculationDetailClient({
                 <>
                   <div className="flex justify-between border-t pt-2">
                     <span className="text-gray-500">Standard timepris</span>
-                    <span>{formatCurrency(calculation.default_hourly_rate || 450)}</span>
+                    <span>{formatCurrency(calculation.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Materialemarkup</span>
-                    <span>{calculation.materials_markup_percentage || 25}%</span>
+                    <span>{calculation.materials_markup_percentage || CALC_DEFAULTS.MARGINS.MATERIALS}%</span>
                   </div>
                 </>
               )}
@@ -482,7 +483,7 @@ export default function CalculationDetailClient({
           <CalculationRowForm
             calculationId={calculation.id}
             position={nextPosition}
-            defaultHourlyRate={calculation.default_hourly_rate || 450}
+            defaultHourlyRate={calculation.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN}
             isLaborMode={calculation.calculation_mode === 'electrician'}
             onSuccess={() => {
               setShowRowDialog(false)
@@ -504,7 +505,7 @@ export default function CalculationDetailClient({
               calculationId={calculation.id}
               row={editingRow}
               position={editingRow.position}
-              defaultHourlyRate={calculation.default_hourly_rate || 450}
+              defaultHourlyRate={calculation.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN}
               isLaborMode={calculation.calculation_mode === 'electrician'}
               onSuccess={() => {
                 setEditingRow(null)

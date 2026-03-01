@@ -31,6 +31,7 @@ import {
 } from '@/types/calculations.types'
 import { formatCurrency } from '@/lib/utils/format'
 import { calculateLineTotal } from '@/lib/logic/pricing'
+import { CALC_DEFAULTS } from '@/lib/constants'
 
 interface CalculationRowFormProps {
   calculationId: string
@@ -46,7 +47,7 @@ export default function CalculationRowForm({
   calculationId,
   row,
   position,
-  defaultHourlyRate = 450,
+  defaultHourlyRate = CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
   isLaborMode = false,
   onSuccess,
   onCancel,

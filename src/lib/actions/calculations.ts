@@ -372,7 +372,7 @@ export async function duplicateCalculation(
         created_by: userId,
         // Enhanced fields
         calculation_mode: original.calculation_mode || 'standard',
-        default_hourly_rate: original.default_hourly_rate || 450,
+        default_hourly_rate: original.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
         materials_markup_percentage: original.materials_markup_percentage || CALC_DEFAULTS.MARGINS.MATERIALS,
         show_cost_breakdown: original.show_cost_breakdown || false,
         group_by_section: original.group_by_section ?? true,

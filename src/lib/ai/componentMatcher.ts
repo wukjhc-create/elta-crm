@@ -10,6 +10,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { CALC_DEFAULTS } from '@/lib/constants'
 import type {
   ProjectInterpretation,
   ElectricalPoints,
@@ -375,7 +376,7 @@ async function fetchSupplierMaterials(names: string[]): Promise<Map<string, Mate
           supplier_name: supplier?.name || 'Ukendt',
           unit: product.unit || 'stk',
           unit_cost: prod.cost_price || 0,
-          unit_price: prod.list_price || prod.cost_price * 1.25 || 0,
+          unit_price: prod.list_price || prod.cost_price * (1 + CALC_DEFAULTS.MARGINS.MATERIALS / 100) || 0,
           source: 'database',
           quantity: 0,
         })

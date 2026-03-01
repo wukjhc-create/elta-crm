@@ -48,6 +48,7 @@ import type {
   CalculationResult,
 } from '@/types/kalkia.types'
 import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
+import { CALC_DEFAULTS, DEFAULT_TAX_RATE } from '@/lib/constants'
 
 // Labor types with different hourly rates
 const LABOR_TYPES = [
@@ -118,8 +119,8 @@ export function PackageBuilder({
   const [buildingProfiles, setBuildingProfiles] = useState<KalkiaBuildingProfile[]>([])
   const [selectedProfileId, setSelectedProfileId] = useState<string>('')
   const [showSettings, setShowSettings] = useState(false)
-  const [hourlyRate, setHourlyRate] = useState(495)
-  const [marginPercentage, setMarginPercentage] = useState(15)
+  const [hourlyRate, setHourlyRate] = useState<number>(CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN)
+  const [marginPercentage, setMarginPercentage] = useState<number>(CALC_DEFAULTS.MARGINS.PRODUCTS)
   const [discountPercentage, setDiscountPercentage] = useState(0)
   const [activeTab, setActiveTab] = useState<'quickjobs' | 'rooms' | 'components' | 'packages'>('quickjobs')
   const [rightPanelView, setRightPanelView] = useState<'preview' | 'materials'>('preview')
@@ -166,10 +167,10 @@ export function PackageBuilder({
       const selectedTimeAdjustment = TIME_ADJUSTMENTS.find((ta) => ta.id === timeAdjustment)
       const timeAdjustmentMultiplier = selectedTimeAdjustment?.multiplier || 1
 
-      // Default factors
-      const indirectTimeFactor = 0.10 // 10% indirect time
-      const personalTimeFactor = 0.05 // 5% personal time
-      const overheadFactor = 0.10 * overheadMultiplier // 10% overhead adjusted by profile
+      // Factors from central constants
+      const indirectTimeFactor = CALC_DEFAULTS.FACTORS.INDIRECT_TIME
+      const personalTimeFactor = CALC_DEFAULTS.FACTORS.PERSONAL_TIME
+      const overheadFactor = CALC_DEFAULTS.FACTORS.OVERHEAD * overheadMultiplier
       const materialWasteFactor = wasteMultiplier
 
       // Calculate totals from items (use overrides if present)
@@ -206,7 +207,7 @@ export function PackageBuilder({
 
       // Overhead and risk
       const overheadAmount = costPrice * overheadFactor
-      const riskAmount = costPrice * 0.02 // 2% risk
+      const riskAmount = costPrice * CALC_DEFAULTS.FACTORS.RISK
       const salesBasis = costPrice + overheadAmount + riskAmount
 
       // Pricing - check for sale price overrides
@@ -231,7 +232,7 @@ export function PackageBuilder({
         : calculatedSalePrice
       const discountAmount = salePriceExclVat * (discountPercentage / 100)
       const netPrice = salePriceExclVat - discountAmount
-      const vatAmount = netPrice * 0.25
+      const vatAmount = netPrice * (DEFAULT_TAX_RATE / 100)
       const finalAmount = netPrice + vatAmount
 
       // Calculate DB (contribution margin)

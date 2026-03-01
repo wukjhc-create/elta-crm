@@ -24,6 +24,7 @@ import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
 import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
+import { CALC_DEFAULTS, DEFAULT_TAX_RATE } from '@/lib/constants'
 import { createQuickCalculation } from '@/lib/actions/calculations'
 import type { ProjectTemplate, RoomType, CalculationSettings } from '@/types/calculation-settings.types'
 
@@ -249,12 +250,12 @@ export default function QuickCalculationClient({
   }
 
   // Add labor cost based on settings
-  const hourlyRate = settings?.hourly_rates?.electrician || 495
+  const hourlyRate = settings?.hourly_rates?.electrician || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN
   const laborHours = totals.totalTimeMinutes / 60
   const laborCost = laborHours * hourlyRate
 
   const grandTotal = totals.totalSalePrice + laborCost
-  const totalCostWithLabor = totals.totalCostPrice + (laborHours * (settings?.hourly_rates?.apprentice || 295))
+  const totalCostWithLabor = totals.totalCostPrice + (laborHours * (settings?.hourly_rates?.apprentice || CALC_DEFAULTS.HOURLY_RATES.APPRENTICE))
   const dbAmount = calculateDBAmount(totalCostWithLabor, grandTotal)
   const dbPercentage = calculateDBPercentage(totalCostWithLabor, grandTotal)
 
@@ -682,12 +683,12 @@ export default function QuickCalculationClient({
                       <span>{formatCurrency(grandTotal)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-gray-500 mt-1">
-                      <span>+ moms (25%)</span>
-                      <span>{formatCurrency(grandTotal * 0.25)}</span>
+                      <span>+ moms ({DEFAULT_TAX_RATE}%)</span>
+                      <span>{formatCurrency(grandTotal * (DEFAULT_TAX_RATE / 100))}</span>
                     </div>
                     <div className="flex justify-between text-xl font-bold mt-2 pt-2 border-t">
                       <span>Total inkl. moms</span>
-                      <span>{formatCurrency(grandTotal * 1.25)}</span>
+                      <span>{formatCurrency(grandTotal * (1 + DEFAULT_TAX_RATE / 100))}</span>
                     </div>
                   </div>
 

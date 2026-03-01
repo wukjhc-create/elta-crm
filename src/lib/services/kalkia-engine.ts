@@ -18,6 +18,8 @@ import type {
 } from '@/types/kalkia.types'
 import type { CableSizingResult } from '@/types/electrical.types'
 import { calculateCableSize } from '@/lib/services/electrical-engine'
+import { calculateSalePrice } from '@/lib/logic/pricing'
+import { CALC_DEFAULTS } from '@/lib/constants'
 
 // =====================================================
 // Default Values
@@ -331,7 +333,7 @@ export class KalkiaCalculationEngine {
     }
     // If no default sale price, estimate from cost
     if (salePrice === 0) {
-      salePrice = totalCost * 1.3 // 30% markup as fallback
+      salePrice = calculateSalePrice(totalCost, CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET) // fallback markup
     }
 
     return {

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
+import { CALC_DEFAULTS, DEFAULT_TAX_RATE } from '@/lib/constants'
 import { createCalculation, updateCalculation } from '@/lib/actions/calculations'
 import { getCustomersForSelect } from '@/lib/actions/offers'
 import CalculationModeSelector from './calculation-mode-selector'
@@ -183,7 +184,7 @@ export default function CalculationForm({
             step="0.01"
             min="0"
             max="100"
-            defaultValue={calculation?.tax_percentage || 25}
+            defaultValue={calculation?.tax_percentage || DEFAULT_TAX_RATE}
           />
         </div>
       </div>
@@ -201,7 +202,7 @@ export default function CalculationForm({
                 type="number"
                 step="1"
                 min="0"
-                defaultValue={calculation?.default_hourly_rate || 450}
+                defaultValue={calculation?.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN}
               />
             </div>
             <div>
@@ -213,7 +214,7 @@ export default function CalculationForm({
                 step="0.01"
                 min="0"
                 max="100"
-                defaultValue={calculation?.materials_markup_percentage || 25}
+                defaultValue={calculation?.materials_markup_percentage || CALC_DEFAULTS.MARGINS.MATERIALS}
               />
             </div>
           </div>

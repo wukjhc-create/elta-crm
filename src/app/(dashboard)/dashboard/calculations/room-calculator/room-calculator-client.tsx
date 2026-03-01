@@ -9,6 +9,8 @@ import {
   simulateProfit,
   convertCalculationToOffer,
 } from '@/lib/actions/calculation-intelligence'
+import { CALC_DEFAULTS } from '@/lib/constants'
+import { getDBLevel, getDBTextColor } from '@/lib/logic/pricing'
 import type {
   InstallationType,
   RoomTemplate,
@@ -90,9 +92,9 @@ export function RoomCalculatorClient() {
   const [projectName, setProjectName] = useState('')
   const [buildingType, setBuildingType] = useState('house')
   const [buildingAge, setBuildingAge] = useState(0)
-  const [hourlyRate, setHourlyRate] = useState(495)
-  const [overheadPct, setOverheadPct] = useState(12)
-  const [riskPct, setRiskPct] = useState(3)
+  const [hourlyRate, setHourlyRate] = useState<number>(CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN)
+  const [overheadPct, setOverheadPct] = useState<number>(CALC_DEFAULTS.FACTORS.DEFAULT_OVERHEAD_PCT)
+  const [riskPct, setRiskPct] = useState<number>(CALC_DEFAULTS.FACTORS.DEFAULT_RISK_PCT)
   const [marginPct, setMarginPct] = useState(25)
   const [discountPct, setDiscountPct] = useState(0)
 
@@ -350,7 +352,7 @@ export function RoomCalculatorClient() {
                     type="number"
                     className="w-full border rounded px-2 py-1.5 text-sm mt-1"
                     value={hourlyRate}
-                    onChange={(e) => setHourlyRate(parseInt(e.target.value) || 495)}
+                    onChange={(e) => setHourlyRate(parseInt(e.target.value) || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN)}
                   />
                 </div>
                 <div>
@@ -625,7 +627,7 @@ export function RoomCalculatorClient() {
             <MetricCard
               label="DB%"
               value={`${estimate.db_percentage.toFixed(1)}%`}
-              status={estimate.db_percentage < 15 ? 'warning' : estimate.db_percentage < 10 ? 'danger' : 'success'}
+              status={getDBLevel(estimate.db_percentage) === 'red' ? 'danger' : getDBLevel(estimate.db_percentage) === 'yellow' ? 'warning' : 'success'}
             />
             <MetricCard label="DB/time" value={formatCurrency(estimate.db_per_hour)} />
           </div>
@@ -874,10 +876,7 @@ export function RoomCalculatorClient() {
                       <td className={`px-4 py-2 text-right ${s.db_amount < 0 ? 'text-red-600' : ''}`}>
                         {formatCurrency(s.db_amount)}
                       </td>
-                      <td className={`px-4 py-2 text-right ${
-                        s.db_percentage < 10 ? 'text-red-600' :
-                        s.db_percentage < 20 ? 'text-amber-600' : 'text-green-600'
-                      }`}>
+                      <td className={`px-4 py-2 text-right ${getDBTextColor(s.db_percentage)}`}>
                         {s.db_percentage.toFixed(1)}%
                       </td>
                       <td className="px-4 py-2 text-right">{formatCurrency(s.db_per_hour)}</td>

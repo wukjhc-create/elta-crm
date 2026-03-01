@@ -90,6 +90,14 @@ export const CALC_DEFAULTS = {
     DEFAULT_DB_TARGET: 35,
     MINIMUM_DB: 20,
   },
+  FACTORS: {
+    INDIRECT_TIME: 0.10,   // 10% indirect time (transport, admin)
+    PERSONAL_TIME: 0.05,   // 5% personal time (pauses, etc.)
+    OVERHEAD: 0.10,        // 10% overhead (kontor, forsikring)
+    RISK: 0.02,            // 2% risk buffer
+    DEFAULT_OVERHEAD_PCT: 12, // Default overhead % for quick calc UI
+    DEFAULT_RISK_PCT: 3,     // Default risk % for quick calc UI
+  },
   WORK_HOURS: {
     START: '07:00',
     END: '15:30',

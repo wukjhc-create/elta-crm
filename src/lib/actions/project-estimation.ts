@@ -158,7 +158,7 @@ export async function createProjectEstimation(
       room.component_breakdown.map(comp => ({
         description: `${room.room_name}: ${comp.type} (${comp.subtype})`,
         cost: comp.material_cost + (comp.time_seconds / 3600) * hourlyRate,
-        sale: comp.material_cost * 1.25 + (comp.time_seconds / 3600) * hourlyRate * 1.25, // Rough sale estimate
+        sale: comp.material_cost * (1 + CALC_DEFAULTS.MARGINS.MATERIALS / 100) + (comp.time_seconds / 3600) * hourlyRate * (1 + CALC_DEFAULTS.MARGINS.MATERIALS / 100), // Rough sale estimate
       }))
     )
     const marginAnalysis = analyzeMargins(marginItems, CALC_DEFAULTS.MARGINS.MINIMUM_DB)

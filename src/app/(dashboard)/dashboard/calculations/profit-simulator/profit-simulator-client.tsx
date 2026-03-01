@@ -3,14 +3,16 @@
 import { useState, useCallback } from 'react'
 import { formatCurrency } from '@/lib/utils/format'
 import { simulateProfit } from '@/lib/actions/calculation-intelligence'
+import { getDBTextColor, getDBBarColor } from '@/lib/logic/pricing'
+import { CALC_DEFAULTS } from '@/lib/constants'
 import type { ProfitSimulationResult } from '@/types/calculation-intelligence.types'
 
 export function ProfitSimulatorClient() {
   const [materialCost, setMaterialCost] = useState(50000)
-  const [hourlyRate, setHourlyRate] = useState(495)
+  const [hourlyRate, setHourlyRate] = useState<number>(CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN)
   const [totalHours, setTotalHours] = useState(40)
-  const [overheadPct, setOverheadPct] = useState(12)
-  const [riskPct, setRiskPct] = useState(3)
+  const [overheadPct, setOverheadPct] = useState<number>(CALC_DEFAULTS.FACTORS.DEFAULT_OVERHEAD_PCT)
+  const [riskPct, setRiskPct] = useState<number>(CALC_DEFAULTS.FACTORS.DEFAULT_RISK_PCT)
   const [marginPct, setMarginPct] = useState(25)
   const [discountPct, setDiscountPct] = useState(0)
 
@@ -167,10 +169,7 @@ export function ProfitSimulatorClient() {
                 <tbody>
                   {result.scenarios.map((scenario, idx) => {
                     const isStandard = scenario.name === 'Standard margin'
-                    const dbColor = scenario.db_percentage < 0 ? 'text-red-600'
-                      : scenario.db_percentage < 10 ? 'text-red-500'
-                      : scenario.db_percentage < 20 ? 'text-amber-600'
-                      : 'text-green-600'
+                    const dbColor = getDBTextColor(scenario.db_percentage)
 
                     return (
                       <tr
@@ -206,9 +205,7 @@ export function ProfitSimulatorClient() {
               {result.scenarios.map((scenario, idx) => {
                 const maxAmount = Math.max(...result.scenarios.map((s) => s.final_amount))
                 const barWidth = maxAmount > 0 ? (scenario.final_amount / maxAmount) * 100 : 0
-                const dbColor = scenario.db_percentage < 10 ? 'bg-red-500'
-                  : scenario.db_percentage < 20 ? 'bg-amber-500'
-                  : 'bg-green-500'
+                const dbColor = getDBBarColor(scenario.db_percentage)
 
                 return (
                   <div key={idx} className="flex items-center gap-3">
