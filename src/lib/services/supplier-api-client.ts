@@ -41,6 +41,7 @@ export interface ProductPrice {
   isAvailable: boolean
   stockQuantity: number | null
   leadTimeDays: number | null
+  imageUrl: string | null
 }
 
 export interface ProductSearchResult {
@@ -343,6 +344,9 @@ export abstract class BaseSupplierAPIClient {
 // =====================================================
 
 export class AOAPIClient extends BaseSupplierAPIClient {
+  private sessionCookies: Record<string, string> = {}
+  private priceAccount: string | null = null
+
   get supplierCode(): string {
     return 'AO'
   }
@@ -363,7 +367,6 @@ export class AOAPIClient extends BaseSupplierAPIClient {
         return { success: false, message: 'Manglende brugernavn eller adgangskode', error: 'MISSING_CREDENTIALS' }
       }
 
-      // Try to authenticate
       const authenticated = await this.authenticate()
       if (!authenticated) {
         await this.updateCredentialStatus('invalid_credentials', 'Kunne ikke logge ind')
@@ -380,8 +383,50 @@ export class AOAPIClient extends BaseSupplierAPIClient {
   }
 
   /**
-   * Authenticate with AO API using Basic Auth.
-   * Generates a base64-encoded token from username:password credentials.
+   * Parse Set-Cookie headers into session store
+   */
+  private parseCookies(headers: Headers): void {
+    const setCookie = headers.getSetCookie?.() || []
+    for (const c of setCookie) {
+      const [kv] = c.split(';')
+      const eqIdx = kv.indexOf('=')
+      if (eqIdx > 0) {
+        this.sessionCookies[kv.substring(0, eqIdx).trim()] = kv.substring(eqIdx + 1).trim()
+      }
+    }
+  }
+
+  private cookieHeader(): string {
+    return Object.entries(this.sessionCookies).map(([k, v]) => `${k}=${v}`).join('; ')
+  }
+
+  /**
+   * Make AO website API request with session cookies
+   */
+  private async aoFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const resp = await fetch(`https://ao.dk${path}`, {
+      ...options,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Cookie': this.cookieHeader(),
+        ...((options.headers as Record<string, string>) || {}),
+      },
+      signal: AbortSignal.timeout(this.config.timeout || 30000),
+    })
+    this.parseCookies(resp.headers)
+
+    if (!resp.ok) {
+      throw new Error(`AO API HTTP ${resp.status}: ${resp.statusText}`)
+    }
+
+    return resp.json()
+  }
+
+  /**
+   * Authenticate with AO website using session cookie login.
+   * Uses /api/bruger/ValiderBruger endpoint.
    */
   async authenticate(): Promise<boolean> {
     if (!this.credentials?.username || !this.credentials?.password) {
@@ -389,72 +434,137 @@ export class AOAPIClient extends BaseSupplierAPIClient {
     }
 
     try {
+      // Get initial session cookie
+      const pageResp = await fetch('https://ao.dk/kunde/log-ind-side', {
+        signal: AbortSignal.timeout(10000),
+      })
+      this.parseCookies(pageResp.headers)
+
+      // Login
+      const result = await this.aoFetch<{ Status: boolean; Message: string | null }>(
+        '/api/bruger/ValiderBruger',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            Brugernavn: this.credentials.username,
+            Password: this.credentials.password,
+            HuskLogin: true,
+            LoginKanal: 'Web',
+          }),
+        }
+      )
+
+      if (!result.Status) {
+        return false
+      }
+
+      // Get price account
+      const userInfo = await this.aoFetch<{ Username: string; PriceAccount: string }>(
+        '/api/bruger/GetLoggedInUsernameAndPriceAccount'
+      )
+      this.priceAccount = userInfo.PriceAccount
+
+      // Mark as authenticated with long expiry (session cookie based)
       this.authToken = {
-        accessToken: Buffer.from(
-          `${this.credentials.username}:${this.credentials.password}`
-        ).toString('base64'),
+        accessToken: 'session',
         expiresAt: new Date(Date.now() + SUPPLIER_API_CONFIG.AUTH_TOKEN_TTL_MS),
       }
 
       return true
-    } catch {
+    } catch (error) {
+      logger.error('AO login failed', { error })
       return false
     }
   }
 
   /**
-   * Search for products in AO catalog
+   * Search for products in AO catalog via /api/Soeg/QuickSearch
    */
   async searchProducts(params: ProductSearchParams): Promise<ProductSearchResult> {
     await this.ensureAuthenticated()
 
     try {
-      // AO API product search endpoint
-      const queryParams = new URLSearchParams()
-      if (params.query) queryParams.set('q', params.query)
-      if (params.sku) queryParams.set('articleNo', params.sku)
-      if (params.ean) queryParams.set('ean', params.ean)
-      if (params.limit) queryParams.set('limit', String(params.limit))
-      if (params.offset) queryParams.set('offset', String(params.offset))
+      const query = params.query || params.sku || params.ean || ''
+      const limit = params.limit || 25
+      const start = (params.offset || 0) + 1
+      const stop = start + limit - 1
 
-      const { data } = await this.makeRequest<{
-        products: Array<{
-          articleNo: string
-          description: string
-          netPrice: number
-          listPrice: number
-          unit: string
-          inStock: boolean
-          stockQty: number
-          deliveryDays: number
+      const data = await this.aoFetch<{
+        Count: number
+        Produkter: Array<{
+          Varenr: string
+          Name: string
+          ImageUrlMedium: string
+          Maalingsenhed: string
+          Livscyklus: string
+          EAN: string
         }>
-        total: number
-      }>(`/products?${queryParams}`)
+      }>(`/api/Soeg/QuickSearch?q=${encodeURIComponent(query)}&a=&start=${start}&stop=${stop}`)
 
-      const products: ProductPrice[] = data.products.map((p) => ({
-        sku: p.articleNo,
-        name: p.description,
-        costPrice: p.netPrice,
-        listPrice: p.listPrice,
-        currency: 'DKK',
-        unit: p.unit || 'stk',
-        isAvailable: p.inStock,
-        stockQuantity: p.stockQty,
-        leadTimeDays: p.deliveryDays,
-      }))
+      // Fetch prices for the returned products
+      const varenumre = data.Produkter.map((p) => p.Varenr)
+      const prices = await this.fetchPrices(varenumre)
 
-      // Cache prices for fallback
+      const products: ProductPrice[] = data.Produkter.map((p) => {
+        const price = prices.get(p.Varenr)
+        return {
+          sku: p.Varenr,
+          name: p.Name,
+          costPrice: price?.DinPris ?? 0,
+          listPrice: price?.Listepris ?? null,
+          currency: 'DKK',
+          unit: p.Maalingsenhed || 'STK',
+          isAvailable: p.Livscyklus === 'A',
+          stockQuantity: null,
+          leadTimeDays: null,
+          imageUrl: p.ImageUrlMedium || null,
+        }
+      })
+
+      // Cache for fallback
       await this.cacheProductPrices(products)
 
       return {
         products,
-        totalCount: data.total,
-        hasMore: (params.offset || 0) + products.length < data.total,
+        totalCount: data.Count,
+        hasMore: stop < data.Count,
       }
     } catch (error) {
-      // On API failure, try to return cached data
+      logger.error('AO search failed, falling back to cache', { error })
       return this.getCachedProducts(params)
     }
+  }
+
+  /**
+   * Fetch netto prices from /api/Pris/HentPriserForKonto
+   */
+  private async fetchPrices(varenumre: string[]): Promise<Map<string, { DinPris: number; Listepris: number }>> {
+    const result = new Map<string, { DinPris: number; Listepris: number }>()
+    if (!this.priceAccount || varenumre.length === 0) return result
+
+    try {
+      for (let i = 0; i < varenumre.length; i += 50) {
+        const batch = varenumre.slice(i, i + 50)
+        const prices = await this.aoFetch<Array<{
+          Varenr: string
+          DinPris: number
+          Listepris: number
+        }>>(`/api/Pris/HentPriserForKonto?kontonummer=${this.priceAccount}`, {
+          method: 'POST',
+          body: JSON.stringify(batch),
+        })
+
+        if (Array.isArray(prices)) {
+          for (const p of prices) {
+            result.set(p.Varenr, { DinPris: p.DinPris, Listepris: p.Listepris })
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('AO price fetch failed', { error })
+    }
+
+    return result
   }
 
   /**
@@ -464,33 +574,35 @@ export class AOAPIClient extends BaseSupplierAPIClient {
     await this.ensureAuthenticated()
 
     try {
-      const { data } = await this.makeRequest<{
-        articleNo: string
-        description: string
-        netPrice: number
-        listPrice: number
-        unit: string
-        inStock: boolean
-        stockQty: number
-        deliveryDays: number
-      }>(`/products/${encodeURIComponent(sku)}`)
+      // Get product info
+      const product = await this.aoFetch<{
+        Varenr: string
+        Name: string
+        ImageUrlMedium: string
+        Maalingsenhed: string
+        Livscyklus: string
+      }>(`/api/Soeg/EnkeltProdukt?varenr=${encodeURIComponent(sku)}`)
 
-      const price: ProductPrice = {
-        sku: data.articleNo,
-        name: data.description,
-        costPrice: data.netPrice,
-        listPrice: data.listPrice,
+      // Get price
+      const prices = await this.fetchPrices([sku])
+      const price = prices.get(sku)
+
+      const result: ProductPrice = {
+        sku: product.Varenr,
+        name: product.Name,
+        costPrice: price?.DinPris ?? 0,
+        listPrice: price?.Listepris ?? null,
         currency: 'DKK',
-        unit: data.unit || 'stk',
-        isAvailable: data.inStock,
-        stockQuantity: data.stockQty,
-        leadTimeDays: data.deliveryDays,
+        unit: product.Maalingsenhed || 'STK',
+        isAvailable: product.Livscyklus === 'A',
+        stockQuantity: null,
+        leadTimeDays: null,
+        imageUrl: product.ImageUrlMedium || null,
       }
 
-      await this.cacheProductPrices([price])
-      return price
+      await this.cacheProductPrices([result])
+      return result
     } catch {
-      // Try cached price
       return this.getCachedProductPrice(sku)
     }
   }
@@ -503,48 +615,39 @@ export class AOAPIClient extends BaseSupplierAPIClient {
     const result = new Map<string, ProductPrice>()
 
     try {
-      // Batch request (if API supports it)
-      const { data } = await this.makeRequest<{
-        products: Array<{
-          articleNo: string
-          description: string
-          netPrice: number
-          listPrice: number
-          unit: string
-          inStock: boolean
-          stockQty: number
-          deliveryDays: number
-        }>
-      }>('/products/batch', {
-        method: 'POST',
-        body: JSON.stringify({ articleNumbers: skus }),
-      })
+      // Fetch prices
+      const prices = await this.fetchPrices(skus)
 
-      const prices: ProductPrice[] = []
-      for (const p of data.products) {
-        const price: ProductPrice = {
-          sku: p.articleNo,
-          name: p.description,
-          costPrice: p.netPrice,
-          listPrice: p.listPrice,
-          currency: 'DKK',
-          unit: p.unit || 'stk',
-          isAvailable: p.inStock,
-          stockQuantity: p.stockQty,
-          leadTimeDays: p.deliveryDays,
+      // For each SKU, build a ProductPrice from DB product info + live price
+      const supabase = await createClient()
+      const { data: products } = await supabase
+        .from('supplier_products')
+        .select('supplier_sku, supplier_name, unit, is_available')
+        .eq('supplier_id', this.supplierId)
+        .in('supplier_sku', skus)
+
+      for (const p of products || []) {
+        const price = prices.get(p.supplier_sku)
+        if (price) {
+          result.set(p.supplier_sku, {
+            sku: p.supplier_sku,
+            name: p.supplier_name,
+            costPrice: price.DinPris,
+            listPrice: price.Listepris,
+            currency: 'DKK',
+            unit: p.unit || 'STK',
+            isAvailable: p.is_available,
+            stockQuantity: null,
+            leadTimeDays: null,
+            imageUrl: null,
+          })
         }
-        result.set(p.articleNo, price)
-        prices.push(price)
       }
-
-      await this.cacheProductPrices(prices)
     } catch {
-      // Fallback to individual requests or cache
+      // Fallback to cache
       for (const sku of skus) {
         const price = await this.getCachedProductPrice(sku)
-        if (price) {
-          result.set(sku, price)
-        }
+        if (price) result.set(sku, price)
       }
     }
 
@@ -559,25 +662,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
       const supabase = await createClient()
       let query = supabase
         .from('supplier_products')
-        .select(
-          `
-          id,
-          supplier_sku,
-          supplier_name,
-          cost_price,
-          list_price,
-          unit,
-          is_available,
-          supplier_product_cache (
-            cached_cost_price,
-            cached_list_price,
-            cached_is_available,
-            cached_stock_quantity,
-            cached_lead_time_days,
-            is_stale
-          )
-        `
-        )
+        .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available')
         .eq('supplier_id', this.supplierId)
         .limit(params.limit || 50)
 
@@ -594,78 +679,51 @@ export class AOAPIClient extends BaseSupplierAPIClient {
         return { products: [], totalCount: 0, hasMore: false }
       }
 
-      const products: ProductPrice[] = data.map((p) => {
-        const cache = Array.isArray(p.supplier_product_cache)
-          ? p.supplier_product_cache[0]
-          : p.supplier_product_cache
-        return {
-          sku: p.supplier_sku,
-          name: p.supplier_name,
-          costPrice: cache?.cached_cost_price ?? p.cost_price ?? 0,
-          listPrice: cache?.cached_list_price ?? p.list_price,
-          currency: 'DKK',
-          unit: p.unit || 'stk',
-          isAvailable: cache?.cached_is_available ?? p.is_available,
-          stockQuantity: cache?.cached_stock_quantity ?? null,
-          leadTimeDays: cache?.cached_lead_time_days ?? null,
-        }
-      })
+      const products: ProductPrice[] = data.map((p) => ({
+        sku: p.supplier_sku,
+        name: p.supplier_name,
+        costPrice: p.cost_price ?? 0,
+        listPrice: p.list_price,
+        currency: 'DKK',
+        unit: p.unit || 'STK',
+        isAvailable: p.is_available,
+        stockQuantity: null,
+        leadTimeDays: null,
+        imageUrl: null,
+      }))
 
-      return {
-        products,
-        totalCount: products.length,
-        hasMore: false,
-      }
+      return { products, totalCount: products.length, hasMore: false }
     } catch {
       return { products: [], totalCount: 0, hasMore: false }
     }
   }
 
   /**
-   * Get cached price for single product
+   * Get cached price for single product (AO)
    */
   private async getCachedProductPrice(sku: string): Promise<ProductPrice | null> {
     try {
       const supabase = await createClient()
       const { data } = await supabase
         .from('supplier_products')
-        .select(
-          `
-          supplier_sku,
-          supplier_name,
-          cost_price,
-          list_price,
-          unit,
-          is_available,
-          supplier_product_cache (
-            cached_cost_price,
-            cached_list_price,
-            cached_is_available,
-            cached_stock_quantity,
-            cached_lead_time_days
-          )
-        `
-        )
+        .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available')
         .eq('supplier_id', this.supplierId)
         .eq('supplier_sku', sku)
-        .single()
+        .maybeSingle()
 
       if (!data) return null
-
-      const cache = Array.isArray(data.supplier_product_cache)
-        ? data.supplier_product_cache[0]
-        : data.supplier_product_cache
 
       return {
         sku: data.supplier_sku,
         name: data.supplier_name,
-        costPrice: cache?.cached_cost_price ?? data.cost_price ?? 0,
-        listPrice: cache?.cached_list_price ?? data.list_price,
+        costPrice: data.cost_price ?? 0,
+        listPrice: data.list_price,
         currency: 'DKK',
-        unit: data.unit || 'stk',
-        isAvailable: cache?.cached_is_available ?? data.is_available,
-        stockQuantity: cache?.cached_stock_quantity ?? null,
-        leadTimeDays: cache?.cached_lead_time_days ?? null,
+        unit: data.unit || 'STK',
+        isAvailable: data.is_available,
+        stockQuantity: null,
+        leadTimeDays: null,
+        imageUrl: null,
       }
     } catch {
       return null
@@ -777,6 +835,7 @@ export class LMAPIClient extends BaseSupplierAPIClient {
         isAvailable: p.lagerStatus,
         stockQuantity: p.lagerAntal,
         leadTimeDays: p.leveringstid,
+        imageUrl: null,
       }))
 
       await this.cacheProductPrices(products)
@@ -816,6 +875,7 @@ export class LMAPIClient extends BaseSupplierAPIClient {
         isAvailable: data.lagerStatus,
         stockQuantity: data.lagerAntal,
         leadTimeDays: data.leveringstid,
+        imageUrl: null,
       }
 
       await this.cacheProductPrices([price])
@@ -873,6 +933,7 @@ export class LMAPIClient extends BaseSupplierAPIClient {
         isAvailable: p.is_available,
         stockQuantity: null,
         leadTimeDays: p.lead_time_days,
+        imageUrl: null,
       }))
 
       return { products, totalCount: products.length, hasMore: false }
@@ -903,6 +964,7 @@ export class LMAPIClient extends BaseSupplierAPIClient {
         isAvailable: data.is_available,
         stockQuantity: null,
         leadTimeDays: data.lead_time_days,
+        imageUrl: null,
       }
     } catch {
       return null

@@ -69,8 +69,8 @@ export const SUPPLIER_API_CONFIG = {
   DEFAULT_RETRY_DELAY_MS: 1000,
   CACHE_TTL_MS: 24 * 60 * 60 * 1000, // 24 hours
   AUTH_TOKEN_TTL_MS: 60 * 60 * 1000, // 1 hour
-  AO_API_BASE_URL: 'https://api.ao.dk/v1',
-  AO_WEBSITE_URL: 'https://www.ao.dk',
+  AO_API_BASE_URL: 'https://ao.dk',
+  AO_WEBSITE_URL: 'https://ao.dk',
   LM_API_BASE_URL: 'https://api.lfrm.dk/v1',
   LM_WEBSITE_URL: 'https://www.lfrm.dk',
 } as const

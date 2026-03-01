@@ -33,6 +33,7 @@ interface ProductPrice {
   isAvailable: boolean
   stockQuantity: number | null
   leadTimeDays: number | null
+  imageUrl: string | null
 }
 
 interface PriceComparison {

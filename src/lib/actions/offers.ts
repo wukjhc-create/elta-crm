@@ -1645,7 +1645,7 @@ export async function searchSupplierProductsLive(
           is_available: p.isAvailable,
           stock_quantity: p.stockQuantity,
           delivery_days: p.leadTimeDays,
-          image_url: null as string | null,
+          image_url: p.imageUrl || null,
           source: 'live' as const,
         }))
       } catch (err) {
