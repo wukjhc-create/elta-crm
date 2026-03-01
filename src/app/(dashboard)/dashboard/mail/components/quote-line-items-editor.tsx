@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Search, Loader2, TrendingUp } from 'lucide-react'
+import { Plus, Trash2, Search, Loader2, TrendingUp, Wifi, Database, Package, CheckCircle2, Clock } from 'lucide-react'
 import type { QuoteLineItem } from '@/types/quote-templates.types'
 import { OFFER_UNITS } from '@/types/offers.types'
 import { formatCurrency } from '@/lib/utils/format'
-import { searchSupplierProductsForOffer } from '@/lib/actions/offers'
+import { searchSupplierProductsForOffer, searchSupplierProductsLive } from '@/lib/actions/offers'
 
 interface QuoteLineItemsEditorProps {
   items: QuoteLineItem[]
@@ -13,7 +13,7 @@ interface QuoteLineItemsEditorProps {
 }
 
 type SupplierProduct = {
-  id: string
+  id?: string
   supplier_sku: string
   product_name: string
   supplier_name: string
@@ -22,9 +22,16 @@ type SupplierProduct = {
   cost_price: number
   estimated_sale_price: number
   unit: string
+  is_available?: boolean
+  stock_quantity?: number | null
+  delivery_days?: number | null
+  image_url?: string | null
+  source?: 'live' | 'cache'
 }
 
 export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorProps) {
+  const [searchMode, setSearchMode] = useState<'local' | 'live'>('live')
+
   const addLine = () => {
     onChange([
       ...items,
@@ -97,6 +104,33 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
 
   return (
     <div className="space-y-3">
+      {/* Search mode toggle */}
+      <div className="flex items-center gap-2 pb-1">
+        <span className="text-xs text-gray-500">Søgning:</span>
+        <button
+          type="button"
+          onClick={() => setSearchMode('live')}
+          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${
+            searchMode === 'live'
+              ? 'bg-green-100 text-green-700 border border-green-300'
+              : 'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'
+          }`}
+        >
+          <Wifi className="w-3 h-3" /> Live API
+        </button>
+        <button
+          type="button"
+          onClick={() => setSearchMode('local')}
+          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${
+            searchMode === 'local'
+              ? 'bg-blue-100 text-blue-700 border border-blue-300'
+              : 'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'
+          }`}
+        >
+          <Database className="w-3 h-3" /> Lokal DB
+        </button>
+      </div>
+
       {/* Table header */}
       <div className="grid grid-cols-[1fr_60px_80px_90px_90px_70px_32px] gap-2 text-xs font-medium text-gray-500 px-1">
         <div>Beskrivelse</div>
@@ -130,6 +164,7 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
                   value={item.description}
                   onChange={(val) => updateItem(index, 'description', val)}
                   onProductSelect={(product) => handleProductSelect(index, product)}
+                  searchMode={searchMode}
                 />
                 {item.supplierSku && (
                   <div className="flex items-center gap-2 mt-0.5 px-1">
@@ -247,10 +282,12 @@ function DescriptionInput({
   value,
   onChange,
   onProductSelect,
+  searchMode,
 }: {
   value: string
   onChange: (val: string) => void
   onProductSelect: (product: SupplierProduct) => void
+  searchMode: 'local' | 'live'
 }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [results, setResults] = useState<SupplierProduct[]>([])
@@ -269,28 +306,41 @@ function DescriptionInput({
 
     setIsSearching(true)
     try {
-      const result = await searchSupplierProductsForOffer(query, { limit: 8 })
-      if (result.success && result.data) {
-        setResults(result.data)
-        setNoResults(result.data.length === 0)
-        setShowDropdown(true)
+      if (searchMode === 'live') {
+        const result = await searchSupplierProductsLive(query, { limit: 10 })
+        if (result.success && result.data) {
+          setResults(result.data)
+          setNoResults(result.data.length === 0)
+          setShowDropdown(true)
+        } else {
+          setResults([])
+          setNoResults(true)
+          setShowDropdown(true)
+        }
       } else {
-        setResults([])
-        setNoResults(true)
-        setShowDropdown(true)
+        const result = await searchSupplierProductsForOffer(query, { limit: 8 })
+        if (result.success && result.data) {
+          setResults(result.data)
+          setNoResults(result.data.length === 0)
+          setShowDropdown(true)
+        } else {
+          setResults([])
+          setNoResults(true)
+          setShowDropdown(true)
+        }
       }
     } catch {
       setResults([])
     } finally {
       setIsSearching(false)
     }
-  }, [])
+  }, [searchMode])
 
   const handleChange = (newValue: string) => {
     onChange(newValue)
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => doSearch(newValue), 300)
+    debounceRef.current = setTimeout(() => doSearch(newValue), searchMode === 'live' ? 500 : 300)
   }
 
   const handleSelect = (product: SupplierProduct) => {
@@ -318,35 +368,89 @@ function DescriptionInput({
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           onFocus={() => { if (results.length > 0) setShowDropdown(true) }}
-          placeholder="Søg produkt eller skriv beskrivelse..."
+          placeholder={searchMode === 'live' ? 'Søg live i AO / LM...' : 'Søg produkt eller skriv beskrivelse...'}
           className="w-full px-2 py-1.5 pr-7 border rounded text-sm"
         />
         {isSearching ? (
           <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 animate-spin" />
         ) : value.length >= 2 ? (
-          <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />
+          searchMode === 'live' ? (
+            <Wifi className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-green-400" />
+          ) : (
+            <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />
+          )
         ) : null}
       </div>
 
       {showDropdown && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg max-h-72 overflow-auto">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg max-h-80 overflow-auto">
           {noResults && results.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-gray-400">Ingen produkter fundet</div>
+            <div className="px-3 py-2 text-xs text-gray-400">
+              {searchMode === 'live' ? 'Ingen produkter fundet via API' : 'Ingen produkter fundet'}
+            </div>
           ) : (
-            results.map((product) => (
+            results.map((product, idx) => (
               <button
-                key={product.id}
+                key={`${product.supplier_sku}-${product.supplier_code}-${idx}`}
                 type="button"
                 onClick={() => handleSelect(product)}
                 className="w-full text-left px-3 py-2.5 hover:bg-blue-50 border-b last:border-b-0 transition-colors"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
+                <div className="flex items-start gap-2.5">
+                  {/* Product image placeholder / icon */}
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt=""
+                      className="w-10 h-10 rounded border object-cover shrink-0 mt-0.5"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded border bg-gray-50 flex items-center justify-center shrink-0 mt-0.5">
+                      <Package className="w-5 h-5 text-gray-300" />
+                    </div>
+                  )}
+
+                  {/* Product info */}
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 truncate">{product.product_name}</p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {product.supplier_sku} — {product.supplier_name}
-                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] font-medium text-gray-500">{product.supplier_sku}</span>
+                      <span className="text-[10px] text-gray-300">|</span>
+                      <span className={`text-[10px] font-semibold ${
+                        product.supplier_code === 'AO' ? 'text-orange-600' : 'text-blue-600'
+                      }`}>
+                        {product.supplier_name}
+                      </span>
+                      {product.source === 'live' && (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0 text-[9px] font-medium bg-green-100 text-green-700 rounded">
+                          <Wifi className="w-2 h-2" /> Live
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Stock and delivery info */}
+                    {searchMode === 'live' && (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {product.is_available !== undefined && (
+                          <span className={`inline-flex items-center gap-0.5 text-[10px] ${
+                            product.is_available ? 'text-green-600' : 'text-red-500'
+                          }`}>
+                            {product.is_available ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                            {product.is_available
+                              ? product.stock_quantity != null ? `${product.stock_quantity} stk` : 'På lager'
+                              : 'Ikke på lager'}
+                          </span>
+                        )}
+                        {product.delivery_days != null && product.delivery_days > 0 && (
+                          <span className="text-[10px] text-gray-400">
+                            {product.delivery_days} dages levering
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Prices */}
                   <div className="text-right shrink-0">
                     <p className="text-xs text-gray-400">
                       Netto: {formatCurrency(product.cost_price, 'DKK', 2)}

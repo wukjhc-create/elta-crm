@@ -7,6 +7,8 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 import type {
@@ -192,11 +194,9 @@ export async function ignoreIncomingEmail(emailId: string): Promise<void> {
  */
 export async function createCustomerFromEmail(
   emailId: string
-): Promise<{ success: boolean; customerId?: string; isExisting?: boolean; error?: string }> {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Ikke logget ind' }
+): Promise<{ success: boolean; customerId?: string; isExisting?: boolean; customerName?: string; error?: string }> {
+  validateUUID(emailId, 'emailId')
+  const { supabase, userId } = await getAuthenticatedClient()
 
   // 1. Fetch the email
   const email = await getIncomingEmail(emailId)
@@ -229,7 +229,7 @@ export async function createCustomerFromEmail(
 
     revalidatePath('/dashboard/mail')
     revalidatePath('/dashboard/customers')
-    return { success: true, customerId: existingCustomer.id, isExisting: true }
+    return { success: true, customerId: existingCustomer.id, isExisting: true, customerName: existingCustomer.company_name }
   }
 
   // 4. Generate customer number
@@ -256,7 +256,7 @@ export async function createCustomerFromEmail(
       tags: ['email'],
       notes: `Oprettet fra email: "${email.subject}"`,
       is_active: true,
-      created_by: user.id,
+      created_by: userId,
     })
     .select('id')
     .single()
@@ -267,7 +267,7 @@ export async function createCustomerFromEmail(
   }
 
   // 6. Create lead
-  await supabase.from('leads').insert({
+  const { error: leadError } = await supabase.from('leads').insert({
     company_name: senderName,
     contact_person: senderName,
     email: senderEmail,
@@ -275,8 +275,12 @@ export async function createCustomerFromEmail(
     source: 'email',
     notes: `Email emne: ${email.subject}`,
     tags: ['email'],
-    created_by: user.id,
+    created_by: userId,
   })
+
+  if (leadError) {
+    logger.error('Failed to create lead from email', { error: leadError, metadata: { emailId } })
+  }
 
   // 7. Link the email
   await supabase
@@ -296,7 +300,7 @@ export async function createCustomerFromEmail(
 
   revalidatePath('/dashboard/mail')
   revalidatePath('/dashboard/customers')
-  return { success: true, customerId: newCustomer.id }
+  return { success: true, customerId: newCustomer.id, customerName: senderName }
 }
 
 // =====================================================

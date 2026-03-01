@@ -30,7 +30,6 @@ const POLL_INTERVAL = 60_000 // 60 seconds
 export function TaskReminderOverlay() {
   const [reminders, setReminders] = useState<CustomerTaskWithRelations[]>([])
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([])
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [isMinimized, setIsMinimized] = useState(false)
 
   const loadReminders = useCallback(async () => {
@@ -63,8 +62,11 @@ export function TaskReminderOverlay() {
     setReminders((prev) => prev.filter((r) => r.id !== taskId))
   }
 
-  const handleDismiss = (id: string) => {
-    setDismissed((prev) => new Set(prev).add(id))
+  const handleDismiss = async (id: string) => {
+    // Snooze 7 days to persistently dismiss without completing
+    const until = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
+    await snoozeTask(id, until)
+    setReminders((prev) => prev.filter((r) => r.id !== id))
   }
 
   const handleDismissAlert = async (alertId: string) => {
@@ -72,8 +74,7 @@ export function TaskReminderOverlay() {
     setPriceAlerts((prev) => prev.filter((a) => a.id !== alertId))
   }
 
-  const visibleReminders = reminders.filter((r) => !dismissed.has(r.id))
-  const totalVisible = visibleReminders.length + priceAlerts.length
+  const totalVisible = reminders.length + priceAlerts.length
 
   if (totalVisible === 0) return null
 
@@ -120,7 +121,7 @@ export function TaskReminderOverlay() {
 
           {/* Reminder cards */}
           <AnimatePresence mode="popLayout">
-            {visibleReminders.map((reminder) => (
+            {reminders.map((reminder) => (
               <ReminderCard
                 key={reminder.id}
                 reminder={reminder}

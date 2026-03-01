@@ -25,8 +25,10 @@ import {
   Image,
   ZoomIn,
   MessageCircle,
+  Loader2,
 } from 'lucide-react'
 import { GoldenButton } from './components/golden-button'
+import { useToast } from '@/components/ui/toast'
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
 import {
   getIncomingEmails,
@@ -67,12 +69,14 @@ const FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[] = [
 export function MailClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const toast = useToast()
 
   // State
   const [emails, setEmails] = useState<IncomingEmailWithCustomer[]>([])
   const [selectedEmail, setSelectedEmail] = useState<IncomingEmailWithCustomer | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
   const [syncState, setSyncState] = useState<GraphSyncState | null>(null)
   const [stats, setStats] = useState({ total: 0, unread: 0, unidentified: 0, linked: 0 })
   const [error, setError] = useState<string | null>(null)
@@ -179,25 +183,27 @@ export function MailClient() {
   }
 
   const handleCreateCustomer = async (emailId: string) => {
+    if (isCreatingCustomer) return
+    setIsCreatingCustomer(true)
     try {
       const result = await createCustomerFromEmail(emailId)
       if (result.success) {
         if (result.isExisting) {
-          alert('Email koblet til eksisterende kunde')
+          toast?.info('Koblet', 'Email koblet til eksisterende kunde')
         } else {
-          alert('Ny kunde oprettet og email koblet')
+          toast?.success('Kunde oprettet', 'Ny kunde oprettet og email koblet')
         }
         await loadEmails()
-        // Update selected email
         if (selectedEmail?.id === emailId) {
-          const updated = emails.find((e) => e.id === emailId)
-          if (updated) setSelectedEmail({ ...updated, link_status: 'linked' as const })
+          setSelectedEmail((prev) => prev ? { ...prev, link_status: 'linked' as const } : null)
         }
       } else {
-        alert(`Fejl: ${result.error}`)
+        toast?.error('Fejl', result.error || 'Kunne ikke oprette kunde')
       }
-    } catch (err) {
-      alert('Kunne ikke oprette kunde')
+    } catch {
+      toast?.error('Fejl', 'Kunne ikke oprette kunde')
+    } finally {
+      setIsCreatingCustomer(false)
     }
   }
 
@@ -445,6 +451,7 @@ export function MailClient() {
               onIgnore={() => handleIgnore(selectedEmail.id)}
               onLink={() => setShowLinkModal(true)}
               onCreateCustomer={() => handleCreateCustomer(selectedEmail.id)}
+              isCreatingCustomer={isCreatingCustomer}
               formatDate={formatDate}
               statusBadge={statusBadge}
             />
@@ -525,6 +532,7 @@ function EmailDetail({
   onIgnore,
   onLink,
   onCreateCustomer,
+  isCreatingCustomer,
   formatDate,
   statusBadge,
 }: {
@@ -533,6 +541,7 @@ function EmailDetail({
   onIgnore: () => void
   onLink: () => void
   onCreateCustomer: () => void
+  isCreatingCustomer?: boolean
   formatDate: (iso: string) => string
   statusBadge: (status: EmailLinkStatus) => React.ReactNode
 }) {
@@ -611,8 +620,8 @@ function EmailDetail({
               <button onClick={onLink} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700">
                 <UserPlus className="w-3.5 h-3.5" /> Kobl til kunde
               </button>
-              <button onClick={onCreateCustomer} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded hover:bg-green-700">
-                <UserPlus className="w-3.5 h-3.5" /> Opret som Kunde
+              <button onClick={onCreateCustomer} disabled={isCreatingCustomer} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                {isCreatingCustomer ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />} Opret som Kunde
               </button>
             </>
           )}

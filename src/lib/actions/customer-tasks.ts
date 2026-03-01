@@ -326,7 +326,7 @@ export async function getUnreadPriceAlerts(): Promise<PriceAlert[]> {
     const { data, error } = await supabase
       .from('system_alerts')
       .select('*')
-      .eq('alert_type', 'price_change')
+      .in('alert_type', ['price_change', 'price_increase', 'price_decrease', 'margin_below'])
       .eq('is_read', false)
       .eq('is_dismissed', false)
       .order('created_at', { ascending: false })

@@ -4,7 +4,7 @@
  * EMAIL SETTINGS CLIENT
  *
  * Settings page for:
- * - SMTP configuration
+ * - Microsoft Graph connection status
  * - Email templates management
  * - Test email functionality
  */
@@ -35,7 +35,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
-import { updateCompanySettings } from '@/lib/actions/settings'
 import {
   updateEmailTemplate,
   createEmailTemplate,
@@ -45,10 +44,8 @@ import {
   getEmailStats,
 } from '@/lib/actions/email'
 import type { EmailTemplate, EmailTemplateCreate, EmailTemplateUpdate } from '@/types/email.types'
-import type { CompanySettings } from '@/types/company-settings.types'
 import {
   Mail,
-  Server,
   FileText,
   Save,
   Loader2,
@@ -58,8 +55,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Eye,
-  AlertTriangle,
   BarChart3,
   MailOpen,
   MousePointerClick,
@@ -67,36 +62,17 @@ import {
 } from 'lucide-react'
 
 interface EmailSettingsClientProps {
-  initialSmtpSettings: {
-    host: string | null
-    port: number | null
-    user: string | null
-    password: string | null
-    fromEmail: string | null
-    fromName: string | null
-  } | null
-  initialCompanySettings: CompanySettings | null
   initialTemplates: EmailTemplate[]
 }
 
 export function EmailSettingsClient({
-  initialSmtpSettings,
-  initialCompanySettings,
   initialTemplates,
 }: EmailSettingsClientProps) {
   const toast = useToast()
 
-  // SMTP Settings state
-  const [smtpHost, setSmtpHost] = useState(initialSmtpSettings?.host || '')
-  const [smtpPort, setSmtpPort] = useState(initialSmtpSettings?.port?.toString() || '587')
-  const [smtpUser, setSmtpUser] = useState(initialSmtpSettings?.user || '')
-  const [smtpPassword, setSmtpPassword] = useState(initialSmtpSettings?.password || '')
-  const [smtpFromEmail, setSmtpFromEmail] = useState(initialSmtpSettings?.fromEmail || '')
-  const [smtpFromName, setSmtpFromName] = useState(initialSmtpSettings?.fromName || '')
-
-  const [isSavingSmtp, setIsSavingSmtp] = useState(false)
-  const [isTestingSmtp, setIsTestingSmtp] = useState(false)
-  const [smtpTestResult, setSmtpTestResult] = useState<{
+  // Graph connection state
+  const [isTestingGraph, setIsTestingGraph] = useState(false)
+  const [graphTestResult, setGraphTestResult] = useState<{
     success: boolean
     message: string
   } | null>(null)
@@ -135,53 +111,29 @@ export function EmailSettingsClient({
   }
 
   // =====================================================
-  // SMTP HANDLERS
+  // GRAPH API HANDLERS
   // =====================================================
 
-  const handleSaveSmtp = async () => {
-    setIsSavingSmtp(true)
-    try {
-      const result = await updateCompanySettings({
-        smtp_host: smtpHost || null,
-        smtp_port: smtpPort ? parseInt(smtpPort) : null,
-        smtp_user: smtpUser || null,
-        smtp_password: smtpPassword || null,
-        smtp_from_email: smtpFromEmail || null,
-        smtp_from_name: smtpFromName || null,
-      })
-
-      if (result.success) {
-        toast?.success('Gemt', 'SMTP indstillinger er opdateret')
-      } else {
-        toast?.error('Fejl', result.error || 'Kunne ikke gemme indstillinger')
-      }
-    } catch (error) {
-      toast?.error('Fejl', 'Uventet fejl')
-    } finally {
-      setIsSavingSmtp(false)
-    }
-  }
-
-  const handleTestSmtp = async () => {
-    setIsTestingSmtp(true)
-    setSmtpTestResult(null)
+  const handleTestGraph = async () => {
+    setIsTestingGraph(true)
+    setGraphTestResult(null)
 
     try {
       const result = await testEmailConnectionAction()
 
-      setSmtpTestResult({
+      setGraphTestResult({
         success: result.success,
         message: result.success
           ? 'Microsoft Graph API er konfigureret korrekt!'
           : result.error || 'Microsoft Graph er ikke konfigureret',
       })
-    } catch (error) {
-      setSmtpTestResult({
+    } catch {
+      setGraphTestResult({
         success: false,
         message: 'Uventet fejl ved test af forbindelse',
       })
     } finally {
-      setIsTestingSmtp(false)
+      setIsTestingGraph(false)
     }
   }
 
@@ -200,7 +152,7 @@ export function EmailSettingsClient({
       } else {
         toast?.error('Fejl', result.error || 'Kunne ikke sende test e-mail')
       }
-    } catch (error) {
+    } catch {
       toast?.error('Fejl', 'Uventet fejl ved afsendelse')
     } finally {
       setIsSendingTest(false)
@@ -274,11 +226,11 @@ export function EmailSettingsClient({
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="smtp">
+      <Tabs defaultValue="connection">
         <TabsList>
-          <TabsTrigger value="smtp">
-            <Server className="h-4 w-4 mr-2" />
-            SMTP Konfiguration
+          <TabsTrigger value="connection">
+            <Mail className="h-4 w-4 mr-2" />
+            E-mail Forbindelse
           </TabsTrigger>
           <TabsTrigger value="templates">
             <FileText className="h-4 w-4 mr-2" />
@@ -290,121 +242,57 @@ export function EmailSettingsClient({
           </TabsTrigger>
         </TabsList>
 
-        {/* SMTP Tab */}
-        <TabsContent value="smtp" className="space-y-6 mt-6">
+        {/* Connection Tab */}
+        <TabsContent value="connection" className="space-y-6 mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Server className="h-5 w-5" />
-                SMTP Server
+                <Mail className="h-5 w-5" />
+                Microsoft Graph API
               </CardTitle>
               <CardDescription>
-                Konfigurer din udgående e-mail server
+                E-mails sendes og modtages via Microsoft Graph API (Exchange Online)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="smtp-host">SMTP Host</Label>
-                  <Input
-                    id="smtp-host"
-                    placeholder="smtp.example.com"
-                    value={smtpHost}
-                    onChange={(e) => setSmtpHost(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="smtp-port">Port</Label>
-                  <Input
-                    id="smtp-port"
-                    placeholder="587"
-                    value={smtpPort}
-                    onChange={(e) => setSmtpPort(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="smtp-user">Brugernavn</Label>
-                  <Input
-                    id="smtp-user"
-                    placeholder="user@example.com"
-                    value={smtpUser}
-                    onChange={(e) => setSmtpUser(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="smtp-password">Adgangskode</Label>
-                  <Input
-                    id="smtp-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={smtpPassword}
-                    onChange={(e) => setSmtpPassword(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="smtp-from-email">Afsender e-mail</Label>
-                  <Input
-                    id="smtp-from-email"
-                    placeholder="noreply@example.com"
-                    value={smtpFromEmail}
-                    onChange={(e) => setSmtpFromEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="smtp-from-name">Afsender navn</Label>
-                  <Input
-                    id="smtp-from-name"
-                    placeholder="Elta Solar"
-                    value={smtpFromName}
-                    onChange={(e) => setSmtpFromName(e.target.value)}
-                  />
-                </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                <p className="font-medium mb-2">Forbindelsen konfigureres via miljøvariabler:</p>
+                <ul className="space-y-1 text-blue-700">
+                  <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">AZURE_TENANT_ID</code> — Azure AD tenant</li>
+                  <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">AZURE_CLIENT_ID</code> — App registration client ID</li>
+                  <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">AZURE_CLIENT_SECRET</code> — App registration secret</li>
+                  <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">GRAPH_MAILBOX</code> — Postkasse (f.eks. crm@eltasolar.dk)</li>
+                </ul>
               </div>
 
               {/* Test result */}
-              {smtpTestResult && (
+              {graphTestResult && (
                 <div className={`p-3 rounded-lg flex items-center gap-2 ${
-                  smtpTestResult.success
+                  graphTestResult.success
                     ? 'bg-green-50 text-green-700'
                     : 'bg-red-50 text-red-700'
                 }`}>
-                  {smtpTestResult.success ? (
+                  {graphTestResult.success ? (
                     <CheckCircle className="h-5 w-5" />
                   ) : (
                     <XCircle className="h-5 w-5" />
                   )}
-                  {smtpTestResult.message}
+                  {graphTestResult.message}
                 </div>
               )}
 
-              <div className="flex gap-2 pt-4">
-                <Button onClick={handleSaveSmtp} disabled={isSavingSmtp}>
-                  {isSavingSmtp ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Gem indstillinger
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleTestSmtp}
-                  disabled={isTestingSmtp || !smtpHost}
-                >
-                  {isTestingSmtp ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                  )}
-                  Test forbindelse
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                onClick={handleTestGraph}
+                disabled={isTestingGraph}
+              >
+                {isTestingGraph ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                )}
+                Test forbindelse
+              </Button>
             </CardContent>
           </Card>
 
@@ -416,7 +304,7 @@ export function EmailSettingsClient({
                 Send test e-mail
               </CardTitle>
               <CardDescription>
-                Verificer at e-mails sendes korrekt
+                Verificer at e-mails sendes korrekt via Graph API
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -429,7 +317,7 @@ export function EmailSettingsClient({
                 />
                 <Button
                   onClick={handleSendTestEmail}
-                  disabled={isSendingTest || !smtpHost || !testEmailAddress}
+                  disabled={isSendingTest || !testEmailAddress}
                 >
                   {isSendingTest ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

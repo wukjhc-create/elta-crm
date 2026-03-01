@@ -208,7 +208,7 @@ export async function importFromFtp(
     if (priceChanges > 0) {
       try {
         await supabase.from('system_alerts').insert({
-          alert_type: 'price_change',
+          alert_type: 'price_increase',
           severity: priceChanges > 50 ? 'critical' : priceChanges > 10 ? 'warning' : 'info',
           title: `Prisændring: ${priceChanges} varer fra ${supplier.name}`,
           message: `FTP-import fandt ${priceChanges} prisændringer.\nNye: ${newProducts} | Opdaterede: ${updatedProducts} | Total: ${rows.length}`,

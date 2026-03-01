@@ -1432,6 +1432,167 @@ export async function searchSupplierProductsForOffer(
 }
 
 /**
+ * Live API search across all active suppliers with credentials.
+ * Calls AO/LM APIs in parallel and merges results.
+ * Falls back to local DB search on API failure.
+ */
+export async function searchSupplierProductsLive(
+  query: string,
+  options?: {
+    supplierId?: string
+    limit?: number
+  }
+): Promise<ActionResult<Array<{
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string
+  supplier_sku: string
+  product_name: string
+  cost_price: number
+  list_price: number | null
+  estimated_sale_price: number
+  unit: string
+  is_available: boolean
+  stock_quantity: number | null
+  delivery_days: number | null
+  image_url: string | null
+  source: 'live' | 'cache'
+}>>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+    const sanitized = sanitizeSearchTerm(query)
+    if (!sanitized || sanitized.length < 2) {
+      return { success: true, data: [] }
+    }
+
+    // Get global product margin for pricing
+    const calcResult = await getCalculationSettings()
+    const defaultMargin = calcResult.success && calcResult.data
+      ? calcResult.data.margins.products
+      : CALC_DEFAULTS.MARGINS.PRODUCTS
+
+    // Find active suppliers with API credentials
+    let supplierQuery = supabase
+      .from('suppliers')
+      .select(`
+        id,
+        name,
+        code,
+        supplier_credentials!inner (
+          id,
+          credential_type,
+          is_active
+        )
+      `)
+      .eq('is_active', true)
+      .eq('supplier_credentials.is_active', true)
+      .eq('supplier_credentials.credential_type', 'api')
+
+    if (options?.supplierId) {
+      validateUUID(options.supplierId, 'leverandør ID')
+      supplierQuery = supplierQuery.eq('id', options.supplierId)
+    }
+
+    const { data: suppliers } = await supplierQuery
+
+    if (!suppliers || suppliers.length === 0) {
+      // No suppliers with API credentials — fallback to local DB
+      const fallback = await searchSupplierProductsForOffer(query, { limit: options?.limit })
+      if (!fallback.success || !fallback.data) return { success: true, data: [] }
+      return {
+        success: true,
+        data: fallback.data.map((p) => ({
+          supplier_id: p.supplier_id,
+          supplier_name: p.supplier_name,
+          supplier_code: p.supplier_code,
+          supplier_sku: p.supplier_sku,
+          product_name: p.product_name,
+          cost_price: p.cost_price,
+          list_price: p.list_price,
+          estimated_sale_price: p.estimated_sale_price,
+          unit: p.unit,
+          is_available: p.is_available,
+          stock_quantity: null,
+          delivery_days: null,
+          image_url: null,
+          source: 'cache' as const,
+        })),
+      }
+    }
+
+    const limit = options?.limit || 10
+    const { SupplierAPIClientFactory } = await import('@/lib/services/supplier-api-client')
+
+    // Search all suppliers in parallel
+    const searchPromises = suppliers.map(async (supplier) => {
+      try {
+        const client = await SupplierAPIClientFactory.getClient(supplier.id, supplier.code)
+        if (!client) return []
+
+        const result = await client.searchProducts({
+          query: sanitized,
+          limit,
+        })
+
+        return result.products.map((p) => ({
+          supplier_id: supplier.id,
+          supplier_name: supplier.name,
+          supplier_code: supplier.code,
+          supplier_sku: p.sku,
+          product_name: p.name,
+          cost_price: p.costPrice,
+          list_price: p.listPrice,
+          estimated_sale_price: Math.round(p.costPrice * (1 + defaultMargin / 100) * 100) / 100,
+          unit: p.unit,
+          is_available: p.isAvailable,
+          stock_quantity: p.stockQuantity,
+          delivery_days: p.leadTimeDays,
+          image_url: null as string | null,
+          source: 'live' as const,
+        }))
+      } catch (err) {
+        logger.error(`Live search failed for ${supplier.name}`, { error: err })
+        return []
+      }
+    })
+
+    const results = await Promise.allSettled(searchPromises)
+    const allProducts = results.flatMap((r) =>
+      r.status === 'fulfilled' ? r.value : []
+    )
+
+    // If no live results, fallback to local DB
+    if (allProducts.length === 0) {
+      const fallback = await searchSupplierProductsForOffer(query, { limit: options?.limit })
+      if (!fallback.success || !fallback.data) return { success: true, data: [] }
+      return {
+        success: true,
+        data: fallback.data.map((p) => ({
+          supplier_id: p.supplier_id,
+          supplier_name: p.supplier_name,
+          supplier_code: p.supplier_code,
+          supplier_sku: p.supplier_sku,
+          product_name: p.product_name,
+          cost_price: p.cost_price,
+          list_price: p.list_price,
+          estimated_sale_price: p.estimated_sale_price,
+          unit: p.unit,
+          is_available: p.is_available,
+          stock_quantity: null,
+          delivery_days: null,
+          image_url: null,
+          source: 'cache' as const,
+        })),
+      }
+    }
+
+    return { success: true, data: allProducts.slice(0, limit * 2) }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Live søgning fejlede') }
+  }
+}
+
+/**
  * Update line item with fresh supplier price.
  * Recalculates the unit price based on current supplier cost and margin.
  */
