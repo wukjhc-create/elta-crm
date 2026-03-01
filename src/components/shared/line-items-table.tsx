@@ -28,6 +28,7 @@ export interface LineItemRow extends LineItemForDB {
   unit?: string
   image_url?: string | null
   line_type?: string | null
+  supplier_name_at_creation?: string | null
 }
 
 /** Data needed to save a line item */
@@ -62,6 +63,21 @@ interface LineItemsTableProps {
 // =====================================================
 // Editable Row Component
 // =====================================================
+
+/** Small badge showing which wholesaler provided this line */
+function SupplierBadge({ name }: { name?: string | null }) {
+  if (!name) return null
+  const code = name.toUpperCase()
+  const isAO = code.includes('AO')
+  const isLM = code.includes('LM') || code.includes('LEMVIGH') || code.includes('MÜLLER') || code.includes('MULLER')
+  const bg = isAO ? 'bg-orange-100 text-orange-700' : isLM ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+  const label = isAO ? 'AO' : isLM ? 'LM' : name.slice(0, 3).toUpperCase()
+  return (
+    <span className={`inline-flex text-[9px] font-bold px-1 py-0.5 rounded shrink-0 ${bg}`}>
+      {label}
+    </span>
+  )
+}
 
 interface EditableRowProps {
   item: LineItemRow
@@ -187,6 +203,7 @@ function EditableRow({ item, idx, currency, thresholds, onSave, onDelete }: Edit
               className="w-7 h-7 rounded object-contain border bg-white shrink-0"
             />
           )}
+          <SupplierBadge name={item.supplier_name_at_creation} />
           <input
             type="text"
             value={description}
@@ -319,6 +336,7 @@ function ReadOnlyRow({
           {item.image_url && (
             <img src={item.image_url} alt="" className="w-8 h-8 rounded object-contain border bg-white shrink-0" />
           )}
+          <SupplierBadge name={item.supplier_name_at_creation} />
           <span className="font-medium text-gray-900 text-sm">{item.description}</span>
         </div>
       </td>

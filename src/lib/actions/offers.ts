@@ -407,6 +407,33 @@ export async function updateOfferStatus(
       }
     }
 
+    // Hard-lock: validate DB% before allowing 'sent' status
+    if (status === 'sent') {
+      const { data: offerWithItems } = await supabase
+        .from('offers')
+        .select('*, line_items:offer_line_items(*)')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (offerWithItems?.line_items) {
+        const offerDB = computeOfferDB(offerWithItems.line_items)
+        if (offerDB.hasAnyCost && offerDB.totalCost > 0) {
+          const { getCalculationSettings } = await import('@/lib/actions/calculation-settings')
+          const calcSettings = await getCalculationSettings()
+          const redThreshold = calcSettings.success && calcSettings.data
+            ? calcSettings.data.margins.db_red_threshold
+            : 10
+
+          if (offerDB.dbPercentage < redThreshold) {
+            return {
+              success: false,
+              error: `Tilbuddet kan ikke sendes — dækningsbidrag er ${offerDB.dbPercentage}% (minimum ${redThreshold}%).`,
+            }
+          }
+        }
+      }
+    }
+
     const updateData: Record<string, unknown> = { status }
 
     // Set timestamp based on status

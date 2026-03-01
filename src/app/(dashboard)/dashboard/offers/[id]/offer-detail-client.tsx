@@ -688,12 +688,19 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                     )}
                   </div>
 
-                  {supplierSearchResults.length > 0 && (
+                  {supplierSearchResults.length > 0 && (() => {
+                    // Find cheapest price across all suppliers
+                    const cheapestCost = Math.min(...supplierSearchResults.filter(p => p.cost_price > 0).map(p => p.cost_price))
+
+                    return (
                     <div className="mt-3 max-h-[320px] overflow-y-auto divide-y border rounded-md bg-white">
-                      {supplierSearchResults.map((p) => (
+                      {supplierSearchResults.map((p) => {
+                        const isCheapest = p.cost_price > 0 && p.cost_price === cheapestCost && supplierSearchResults.filter(r => r.cost_price > 0).length > 1
+
+                        return (
                         <div
                           key={`${p.supplier_id}-${p.supplier_sku}`}
-                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 transition-colors"
+                          className={`flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 transition-colors ${isCheapest ? 'bg-green-50/50 border-l-2 border-l-green-500' : ''}`}
                         >
                           <div className="w-10 h-10 shrink-0 rounded bg-gray-100 flex items-center justify-center overflow-hidden">
                             {p.image_url ? (
@@ -710,6 +717,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                                 {p.supplier_code}
                               </span>
                               <span className="text-xs text-gray-400 font-mono">{p.supplier_sku}</span>
+                              {isCheapest && (
+                                <span className="text-[10px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Bedste pris</span>
+                              )}
                               {p.is_available === false && (
                                 <span className="text-[10px] text-red-500 font-medium">Ikke på lager</span>
                               )}
@@ -718,7 +728,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                           </div>
                           <div className="text-right shrink-0">
                             <div className="text-xs text-gray-400">Netto</div>
-                            <div className="text-sm font-medium">{formatCurrency(p.cost_price, currency, 2)}</div>
+                            <div className={`text-sm font-medium ${isCheapest ? 'text-green-700' : ''}`}>{formatCurrency(p.cost_price, currency, 2)}</div>
                           </div>
                           <div className="text-right shrink-0">
                             <div className="text-xs text-gray-400">Salgspris</div>
@@ -727,7 +737,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                           <button
                             onClick={() => handleAddSupplierProduct(p.id)}
                             disabled={isAddingSupplierProduct === p.id}
-                            className="shrink-0 inline-flex items-center gap-1 rounded bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            className={`shrink-0 inline-flex items-center gap-1 rounded text-white px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors ${
+                              isCheapest ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+                            }`}
                           >
                             {isAddingSupplierProduct === p.id ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -737,9 +749,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                             Tilføj
                           </button>
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
-                  )}
+                    )
+                  })()}
 
                   {supplierSearchQuery.length >= 2 && !isSearchingSupplier && supplierSearchResults.length === 0 && (
                     <p className="mt-3 text-sm text-gray-400 text-center py-4">
