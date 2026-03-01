@@ -13,7 +13,7 @@ import { createLineItem, updateLineItem, searchSupplierProductsForOffer, searchS
 import { OFFER_UNITS, type OfferLineItem } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
-import { calculateSalePrice, calculateLineTotal, resolveMargin } from '@/lib/logic/pricing'
+import { calculateSalePrice, calculateLineTotal, calculateDBPercentage, calculateDBAmount, resolveMargin, getDBBadgeClasses } from '@/lib/logic/pricing'
 
 interface SupplierSearchResult {
   id?: string
@@ -67,6 +67,14 @@ export function LineItemForm({
   const [selectedProduct, setSelectedProduct] = useState<SupplierSearchResult | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Cost price + margin state (always available, not just for supplier products)
+  const [costPrice, setCostPrice] = useState<string>(
+    lineItem?.cost_price?.toString() || lineItem?.supplier_cost_price_at_creation?.toString() || ''
+  )
+  const [marginPct, setMarginPct] = useState<string>(
+    lineItem?.supplier_margin_applied?.toString() || '20'
+  )
+
   const isEditing = !!lineItem
 
   useEffect(() => {
@@ -107,6 +115,16 @@ export function LineItemForm({
   const discountPercentage = watch('discount_percentage') || 0
 
   const calculatedTotal = calculateLineTotal(quantity, unitPrice, discountPercentage)
+
+  // Auto-calculate sale price from cost + margin when user changes either
+  const handleCostOrMarginChange = (newCost: string, newMargin: string) => {
+    const cost = parseFloat(newCost)
+    const margin = parseFloat(newMargin)
+    if (!isNaN(cost) && cost > 0 && !isNaN(margin)) {
+      const salePrice = calculateSalePrice(cost, margin)
+      setValue('unit_price', salePrice)
+    }
+  }
 
   const currency = companySettings?.default_currency || 'DKK'
 
@@ -155,6 +173,8 @@ export function LineItemForm({
     const salePrice = calculateSalePrice(product.cost_price, margin)
     setValue('unit_price', salePrice)
     setValue('unit', product.unit || 'stk')
+    setCostPrice(String(product.cost_price))
+    setMarginPct(String(margin))
     setSearchQuery('')
     setSearchResults([])
   }
@@ -177,15 +197,21 @@ export function LineItemForm({
         }
       })
 
-      // Pass supplier tracking fields when a product is selected
+      // Always pass cost price + margin if entered (works for both supplier and manual lines)
+      const cost = parseFloat(costPrice)
+      const margin = parseFloat(marginPct)
+      if (!isNaN(cost) && cost > 0) {
+        formData.append('cost_price', String(cost))
+        formData.append('supplier_cost_price_at_creation', String(cost))
+      }
+      if (!isNaN(margin)) {
+        formData.append('supplier_margin_applied', String(margin))
+      }
+
+      // Pass supplier-specific fields when a product is selected
       if (selectedProduct) {
-        formData.append('cost_price', String(selectedProduct.cost_price))
-        formData.append('supplier_margin_applied', String(selectedProduct.margin_percentage || 20))
         if (selectedProduct.supplier_name) {
           formData.append('supplier_name_at_creation', selectedProduct.supplier_name)
-        }
-        if (selectedProduct.supplier_sku) {
-          formData.append('supplier_cost_price_at_creation', String(selectedProduct.cost_price))
         }
         if (selectedProduct.image_url) {
           formData.append('image_url', selectedProduct.image_url)
@@ -452,11 +478,51 @@ export function LineItemForm({
             </div>
           </div>
 
-          {/* Unit price and Discount */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Kostpris + Avance → auto-beregner Salgspris */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label htmlFor="cost_price" className="text-sm font-medium">
+                Kostpris
+              </label>
+              <input
+                id="cost_price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={costPrice}
+                onChange={(e) => {
+                  setCostPrice(e.target.value)
+                  handleCostOrMarginChange(e.target.value, marginPct)
+                }}
+                placeholder="0.00"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                disabled={isLoading}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="margin_pct" className="text-sm font-medium">
+                Avance (%)
+              </label>
+              <input
+                id="margin_pct"
+                type="number"
+                min="0"
+                step="0.5"
+                value={marginPct}
+                onChange={(e) => {
+                  setMarginPct(e.target.value)
+                  handleCostOrMarginChange(costPrice, e.target.value)
+                }}
+                placeholder="20"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                disabled={isLoading}
+              />
+            </div>
+
             <div className="space-y-1">
               <label htmlFor="unit_price" className="text-sm font-medium">
-                Enhedspris (DKK) *
+                Salgspris *
               </label>
               <input
                 {...register('unit_price', { valueAsNumber: true })}
@@ -464,14 +530,17 @@ export function LineItemForm({
                 type="number"
                 min="0"
                 step="0.01"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium"
                 disabled={isLoading}
               />
               {errors.unit_price && (
                 <p className="text-sm text-red-600">{errors.unit_price.message}</p>
               )}
             </div>
+          </div>
 
+          {/* Rabat */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label htmlFor="discount_percentage" className="text-sm font-medium">
                 Rabat (%)
@@ -487,38 +556,44 @@ export function LineItemForm({
                 disabled={isLoading}
               />
             </div>
+            <div />
           </div>
 
-          {/* Calculated total with margin info */}
+          {/* Calculated total + live DB preview */}
           <div className="p-3 bg-gray-50 rounded-md space-y-1">
-            {selectedProduct && (
-              <>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-500">Indkøbspris (netto):</span>
-                  <span className="text-gray-600">{formatCurrency(selectedProduct.cost_price, currency, 2)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-500">Avance:</span>
-                  <span className="text-gray-600">{selectedProduct.margin_percentage || 20}%</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-500">Salgspris pr. stk:</span>
-                  <span className="text-gray-600">{formatCurrency(unitPrice, currency, 2)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs border-t pt-1 mt-1">
-                  <span className="text-gray-500">Dækningsbidrag:</span>
-                  <span className="font-medium text-green-700">
-                    {formatCurrency((unitPrice - selectedProduct.cost_price) * quantity, currency, 2)}
-                  </span>
-                </div>
-              </>
-            )}
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Linje total:</span>
-              <span className="text-lg font-semibold">
-                {formatCurrency(calculatedTotal, currency, 2)}
-              </span>
-            </div>
+            {(() => {
+              const cost = parseFloat(costPrice)
+              const hasCost = !isNaN(cost) && cost > 0
+              const lineDB = hasCost ? calculateDBAmount(cost * quantity, calculatedTotal) : 0
+              const lineDBPct = hasCost ? calculateDBPercentage(cost * quantity, calculatedTotal) : 0
+              return (
+                <>
+                  {hasCost && (
+                    <>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-500">Indkøb × antal:</span>
+                        <span className="text-gray-600">{formatCurrency(cost * quantity, currency, 2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-500">Dækningsbidrag:</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${getDBBadgeClasses(lineDBPct)}`}>
+                            {lineDBPct}%
+                          </span>
+                          <span className="text-gray-600">{formatCurrency(lineDB, currency, 2)}</span>
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-sm text-gray-600">Linje total:</span>
+                    <span className="text-lg font-semibold">
+                      {formatCurrency(calculatedTotal, currency, 2)}
+                    </span>
+                  </div>
+                </>
+              )
+            })()}
           </div>
 
           {/* Hidden position */}
