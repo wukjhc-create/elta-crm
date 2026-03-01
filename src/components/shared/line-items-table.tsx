@@ -7,6 +7,7 @@ import {
   getDBBadgeClasses,
   getDBAmountColor,
   type LineItemForDB,
+  type DBThresholds,
 } from '@/lib/logic/pricing'
 
 // =====================================================
@@ -30,6 +31,8 @@ interface LineItemsTableProps {
   showCostData?: boolean
   /** Show DB summary footer */
   showDBSummary?: boolean
+  /** DB thresholds from settings (for correct traffic light colors) */
+  thresholds?: DBThresholds
   /** Render custom actions per row (edit/delete buttons) */
   renderActions?: (item: LineItemRow) => React.ReactNode
 }
@@ -39,6 +42,7 @@ export function LineItemsTable({
   currency = 'DKK',
   showCostData = true,
   showDBSummary = true,
+  thresholds,
   renderActions,
 }: LineItemsTableProps) {
   const db = computeOfferDB(items)
@@ -95,7 +99,7 @@ export function LineItemsTable({
                       </td>
                       <td className="py-3 text-right">
                         {marginPct != null ? (
-                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${getDBBadgeClasses(marginPct)}`}>
+                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${getDBBadgeClasses(marginPct, thresholds)}`}>
                             {marginPct}%
                           </span>
                         ) : '-'}
@@ -129,7 +133,7 @@ export function LineItemsTable({
               <span className="text-xs text-gray-400">
                 Indkøb: {formatCurrency(db.totalCost, currency, 2)}
               </span>
-              <span className={`font-bold ${getDBAmountColor(db.dbPercentage)}`}>
+              <span className={`font-bold ${getDBAmountColor(db.dbPercentage, thresholds)}`}>
                 {formatCurrency(db.dbAmount, currency, 2)} ({db.dbPercentage}%)
               </span>
             </div>

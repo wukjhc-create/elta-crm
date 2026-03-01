@@ -66,15 +66,16 @@ import {
 import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
-import { computeOfferDB, isDBBelowSendThreshold } from '@/lib/logic/pricing'
+import { computeOfferDB, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
 import { LineItemsTable } from '@/components/shared/line-items-table'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
   companySettings: CompanySettings | null
+  dbThresholds?: DBThresholds
 }
 
-export function OfferDetailClient({ offer, companySettings }: OfferDetailClientProps) {
+export function OfferDetailClient({ offer, companySettings, dbThresholds }: OfferDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -281,10 +282,11 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     ? Math.max(...lineItems.map((li) => li.position)) + 1
     : 1
 
-  // Compute offer-level DB for send validation
+  // Compute offer-level DB for send validation (uses actual thresholds from settings)
+  const thresholds = dbThresholds || DEFAULT_DB_THRESHOLDS
   const offerDB = computeOfferDB(lineItems)
   const offerDBPct = offerDB.dbPercentage
-  const isOfferRed = offerDB.hasAnyCost && isDBBelowSendThreshold(offerDBPct)
+  const isOfferRed = offerDB.hasAnyCost && isDBBelowSendThreshold(offerDBPct, thresholds)
 
   const handlePrint = () => {
     setShowPdfPreview(true)
@@ -701,6 +703,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                   currency={currency}
                   showCostData={true}
                   showDBSummary={true}
+                  thresholds={thresholds}
                   renderActions={(item) => (
                     <div className="flex items-center justify-end gap-1">
                       <button
