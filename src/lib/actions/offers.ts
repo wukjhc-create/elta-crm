@@ -741,9 +741,24 @@ export async function createLineItem(
     const total = validated.data.quantity * validated.data.unit_price *
       (1 - (validated.data.discount_percentage || 0) / 100)
 
+    // Extract supplier tracking fields if present
+    const costPrice = formData.get('cost_price') ? Number(formData.get('cost_price')) : null
+    const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
+    const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
+    const supplierNameAtCreation = formData.get('supplier_name_at_creation') as string || null
+    const imageUrl = formData.get('image_url') as string || null
+
     const { data, error } = await supabase
       .from('offer_line_items')
-      .insert({ ...validated.data, total })
+      .insert({
+        ...validated.data,
+        total,
+        cost_price: costPrice,
+        supplier_margin_applied: supplierMargin,
+        supplier_cost_price_at_creation: supplierCostAtCreation,
+        supplier_name_at_creation: supplierNameAtCreation,
+        image_url: imageUrl,
+      })
       .select()
       .single()
 
@@ -1199,7 +1214,7 @@ export async function createLineItemFromSupplierProduct(
     }
 
     // Get effective margin from rules engine (DB function with full hierarchy)
-    let marginPercentage = options?.customMarginPercentage ?? supplierProduct.margin_percentage ?? CALC_DEFAULTS.MARGINS.MATERIALS
+    let marginPercentage = options?.customMarginPercentage ?? supplierProduct.margin_percentage ?? CALC_DEFAULTS.MARGINS.PRODUCTS
     let effectiveCostPrice = supplierProduct.cost_price
     let fixedMarkup = 0
     let roundTo: number | null = null
@@ -1548,6 +1563,7 @@ export async function searchSupplierProductsLive(
   product_name: string
   cost_price: number
   list_price: number | null
+  margin_percentage: number
   estimated_sale_price: number
   unit: string
   is_available: boolean
@@ -1607,12 +1623,13 @@ export async function searchSupplierProductsLive(
           product_name: p.product_name,
           cost_price: p.cost_price,
           list_price: p.list_price,
+          margin_percentage: p.margin_percentage,
           estimated_sale_price: p.estimated_sale_price,
           unit: p.unit,
           is_available: p.is_available,
           stock_quantity: null,
           delivery_days: null,
-          image_url: null,
+          image_url: p.image_url,
           source: 'cache' as const,
         })),
       }
@@ -1640,6 +1657,7 @@ export async function searchSupplierProductsLive(
           product_name: p.name,
           cost_price: p.costPrice,
           list_price: p.listPrice,
+          margin_percentage: defaultMargin,
           estimated_sale_price: Math.round(p.costPrice * (1 + defaultMargin / 100) * 100) / 100,
           unit: p.unit,
           is_available: p.isAvailable,
@@ -1673,12 +1691,13 @@ export async function searchSupplierProductsLive(
           product_name: p.product_name,
           cost_price: p.cost_price,
           list_price: p.list_price,
+          margin_percentage: p.margin_percentage,
           estimated_sale_price: p.estimated_sale_price,
           unit: p.unit,
           is_available: p.is_available,
           stock_quantity: null,
           delivery_days: null,
-          image_url: null,
+          image_url: p.image_url,
           source: 'cache' as const,
         })),
       }

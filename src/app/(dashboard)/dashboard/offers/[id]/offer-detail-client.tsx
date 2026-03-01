@@ -686,10 +686,13 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                           Antal
                         </th>
                         <th className="text-right py-2 text-sm font-medium text-gray-500">
-                          Enhedspris
+                          Indkøb
                         </th>
                         <th className="text-right py-2 text-sm font-medium text-gray-500">
-                          Rabat
+                          Avance
+                        </th>
+                        <th className="text-right py-2 text-sm font-medium text-gray-500">
+                          Salgspris
                         </th>
                         <th className="text-right py-2 text-sm font-medium text-gray-500">
                           Total
@@ -698,22 +701,37 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                       </tr>
                     </thead>
                     <tbody>
-                      {lineItems.map((item) => (
+                      {lineItems.map((item) => {
+                        const costPrice = item.cost_price || item.supplier_cost_price_at_creation || null
+                        const marginPct = item.supplier_margin_applied || (costPrice && costPrice > 0 ? Math.round((item.unit_price / costPrice - 1) * 100) : null)
+                        return (
                         <tr key={item.id} className="border-b hover:bg-gray-50">
                           <td className="py-3 text-sm text-gray-500">
                             {item.position}
                           </td>
-                          <td className="py-3">{item.description}</td>
+                          <td className="py-3">
+                            <div className="flex items-center gap-2">
+                              {item.image_url && (
+                                <img src={item.image_url} alt="" className="w-8 h-8 rounded object-contain border bg-white shrink-0" />
+                              )}
+                              <span>{item.description}</span>
+                            </div>
+                          </td>
                           <td className="py-3 text-right">
                             {item.quantity} {item.unit}
                           </td>
-                          <td className="py-3 text-right">
-                            {formatCurrency(item.unit_price, currency, 2)}
+                          <td className="py-3 text-right text-xs text-gray-500">
+                            {costPrice ? formatCurrency(costPrice, currency, 2) : '-'}
                           </td>
                           <td className="py-3 text-right">
-                            {item.discount_percentage > 0
-                              ? `${item.discount_percentage}%`
-                              : '-'}
+                            {marginPct != null ? (
+                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${marginPct >= 20 ? 'bg-green-100 text-green-700' : marginPct >= 10 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                {marginPct}%
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td className="py-3 text-right">
+                            {formatCurrency(item.unit_price, currency, 2)}
                           </td>
                           <td className="py-3 text-right font-medium">
                             {formatCurrency(item.total, currency, 2)}
@@ -736,15 +754,40 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
 
-              {/* Totals */}
-              {lineItems.length > 0 && (
+              {/* Totals + Dækningsbidrag */}
+              {lineItems.length > 0 && (() => {
+                const totalCost = lineItems.reduce((sum, item) => {
+                  const cost = item.cost_price || item.supplier_cost_price_at_creation || 0
+                  return sum + cost * item.quantity
+                }, 0)
+                const totalSale = lineItems.reduce((sum, item) => sum + item.total, 0)
+                const totalDB = totalSale - totalCost
+                const dbPct = totalSale > 0 ? Math.round((totalDB / totalSale) * 100) : 0
+                const hasAnyCost = lineItems.some(item => item.cost_price || item.supplier_cost_price_at_creation)
+
+                return (
                 <div className="mt-4 pt-4 border-t space-y-2">
+                  {/* Dækningsbidrag */}
+                  {hasAnyCost && (
+                    <div className="flex justify-between items-center text-sm p-2 rounded bg-gray-50 mb-2">
+                      <span className="text-gray-600 font-medium">Samlet dækningsbidrag:</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400">
+                          Indkøb: {formatCurrency(totalCost, currency, 2)}
+                        </span>
+                        <span className={`font-bold ${dbPct >= 20 ? 'text-green-700' : dbPct >= 10 ? 'text-yellow-700' : 'text-red-700'}`}>
+                          {formatCurrency(totalDB, currency, 2)} ({dbPct}%)
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Subtotal:</span>
                     <span>{formatCurrency(offer.total_amount, currency, 2)}</span>
@@ -770,7 +813,8 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                     <span>{formatCurrency(offer.final_amount, currency, 2)}</span>
                   </div>
                 </div>
-              )}
+                )
+              })()}
             </div>
 
             {/* Terms */}

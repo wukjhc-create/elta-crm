@@ -150,7 +150,10 @@ export function LineItemForm({
   const handleSelectProduct = (product: SupplierSearchResult) => {
     setSelectedProduct(product)
     setValue('description', product.product_name)
-    setValue('unit_price', product.estimated_sale_price)
+    // Salgspris = Netto * 1.20 (20% avance)
+    const margin = product.margin_percentage || 20
+    const salePrice = Math.round(product.cost_price * (1 + margin / 100) * 100) / 100
+    setValue('unit_price', salePrice)
     setValue('unit', product.unit || 'stk')
     setSearchQuery('')
     setSearchResults([])
@@ -173,6 +176,21 @@ export function LineItemForm({
           formData.append(key, String(value))
         }
       })
+
+      // Pass supplier tracking fields when a product is selected
+      if (selectedProduct) {
+        formData.append('cost_price', String(selectedProduct.cost_price))
+        formData.append('supplier_margin_applied', String(selectedProduct.margin_percentage || 20))
+        if (selectedProduct.supplier_name) {
+          formData.append('supplier_name_at_creation', selectedProduct.supplier_name)
+        }
+        if (selectedProduct.supplier_sku) {
+          formData.append('supplier_cost_price_at_creation', String(selectedProduct.cost_price))
+        }
+        if (selectedProduct.image_url) {
+          formData.append('image_url', selectedProduct.image_url)
+        }
+      }
 
       const result = isEditing
         ? await updateLineItem(formData)
@@ -358,7 +376,7 @@ export function LineItemForm({
                     {selectedProduct.supplier_code} {selectedProduct.supplier_sku} — {selectedProduct.product_name}
                   </p>
                   <p className="text-[10px] text-green-600">
-                    Netto: {formatCurrency(selectedProduct.cost_price, currency, 2)} → Salg: {formatCurrency(selectedProduct.estimated_sale_price, currency, 2)} (20% avance)
+                    Netto: {formatCurrency(selectedProduct.cost_price, currency, 2)} → Salg: {formatCurrency(selectedProduct.cost_price * (1 + (selectedProduct.margin_percentage || 20) / 100), currency, 2)} ({selectedProduct.margin_percentage || 20}% avance)
                   </p>
                 </div>
                 <button
@@ -471,8 +489,30 @@ export function LineItemForm({
             </div>
           </div>
 
-          {/* Calculated total */}
-          <div className="p-3 bg-gray-50 rounded-md">
+          {/* Calculated total with margin info */}
+          <div className="p-3 bg-gray-50 rounded-md space-y-1">
+            {selectedProduct && (
+              <>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Indkøbspris (netto):</span>
+                  <span className="text-gray-600">{formatCurrency(selectedProduct.cost_price, currency, 2)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Avance:</span>
+                  <span className="text-gray-600">{selectedProduct.margin_percentage || 20}%</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Salgspris pr. stk:</span>
+                  <span className="text-gray-600">{formatCurrency(unitPrice, currency, 2)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs border-t pt-1 mt-1">
+                  <span className="text-gray-500">Dækningsbidrag:</span>
+                  <span className="font-medium text-green-700">
+                    {formatCurrency((unitPrice - selectedProduct.cost_price) * quantity, currency, 2)}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Linje total:</span>
               <span className="text-lg font-semibold">
