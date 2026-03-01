@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { GripVertical, User, Phone, Mail, DollarSign } from 'lucide-react'
+import { GripVertical, User } from 'lucide-react'
 import { updateLeadStatus } from '@/lib/actions/leads'
 import type { LeadWithRelations, LeadStatus } from '@/types/leads.types'
 import {
-  LEAD_STATUSES,
   LEAD_STATUS_LABELS,
   LEAD_STATUS_COLORS,
   LEAD_STATUS_TRANSITIONS,

@@ -19,13 +19,15 @@ interface PageProps {
     source?: LeadSource
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
+    view?: 'table' | 'kanban'
   }>
 }
 
 export default async function LeadsPage({ searchParams }: PageProps) {
   const params = await searchParams
-  const page = params.page ? parseInt(params.page, 10) : 1
-  const pageSize = params.pageSize ? parseInt(params.pageSize, 10) : 25
+  const isKanban = params.view === 'kanban'
+  const page = isKanban ? 1 : (params.page ? parseInt(params.page, 10) : 1)
+  const pageSize = isKanban ? 500 : (params.pageSize ? parseInt(params.pageSize, 10) : 25)
   const search = params.search || undefined
   const status = params.status || undefined
   const source = params.source || undefined
@@ -63,6 +65,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       }}
       filters={{ search, status, source }}
       sort={{ sortBy, sortOrder }}
+      initialView={isKanban ? 'kanban' : 'table'}
     />
   )
 }

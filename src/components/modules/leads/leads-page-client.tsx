@@ -34,14 +34,20 @@ interface LeadsPageClientProps {
   pagination: PaginationData
   filters: Filters
   sort?: SortData
+  initialView?: 'table' | 'kanban'
 }
 
-export function LeadsPageClient({ leads, pagination, filters, sort }: LeadsPageClientProps) {
+export function LeadsPageClient({ leads, pagination, filters, sort, initialView }: LeadsPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
   const [searchInput, setSearchInput] = useState(filters.search || '')
-  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>(initialView || 'table')
+
+  const switchView = (mode: 'table' | 'kanban') => {
+    setViewMode(mode)
+    updateURL({ view: mode === 'kanban' ? 'kanban' : undefined, page: undefined })
+  }
 
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -118,14 +124,14 @@ export function LeadsPageClient({ leads, pagination, filters, sort }: LeadsPageC
             {/* View toggle */}
             <div className="inline-flex border rounded-md overflow-hidden">
               <button
-                onClick={() => setViewMode('table')}
+                onClick={() => switchView('table')}
                 className={`p-2 ${viewMode === 'table' ? 'bg-primary text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                 aria-label="Tabelvisning"
               >
                 <List className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setViewMode('kanban')}
+                onClick={() => switchView('kanban')}
                 className={`p-2 ${viewMode === 'kanban' ? 'bg-primary text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                 aria-label="Kanban-visning"
               >

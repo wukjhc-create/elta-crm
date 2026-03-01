@@ -12,7 +12,6 @@ import {
   Target,
   Briefcase,
   Download,
-  Loader2,
 } from 'lucide-react'
 import { ExportButton } from '@/components/shared/export-button'
 import {
