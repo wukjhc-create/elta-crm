@@ -6,6 +6,7 @@ import type { KalkiaVariantMaterial } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { CALC_DEFAULTS, BATCH_CONFIG, MONITORING_CONFIG } from '@/lib/constants'
+import { calculateSalePrice } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -531,7 +532,7 @@ export async function loadSupplierPricesForVariant(
         }
       }
 
-      const effectiveSale = effectiveCost * (1 + margin / 100)
+      const effectiveSale = calculateSalePrice(effectiveCost, margin)
 
       // Check if price is stale (not synced in 7+ days)
       const lastSynced = sp.last_synced_at ? new Date(sp.last_synced_at) : null

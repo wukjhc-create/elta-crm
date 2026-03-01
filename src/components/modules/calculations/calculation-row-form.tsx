@@ -30,6 +30,7 @@ import {
   type CostCategory,
 } from '@/types/calculations.types'
 import { formatCurrency } from '@/lib/utils/format'
+import { calculateLineTotal } from '@/lib/logic/pricing'
 
 interface CalculationRowFormProps {
   calculationId: string
@@ -81,16 +82,10 @@ export default function CalculationRowForm({
   const calculateTotal = () => {
     // If hours are set, use hours * hourly rate
     if (hours && parseFloat(hours) > 0) {
-      const h = parseFloat(hours) || 0
-      const rate = parseFloat(hourlyRate) || 0
-      const discount = parseFloat(discountPercentage) || 0
-      return h * rate * (1 - discount / 100)
+      return calculateLineTotal(parseFloat(hours) || 0, parseFloat(hourlyRate) || 0, parseFloat(discountPercentage) || 0)
     }
     // Otherwise use quantity * price
-    const qty = parseFloat(quantity) || 0
-    const price = parseFloat(salePrice) || 0
-    const discount = parseFloat(discountPercentage) || 0
-    return qty * price * (1 - discount / 100)
+    return calculateLineTotal(parseFloat(quantity) || 0, parseFloat(salePrice) || 0, parseFloat(discountPercentage) || 0)
   }
 
 

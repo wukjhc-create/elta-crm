@@ -107,20 +107,6 @@ const navSections: NavSection[] = [
         ),
       },
       {
-        name: 'Indbakke',
-        href: '/dashboard/inbox',
-        icon: (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-            />
-          </svg>
-        ),
-      },
-      {
         name: 'Opgaver',
         href: '/dashboard/tasks',
         icon: (
@@ -275,7 +261,6 @@ export function Sidebar() {
   const pathname = usePathname()
   const [taskCount, setTaskCount] = useState(0)
   const [overdueCount, setOverdueCount] = useState(0)
-  const [unreadInbox, setUnreadInbox] = useState(0)
 
   useEffect(() => {
     let mounted = true
@@ -293,20 +278,8 @@ export function Sidebar() {
         // ignore
       }
     }
-    async function fetchUnread() {
-      try {
-        const { getUnreadCount } = await import('@/lib/actions/messages')
-        const result = await getUnreadCount()
-        if (mounted && result.success && result.data) {
-          setUnreadInbox(result.data)
-        }
-      } catch {
-        // ignore
-      }
-    }
     fetchCount()
-    fetchUnread()
-    const interval = setInterval(() => { fetchCount(); fetchUnread() }, 60_000)
+    const interval = setInterval(() => { fetchCount() }, 60_000)
     return () => { mounted = false; clearInterval(interval) }
   }, [])
 
@@ -345,11 +318,6 @@ export function Sidebar() {
                   >
                     {item.icon}
                     {item.name}
-                    {item.href === '/dashboard/inbox' && unreadInbox > 0 && (
-                      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-blue-500 text-white">
-                        {unreadInbox}
-                      </span>
-                    )}
                     {item.href === '/dashboard/tasks' && (taskCount > 0 || overdueCount > 0) && (
                       <span className="ml-auto inline-flex items-center gap-1">
                         {overdueCount > 0 && (

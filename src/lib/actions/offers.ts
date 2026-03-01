@@ -11,6 +11,7 @@ import {
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { PORTAL_TOKEN_EXPIRY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
+import { calculateSalePrice, calculateLineTotal, computeOfferDB, calculateMarginFromPrices, resolveMargin } from '@/lib/logic/pricing'
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
@@ -524,14 +525,8 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
 
     // Validate DB% is above red threshold (if line items have cost data)
     const lineItems = offer.line_items || []
-    const totalCost = lineItems.reduce((sum: number, item: { cost_price: number | null; supplier_cost_price_at_creation: number | null; quantity: number }) => {
-      const cost = item.cost_price || item.supplier_cost_price_at_creation || 0
-      return sum + cost * item.quantity
-    }, 0)
-    if (totalCost > 0) {
-      const totalSale = lineItems.reduce((sum: number, item: { total: number }) => sum + item.total, 0)
-      const dbPct = totalSale > 0 ? Math.round(((totalSale - totalCost) / totalSale) * 100) : 0
-
+    const offerDB = computeOfferDB(lineItems)
+    if (offerDB.hasAnyCost && offerDB.totalCost > 0) {
       // Load red threshold from settings
       const { getCalculationSettings } = await import('@/lib/actions/calculation-settings')
       const calcSettings = await getCalculationSettings()
@@ -539,8 +534,8 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
         ? calcSettings.data.margins.db_red_threshold
         : 10
 
-      if (dbPct < redThreshold) {
-        return { success: false, error: `Tilbuddet kan ikke sendes — dækningsbidrag er ${dbPct}% (minimum ${redThreshold}%). Juster priser eller kontakt administrator.` }
+      if (offerDB.dbPercentage < redThreshold) {
+        return { success: false, error: `Tilbuddet kan ikke sendes — dækningsbidrag er ${offerDB.dbPercentage}% (minimum ${redThreshold}%). Juster priser eller kontakt administrator.` }
       }
     }
 
@@ -760,8 +755,7 @@ export async function createLineItem(
     }
 
     // Calculate total (will also be done by trigger, but good to have client-side)
-    const total = validated.data.quantity * validated.data.unit_price *
-      (1 - (validated.data.discount_percentage || 0) / 100)
+    const total = calculateLineTotal(validated.data.quantity, validated.data.unit_price, validated.data.discount_percentage || 0)
 
     // Extract supplier tracking fields if present
     const costPrice = formData.get('cost_price') ? Number(formData.get('cost_price')) : null
@@ -839,8 +833,7 @@ export async function updateLineItem(
     const { id: lineItemId, ...updateData } = validated.data
 
     // Calculate total
-    const total = (updateData.quantity || 1) * (updateData.unit_price || 0) *
-      (1 - (updateData.discount_percentage || 0) / 100)
+    const total = calculateLineTotal(updateData.quantity || 1, updateData.unit_price || 0, updateData.discount_percentage || 0)
 
     const { data, error } = await supabase
       .from('offer_line_items')
@@ -1275,10 +1268,7 @@ export async function createLineItemFromSupplierProduct(
     }
 
     // Calculate sale price with margin + optional fixed markup and rounding
-    let unitPrice = effectiveCostPrice * (1 + marginPercentage / 100) + fixedMarkup
-    if (roundTo && roundTo > 0) {
-      unitPrice = Math.ceil(unitPrice / roundTo) * roundTo
-    }
+    const unitPrice = calculateSalePrice(effectiveCostPrice, marginPercentage, { fixedMarkup, roundTo: roundTo ?? undefined })
 
     // Get next position if not provided
     let position = options?.position
@@ -1296,7 +1286,7 @@ export async function createLineItemFromSupplierProduct(
 
     // Calculate total
     const discount = options?.customDiscount ?? 0
-    const total = quantity * unitPrice * (1 - discount / 100)
+    const total = calculateLineTotal(quantity, unitPrice, discount)
 
     // Get supplier name
     const supplierInfo = Array.isArray(supplierProduct.suppliers)
@@ -1460,7 +1450,7 @@ export async function searchSupplierProductsForOffer(
         cost_price: sp.cost_price || 0,
         list_price: sp.list_price,
         margin_percentage: margin,
-        estimated_sale_price: Math.round(effectiveCost * (1 + margin / 100) * 100) / 100,
+        estimated_sale_price: calculateSalePrice(effectiveCost, margin),
         unit: sp.unit || 'stk',
         is_available: sp.is_available,
         image_url: sp.image_url || null,
@@ -1548,7 +1538,7 @@ export async function searchSupplierProductsForOffer(
               cost_price: lp.costPrice,
               list_price: lp.listPrice,
               margin_percentage: margin,
-              estimated_sale_price: Math.round(effectiveCost * (1 + margin / 100) * 100) / 100,
+              estimated_sale_price: calculateSalePrice(effectiveCost, margin),
               unit: lp.unit || 'stk',
               is_available: lp.isAvailable,
               image_url: null,
@@ -1680,7 +1670,7 @@ export async function searchSupplierProductsLive(
           cost_price: p.costPrice,
           list_price: p.listPrice,
           margin_percentage: defaultMargin,
-          estimated_sale_price: Math.round(p.costPrice * (1 + defaultMargin / 100) * 100) / 100,
+          estimated_sale_price: calculateSalePrice(p.costPrice, defaultMargin),
           unit: p.unit,
           is_available: p.isAvailable,
           stock_quantity: p.stockQuantity,
@@ -1803,9 +1793,9 @@ export async function refreshLineItemPrice(
     }
 
     // Calculate new price
-    const newUnitPrice = Math.round(effectiveCostPrice * (1 + marginPercentage / 100) * 100) / 100
+    const newUnitPrice = calculateSalePrice(effectiveCostPrice, marginPercentage)
     const discount = lineItem.discount_percentage || 0
-    const total = lineItem.quantity * newUnitPrice * (1 - discount / 100)
+    const total = calculateLineTotal(lineItem.quantity, newUnitPrice, discount)
 
     // Update line item
     const { data, error } = await supabase

@@ -66,7 +66,8 @@ import {
 import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
-import { getDBBadgeClasses, getDBAmountColor, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/utils/db-colors'
+import { computeOfferDB, getLineItemMargin, getDBBadgeClasses, getDBAmountColor, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
+import { isDBBelowSendThreshold } from '@/lib/utils/db-colors'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
@@ -281,14 +282,9 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     : 1
 
   // Compute offer-level DB for send validation
-  const offerTotalCost = lineItems.reduce((sum, item) => {
-    const cost = item.cost_price || item.supplier_cost_price_at_creation || 0
-    return sum + cost * item.quantity
-  }, 0)
-  const offerTotalSale = lineItems.reduce((sum, item) => sum + item.total, 0)
-  const offerDBPct = offerTotalSale > 0 ? Math.round(((offerTotalSale - offerTotalCost) / offerTotalSale) * 100) : 0
-  const hasAnyCostData = lineItems.some(item => item.cost_price || item.supplier_cost_price_at_creation)
-  const isOfferRed = hasAnyCostData && isDBBelowSendThreshold(offerDBPct)
+  const offerDB = computeOfferDB(lineItems)
+  const offerDBPct = offerDB.dbPercentage
+  const isOfferRed = offerDB.hasAnyCost && isDBBelowSendThreshold(offerDBPct)
 
   const handlePrint = () => {
     setShowPdfPreview(true)
@@ -731,7 +727,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                     <tbody>
                       {lineItems.map((item) => {
                         const costPrice = item.cost_price || item.supplier_cost_price_at_creation || null
-                        const marginPct = item.supplier_margin_applied || (costPrice && costPrice > 0 ? Math.round((item.unit_price / costPrice - 1) * 100) : null)
+                        const marginPct = getLineItemMargin(item)
                         return (
                         <tr key={item.id} className="border-b hover:bg-gray-50">
                           <td className="py-3 text-sm text-gray-500">
@@ -791,27 +787,20 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
 
               {/* Totals + Dækningsbidrag */}
               {lineItems.length > 0 && (() => {
-                const totalCost = lineItems.reduce((sum, item) => {
-                  const cost = item.cost_price || item.supplier_cost_price_at_creation || 0
-                  return sum + cost * item.quantity
-                }, 0)
-                const totalSale = lineItems.reduce((sum, item) => sum + item.total, 0)
-                const totalDB = totalSale - totalCost
-                const dbPct = totalSale > 0 ? Math.round((totalDB / totalSale) * 100) : 0
-                const hasAnyCost = lineItems.some(item => item.cost_price || item.supplier_cost_price_at_creation)
+                const db = computeOfferDB(lineItems)
 
                 return (
                 <div className="mt-4 pt-4 border-t space-y-2">
                   {/* Dækningsbidrag */}
-                  {hasAnyCost && (
+                  {db.hasAnyCost && (
                     <div className="flex justify-between items-center text-sm p-2 rounded bg-gray-50 mb-2">
                       <span className="text-gray-600 font-medium">Samlet dækningsbidrag:</span>
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400">
-                          Indkøb: {formatCurrency(totalCost, currency, 2)}
+                          Indkøb: {formatCurrency(db.totalCost, currency, 2)}
                         </span>
-                        <span className={`font-bold ${getDBAmountColor(dbPct)}`}>
-                          {formatCurrency(totalDB, currency, 2)} ({dbPct}%)
+                        <span className={`font-bold ${getDBAmountColor(db.dbPercentage)}`}>
+                          {formatCurrency(db.dbAmount, currency, 2)} ({db.dbPercentage}%)
                         </span>
                       </div>
                     </div>

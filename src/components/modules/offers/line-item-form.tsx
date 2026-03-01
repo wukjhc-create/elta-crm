@@ -13,6 +13,7 @@ import { createLineItem, updateLineItem, searchSupplierProductsForOffer, searchS
 import { OFFER_UNITS, type OfferLineItem } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
+import { calculateSalePrice, calculateLineTotal, resolveMargin } from '@/lib/logic/pricing'
 
 interface SupplierSearchResult {
   id?: string
@@ -105,7 +106,7 @@ export function LineItemForm({
   const unitPrice = watch('unit_price') || 0
   const discountPercentage = watch('discount_percentage') || 0
 
-  const calculatedTotal = quantity * unitPrice * (1 - discountPercentage / 100)
+  const calculatedTotal = calculateLineTotal(quantity, unitPrice, discountPercentage)
 
   const currency = companySettings?.default_currency || 'DKK'
 
@@ -150,9 +151,8 @@ export function LineItemForm({
   const handleSelectProduct = (product: SupplierSearchResult) => {
     setSelectedProduct(product)
     setValue('description', product.product_name)
-    // Salgspris = Netto * 1.20 (20% avance)
-    const margin = product.margin_percentage || 20
-    const salePrice = Math.round(product.cost_price * (1 + margin / 100) * 100) / 100
+    const margin = resolveMargin(null, product.margin_percentage)
+    const salePrice = calculateSalePrice(product.cost_price, margin)
     setValue('unit_price', salePrice)
     setValue('unit', product.unit || 'stk')
     setSearchQuery('')
@@ -376,7 +376,7 @@ export function LineItemForm({
                     {selectedProduct.supplier_code} {selectedProduct.supplier_sku} — {selectedProduct.product_name}
                   </p>
                   <p className="text-[10px] text-green-600">
-                    Netto: {formatCurrency(selectedProduct.cost_price, currency, 2)} → Salg: {formatCurrency(selectedProduct.cost_price * (1 + (selectedProduct.margin_percentage || 20) / 100), currency, 2)} ({selectedProduct.margin_percentage || 20}% avance)
+                    Netto: {formatCurrency(selectedProduct.cost_price, currency, 2)} → Salg: {formatCurrency(calculateSalePrice(selectedProduct.cost_price, resolveMargin(null, selectedProduct.margin_percentage)), currency, 2)} ({resolveMargin(null, selectedProduct.margin_percentage)}% avance)
                   </p>
                 </div>
                 <button
