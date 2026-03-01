@@ -175,6 +175,7 @@ async function main() {
       is_available: product.Livscyklus === 'A',
       ean: (product.EAN || '').split('|')[0] || null,
       category: product.Forretningsomraade || 'el',
+      image_url: product.ImageUrlMedium || null,
       last_synced_at: new Date().toISOString(),
     }
 
@@ -191,6 +192,7 @@ async function main() {
           is_available: record.is_available,
           ean: record.ean,
           category: record.category,
+          image_url: record.image_url,
           last_synced_at: record.last_synced_at,
         }).eq('id', existing.id)
         updated++
