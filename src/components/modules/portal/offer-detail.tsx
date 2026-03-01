@@ -40,6 +40,28 @@ export function OfferDetail({
   const [showSignature, setShowSignature] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [showChat, setShowChat] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true)
+    try {
+      const res = await fetch(`/api/portal/offers/pdf?token=${encodeURIComponent(token)}&offerId=${offer.id}`)
+      if (!res.ok) throw new Error('PDF fejl')
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${offer.offer_number || 'tilbud'}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      alert('Kunne ikke downloade PDF. Prøv igen.')
+    } finally {
+      setIsDownloadingPdf(false)
+    }
+  }
 
   const currency = companySettings?.default_currency || 'DKK'
 
@@ -279,6 +301,19 @@ export function OfferDetail({
             >
               <MessageSquare className="w-5 h-5" />
               Send besked
+            </button>
+          </div>
+
+          {/* PDF Download */}
+          <div className="bg-white rounded-xl border p-6 shadow-sm">
+            <h2 className="font-semibold mb-4">Download</h2>
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
+            >
+              <Download className="w-5 h-5" />
+              {isDownloadingPdf ? 'Henter PDF...' : 'Download tilbud som PDF'}
             </button>
           </div>
 
