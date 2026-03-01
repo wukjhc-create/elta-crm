@@ -776,7 +776,8 @@ export class LMAPIClient extends BaseSupplierAPIClient {
   }
 
   /**
-   * Authenticate with LM API
+   * Authenticate with LM API using Basic Auth.
+   * Validates credentials by making a minimal search request.
    */
   async authenticate(): Promise<boolean> {
     if (!this.credentials?.username || !this.credentials?.password || !this.credentials?.customer_number) {
@@ -784,18 +785,39 @@ export class LMAPIClient extends BaseSupplierAPIClient {
     }
 
     try {
-      // LM API typically uses OAuth2 or API key authentication
-      // Placeholder implementation - update when actual API docs available
+      const token = Buffer.from(
+        `${this.credentials.customer_number}:${this.credentials.username}:${this.credentials.password}`
+      ).toString('base64')
+
+      // Validate credentials by hitting a lightweight endpoint
+      const response = await fetch(`${this.config.baseUrl}/artikler?search=test&pageSize=1`, {
+        headers: {
+          'Authorization': `Basic ${token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000),
+      })
+
+      if (response.status === 401 || response.status === 403) {
+        logger.error(`LM auth rejected: HTTP ${response.status}`)
+        return false
+      }
+
+      // Accept any non-auth-error response as valid (even 404 means the server is reachable)
+      if (!response.ok && response.status >= 500) {
+        logger.error(`LM API server error: HTTP ${response.status}`)
+        return false
+      }
 
       this.authToken = {
-        accessToken: Buffer.from(
-          `${this.credentials.customer_number}:${this.credentials.username}:${this.credentials.password}`
-        ).toString('base64'),
+        accessToken: token,
         expiresAt: new Date(Date.now() + SUPPLIER_API_CONFIG.AUTH_TOKEN_TTL_MS),
       }
 
       return true
-    } catch {
+    } catch (error) {
+      logger.error('LM authentication failed', { error })
       return false
     }
   }

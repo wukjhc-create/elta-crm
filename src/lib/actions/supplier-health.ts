@@ -64,6 +64,15 @@ export async function getSupplierHealth(
       .order('started_at', { ascending: false })
       .limit(10)
 
+    // Get credential test status (secondary online indicator)
+    const { data: credential } = await supabase
+      .from('supplier_credentials')
+      .select('last_test_status, last_test_at')
+      .eq('supplier_id', supplierId)
+      .eq('credential_type', 'api')
+      .eq('is_active', true)
+      .maybeSingle()
+
     // Get cached product count
     const { data: products } = await supabase
       .from('supplier_products')
@@ -104,10 +113,17 @@ export async function getSupplierHealth(
         ? successfulSyncs.reduce((sum, l) => sum + (l.duration_ms || 0), 0) / successfulSyncs.length
         : null
 
-    // Determine if online based on recent success
-    const isOnline =
+    // Determine if online: sync logs OR successful credential test within 24h
+    const hasRecentSync =
       lastSuccessfulSync !== null &&
       Date.now() - new Date(lastSuccessfulSync).getTime() < maxCacheAge
+
+    const hasRecentCredentialTest =
+      credential?.last_test_status === 'success' &&
+      credential?.last_test_at !== null &&
+      Date.now() - new Date(credential.last_test_at).getTime() < maxCacheAge
+
+    const isOnline = hasRecentSync || hasRecentCredentialTest
 
     // Determine cache status
     let cacheStatus: 'fresh' | 'stale' | 'missing' = 'missing'
