@@ -388,6 +388,23 @@ export async function testSupplierConnection(
     }
 
     // ===== API Connection Test =====
+    if (!isEncryptionConfigured()) {
+      await supabase
+        .from('supplier_credentials')
+        .update({
+          last_test_at: new Date().toISOString(),
+          last_test_status: 'failed',
+          last_test_error: 'ENCRYPTION_KEY miljøvariabel mangler',
+        })
+        .eq('id', credentialId)
+
+      return {
+        success: false,
+        data: { status: 'failed' as TestStatus, message: 'ENCRYPTION_KEY miljøvariabel er ikke konfigureret. Tilføj den i .env.local' },
+        error: 'ENCRYPTION_KEY mangler',
+      }
+    }
+
     if (!supplierCode || !['AO', 'LM'].includes(supplierCode)) {
       await supabase
         .from('supplier_credentials')

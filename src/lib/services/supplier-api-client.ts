@@ -71,6 +71,7 @@ export abstract class BaseSupplierAPIClient {
   protected credentials: CredentialInput | null = null
   protected authToken: AuthToken | null = null
   protected rateLimitInfo: RateLimitInfo | null = null
+  protected lastCredentialError: string | null = null
 
   constructor(supplierId: string, config: SupplierAPIConfig) {
     this.supplierId = supplierId
@@ -93,15 +94,18 @@ export abstract class BaseSupplierAPIClient {
       const result = await getDecryptedCredentials(this.supplierId, 'api')
       if (result.success && result.data) {
         this.credentials = result.data
+        this.lastCredentialError = null
         // Update base URL from stored endpoint if available
         if (result.data.api_endpoint) {
           this.config.baseUrl = result.data.api_endpoint
         }
         return true
       }
-      logger.info(`Supplier ${this.supplierId} credential loading failed: ${result.error || 'no data'}`)
+      this.lastCredentialError = result.error || 'Ingen aktive API-loginoplysninger fundet'
+      logger.info(`Supplier ${this.supplierId} credential loading failed: ${this.lastCredentialError}`)
       return false
     } catch (error) {
+      this.lastCredentialError = error instanceof Error ? error.message : 'Krypteringsfejl'
       logger.error(`Supplier ${this.supplierId} credential decryption error`, { error })
       return false
     }
@@ -360,17 +364,22 @@ export class AOAPIClient extends BaseSupplierAPIClient {
   async testConnection(): Promise<{ success: boolean; message: string; error?: string }> {
     try {
       if (!await this.loadCredentials()) {
-        return { success: false, message: 'Ingen loginoplysninger fundet', error: 'NO_CREDENTIALS' }
+        const reason = this.lastCredentialError || 'Ingen loginoplysninger fundet'
+        await this.updateCredentialStatus('failed', reason)
+        return { success: false, message: reason, error: 'NO_CREDENTIALS' }
       }
 
       if (!this.credentials?.username || !this.credentials?.password) {
-        return { success: false, message: 'Manglende brugernavn eller adgangskode', error: 'MISSING_CREDENTIALS' }
+        const msg = 'Manglende brugernavn eller adgangskode — udfyld felterne og gem først'
+        await this.updateCredentialStatus('failed', msg)
+        return { success: false, message: msg, error: 'MISSING_CREDENTIALS' }
       }
 
       const authenticated = await this.authenticate()
       if (!authenticated) {
-        await this.updateCredentialStatus('invalid_credentials', 'Kunne ikke logge ind')
-        return { success: false, message: 'Kunne ikke logge ind med disse oplysninger', error: 'AUTH_FAILED' }
+        const msg = 'Kunne ikke logge ind på AO — tjek brugernavn og adgangskode'
+        await this.updateCredentialStatus('invalid_credentials', msg)
+        return { success: false, message: msg, error: 'AUTH_FAILED' }
       }
 
       await this.updateCredentialStatus('success')
@@ -378,7 +387,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Ukendt fejl'
       await this.updateCredentialStatus('failed', errorMsg)
-      return { success: false, message: 'Forbindelsesfejl', error: errorMsg }
+      return { success: false, message: `Forbindelsesfejl: ${errorMsg}`, error: errorMsg }
     }
   }
 
@@ -749,21 +758,28 @@ export class LMAPIClient extends BaseSupplierAPIClient {
   async testConnection(): Promise<{ success: boolean; message: string; error?: string }> {
     try {
       if (!await this.loadCredentials()) {
-        return { success: false, message: 'Ingen loginoplysninger fundet', error: 'NO_CREDENTIALS' }
+        const reason = this.lastCredentialError || 'Ingen loginoplysninger fundet'
+        await this.updateCredentialStatus('failed', reason)
+        return { success: false, message: reason, error: 'NO_CREDENTIALS' }
       }
 
       if (!this.credentials?.username || !this.credentials?.password) {
-        return { success: false, message: 'Manglende brugernavn eller adgangskode', error: 'MISSING_CREDENTIALS' }
+        const msg = 'Manglende brugernavn eller adgangskode — udfyld felterne og gem først'
+        await this.updateCredentialStatus('failed', msg)
+        return { success: false, message: msg, error: 'MISSING_CREDENTIALS' }
       }
 
       if (!this.credentials?.customer_number) {
-        return { success: false, message: 'Manglende kundenummer', error: 'MISSING_CUSTOMER_NUMBER' }
+        const msg = 'Manglende kundenummer — udfyld feltet og gem først'
+        await this.updateCredentialStatus('failed', msg)
+        return { success: false, message: msg, error: 'MISSING_CUSTOMER_NUMBER' }
       }
 
       const authenticated = await this.authenticate()
       if (!authenticated) {
-        await this.updateCredentialStatus('invalid_credentials', 'Kunne ikke logge ind')
-        return { success: false, message: 'Kunne ikke logge ind med disse oplysninger', error: 'AUTH_FAILED' }
+        const msg = `Kunne ikke logge ind på ${this.config.baseUrl} — tjek brugernavn/adgangskode/kundenummer`
+        await this.updateCredentialStatus('invalid_credentials', msg)
+        return { success: false, message: msg, error: 'AUTH_FAILED' }
       }
 
       await this.updateCredentialStatus('success')
@@ -771,7 +787,7 @@ export class LMAPIClient extends BaseSupplierAPIClient {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Ukendt fejl'
       await this.updateCredentialStatus('failed', errorMsg)
-      return { success: false, message: 'Forbindelsesfejl', error: errorMsg }
+      return { success: false, message: `Forbindelsesfejl: ${errorMsg}`, error: errorMsg }
     }
   }
 
