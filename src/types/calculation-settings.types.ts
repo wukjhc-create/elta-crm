@@ -67,6 +67,9 @@ export interface CalculationSettings {
     subcontractor: number
     default_db_target: number
     minimum_db: number
+    db_green_threshold: number
+    db_yellow_threshold: number
+    db_red_threshold: number
   }
   work_hours: {
     start: string

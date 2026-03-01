@@ -31,7 +31,7 @@ export default function CalculationSettingsClient({
   const [settings, setSettings] = useState<CalculationSettings>(
     initialSettings || {
       hourly_rates: { electrician: 495, apprentice: 295, master: 650, helper: 350 },
-      margins: { materials: 25, products: 20, subcontractor: 10, default_db_target: 35, minimum_db: 20 },
+      margins: { materials: 25, products: 20, subcontractor: 10, default_db_target: 35, minimum_db: 20, db_green_threshold: 35, db_yellow_threshold: 20, db_red_threshold: 10 },
       work_hours: { start: '07:00', end: '15:30', break_minutes: 30, overtime_multiplier: 1.5, weekend_multiplier: 2.0 },
       defaults: { vat_percentage: 25, currency: 'DKK', validity_days: 30, payment_terms_days: 14 },
       labor_types: [],
@@ -72,6 +72,9 @@ export default function CalculationSettingsClient({
         updateMargin('subcontractor', settings.margins.subcontractor),
         updateMargin('default_db_target', settings.margins.default_db_target),
         updateMargin('minimum_db', settings.margins.minimum_db),
+        updateMargin('db_green_threshold', settings.margins.db_green_threshold),
+        updateMargin('db_yellow_threshold', settings.margins.db_yellow_threshold),
+        updateMargin('db_red_threshold', settings.margins.db_red_threshold),
       ])
 
       if (results.every(r => r.success)) {
@@ -481,6 +484,96 @@ export default function CalculationSettingsClient({
                     </div>
                   </div>
                 </div>
+
+                <hr />
+
+                <div>
+                  <h3 className="font-medium mb-2">Trafiklys (DB%)</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Farvekodning af dækningsbidrag i kalkulationer og tilbud.
+                    Tilbud under den røde grænse kan ikke sendes.
+                  </p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-3 h-3 rounded-full bg-green-500" />
+                        <label className="text-sm font-medium text-green-800">Grøn (Godt)</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-green-700">≥</span>
+                        <input
+                          type="number"
+                          value={settings.margins.db_green_threshold}
+                          onChange={(e) => {
+                            setSettings({
+                              ...settings,
+                              margins: {
+                                ...settings.margins,
+                                db_green_threshold: parseInt(e.target.value) || 0,
+                              },
+                            })
+                            setHasChanges(true)
+                          }}
+                          className="w-20 px-3 py-2 border border-green-300 rounded-md text-right bg-white text-sm"
+                        />
+                        <span className="text-green-700 text-sm">%</span>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                        <label className="text-sm font-medium text-yellow-800">Gul (OK)</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-yellow-700">≥</span>
+                        <input
+                          type="number"
+                          value={settings.margins.db_yellow_threshold}
+                          onChange={(e) => {
+                            setSettings({
+                              ...settings,
+                              margins: {
+                                ...settings.margins,
+                                db_yellow_threshold: parseInt(e.target.value) || 0,
+                              },
+                            })
+                            setHasChanges(true)
+                          }}
+                          className="w-20 px-3 py-2 border border-yellow-300 rounded-md text-right bg-white text-sm"
+                        />
+                        <span className="text-yellow-700 text-sm">%</span>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500" />
+                        <label className="text-sm font-medium text-red-800">Rød (Stop)</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-700">&lt;</span>
+                        <input
+                          type="number"
+                          value={settings.margins.db_red_threshold}
+                          onChange={(e) => {
+                            setSettings({
+                              ...settings,
+                              margins: {
+                                ...settings.margins,
+                                db_red_threshold: parseInt(e.target.value) || 0,
+                              },
+                            })
+                            setHasChanges(true)
+                          }}
+                          className="w-20 px-3 py-2 border border-red-300 rounded-md text-right bg-white text-sm"
+                        />
+                        <span className="text-red-700 text-sm">%</span>
+                      </div>
+                      <p className="text-xs text-red-700 mt-2">
+                        Tilbud kan ikke sendes under denne grænse
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -623,7 +716,7 @@ export default function CalculationSettingsClient({
               <div>
                 <h2 className="text-lg font-semibold mb-1">Standardindstillinger</h2>
                 <p className="text-sm text-muted-foreground">
-                  Generelle standarder for tilbud og fakturaer
+                  Generelle standarder for tilbud og kalkulationer
                 </p>
               </div>
 

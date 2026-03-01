@@ -66,6 +66,7 @@ import {
 import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
+import { getDBBadgeClasses, getDBAmountColor, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/utils/db-colors'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
@@ -279,6 +280,16 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     ? Math.max(...lineItems.map((li) => li.position)) + 1
     : 1
 
+  // Compute offer-level DB for send validation
+  const offerTotalCost = lineItems.reduce((sum, item) => {
+    const cost = item.cost_price || item.supplier_cost_price_at_creation || 0
+    return sum + cost * item.quantity
+  }, 0)
+  const offerTotalSale = lineItems.reduce((sum, item) => sum + item.total, 0)
+  const offerDBPct = offerTotalSale > 0 ? Math.round(((offerTotalSale - offerTotalCost) / offerTotalSale) * 100) : 0
+  const hasAnyCostData = lineItems.some(item => item.cost_price || item.supplier_cost_price_at_creation)
+  const isOfferRed = hasAnyCostData && isDBBelowSendThreshold(offerDBPct)
+
   const handlePrint = () => {
     setShowPdfPreview(true)
     setTimeout(() => {
@@ -432,7 +443,9 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
               <>
                 <button
                   onClick={handleOpenSendEmail}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                  disabled={isOfferRed && offer.status === 'draft'}
+                  title={isOfferRed && offer.status === 'draft' ? `DB er ${offerDBPct}% — for lavt til at sende` : undefined}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Mail className="w-4 h-4" />
                   {offer.status === 'draft' ? 'Send Tilbud' : 'Send Email'}
@@ -535,6 +548,21 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                 <p className="text-gray-700 whitespace-pre-wrap">
                   {offer.description}
                 </p>
+              </div>
+            )}
+
+            {/* DB Warning Banner */}
+            {isOfferRed && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-red-800">
+                    Dækningsbidrag er {offerDBPct}% — tilbuddet kan ikke sendes
+                  </p>
+                  <p className="text-xs text-red-600 mt-0.5">
+                    Juster salgspriser eller indkøbspriser. Minimum DB kan ændres under Indstillinger → Kalkulation → Trafiklys.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -725,7 +753,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                           </td>
                           <td className="py-3 text-right">
                             {marginPct != null ? (
-                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${marginPct >= 20 ? 'bg-green-100 text-green-700' : marginPct >= 10 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${getDBBadgeClasses(marginPct)}`}>
                                 {marginPct}%
                               </span>
                             ) : '-'}
@@ -782,7 +810,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                         <span className="text-xs text-gray-400">
                           Indkøb: {formatCurrency(totalCost, currency, 2)}
                         </span>
-                        <span className={`font-bold ${dbPct >= 20 ? 'text-green-700' : dbPct >= 10 ? 'text-yellow-700' : 'text-red-700'}`}>
+                        <span className={`font-bold ${getDBAmountColor(dbPct)}`}>
                           {formatCurrency(totalDB, currency, 2)} ({dbPct}%)
                         </span>
                       </div>

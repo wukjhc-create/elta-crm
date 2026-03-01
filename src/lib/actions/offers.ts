@@ -522,6 +522,28 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
       return { success: false, error: 'Kunden har ingen email-adresse' }
     }
 
+    // Validate DB% is above red threshold (if line items have cost data)
+    const lineItems = offer.line_items || []
+    const totalCost = lineItems.reduce((sum: number, item: { cost_price: number | null; supplier_cost_price_at_creation: number | null; quantity: number }) => {
+      const cost = item.cost_price || item.supplier_cost_price_at_creation || 0
+      return sum + cost * item.quantity
+    }, 0)
+    if (totalCost > 0) {
+      const totalSale = lineItems.reduce((sum: number, item: { total: number }) => sum + item.total, 0)
+      const dbPct = totalSale > 0 ? Math.round(((totalSale - totalCost) / totalSale) * 100) : 0
+
+      // Load red threshold from settings
+      const { getCalculationSettings } = await import('@/lib/actions/calculation-settings')
+      const calcSettings = await getCalculationSettings()
+      const redThreshold = calcSettings.success && calcSettings.data
+        ? calcSettings.data.margins.db_red_threshold
+        : 10
+
+      if (dbPct < redThreshold) {
+        return { success: false, error: `Tilbuddet kan ikke sendes — dækningsbidrag er ${dbPct}% (minimum ${redThreshold}%). Juster priser eller kontakt administrator.` }
+      }
+    }
+
     // Get company settings
     const settingsResult = await getCompanySettings()
     if (!settingsResult.success || !settingsResult.data) {

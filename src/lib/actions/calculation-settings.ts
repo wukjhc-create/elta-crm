@@ -45,6 +45,9 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
         subcontractor: CALC_DEFAULTS.MARGINS.SUBCONTRACTOR,
         default_db_target: CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET,
         minimum_db: CALC_DEFAULTS.MARGINS.MINIMUM_DB,
+        db_green_threshold: CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET,
+        db_yellow_threshold: CALC_DEFAULTS.MARGINS.MINIMUM_DB,
+        db_red_threshold: 10,
       },
       work_hours: {
         start: CALC_DEFAULTS.WORK_HOURS.START,
@@ -93,6 +96,15 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
           break
         case 'minimum_db':
           settings.margins.minimum_db = (value.percentage as number) || CALC_DEFAULTS.MARGINS.MINIMUM_DB
+          break
+        case 'db_green_threshold':
+          settings.margins.db_green_threshold = (value.percentage as number) || CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET
+          break
+        case 'db_yellow_threshold':
+          settings.margins.db_yellow_threshold = (value.percentage as number) || CALC_DEFAULTS.MARGINS.MINIMUM_DB
+          break
+        case 'db_red_threshold':
+          settings.margins.db_red_threshold = (value.percentage as number) || 10
           break
         case 'work_hours_standard':
           settings.work_hours.start = (value.start as string) || CALC_DEFAULTS.WORK_HOURS.START
@@ -213,27 +225,33 @@ export async function updateHourlyRate(
 }
 
 export async function updateMargin(
-  type: 'materials' | 'products' | 'subcontractor' | 'default_db_target' | 'minimum_db',
+  type: 'materials' | 'products' | 'subcontractor' | 'default_db_target' | 'minimum_db' | 'db_green_threshold' | 'db_yellow_threshold' | 'db_red_threshold',
   percentage: number
 ): Promise<ActionResult<void>> {
   if (typeof percentage !== 'number' || percentage < 0 || percentage > 100) {
     return { success: false, error: 'Ugyldig procentværdi (0-100)' }
   }
 
-  const keyMap = {
+  const keyMap: Record<string, string> = {
     materials: 'margin_materials',
     products: 'margin_products',
     subcontractor: 'margin_subcontractor',
     default_db_target: 'default_db_target',
     minimum_db: 'minimum_db',
+    db_green_threshold: 'db_green_threshold',
+    db_yellow_threshold: 'db_yellow_threshold',
+    db_red_threshold: 'db_red_threshold',
   }
 
-  const labelMap = {
+  const labelMap: Record<string, string> = {
     materials: 'Materialer',
     products: 'Produkter',
     subcontractor: 'Underentreprise',
     default_db_target: 'Mål-DB',
     minimum_db: 'Minimum DB',
+    db_green_threshold: 'Trafiklys Grøn',
+    db_yellow_threshold: 'Trafiklys Gul',
+    db_red_threshold: 'Trafiklys Rød',
   }
 
   const result = await updateSetting(keyMap[type], { percentage, label: labelMap[type] })

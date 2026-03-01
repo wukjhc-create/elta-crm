@@ -12,6 +12,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils/format'
+import { getDBTextColor, getDBBarColor, getDBLabel, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/utils/db-colors'
 
 interface KalkiaMetricsDisplayProps {
   dbAmount: number
@@ -21,6 +22,7 @@ interface KalkiaMetricsDisplayProps {
   totalLaborHours?: number
   finalAmount?: number
   compact?: boolean
+  thresholds?: DBThresholds
 }
 
 export function KalkiaMetricsDisplay({
@@ -31,15 +33,17 @@ export function KalkiaMetricsDisplay({
   totalLaborHours,
   finalAmount,
   compact = false,
+  thresholds = DEFAULT_DB_THRESHOLDS,
 }: KalkiaMetricsDisplayProps) {
   const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`
   }
 
   const getDBStatus = (percentage: number): { color: string; icon: React.ElementType; label: string } => {
-    if (percentage >= 35) return { color: 'text-green-600', icon: ArrowUp, label: 'Godt' }
-    if (percentage >= 25) return { color: 'text-yellow-600', icon: Minus, label: 'OK' }
-    return { color: 'text-red-600', icon: ArrowDown, label: 'Lavt' }
+    const color = getDBTextColor(percentage, thresholds)
+    const label = getDBLabel(percentage, thresholds)
+    const icon = color.includes('green') ? ArrowUp : color.includes('yellow') ? Minus : ArrowDown
+    return { color, icon, label }
   }
 
   const getDBHourStatus = (dbHour: number): { color: string; icon: React.ElementType; label: string } => {
@@ -111,8 +115,7 @@ export function KalkiaMetricsDisplay({
             <div
               className={cn(
                 'h-full rounded-full transition-all',
-                dbPercentage >= 35 ? 'bg-green-500' :
-                dbPercentage >= 25 ? 'bg-yellow-500' : 'bg-red-500'
+                getDBBarColor(dbPercentage, thresholds)
               )}
               style={{ width: `${Math.min(dbPercentage, 100)}%` }}
             />
