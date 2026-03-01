@@ -33,7 +33,6 @@ import {
 } from 'lucide-react'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
-import { LineItemForm } from '@/components/modules/offers/line-item-form'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
@@ -82,8 +81,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
-  const [showLineItemForm, setShowLineItemForm] = useState(false)
-  const [editingLineItem, setEditingLineItem] = useState<OfferLineItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingLineItemId, setDeletingLineItemId] = useState<string | null>(null)
   const [showPdfPreview, setShowPdfPreview] = useState(false)
@@ -1035,17 +1032,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
           offer={offer}
           companySettings={companySettings}
           onClose={() => setShowEditForm(false)}
-          onSuccess={() => router.refresh()}
-        />
-      )}
-
-      {showLineItemForm && (
-        <LineItemForm
-          offerId={offer.id}
-          customerId={offer.customer_id}
-          nextPosition={nextPosition}
-          companySettings={companySettings}
-          onClose={() => setShowLineItemForm(false)}
           onSuccess={() => router.refresh()}
         />
       )}

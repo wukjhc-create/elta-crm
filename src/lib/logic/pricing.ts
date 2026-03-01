@@ -125,6 +125,49 @@ export function getLineItemMargin(item: LineItemForDB): number | null {
 }
 
 // =====================================================
+// Convenience: one-call line calculation
+// =====================================================
+
+export interface LineCalculation {
+  salePrice: number
+  total: number
+  dbAmount: number
+  dbPercentage: number
+  trafficLight: 'green' | 'yellow' | 'red'
+}
+
+/** Calculate everything for a single line in one call */
+export function calculateLine(
+  costPrice: number,
+  marginPercentage: number,
+  quantity: number,
+  thresholds?: DBThresholds,
+): LineCalculation {
+  const salePrice = calculateSalePrice(costPrice, marginPercentage)
+  const total = calculateLineTotal(quantity, salePrice)
+  const totalCost = costPrice * quantity
+  const dbAmount = calculateDBAmount(totalCost, total)
+  const dbPercentage = calculateDBPercentage(totalCost, total)
+  const trafficLight = getDBLevel(dbPercentage, thresholds)
+
+  return { salePrice, total, dbAmount, dbPercentage, trafficLight }
+}
+
+/** Get traffic light color for a margin percentage */
+export function getTrafficLight(
+  marginOrDBPercentage: number,
+  thresholds?: DBThresholds,
+): { level: 'green' | 'yellow' | 'red'; label: string; badgeClasses: string; canSend: boolean } {
+  const level = getDBLevel(marginOrDBPercentage, thresholds)
+  return {
+    level,
+    label: getDBLabel(marginOrDBPercentage, thresholds),
+    badgeClasses: getDBBadgeClasses(marginOrDBPercentage, thresholds),
+    canSend: !isDBBelowSendThreshold(marginOrDBPercentage, thresholds),
+  }
+}
+
+// =====================================================
 // Default margin resolution
 // =====================================================
 
