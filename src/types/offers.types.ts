@@ -92,6 +92,7 @@ export interface OfferLineItem {
   supplier_cost_price_at_creation: number | null
   supplier_margin_applied: number | null
   supplier_name_at_creation: string | null
+  image_url: string | null
   created_at: string
 }
 

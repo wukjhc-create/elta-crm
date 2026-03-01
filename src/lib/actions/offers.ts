@@ -1181,6 +1181,7 @@ export async function createLineItemFromSupplierProduct(
         list_price,
         margin_percentage,
         unit,
+        image_url,
         suppliers!inner (
           name,
           code
@@ -1281,6 +1282,7 @@ export async function createLineItemFromSupplierProduct(
         supplier_cost_price_at_creation: supplierProduct.cost_price,
         supplier_margin_applied: marginPercentage,
         supplier_name_at_creation: supplierInfo?.name || null,
+        image_url: supplierProduct.image_url || null,
       })
       .select()
       .single()
@@ -1329,6 +1331,7 @@ export async function searchSupplierProductsForOffer(
   estimated_sale_price: number
   unit: string
   is_available: boolean
+  image_url: string | null
 }>>> {
   try {
     const { supabase } = await getAuthenticatedClient()
@@ -1351,6 +1354,7 @@ export async function searchSupplierProductsForOffer(
         margin_percentage,
         unit,
         is_available,
+        image_url,
         suppliers!inner (
           name,
           code,
@@ -1422,6 +1426,7 @@ export async function searchSupplierProductsForOffer(
         estimated_sale_price: Math.round(effectiveCost * (1 + margin / 100) * 100) / 100,
         unit: sp.unit || 'stk',
         is_available: sp.is_available,
+        image_url: sp.image_url || null,
       }
     })
 

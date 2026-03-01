@@ -112,6 +112,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
     estimated_sale_price: number
     unit: string
     is_available: boolean
+    image_url: string | null
   }>>([])
   const [isSearchingSupplier, setIsSearchingSupplier] = useState(false)
   const [isAddingSupplierProduct, setIsAddingSupplierProduct] = useState<string | null>(null)
@@ -550,11 +551,11 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                     Fra pakke
                   </button>
                   <button
-                    onClick={handleOpenProductPicker}
+                    onClick={() => setShowSupplierSearch(true)}
                     className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-primary border rounded px-2 py-1"
                   >
                     <Package className="w-4 h-4" />
-                    Fra produkt
+                    Fra leverandør
                   </button>
                   <button
                     onClick={handleOpenCalculationPicker}
@@ -605,6 +606,13 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                           key={`${p.supplier_id}-${p.supplier_sku}`}
                           className="flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 transition-colors"
                         >
+                          <div className="w-10 h-10 shrink-0 rounded bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {p.image_url ? (
+                              <img src={p.image_url} alt="" className="w-full h-full object-contain" />
+                            ) : (
+                              <Package className="w-5 h-5 text-gray-300" />
+                            )}
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
@@ -999,6 +1007,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
       {showLineItemForm && (
         <LineItemForm
           offerId={offer.id}
+          customerId={offer.customer_id}
           nextPosition={nextPosition}
           companySettings={companySettings}
           onClose={() => setShowLineItemForm(false)}
@@ -1009,6 +1018,7 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
       {editingLineItem && (
         <LineItemForm
           offerId={offer.id}
+          customerId={offer.customer_id}
           lineItem={editingLineItem}
           nextPosition={nextPosition}
           companySettings={companySettings}

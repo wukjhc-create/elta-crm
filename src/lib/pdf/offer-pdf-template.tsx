@@ -4,6 +4,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   Font,
 } from '@react-pdf/renderer'
@@ -168,8 +169,18 @@ const styles = StyleSheet.create({
   colPosition: {
     width: '5%',
   },
+  colImage: {
+    width: '8%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  productImage: {
+    width: 30,
+    height: 30,
+    objectFit: 'contain',
+  },
   colDescription: {
-    width: '40%',
+    width: '37%',
   },
   colQuantity: {
     width: '15%',
@@ -314,6 +325,11 @@ interface OfferPdfProps {
 export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
   const lineItems = offer.line_items || []
 
+  // Check if any line items have images
+  const hasImages = lineItems.some(
+    (item: OfferLineItem) => item.image_url
+  )
+
   // Separate section headers from regular items
   const hasSections = lineItems.some(
     (item: OfferLineItem) => item.line_type === 'section'
@@ -404,7 +420,8 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
             {/* Table Header */}
             <View style={styles.tableHeader}>
               <Text style={[styles.tableHeaderCell, styles.colPosition]}>#</Text>
-              <Text style={[styles.tableHeaderCell, styles.colDescription]}>Beskrivelse</Text>
+              {hasImages && <Text style={[styles.tableHeaderCell, styles.colImage]}></Text>}
+              <Text style={[styles.tableHeaderCell, hasImages ? { width: '32%' } : styles.colDescription]}>Beskrivelse</Text>
               <Text style={[styles.tableHeaderCell, styles.colQuantity]}>Antal</Text>
               <Text style={[styles.tableHeaderCell, styles.colUnitPrice]}>Enhedspris</Text>
               <Text style={[styles.tableHeaderCell, styles.colTotal]}>Total</Text>
@@ -432,7 +449,14 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
                   style={isAlt ? styles.tableRowAlt : styles.tableRow}
                 >
                   <Text style={styles.colPosition}>{item.position}</Text>
-                  <View style={styles.colDescription}>
+                  {hasImages && (
+                    <View style={styles.colImage}>
+                      {item.image_url && (
+                        <Image src={item.image_url} style={styles.productImage} />
+                      )}
+                    </View>
+                  )}
+                  <View style={hasImages ? { width: '32%' } : styles.colDescription}>
                     <Text>{item.description}</Text>
                     {item.notes && (
                       <Text style={styles.lineItemNotes}>{item.notes}</Text>
