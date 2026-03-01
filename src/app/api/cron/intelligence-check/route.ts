@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
 import { MONITORING_CONFIG } from '@/lib/constants'
+import { calculateDBPercentage } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
 
 export const dynamic = 'force-dynamic'
@@ -184,7 +185,7 @@ export async function GET(request: Request) {
         )
 
         if (totalCost > 0 && totalSale > 0) {
-          const marginPct = ((totalSale - totalCost) / totalSale) * 100
+          const marginPct = calculateDBPercentage(totalCost, totalSale)
 
           if (marginPct < MONITORING_CONFIG.MARGIN_WARNING_THRESHOLD && !offersWithMarginAlerts.has(offer.id)) {
             await insertAlert({

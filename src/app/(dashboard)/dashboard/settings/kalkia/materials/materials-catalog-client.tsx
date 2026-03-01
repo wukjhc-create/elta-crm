@@ -43,6 +43,7 @@ import {
 import type { Material, MaterialPriceHistory } from '@/types/component-intelligence.types'
 import { useToast } from '@/components/ui/toast'
 import { formatCurrency } from '@/lib/utils/format'
+import { calculateDBPercentage } from '@/lib/logic/pricing'
 
 interface MaterialsCatalogClientProps {
   initialMaterials: Material[]
@@ -225,10 +226,7 @@ export function MaterialsCatalogClient({ initialMaterials }: MaterialsCatalogCli
   })
 
 
-  const calculateMargin = (cost: number, sale: number) => {
-    if (sale === 0) return 0
-    return ((sale - cost) / sale) * 100
-  }
+  const calculateMargin = (cost: number, sale: number) => calculateDBPercentage(cost, sale)
 
   const MaterialForm = ({ isNew }: { isNew: boolean }) => (
     <Card className="border-2 border-dashed border-orange-300 bg-orange-50">

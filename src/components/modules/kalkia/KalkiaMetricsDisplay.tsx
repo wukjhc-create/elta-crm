@@ -12,7 +12,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils/format'
-import { getDBTextColor, getDBBarColor, getDBLabel, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/utils/db-colors'
+import { getDBTextColor, getDBBarColor, getDBLabel, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
 
 interface KalkiaMetricsDisplayProps {
   dbAmount: number

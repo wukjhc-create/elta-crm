@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { CalculationItem } from './CalculationPreview'
 import { formatCurrency } from '@/lib/utils/format'
+import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
 
 interface MaterialSummaryProps {
   items: CalculationItem[]
@@ -108,8 +109,8 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
           comparison = a.totalCost - b.totalCost
           break
         case 'margin':
-          const marginA = a.totalSale > 0 ? (a.totalSale - a.totalCost) / a.totalSale : 0
-          const marginB = b.totalSale > 0 ? (b.totalSale - b.totalCost) / b.totalSale : 0
+          const marginA = calculateDBPercentage(a.totalCost, a.totalSale)
+          const marginB = calculateDBPercentage(b.totalCost, b.totalSale)
           comparison = marginA - marginB
           break
       }
@@ -274,8 +275,8 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
       {/* Materials List */}
       <div className="flex-1 overflow-y-auto">
         {filteredMaterials.map((mat, idx) => {
-          const margin = mat.totalSale - mat.totalCost
-          const marginPercent = mat.totalSale > 0 ? (margin / mat.totalSale) * 100 : 0
+          const margin = calculateDBAmount(mat.totalCost, mat.totalSale)
+          const marginPercent = calculateDBPercentage(mat.totalCost, mat.totalSale)
 
           return (
             <div

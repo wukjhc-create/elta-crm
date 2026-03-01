@@ -1,4 +1,5 @@
 import type { PackageItem, PackageFinancialSummary } from '@/types/packages.types'
+import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
 
 // Calculate financial summary from package items
 export function calculateFinancialSummary(items: PackageItem[]): PackageFinancialSummary {
@@ -31,8 +32,8 @@ export function calculateFinancialSummary(items: PackageItem[]): PackageFinancia
 
   const totalCost = componentsCost + productsCost + manualCost + laborCost
   const totalSale = componentsSale + productsSale + manualSale + laborSale
-  const dbAmount = totalSale - totalCost
-  const dbPercentage = totalSale > 0 ? (dbAmount / totalSale) * 100 : 0
+  const dbAmount = calculateDBAmount(totalCost, totalSale)
+  const dbPercentage = calculateDBPercentage(totalCost, totalSale)
 
   // Format time
   const hours = Math.floor(totalTimeMinutes / 60)

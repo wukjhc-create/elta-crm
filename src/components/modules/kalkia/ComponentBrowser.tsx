@@ -34,6 +34,7 @@ import {
   type ComponentVariant,
 } from '@/lib/actions/components'
 import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
+import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
 import type { CalculationItem } from './CalculationPreview'
 
 // Component item for calculation - matches what PackageBuilder expects
@@ -513,9 +514,9 @@ export function ComponentBrowser({
                     <div className="col-span-2 pt-2 border-t mt-2">
                       <span className="text-gray-500">Est. DB:</span>
                       <span className="ml-2 font-semibold text-green-600">
-                        {formatCurrency(selectedComponent.default_sale_price - selectedComponent.default_cost_price)}
+                        {formatCurrency(calculateDBAmount(selectedComponent.default_cost_price, selectedComponent.default_sale_price))}
                         <span className="text-xs font-normal ml-1">
-                          ({((selectedComponent.default_sale_price - selectedComponent.default_cost_price) / selectedComponent.default_sale_price * 100).toFixed(1)}%)
+                          ({calculateDBPercentage(selectedComponent.default_cost_price, selectedComponent.default_sale_price)}%)
                         </span>
                       </span>
                     </div>

@@ -27,6 +27,7 @@ import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { KalkiaCalculationEngine, createDefaultContext } from '@/lib/services/kalkia-engine'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { DEFAULT_TAX_RATE, CALC_DEFAULTS } from '@/lib/constants'
+import { calculateSalePrice } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -756,16 +757,17 @@ export async function createOfferFromCalculation(
       const electricalPosition = lineItems.length
 
       if (elec.panel_cost && elec.panel_cost > 0) {
+        const panelSalePrice = calculateSalePrice(elec.panel_cost, input.settings.marginPercentage)
         lineItems.push({
           offer_id: offer.id,
           position: electricalPosition,
           description: elec.panel_description || 'Tavlearbejde (hovedtavle, automatsikringer, HPFI)',
           quantity: 1,
           unit: 'stk',
-          unit_price: elec.panel_cost * (1 + (input.settings.marginPercentage / 100)),
+          unit_price: panelSalePrice,
           cost_price: elec.panel_cost,
           discount_percentage: 0,
-          total: elec.panel_cost * (1 + (input.settings.marginPercentage / 100)),
+          total: panelSalePrice,
           line_type: 'calculation' as const,
           supplier_product_id: null,
           supplier_cost_price_at_creation: null,
@@ -775,16 +777,17 @@ export async function createOfferFromCalculation(
       }
 
       if (elec.cable_cost && elec.cable_cost > 0) {
+        const cableSalePrice = calculateSalePrice(elec.cable_cost, input.settings.marginPercentage)
         lineItems.push({
           offer_id: offer.id,
           position: electricalPosition + 1,
           description: elec.cable_summary || 'Kabler og installationsmateriale',
           quantity: 1,
           unit: 'stk',
-          unit_price: elec.cable_cost * (1 + (input.settings.marginPercentage / 100)),
+          unit_price: cableSalePrice,
           cost_price: elec.cable_cost,
           discount_percentage: 0,
-          total: elec.cable_cost * (1 + (input.settings.marginPercentage / 100)),
+          total: cableSalePrice,
           line_type: 'calculation' as const,
           supplier_product_id: null,
           supplier_cost_price_at_creation: null,

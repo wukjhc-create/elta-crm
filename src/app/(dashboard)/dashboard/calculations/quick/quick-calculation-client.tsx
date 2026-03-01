@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { formatTimeMinutes, formatCurrency } from '@/lib/utils/format'
+import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
 import { createQuickCalculation } from '@/lib/actions/calculations'
 import type { ProjectTemplate, RoomType, CalculationSettings } from '@/types/calculation-settings.types'
 
@@ -254,8 +255,8 @@ export default function QuickCalculationClient({
 
   const grandTotal = totals.totalSalePrice + laborCost
   const totalCostWithLabor = totals.totalCostPrice + (laborHours * (settings?.hourly_rates?.apprentice || 295))
-  const dbAmount = grandTotal - totalCostWithLabor
-  const dbPercentage = grandTotal > 0 ? (dbAmount / grandTotal) * 100 : 0
+  const dbAmount = calculateDBAmount(totalCostWithLabor, grandTotal)
+  const dbPercentage = calculateDBPercentage(totalCostWithLabor, grandTotal)
 
   // Create calculation
   const handleCreate = () => {

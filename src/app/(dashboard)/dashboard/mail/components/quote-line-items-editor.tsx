@@ -5,6 +5,7 @@ import { Plus, Trash2, Search, Loader2, TrendingUp, Wifi, Database, Package, Che
 import type { QuoteLineItem } from '@/types/quote-templates.types'
 import { OFFER_UNITS } from '@/types/offers.types'
 import { formatCurrency } from '@/lib/utils/format'
+import { calculateDBAmount, calculateDBPercentage, getDBAmountColor } from '@/lib/logic/pricing'
 import { searchSupplierProductsForOffer, searchSupplierProductsLive } from '@/lib/actions/offers'
 
 interface QuoteLineItemsEditorProps {
@@ -96,8 +97,8 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
   // Dækningsbidrag
   const totalCost = items.reduce((sum, item) => sum + (item.costPrice || 0) * item.quantity, 0)
   const hasCostData = items.some((item) => item.costPrice && item.costPrice > 0)
-  const contributionMargin = subtotal - totalCost
-  const contributionPct = subtotal > 0 ? (contributionMargin / subtotal) * 100 : 0
+  const contributionMargin = calculateDBAmount(totalCost, subtotal)
+  const contributionPct = calculateDBPercentage(totalCost, subtotal)
 
   // Track sections for display
   let currentSection = ''
@@ -260,10 +261,10 @@ export function QuoteLineItemsEditor({ items, onChange }: QuoteLineItemsEditorPr
                 <span className="text-gray-500">{formatCurrency(totalCost, 'DKK', 2)}</span>
               </div>
               <div className="flex items-center justify-end gap-1">
-                <TrendingUp className={`w-3.5 h-3.5 ${contributionPct >= 20 ? 'text-green-500' : contributionPct >= 10 ? 'text-amber-500' : 'text-red-500'}`} />
+                <TrendingUp className={`w-3.5 h-3.5 ${getDBAmountColor(contributionPct)}`} />
                 <span className="text-gray-500 mr-3">Dækningsbidrag:</span>
-                <span className={`font-semibold ${contributionPct >= 20 ? 'text-green-600' : contributionPct >= 10 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {formatCurrency(contributionMargin, 'DKK', 2)} ({contributionPct.toFixed(1)}%)
+                <span className={`font-semibold ${getDBAmountColor(contributionPct)}`}>
+                  {formatCurrency(contributionMargin, 'DKK', 2)} ({contributionPct}%)
                 </span>
               </div>
             </div>

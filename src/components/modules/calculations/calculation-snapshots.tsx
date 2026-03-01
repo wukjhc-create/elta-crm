@@ -21,6 +21,7 @@ import {
 } from '@/lib/actions/ai-intelligence'
 import type { CalculationWithRelations } from '@/types/calculations.types'
 import { formatCurrency } from '@/lib/utils/format'
+import { calculateDBPercentage } from '@/lib/logic/pricing'
 
 interface CalculationSnapshotsProps {
   calculation: CalculationWithRelations
@@ -77,9 +78,7 @@ export function CalculationSnapshots({ calculation }: CalculationSnapshotsProps)
         .reduce((sum, r) => sum + (r.cost_price || 0) * r.quantity, 0)
 
       const totalCost = totalLaborCost + totalMaterialCost
-      const marginPercentage = calculation.final_amount > 0
-        ? ((calculation.final_amount - totalCost) / calculation.final_amount) * 100
-        : 0
+      const marginPercentage = calculateDBPercentage(totalCost, calculation.final_amount)
 
       const result = await createCalculationSnapshot(
         calculation.id,

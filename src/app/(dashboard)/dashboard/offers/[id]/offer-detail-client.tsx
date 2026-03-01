@@ -66,8 +66,7 @@ import {
 import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
-import { computeOfferDB, getLineItemMargin, getDBBadgeClasses, getDBAmountColor, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
-import { isDBBelowSendThreshold } from '@/lib/utils/db-colors'
+import { computeOfferDB, getLineItemMargin, getDBBadgeClasses, getDBAmountColor, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations

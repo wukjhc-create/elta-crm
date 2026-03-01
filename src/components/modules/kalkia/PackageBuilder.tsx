@@ -47,6 +47,7 @@ import type {
   KalkiaBuildingProfile,
   CalculationResult,
 } from '@/types/kalkia.types'
+import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
 
 // Labor types with different hourly rates
 const LABOR_TYPES = [
@@ -234,8 +235,9 @@ export function PackageBuilder({
       const finalAmount = netPrice + vatAmount
 
       // Calculate DB (contribution margin)
-      const dbAmount = netPrice - totalMaterialCost - totalLaborCost
-      const dbPercentage = netPrice > 0 ? (dbAmount / netPrice) * 100 : 0
+      const totalCostForDB = totalMaterialCost + totalLaborCost
+      const dbAmount = calculateDBAmount(totalCostForDB, netPrice)
+      const dbPercentage = calculateDBPercentage(totalCostForDB, netPrice)
       const dbPerHour = totalLaborHours > 0 ? dbAmount / totalLaborHours : 0
       const coverageRatio = costPrice > 0 ? netPrice / costPrice : 0
 
