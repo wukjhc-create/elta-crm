@@ -71,8 +71,8 @@ export const SUPPLIER_API_CONFIG = {
   AUTH_TOKEN_TTL_MS: 60 * 60 * 1000, // 1 hour
   AO_API_BASE_URL: 'https://ao.dk',
   AO_WEBSITE_URL: 'https://ao.dk',
-  LM_API_BASE_URL: 'https://api.lfrm.dk/v1',
-  LM_WEBSITE_URL: 'https://www.lfrm.dk',
+  LM_CLASSIC_URL: 'https://classic.lemu.dk',
+  LM_WEBSITE_URL: 'https://classic.lemu.dk',
 } as const
 
 // Electrician calculation defaults

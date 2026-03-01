@@ -35,6 +35,7 @@ import { MarginRulesManager } from '@/components/modules/suppliers/margin-rules-
 import { SyncJobsManager } from '@/components/modules/suppliers/sync-jobs-manager'
 import { SyncSchedulesManager } from '@/components/modules/suppliers/sync-schedules-manager'
 import { SupplierAPISearch } from '@/components/modules/suppliers/supplier-api-search'
+import { LMClassicImportPanel } from '@/components/modules/suppliers/lm-classic-import-panel'
 import type { Supplier } from '@/types/suppliers.types'
 
 interface SupplierDetailClientProps {
@@ -46,6 +47,7 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
   const toast = useToast()
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [currentSupplier, setCurrentSupplier] = useState(supplier)
+  const isLM = currentSupplier.code?.toUpperCase() === 'LM'
 
   const handleDelete = async () => {
     if (!confirm(`Er du sikker på at du vil slette "${currentSupplier.name}"? Dette vil også slette alle tilknyttede produkter.`)) {
@@ -171,7 +173,7 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
           </TabsTrigger>
           <TabsTrigger value="credentials">
             <Key className="w-4 h-4 mr-2" />
-            API Login
+            {isLM ? 'Classic Import' : 'API Login'}
           </TabsTrigger>
           <TabsTrigger value="margins">
             <Percent className="w-4 h-4 mr-2" />
@@ -183,7 +185,7 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
           </TabsTrigger>
           <TabsTrigger value="api-search">
             <SearchIcon className="w-4 h-4 mr-2" />
-            API Søg
+            {isLM ? 'Lokal Søg' : 'API Søg'}
           </TabsTrigger>
           <TabsTrigger value="schedules">
             <Calendar className="w-4 h-4 mr-2" />
@@ -210,10 +212,14 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
 
         <TabsContent value="credentials" className="mt-6">
           <div className="bg-white rounded-lg border p-6">
-            <SupplierCredentialsForm
-              supplierId={currentSupplier.id}
-              supplierCode={currentSupplier.code}
-            />
+            {isLM ? (
+              <LMClassicImportPanel supplierId={currentSupplier.id} />
+            ) : (
+              <SupplierCredentialsForm
+                supplierId={currentSupplier.id}
+                supplierCode={currentSupplier.code}
+              />
+            )}
           </div>
         </TabsContent>
 

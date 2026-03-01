@@ -449,15 +449,32 @@ export async function testSupplierConnection(
     const { SUPPLIER_API_CONFIG: apiConfig } = await import('@/lib/constants')
     supplierMod.SupplierAPIClientFactory.clearCache()
 
-    const clientConfig = {
-      baseUrl: credential.api_endpoint || (supplierCode === 'AO'
-        ? apiConfig.AO_API_BASE_URL
-        : apiConfig.LM_API_BASE_URL),
+    // LM uses CSV import — no API credentials needed, test via LMClassicClient
+    if (supplierCode === 'LM') {
+      const lmClient = new supplierMod.LMClassicClient(credential.supplier_id, {
+        baseUrl: apiConfig.LM_CLASSIC_URL,
+      })
+      const result = await lmClient.testConnection()
+      const testStatus: TestStatus = result.success ? 'success' : 'failed'
+
+      await supabase
+        .from('supplier_credentials')
+        .update({
+          last_test_at: new Date().toISOString(),
+          last_test_status: testStatus,
+          last_test_error: result.error || null,
+        })
+        .eq('id', credentialId)
+
+      revalidatePath('/dashboard/settings/suppliers')
+      return { success: true, data: { status: testStatus, message: result.message } }
     }
 
-    const client = supplierCode === 'AO'
-      ? new supplierMod.AOAPIClient(credential.supplier_id, clientConfig)
-      : new supplierMod.LMAPIClient(credential.supplier_id, clientConfig)
+    const clientConfig = {
+      baseUrl: credential.api_endpoint || apiConfig.AO_API_BASE_URL,
+    }
+
+    const client = new supplierMod.AOAPIClient(credential.supplier_id, clientConfig)
 
     // Inject decrypted credentials directly — skip loadCredentials()
     client.setCredentialsDirect(decryptedCreds, credential.api_endpoint || undefined)

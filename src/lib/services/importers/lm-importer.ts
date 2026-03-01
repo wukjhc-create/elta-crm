@@ -128,7 +128,7 @@ export class LMAdapter extends BaseSupplierAdapter {
     code: 'LM',
     name: 'Lemvigh-Müller',
     description: 'Dansk el-grossist og teknisk handel - Bredeste sortiment i Danmark',
-    website: 'https://www.lfrm.dk',
+    website: 'https://classic.lemu.dk',
     supportedFormats: ['csv', 'xml'],
     features: [
       'CSV import med semikolon-separator',
@@ -220,7 +220,7 @@ export class LMAdapter extends BaseSupplierAdapter {
   }
 
   supportsApiSync(): boolean {
-    return true // L-M provides API access for larger customers
+    return false // L-M uses CSV import from classic.lemu.dk
   }
 
   supportsFtpSync(): boolean {
@@ -273,7 +273,7 @@ export const LM_IMPORTER_INFO = {
   name: 'Lemvigh-Müller',
   code: 'LM',
   description: 'Dansk el-grossist og teknisk handel',
-  website: 'https://www.lfrm.dk',
+  website: 'https://classic.lemu.dk',
   defaultConfig: LM_DEFAULT_CONFIG,
   columnMappings: LM_COLUMN_MAPPINGS,
   categoryMap: LM_CATEGORY_MAP,

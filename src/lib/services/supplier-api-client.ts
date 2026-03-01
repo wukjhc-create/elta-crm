@@ -361,6 +361,7 @@ export abstract class BaseSupplierAPIClient {
 export class AOAPIClient extends BaseSupplierAPIClient {
   private sessionCookies: Record<string, string> = {}
   private priceAccount: string | null = null
+  private lastAuthDetail = ''
 
   get supplierCode(): string {
     return 'AO'
@@ -391,7 +392,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
 
       const authenticated = await this.authenticate()
       if (!authenticated) {
-        const msg = 'Kunne ikke logge ind på AO — tjek brugernavn og adgangskode'
+        const msg = this.lastAuthDetail || 'Kunne ikke logge ind på AO — tjek brugernavn og adgangskode'
         await this.updateCredentialStatus('invalid_credentials', msg)
         return { success: false, message: msg, error: 'AUTH_FAILED' }
       }
@@ -452,7 +453,10 @@ export class AOAPIClient extends BaseSupplierAPIClient {
    * Uses /api/bruger/ValiderBruger endpoint.
    */
   async authenticate(): Promise<boolean> {
+    this.lastAuthDetail = ''
+
     if (!this.credentials?.username || !this.credentials?.password) {
+      this.lastAuthDetail = 'Manglende brugernavn eller adgangskode'
       return false
     }
 
@@ -478,6 +482,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
       )
 
       if (!result.Status) {
+        this.lastAuthDetail = `AO afviste login${result.Message ? `: ${result.Message}` : ' — brugernavn eller adgangskode er forkert'}`
         return false
       }
 
@@ -495,7 +500,14 @@ export class AOAPIClient extends BaseSupplierAPIClient {
 
       return true
     } catch (error) {
-      logger.error('AO login failed', { error })
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        this.lastAuthDetail = 'Timeout — ao.dk svarede ikke inden for 10 sekunder'
+      } else if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('network'))) {
+        this.lastAuthDetail = 'Netværksfejl — kunne ikke nå ao.dk. Tjek netværk.'
+      } else {
+        this.lastAuthDetail = `Uventet fejl: ${error instanceof Error ? error.message : String(error)}`
+      }
+      logger.error('AO login failed', { error, metadata: { detail: this.lastAuthDetail } })
       return false
     }
   }
@@ -755,10 +767,15 @@ export class AOAPIClient extends BaseSupplierAPIClient {
 }
 
 // =====================================================
-// Lemvigh-Müller API Client
+// Lemvigh-Müller Classic Client (CSV-import based)
 // =====================================================
 
-export class LMAPIClient extends BaseSupplierAPIClient {
+/**
+ * LMClassicClient queries the local supplier_products table
+ * populated by CSV imports from classic.lemu.dk.
+ * No live API — all data comes from periodic CSV uploads.
+ */
+export class LMClassicClient extends BaseSupplierAPIClient {
   get supplierCode(): string {
     return 'LM'
   }
@@ -766,215 +783,81 @@ export class LMAPIClient extends BaseSupplierAPIClient {
     return 'Lemvigh-Müller'
   }
 
-  /**
-   * Test LM API connection
-   */
+  async loadCredentials(): Promise<boolean> {
+    return true // No credentials needed — CSV import based
+  }
+
+  async authenticate(): Promise<boolean> {
+    return true // No auth needed
+  }
+
   async testConnection(): Promise<{ success: boolean; message: string; error?: string }> {
     try {
-      // Skip loadCredentials if already injected via setCredentialsDirect
-      if (!this.credentials) {
-        if (!await this.loadCredentials()) {
-          const reason = this.lastCredentialError || 'Ingen aktive API-loginoplysninger fundet for LM'
-          await this.updateCredentialStatus('failed', reason)
-          return { success: false, message: reason, error: 'NO_CREDENTIALS' }
+      const supabase = await createClient()
+
+      // Count products
+      const { count } = await supabase
+        .from('supplier_products')
+        .select('*', { count: 'exact', head: true })
+        .eq('supplier_id', this.supplierId)
+
+      // Get latest import
+      const { data: latestImport } = await supabase
+        .from('import_batches')
+        .select('created_at, total_rows, new_products, updated_prices')
+        .eq('supplier_id', this.supplierId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const productCount = count ?? 0
+      if (productCount === 0 && !latestImport) {
+        return {
+          success: false,
+          message: 'Ingen produkter importeret endnu. Upload en CSV-prisliste fra classic.lemu.dk.',
+          error: 'NO_PRODUCTS',
         }
       }
 
-      if (!this.credentials?.username || !this.credentials?.password) {
-        const msg = 'Manglende brugernavn eller adgangskode — udfyld felterne og gem først'
-        await this.updateCredentialStatus('failed', msg)
-        return { success: false, message: msg, error: 'MISSING_CREDENTIALS' }
-      }
+      const lastDate = latestImport
+        ? new Date(latestImport.created_at).toLocaleDateString('da-DK')
+        : 'ukendt'
 
-      if (!this.credentials?.customer_number) {
-        const msg = 'Manglende kundenummer — udfyld feltet og gem først'
-        await this.updateCredentialStatus('failed', msg)
-        return { success: false, message: msg, error: 'MISSING_CUSTOMER_NUMBER' }
+      return {
+        success: true,
+        message: `LM Classic: ${productCount.toLocaleString('da-DK')} produkter importeret. Seneste import: ${lastDate}`,
       }
-
-      const authenticated = await this.authenticate()
-      if (!authenticated) {
-        const msg = `Kunne ikke logge ind på ${this.config.baseUrl} — tjek brugernavn/adgangskode/kundenummer`
-        await this.updateCredentialStatus('invalid_credentials', msg)
-        return { success: false, message: msg, error: 'AUTH_FAILED' }
-      }
-
-      await this.updateCredentialStatus('success')
-      return { success: true, message: 'Forbindelse til Lemvigh-Müller er aktiv' }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Ukendt fejl'
-      await this.updateCredentialStatus('failed', errorMsg)
-      return { success: false, message: `Forbindelsesfejl: ${errorMsg}`, error: errorMsg }
-    }
-  }
-
-  /**
-   * Authenticate with LM API using Basic Auth.
-   * Validates credentials by making a minimal search request.
-   */
-  async authenticate(): Promise<boolean> {
-    if (!this.credentials?.username || !this.credentials?.password || !this.credentials?.customer_number) {
-      return false
-    }
-
-    try {
-      const token = Buffer.from(
-        `${this.credentials.customer_number}:${this.credentials.username}:${this.credentials.password}`
-      ).toString('base64')
-
-      // Validate credentials by hitting a lightweight endpoint
-      const response = await fetch(`${this.config.baseUrl}/artikler?search=test&pageSize=1`, {
-        headers: {
-          'Authorization': `Basic ${token}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        signal: AbortSignal.timeout(10000),
-      })
-
-      if (response.status === 401 || response.status === 403) {
-        logger.error(`LM auth rejected: HTTP ${response.status}`)
-        return false
-      }
-
-      // Accept any non-auth-error response as valid (even 404 means the server is reachable)
-      if (!response.ok && response.status >= 500) {
-        logger.error(`LM API server error: HTTP ${response.status}`)
-        return false
-      }
-
-      this.authToken = {
-        accessToken: token,
-        expiresAt: new Date(Date.now() + SUPPLIER_API_CONFIG.AUTH_TOKEN_TTL_MS),
-      }
-
-      return true
-    } catch (error) {
-      logger.error('LM authentication failed', { error })
-      return false
+      const msg = error instanceof Error ? error.message : 'Ukendt fejl'
+      return { success: false, message: `Fejl: ${msg}`, error: msg }
     }
   }
 
   async searchProducts(params: ProductSearchParams): Promise<ProductSearchResult> {
-    await this.ensureAuthenticated()
-
-    try {
-      const queryParams = new URLSearchParams()
-      if (params.query) queryParams.set('search', params.query)
-      if (params.sku) queryParams.set('artikelnr', params.sku)
-      if (params.ean) queryParams.set('ean', params.ean)
-      if (params.limit) queryParams.set('pageSize', String(params.limit))
-      if (params.offset) queryParams.set('offset', String(params.offset))
-
-      const { data } = await this.makeRequest<{
-        items: Array<{
-          artikelnr: string
-          artikelbenavnelse: string
-          nettopris: number
-          listepris: number
-          enhed: string
-          lagerStatus: boolean
-          lagerAntal: number
-          leveringstid: number
-        }>
-        totalCount: number
-      }>(`/artikler?${queryParams}`)
-
-      const products: ProductPrice[] = data.items.map((p) => ({
-        sku: p.artikelnr,
-        name: p.artikelbenavnelse,
-        costPrice: p.nettopris,
-        listPrice: p.listepris,
-        currency: 'DKK',
-        unit: p.enhed || 'stk',
-        isAvailable: p.lagerStatus,
-        stockQuantity: p.lagerAntal,
-        leadTimeDays: p.leveringstid,
-        imageUrl: null,
-      }))
-
-      await this.cacheProductPrices(products)
-
-      return {
-        products,
-        totalCount: data.totalCount,
-        hasMore: (params.offset || 0) + products.length < data.totalCount,
-      }
-    } catch {
-      return this.getCachedProducts(params)
-    }
-  }
-
-  async getProductPrice(sku: string): Promise<ProductPrice | null> {
-    await this.ensureAuthenticated()
-
-    try {
-      const { data } = await this.makeRequest<{
-        artikelnr: string
-        artikelbenavnelse: string
-        nettopris: number
-        listepris: number
-        enhed: string
-        lagerStatus: boolean
-        lagerAntal: number
-        leveringstid: number
-      }>(`/artikler/${encodeURIComponent(sku)}`)
-
-      const price: ProductPrice = {
-        sku: data.artikelnr,
-        name: data.artikelbenavnelse,
-        costPrice: data.nettopris,
-        listPrice: data.listepris,
-        currency: 'DKK',
-        unit: data.enhed || 'stk',
-        isAvailable: data.lagerStatus,
-        stockQuantity: data.lagerAntal,
-        leadTimeDays: data.leveringstid,
-        imageUrl: null,
-      }
-
-      await this.cacheProductPrices([price])
-      return price
-    } catch {
-      return this.getCachedProductPrice(sku)
-    }
-  }
-
-  async getProductPrices(skus: string[]): Promise<Map<string, ProductPrice>> {
-    const result = new Map<string, ProductPrice>()
-
-    // LM doesn't support batch requests - fetch with controlled concurrency
-    const CONCURRENCY = 5
-    for (let i = 0; i < skus.length; i += CONCURRENCY) {
-      const batch = skus.slice(i, i + CONCURRENCY)
-      const prices = await Promise.allSettled(
-        batch.map((sku) => this.getProductPrice(sku))
-      )
-      for (let j = 0; j < prices.length; j++) {
-        const res = prices[j]
-        if (res.status === 'fulfilled' && res.value) {
-          result.set(batch[j], res.value)
-        }
-      }
-    }
-
-    return result
-  }
-
-  private async getCachedProducts(params: ProductSearchParams): Promise<ProductSearchResult> {
     try {
       const supabase = await createClient()
+      const limit = params.limit || 50
       let query = supabase
         .from('supplier_products')
-        .select('*')
+        .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available, ean, lead_time_days')
         .eq('supplier_id', this.supplierId)
-        .limit(params.limit || 50)
+        .limit(limit)
 
-      if (params.query) {
-        query = query.or(`supplier_sku.ilike.%${sanitizeSearchTerm(params.query)}%,supplier_name.ilike.%${sanitizeSearchTerm(params.query)}%`)
+      if (params.sku) {
+        query = query.eq('supplier_sku', params.sku)
+      } else if (params.ean) {
+        query = query.eq('ean', params.ean)
+      } else if (params.query) {
+        const term = sanitizeSearchTerm(params.query)
+        query = query.or(`supplier_sku.ilike.%${term}%,supplier_name.ilike.%${term}%,ean.ilike.%${term}%`)
       }
 
-      const { data } = await query
+      if (params.category) {
+        query = query.eq('category', params.category)
+      }
+
+      const { data, count } = await query
 
       if (!data) return { products: [], totalCount: 0, hasMore: false }
 
@@ -984,28 +867,28 @@ export class LMAPIClient extends BaseSupplierAPIClient {
         costPrice: p.cost_price ?? 0,
         listPrice: p.list_price,
         currency: 'DKK',
-        unit: p.unit || 'stk',
+        unit: p.unit || 'STK',
         isAvailable: p.is_available,
         stockQuantity: null,
         leadTimeDays: p.lead_time_days,
         imageUrl: null,
       }))
 
-      return { products, totalCount: products.length, hasMore: false }
+      return { products, totalCount: count ?? products.length, hasMore: products.length === limit }
     } catch {
       return { products: [], totalCount: 0, hasMore: false }
     }
   }
 
-  private async getCachedProductPrice(sku: string): Promise<ProductPrice | null> {
+  async getProductPrice(sku: string): Promise<ProductPrice | null> {
     try {
       const supabase = await createClient()
       const { data } = await supabase
         .from('supplier_products')
-        .select('*')
+        .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available, lead_time_days')
         .eq('supplier_id', this.supplierId)
         .eq('supplier_sku', sku)
-        .single()
+        .maybeSingle()
 
       if (!data) return null
 
@@ -1015,7 +898,7 @@ export class LMAPIClient extends BaseSupplierAPIClient {
         costPrice: data.cost_price ?? 0,
         listPrice: data.list_price,
         currency: 'DKK',
-        unit: data.unit || 'stk',
+        unit: data.unit || 'STK',
         isAvailable: data.is_available,
         stockQuantity: null,
         leadTimeDays: data.lead_time_days,
@@ -1024,6 +907,39 @@ export class LMAPIClient extends BaseSupplierAPIClient {
     } catch {
       return null
     }
+  }
+
+  async getProductPrices(skus: string[]): Promise<Map<string, ProductPrice>> {
+    const result = new Map<string, ProductPrice>()
+    if (skus.length === 0) return result
+
+    try {
+      const supabase = await createClient()
+      const { data } = await supabase
+        .from('supplier_products')
+        .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available, lead_time_days')
+        .eq('supplier_id', this.supplierId)
+        .in('supplier_sku', skus)
+
+      for (const p of data || []) {
+        result.set(p.supplier_sku, {
+          sku: p.supplier_sku,
+          name: p.supplier_name,
+          costPrice: p.cost_price ?? 0,
+          listPrice: p.list_price,
+          currency: 'DKK',
+          unit: p.unit || 'STK',
+          isAvailable: p.is_available,
+          stockQuantity: null,
+          leadTimeDays: p.lead_time_days,
+          imageUrl: null,
+        })
+      }
+    } catch {
+      // Return empty on error
+    }
+
+    return result
   }
 }
 
@@ -1049,13 +965,16 @@ export class SupplierAPIClientFactory {
         baseUrl: SUPPLIER_API_CONFIG.AO_API_BASE_URL,
       })
     } else if (code === 'LM' || code === 'LEMVIGH') {
-      client = new LMAPIClient(supplierId, {
-        baseUrl: SUPPLIER_API_CONFIG.LM_API_BASE_URL,
+      client = new LMClassicClient(supplierId, {
+        baseUrl: SUPPLIER_API_CONFIG.LM_CLASSIC_URL,
       })
     }
 
     if (client) {
-      await client.loadCredentials()
+      // LM Classic doesn't need credentials — skip for LM
+      if (code !== 'LM' && code !== 'LEMVIGH') {
+        await client.loadCredentials()
+      }
       this.clients.set(key, client)
     }
 

@@ -18,7 +18,10 @@ import {
   Trash2,
   RefreshCw,
   Shield,
+  Upload,
+  Info,
 } from 'lucide-react'
+import Link from 'next/link'
 import {
   getSupplierCredentials,
   createSupplierCredential,
@@ -165,6 +168,42 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  // LM uses CSV import only — show info panel instead of credential form
+  if (supplierFields.isCSVOnly) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Upload className="w-5 h-5 text-blue-600" />
+            CSV-import fra Classic Portal
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Lemvigh-Müller bruger CSV-import fra Classic Portal. Ingen API-login nødvendig.
+          </p>
+        </div>
+        <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-blue-800">
+            <p className="font-medium">Sådan opdaterer du priser fra Lemvigh-Müller</p>
+            <ol className="mt-2 space-y-1 list-decimal list-inside text-blue-700">
+              <li>Log ind på <a href="https://classic.lemu.dk" target="_blank" rel="noopener noreferrer" className="underline font-medium">classic.lemu.dk</a></li>
+              <li>Eksporter din prisliste som CSV-fil</li>
+              <li>Upload filen under <strong>Importhistorik</strong>-fanen</li>
+            </ol>
+            <div className="mt-3">
+              <Link href={`/dashboard/settings/suppliers/${supplierId}/import`}>
+                <Button size="sm" variant="outline">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Gå til import
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -474,20 +513,22 @@ function getSupplierFields(supplierCode: string | null) {
       showApiKey: false,
       showClientId: false,
       showClientSecret: false,
+      isCSVOnly: false,
     }
   }
 
   if (code === 'LM') {
     return {
-      showEndpoint: true,
-      endpointPlaceholder: 'https://api.lfrm.dk/v1',
-      showUsername: true,
-      showPassword: true,
-      showCustomerNumber: true,
-      showPriceListCode: true,
+      showEndpoint: false,
+      endpointPlaceholder: '',
+      showUsername: false,
+      showPassword: false,
+      showCustomerNumber: false,
+      showPriceListCode: false,
       showApiKey: false,
       showClientId: false,
       showClientSecret: false,
+      isCSVOnly: true,
     }
   }
 
@@ -502,5 +543,6 @@ function getSupplierFields(supplierCode: string | null) {
     showApiKey: true,
     showClientId: true,
     showClientSecret: true,
+    isCSVOnly: false,
   }
 }
