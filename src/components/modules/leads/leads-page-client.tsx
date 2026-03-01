@@ -2,9 +2,10 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Search, X } from 'lucide-react'
+import { Plus, Search, X, LayoutGrid, List } from 'lucide-react'
 import { LeadForm } from './lead-form'
 import { LeadsTable } from './leads-table'
+import { LeadsKanban } from './leads-kanban'
 import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
 import type { LeadWithRelations, LeadStatus, LeadSource } from '@/types/leads.types'
@@ -40,6 +41,7 @@ export function LeadsPageClient({ leads, pagination, filters, sort }: LeadsPageC
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
   const [searchInput, setSearchInput] = useState(filters.search || '')
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
 
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -113,6 +115,23 @@ export function LeadsPageClient({ leads, pagination, filters, sort }: LeadsPageC
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="inline-flex border rounded-md overflow-hidden">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-2 ${viewMode === 'table' ? 'bg-primary text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                aria-label="Tabelvisning"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`p-2 ${viewMode === 'kanban' ? 'bg-primary text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                aria-label="Kanban-visning"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+            </div>
             <ExportButton type="leads" filters={{ search: filters.search, status: filters.status, source: filters.source }} />
             <button
               onClick={() => setShowForm(true)}
@@ -224,26 +243,32 @@ export function LeadsPageClient({ leads, pagination, filters, sort }: LeadsPageC
           )}
         </div>
 
-        <LeadsTable
-          leads={leads}
-          sortBy={sort?.sortBy}
-          sortOrder={sort?.sortOrder}
-          onSort={handleSort}
-          filtered={!!hasActiveFilters}
-          onClearFilters={clearAllFilters}
-        />
+        {viewMode === 'table' ? (
+          <>
+            <LeadsTable
+              leads={leads}
+              sortBy={sort?.sortBy}
+              sortOrder={sort?.sortOrder}
+              onSort={handleSort}
+              filtered={!!hasActiveFilters}
+              onClearFilters={clearAllFilters}
+            />
 
-        {/* Pagination */}
-        <div className="bg-white rounded-lg border p-4">
-          <Pagination
-            currentPage={pagination.currentPage}
-            totalPages={pagination.totalPages}
-            totalItems={pagination.totalItems}
-            pageSize={pagination.pageSize}
-            onPageChange={handlePageChange}
-            onPageSizeChange={handlePageSizeChange}
-          />
-        </div>
+            {/* Pagination */}
+            <div className="bg-white rounded-lg border p-4">
+              <Pagination
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                pageSize={pagination.pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
+            </div>
+          </>
+        ) : (
+          <LeadsKanban leads={leads} />
+        )}
       </div>
 
       {showForm && <LeadForm onClose={() => setShowForm(false)} />}

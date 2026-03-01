@@ -11,7 +11,10 @@ import {
   Building2,
   Target,
   Briefcase,
+  Download,
+  Loader2,
 } from 'lucide-react'
+import { ExportButton } from '@/components/shared/export-button'
 import {
   getReportsSummary,
   getRevenueByPeriod,
@@ -394,6 +397,22 @@ export default function ReportsClient() {
 
       {/* Team Productivity */}
       <TeamTable data={team} />
+
+      {/* CSV Export Section */}
+      <div className="bg-white rounded-lg border p-6">
+        <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <Download className="w-5 h-5 text-gray-400" />
+          Eksportér data (CSV)
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">Download data som CSV-filer til brug i Excel, regnskab eller analyse.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <ExportButton type="customers" className="justify-center" />
+          <ExportButton type="leads" className="justify-center" />
+          <ExportButton type="offers" className="justify-center" />
+          <ExportButton type="projects" className="justify-center" />
+          <ExportButton type="calculations" className="justify-center" />
+        </div>
+      </div>
     </div>
   )
 }
