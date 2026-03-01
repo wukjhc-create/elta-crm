@@ -44,6 +44,8 @@ import { SendSmsModal, SmsTimeline } from '@/components/sms'
 import {
   deleteOffer,
   updateOfferStatus,
+  createLineItem,
+  updateLineItem,
   deleteLineItem,
   sendOffer,
   addProductToOffer,
@@ -67,7 +69,7 @@ import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
 import { computeOfferDB, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
-import { LineItemsTable } from '@/components/shared/line-items-table'
+import { LineItemsTable, type LineItemSaveData } from '@/components/shared/line-items-table'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
@@ -273,6 +275,60 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
 
     setDeletingLineItemId(null)
     router.refresh()
+  }
+
+  // Inline save handler for editable table
+  const handleInlineSave = async (data: LineItemSaveData): Promise<boolean> => {
+    const formData = new FormData()
+    formData.append('offer_id', offer.id)
+    formData.append('description', data.description || 'Ny linje')
+    formData.append('quantity', String(data.quantity))
+    formData.append('unit', data.unit)
+    formData.append('unit_price', String(data.unit_price))
+    formData.append('discount_percentage', String(data.discount_percentage || 0))
+    if (data.cost_price != null) {
+      formData.append('cost_price', String(data.cost_price))
+      formData.append('supplier_cost_price_at_creation', String(data.cost_price))
+    }
+    if (data.supplier_margin_applied != null) {
+      formData.append('supplier_margin_applied', String(data.supplier_margin_applied))
+    }
+
+    if (data.id) {
+      // Update existing
+      formData.append('id', data.id)
+      const existing = (offer.line_items || []).find(li => li.id === data.id)
+      formData.append('position', String(existing?.position || 1))
+      const result = await updateLineItem(formData)
+      if (!result.success) {
+        toast.error('Kunne ikke gemme', result.error)
+        return false
+      }
+    } else {
+      // Create new
+      const nextPos = (offer.line_items || []).length > 0
+        ? Math.max(...(offer.line_items || []).map(li => li.position)) + 1
+        : 1
+      formData.append('position', String(nextPos))
+      const result = await createLineItem(formData)
+      if (!result.success) {
+        toast.error('Kunne ikke oprette linje', result.error)
+        return false
+      }
+    }
+    router.refresh()
+    return true
+  }
+
+  // Inline delete handler
+  const handleInlineDelete = async (lineItemId: string): Promise<boolean> => {
+    const result = await deleteLineItem(lineItemId, offer.id)
+    if (!result.success) {
+      toast.error('Kunne ikke slette linje', result.error)
+      return false
+    }
+    router.refresh()
+    return true
   }
 
   const currency = companySettings?.default_currency || 'DKK'
@@ -598,7 +654,14 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                     Søg leverandør
                   </button>
                   <button
-                    onClick={() => setShowLineItemForm(true)}
+                    onClick={() => handleInlineSave({
+                      description: '',
+                      quantity: 1,
+                      unit: 'stk',
+                      unit_price: 0,
+                      cost_price: null,
+                      supplier_margin_applied: null,
+                    })}
                     className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                   >
                     <Plus className="w-4 h-4" />
@@ -686,43 +749,17 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                 </div>
               )}
 
-              {lineItems.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <FileText className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>Ingen linjer endnu</p>
-                  <button
-                    onClick={() => setShowLineItemForm(true)}
-                    className="mt-2 text-primary hover:underline"
-                  >
-                    Tilføj første linje
-                  </button>
-                </div>
-              ) : (
-                <LineItemsTable
-                  items={lineItems}
-                  currency={currency}
-                  showCostData={true}
-                  showDBSummary={true}
-                  thresholds={thresholds}
-                  renderActions={(item) => (
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => setEditingLineItem(item as typeof lineItems[0])}
-                        className="p-1 hover:bg-gray-200 rounded"
-                      >
-                        <Pencil className="w-4 h-4 text-gray-500" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteLineItem(item.id)}
-                        disabled={deletingLineItemId === item.id}
-                        className="p-1 hover:bg-red-100 rounded disabled:opacity-50"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </button>
-                    </div>
-                  )}
-                />
-              )}
+              <LineItemsTable
+                items={lineItems}
+                offerId={offer.id}
+                currency={currency}
+                showCostData={true}
+                showDBSummary={true}
+                thresholds={thresholds}
+                editable={offer.status === 'draft'}
+                onSaveItem={handleInlineSave}
+                onDeleteItem={handleInlineDelete}
+              />
 
               {/* Totals */}
               {lineItems.length > 0 && (() => {
@@ -995,18 +1032,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
           nextPosition={nextPosition}
           companySettings={companySettings}
           onClose={() => setShowLineItemForm(false)}
-          onSuccess={() => router.refresh()}
-        />
-      )}
-
-      {editingLineItem && (
-        <LineItemForm
-          offerId={offer.id}
-          customerId={offer.customer_id}
-          lineItem={editingLineItem}
-          nextPosition={nextPosition}
-          companySettings={companySettings}
-          onClose={() => setEditingLineItem(null)}
           onSuccess={() => router.refresh()}
         />
       )}
