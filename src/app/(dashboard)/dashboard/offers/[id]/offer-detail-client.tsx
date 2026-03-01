@@ -66,7 +66,8 @@ import {
 import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
-import { computeOfferDB, getLineItemMargin, getDBBadgeClasses, getDBAmountColor, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
+import { computeOfferDB, isDBBelowSendThreshold } from '@/lib/logic/pricing'
+import { LineItemsTable } from '@/components/shared/line-items-table'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
@@ -695,115 +696,35 @@ export function OfferDetailClient({ offer, companySettings }: OfferDetailClientP
                   </button>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 text-sm font-medium text-gray-500">
-                          #
-                        </th>
-                        <th className="text-left py-2 text-sm font-medium text-gray-500">
-                          Beskrivelse
-                        </th>
-                        <th className="text-right py-2 text-sm font-medium text-gray-500">
-                          Antal
-                        </th>
-                        <th className="text-right py-2 text-sm font-medium text-gray-500">
-                          Indkøb
-                        </th>
-                        <th className="text-right py-2 text-sm font-medium text-gray-500">
-                          Avance
-                        </th>
-                        <th className="text-right py-2 text-sm font-medium text-gray-500">
-                          Salgspris
-                        </th>
-                        <th className="text-right py-2 text-sm font-medium text-gray-500">
-                          Total
-                        </th>
-                        <th className="w-20"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lineItems.map((item) => {
-                        const costPrice = item.cost_price || item.supplier_cost_price_at_creation || null
-                        const marginPct = getLineItemMargin(item)
-                        return (
-                        <tr key={item.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3 text-sm text-gray-500">
-                            {item.position}
-                          </td>
-                          <td className="py-3">
-                            <div className="flex items-center gap-2">
-                              {item.image_url && (
-                                <img src={item.image_url} alt="" className="w-8 h-8 rounded object-contain border bg-white shrink-0" />
-                              )}
-                              <span>{item.description}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 text-right">
-                            {item.quantity} {item.unit}
-                          </td>
-                          <td className="py-3 text-right text-xs text-gray-500">
-                            {costPrice ? formatCurrency(costPrice, currency, 2) : '-'}
-                          </td>
-                          <td className="py-3 text-right">
-                            {marginPct != null ? (
-                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${getDBBadgeClasses(marginPct)}`}>
-                                {marginPct}%
-                              </span>
-                            ) : '-'}
-                          </td>
-                          <td className="py-3 text-right">
-                            {formatCurrency(item.unit_price, currency, 2)}
-                          </td>
-                          <td className="py-3 text-right font-medium">
-                            {formatCurrency(item.total, currency, 2)}
-                          </td>
-                          <td className="py-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => setEditingLineItem(item)}
-                                className="p-1 hover:bg-gray-200 rounded"
-                              >
-                                <Pencil className="w-4 h-4 text-gray-500" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteLineItem(item.id)}
-                                disabled={deletingLineItemId === item.id}
-                                className="p-1 hover:bg-red-100 rounded disabled:opacity-50"
-                              >
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Totals + Dækningsbidrag */}
-              {lineItems.length > 0 && (() => {
-                const db = computeOfferDB(lineItems)
-
-                return (
-                <div className="mt-4 pt-4 border-t space-y-2">
-                  {/* Dækningsbidrag */}
-                  {db.hasAnyCost && (
-                    <div className="flex justify-between items-center text-sm p-2 rounded bg-gray-50 mb-2">
-                      <span className="text-gray-600 font-medium">Samlet dækningsbidrag:</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-gray-400">
-                          Indkøb: {formatCurrency(db.totalCost, currency, 2)}
-                        </span>
-                        <span className={`font-bold ${getDBAmountColor(db.dbPercentage)}`}>
-                          {formatCurrency(db.dbAmount, currency, 2)} ({db.dbPercentage}%)
-                        </span>
-                      </div>
+                <LineItemsTable
+                  items={lineItems}
+                  currency={currency}
+                  showCostData={true}
+                  showDBSummary={true}
+                  renderActions={(item) => (
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setEditingLineItem(item as typeof lineItems[0])}
+                        className="p-1 hover:bg-gray-200 rounded"
+                      >
+                        <Pencil className="w-4 h-4 text-gray-500" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLineItem(item.id)}
+                        disabled={deletingLineItemId === item.id}
+                        className="p-1 hover:bg-red-100 rounded disabled:opacity-50"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </button>
                     </div>
                   )}
+                />
+              )}
+
+              {/* Totals */}
+              {lineItems.length > 0 && (() => {
+                return (
+                <div className="mt-4 pt-4 border-t space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Subtotal:</span>
                     <span>{formatCurrency(offer.total_amount, currency, 2)}</span>
