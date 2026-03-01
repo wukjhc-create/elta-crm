@@ -1430,6 +1430,99 @@ export async function searchSupplierProductsForOffer(
       }
     })
 
+    // If local results are sparse, also search live APIs and auto-import
+    if (results.length < 3 && query.length >= 2) {
+      try {
+        const { SupplierAPIClientFactory } = await import('@/lib/services/supplier-api-client')
+
+        // Find active suppliers with API credentials
+        const { data: suppliers } = await supabase
+          .from('suppliers')
+          .select(`
+            id, name, code,
+            supplier_credentials!inner ( id, credential_type, is_active )
+          `)
+          .eq('is_active', true)
+          .eq('supplier_credentials.is_active', true)
+          .eq('supplier_credentials.credential_type', 'api')
+
+        if (suppliers && suppliers.length > 0) {
+          const existingSkus = new Set(results.map((r) => `${r.supplier_id}:${r.supplier_sku}`))
+          const liveSearches = suppliers.map(async (supplier) => {
+            try {
+              const client = await SupplierAPIClientFactory.getClient(supplier.id, supplier.code)
+              if (!client) return []
+              const result = await client.searchProducts({ query: sanitizeSearchTerm(query), limit: 10 })
+              return result.products
+                .filter((p) => !existingSkus.has(`${supplier.id}:${p.sku}`))
+                .map((p) => ({ ...p, _supplierId: supplier.id, _supplierName: supplier.name, _supplierCode: supplier.code }))
+            } catch {
+              return []
+            }
+          })
+
+          const liveResults = (await Promise.allSettled(liveSearches))
+            .flatMap((r) => r.status === 'fulfilled' ? r.value : [])
+
+          // Auto-import live results into supplier_products so they get a DB id
+          for (const lp of liveResults.slice(0, 15)) {
+            const { data: existing } = await supabase
+              .from('supplier_products')
+              .select('id')
+              .eq('supplier_id', lp._supplierId)
+              .eq('supplier_sku', lp.sku)
+              .maybeSingle()
+
+            let productId: string
+            if (existing) {
+              productId = existing.id
+              await supabase.from('supplier_products').update({
+                cost_price: lp.costPrice,
+                list_price: lp.listPrice,
+                is_available: lp.isAvailable,
+                lead_time_days: lp.leadTimeDays,
+                last_synced_at: new Date().toISOString(),
+              }).eq('id', existing.id)
+            } else {
+              const { data: inserted } = await supabase.from('supplier_products').insert({
+                supplier_id: lp._supplierId,
+                supplier_sku: lp.sku,
+                supplier_name: lp.name,
+                cost_price: lp.costPrice,
+                list_price: lp.listPrice,
+                unit: lp.unit || 'stk',
+                is_available: lp.isAvailable,
+                lead_time_days: lp.leadTimeDays,
+                last_synced_at: new Date().toISOString(),
+              }).select('id').single()
+              if (!inserted) continue
+              productId = inserted.id
+            }
+
+            const margin = defaultProductMargin
+            const effectiveCost = lp.costPrice
+            results.push({
+              id: productId,
+              supplier_id: lp._supplierId,
+              supplier_name: lp._supplierName,
+              supplier_code: lp._supplierCode,
+              supplier_sku: lp.sku,
+              product_name: lp.name,
+              cost_price: lp.costPrice,
+              list_price: lp.listPrice,
+              margin_percentage: margin,
+              estimated_sale_price: Math.round(effectiveCost * (1 + margin / 100) * 100) / 100,
+              unit: lp.unit || 'stk',
+              is_available: lp.isAvailable,
+              image_url: null,
+            })
+          }
+        }
+      } catch (liveErr) {
+        logger.error('Live API search fallback failed', { error: liveErr })
+      }
+    }
+
     return { success: true, data: results }
   } catch (err) {
     return { success: false, error: formatError(err, 'Søgning fejlede') }
