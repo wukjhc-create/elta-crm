@@ -422,26 +422,45 @@ export async function testSupplierConnection(
       }
     }
 
-    const { SupplierAPIClientFactory } = await import('@/lib/services/supplier-api-client')
-    SupplierAPIClientFactory.clearCache()
-    const client = await SupplierAPIClientFactory.getClient(credential.supplier_id, supplierCode)
-
-    if (!client) {
+    // Decrypt credentials directly (avoid double-query through loadCredentials)
+    if (!credential.credentials_encrypted) {
+      const msg = 'Ingen krypterede credentials gemt — gem loginoplysninger først'
       await supabase
         .from('supplier_credentials')
-        .update({
-          last_test_at: new Date().toISOString(),
-          last_test_status: 'failed',
-          last_test_error: 'Kunne ikke oprette API-klient',
-        })
+        .update({ last_test_at: new Date().toISOString(), last_test_status: 'failed', last_test_error: msg })
         .eq('id', credentialId)
-
-      return {
-        success: false,
-        data: { status: 'failed', message: 'Kunne ikke oprette API-klient' },
-        error: 'Kunne ikke oprette API-klient',
-      }
+      return { success: false, data: { status: 'failed' as TestStatus, message: msg }, error: msg }
     }
+
+    let decryptedCreds: CredentialInput
+    try {
+      decryptedCreds = await decryptCredentials(credential.credentials_encrypted) as CredentialInput
+    } catch (decryptErr) {
+      const msg = `Krypteringsfejl: ${decryptErr instanceof Error ? decryptErr.message : 'Kunne ikke dekryptere'}`
+      await supabase
+        .from('supplier_credentials')
+        .update({ last_test_at: new Date().toISOString(), last_test_status: 'failed', last_test_error: msg })
+        .eq('id', credentialId)
+      return { success: false, data: { status: 'failed' as TestStatus, message: msg }, error: msg }
+    }
+
+    // Create API client and inject credentials directly (no second DB query)
+    const supplierMod = await import('@/lib/services/supplier-api-client')
+    const { SUPPLIER_API_CONFIG: apiConfig } = await import('@/lib/constants')
+    supplierMod.SupplierAPIClientFactory.clearCache()
+
+    const clientConfig = {
+      baseUrl: credential.api_endpoint || (supplierCode === 'AO'
+        ? apiConfig.AO_API_BASE_URL
+        : apiConfig.LM_API_BASE_URL),
+    }
+
+    const client = supplierCode === 'AO'
+      ? new supplierMod.AOAPIClient(credential.supplier_id, clientConfig)
+      : new supplierMod.LMAPIClient(credential.supplier_id, clientConfig)
+
+    // Inject decrypted credentials directly — skip loadCredentials()
+    client.setCredentialsDirect(decryptedCreds, credential.api_endpoint || undefined)
 
     const result = await client.testConnection()
     const testStatus: TestStatus = result.success ? 'success' : 'failed'

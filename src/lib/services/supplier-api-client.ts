@@ -87,6 +87,17 @@ export abstract class BaseSupplierAPIClient {
   abstract get supplierName(): string
 
   /**
+   * Inject pre-decrypted credentials directly (skips DB query)
+   */
+  setCredentialsDirect(creds: CredentialInput, apiEndpoint?: string): void {
+    this.credentials = creds
+    this.lastCredentialError = null
+    if (apiEndpoint) {
+      this.config.baseUrl = apiEndpoint
+    }
+  }
+
+  /**
    * Load credentials from encrypted storage
    */
   async loadCredentials(): Promise<boolean> {
@@ -363,10 +374,13 @@ export class AOAPIClient extends BaseSupplierAPIClient {
    */
   async testConnection(): Promise<{ success: boolean; message: string; error?: string }> {
     try {
-      if (!await this.loadCredentials()) {
-        const reason = this.lastCredentialError || 'Ingen loginoplysninger fundet'
-        await this.updateCredentialStatus('failed', reason)
-        return { success: false, message: reason, error: 'NO_CREDENTIALS' }
+      // Skip loadCredentials if already injected via setCredentialsDirect
+      if (!this.credentials) {
+        if (!await this.loadCredentials()) {
+          const reason = this.lastCredentialError || 'Ingen aktive API-loginoplysninger fundet for AO'
+          await this.updateCredentialStatus('failed', reason)
+          return { success: false, message: reason, error: 'NO_CREDENTIALS' }
+        }
       }
 
       if (!this.credentials?.username || !this.credentials?.password) {
@@ -757,10 +771,13 @@ export class LMAPIClient extends BaseSupplierAPIClient {
    */
   async testConnection(): Promise<{ success: boolean; message: string; error?: string }> {
     try {
-      if (!await this.loadCredentials()) {
-        const reason = this.lastCredentialError || 'Ingen loginoplysninger fundet'
-        await this.updateCredentialStatus('failed', reason)
-        return { success: false, message: reason, error: 'NO_CREDENTIALS' }
+      // Skip loadCredentials if already injected via setCredentialsDirect
+      if (!this.credentials) {
+        if (!await this.loadCredentials()) {
+          const reason = this.lastCredentialError || 'Ingen aktive API-loginoplysninger fundet for LM'
+          await this.updateCredentialStatus('failed', reason)
+          return { success: false, message: reason, error: 'NO_CREDENTIALS' }
+        }
       }
 
       if (!this.credentials?.username || !this.credentials?.password) {
