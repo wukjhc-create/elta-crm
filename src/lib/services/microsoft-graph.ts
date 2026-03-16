@@ -41,14 +41,15 @@ let cachedToken: { accessToken: string; expiresAt: number } | null = null
 // =====================================================
 
 function getConfig() {
-  const tenantId = process.env.AZURE_TENANT_ID
-  const clientId = process.env.AZURE_CLIENT_ID
-  const clientSecret = process.env.AZURE_CLIENT_SECRET
+  // Support both naming conventions: AZURE_TENANT_ID and AZURE_AD_TENANT_ID
+  const tenantId = process.env.AZURE_TENANT_ID || process.env.AZURE_AD_TENANT_ID
+  const clientId = process.env.AZURE_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID
+  const clientSecret = process.env.AZURE_CLIENT_SECRET || process.env.AZURE_AD_CLIENT_SECRET
   const mailbox = process.env.GRAPH_MAILBOX || DEFAULT_MAILBOX
 
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error(
-      'Microsoft Graph not configured. Set AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET.'
+      'Microsoft Graph not configured. Set AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET (or AZURE_AD_ variants).'
     )
   }
 
@@ -57,9 +58,9 @@ function getConfig() {
 
 export function isGraphConfigured(): boolean {
   return !!(
-    process.env.AZURE_TENANT_ID &&
-    process.env.AZURE_CLIENT_ID &&
-    process.env.AZURE_CLIENT_SECRET
+    (process.env.AZURE_TENANT_ID || process.env.AZURE_AD_TENANT_ID) &&
+    (process.env.AZURE_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID) &&
+    (process.env.AZURE_CLIENT_SECRET || process.env.AZURE_AD_CLIENT_SECRET)
   )
 }
 

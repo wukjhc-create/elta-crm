@@ -769,7 +769,12 @@ export async function sendQuickReply(
   `.trim()
 
   try {
-    const { sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
+    const { isGraphConfigured, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
+
+    if (!isGraphConfigured()) {
+      return { success: false, error: 'Microsoft Graph er ikke konfigureret. Tjek AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET i Vercel Environment Variables.' }
+    }
+
     const result = await sendEmailViaGraph({
       to: replyTo,
       subject,
@@ -864,6 +869,24 @@ export async function findCustomerSuggestions(
       for (const c of orderMatches) {
         if (!suggestions.find((s) => s.id === c.id)) {
           suggestions.push({ ...(c as { id: string; company_name: string; customer_number: string; email: string }), matchReason: `Kundenr/Ordre: ${detectedOrderId}` })
+        }
+      }
+    }
+  }
+
+  // Fallback: search by sender email domain (e.g., @firma.dk → customer with same domain)
+  if (suggestions.length === 0 && email.sender_email) {
+    const domain = email.sender_email.split('@')[1]
+    if (domain && !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.dk', 'icloud.com'].includes(domain)) {
+      const { data: domainMatches } = await supabase
+        .from('customers')
+        .select('id, company_name, customer_number, email')
+        .ilike('email', `%@${domain}`)
+        .limit(3)
+
+      if (domainMatches) {
+        for (const c of domainMatches) {
+          suggestions.push({ ...(c as { id: string; company_name: string; customer_number: string; email: string }), matchReason: `Email-domæne: @${domain}` })
         }
       }
     }

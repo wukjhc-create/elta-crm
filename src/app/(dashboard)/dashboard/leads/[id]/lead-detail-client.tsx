@@ -20,6 +20,10 @@ import {
   MessageSquare,
   ExternalLink,
   Inbox,
+  Paperclip,
+  Download,
+  FileText,
+  Image,
 } from 'lucide-react'
 import { LeadStatusBadge } from '@/components/modules/leads/lead-status-badge'
 import { LeadForm } from '@/components/modules/leads/lead-form'
@@ -200,6 +204,46 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                   >
                     Se i Mail <ExternalLink className="w-3 h-3" />
                   </a>
+                </div>
+              )
+            })()}
+
+            {/* Filer fra email — show attachments from custom_fields */}
+            {lead.source === 'email' && lead.custom_fields && (() => {
+              const cf = lead.custom_fields as Record<string, unknown>
+              const atts = (cf.attachments || []) as Array<{
+                filename: string; contentType?: string; size?: number; sourceUrl?: string; sourcePath?: string
+              }>
+              if (atts.length === 0) return null
+              return (
+                <div className="bg-white rounded-lg border p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Paperclip className="w-5 h-5 text-gray-500" />
+                    <h2 className="text-lg font-semibold">Filer fra email</h2>
+                    <span className="text-sm text-gray-400">({atts.length})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {atts.map((att, i) => {
+                      const isImage = att.contentType?.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(att.filename)
+                      const isPdf = att.contentType === 'application/pdf' || att.filename.endsWith('.pdf')
+                      const Icon = isImage ? Image : isPdf ? FileText : Paperclip
+                      const sizeStr = att.size ? (att.size >= 1048576 ? `${(att.size / 1048576).toFixed(1)} MB` : `${Math.round((att.size || 0) / 1024)} KB`) : ''
+                      return (
+                        <a
+                          key={`att-${i}`}
+                          href={att.sourceUrl || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group flex items-center gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                        >
+                          <Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-500 shrink-0" />
+                          <span className="truncate flex-1 text-sm text-gray-700 group-hover:text-blue-700 font-medium">{att.filename}</span>
+                          {sizeStr && <span className="text-xs text-gray-400 shrink-0">{sizeStr}</span>}
+                          <Download className="w-4 h-4 text-gray-300 group-hover:text-blue-500 shrink-0" />
+                        </a>
+                      )
+                    })}
+                  </div>
                 </div>
               )
             })()}
