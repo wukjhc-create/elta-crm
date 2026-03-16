@@ -1013,7 +1013,14 @@ export async function autoRelinkEmail(
 
   try {
     const { linkEmail } = await import('@/lib/services/email-linker')
-    const result = await linkEmail(emailId)
+    const result = await linkEmail(
+      emailId,
+      email.sender_email,
+      email.sender_name,
+      email.subject || '',
+      email.body_html || null,
+      email.body_text || null
+    )
 
     if (result.status === 'linked' && result.customerId) {
       revalidatePath('/dashboard/mail')
