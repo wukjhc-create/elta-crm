@@ -391,6 +391,10 @@ export interface GraphEmailOptions {
 /**
  * Send email via Microsoft Graph API (as the CRM mailbox).
  * Requires Mail.Send application permission in Azure AD.
+ *
+ * Uses app-only (client_credentials) auth — the email is sent FROM the
+ * shared mailbox automatically. We do NOT set the `from` field because
+ * that requires additional SendAs permission which may not be granted.
  */
 export async function sendEmailViaGraph(
   options: GraphEmailOptions
@@ -399,8 +403,20 @@ export async function sendEmailViaGraph(
     const { mailbox } = getConfig()
     const token = await getAccessToken()
 
-    const toRecipients = (Array.isArray(options.to) ? options.to : [options.to]).map((addr) => ({
-      emailAddress: { address: addr },
+    // Validate required fields
+    const recipients = Array.isArray(options.to) ? options.to : [options.to]
+    if (recipients.length === 0 || recipients.some((r) => !r || !r.includes('@'))) {
+      return { success: false, error: 'Ugyldig modtager-adresse' }
+    }
+    if (!options.subject) {
+      return { success: false, error: 'Emne mangler' }
+    }
+    if (!options.html) {
+      return { success: false, error: 'Email-indhold mangler' }
+    }
+
+    const toRecipients = recipients.map((addr) => ({
+      emailAddress: { address: addr.trim() },
     }))
 
     // Build attachments array
@@ -411,36 +427,43 @@ export async function sendEmailViaGraph(
       contentBytes: att.content.toString('base64'),
     }))
 
-    // Build the sendMail payload
-    const payload: Record<string, unknown> = {
-      message: {
-        subject: options.subject,
-        body: {
-          contentType: 'HTML',
-          content: options.html,
-        },
-        toRecipients,
-        ...(options.replyTo
-          ? {
-              replyTo: [{ emailAddress: { address: options.replyTo } }],
-            }
-          : {}),
-        ...(graphAttachments.length > 0 ? { attachments: graphAttachments } : {}),
-        ...(options.senderName
-          ? {
-              from: {
-                emailAddress: {
-                  name: `${options.senderName} | Elta Solar`,
-                  address: mailbox,
-                },
-              },
-            }
-          : {}),
+    // Build the sendMail payload — strict Graph API v1.0 format
+    // Note: Do NOT set `from` with app-only auth — requires SendAs permission.
+    // The email will be sent from the mailbox user automatically.
+    const message: Record<string, unknown> = {
+      subject: options.subject,
+      body: {
+        contentType: 'HTML',
+        content: options.html,
       },
+      toRecipients,
+    }
+
+    // Optional: replyTo (different from sender)
+    if (options.replyTo) {
+      message.replyTo = [{ emailAddress: { address: options.replyTo.trim() } }]
+    }
+
+    // Optional: attachments
+    if (graphAttachments.length > 0) {
+      message.attachments = graphAttachments
+    }
+
+    const payload = {
+      message,
       saveToSentItems: true,
     }
 
     const url = `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/sendMail`
+
+    logger.info('Graph sendMail request', {
+      metadata: {
+        mailbox,
+        to: recipients,
+        subject: options.subject,
+        bodyLength: options.html.length,
+      },
+    })
 
     const response = await fetch(url, {
       method: 'POST',
@@ -453,15 +476,47 @@ export async function sendEmailViaGraph(
 
     if (!response.ok) {
       const errorText = await response.text()
+
+      // Parse Graph API error for a clear message
+      let graphError = `HTTP ${response.status}`
+      try {
+        const errorJson = JSON.parse(errorText)
+        if (errorJson.error) {
+          graphError = `${errorJson.error.code}: ${errorJson.error.message}`
+        }
+      } catch {
+        graphError = `HTTP ${response.status}: ${errorText.substring(0, 300)}`
+      }
+
       logger.error('Graph sendMail failed', {
-        metadata: { status: response.status, body: errorText.substring(0, 500) },
+        metadata: {
+          status: response.status,
+          graphError,
+          mailbox,
+          to: recipients,
+        },
       })
-      return { success: false, error: `Graph sendMail fejl: ${response.status} — ${errorText.substring(0, 200)}` }
+
+      // Provide user-friendly errors for common codes
+      if (response.status === 403) {
+        return {
+          success: false,
+          error: `Adgang nægtet (403). Azure AD app mangler Mail.Send permission. Tilføj den i Azure Portal → App registrations → API permissions.`,
+        }
+      }
+      if (response.status === 404) {
+        return {
+          success: false,
+          error: `Postkasse ikke fundet (404). Tjek at ${mailbox} eksisterer og er tilgængelig.`,
+        }
+      }
+
+      return { success: false, error: `Graph fejl: ${graphError}` }
     }
 
     // 202 Accepted = success (no body returned)
     logger.info('Email sent via Graph API', {
-      metadata: { to: options.to, subject: options.subject },
+      metadata: { to: recipients, subject: options.subject, mailbox },
     })
 
     return { success: true }

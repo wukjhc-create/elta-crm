@@ -837,22 +837,25 @@ export async function sendQuickReply(
     : `Re: ${email.subject || '(Intet emne)'}`
 
   // 5. Build HTML body with original message quote
-  const html = `
-    <div style="font-family: Arial, sans-serif; font-size: 14px;">
-      <p>${message.replace(/\n/g, '<br />')}</p>
-      <br />
-      <p style="color: #666; font-size: 12px;">Med venlig hilsen,<br />${senderName || 'Elta Solar'}</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 16px 0;" />
-      <p style="color: #999; font-size: 11px;">
-        Den ${new Date(email.received_at).toLocaleDateString('da-DK', {
-          day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-        })} skrev ${email.sender_name || email.sender_email}:
-      </p>
-      <blockquote style="margin: 8px 0; padding-left: 12px; border-left: 3px solid #ddd; color: #666;">
-        ${email.body_html || email.body_text?.replace(/\n/g, '<br />') || email.body_preview || ''}
-      </blockquote>
-    </div>
-  `.trim()
+  // Sanitize the original body to prevent JSON/payload issues
+  const originalBody = email.body_text?.replace(/\n/g, '<br />') || email.body_preview || ''
+  const safeOriginalBody = originalBody
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // Strip control chars
+
+  const dateStr = new Date(email.received_at).toLocaleDateString('da-DK', {
+    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+
+  const html = [
+    '<div style="font-family: Arial, sans-serif; font-size: 14px;">',
+    `<p>${message.replace(/\n/g, '<br />')}</p>`,
+    '<br />',
+    `<p style="color: #666; font-size: 12px;">Med venlig hilsen,<br />${senderName || 'Elta Solar'}</p>`,
+    '<hr style="border: none; border-top: 1px solid #ddd; margin: 16px 0;" />',
+    `<p style="color: #999; font-size: 11px;">Den ${dateStr} skrev ${email.sender_name || email.sender_email}:</p>`,
+    `<blockquote style="margin: 8px 0; padding-left: 12px; border-left: 3px solid #ddd; color: #666;">${safeOriginalBody}</blockquote>`,
+    '</div>',
+  ].join('\n')
 
   // 6. Send via Graph API
   try {
