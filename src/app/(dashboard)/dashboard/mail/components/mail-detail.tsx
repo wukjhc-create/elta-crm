@@ -21,7 +21,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
-import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions } from '@/lib/actions/incoming-emails'
+import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars } from '@/lib/actions/incoming-emails'
 import type { IncomingEmailWithCustomer, EmailLinkStatus } from '@/types/mail-bridge.types'
 
 // =====================================================
@@ -107,6 +107,7 @@ export function MailDetail({
   // Quick reply state
   const [isSendingReply, setIsSendingReply] = useState<string | null>(null)
   const [replyMsg, setReplyMsg] = useState<string | null>(null)
+  const [graphDiag, setGraphDiag] = useState<Record<string, boolean> | null>(null)
 
   // Smart suggestion state
   const [suggestions, setSuggestions] = useState<Array<{ id: string; company_name: string; customer_number: string; email: string; matchReason: string }>>([])
@@ -147,17 +148,34 @@ export function MailDetail({
   const handleQuickReply = async (template: string) => {
     setIsSendingReply(template)
     setReplyMsg(null)
+    setGraphDiag(null)
     try {
       const result = await sendQuickReply(email.id, template)
       if (result.success) {
         setReplyMsg('Svar sendt!')
       } else {
         setReplyMsg(`Fejl: ${result.error || 'Ukendt'}`)
+        // Auto-diagnose on config errors
+        if (result.error?.includes('env vars') || result.error?.includes('konfigureret')) {
+          const diag = await checkGraphEnvVars()
+          setGraphDiag(diag.vars)
+        }
       }
     } catch {
       setReplyMsg('Fejl ved afsendelse')
     } finally {
       setIsSendingReply(null)
+    }
+  }
+
+  const handleDiagnoseGraph = async () => {
+    const diag = await checkGraphEnvVars()
+    setGraphDiag(diag.vars)
+    if (diag.configured) {
+      setReplyMsg('Env vars OK — Graph er konfigureret. Fejlen kan skylde manglende Mail.Send permission i Azure AD.')
+    } else {
+      const missing = Object.entries(diag.vars).filter(([, v]) => !v).map(([k]) => k)
+      setReplyMsg(`Manglende env vars: ${missing.join(', ')}`)
     }
   }
 
@@ -326,9 +344,28 @@ export function MailDetail({
             ))}
           </div>
           {replyMsg && (
-            <p className={`text-xs ${replyMsg.startsWith('Fejl') ? 'text-red-600' : 'text-green-600 font-medium'}`}>
-              {replyMsg}
-            </p>
+            <div className="space-y-1">
+              <p className={`text-xs ${replyMsg.startsWith('Fejl') || replyMsg.startsWith('Manglende') ? 'text-red-600' : 'text-green-600 font-medium'}`}>
+                {replyMsg}
+              </p>
+              {graphDiag && (
+                <div className="bg-gray-50 border rounded p-2 text-[11px] font-mono space-y-0.5">
+                  {Object.entries(graphDiag).map(([key, val]) => (
+                    <div key={key} className={val ? 'text-green-700' : 'text-red-600 font-bold'}>
+                      {val ? '✓' : '✗'} {key}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {!replyMsg && (
+            <button
+              onClick={handleDiagnoseGraph}
+              className="text-[10px] text-gray-400 hover:text-blue-600 underline"
+            >
+              Diagnosticér Graph-forbindelse
+            </button>
           )}
         </div>
 

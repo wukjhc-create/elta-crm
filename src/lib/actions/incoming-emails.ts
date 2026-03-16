@@ -337,22 +337,25 @@ function buildLeadNotes(
  * Source: email-attachments/{emailId}/*
  * Dest:   lead-attachments/{leadId}/*
  */
-async function copyAttachmentsToLead(emailId: string, leadId: string): Promise<void> {
+async function copyAttachmentsToLead(
+  emailId: string,
+  leadId: string
+): Promise<Array<{ filename: string; url: string; storagePath: string }>> {
   const { createClient: createServiceClient } = await import('@supabase/supabase-js')
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return
+  if (!url || !key) return []
 
   const serviceSupabase = createServiceClient(url, key)
 
   // Get attachment URLs from the email record
-  const { data: email } = await serviceSupabase
+  const { data: emailData } = await serviceSupabase
     .from('incoming_emails')
     .select('attachment_urls')
     .eq('id', emailId)
     .single()
 
-  const attachments = (email?.attachment_urls || []) as Array<{
+  const attachments = (emailData?.attachment_urls || []) as Array<{
     filename: string
     storagePath?: string
     contentType?: string
@@ -360,7 +363,9 @@ async function copyAttachmentsToLead(emailId: string, leadId: string): Promise<v
     url?: string
   }>
 
-  if (attachments.length === 0) return
+  if (attachments.length === 0) return []
+
+  const results: Array<{ filename: string; url: string; storagePath: string }> = []
 
   for (const att of attachments) {
     if (!att.storagePath) continue
@@ -375,25 +380,31 @@ async function copyAttachmentsToLead(emailId: string, leadId: string): Promise<v
 
       // Upload to lead folder
       const destPath = `lead-attachments/${leadId}/${att.filename}`
-      await serviceSupabase.storage
+      const { error: ulError } = await serviceSupabase.storage
         .from('attachments')
         .upload(destPath, fileData, {
           contentType: att.contentType || 'application/octet-stream',
           upsert: true,
         })
 
-      logger.info('Attachment copied to lead folder', {
-        entity: 'leads',
-        entityId: leadId,
-        metadata: { filename: att.filename, destPath },
-      })
+      if (!ulError) {
+        const publicUrl = `${url}/storage/v1/object/public/attachments/${destPath}`
+        results.push({ filename: att.filename, url: publicUrl, storagePath: destPath })
+
+        logger.info('Attachment copied to lead folder', {
+          entity: 'leads',
+          entityId: leadId,
+          metadata: { filename: att.filename, destPath },
+        })
+      }
     } catch {
-      // Non-critical — log and continue
       logger.warn('Failed to copy single attachment', {
         metadata: { emailId, leadId, filename: att.filename },
       })
     }
   }
+
+  return results
 }
 
 /**
@@ -533,10 +544,40 @@ export async function createCustomerFromEmail(
     logger.error('Failed to create lead from email', { error: leadError, metadata: { emailId } })
   }
 
-  // 8. Copy attachments to lead folder (if any)
-  if (newLead?.id && email.has_attachments) {
+  // 8. Copy attachments to lead folder and update lead with new URLs
+  if (newLead?.id && email.has_attachments && attachmentRefs.length > 0) {
     try {
-      await copyAttachmentsToLead(emailId, newLead.id)
+      const copiedUrls = await copyAttachmentsToLead(emailId, newLead.id)
+
+      // Update lead custom_fields with both source and lead-specific URLs
+      if (copiedUrls && copiedUrls.length > 0) {
+        const updatedAttachments = attachmentRefs.map((ref) => {
+          const copied = copiedUrls.find((c) => c.filename === ref.filename)
+          return {
+            ...ref,
+            leadUrl: copied?.url || null,
+            leadStoragePath: copied?.storagePath || null,
+          }
+        })
+
+        await supabase.from('leads').update({
+          custom_fields: {
+            source_email_id: emailId,
+            source_email_subject: email.subject,
+            source_email_received_at: email.received_at,
+            attachments: updatedAttachments,
+            attachment_count: updatedAttachments.length,
+          },
+        }).eq('id', newLead.id)
+      }
+
+      // Log activity on the lead
+      await supabase.from('lead_activities').insert({
+        lead_id: newLead.id,
+        type: 'note',
+        description: `${attachmentRefs.length} fil(er) kopieret fra email: ${attachmentRefs.map((a) => a.filename).join(', ')}`,
+        performed_by: userId,
+      })
     } catch (attErr) {
       logger.warn('Failed to copy attachments to lead', {
         entity: 'leads',
@@ -719,8 +760,38 @@ export async function testGraphConnection(): Promise<{
 // =====================================================
 
 /**
+ * Diagnostic: check which Graph env vars are available.
+ * Returns which vars are set (never reveals values).
+ */
+export async function checkGraphEnvVars(): Promise<{
+  configured: boolean
+  vars: Record<string, boolean>
+  mailbox: string
+}> {
+  return {
+    configured: !!(
+      (process.env.AZURE_TENANT_ID || process.env.AZURE_AD_TENANT_ID) &&
+      (process.env.AZURE_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID) &&
+      (process.env.AZURE_CLIENT_SECRET || process.env.AZURE_AD_CLIENT_SECRET)
+    ),
+    vars: {
+      AZURE_TENANT_ID: !!process.env.AZURE_TENANT_ID,
+      AZURE_AD_TENANT_ID: !!process.env.AZURE_AD_TENANT_ID,
+      AZURE_CLIENT_ID: !!process.env.AZURE_CLIENT_ID,
+      AZURE_AD_CLIENT_ID: !!process.env.AZURE_AD_CLIENT_ID,
+      AZURE_CLIENT_SECRET: !!process.env.AZURE_CLIENT_SECRET,
+      AZURE_AD_CLIENT_SECRET: !!process.env.AZURE_AD_CLIENT_SECRET,
+      GRAPH_MAILBOX: !!process.env.GRAPH_MAILBOX,
+    },
+    mailbox: process.env.GRAPH_MAILBOX || 'ordre@eltasolar.dk',
+  }
+}
+
+/**
  * Send a quick reply to an incoming email via Microsoft Graph.
  * Uses the shared mailbox (ordre@eltasolar.dk).
+ *
+ * Requires Mail.Send application permission in Azure AD.
  */
 export async function sendQuickReply(
   emailId: string,
@@ -729,14 +800,29 @@ export async function sendQuickReply(
   validateUUID(emailId, 'emailId')
   const { userId } = await getAuthenticatedClient()
 
-  // Fetch the email
+  // 1. Pre-flight: check env vars with specific diagnostics
+  const envCheck = await checkGraphEnvVars()
+  if (!envCheck.configured) {
+    const missing = Object.entries(envCheck.vars)
+      .filter(([, v]) => !v)
+      .map(([k]) => k)
+    logger.error('Graph env vars missing for sendQuickReply', {
+      metadata: { vars: envCheck.vars },
+    })
+    return {
+      success: false,
+      error: `Microsoft Graph mangler env vars: ${missing.join(', ')}. Tilføj dem i Vercel → Settings → Environment Variables.`,
+    }
+  }
+
+  // 2. Fetch the email
   const email = await getIncomingEmail(emailId)
   if (!email) return { success: false, error: 'Email ikke fundet' }
 
   const replyTo = email.reply_to || email.sender_email
   if (!replyTo) return { success: false, error: 'Ingen modtager-adresse fundet' }
 
-  // Get sender's display name from profile
+  // 3. Get sender's display name from profile
   const supabase = await createClient()
   const { data: profile } = await supabase
     .from('profiles')
@@ -745,12 +831,12 @@ export async function sendQuickReply(
     .maybeSingle()
   const senderName = (profile as { full_name: string } | null)?.full_name || undefined
 
-  // Build reply subject
+  // 4. Build reply subject
   const subject = email.subject?.startsWith('Re:')
     ? email.subject
     : `Re: ${email.subject || '(Intet emne)'}`
 
-  // Build HTML body with original message quote
+  // 5. Build HTML body with original message quote
   const html = `
     <div style="font-family: Arial, sans-serif; font-size: 14px;">
       <p>${message.replace(/\n/g, '<br />')}</p>
@@ -768,12 +854,9 @@ export async function sendQuickReply(
     </div>
   `.trim()
 
+  // 6. Send via Graph API
   try {
-    const { isGraphConfigured, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
-
-    if (!isGraphConfigured()) {
-      return { success: false, error: 'Microsoft Graph er ikke konfigureret. Tjek AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET i Vercel Environment Variables.' }
-    }
+    const { sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
 
     const result = await sendEmailViaGraph({
       to: replyTo,
@@ -788,12 +871,18 @@ export async function sendQuickReply(
         entityId: emailId,
         metadata: { to: replyTo, subject, userId },
       })
+    } else if (result.error?.includes('403')) {
+      // 403 = Mail.Send permission not granted in Azure AD
+      return {
+        success: false,
+        error: 'Azure AD mangler Mail.Send permission. Gå til Azure Portal → App registrations → API permissions → tilføj Mail.Send (Application) og giv Admin Consent.',
+      }
     }
 
     return result
   } catch (err) {
     logger.error('sendQuickReply failed', { error: err })
-    return { success: false, error: err instanceof Error ? err.message : 'Ukendt fejl' }
+    return { success: false, error: err instanceof Error ? err.message : 'Ukendt fejl ved afsendelse' }
   }
 }
 
@@ -815,8 +904,10 @@ export async function findCustomerSuggestions(
   const email = await getIncomingEmail(emailId)
   if (!email) return { suggestions: [], detectedPhone: null, detectedOrderId: null }
 
-  const bodyText = email.body_text || email.body_preview || ''
-  const fullText = `${email.subject || ''} ${bodyText}`
+  // Strip HTML tags from body for clean text matching
+  const rawBody = email.body_text || email.body_preview || ''
+  const cleanBody = rawBody.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ')
+  const fullText = `${email.subject || ''} ${cleanBody}`
 
   // Detect phone number
   const phone = extractPhoneNumber(fullText)

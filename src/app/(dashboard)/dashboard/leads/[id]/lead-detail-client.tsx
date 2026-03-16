@@ -212,7 +212,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
             {lead.source === 'email' && lead.custom_fields && (() => {
               const cf = lead.custom_fields as Record<string, unknown>
               const atts = (cf.attachments || []) as Array<{
-                filename: string; contentType?: string; size?: number; sourceUrl?: string; sourcePath?: string
+                filename: string; contentType?: string; size?: number; sourceUrl?: string; sourcePath?: string; leadUrl?: string; leadStoragePath?: string
               }>
               if (atts.length === 0) return null
               return (
@@ -231,7 +231,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                       return (
                         <a
                           key={`att-${i}`}
-                          href={att.sourceUrl || '#'}
+                          href={att.leadUrl || att.sourceUrl || '#'}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="group flex items-center gap-3 px-3 py-2.5 border rounded-md bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-colors"
