@@ -494,6 +494,20 @@ export async function createCustomerFromEmail(
     email.received_at
   )
 
+  // Build attachment references for lead custom_fields
+  const emailAttachments = (email.attachment_urls || []) as Array<{
+    filename: string; contentType?: string; size?: number; url?: string; storagePath?: string
+  }>
+  const attachmentRefs = emailAttachments
+    .filter((a) => a.url && a.url.length > 0)
+    .map((a) => ({
+      filename: a.filename,
+      contentType: a.contentType || 'application/octet-stream',
+      size: a.size || 0,
+      sourceUrl: a.url,
+      sourcePath: a.storagePath,
+    }))
+
   const { data: newLead, error: leadError } = await supabase.from('leads').insert({
     company_name: senderName,
     contact_person: senderName,
@@ -507,6 +521,8 @@ export async function createCustomerFromEmail(
       source_email_id: emailId,
       source_email_subject: email.subject,
       source_email_received_at: email.received_at,
+      attachments: attachmentRefs,
+      attachment_count: attachmentRefs.length,
     },
     created_by: userId,
   })
@@ -696,4 +712,162 @@ export async function testGraphConnection(): Promise<{
   }
 
   return testConn()
+}
+
+// =====================================================
+// QUICK REPLY
+// =====================================================
+
+/**
+ * Send a quick reply to an incoming email via Microsoft Graph.
+ * Uses the shared mailbox (ordre@eltasolar.dk).
+ */
+export async function sendQuickReply(
+  emailId: string,
+  message: string
+): Promise<{ success: boolean; error?: string }> {
+  validateUUID(emailId, 'emailId')
+  const { userId } = await getAuthenticatedClient()
+
+  // Fetch the email
+  const email = await getIncomingEmail(emailId)
+  if (!email) return { success: false, error: 'Email ikke fundet' }
+
+  const replyTo = email.reply_to || email.sender_email
+  if (!replyTo) return { success: false, error: 'Ingen modtager-adresse fundet' }
+
+  // Get sender's display name from profile
+  const supabase = await createClient()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .maybeSingle()
+  const senderName = (profile as { full_name: string } | null)?.full_name || undefined
+
+  // Build reply subject
+  const subject = email.subject?.startsWith('Re:')
+    ? email.subject
+    : `Re: ${email.subject || '(Intet emne)'}`
+
+  // Build HTML body with original message quote
+  const html = `
+    <div style="font-family: Arial, sans-serif; font-size: 14px;">
+      <p>${message.replace(/\n/g, '<br />')}</p>
+      <br />
+      <p style="color: #666; font-size: 12px;">Med venlig hilsen,<br />${senderName || 'Elta Solar'}</p>
+      <hr style="border: none; border-top: 1px solid #ddd; margin: 16px 0;" />
+      <p style="color: #999; font-size: 11px;">
+        Den ${new Date(email.received_at).toLocaleDateString('da-DK', {
+          day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        })} skrev ${email.sender_name || email.sender_email}:
+      </p>
+      <blockquote style="margin: 8px 0; padding-left: 12px; border-left: 3px solid #ddd; color: #666;">
+        ${email.body_html || email.body_text?.replace(/\n/g, '<br />') || email.body_preview || ''}
+      </blockquote>
+    </div>
+  `.trim()
+
+  try {
+    const { sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
+    const result = await sendEmailViaGraph({
+      to: replyTo,
+      subject,
+      html,
+      senderName,
+    })
+
+    if (result.success) {
+      logger.info('Quick reply sent', {
+        entity: 'incoming_emails',
+        entityId: emailId,
+        metadata: { to: replyTo, subject, userId },
+      })
+    }
+
+    return result
+  } catch (err) {
+    logger.error('sendQuickReply failed', { error: err })
+    return { success: false, error: err instanceof Error ? err.message : 'Ukendt fejl' }
+  }
+}
+
+// =====================================================
+// SMART SUGGESTION — detect phone/order ID for customer match
+// =====================================================
+
+/**
+ * Search for customers matching a phone number or order reference
+ * found in an email body. Returns top matches.
+ */
+export async function findCustomerSuggestions(
+  emailId: string
+): Promise<{
+  suggestions: Array<{ id: string; company_name: string; customer_number: string; email: string; matchReason: string }>
+  detectedPhone: string | null
+  detectedOrderId: string | null
+}> {
+  const email = await getIncomingEmail(emailId)
+  if (!email) return { suggestions: [], detectedPhone: null, detectedOrderId: null }
+
+  const bodyText = email.body_text || email.body_preview || ''
+  const fullText = `${email.subject || ''} ${bodyText}`
+
+  // Detect phone number
+  const phone = extractPhoneNumber(fullText)
+
+  // Detect order ID patterns (e.g., ORD-12345, #12345, ordre 12345, ordrenr 12345)
+  const orderPatterns = [
+    /(?:ord(?:re)?|order|bestilling)[\s.:#-]*(\d{4,8})/i,
+    /(?:sag|projekt|ref)[\s.:#-]*(\d{4,8})/i,
+    /#(\d{4,8})/,
+    /\b(ORD-\d{4,8})\b/i,
+  ]
+  let detectedOrderId: string | null = null
+  for (const p of orderPatterns) {
+    const m = fullText.match(p)
+    if (m) { detectedOrderId = m[1] || m[0]; break }
+  }
+
+  if (!phone && !detectedOrderId) {
+    return { suggestions: [], detectedPhone: null, detectedOrderId: null }
+  }
+
+  const supabase = await createClient()
+  const suggestions: Array<{ id: string; company_name: string; customer_number: string; email: string; matchReason: string }> = []
+
+  // Search by phone
+  if (phone) {
+    const cleanPhone = phone.replace(/\D/g, '')
+    const { data: phoneMatches } = await supabase
+      .from('customers')
+      .select('id, company_name, customer_number, email')
+      .or(`phone.ilike.%${cleanPhone}%,phone.ilike.%${phone}%`)
+      .limit(3)
+
+    if (phoneMatches) {
+      for (const c of phoneMatches) {
+        suggestions.push({ ...(c as { id: string; company_name: string; customer_number: string; email: string }), matchReason: `Telefon: ${phone}` })
+      }
+    }
+  }
+
+  // Search by order/customer number
+  if (detectedOrderId) {
+    const { data: orderMatches } = await supabase
+      .from('customers')
+      .select('id, company_name, customer_number, email')
+      .ilike('customer_number', `%${detectedOrderId}%`)
+      .limit(3)
+
+    if (orderMatches) {
+      for (const c of orderMatches) {
+        if (!suggestions.find((s) => s.id === c.id)) {
+          suggestions.push({ ...(c as { id: string; company_name: string; customer_number: string; email: string }), matchReason: `Kundenr/Ordre: ${detectedOrderId}` })
+        }
+      }
+    }
+  }
+
+  return { suggestions, detectedPhone: phone, detectedOrderId }
 }

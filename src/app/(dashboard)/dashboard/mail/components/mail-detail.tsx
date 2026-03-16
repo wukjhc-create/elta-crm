@@ -21,7 +21,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
-import { backfillEmailAttachments } from '@/lib/actions/incoming-emails'
+import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions } from '@/lib/actions/incoming-emails'
 import type { IncomingEmailWithCustomer, EmailLinkStatus } from '@/types/mail-bridge.types'
 
 // =====================================================
@@ -36,6 +36,7 @@ interface MailDetailProps {
   onCreateCustomer: () => void
   onToggleRead: () => void
   onAttachmentsBackfilled: () => void
+  onLinkToCustomer?: (customerId: string) => void
   isCreatingCustomer: boolean
   existingLeadId?: string
   existingLeadStatus?: string
@@ -92,6 +93,7 @@ export function MailDetail({
   onCreateCustomer,
   onToggleRead,
   onAttachmentsBackfilled,
+  onLinkToCustomer,
   isCreatingCustomer,
   existingLeadId,
   existingLeadStatus,
@@ -101,6 +103,15 @@ export function MailDetail({
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [lightboxName, setLightboxName] = useState('')
+
+  // Quick reply state
+  const [isSendingReply, setIsSendingReply] = useState<string | null>(null)
+  const [replyMsg, setReplyMsg] = useState<string | null>(null)
+
+  // Smart suggestion state
+  const [suggestions, setSuggestions] = useState<Array<{ id: string; company_name: string; customer_number: string; email: string; matchReason: string }>>([])
+  const [detectedPhone, setDetectedPhone] = useState<string | null>(null)
+  const [detectedOrderId, setDetectedOrderId] = useState<string | null>(null)
 
   const attachments = (email.attachment_urls || []) as Array<{
     url?: string; filename: string; contentType?: string; size: number; storagePath?: string
@@ -112,12 +123,43 @@ export function MailDetail({
   useEffect(() => {
     setPortalAccess(null)
     setBackfillMsg(null)
+    setReplyMsg(null)
+    setSuggestions([])
+    setDetectedPhone(null)
+    setDetectedOrderId(null)
+
     if (email.link_status === 'linked' && email.customer_id) {
       checkCustomerPortalAccess(email.customer_id).then((res) => {
         if (res.success && res.data) setPortalAccess(res.data)
       })
     }
+
+    // Smart suggestion: detect phone/order ID and find matching customers
+    if (email.link_status !== 'linked') {
+      findCustomerSuggestions(email.id).then((res) => {
+        setSuggestions(res.suggestions)
+        setDetectedPhone(res.detectedPhone)
+        setDetectedOrderId(res.detectedOrderId)
+      })
+    }
   }, [email.id, email.link_status, email.customer_id])
+
+  const handleQuickReply = async (template: string) => {
+    setIsSendingReply(template)
+    setReplyMsg(null)
+    try {
+      const result = await sendQuickReply(email.id, template)
+      if (result.success) {
+        setReplyMsg('Svar sendt!')
+      } else {
+        setReplyMsg(`Fejl: ${result.error || 'Ukendt'}`)
+      }
+    } catch {
+      setReplyMsg('Fejl ved afsendelse')
+    } finally {
+      setIsSendingReply(null)
+    }
+  }
 
   const handleBackfill = async () => {
     setIsBackfilling(true)
@@ -262,6 +304,68 @@ export function MailDetail({
             </button>
           )}
         </div>
+
+        {/* ========== QUICK REPLY BUTTONS ========== */}
+        <div className="pt-2 border-t space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hurtigt svar</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { label: 'Bekræft modtagelse', text: 'Tak for din henvendelse. Vi har modtaget din email og vender tilbage hurtigst muligt.\n\nMed venlig hilsen,\nElta Solar' },
+              { label: 'Mangler info', text: 'Tak for din henvendelse. Vi mangler lidt yderligere information for at kunne hjælpe dig. Kan du venligst sende os følgende:\n\n- [Udfyld manglende information]\n\nMed venlig hilsen,\nElta Solar' },
+              { label: 'Tak for ordren', text: 'Mange tak for din ordre! Vi bekræfter hermed modtagelsen og går i gang med at behandle den.\n\nDu vil høre fra os inden for kort tid med næste skridt.\n\nMed venlig hilsen,\nElta Solar' },
+            ].map((tpl) => (
+              <button
+                key={tpl.label}
+                onClick={() => handleQuickReply(tpl.text)}
+                disabled={isSendingReply !== null}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-blue-50 hover:text-blue-700 border border-gray-200 hover:border-blue-300 transition-colors disabled:opacity-50"
+              >
+                {isSendingReply === tpl.text ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                {tpl.label}
+              </button>
+            ))}
+          </div>
+          {replyMsg && (
+            <p className={`text-xs ${replyMsg.startsWith('Fejl') ? 'text-red-600' : 'text-green-600 font-medium'}`}>
+              {replyMsg}
+            </p>
+          )}
+        </div>
+
+        {/* ========== SMART SUGGESTION — detected phone/order, customer matches ========== */}
+        {suggestions.length > 0 && (
+          <div className="pt-2 border-t">
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-2">
+              <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Smart forslag — kunde fundet
+              </p>
+              {detectedPhone && (
+                <p className="text-xs text-blue-700">Telefon fundet i email: <strong>{detectedPhone}</strong></p>
+              )}
+              {detectedOrderId && (
+                <p className="text-xs text-blue-700">Ordre/ref fundet i email: <strong>{detectedOrderId}</strong></p>
+              )}
+              <div className="space-y-1">
+                {suggestions.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-blue-100">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{s.company_name}</p>
+                      <p className="text-xs text-gray-500">{s.customer_number} — {s.matchReason}</p>
+                    </div>
+                    <button
+                      onClick={() => onLinkToCustomer?.(s.id)}
+                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ring-2 ring-blue-300 ring-offset-1"
+                    >
+                      <Link2 className="w-3 h-3" />
+                      Kobl
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ============================================== */}

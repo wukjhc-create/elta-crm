@@ -384,6 +384,9 @@ export function MailClient() {
               onCreateCustomer={() => handlePromoteToLead(selectedEmail.id)}
               onToggleRead={() => handleToggleReadStatus(selectedEmail.id, selectedEmail.is_read)}
               onAttachmentsBackfilled={loadEmails}
+              onLinkToCustomer={async (customerId) => {
+                await handleManualLink(selectedEmail.id, customerId)
+              }}
               isCreatingCustomer={isCreatingCustomer}
               existingLeadId={emailLeadMap[selectedEmail.id]?.leadId}
               existingLeadStatus={emailLeadMap[selectedEmail.id]?.status}
