@@ -203,6 +203,7 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
     const rawData = {
       title: formData.get('title') as string,
       description: formData.get('description') as string || null,
+      scope: formData.get('scope') as string || null,
       customer_id: customerId,
       lead_id: leadId,
       discount_percentage: formData.get('discount_percentage')
@@ -287,6 +288,7 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       id,
       title: formData.get('title') as string,
       description: formData.get('description') as string || null,
+      scope: formData.get('scope') as string || null,
       customer_id: customerId,
       lead_id: leadId,
       discount_percentage: formData.get('discount_percentage')

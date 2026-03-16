@@ -15,6 +15,11 @@ export const createOfferSchema = z.object({
     .max(5000, 'Beskrivelse må højst være 5000 tegn')
     .nullable()
     .optional(),
+  scope: z
+    .string()
+    .max(10000, 'Opgavens omfang må højst være 10000 tegn')
+    .nullable()
+    .optional(),
   customer_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
   lead_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
   discount_percentage: z

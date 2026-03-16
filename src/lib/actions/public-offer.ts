@@ -8,6 +8,7 @@ export interface PublicOffer {
   offer_number: string
   title: string
   description: string | null
+  scope: string | null
   status: string
   total_amount: number
   discount_percentage: number
@@ -44,7 +45,7 @@ export async function getPublicOffer(offerId: string): Promise<PublicOffer | nul
   const { data, error } = await supabase
     .from('offers')
     .select(`
-      id, offer_number, title, description, status,
+      id, offer_number, title, description, scope, status,
       total_amount, discount_percentage, discount_amount,
       tax_percentage, tax_amount, final_amount, currency,
       valid_until, terms_and_conditions, notes, created_at,

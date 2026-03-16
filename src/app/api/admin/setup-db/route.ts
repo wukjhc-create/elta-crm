@@ -173,6 +173,12 @@ CREATE INDEX IF NOT EXISTS idx_customer_tasks_offer_id ON customer_tasks(offer_i
   WHERE offer_id IS NOT NULL;
     `.trim(),
   },
+  {
+    name: '00057_offer_scope',
+    check_table: 'offers',
+    check_column: 'scope',
+    sql: `ALTER TABLE offers ADD COLUMN IF NOT EXISTS scope TEXT;`.trim(),
+  },
 ]
 
 function getProjectRef(): string | null {

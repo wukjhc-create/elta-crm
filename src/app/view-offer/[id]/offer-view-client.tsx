@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Sparkles,
   PartyPopper,
+  FileText,
 } from 'lucide-react'
 import { acceptPublicOffer, type PublicOffer } from '@/lib/actions/public-offer'
 import { BRAND } from '@/lib/brand'
@@ -238,6 +239,19 @@ export function OfferViewClient({ offer }: OfferViewClientProps) {
               </div>
               <h3 className="font-bold text-gray-900 mb-1">Besparelse</h3>
               <p className="text-sm text-gray-500">Reducer din elregning markant og tjen din investering hjem.</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Opgavens omfang ── */}
+        {offer.scope && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3" style={{ backgroundColor: BRAND.greenLight }}>
+              <FileText className="w-5 h-5 flex-shrink-0" style={{ color: BRAND.green }} />
+              <h3 className="font-bold" style={{ color: BRAND.green }}>Opgavens omfang</h3>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{offer.scope}</p>
             </div>
           </div>
         )}

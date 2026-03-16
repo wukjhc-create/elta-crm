@@ -102,6 +102,7 @@ export interface Offer {
   offer_number: string
   title: string
   description: string | null
+  scope: string | null
   status: OfferStatus
   customer_id: string | null
   lead_id: string | null
@@ -159,6 +160,7 @@ export interface OfferWithRelations extends Offer {
 export interface CreateOfferInput {
   title: string
   description?: string | null
+  scope?: string | null
   customer_id?: string | null
   lead_id?: string | null
   discount_percentage?: number

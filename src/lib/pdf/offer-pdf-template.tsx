@@ -407,12 +407,17 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
         <View style={styles.section}>
           <Text style={styles.offerTitle}>{offer.title}</Text>
           {offer.description && (
-            <View style={styles.scopeBox}>
-              <Text style={styles.scopeTitle}>Omfang</Text>
-              <Text style={styles.scopeText}>{offer.description}</Text>
-            </View>
+            <Text style={styles.offerDescription}>{offer.description}</Text>
           )}
         </View>
+
+        {/* Opgavens omfang */}
+        {offer.scope && (
+          <View style={styles.scopeBox}>
+            <Text style={styles.scopeTitle}>Opgavens omfang</Text>
+            <Text style={styles.scopeText}>{offer.scope}</Text>
+          </View>
+        )}
 
         {/* Notes / OBS Points */}
         {offer.notes && (

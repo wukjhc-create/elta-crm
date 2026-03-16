@@ -83,6 +83,7 @@ export function OfferForm({ offer, companySettings, calculatorData, onClose, onS
       ? {
           title: offer.title,
           description: offer.description,
+          scope: offer.scope,
           customer_id: offer.customer_id,
           lead_id: offer.lead_id,
           discount_percentage: offer.discount_percentage,
@@ -282,6 +283,25 @@ export function OfferForm({ offer, companySettings, calculatorData, onClose, onS
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary resize-none"
               disabled={isLoading}
             />
+          </div>
+
+          {/* Scope — Opgavens omfang */}
+          <div className="space-y-1">
+            <label htmlFor="scope" className="text-sm font-medium" style={{ color: '#2D8A2D' }}>
+              Opgavens omfang
+            </label>
+            <textarea
+              {...register('scope')}
+              id="scope"
+              rows={5}
+              placeholder="Beskriv opgavens omfang i detaljer — f.eks. installationstype, materialer, antal paneler, kabeltræk, tilslutning osv."
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary resize-y"
+              style={{ minHeight: '100px' }}
+              disabled={isLoading}
+            />
+            <p className="text-xs text-gray-500">
+              Vises på PDF-tilbud og kundeportal
+            </p>
           </div>
 
           {/* Financial settings */}
