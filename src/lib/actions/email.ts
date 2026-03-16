@@ -22,6 +22,10 @@ import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { APP_URL } from '@/lib/constants'
 import { formatCurrency, formatDateLongDK } from '@/lib/utils/format'
+import {
+  generateOfferEmailHtml,
+  generateOfferEmailText,
+} from '@/lib/email/templates/offer-email'
 import crypto from 'crypto'
 import type {
   EmailTemplate,
@@ -502,18 +506,11 @@ export async function generateEmailPreview(
       return { success: false, error: 'Tilbud ikke fundet' }
     }
 
-    // Get template
-    const templateCode = input.template_code || 'offer_send'
-    const template = await getEmailTemplateByCode(templateCode)
-    if (!template) {
-      return { success: false, error: 'E-mail skabelon ikke fundet' }
-    }
-
     // Get company settings
     const settingsResult = await getCompanySettings()
     const settings = settingsResult.success ? settingsResult.data : null
 
-    // Get or create portal token
+    // Get or create portal token for offer link
     let portalToken = ''
     const { data: existingToken } = await supabase
       .from('portal_access_tokens')
@@ -536,32 +533,57 @@ export async function generateEmailPreview(
     }
 
     const appUrl = APP_URL
-    const portalLink = `${appUrl}/portal/${portalToken}/offers/${offer.id}`
-    const trackingPixel = `${appUrl}/api/email/track/pixel?t=${generateTrackingId()}`
+    const portalLink = portalToken
+      ? `${appUrl}/portal/${portalToken}/offers/${offer.id}`
+      : `${appUrl}/view-offer/${offer.id}`
 
-    // Build variables
+    // Fetch line items for the branded template
+    const { data: lineItems } = await supabase
+      .from('offer_line_items')
+      .select('*')
+      .eq('offer_id', offer.id)
+      .order('position', { ascending: true })
+
+    // Build full offer object for the branded template
+    const fullOffer = {
+      ...offer,
+      line_items: lineItems || [],
+    }
+
+    // Use the branded Elta Solar HTML template (code-based, not DB)
+    const companySettings = {
+      company_name: settings?.company_name || 'Elta Solar ApS',
+      company_email: settings?.company_email || 'ordre@eltasolar.dk',
+      company_phone: settings?.company_phone || '',
+      company_address: settings?.company_address || '',
+      company_postal_code: settings?.company_postal_code || '',
+      company_city: settings?.company_city || '',
+      company_vat_number: settings?.company_vat_number || '44291028',
+      company_website: settings?.company_website || 'eltasolar.dk',
+    }
+
+    const subject = `Tilbud ${offer.offer_number}: ${offer.title}`
+    const bodyHtml = generateOfferEmailHtml({
+      offer: fullOffer as any,
+      companySettings: companySettings as any,
+      portalUrl: portalLink,
+    })
+    const bodyText = generateOfferEmailText({
+      offer: fullOffer as any,
+      companySettings: companySettings as any,
+      portalUrl: portalLink,
+    })
+
+    // Build variables for tracking/reference
     const variables: Record<string, string> = {
       customer_name: offer.customer?.contact_person || offer.customer?.company_name || 'Kunde',
       offer_number: offer.offer_number || '',
       offer_title: offer.title || '',
-      offer_description: offer.description || '',
       total_amount: formatCurrency(offer.final_amount || 0),
       valid_until: offer.valid_until ? formatDateLongDK(offer.valid_until) : '',
       portal_link: portalLink,
-      company_name: settings?.company_name || 'Elta Solar',
-      company_email: settings?.company_email || '',
-      company_phone: settings?.company_phone || '',
-      company_address: settings?.company_address || '',
-      sender_name: settings?.company_name || 'Elta Solar',
-      tracking_pixel: trackingPixel,
+      company_name: companySettings.company_name,
     }
-
-    // Render template
-    const subject = renderTemplate(template.subject_template, variables).replace(/[\r\n]/g, '')
-    const bodyHtml = renderTemplate(template.body_html_template, variables)
-    const bodyText = template.body_text_template
-      ? renderTemplate(template.body_text_template, variables)
-      : ''
 
     // Get Graph mailbox for from address
     const graphMailbox = isGraphConfigured() ? getMailbox() : ''

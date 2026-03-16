@@ -1,3 +1,10 @@
+/**
+ * Offer Email Template — Professional HTML for outbound offer emails
+ *
+ * Fully inline-styled for Outlook, Gmail, Apple Mail compatibility.
+ * Table-based layout. Uses Elta Solar brand colors from brand.ts.
+ * Matches the CRM reply template structure 1:1.
+ */
 import type { OfferWithRelations } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatDateLongDK, formatCurrency } from '@/lib/utils/format'
@@ -9,7 +16,6 @@ interface OfferEmailParams {
   portalUrl: string
 }
 
-
 export function generateOfferEmailHtml({
   offer,
   companySettings,
@@ -18,228 +24,260 @@ export function generateOfferEmailHtml({
   const customerName = offer.customer?.contact_person || 'Kunde'
   const companyName = offer.customer?.company_name || ''
 
-  return `
-<!DOCTYPE html>
-<html lang="da">
+  // Build detail rows
+  const detailRows: string[] = []
+
+  detailRows.push(detailRow('Tilbudsnummer', offer.offer_number))
+  detailRows.push(detailRow('Dato', formatDateLongDK(offer.created_at)))
+
+  if (offer.valid_until) {
+    detailRows.push(detailRow('Gyldig til', formatDateLongDK(offer.valid_until)))
+  }
+
+  detailRows.push(detailRow('Subtotal', formatCurrency(offer.total_amount, offer.currency, 2)))
+
+  if (offer.discount_percentage > 0) {
+    detailRows.push(detailRow(
+      `Rabat (${offer.discount_percentage}%)`,
+      `-${formatCurrency(offer.discount_amount, offer.currency, 2)}`,
+      '#dc2626'
+    ))
+  }
+
+  detailRows.push(detailRow(`Moms (${offer.tax_percentage}%)`, formatCurrency(offer.tax_amount, offer.currency, 2)))
+
+  const validUntilNote = offer.valid_until
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 24px 0;">
+        <tr>
+          <td style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 14px 18px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 13px; color: #92400e; border-radius: 4px;">
+            <strong>Bemærk:</strong> Dette tilbud er gyldigt til ${formatDateLongDK(offer.valid_until)}.
+          </td>
+        </tr>
+      </table>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html lang="da" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>Tilbud fra ${companySettings.company_name}</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-      background-color: #f4f4f4;
-    }
-    .container {
-      background-color: #ffffff;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    .header {
-      background-color: #2D8A2D;
-      color: white;
-      padding: 30px;
-      text-align: center;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 28px;
-    }
-    .header p {
-      margin: 10px 0 0 0;
-      opacity: 0.9;
-    }
-    .content {
-      padding: 30px;
-    }
-    .greeting {
-      font-size: 18px;
-      margin-bottom: 20px;
-    }
-    .offer-details {
-      background-color: #f8f9fa;
-      border-radius: 8px;
-      padding: 20px;
-      margin: 20px 0;
-    }
-    .offer-details h2 {
-      margin-top: 0;
-      color: #2D8A2D;
-      font-size: 20px;
-    }
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid #eee;
-    }
-    .detail-row:last-child {
-      border-bottom: none;
-    }
-    .detail-label {
-      color: #666;
-    }
-    .detail-value {
-      font-weight: 600;
-    }
-    .total-amount {
-      font-size: 24px;
-      color: #2D8A2D;
-      font-weight: bold;
-    }
-    .cta-container {
-      text-align: center;
-      margin: 30px 0;
-    }
-    .cta-button {
-      display: inline-block;
-      background-color: #2D8A2D;
-      color: white !important;
-      text-decoration: none;
-      padding: 15px 40px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 16px;
-    }
-    .cta-button:hover {
-      background-color: #236E23;
-    }
-    .note {
-      background-color: #fff3cd;
-      border-left: 4px solid #ffc107;
-      padding: 15px;
-      margin: 20px 0;
-      font-size: 14px;
-    }
-    .footer {
-      background-color: #f8f9fa;
-      padding: 20px 30px;
-      text-align: center;
-      font-size: 12px;
-      color: #666;
-      border-top: 1px solid #eee;
-    }
-    .footer a {
-      color: #2D8A2D;
-    }
-    .company-info {
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 1px solid #ddd;
-    }
-  </style>
+  <!--[if mso]>
+  <style>body,table,td,p,a{font-family:Arial,Helvetica,sans-serif!important;}</style>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div style="font-size: 36px; margin-bottom: 4px;">&#9788;</div>
-      <h1 style="margin: 0;">ELTA SOLAR</h1>
-      <p style="font-size: 11px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.8; margin: 6px 0 0 0;">Professionelle el- & solcelleinstallationer</p>
-      <p style="margin: 12px 0 0 0; font-size: 14px; opacity: 0.9;">Tilbud ${offer.offer_number}</p>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f0f2f5; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;">
 
-    <div class="content">
-      <p class="greeting">
-        Kære ${customerName}${companyName ? ` fra ${companyName}` : ''},
-      </p>
+  <!-- Outer wrapper -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f0f2f5;">
+    <tr>
+      <td align="center" style="padding: 32px 16px;">
 
-      <p>
-        Tak for din interesse. Vi har udarbejdet et tilbud til dig, som du kan se nedenfor.
-      </p>
+        <!-- Inner container (600px) -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%; border-collapse: separate;">
 
-      <div class="offer-details">
-        <h2>${offer.title}</h2>
+          <!-- ============================== -->
+          <!-- HEADER — Brand green with logo -->
+          <!-- ============================== -->
+          <tr>
+            <td style="background-color: ${BRAND_GREEN}; padding: 0; border-radius: 12px 12px 0 0;">
+              <!-- Orange accent line -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="height: 4px; background-color: ${BRAND_ORANGE}; border-radius: 12px 12px 0 0; font-size: 0; line-height: 0;">&nbsp;</td>
+                </tr>
+              </table>
+              <!-- Logo row -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding: 28px 32px 24px 32px;" align="center">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td align="center" style="padding-bottom: 8px;">
+                          <span style="font-size: 40px; line-height: 1;">&#9788;</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center">
+                          <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 28px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">
+                            ELTA SOLAR
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding-top: 4px;">
+                          <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 11px; color: rgba(255,255,255,0.70); letter-spacing: 1.5px; text-transform: uppercase;">
+                            Professionelle el- &amp; solcelleinstallationer
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding-top: 14px;">
+                          <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; color: rgba(255,255,255,0.85);">
+                            Tilbud ${offer.offer_number}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-        ${offer.description ? `<p>${offer.description}</p>` : ''}
+          <!-- ============================== -->
+          <!-- BODY — White card              -->
+          <!-- ============================== -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 36px 36px 12px 36px; border-left: 1px solid #e2e5e9; border-right: 1px solid #e2e5e9;">
+              <!-- Greeting -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 18px; line-height: 1.4; color: #1f2937; padding-bottom: 16px;">
+                    Kære ${customerName}${companyName ? ` fra ${companyName}` : ''},
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #374151; padding-bottom: 24px;">
+                    Tak for din interesse. Vi har udarbejdet et tilbud til dig, som du kan se nedenfor.
+                  </td>
+                </tr>
+              </table>
 
-        <div class="detail-row">
-          <span class="detail-label">Tilbudsnummer:</span>
-          <span class="detail-value">${offer.offer_number}</span>
-        </div>
+              <!-- Offer Details Box -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f8f9fa; border-radius: 8px; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <!-- Offer title -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 20px; font-weight: 700; color: ${BRAND_GREEN}; padding-bottom: 12px;">
+                          ${offer.title}
+                        </td>
+                      </tr>
+                      ${offer.description ? `<tr><td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; color: #4b5563; line-height: 1.6; padding-bottom: 16px;">${offer.description}</td></tr>` : ''}
+                    </table>
 
-        <div class="detail-row">
-          <span class="detail-label">Dato:</span>
-          <span class="detail-value">${formatDateLongDK(offer.created_at)}</span>
-        </div>
+                    <!-- Detail rows -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      ${detailRows.join('')}
+                    </table>
 
-        ${offer.valid_until ? `
-        <div class="detail-row">
-          <span class="detail-label">Gyldig til:</span>
-          <span class="detail-value">${formatDateLongDK(offer.valid_until)}</span>
-        </div>
-        ` : ''}
+                    <!-- TOTAL row -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top: 12px; border-top: 2px solid ${BRAND_GREEN};">
+                      <tr>
+                        <td style="padding-top: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 18px; font-weight: 700; color: #1f2937;">
+                          Total:
+                        </td>
+                        <td align="right" style="padding-top: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 24px; font-weight: 800; color: ${BRAND_GREEN};">
+                          ${formatCurrency(offer.final_amount, offer.currency, 2)}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
 
-        <div class="detail-row">
-          <span class="detail-label">Subtotal:</span>
-          <span class="detail-value">${formatCurrency(offer.total_amount, offer.currency, 2)}</span>
-        </div>
+              <!-- CTA Button -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 8px 0 24px 0;">
+                <tr>
+                  <td align="center">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${portalUrl}" style="height:56px;v-text-anchor:middle;width:380px;" arcsize="14%" strokecolor="${BRAND_GREEN}" fillcolor="${BRAND_GREEN}">
+                    <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">&#9788; Se dit personlige solcelletilbud</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-->
+                    <a href="${portalUrl}" target="_blank" style="display: inline-block; padding: 17px 44px; background-color: ${BRAND_GREEN}; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 17px; font-weight: 700; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px; box-shadow: 0 4px 14px rgba(45,138,45,0.35);">
+                      &#9788;&nbsp; Se dit personlige solcelletilbud
+                    </a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-top: 12px;">
+                    <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 13px; color: #6b7280;">
+                      Klik for at se og acceptere dit tilbud online
+                    </span>
+                  </td>
+                </tr>
+              </table>
 
-        ${offer.discount_percentage > 0 ? `
-        <div class="detail-row">
-          <span class="detail-label">Rabat (${offer.discount_percentage}%):</span>
-          <span class="detail-value" style="color: #dc2626;">-${formatCurrency(offer.discount_amount, offer.currency, 2)}</span>
-        </div>
-        ` : ''}
+              ${validUntilNote}
 
-        <div class="detail-row">
-          <span class="detail-label">Moms (${offer.tax_percentage}%):</span>
-          <span class="detail-value">${formatCurrency(offer.tax_amount, offer.currency, 2)}</span>
-        </div>
+              <!-- Closing text -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #374151; padding-bottom: 8px;">
+                    Har du spørgsmål til tilbuddet, er du velkommen til at kontakte os.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #374151; padding-top: 16px; padding-bottom: 8px;">
+                    Med venlig hilsen,<br />
+                    <strong style="color: #1f2937;">${companySettings.company_name}</strong>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-        <div class="detail-row" style="padding-top: 15px; margin-top: 10px; border-top: 2px solid #2D8A2D;">
-          <span class="detail-label" style="font-size: 18px; font-weight: bold;">Total:</span>
-          <span class="total-amount">${formatCurrency(offer.final_amount, offer.currency, 2)}</span>
-        </div>
-      </div>
+          <!-- ============================== -->
+          <!-- FOOTER — Green branded         -->
+          <!-- ============================== -->
+          <tr>
+            <td style="padding: 24px 36px; border-radius: 0 0 12px 12px; background-color: ${BRAND_GREEN};">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td align="center" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.8); line-height: 1.8;">
+                    <strong style="color: #ffffff;">${companySettings.company_name}</strong>
+                    ${companySettings.company_vat_number ? ` &bull; CVR: ${companySettings.company_vat_number}` : ''}
+                    <br />
+                    ${companySettings.company_address ? `${companySettings.company_address}<br />` : ''}
+                    ${companySettings.company_postal_code && companySettings.company_city ? `${companySettings.company_postal_code} ${companySettings.company_city}<br />` : ''}
+                    ${companySettings.company_phone ? `Tlf: ${companySettings.company_phone} &bull; ` : ''}
+                    ${companySettings.company_email ? `<a href="mailto:${companySettings.company_email}" style="color: rgba(255,255,255,0.9); text-decoration: none;">${companySettings.company_email}</a>` : ''}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-      <div class="cta-container">
-        <a href="${portalUrl}" class="cta-button">&#9788; Se dit personlige solcelletilbud</a>
-      </div>
+        </table>
+        <!-- /Inner container -->
 
-      <p>
-        Ved at klikke på knappen ovenfor kan du se det fulde tilbud med alle detaljer og acceptere det digitalt.
-      </p>
+        <!-- Micro-text -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%;">
+          <tr>
+            <td align="center" style="padding: 16px 0;">
+              <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 11px; color: #b0b5bd;">
+                Denne email er sendt fra ${companySettings.company_name}.
+              </span>
+            </td>
+          </tr>
+        </table>
 
-      ${offer.valid_until ? `
-      <div class="note">
-        <strong>Bemærk:</strong> Dette tilbud er gyldigt til ${formatDateLongDK(offer.valid_until)}.
-      </div>
-      ` : ''}
+      </td>
+    </tr>
+  </table>
 
-      <p>
-        Har du spørgsmål til tilbuddet, er du velkommen til at kontakte os.
-      </p>
-
-      <p>
-        Med venlig hilsen,<br>
-        <strong>${companySettings.company_name}</strong>
-      </p>
-    </div>
-
-    <div class="footer">
-      <p>
-        Denne email er sendt fra ${companySettings.company_name}.
-      </p>
-      <div class="company-info">
-        <strong>${companySettings.company_name}</strong><br>
-        ${companySettings.company_address ? `${companySettings.company_address}<br>` : ''}
-        ${companySettings.company_postal_code && companySettings.company_city ? `${companySettings.company_postal_code} ${companySettings.company_city}<br>` : ''}
-        ${companySettings.company_vat_number ? `CVR: ${companySettings.company_vat_number}<br>` : ''}
-        ${companySettings.company_phone ? `Tlf: ${companySettings.company_phone}<br>` : ''}
-        ${companySettings.company_email ? `<a href="mailto:${companySettings.company_email}">${companySettings.company_email}</a>` : ''}
-      </div>
-    </div>
-  </div>
 </body>
-</html>
-`
+</html>`
 }
+
+function detailRow(label: string, value: string, valueColor?: string): string {
+  return `<tr>
+    <td style="padding: 9px 0; border-bottom: 1px solid #eee; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; color: #6b7280;">
+      ${label}
+    </td>
+    <td align="right" style="padding: 9px 0; border-bottom: 1px solid #eee; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; font-weight: 600; color: ${valueColor || '#1f2937'};">
+      ${value}
+    </td>
+  </tr>`
+}
+
 
 export function generateOfferEmailText({
   offer,
@@ -250,8 +288,10 @@ export function generateOfferEmailText({
   const companyName = offer.customer?.company_name || ''
 
   return `
+ELTA SOLAR — Professionelle el- & solcelleinstallationer
+=========================================================
+
 TILBUD ${offer.offer_number}
-==============================
 
 Kære ${customerName}${companyName ? ` fra ${companyName}` : ''},
 
