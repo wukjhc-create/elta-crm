@@ -1024,7 +1024,7 @@ export async function autoRelinkEmail(
 
     if (result.status === 'linked' && result.customerId) {
       revalidatePath('/dashboard/mail')
-      return { linked: true, customerId: result.customerId, customerName: result.customerName || undefined }
+      return { linked: true, customerId: result.customerId }
     }
 
     return { linked: false }
