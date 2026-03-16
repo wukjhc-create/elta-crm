@@ -21,7 +21,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
-import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars } from '@/lib/actions/incoming-emails'
+import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars, autoRelinkEmail } from '@/lib/actions/incoming-emails'
 import type { IncomingEmailWithCustomer, EmailLinkStatus } from '@/types/mail-bridge.types'
 
 // =====================================================
@@ -144,6 +144,18 @@ export function MailDetail({
       })
     }
   }, [email.id, email.link_status, email.customer_id])
+
+  // Auto-relink: try to match unlinked emails on view
+  useEffect(() => {
+    if (email.link_status === 'pending' || email.link_status === 'unidentified') {
+      autoRelinkEmail(email.id).then((result) => {
+        if (result.linked) {
+          // Trigger refresh of the email list
+          onAttachmentsBackfilled()
+        }
+      })
+    }
+  }, [email.id, email.link_status])
 
   const handleQuickReply = async (template: string) => {
     setIsSendingReply(template)

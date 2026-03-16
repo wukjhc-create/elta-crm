@@ -107,3 +107,34 @@ export async function getCustomerSentQuotes(customerId: string): Promise<Custome
 
   return (data || []) as CustomerSentQuote[]
 }
+
+export interface CustomerEmail {
+  id: string
+  subject: string | null
+  sender_email: string
+  sender_name: string | null
+  received_at: string
+  is_read: boolean
+  link_status: string
+  body_preview: string | null
+  has_attachments: boolean
+}
+
+export async function getCustomerEmails(customerId: string): Promise<CustomerEmail[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('incoming_emails')
+    .select('id, subject, sender_email, sender_name, received_at, is_read, link_status, body_preview, has_attachments')
+    .eq('customer_id', customerId)
+    .eq('is_archived', false)
+    .order('received_at', { ascending: false })
+    .limit(50)
+
+  if (error) {
+    logger.error('Failed to fetch customer emails', { error, entityId: customerId })
+    return []
+  }
+
+  return (data || []) as CustomerEmail[]
+}

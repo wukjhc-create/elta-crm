@@ -30,6 +30,7 @@ import { CustomerPricing } from '@/components/modules/customers/customer-pricing
 import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { CustomerTasks } from '@/components/modules/customers/customer-tasks'
 import { CustomerActivityOverview } from '@/components/modules/customers/customer-activity-overview'
+import { CustomerEmailTimeline } from '@/components/modules/customers/customer-email-timeline'
 import {
   deleteCustomer,
   toggleCustomerActive,
@@ -424,6 +425,9 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
                 </div>
               )}
             </div>
+
+            {/* Email Timeline */}
+            <CustomerEmailTimeline customerId={customer.id} customerEmail={customer.email} />
 
             {/* Tasks */}
             <CustomerTasks customerId={customer.id} />

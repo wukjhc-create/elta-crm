@@ -988,3 +988,41 @@ export async function findCustomerSuggestions(
 
   return { suggestions, detectedPhone: phone, detectedOrderId }
 }
+
+// =====================================================
+// AUTO-RELINK — try to match email on every view
+// =====================================================
+
+/**
+ * Attempt to auto-link an email to a customer.
+ * Called when viewing an unlinked email in the detail pane.
+ * Runs the linker service and returns whether a match was found.
+ */
+export async function autoRelinkEmail(
+  emailId: string
+): Promise<{ linked: boolean; customerId?: string; customerName?: string }> {
+  validateUUID(emailId, 'emailId')
+
+  const email = await getIncomingEmail(emailId)
+  if (!email) return { linked: false }
+
+  // Skip if already linked or ignored
+  if (email.link_status === 'linked' || email.link_status === 'ignored') {
+    return { linked: email.link_status === 'linked', customerId: email.customer_id || undefined }
+  }
+
+  try {
+    const { linkEmail } = await import('@/lib/services/email-linker')
+    const result = await linkEmail(emailId)
+
+    if (result.status === 'linked' && result.customerId) {
+      revalidatePath('/dashboard/mail')
+      return { linked: true, customerId: result.customerId, customerName: result.customerName || undefined }
+    }
+
+    return { linked: false }
+  } catch (err) {
+    logger.error('autoRelinkEmail failed', { error: err, entityId: emailId })
+    return { linked: false }
+  }
+}
