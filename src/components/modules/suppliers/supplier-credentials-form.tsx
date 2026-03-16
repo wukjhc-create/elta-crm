@@ -74,10 +74,13 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
   const [testing, setTesting] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
-  const [formData, setFormData] = useState<CredentialFormData>(EMPTY_FORM)
-
   // Determine which fields to show based on supplier
   const supplierFields = getSupplierFields(supplierCode)
+
+  const [formData, setFormData] = useState<CredentialFormData>({
+    ...EMPTY_FORM,
+    credential_type: supplierFields.defaultCredentialType || EMPTY_FORM.credential_type,
+  })
 
   useEffect(() => {
     loadCredentials()
@@ -93,6 +96,12 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
   }
 
   async function handleCreate() {
+    // Validate required FTP host
+    if (formData.credential_type === 'ftp' && !formData.api_endpoint.trim()) {
+      toast.error('FTP Host er påkrævet', 'Indtast FTP-serverens hostname (f.eks. ftp.lemu.dk)')
+      return
+    }
+
     setSaving(true)
     const result = await createSupplierCredential({
       supplier_id: supplierId,
@@ -172,7 +181,7 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
     )
   }
 
-  // LM uses CSV import only — show info panel instead of credential form
+  // Show info panel for CSV-only suppliers (no API/FTP credentials needed)
   if (supplierFields.isCSVOnly) {
     return (
       <div className="space-y-6">
@@ -215,10 +224,10 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Key className="w-5 h-5 text-blue-600" />
-            API Loginoplysninger
+            {supplierFields.defaultCredentialType === 'ftp' ? 'FTP Loginoplysninger' : 'API Loginoplysninger'}
           </h3>
           <p className="text-sm text-gray-500 mt-1">
-            Gem loginoplysninger til leverandørens API for automatisk prissynkronisering
+            {supplierFields.description || 'Gem loginoplysninger til leverandørens API for automatisk prissynkronisering'}
           </p>
         </div>
         {!showAddForm && (
@@ -263,16 +272,21 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
               </select>
             </div>
 
-            {/* API Endpoint */}
+            {/* API Endpoint / FTP Host */}
             {supplierFields.showEndpoint && (
               <div className="col-span-2">
-                <Label>API Endpoint URL</Label>
+                <Label>{supplierFields.endpointLabel || 'API Endpoint URL'}</Label>
                 <Input
                   className="mt-1"
                   placeholder={supplierFields.endpointPlaceholder}
                   value={formData.api_endpoint}
                   onChange={(e) => setFormData({ ...formData, api_endpoint: e.target.value })}
                 />
+                {supplierFields.defaultCredentialType === 'ftp' && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Format: hostname eller hostname:port (standard port 21)
+                  </p>
+                )}
               </div>
             )}
 
@@ -382,7 +396,9 @@ export function SupplierCredentialsForm({ supplierId, supplierCode }: SupplierCr
           <Key className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">Ingen loginoplysninger tilføjet endnu</p>
           <p className="text-sm text-gray-400 mt-1">
-            Tilføj API login for at aktivere automatisk prissynkronisering
+            {supplierFields.defaultCredentialType === 'ftp'
+              ? 'Tilføj FTP login for at aktivere automatisk prissynkronisering'
+              : 'Tilføj API login for at aktivere automatisk prissynkronisering'}
           </p>
         </div>
       ) : (
@@ -514,21 +530,27 @@ function getSupplierFields(supplierCode: string | null) {
       showClientId: false,
       showClientSecret: false,
       isCSVOnly: false,
+      defaultCredentialType: 'api' as CredentialType,
+      endpointLabel: 'API Endpoint URL',
+      description: 'Gem loginoplysninger til AO\'s API for automatisk prissynkronisering',
     }
   }
 
   if (code === 'LM') {
     return {
-      showEndpoint: false,
-      endpointPlaceholder: '',
-      showUsername: false,
-      showPassword: false,
-      showCustomerNumber: false,
+      showEndpoint: true,
+      endpointPlaceholder: 'ftp.lemu.dk',
+      showUsername: true,
+      showPassword: true,
+      showCustomerNumber: true,
       showPriceListCode: false,
       showApiKey: false,
       showClientId: false,
       showClientSecret: false,
-      isCSVOnly: true,
+      isCSVOnly: false,
+      defaultCredentialType: 'ftp' as CredentialType,
+      endpointLabel: 'FTP Host',
+      description: 'Gem FTP-loginoplysninger til Lemvigh-Müllers prislistefiler for automatisk synkronisering',
     }
   }
 
@@ -544,5 +566,8 @@ function getSupplierFields(supplierCode: string | null) {
     showClientId: true,
     showClientSecret: true,
     isCSVOnly: false,
+    defaultCredentialType: 'api' as CredentialType,
+    endpointLabel: 'API Endpoint URL',
+    description: undefined as string | undefined,
   }
 }

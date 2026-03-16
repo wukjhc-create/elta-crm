@@ -82,7 +82,7 @@ export async function importFromFtp(
 
     const decrypted = await decryptCredentials(credRow.credentials_encrypted) as Record<string, string>
     const ftpCreds = buildFtpCredentials(
-      { username: decrypted.username, password: decrypted.password, api_endpoint: credRow.api_endpoint || undefined },
+      { username: decrypted.username, password: decrypted.password, api_endpoint: credRow.api_endpoint || undefined, host: decrypted.host },
       code
     )
 

@@ -9,6 +9,7 @@ export const SETTING_CATEGORIES = [
   'work_hours',
   'defaults',
   'labor_types',
+  'transport',
 ] as const
 export type SettingCategory = (typeof SETTING_CATEGORIES)[number]
 
@@ -83,6 +84,11 @@ export interface CalculationSettings {
     currency: string
     validity_days: number
     payment_terms_days: number
+  }
+  transport: {
+    flat_fee: number
+    km_rate: number
+    free_km: number
   }
   labor_types: LaborType[]
 }

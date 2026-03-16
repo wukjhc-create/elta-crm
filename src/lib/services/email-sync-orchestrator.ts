@@ -264,21 +264,23 @@ async function updateSyncState(
   error: string | null,
   emailsInserted: number
 ): Promise<void> {
-  const updateData: Record<string, unknown> = {
-    last_sync_at: new Date().toISOString(),
+  const now = new Date().toISOString()
+
+  // Upsert: creates the row if this is a new mailbox (e.g. switching from crm@ to ordre@)
+  const upsertData: Record<string, unknown> = {
+    mailbox,
+    last_sync_at: now,
     last_sync_status: status,
     last_sync_error: error,
   }
 
-  // Only update delta_link if we got a new one
   if (newDeltaLink) {
-    updateData.delta_link = newDeltaLink
+    upsertData.delta_link = newDeltaLink
   }
 
-  const { error: updateError } = await supabase
+  const { error: upsertError } = await supabase
     .from('graph_sync_state')
-    .update(updateData)
-    .eq('mailbox', mailbox)
+    .upsert(upsertData, { onConflict: 'mailbox' })
 
   // Also increment total counter
   if (emailsInserted > 0) {
@@ -306,7 +308,7 @@ async function updateSyncState(
     }
   }
 
-  if (updateError) {
-    logger.error('Failed to update sync state', { error: updateError })
+  if (upsertError) {
+    logger.error('Failed to update sync state', { error: upsertError })
   }
 }

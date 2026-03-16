@@ -62,6 +62,11 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
         validity_days: OFFER_VALIDITY_DAYS,
         payment_terms_days: CALC_DEFAULTS.PAYMENT_TERMS_DAYS,
       },
+      transport: {
+        flat_fee: 450,
+        km_rate: 7.5,
+        free_km: 20,
+      },
       labor_types: [],
     }
 
@@ -128,6 +133,11 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
           break
         case 'default_payment_terms':
           settings.defaults.payment_terms_days = (value.days as number) || CALC_DEFAULTS.PAYMENT_TERMS_DAYS
+          break
+        case 'transport_fee':
+          settings.transport.flat_fee = (value.flat_fee as number) ?? 450
+          settings.transport.km_rate = (value.km_rate as number) ?? 7.5
+          settings.transport.free_km = (value.free_km as number) ?? 20
           break
         case 'labor_types':
           settings.labor_types = (value.types as typeof settings.labor_types) || []

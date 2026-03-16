@@ -270,7 +270,10 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                     />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
-                    {LEAD_SOURCE_LABELS[lead.source]}
+                    <span className="inline-flex items-center gap-1.5">
+                      {lead.source === 'email' && <Mail className="w-3.5 h-3.5 text-amber-500" />}
+                      {LEAD_SOURCE_LABELS[lead.source]}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">

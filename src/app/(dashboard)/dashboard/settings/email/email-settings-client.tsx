@@ -261,7 +261,7 @@ export function EmailSettingsClient({
                   <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">AZURE_TENANT_ID</code> — Azure AD tenant</li>
                   <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">AZURE_CLIENT_ID</code> — App registration client ID</li>
                   <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">AZURE_CLIENT_SECRET</code> — App registration secret</li>
-                  <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">GRAPH_MAILBOX</code> — Postkasse (f.eks. crm@eltasolar.dk)</li>
+                  <li><code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">GRAPH_MAILBOX</code> — Delt postkasse (f.eks. ordre@eltasolar.dk)</li>
                 </ul>
               </div>
 

@@ -350,12 +350,12 @@ export async function testSupplierConnection(
     // Branch by credential type
     if (credential.credential_type === 'ftp') {
       // ===== FTP Connection Test =====
-      const decrypted = await decryptCredentials(credential.credentials_encrypted) as CredentialInput
+      const decrypted = await decryptCredentials(credential.credentials_encrypted) as CredentialInput & { host?: string }
       const { buildFtpCredentials, testFtpConnection } = await import('@/lib/services/supplier-ftp-sync')
 
       try {
         const ftpCreds = buildFtpCredentials(
-          { username: decrypted.username, password: decrypted.password, api_endpoint: credential.api_endpoint || undefined },
+          { username: decrypted.username, password: decrypted.password, api_endpoint: credential.api_endpoint || undefined, host: decrypted.host },
           supplierCode || 'UNKNOWN'
         )
         const ftpResult = await testFtpConnection(ftpCreds)

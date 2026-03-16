@@ -1,14 +1,16 @@
 /**
  * Microsoft Graph API Client — Mail Bridge
  *
- * Minimal implementation for polling one shared mailbox (crm@eltasolar.dk).
- * Uses OAuth2 client_credentials flow (app-only, no user interaction).
+ * Polls a shared mailbox (ordre@eltasolar.dk) via app-only permissions.
+ * Uses OAuth2 client_credentials flow (no user interaction).
+ * For shared mailboxes, the app needs Mail.Read + Mail.Send application
+ * permissions in Azure AD — no additional mailbox delegation needed.
  *
  * Required env vars:
  *   AZURE_TENANT_ID     - Azure AD tenant
  *   AZURE_CLIENT_ID     - App registration client ID
  *   AZURE_CLIENT_SECRET  - App registration secret
- *   GRAPH_MAILBOX        - Mailbox to poll (default: crm@eltasolar.dk)
+ *   GRAPH_MAILBOX        - Shared mailbox to poll (default: ordre@eltasolar.dk)
  */
 
 import { logger } from '@/lib/utils/logger'
@@ -25,7 +27,7 @@ import type {
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token'
 const GRAPH_SCOPE = 'https://graph.microsoft.com/.default'
-const DEFAULT_MAILBOX = 'crm@eltasolar.dk'
+const DEFAULT_MAILBOX = 'ordre@eltasolar.dk'
 const MAX_MESSAGES_PER_POLL = 50
 
 // =====================================================
@@ -249,20 +251,28 @@ export async function fetchAttachmentContent(
 }
 
 /**
- * Fetch a message with attachments expanded inline (single API call).
- * More efficient than separate calls when you need both message + attachments.
+ * Fetch a message with its attachments (including contentBytes).
+ * Uses the /attachments collection endpoint which returns contentBytes by default.
+ * Note: $expand=attachments($select=contentBytes) does NOT work in Graph API.
  */
 export async function fetchMessageWithAttachments(
   messageId: string
 ): Promise<GraphMailMessage> {
   const { mailbox } = getConfig()
 
-  const url =
+  // Fetch message metadata
+  const msgUrl =
     `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/messages/${messageId}` +
-    `?$expand=attachments($select=id,name,contentType,size,contentBytes)` +
-    `&$select=id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,replyTo,hasAttachments,receivedDateTime,isRead`
+    `?$select=id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,replyTo,hasAttachments,receivedDateTime,isRead`
+  const message: GraphMailMessage = await graphFetch(msgUrl)
 
-  return graphFetch(url)
+  // Fetch attachments separately (this returns contentBytes by default)
+  const attUrl =
+    `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/messages/${messageId}/attachments`
+  const attData = await graphFetch<{ value: GraphAttachment[] }>(attUrl)
+  message.attachments = attData.value || []
+
+  return message
 }
 
 /**

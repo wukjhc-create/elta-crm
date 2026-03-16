@@ -173,7 +173,7 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
           </TabsTrigger>
           <TabsTrigger value="credentials">
             <Key className="w-4 h-4 mr-2" />
-            {isLM ? 'Classic Import' : 'API Login'}
+            {isLM ? 'FTP Login' : 'API Login'}
           </TabsTrigger>
           <TabsTrigger value="margins">
             <Percent className="w-4 h-4 mr-2" />
@@ -212,15 +212,16 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
 
         <TabsContent value="credentials" className="mt-6">
           <div className="bg-white rounded-lg border p-6">
-            {isLM ? (
-              <LMClassicImportPanel supplierId={currentSupplier.id} />
-            ) : (
-              <SupplierCredentialsForm
-                supplierId={currentSupplier.id}
-                supplierCode={currentSupplier.code}
-              />
-            )}
+            <SupplierCredentialsForm
+              supplierId={currentSupplier.id}
+              supplierCode={currentSupplier.code}
+            />
           </div>
+          {isLM && (
+            <div className="bg-white rounded-lg border p-6 mt-4">
+              <LMClassicImportPanel supplierId={currentSupplier.id} />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="margins" className="mt-6">

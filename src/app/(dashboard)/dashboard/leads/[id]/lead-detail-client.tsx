@@ -18,6 +18,8 @@ import {
   Building,
   Clock,
   MessageSquare,
+  ExternalLink,
+  Inbox,
 } from 'lucide-react'
 import { LeadStatusBadge } from '@/components/modules/leads/lead-status-badge'
 import { LeadForm } from '@/components/modules/leads/lead-form'
@@ -175,6 +177,33 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
               </div>
             </div>
 
+            {/* Email source banner */}
+            {lead.source === 'email' && lead.custom_fields && (lead.custom_fields as Record<string, string>).source_email_id && (() => {
+              const cf = lead.custom_fields as Record<string, string>
+              return (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                  <Inbox className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-amber-900">Oprettet fra email</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Emne: {cf.source_email_subject || 'Ukendt'}
+                      {cf.source_email_received_at && (
+                        <span className="ml-2">
+                          — modtaget {format(new Date(cf.source_email_received_at), 'd. MMM yyyy HH:mm', { locale: da })}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <a
+                    href={`/dashboard/mail?search=${encodeURIComponent(lead.email)}`}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 shrink-0"
+                  >
+                    Se i Mail <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )
+            })()}
+
             {/* Contact info */}
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-lg font-semibold mb-4">Kontaktoplysninger</h2>
@@ -233,8 +262,12 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
             {/* Notes */}
             {lead.notes && (
               <div className="bg-white rounded-lg border p-6">
-                <h2 className="text-lg font-semibold mb-4">Noter</h2>
-                <p className="text-gray-700 whitespace-pre-wrap">{lead.notes}</p>
+                <h2 className="text-lg font-semibold mb-4">
+                  {lead.source === 'email' ? 'Original email' : 'Noter'}
+                </h2>
+                <div className={`text-gray-700 whitespace-pre-wrap text-sm ${lead.source === 'email' ? 'font-mono bg-gray-50 rounded-md p-4 border max-h-[500px] overflow-y-auto' : ''}`}>
+                  {lead.notes}
+                </div>
               </div>
             )}
 

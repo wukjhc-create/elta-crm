@@ -497,7 +497,7 @@ export async function acceptOffer(
         getSmtpSettings(),
         getCompanySettings(),
       ])
-      const crmMailbox = process.env.GRAPH_MAILBOX || 'crm@eltasolar.dk'
+      const crmMailbox = process.env.GRAPH_MAILBOX || 'ordre@eltasolar.dk'
       const companyName = settingsResult.data?.company_name || 'Elta Solar'
 
       const smtpConfig = smtpResult.success && smtpResult.data

@@ -10,6 +10,7 @@ import {
   Settings2,
   Save,
   Users,
+  Truck,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import type { CalculationSettings } from '@/types/calculation-settings.types'
@@ -20,7 +21,7 @@ interface CalculationSettingsClientProps {
   initialSettings: CalculationSettings | null
 }
 
-type TabType = 'hourly_rates' | 'margins' | 'work_hours' | 'defaults'
+type TabType = 'hourly_rates' | 'margins' | 'work_hours' | 'transport' | 'defaults'
 
 export default function CalculationSettingsClient({
   initialSettings,
@@ -30,10 +31,11 @@ export default function CalculationSettingsClient({
   const [activeTab, setActiveTab] = useState<TabType>('hourly_rates')
   const [settings, setSettings] = useState<CalculationSettings>(
     initialSettings || {
-      hourly_rates: { electrician: 495, apprentice: 295, master: 650, helper: 350 },
-      margins: { materials: 25, products: 20, subcontractor: 10, default_db_target: 35, minimum_db: 20, db_green_threshold: 35, db_yellow_threshold: 20, db_red_threshold: 10 },
+      hourly_rates: { electrician: 695, apprentice: 295, master: 650, helper: 350 },
+      margins: { materials: 20, products: 20, subcontractor: 10, default_db_target: 35, minimum_db: 20, db_green_threshold: 35, db_yellow_threshold: 20, db_red_threshold: 10 },
       work_hours: { start: '07:00', end: '15:30', break_minutes: 30, overtime_multiplier: 1.5, weekend_multiplier: 2.0 },
       defaults: { vat_percentage: 25, currency: 'DKK', validity_days: 30, payment_terms_days: 14 },
+      transport: { flat_fee: 450, km_rate: 7.5, free_km: 20 },
       labor_types: [],
     }
   )
@@ -43,6 +45,7 @@ export default function CalculationSettingsClient({
     { id: 'hourly_rates' as TabType, label: 'Timepriser', icon: DollarSign },
     { id: 'margins' as TabType, label: 'Avancer', icon: Percent },
     { id: 'work_hours' as TabType, label: 'Arbejdstider', icon: Clock },
+    { id: 'transport' as TabType, label: 'Transport', icon: Truck },
     { id: 'defaults' as TabType, label: 'Standarder', icon: Settings2 },
   ]
 
@@ -114,6 +117,24 @@ export default function CalculationSettingsClient({
     })
   }
 
+  const handleSaveTransport = () => {
+    startTransition(async () => {
+      const result = await updateSetting('transport_fee', {
+        flat_fee: settings.transport.flat_fee,
+        km_rate: settings.transport.km_rate,
+        free_km: settings.transport.free_km,
+        label: 'Kørsel/transport',
+      })
+
+      if (result.success) {
+        success('Transport gemt')
+        setHasChanges(false)
+      } else {
+        showError('Kunne ikke gemme transport')
+      }
+    })
+  }
+
   const handleSaveDefaults = () => {
     startTransition(async () => {
       const results = await Promise.all([
@@ -144,6 +165,9 @@ export default function CalculationSettingsClient({
         break
       case 'work_hours':
         handleSaveWorkHours()
+        break
+      case 'transport':
+        handleSaveTransport()
         break
       case 'defaults':
         handleSaveDefaults()
@@ -705,6 +729,106 @@ export default function CalculationSettingsClient({
                       </p>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Transport Tab */}
+          {activeTab === 'transport' && (
+            <div className="bg-white rounded-lg border p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold mb-1">Transport & Kørsel</h2>
+                <p className="text-sm text-muted-foreground">
+                  Indstil standardgebyr for kørsel til byggepladser
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-6">
+                <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                  <label className="text-sm font-medium">Fast gebyr</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={settings.transport.flat_fee}
+                      onChange={(e) => {
+                        setSettings({
+                          ...settings,
+                          transport: {
+                            ...settings.transport,
+                            flat_fee: parseFloat(e.target.value) || 0,
+                          },
+                        })
+                        setHasChanges(true)
+                      }}
+                      className="w-full px-3 py-2 border rounded-md text-right"
+                    />
+                    <span className="text-muted-foreground">kr</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Fast pris pr. kørsel (dækker de første km)
+                  </p>
+                </div>
+
+                <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                  <label className="text-sm font-medium">Km-takst</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={settings.transport.km_rate}
+                      onChange={(e) => {
+                        setSettings({
+                          ...settings,
+                          transport: {
+                            ...settings.transport,
+                            km_rate: parseFloat(e.target.value) || 0,
+                          },
+                        })
+                        setHasChanges(true)
+                      }}
+                      className="w-full px-3 py-2 border rounded-md text-right"
+                    />
+                    <span className="text-muted-foreground">kr/km</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Pris pr. ekstra km efter frikørsel
+                  </p>
+                </div>
+
+                <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                  <label className="text-sm font-medium">Frikørsel</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={settings.transport.free_km}
+                      onChange={(e) => {
+                        setSettings({
+                          ...settings,
+                          transport: {
+                            ...settings.transport,
+                            free_km: parseInt(e.target.value) || 0,
+                          },
+                        })
+                        setHasChanges(true)
+                      }}
+                      className="w-full px-3 py-2 border rounded-md text-right"
+                    />
+                    <span className="text-muted-foreground">km</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Antal km inkluderet i fast gebyr
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="text-sm text-blue-800">
+                  <strong>Eksempel:</strong> Med de nuværende værdier koster en kørsel på 50 km:{' '}
+                  <strong>
+                    {settings.transport.flat_fee + Math.max(0, 50 - settings.transport.free_km) * settings.transport.km_rate} kr
+                  </strong>{' '}
+                  ({settings.transport.flat_fee} kr fast + {Math.max(0, 50 - settings.transport.free_km)} km × {settings.transport.km_rate} kr/km)
                 </div>
               </div>
             </div>

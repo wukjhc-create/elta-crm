@@ -24,12 +24,16 @@ import type {
 
 export async function getIncomingEmails(options?: {
   filter?: EmailLinkStatus | 'all' | 'ao_matches'
+  readFilter?: 'all' | 'read' | 'unread'
+  sortOrder?: 'newest' | 'oldest'
   search?: string
   page?: number
   pageSize?: number
 }): Promise<{ data: IncomingEmailWithCustomer[]; count: number }> {
   const supabase = await createClient()
   const filter = options?.filter || 'all'
+  const readFilter = options?.readFilter || 'all'
+  const sortOrder = options?.sortOrder || 'newest'
   const page = options?.page || 1
   const pageSize = options?.pageSize || 25
   const offset = (page - 1) * pageSize
@@ -50,10 +54,10 @@ export async function getIncomingEmails(options?: {
       { count: 'exact' }
     )
     .eq('is_archived', false)
-    .order('received_at', { ascending: false })
+    .order('received_at', { ascending: sortOrder === 'oldest' })
     .range(offset, offset + pageSize - 1)
 
-  // Apply filters
+  // Apply link status filter
   if (filter === 'linked') {
     query = query.eq('link_status', 'linked')
   } else if (filter === 'unidentified') {
@@ -64,6 +68,13 @@ export async function getIncomingEmails(options?: {
     query = query.eq('link_status', 'ignored')
   } else if (filter === 'ao_matches') {
     query = query.eq('has_ao_matches', true)
+  }
+
+  // Apply read/unread filter
+  if (readFilter === 'unread') {
+    query = query.eq('is_read', false)
+  } else if (readFilter === 'read') {
+    query = query.eq('is_read', true)
   }
 
   // Apply search
@@ -144,6 +155,57 @@ export async function getIncomingEmailStats(): Promise<{
 }
 
 // =====================================================
+// LEAD LOOKUP (for duplicate prevention)
+// =====================================================
+
+/**
+ * Check if a lead was already created from this email.
+ * Returns the lead ID + company name if found, null otherwise.
+ */
+export async function getLeadForEmail(
+  emailId: string
+): Promise<{ id: string; company_name: string; status: string } | null> {
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('leads')
+    .select('id, company_name, status')
+    .eq('custom_fields->>source_email_id', emailId)
+    .limit(1)
+    .maybeSingle()
+
+  return data as { id: string; company_name: string; status: string } | null
+}
+
+/**
+ * Batch check: which email IDs already have leads created from them.
+ * Returns a map of emailId → leadId.
+ */
+export async function getLeadsForEmails(
+  emailIds: string[]
+): Promise<Record<string, { leadId: string; status: string }>> {
+  if (emailIds.length === 0) return {}
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('leads')
+    .select('id, status, custom_fields')
+    .in('source', ['email'])
+
+  if (!data) return {}
+
+  const map: Record<string, { leadId: string; status: string }> = {}
+  for (const lead of data) {
+    const cf = lead.custom_fields as Record<string, unknown> | null
+    const sourceEmailId = cf?.source_email_id as string | undefined
+    if (sourceEmailId && emailIds.includes(sourceEmailId)) {
+      map[sourceEmailId] = { leadId: lead.id, status: lead.status }
+    }
+  }
+  return map
+}
+
+// =====================================================
 // WRITE operations
 // =====================================================
 
@@ -155,6 +217,17 @@ export async function markEmailAsRead(id: string): Promise<void> {
     .eq('id', id)
 
   if (error) throw new Error(`Kunne ikke markere som læst: ${error.message}`)
+  revalidatePath('/dashboard/mail')
+}
+
+export async function markEmailAsUnread(id: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('incoming_emails')
+    .update({ is_read: false })
+    .eq('id', id)
+
+  if (error) throw new Error(`Kunne ikke markere som ulæst: ${error.message}`)
   revalidatePath('/dashboard/mail')
 }
 
@@ -189,12 +262,153 @@ export async function ignoreIncomingEmail(emailId: string): Promise<void> {
 // =====================================================
 
 /**
+ * Clean email subject: strip Re:/Fwd:/SV:/VS: prefixes and trim.
+ */
+function cleanSubject(subject: string | null): string {
+  if (!subject) return 'Ukendt emne'
+  return subject
+    .replace(/^(?:(?:Re|Fwd|Fw|SV|VS|VB)\s*:\s*)+/gi, '')
+    .trim() || 'Ukendt emne'
+}
+
+/**
+ * Extract phone numbers from text using common Danish and international patterns.
+ * Returns the first match or null.
+ */
+function extractPhoneNumber(text: string | null): string | null {
+  if (!text) return null
+  // Danish patterns: +45 12 34 56 78, 12345678, 12 34 56 78, (+45) 12345678
+  // International: +XX XXXXXXXX
+  const patterns = [
+    /(?:\+45[\s.-]?)?(?:\d[\s.-]?){8}/,               // Danish 8-digit
+    /\+\d{1,3}[\s.-]?\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,4}/, // International
+    /(?:tlf|tel|telefon|mobil|mob|ring)[.:;\s]+([+\d][\d\s.-]{6,15})/i,  // Prefixed with label
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match) {
+      // Clean up: collapse whitespace/dots/dashes, return digits and +
+      const raw = match[1] || match[0]
+      const cleaned = raw.replace(/[\s.-]/g, '').trim()
+      // Must be at least 8 digits
+      if (cleaned.replace(/\D/g, '').length >= 8) {
+        return cleaned
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Build lead notes from email data: clean subject as title,
+ * body preview for context, and full body for reference.
+ */
+function buildLeadNotes(
+  subject: string,
+  bodyText: string | null,
+  bodyPreview: string | null,
+  senderEmail: string,
+  receivedAt: string
+): string {
+  const parts: string[] = []
+
+  // Header with metadata
+  const dateStr = new Date(receivedAt).toLocaleDateString('da-DK', {
+    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+  parts.push(`Oprettet fra email modtaget ${dateStr}`)
+  parts.push(`Fra: ${senderEmail}`)
+  parts.push(`Emne: ${subject}`)
+  parts.push('')
+
+  // Full email body (prefer plain text, truncate at 4000 chars to stay safe in DB)
+  const body = bodyText || bodyPreview || ''
+  if (body) {
+    parts.push('--- Original besked ---')
+    parts.push(body.length > 4000 ? body.substring(0, 4000) + '\n\n[Beskeden er forkortet]' : body)
+  }
+
+  return parts.join('\n')
+}
+
+/**
+ * Copy email attachments to a lead-specific folder in Supabase Storage.
+ * Source: email-attachments/{emailId}/*
+ * Dest:   lead-attachments/{leadId}/*
+ */
+async function copyAttachmentsToLead(emailId: string, leadId: string): Promise<void> {
+  const { createClient: createServiceClient } = await import('@supabase/supabase-js')
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return
+
+  const serviceSupabase = createServiceClient(url, key)
+
+  // Get attachment URLs from the email record
+  const { data: email } = await serviceSupabase
+    .from('incoming_emails')
+    .select('attachment_urls')
+    .eq('id', emailId)
+    .single()
+
+  const attachments = (email?.attachment_urls || []) as Array<{
+    filename: string
+    storagePath?: string
+    contentType?: string
+    size?: number
+    url?: string
+  }>
+
+  if (attachments.length === 0) return
+
+  for (const att of attachments) {
+    if (!att.storagePath) continue
+
+    try {
+      // Download from source path
+      const { data: fileData, error: dlError } = await serviceSupabase.storage
+        .from('attachments')
+        .download(att.storagePath)
+
+      if (dlError || !fileData) continue
+
+      // Upload to lead folder
+      const destPath = `lead-attachments/${leadId}/${att.filename}`
+      await serviceSupabase.storage
+        .from('attachments')
+        .upload(destPath, fileData, {
+          contentType: att.contentType || 'application/octet-stream',
+          upsert: true,
+        })
+
+      logger.info('Attachment copied to lead folder', {
+        entity: 'leads',
+        entityId: leadId,
+        metadata: { filename: att.filename, destPath },
+      })
+    } catch {
+      // Non-critical — log and continue
+      logger.warn('Failed to copy single attachment', {
+        metadata: { emailId, leadId, filename: att.filename },
+      })
+    }
+  }
+}
+
+/**
  * Create a new customer (+ lead) from an incoming email.
  * If the sender email already matches a customer, links instead of creating.
+ *
+ * Enhancements:
+ * - Extracts phone number from email body
+ * - Cleans subject (strips Re:/Fwd: prefixes) for lead title
+ * - Stores full email body in lead notes for traceability
+ * - Stores source email ID in lead custom_fields
  */
 export async function createCustomerFromEmail(
   emailId: string
-): Promise<{ success: boolean; customerId?: string; isExisting?: boolean; customerName?: string; error?: string }> {
+): Promise<{ success: boolean; customerId?: string; leadId?: string; isExisting?: boolean; customerName?: string; error?: string }> {
   validateUUID(emailId, 'emailId')
   const { supabase, userId } = await getAuthenticatedClient()
 
@@ -208,7 +422,11 @@ export async function createCustomerFromEmail(
 
   if (!senderEmail) return { success: false, error: 'Ingen afsender-email fundet' }
 
-  // 3. Check for existing customer by email
+  // 3. Clean subject and extract data from body
+  const cleanedSubject = cleanSubject(email.subject)
+  const phone = extractPhoneNumber(email.body_text) || extractPhoneNumber(email.body_preview)
+
+  // 4. Check for existing customer by email
   const { data: existingCustomer } = await supabase
     .from('customers')
     .select('id, company_name, customer_number')
@@ -232,7 +450,7 @@ export async function createCustomerFromEmail(
     return { success: true, customerId: existingCustomer.id, isExisting: true, customerName: existingCustomer.company_name }
   }
 
-  // 4. Generate customer number
+  // 5. Generate customer number
   const { data: lastCustomer } = await supabase
     .from('customers')
     .select('customer_number')
@@ -245,7 +463,7 @@ export async function createCustomerFromEmail(
     nextNumber = 'C' + (lastNum + 1).toString().padStart(6, '0')
   }
 
-  // 5. Create customer
+  // 6. Create customer
   const { data: newCustomer, error: customerError } = await supabase
     .from('customers')
     .insert({
@@ -253,8 +471,9 @@ export async function createCustomerFromEmail(
       company_name: senderName,
       contact_person: senderName,
       email: senderEmail,
+      phone: phone || null,
       tags: ['email'],
-      notes: `Oprettet fra email: "${email.subject}"`,
+      notes: `Oprettet fra email: "${cleanedSubject}"`,
       is_active: true,
       created_by: userId,
     })
@@ -266,23 +485,53 @@ export async function createCustomerFromEmail(
     return { success: false, error: customerError.message }
   }
 
-  // 6. Create lead
-  const { error: leadError } = await supabase.from('leads').insert({
+  // 7. Create lead with full email context
+  const leadNotes = buildLeadNotes(
+    cleanedSubject,
+    email.body_text,
+    email.body_preview,
+    senderEmail,
+    email.received_at
+  )
+
+  const { data: newLead, error: leadError } = await supabase.from('leads').insert({
     company_name: senderName,
     contact_person: senderName,
     email: senderEmail,
+    phone: phone || null,
     status: 'new',
     source: 'email',
-    notes: `Email emne: ${email.subject}`,
+    notes: leadNotes,
     tags: ['email'],
+    custom_fields: {
+      source_email_id: emailId,
+      source_email_subject: email.subject,
+      source_email_received_at: email.received_at,
+    },
     created_by: userId,
   })
+    .select('id')
+    .single()
 
   if (leadError) {
     logger.error('Failed to create lead from email', { error: leadError, metadata: { emailId } })
   }
 
-  // 7. Link the email
+  // 8. Copy attachments to lead folder (if any)
+  if (newLead?.id && email.has_attachments) {
+    try {
+      await copyAttachmentsToLead(emailId, newLead.id)
+    } catch (attErr) {
+      logger.warn('Failed to copy attachments to lead', {
+        entity: 'leads',
+        entityId: newLead.id,
+        error: attErr,
+        metadata: { emailId },
+      })
+    }
+  }
+
+  // 9. Link the email
   await supabase
     .from('incoming_emails')
     .update({
@@ -292,15 +541,69 @@ export async function createCustomerFromEmail(
     })
     .eq('id', emailId)
 
-  logger.info('Customer created from email', {
+  logger.info('Customer + lead created from email', {
     entity: 'customers',
     entityId: newCustomer.id,
-    metadata: { emailId, senderEmail },
+    metadata: { emailId, leadId: newLead?.id, senderEmail, phone, cleanedSubject },
   })
 
   revalidatePath('/dashboard/mail')
   revalidatePath('/dashboard/customers')
-  return { success: true, customerId: newCustomer.id, customerName: senderName }
+  revalidatePath('/dashboard/leads')
+  return { success: true, customerId: newCustomer.id, leadId: newLead?.id, customerName: senderName }
+}
+
+// =====================================================
+// ATTACHMENT BACKFILL
+// =====================================================
+
+/**
+ * Backfill attachments for an email that has has_attachments=true
+ * but no stored attachment URLs (e.g. synced via force-sync script).
+ */
+export async function backfillEmailAttachments(
+  emailId: string
+): Promise<{ success: boolean; count: number; error?: string }> {
+  validateUUID(emailId, 'emailId')
+  const supabase = await createClient()
+
+  // Fetch the email to get graph_message_id
+  const { data: email, error: fetchError } = await supabase
+    .from('incoming_emails')
+    .select('id, graph_message_id, has_attachments, attachment_urls')
+    .eq('id', emailId)
+    .single()
+
+  if (fetchError || !email) {
+    return { success: false, count: 0, error: 'Email ikke fundet' }
+  }
+
+  if (!email.has_attachments) {
+    return { success: true, count: 0 }
+  }
+
+  // Check if already has real URLs
+  const urls = email.attachment_urls as Array<{ url?: string }> | null
+  if (urls && urls.length > 0 && urls.some((u) => u.url && u.url.length > 0)) {
+    return { success: true, count: urls.length }
+  }
+
+  try {
+    const { processEmailAttachments } = await import(
+      '@/lib/services/email-attachment-storage'
+    )
+    const stored = await processEmailAttachments(emailId, email.graph_message_id)
+    revalidatePath('/dashboard/mail')
+    return { success: true, count: stored.length }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Ukendt fejl'
+    logger.error('Backfill attachments failed', {
+      entity: 'incoming_emails',
+      entityId: emailId,
+      error: err,
+    })
+    return { success: false, count: 0, error: msg }
+  }
 }
 
 // =====================================================
@@ -351,10 +654,11 @@ export async function applyEmailKalkiaPriceUpdates(emailId: string) {
 
 export async function getGraphSyncState(): Promise<GraphSyncState | null> {
   const supabase = await createClient()
+  const mailbox = process.env.GRAPH_MAILBOX || 'ordre@eltasolar.dk'
   const { data } = await supabase
     .from('graph_sync_state')
     .select('*')
-    .limit(1)
+    .eq('mailbox', mailbox)
     .maybeSingle()
 
   return data as GraphSyncState | null
@@ -386,7 +690,7 @@ export async function testGraphConnection(): Promise<{
   if (!isGraphConfigured()) {
     return {
       success: false,
-      mailbox: process.env.GRAPH_MAILBOX || 'crm@eltasolar.dk',
+      mailbox: process.env.GRAPH_MAILBOX || 'ordre@eltasolar.dk',
       error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET.',
     }
   }

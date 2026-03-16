@@ -136,10 +136,11 @@ export async function executeFtpSync(
  *   - password → FTP password
  */
 export function buildFtpCredentials(
-  decryptedCreds: { username?: string; password?: string; api_endpoint?: string },
+  decryptedCreds: { username?: string; password?: string; api_endpoint?: string; host?: string },
   supplierCode: string
 ): FtpCredentials {
-  let host = decryptedCreds.api_endpoint || ''
+  // Read host from api_endpoint (DB column), or fall back to 'host' key in encrypted blob
+  let host = decryptedCreds.api_endpoint || decryptedCreds.host || ''
   let port = 21
 
   // Parse host:port if present
@@ -151,7 +152,10 @@ export function buildFtpCredentials(
   }
 
   if (!host) {
-    throw new Error(`No FTP host configured for supplier ${supplierCode}`)
+    throw new Error(
+      `No FTP host configured for supplier ${supplierCode}. ` +
+      `Go to Settings → Suppliers → ${supplierCode} → FTP Login and enter the FTP host.`
+    )
   }
 
   if (!decryptedCreds.username || !decryptedCreds.password) {
