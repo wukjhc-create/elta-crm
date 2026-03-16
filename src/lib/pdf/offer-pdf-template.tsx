@@ -11,6 +11,7 @@ import {
 import type { OfferWithRelations, OfferLineItem } from '@/types/offers.types'
 import { formatDateLongDK, formatCurrency } from '@/lib/utils/format'
 import type { CompanySettings } from '@/types/company-settings.types'
+import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_GREEN_LIGHT, BRAND_GREEN_SECTION, BRAND_ORANGE } from '@/lib/brand'
 
 // Register fonts (using system fonts for simplicity)
 Font.register({
@@ -33,7 +34,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 30,
-    borderBottom: '2 solid #0066cc',
+    borderBottom: '2 solid #2D8A2D',
     paddingBottom: 20,
   },
   headerLeft: {
@@ -45,7 +46,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#0066cc',
+    color: '#2D8A2D',
     marginBottom: 5,
   },
   offerNumber: {
@@ -127,7 +128,7 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#0066cc',
+    backgroundColor: '#2D8A2D',
     padding: 8,
     color: '#fff',
   },
@@ -151,13 +152,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottom: '1 solid #ddd',
     padding: 8,
-    backgroundColor: '#e8f0fe',
+    backgroundColor: '#e8f5e8',
     marginTop: 4,
   },
   tableSectionText: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#0066cc',
+    color: '#2D8A2D',
   },
   // Line item with notes
   lineItemNotes: {
@@ -227,31 +228,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 10,
     marginTop: 10,
-    borderTop: '2 solid #0066cc',
+    borderTop: '2 solid #2D8A2D',
   },
   grandTotalLabel: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#0066cc',
+    color: '#2D8A2D',
   },
   grandTotalValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#0066cc',
+    color: '#2D8A2D',
     textAlign: 'right',
   },
   // Scope/introduction section
   scopeBox: {
-    backgroundColor: '#f0f7ff',
+    backgroundColor: '#f0f9f0',
     padding: 12,
     borderRadius: 4,
-    borderLeft: '3 solid #0066cc',
+    borderLeft: '3 solid #2D8A2D',
     marginBottom: 20,
   },
   scopeTitle: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#0066cc',
+    color: '#2D8A2D',
     marginBottom: 5,
   },
   scopeText: {
@@ -341,11 +342,18 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Orange accent top line */}
+        <View style={{ height: 4, backgroundColor: BRAND_ORANGE, marginBottom: 0, marginHorizontal: -40, marginTop: -40 }} />
+
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { marginTop: 20 }]}>
           <View style={styles.headerLeft}>
-            <Text style={styles.title}>TILBUD</Text>
-            <Text style={styles.offerNumber}>{offer.offer_number}</Text>
+            <Text style={{ fontSize: 36, marginBottom: 2 }}>☼</Text>
+            <Text style={styles.title}>ELTA SOLAR</Text>
+            <Text style={{ fontSize: 8, color: '#666', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
+              Professionelle el- &amp; solcelleinstallationer
+            </Text>
+            <Text style={styles.offerNumber}>Tilbud {offer.offer_number}</Text>
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.companyName}>{companySettings.company_name}</Text>

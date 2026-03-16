@@ -19,7 +19,7 @@ Font.register({
   ],
 })
 
-const ACCENT = '#0066cc'
+const ACCENT = '#2D8A2D'
 
 const styles = StyleSheet.create({
   page: {
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   customerName: { fontSize: 14, fontWeight: 'bold', marginBottom: 3 },
   customerDetail: { fontSize: 10, color: '#444', marginBottom: 2 },
   solarBox: {
-    backgroundColor: '#f0f7ff',
+    backgroundColor: '#f0f9f0',
     padding: 15,
     borderRadius: 4,
     borderLeft: `4 solid ${ACCENT}`,
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: 20 },
   offerTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   scopeBox: {
-    backgroundColor: '#f0f7ff',
+    backgroundColor: '#f0f9f0',
     padding: 12,
     borderRadius: 4,
     borderLeft: `3 solid ${ACCENT}`,
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottom: '1 solid #ddd',
     padding: 8,
-    backgroundColor: '#e8f0fe',
+    backgroundColor: '#e8f5e8',
     marginTop: 4,
   },
   tableSectionText: { fontSize: 10, fontWeight: 'bold', color: ACCENT },
@@ -294,11 +294,16 @@ export function SalesOfferPdfDocument({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Orange accent top line */}
+        <View style={{ height: 4, backgroundColor: '#E8841A', marginBottom: 0, marginHorizontal: -40, marginTop: -40 }} />
+
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { marginTop: 20 }]}>
           <View style={styles.headerLeft}>
-            <Text style={styles.title}>SALGSTILBUD</Text>
-            <Text style={styles.quoteNumber}>{quoteReference}</Text>
+            <Text style={{ fontSize: 36, marginBottom: 2 }}>☼</Text>
+            <Text style={styles.title}>ELTA SOLAR</Text>
+            <Text style={{ fontSize: 8, color: '#666', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Professionelle el- &amp; solcelleinstallationer</Text>
+            <Text style={styles.quoteNumber}>Salgstilbud {quoteReference}</Text>
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.companyName}>

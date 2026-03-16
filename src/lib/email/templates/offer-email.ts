@@ -1,6 +1,7 @@
 import type { OfferWithRelations } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatDateLongDK, formatCurrency } from '@/lib/utils/format'
+import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE } from '@/lib/brand'
 
 interface OfferEmailParams {
   offer: OfferWithRelations
@@ -41,7 +42,7 @@ export function generateOfferEmailHtml({
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     .header {
-      background-color: #0066cc;
+      background-color: #2D8A2D;
       color: white;
       padding: 30px;
       text-align: center;
@@ -69,7 +70,7 @@ export function generateOfferEmailHtml({
     }
     .offer-details h2 {
       margin-top: 0;
-      color: #0066cc;
+      color: #2D8A2D;
       font-size: 20px;
     }
     .detail-row {
@@ -89,7 +90,7 @@ export function generateOfferEmailHtml({
     }
     .total-amount {
       font-size: 24px;
-      color: #0066cc;
+      color: #2D8A2D;
       font-weight: bold;
     }
     .cta-container {
@@ -98,7 +99,7 @@ export function generateOfferEmailHtml({
     }
     .cta-button {
       display: inline-block;
-      background-color: #0066cc;
+      background-color: #2D8A2D;
       color: white !important;
       text-decoration: none;
       padding: 15px 40px;
@@ -107,7 +108,7 @@ export function generateOfferEmailHtml({
       font-size: 16px;
     }
     .cta-button:hover {
-      background-color: #0052a3;
+      background-color: #236E23;
     }
     .note {
       background-color: #fff3cd;
@@ -125,7 +126,7 @@ export function generateOfferEmailHtml({
       border-top: 1px solid #eee;
     }
     .footer a {
-      color: #0066cc;
+      color: #2D8A2D;
     }
     .company-info {
       margin-top: 15px;
@@ -137,8 +138,10 @@ export function generateOfferEmailHtml({
 <body>
   <div class="container">
     <div class="header">
-      <h1>Tilbud</h1>
-      <p>${offer.offer_number}</p>
+      <div style="font-size: 36px; margin-bottom: 4px;">&#9788;</div>
+      <h1 style="margin: 0;">ELTA SOLAR</h1>
+      <p style="font-size: 11px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.8; margin: 6px 0 0 0;">Professionelle el- & solcelleinstallationer</p>
+      <p style="margin: 12px 0 0 0; font-size: 14px; opacity: 0.9;">Tilbud ${offer.offer_number}</p>
     </div>
 
     <div class="content">
@@ -189,14 +192,14 @@ export function generateOfferEmailHtml({
           <span class="detail-value">${formatCurrency(offer.tax_amount, offer.currency, 2)}</span>
         </div>
 
-        <div class="detail-row" style="padding-top: 15px; margin-top: 10px; border-top: 2px solid #0066cc;">
+        <div class="detail-row" style="padding-top: 15px; margin-top: 10px; border-top: 2px solid #2D8A2D;">
           <span class="detail-label" style="font-size: 18px; font-weight: bold;">Total:</span>
           <span class="total-amount">${formatCurrency(offer.final_amount, offer.currency, 2)}</span>
         </div>
       </div>
 
       <div class="cta-container">
-        <a href="${portalUrl}" class="cta-button">Se tilbud og accepter</a>
+        <a href="${portalUrl}" class="cta-button">&#9788; Se dit personlige solcelletilbud</a>
       </div>
 
       <p>

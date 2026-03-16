@@ -20,15 +20,7 @@ import {
   PartyPopper,
 } from 'lucide-react'
 import { acceptPublicOffer, type PublicOffer } from '@/lib/actions/public-offer'
-
-// ── Brand Colors ──────────────────────────────────────
-const BRAND = {
-  green: '#2D8A2D',
-  greenDark: '#236E23',
-  greenLight: '#e8f5e8',
-  orange: '#E8841A',
-  orangeLight: '#fef3e2',
-}
+import { BRAND } from '@/lib/brand'
 
 interface OfferViewClientProps {
   offer: PublicOffer

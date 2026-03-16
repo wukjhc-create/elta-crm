@@ -29,11 +29,7 @@ export interface CrmReplyTemplateParams {
   ctaLabel?: string
 }
 
-// Brand constants
-const BRAND_GREEN = '#2D8A2D'
-const BRAND_GREEN_DARK = '#236E23'
-const BRAND_ORANGE = '#E8841A'
-const BRAND_ORANGE_DARK = '#D0750F'
+import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE, BRAND_ORANGE_DARK } from '@/lib/brand'
 
 export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
   const {

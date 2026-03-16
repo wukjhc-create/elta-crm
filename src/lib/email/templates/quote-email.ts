@@ -22,7 +22,7 @@ export function generateQuoteEmailHtml({
   companySettings,
   templateType,
 }: QuoteEmailParams): string {
-  const accentColor = templateType === 'sales' ? '#0066cc' : '#16a34a'
+  const accentColor = templateType === 'sales' ? '#2D8A2D' : '#2D8A2D'
   const templateLabel = templateType === 'sales' ? 'Salgstilbud' : 'Monteringstilbud'
 
   return `
