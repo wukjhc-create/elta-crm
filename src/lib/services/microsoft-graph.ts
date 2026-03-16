@@ -42,10 +42,11 @@ let cachedToken: { accessToken: string; expiresAt: number } | null = null
 
 function getConfig() {
   // Support both naming conventions: AZURE_TENANT_ID and AZURE_AD_TENANT_ID
-  const tenantId = process.env.AZURE_TENANT_ID || process.env.AZURE_AD_TENANT_ID
-  const clientId = process.env.AZURE_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID
-  const clientSecret = process.env.AZURE_CLIENT_SECRET || process.env.AZURE_AD_CLIENT_SECRET
-  const mailbox = process.env.GRAPH_MAILBOX || DEFAULT_MAILBOX
+  // IMPORTANT: .trim() all env vars — Vercel env vars can have trailing whitespace/newlines
+  const tenantId = (process.env.AZURE_TENANT_ID || process.env.AZURE_AD_TENANT_ID || '').trim()
+  const clientId = (process.env.AZURE_CLIENT_ID || process.env.AZURE_AD_CLIENT_ID || '').trim()
+  const clientSecret = (process.env.AZURE_CLIENT_SECRET || process.env.AZURE_AD_CLIENT_SECRET || '').trim()
+  const mailbox = (process.env.GRAPH_MAILBOX || DEFAULT_MAILBOX).trim()
 
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error(
@@ -65,7 +66,7 @@ export function isGraphConfigured(): boolean {
 }
 
 export function getMailbox(): string {
-  return process.env.GRAPH_MAILBOX || DEFAULT_MAILBOX
+  return (process.env.GRAPH_MAILBOX || DEFAULT_MAILBOX).trim()
 }
 
 // =====================================================
@@ -427,14 +428,19 @@ export async function sendEmailViaGraph(
       contentBytes: att.content.toString('base64'),
     }))
 
+    // Sanitize HTML content — strip control characters that break Graph API JSON parsing
+    const safeHtml = options.html
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Strip control chars
+      .replace(/\r\n/g, '\n') // Normalize line endings
+
     // Build the sendMail payload — strict Graph API v1.0 format
     // Note: Do NOT set `from` with app-only auth — requires SendAs permission.
     // The email will be sent from the mailbox user automatically.
     const message: Record<string, unknown> = {
-      subject: options.subject,
+      subject: options.subject.trim(),
       body: {
         contentType: 'HTML',
-        content: options.html,
+        content: safeHtml,
       },
       toRecipients,
     }
@@ -458,10 +464,13 @@ export async function sendEmailViaGraph(
 
     logger.info('Graph sendMail request', {
       metadata: {
+        url,
         mailbox,
+        mailboxLength: mailbox.length,
         to: recipients,
         subject: options.subject,
         bodyLength: options.html.length,
+        payloadKeys: Object.keys(message),
       },
     })
 
