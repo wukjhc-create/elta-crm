@@ -102,13 +102,15 @@ export async function acceptPublicOffer(offerId: string, accepterName: string): 
 
   if (error) return { success: false, error: error.message }
 
-  // Log signature
-  await supabase.from('offer_signatures').insert({
-    offer_id: offerId,
-    signer_name: accepterName,
-    signed_at: new Date().toISOString(),
-    ip_address: null,
-  }).catch(() => {})
+  // Log signature (ignore errors)
+  try {
+    await supabase.from('offer_signatures').insert({
+      offer_id: offerId,
+      signer_name: accepterName,
+      signed_at: new Date().toISOString(),
+      ip_address: null,
+    })
+  } catch { /* ignore */ }
 
   return { success: true }
 }
