@@ -2,7 +2,8 @@
  * CRM Reply Email Template — Professional HTML for outbound emails
  *
  * Fully inline-styled for Outlook, Gmail, Apple Mail compatibility.
- * Uses Elta Solar brand colors (green #16a34a / dark #15803d).
+ * Uses Elta Solar brand colors: Green #2D8A2D, Orange #E8841A.
+ * Table-based layout for maximum email client compatibility.
  */
 
 export interface CrmReplyTemplateParams {
@@ -28,6 +29,12 @@ export interface CrmReplyTemplateParams {
   ctaLabel?: string
 }
 
+// Brand constants
+const BRAND_GREEN = '#2D8A2D'
+const BRAND_GREEN_DARK = '#236E23'
+const BRAND_ORANGE = '#E8841A'
+const BRAND_ORANGE_DARK = '#D0750F'
+
 export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
   const {
     messageBody,
@@ -44,29 +51,44 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
 
   const messageHtml = messageBody.replace(/\n/g, '<br />')
 
+  // CTA button — large, orange for maximum visibility
   const ctaBlock = ctaUrl
     ? `
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0;">
-      <tr>
-        <td align="center" style="border-radius: 8px; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);" bgcolor="#16a34a">
-          <a href="${ctaUrl}" target="_blank" style="display: inline-block; padding: 14px 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px;">
-            ${ctaLabel || 'Se dit tilbud'}
-          </a>
-        </td>
-      </tr>
-    </table>`
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 28px 0 8px 0;">
+                <tr>
+                  <td align="center">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${ctaUrl}" style="height:54px;v-text-anchor:middle;width:340px;" arcsize="15%" strokecolor="${BRAND_GREEN}" fillcolor="${BRAND_GREEN}">
+                    <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">${ctaLabel || 'Se dit personlige solcelletilbud'}</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-->
+                    <a href="${ctaUrl}" target="_blank" style="display: inline-block; padding: 16px 40px; background-color: ${BRAND_GREEN}; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 17px; font-weight: 700; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px; box-shadow: 0 4px 14px rgba(45,138,45,0.35);">
+                      &#9788;&nbsp; ${ctaLabel || 'Se dit personlige solcelletilbud'}
+                    </a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-top: 10px;">
+                    <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #9ca3af;">
+                      Klik for at se og acceptere dit tilbud online
+                    </span>
+                  </td>
+                </tr>
+              </table>`
     : ''
 
   const phoneRow = senderPhone
-    ? `<span style="color: #6b7280;">Tlf: </span><a href="tel:${senderPhone}" style="color: #16a34a; text-decoration: none;">${senderPhone}</a><br />`
+    ? `<tr><td style="padding: 2px 0; font-size: 13px;"><span style="color: #6b7280;">Tlf: </span><a href="tel:${senderPhone}" style="color: ${BRAND_GREEN}; text-decoration: none; font-weight: 500;">${senderPhone}</a></td></tr>`
     : ''
 
   const emailRow = senderEmail
-    ? `<span style="color: #6b7280;">Email: </span><a href="mailto:${senderEmail}" style="color: #16a34a; text-decoration: none;">${senderEmail}</a><br />`
+    ? `<tr><td style="padding: 2px 0; font-size: 13px;"><span style="color: #6b7280;">Email: </span><a href="mailto:${senderEmail}" style="color: ${BRAND_GREEN}; text-decoration: none; font-weight: 500;">${senderEmail}</a></td></tr>`
     : ''
 
   const titleRow = senderTitle
-    ? `<span style="color: #6b7280; font-size: 13px;">${senderTitle}</span><br />`
+    ? `<tr><td style="padding: 0 0 4px 0; font-size: 13px; color: #6b7280;">${senderTitle}</td></tr>`
     : ''
 
   return `<!DOCTYPE html>
@@ -77,71 +99,54 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>Elta Solar</title>
   <!--[if mso]>
-  <style>body,table,td{font-family:Arial,sans-serif!important;}</style>
+  <style>body,table,td,p,a{font-family:Arial,Helvetica,sans-serif!important;}</style>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
   <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; background-color: #f3f4f6; -webkit-font-smoothing: antialiased;">
-  <!-- Outer wrapper -->
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f3f4f6;">
+<body style="margin: 0; padding: 0; background-color: #f0f2f5; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;">
+
+  <!-- Outer wrapper (gray bg) -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f0f2f5;">
     <tr>
-      <td align="center" style="padding: 24px 16px;">
-        <!-- Inner container -->
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%;">
+      <td align="center" style="padding: 32px 16px;">
 
-          <!-- Header bar -->
+        <!-- Inner container (600px) -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%; border-collapse: separate;">
+
+          <!-- ============================== -->
+          <!-- HEADER — Brand green with logo -->
+          <!-- ============================== -->
           <tr>
-            <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 20px 32px; border-radius: 12px 12px 0 0;">
+            <td style="background-color: ${BRAND_GREEN}; padding: 0; border-radius: 12px 12px 0 0;">
+              <!-- Top accent line (orange) -->
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
-                  <td>
-                    <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px;">
-                      ELTA SOLAR
-                    </span>
-                  </td>
-                  <td align="right">
-                    <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.7);">
-                      Professionelle el- &amp; solcelleinstallationer
-                    </span>
-                  </td>
+                  <td style="height: 4px; background-color: ${BRAND_ORANGE}; border-radius: 12px 12px 0 0; font-size: 0; line-height: 0;">&nbsp;</td>
                 </tr>
               </table>
-            </td>
-          </tr>
-
-          <!-- Body card -->
-          <tr>
-            <td style="background-color: #ffffff; padding: 32px; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
+              <!-- Logo row -->
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
-                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #1f2937;">
-                    ${messageHtml}
-                  </td>
-                </tr>
-              </table>
-              ${ctaBlock}
-            </td>
-          </tr>
-
-          <!-- Signature -->
-          <tr>
-            <td style="background-color: #ffffff; padding: 0 32px 28px 32px; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
-              <!-- Divider -->
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td style="border-top: 2px solid #16a34a; padding-top: 20px;">
+                  <td style="padding: 24px 32px 20px 32px;" align="center">
+                    <!-- Sun icon + brand text -->
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                       <tr>
-                        <!-- Green accent bar -->
-                        <td style="width: 4px; background-color: #16a34a; border-radius: 2px;" valign="top">&nbsp;</td>
-                        <td style="padding-left: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
-                          <span style="font-size: 15px; font-weight: 600; color: #1f2937;">${senderName}</span><br />
-                          ${titleRow}
-                          <span style="font-size: 13px; line-height: 1.8;">
-                            ${phoneRow}
-                            ${emailRow}
+                        <td align="center" style="padding-bottom: 8px;">
+                          <span style="font-size: 36px; line-height: 1;">&#9788;</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center">
+                          <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 26px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">
+                            ELTA SOLAR
                           </span>
-                          <span style="font-size: 13px; font-weight: 600; color: #16a34a;">Elta Solar ApS</span><br />
-                          <span style="font-size: 12px; color: #9ca3af;">eltasolar.dk</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding-top: 4px;">
+                          <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.75); letter-spacing: 1.5px; text-transform: uppercase;">
+                            Professionelle el- &amp; solcelleinstallationer
+                          </span>
                         </td>
                       </tr>
                     </table>
@@ -151,27 +156,108 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
             </td>
           </tr>
 
-          <!-- Original message -->
+          <!-- ============================== -->
+          <!-- BODY — White card              -->
+          <!-- ============================== -->
           <tr>
-            <td style="background-color: #f9fafb; padding: 20px 32px; border: 1px solid #e5e7eb; border-top: none;">
-              <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #9ca3af; margin: 0 0 12px 0;">
-                Den ${originalDate} skrev ${originalSender}:
-              </p>
-              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #6b7280; padding-left: 16px; border-left: 3px solid #d1d5db;">
-                ${originalBody}
-              </div>
+            <td style="background-color: #ffffff; padding: 36px 36px 20px 36px; border-left: 1px solid #e2e5e9; border-right: 1px solid #e2e5e9;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.75; color: #1f2937;">
+                    ${messageHtml}
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button (if offer link provided) -->
+              ${ctaBlock}
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- ============================== -->
+          <!-- SIGNATURE                      -->
+          <!-- ============================== -->
           <tr>
-            <td style="padding: 20px 32px; border-radius: 0 0 12px 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-top: none;">
+            <td style="background-color: #ffffff; padding: 8px 36px 32px 36px; border-left: 1px solid #e2e5e9; border-right: 1px solid #e2e5e9;">
+              <!-- Green divider line -->
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
-                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 11px; color: #9ca3af; text-align: center;">
-                    Elta Solar ApS &bull; CVR: 44291028 &bull; ordre@eltasolar.dk
+                  <td style="padding-bottom: 20px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="height: 2px; background-color: ${BRAND_GREEN}; font-size: 0; line-height: 0;" width="60">&nbsp;</td>
+                        <td style="height: 2px; background-color: #e5e7eb; font-size: 0; line-height: 0;">&nbsp;</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Signature content -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <!-- Green accent bar -->
+                  <td style="width: 4px; background-color: ${BRAND_GREEN}; border-radius: 2px;" valign="top">&nbsp;</td>
+                  <td style="padding-left: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding-bottom: 2px;">
+                          <span style="font-size: 16px; font-weight: 700; color: #1f2937;">${senderName}</span>
+                        </td>
+                      </tr>
+                      ${titleRow}
+                      ${phoneRow}
+                      ${emailRow}
+                      <tr>
+                        <td style="padding-top: 8px;">
+                          <span style="font-size: 14px; font-weight: 700; color: ${BRAND_GREEN};">Elta Solar ApS</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-top: 2px;">
+                          <a href="https://eltasolar.dk" style="font-size: 12px; color: ${BRAND_ORANGE}; text-decoration: none; font-weight: 500;">eltasolar.dk</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ============================== -->
+          <!-- ORIGINAL MESSAGE (quoted)      -->
+          <!-- ============================== -->
+          <tr>
+            <td style="background-color: #f8f9fa; padding: 24px 36px; border: 1px solid #e2e5e9; border-top: none;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #9ca3af; padding-bottom: 12px;">
+                    Den ${originalDate} skrev ${originalSender}:
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #6b7280; padding-left: 16px; border-left: 3px solid #d1d5db;">
+                    ${originalBody}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ============================== -->
+          <!-- FOOTER                         -->
+          <!-- ============================== -->
+          <tr>
+            <td style="padding: 24px 36px; border-radius: 0 0 12px 12px; background-color: ${BRAND_GREEN};">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td align="center" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.8); line-height: 1.8;">
+                    <strong style="color: #ffffff;">Elta Solar ApS</strong> &bull; CVR: 44291028
                     <br />
-                    Denne email er sendt fra Elta Solar CRM
+                    <a href="mailto:ordre@eltasolar.dk" style="color: rgba(255,255,255,0.9); text-decoration: none;">ordre@eltasolar.dk</a>
+                    &bull;
+                    <a href="https://eltasolar.dk" style="color: rgba(255,255,255,0.9); text-decoration: none;">eltasolar.dk</a>
                   </td>
                 </tr>
               </table>
@@ -179,9 +265,23 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
           </tr>
 
         </table>
+        <!-- /Inner container -->
+
+        <!-- Unsubscribe / legal micro-text -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%;">
+          <tr>
+            <td align="center" style="padding: 16px 0;">
+              <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 11px; color: #b0b5bd;">
+                Denne email er sendt fra Elta Solar CRM. Svar direkte p&aring; denne email for at kontakte os.
+              </span>
+            </td>
+          </tr>
+        </table>
+
       </td>
     </tr>
   </table>
+
 </body>
 </html>`
 }
