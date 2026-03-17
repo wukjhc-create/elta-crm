@@ -432,6 +432,8 @@ export async function sendEmailViaGraph(
     const safeHtml = options.html
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Strip control chars
       .replace(/\r\n/g, '\n') // Normalize line endings
+      .replace(/\r/g, '\n') // Normalize lone CR
+      .replace(/[\u2028\u2029]/g, '\n') // Strip Unicode line/paragraph separators (break JSON)
 
     // Build the sendMail payload — strict Graph API v1.0 format
     // Note: Do NOT set `from` with app-only auth — requires SendAs permission.
@@ -507,6 +509,12 @@ export async function sendEmailViaGraph(
       })
 
       // Provide user-friendly errors for common codes
+      if (response.status === 400) {
+        return {
+          success: false,
+          error: `Ugyldig forespørgsel (400). ${graphError}. Tjek at modtager-adresse og emne er korrekte.`,
+        }
+      }
       if (response.status === 403) {
         return {
           success: false,

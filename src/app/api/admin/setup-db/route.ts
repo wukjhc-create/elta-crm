@@ -194,6 +194,29 @@ ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS reminder_email_subject TEX
 CREATE INDEX IF NOT EXISTS idx_offers_reminder_pending ON offers (status, last_reminder_sent, sent_at) WHERE status IN ('sent', 'viewed');
     `.trim(),
   },
+  {
+    name: '00059_public_offer_access',
+    check_table: 'offers',
+    sql: `
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can view sent/viewed/accepted/rejected offers') THEN
+    CREATE POLICY "Anon can view sent/viewed/accepted/rejected offers" ON offers FOR SELECT TO anon USING (status IN ('sent', 'viewed', 'accepted', 'rejected'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can update sent/viewed offers') THEN
+    CREATE POLICY "Anon can update sent/viewed offers" ON offers FOR UPDATE TO anon USING (status IN ('sent', 'viewed')) WITH CHECK (status IN ('viewed', 'accepted', 'rejected'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can view offer line items') THEN
+    CREATE POLICY "Anon can view offer line items" ON offer_line_items FOR SELECT TO anon USING (EXISTS (SELECT 1 FROM offers WHERE offers.id = offer_line_items.offer_id AND offers.status IN ('sent', 'viewed', 'accepted', 'rejected')));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can view customers linked to visible offers') THEN
+    CREATE POLICY "Anon can view customers linked to visible offers" ON customers FOR SELECT TO anon USING (EXISTS (SELECT 1 FROM offers WHERE offers.customer_id = customers.id AND offers.status IN ('sent', 'viewed', 'accepted', 'rejected')));
+  END IF;
+END $$;
+GRANT SELECT, UPDATE ON offers TO anon;
+GRANT SELECT ON offer_line_items TO anon;
+GRANT SELECT ON customers TO anon;
+    `.trim(),
+  },
 ]
 
 function getProjectRef(): string | null {

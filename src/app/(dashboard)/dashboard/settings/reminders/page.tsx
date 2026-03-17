@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { ArrowLeft, Clock, Save, Loader2, Mail, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ArrowLeft, Clock, Save, Loader2, Mail, ToggleLeft, ToggleRight, Send, CheckCircle, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { sendTestReminder } from '@/lib/actions/reminder-test'
 
 interface ReminderSettings {
   reminder_enabled: boolean
@@ -14,7 +14,6 @@ interface ReminderSettings {
 }
 
 export default function ReminderSettingsPage() {
-  const router = useRouter()
   const [settings, setSettings] = useState<ReminderSettings>({
     reminder_enabled: true,
     reminder_interval_days: 3,
@@ -24,6 +23,8 @@ export default function ReminderSettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const [testMessage, setTestMessage] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -58,10 +59,24 @@ export default function ReminderSettingsPage() {
         reminder_max_count: settings.reminder_max_count,
         reminder_email_subject: settings.reminder_email_subject || null,
       })
-      .not('id', 'is', null) // update all rows (should be 1)
+      .not('id', 'is', null)
     setIsSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleTestReminder = async () => {
+    setTestStatus('sending')
+    setTestMessage('')
+    const result = await sendTestReminder()
+    if (result.success) {
+      setTestStatus('success')
+      setTestMessage(`Test-rykker sendt til ${result.to}`)
+    } else {
+      setTestStatus('error')
+      setTestMessage(result.error || 'Ukendt fejl')
+    }
+    setTimeout(() => setTestStatus('idle'), 8000)
   }
 
   if (isLoading) {
@@ -169,6 +184,48 @@ export default function ReminderSettingsPage() {
           />
           <p className="text-xs text-gray-400 mt-2">Tilbudsnummeret tilføjes automatisk i parenteser. Lad feltet være tomt for standardtekst.</p>
         </div>
+      </div>
+
+      {/* Test button */}
+      <div className="bg-white rounded-lg border p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium flex items-center gap-2">
+              <Send className="w-4 h-4 text-green-600" />
+              Send test-rykker til mig selv
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Sender en test-rykkermail til din egen e-mail, så du kan se det endelige design.
+            </p>
+          </div>
+          <button
+            onClick={handleTestReminder}
+            disabled={testStatus === 'sending'}
+            className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 font-medium whitespace-nowrap"
+          >
+            {testStatus === 'sending' ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Sender...</>
+            ) : (
+              <><Send className="w-4 h-4" /> Send test-rykker</>
+            )}
+          </button>
+        </div>
+
+        {/* Test result */}
+        {testStatus === 'success' && (
+          <div className="mt-4 flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            {testMessage}
+          </div>
+        )}
+        {testStatus === 'error' && (
+          <div className="mt-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <strong>Fejl:</strong> {testMessage}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Info box */}
