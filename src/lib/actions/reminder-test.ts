@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { generateReminderEmailHtml, generateReminderEmailText } from '@/lib/email/templates/reminder-email'
-import { getAppUrl } from '@/lib/utils/url'
+import { APP_URL } from '@/lib/constants'
 
 export async function sendTestReminder(): Promise<{ success: boolean; error?: string; to?: string }> {
   try {
@@ -28,12 +28,12 @@ export async function sendTestReminder(): Promise<{ success: boolean; error?: st
       .maybeSingle()
 
     const senderName = profile?.full_name || 'Elta Solar'
-    const baseUrl = getAppUrl()
+    const baseUrl = APP_URL
 
     // Try to find a real offer to link to (most recent sent/viewed offer)
     const { data: realOffer } = await supabase
       .from('offers')
-      .select('id, offer_number, title, final_amount, currency, valid_until, customer:customers(company_name, contact_person)')
+      .select('id, offer_number, title, final_amount, currency, valid_until, customer_id, customer:customers(company_name, contact_person)')
       .in('status', ['sent', 'viewed', 'draft'])
       .order('created_at', { ascending: false })
       .limit(1)
@@ -54,7 +54,12 @@ export async function sendTestReminder(): Promise<{ success: boolean; error?: st
       ? new Date(realOffer.valid_until).toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
       : '31. marts 2026'
 
-    const portalUrl = `${baseUrl}/view-offer/${offerId}`
+    // Build portal URL — use token-based portal route if possible
+    let portalUrl = `${baseUrl}/view-offer/${offerId}`
+    if (realOffer?.customer_id) {
+      const { getPortalOfferUrl } = await import('@/lib/utils/portal-link')
+      portalUrl = await getPortalOfferUrl(offerId, realOffer.customer_id)
+    }
 
     const emailParams = {
       customerName: customer?.contact_person || senderName,

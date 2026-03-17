@@ -57,7 +57,7 @@ export async function GET(request: Request) {
       .from('offers')
       .select(`
         id, offer_number, title, final_amount, currency, valid_until,
-        sent_at, last_reminder_sent, reminder_count, created_by,
+        sent_at, last_reminder_sent, reminder_count, created_by, customer_id,
         customer:customers(company_name, contact_person, email)
       `)
       .in('status', ['sent', 'viewed'])
@@ -84,8 +84,6 @@ export async function GET(request: Request) {
     }
 
     const fromEmail = getMailbox()
-    const { APP_URL } = await import('@/lib/constants')
-    const baseUrl = APP_URL
 
     let sentCount = 0
     const errors: string[] = []
@@ -110,7 +108,8 @@ export async function GET(request: Request) {
           if (profile?.full_name) senderName = profile.full_name
         }
 
-        const portalUrl = `${baseUrl}/view-offer/${offer.id}`
+        const { getPortalOfferUrl } = await import('@/lib/utils/portal-link')
+        const portalUrl = await getPortalOfferUrl(offer.id, offer.customer_id)
         const reminderCount = (offer.reminder_count || 0) + 1
 
         const finalAmount = new Intl.NumberFormat('da-DK', {
