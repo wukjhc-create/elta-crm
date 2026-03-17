@@ -179,6 +179,21 @@ CREATE INDEX IF NOT EXISTS idx_customer_tasks_offer_id ON customer_tasks(offer_i
     check_column: 'scope',
     sql: `ALTER TABLE offers ADD COLUMN IF NOT EXISTS scope TEXT;`.trim(),
   },
+  {
+    name: '00058_offer_reminders',
+    check_table: 'offers',
+    check_column: 'last_reminder_sent',
+    sql: `
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS last_reminder_sent TIMESTAMPTZ;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS reminder_count INTEGER DEFAULT 0;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS reminder_enabled BOOLEAN DEFAULT true;
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS reminder_interval_days INTEGER DEFAULT 3;
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS reminder_max_count INTEGER DEFAULT 3;
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS reminder_email_subject TEXT;
+CREATE INDEX IF NOT EXISTS idx_offers_reminder_pending ON offers (status, last_reminder_sent, sent_at) WHERE status IN ('sent', 'viewed');
+    `.trim(),
+  },
 ]
 
 function getProjectRef(): string | null {

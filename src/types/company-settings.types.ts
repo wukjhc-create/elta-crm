@@ -27,6 +27,12 @@ export interface CompanySettings {
   default_offer_validity_days: number
   default_terms_and_conditions: string | null
 
+  // Reminder settings
+  reminder_enabled: boolean
+  reminder_interval_days: number
+  reminder_max_count: number
+  reminder_email_subject: string | null
+
   // Timestamps
   created_at: string
   updated_at: string

@@ -218,6 +218,22 @@ const settingsCards = [
     ),
   },
   {
+    href: '/dashboard/settings/reminders',
+    title: 'Opfølgning',
+    subtitle: 'Automatiske rykkere',
+    description: 'Konfigurer automatisk opfølgning på ubesvarede tilbud — interval, antal rykkere og e-mail-skabelon',
+    iconBg: 'bg-amber-100',
+    iconColor: 'text-amber-600',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
+    ),
+  },
+  {
     href: '/dashboard/settings/audit',
     title: 'Audit Log',
     subtitle: 'Systemhistorik',
