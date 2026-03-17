@@ -224,13 +224,20 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
     }
     const offerNumber = await generateOfferNumber()
 
+    // Strip null/undefined values to avoid PostgREST errors for new columns
+    const insertData: Record<string, unknown> = {
+      offer_number: offerNumber,
+      created_by: userId,
+    }
+    for (const [key, value] of Object.entries(validated.data)) {
+      if (value !== null && value !== undefined) {
+        insertData[key] = value
+      }
+    }
+
     const { data, error } = await supabase
       .from('offers')
-      .insert({
-        ...validated.data,
-        offer_number: offerNumber,
-        created_by: userId,
-      })
+      .insert(insertData)
       .select()
       .single()
 
@@ -308,12 +315,20 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       return { success: false, error: errors }
     }
 
-    const { id: offerId, ...updateData } = validated.data
+    const { id: offerId, ...rawUpdateData } = validated.data
+
+    // Strip null/undefined to avoid PostgREST errors for columns that may not exist yet
+    const updateData: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(rawUpdateData)) {
+      if (value !== null && value !== undefined) {
+        updateData[key] = value
+      }
+    }
 
     const { data, error } = await supabase
       .from('offers')
       .update(updateData)
-      .eq('id', offerId)
+      .eq('id', offerId!)
       .select()
       .single()
 
