@@ -2,8 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
-import { isGraphConfigured, getMailbox, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
+import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { generateReminderEmailHtml, generateReminderEmailText } from '@/lib/email/templates/reminder-email'
+import { getAppUrl } from '@/lib/utils/url'
 
 export async function sendTestReminder(): Promise<{ success: boolean; error?: string; to?: string }> {
   try {
@@ -27,16 +28,42 @@ export async function sendTestReminder(): Promise<{ success: boolean; error?: st
       .maybeSingle()
 
     const senderName = profile?.full_name || 'Elta Solar'
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app'
+    const baseUrl = getAppUrl()
+
+    // Try to find a real offer to link to (most recent sent/viewed offer)
+    const { data: realOffer } = await supabase
+      .from('offers')
+      .select('id, offer_number, title, final_amount, currency, valid_until, customer:customers(company_name, contact_person)')
+      .in('status', ['sent', 'viewed', 'draft'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const offerId = realOffer?.id || 'demo'
+    const offerNumber = realOffer?.offer_number || 'TILBUD-2026-TEST'
+    const offerTitle = realOffer?.title || 'Solcelleanlæg 10 kWp'
+    const customerRaw = realOffer?.customer as unknown
+    const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string } | null
+    const finalAmountNum = realOffer?.final_amount || 125000
+    const finalAmount = new Intl.NumberFormat('da-DK', {
+      style: 'currency',
+      currency: realOffer?.currency || 'DKK',
+      maximumFractionDigits: 0,
+    }).format(finalAmountNum)
+    const validUntil = realOffer?.valid_until
+      ? new Date(realOffer.valid_until).toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '31. marts 2026'
+
+    const portalUrl = `${baseUrl}/view-offer/${offerId}`
 
     const emailParams = {
-      customerName: senderName,
-      companyName: 'Test Firma ApS',
-      offerNumber: 'TILBUD-2026-TEST',
-      offerTitle: 'Solcelleanlæg 10 kWp (TESTMAIL)',
-      finalAmount: '125.000 kr.',
-      validUntil: '31. marts 2026',
-      portalUrl: `${baseUrl}/view-offer/test`,
+      customerName: customer?.contact_person || senderName,
+      companyName: customer?.company_name || 'Test Firma ApS',
+      offerNumber,
+      offerTitle: `${offerTitle} (TESTMAIL)`,
+      finalAmount,
+      validUntil,
+      portalUrl,
       senderName,
       reminderCount: 1,
     }
@@ -46,7 +73,7 @@ export async function sendTestReminder(): Promise<{ success: boolean; error?: st
 
     const result = await sendEmailViaGraph({
       to: user.email,
-      subject: `[TEST] Påmindelse: Dit tilbud fra Elta Solar (TILBUD-2026-TEST)`,
+      subject: `[TEST] Påmindelse: Dit tilbud fra Elta Solar (${offerNumber})`,
       html,
       text,
       senderName,

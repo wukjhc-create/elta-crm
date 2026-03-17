@@ -1,5 +1,17 @@
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Elta CRM'
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+export const APP_URL = getResolvedAppUrl()
+
+function getResolvedAppUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_APP_URL
+  // If explicitly set to a non-localhost value, use it
+  if (explicit && !explicit.includes('localhost')) return explicit
+  // On Vercel, use VERCEL_PROJECT_PRODUCTION_URL (always the main domain)
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  // Fallback to VERCEL_URL (deployment-specific)
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  // Local dev
+  return explicit || 'http://localhost:3000'
+}
 export const DEFAULT_LOCALE = process.env.NEXT_PUBLIC_DEFAULT_LOCALE || 'da'
 export const DEFAULT_LOCALE_CODE = 'da-DK'
 

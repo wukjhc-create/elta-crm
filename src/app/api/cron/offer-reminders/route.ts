@@ -84,7 +84,8 @@ export async function GET(request: Request) {
     }
 
     const fromEmail = getMailbox()
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app'
+    const { APP_URL } = await import('@/lib/constants')
+    const baseUrl = APP_URL
 
     let sentCount = 0
     const errors: string[] = []

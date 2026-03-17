@@ -275,8 +275,8 @@ async function sendOfferStatusNotification(
     maximumFractionDigits: 0,
   }).format(offer.final_amount || 0)
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app'
-  const offerUrl = `${baseUrl}/dashboard/offers/${offer.id}`
+  const { APP_URL } = await import('@/lib/constants')
+  const offerUrl = `${APP_URL}/dashboard/offers/${offer.id}`
 
   const statusLabel = action === 'accepted' ? 'Accepteret' : 'Afvist'
   const subject = `Tilbud ${statusLabel}: ${offer.title} (${offer.offer_number})`
