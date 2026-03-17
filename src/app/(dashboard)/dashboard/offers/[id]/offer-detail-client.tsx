@@ -30,6 +30,8 @@ import {
   Plug,
   ClipboardCheck,
   Search,
+  AlertTriangle,
+  Save,
 } from 'lucide-react'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
@@ -43,6 +45,7 @@ import { SendSmsModal, SmsTimeline } from '@/components/sms'
 import {
   deleteOffer,
   updateOfferStatus,
+  updateOfferField,
   createLineItem,
   updateLineItem,
   deleteLineItem,
@@ -119,6 +122,38 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
   const [isSearchingSupplier, setIsSearchingSupplier] = useState(false)
   const [isAddingSupplierProduct, setIsAddingSupplierProduct] = useState<string | null>(null)
   const supplierSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Inline-editable text fields
+  const [scopeText, setScopeText] = useState(offer.scope || '')
+  const [notesText, setNotesText] = useState(offer.notes || '')
+  const [isSavingScope, setIsSavingScope] = useState(false)
+  const [isSavingNotes, setIsSavingNotes] = useState(false)
+  const scopeDirty = scopeText !== (offer.scope || '')
+  const notesDirty = notesText !== (offer.notes || '')
+
+  const handleSaveScope = async () => {
+    setIsSavingScope(true)
+    const res = await updateOfferField(offer.id, 'scope', scopeText || null)
+    setIsSavingScope(false)
+    if (res.success) {
+      toast.success('Opgavens omfang gemt')
+      router.refresh()
+    } else {
+      toast.error(res.error || 'Kunne ikke gemme')
+    }
+  }
+
+  const handleSaveNotes = async () => {
+    setIsSavingNotes(true)
+    const res = await updateOfferField(offer.id, 'notes', notesText || null)
+    setIsSavingNotes(false)
+    if (res.success) {
+      toast.success('Interne noter gemt')
+      router.refresh()
+    } else {
+      toast.error(res.error || 'Kunne ikke gemme')
+    }
+  }
 
   // Load activities on mount
   useEffect(() => {
@@ -592,16 +627,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
               </div>
             </div>
 
-            {/* Description */}
-            {offer.description && (
-              <div className="bg-white rounded-lg border p-6">
-                <h2 className="text-lg font-semibold mb-4">Beskrivelse</h2>
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {offer.description}
-                </p>
-              </div>
-            )}
-
             {/* DB Warning Banner */}
             {isOfferRed && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
@@ -805,6 +830,38 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
               })()}
             </div>
 
+            {/* Opgavens omfang — inline-editable */}
+            <div className="bg-white rounded-lg border overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-3 border-b" style={{ backgroundColor: '#e8f5e8' }}>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" style={{ color: '#2D8A2D' }} />
+                  <h2 className="text-sm font-semibold" style={{ color: '#2D8A2D' }}>Opgavens omfang</h2>
+                  <span className="text-xs text-gray-400">— vises på PDF og kundeportal</span>
+                </div>
+                {scopeDirty && (
+                  <button
+                    onClick={handleSaveScope}
+                    disabled={isSavingScope}
+                    className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white rounded"
+                    style={{ backgroundColor: '#2D8A2D' }}
+                  >
+                    {isSavingScope ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                    Gem
+                  </button>
+                )}
+              </div>
+              <div className="p-4">
+                <textarea
+                  value={scopeText}
+                  onChange={(e) => setScopeText(e.target.value)}
+                  rows={5}
+                  placeholder="Beskriv opgavens omfang — f.eks. installationstype, antal paneler, kabeltræk, tilslutning, materialer..."
+                  className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-600 resize-y"
+                  style={{ minHeight: '80px' }}
+                />
+              </div>
+            </div>
+
             {/* Terms */}
             {offer.terms_and_conditions && (
               <div className="bg-white rounded-lg border p-6">
@@ -815,15 +872,36 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
               </div>
             )}
 
-            {/* Notes */}
-            {offer.notes && (
-              <div className="bg-white rounded-lg border p-6">
-                <h2 className="text-lg font-semibold mb-4">Interne noter</h2>
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {offer.notes}
-                </p>
+            {/* Interne noter — gul baggrund, vises IKKE på PDF/portal */}
+            <div className="rounded-lg border overflow-hidden" style={{ backgroundColor: '#fffbeb', borderColor: '#fcd34d' }}>
+              <div className="flex items-center justify-between px-6 py-3 border-b" style={{ borderColor: '#fcd34d', backgroundColor: '#fef3c7' }}>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <h2 className="text-sm font-semibold text-amber-800">Interne noter</h2>
+                  <span className="text-xs text-amber-500">— kun synlig for medarbejdere</span>
+                </div>
+                {notesDirty && (
+                  <button
+                    onClick={handleSaveNotes}
+                    disabled={isSavingNotes}
+                    className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white rounded bg-amber-600 hover:bg-amber-700"
+                  >
+                    {isSavingNotes ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                    Gem
+                  </button>
+                )}
               </div>
-            )}
+              <div className="p-4">
+                <textarea
+                  value={notesText}
+                  onChange={(e) => setNotesText(e.target.value)}
+                  rows={3}
+                  placeholder="Skriv interne noter her — f.eks. aftalte rabatter, kundens ønsker, ting at huske..."
+                  className="w-full px-3 py-2 border border-amber-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y bg-white"
+                  style={{ minHeight: '60px' }}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Sidebar */}

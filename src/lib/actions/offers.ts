@@ -362,6 +362,40 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
   }
 }
 
+// Update a single text field on an offer (scope, notes, terms_and_conditions, description)
+const ALLOWED_TEXT_FIELDS = ['scope', 'notes', 'terms_and_conditions', 'description'] as const
+type AllowedTextField = typeof ALLOWED_TEXT_FIELDS[number]
+
+export async function updateOfferField(
+  offerId: string,
+  field: AllowedTextField,
+  value: string | null
+): Promise<ActionResult> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+    validateUUID(offerId, 'tilbud ID')
+
+    if (!ALLOWED_TEXT_FIELDS.includes(field)) {
+      return { success: false, error: 'Ugyldigt felt' }
+    }
+
+    const { error } = await supabase
+      .from('offers')
+      .update({ [field]: value || null })
+      .eq('id', offerId)
+
+    if (error) {
+      logger.error('Error updating offer field', { error, entityId: offerId })
+      return { success: false, error: 'Kunne ikke gemme' }
+    }
+
+    revalidatePath(`/offers/${offerId}`)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke gemme') }
+  }
+}
+
 // Delete offer
 export async function deleteOffer(id: string): Promise<ActionResult> {
   try {

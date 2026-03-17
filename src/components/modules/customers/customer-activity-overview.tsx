@@ -117,32 +117,35 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
         </ActivitySection>
 
         <ActivitySection
-          icon={<FileText className="w-4 h-4" />}
+          icon={<FileText className="w-4 h-4" style={{ color: '#2D8A2D' }} />}
           title="Tilbud"
           count={offers.length}
-          defaultOpen={offers.length > 0}
+          defaultOpen={true}
         >
           {offers.map((offer) => (
             <Link
               key={offer.id}
               href={`/dashboard/offers/${offer.id}`}
-              className="flex items-center justify-between py-2 px-3 text-sm bg-gray-50 rounded hover:bg-blue-50 transition-colors group"
+              className="flex items-center justify-between py-3 px-4 text-sm rounded-lg border border-gray-100 hover:border-green-200 hover:bg-green-50/30 transition-all group"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{offer.title}</span>
+                  <span className="font-semibold text-gray-900 group-hover:text-green-800">{offer.title}</span>
                   <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
-                  {offer.offer_number && <span>{offer.offer_number}</span>}
+                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                  {offer.offer_number && <span className="font-mono">{offer.offer_number}</span>}
                   <StatusBadge status={offer.status} />
-                  {offer.total != null && (
-                    <span className="font-medium">
-                      {Number(offer.total).toLocaleString('da-DK', { minimumFractionDigits: 2 })} kr.
-                    </span>
+                  {offer.created_at && (
+                    <span>{format(new Date(offer.created_at), 'd. MMM yyyy', { locale: da })}</span>
                   )}
                 </div>
               </div>
+              {offer.total != null && (
+                <span className="text-sm font-bold whitespace-nowrap ml-3" style={{ color: '#2D8A2D' }}>
+                  {Number(offer.total).toLocaleString('da-DK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} kr.
+                </span>
+              )}
             </Link>
           ))}
         </ActivitySection>
