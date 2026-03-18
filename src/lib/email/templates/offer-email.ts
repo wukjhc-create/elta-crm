@@ -180,27 +180,13 @@ export function generateOfferEmailHtml({
                 </tr>
               </table>
 
-              <!-- CTA Button -->
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 8px 0 24px 0;">
-                <tr>
-                  <td align="center">
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td align="center" bgcolor="${BRAND_GREEN}" style="border-radius:8px;">
-                        <a href="${portalUrl}" target="_blank" style="font-size:17px;font-family:Arial,Helvetica,sans-serif;color:#ffffff;text-decoration:none;padding:17px 44px;display:inline-block;font-weight:bold;">Se dit tilbud her</a>
-                      </td>
-                    </tr>
-                    </table>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="center" style="padding-top: 12px;">
-                    <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 13px; color: #6b7280;">
-                      Klik for at se og acceptere dit tilbud online
-                    </span>
-                  </td>
-                </tr>
-              </table>
+              <!-- Button: simple <a> tag -->
+              <p style="text-align:center;margin:8px 0 24px;">
+                <a href="${portalUrl}" target="_blank" style="background-color:#2e7d32;color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;font-size:16px;font-family:Arial,Helvetica,sans-serif;">Se dit tilbud her &#8594;</a>
+              </p>
+              <p style="text-align:center;margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;">
+                Klik for at se og acceptere dit tilbud online
+              </p>
 
               ${validUntilNote}
 

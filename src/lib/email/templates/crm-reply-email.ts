@@ -47,29 +47,15 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
 
   const messageHtml = messageBody.replace(/\n/g, '<br />')
 
-  // CTA button — large, orange for maximum visibility
+  // CTA button — simple <a> tag
   const ctaBlock = ctaUrl
     ? `
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 28px 0 8px 0;">
-                <tr>
-                  <td align="center">
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td align="center" bgcolor="${BRAND_GREEN}" style="border-radius:8px;">
-                        <a href="${ctaUrl}" target="_blank" style="font-size:17px;font-family:Arial,Helvetica,sans-serif;color:#ffffff;text-decoration:none;padding:16px 40px;display:inline-block;font-weight:bold;">${ctaLabel || 'Se dit tilbud her'}</a>
-                      </td>
-                    </tr>
-                    </table>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="center" style="padding-top: 10px;">
-                    <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #9ca3af;">
-                      Klik for at se og acceptere dit tilbud online
-                    </span>
-                  </td>
-                </tr>
-              </table>`
+              <p style="text-align:center;margin:28px 0 8px;">
+                <a href="${ctaUrl}" target="_blank" style="background-color:#2e7d32;color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;font-size:16px;font-family:Arial,Helvetica,sans-serif;">${ctaLabel || 'Se dit tilbud her'} &#8594;</a>
+              </p>
+              <p style="text-align:center;margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#9ca3af;">
+                Klik for at se og acceptere dit tilbud online
+              </p>`
     : ''
 
   const phoneRow = senderPhone

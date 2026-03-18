@@ -73,6 +73,9 @@ export async function sendTestReminder(): Promise<{ success: boolean; error?: st
       reminderCount: 1,
     }
 
+    // Log the portal URL for debugging
+    logger.info('Test reminder portalUrl', { metadata: { portalUrl, offerId, customerId: realOffer?.customer_id } })
+
     const html = generateReminderEmailHtml(emailParams)
     const text = generateReminderEmailText(emailParams)
 
