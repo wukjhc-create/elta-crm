@@ -10,12 +10,13 @@ export async function getPortalOfferUrl(offerId: string, customerId: string): Pr
   const supabase = await createClient()
 
   // Look for an existing active portal token for this customer
+  // Include tokens with null expires_at (never-expiring) OR future expiration
   const { data: existingToken } = await supabase
     .from('portal_access_tokens')
     .select('token')
     .eq('customer_id', customerId)
     .eq('is_active', true)
-    .gt('expires_at', new Date().toISOString())
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()

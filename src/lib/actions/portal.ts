@@ -639,13 +639,11 @@ export async function getPortalMessages(
     const supabase = await createClient()
     const customerId = sessionResult.data.customer_id
 
+    // Note: Portal context uses anon role — do NOT join profiles (no anon access).
+    // sender_name is stored directly on portal_messages so we don't need the join.
     let query = supabase
       .from('portal_messages')
-      .select(`
-        *,
-        sender:profiles(id, full_name, email),
-        offer:offers(id, offer_number, title)
-      `)
+      .select('*')
       .eq('customer_id', customerId)
       .order('created_at', { ascending: true })
 

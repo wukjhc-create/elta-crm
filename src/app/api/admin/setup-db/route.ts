@@ -217,6 +217,40 @@ GRANT SELECT ON offer_line_items TO anon;
 GRANT SELECT ON customers TO anon;
     `.trim(),
   },
+  {
+    name: '00060_portal_anon_policies',
+    check_table: 'portal_access_tokens',
+    sql: `
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can update portal token access time') THEN
+    CREATE POLICY "Anon can update portal token access time"
+      ON portal_access_tokens FOR UPDATE TO anon
+      USING (is_active = true)
+      WITH CHECK (is_active = true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can view offer signatures') THEN
+    CREATE POLICY "Anon can view offer signatures"
+      ON offer_signatures FOR SELECT TO anon
+      USING (EXISTS (SELECT 1 FROM offers WHERE offers.id = offer_signatures.offer_id AND offers.status IN ('sent', 'viewed', 'accepted', 'rejected')));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can update portal message read status') THEN
+    CREATE POLICY "Anon can update portal message read status"
+      ON portal_messages FOR UPDATE TO anon
+      USING (sender_type = 'employee')
+      WITH CHECK (sender_type = 'employee');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can view basic profile info') THEN
+    CREATE POLICY "Anon can view basic profile info"
+      ON profiles FOR SELECT TO anon
+      USING (true);
+  END IF;
+END $$;
+GRANT UPDATE ON portal_access_tokens TO anon;
+GRANT SELECT ON offer_signatures TO anon;
+GRANT UPDATE ON portal_messages TO anon;
+GRANT SELECT (id, full_name, email) ON profiles TO anon;
+    `.trim(),
+  },
 ]
 
 function getProjectRef(): string | null {
