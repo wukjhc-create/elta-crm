@@ -180,14 +180,14 @@ export function generateOfferEmailHtml({
                 </tr>
               </table>
 
-              <!-- CTA Button — bulletproof for all clients -->
+              <!-- CTA Button -->
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 8px 0 24px 0;">
                 <tr>
                   <td align="center">
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                      <td align="center" style="background-color:${BRAND_GREEN};border-radius:8px;">
-                        <a href="${portalUrl}" target="_blank" style="display:inline-block;padding:17px 44px;color:#ffffff !important;font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:bold;text-decoration:none;border-radius:8px;background-color:${BRAND_GREEN};mso-padding-alt:0;text-underline-color:${BRAND_GREEN};">Se dit personlige tilbud &rarr;</a>
+                      <td align="center" bgcolor="${BRAND_GREEN}" style="border-radius:8px;">
+                        <a href="${portalUrl}" target="_blank" style="font-size:17px;font-family:Arial,Helvetica,sans-serif;color:#ffffff;text-decoration:none;padding:17px 44px;display:inline-block;font-weight:bold;">Se dit tilbud her</a>
                       </td>
                     </tr>
                     </table>

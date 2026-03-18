@@ -55,8 +55,8 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
                   <td align="center">
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                      <td align="center" style="background-color:${BRAND_GREEN};border-radius:8px;">
-                        <a href="${ctaUrl}" target="_blank" style="display:inline-block;padding:16px 40px;color:#ffffff !important;font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:bold;text-decoration:none;border-radius:8px;background-color:${BRAND_GREEN};mso-padding-alt:0;text-underline-color:${BRAND_GREEN};">${ctaLabel || 'Se dit personlige tilbud'} &rarr;</a>
+                      <td align="center" bgcolor="${BRAND_GREEN}" style="border-radius:8px;">
+                        <a href="${ctaUrl}" target="_blank" style="font-size:17px;font-family:Arial,Helvetica,sans-serif;color:#ffffff;text-decoration:none;padding:16px 40px;display:inline-block;font-weight:bold;">${ctaLabel || 'Se dit tilbud her'}</a>
                       </td>
                     </tr>
                     </table>
