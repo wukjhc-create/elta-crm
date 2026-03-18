@@ -103,15 +103,16 @@ export function generateReminderEmailHtml({
     Klik på knappen herunder for at se tilbuddet i detaljer, stille spørgsmål eller acceptere direkte:
   </p>
 
-  <!-- CTA Button -->
-  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
-  <tr><td align="center" style="border-radius:8px;background-color:${BRAND_GREEN};">
-    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${portalUrl}" style="height:56px;v-text-anchor:middle;width:380px;" arcsize="14%" strokecolor="${BRAND_GREEN}" fillcolor="${BRAND_GREEN}"><v:textbox inset="0,0,0,0"><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">&#9788; Se dit personlige solcelletilbud</center></v:textbox></v:roundrect><![endif]-->
-    <!--[if !mso]><!-->
-    <a href="${portalUrl}" target="_blank" style="display:inline-block;padding:17px 44px;color:#ffffff;font-size:17px;font-weight:bold;text-decoration:none;border-radius:8px;background-color:${BRAND_GREEN};letter-spacing:0.3px;box-shadow:0 4px 14px rgba(45,138,45,0.35);">
-      &#9788;&nbsp; Se dit personlige solcelletilbud
-    </a>
-    <!--<![endif]-->
+  <!-- CTA Button — bulletproof for all clients -->
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+  <tr><td align="center" style="padding:8px 0;">
+    <table role="presentation" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="background-color:${BRAND_GREEN};border-radius:8px;">
+        <a href="${portalUrl}" target="_blank" style="display:inline-block;padding:17px 44px;color:#ffffff !important;font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:bold;text-decoration:none;border-radius:8px;background-color:${BRAND_GREEN};mso-padding-alt:0;text-underline-color:${BRAND_GREEN};"><!--[if mso]>&nbsp;&nbsp;&nbsp;<![endif]-->Se dit personlige tilbud &rarr;<!--[if mso]>&nbsp;&nbsp;&nbsp;<![endif]--></a>
+      </td>
+    </tr>
+    </table>
   </td></tr>
   </table>
 

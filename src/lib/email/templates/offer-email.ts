@@ -180,20 +180,17 @@ export function generateOfferEmailHtml({
                 </tr>
               </table>
 
-              <!-- CTA Button -->
+              <!-- CTA Button — bulletproof for all clients -->
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 8px 0 24px 0;">
                 <tr>
                   <td align="center">
-                    <!--[if mso]>
-                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${portalUrl}" style="height:56px;v-text-anchor:middle;width:380px;" arcsize="14%" strokecolor="${BRAND_GREEN}" fillcolor="${BRAND_GREEN}">
-                    <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">&#9788; Se dit personlige solcelletilbud</center>
-                    </v:roundrect>
-                    <![endif]-->
-                    <!--[if !mso]><!-->
-                    <a href="${portalUrl}" target="_blank" style="display: inline-block; padding: 17px 44px; background-color: ${BRAND_GREEN}; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 17px; font-weight: 700; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px; box-shadow: 0 4px 14px rgba(45,138,45,0.35);">
-                      &#9788;&nbsp; Se dit personlige solcelletilbud
-                    </a>
-                    <!--<![endif]-->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td align="center" style="background-color:${BRAND_GREEN};border-radius:8px;">
+                        <a href="${portalUrl}" target="_blank" style="display:inline-block;padding:17px 44px;color:#ffffff !important;font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:bold;text-decoration:none;border-radius:8px;background-color:${BRAND_GREEN};mso-padding-alt:0;text-underline-color:${BRAND_GREEN};"><!--[if mso]>&nbsp;&nbsp;<![endif]-->Se dit personlige tilbud &rarr;<!--[if mso]>&nbsp;&nbsp;<![endif]--></a>
+                      </td>
+                    </tr>
+                    </table>
                   </td>
                 </tr>
                 <tr>

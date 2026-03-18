@@ -53,16 +53,13 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 28px 0 8px 0;">
                 <tr>
                   <td align="center">
-                    <!--[if mso]>
-                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${ctaUrl}" style="height:54px;v-text-anchor:middle;width:340px;" arcsize="15%" strokecolor="${BRAND_GREEN}" fillcolor="${BRAND_GREEN}">
-                    <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">${ctaLabel || 'Se dit personlige solcelletilbud'}</center>
-                    </v:roundrect>
-                    <![endif]-->
-                    <!--[if !mso]><!-->
-                    <a href="${ctaUrl}" target="_blank" style="display: inline-block; padding: 16px 40px; background-color: ${BRAND_GREEN}; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 17px; font-weight: 700; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px; box-shadow: 0 4px 14px rgba(45,138,45,0.35);">
-                      &#9788;&nbsp; ${ctaLabel || 'Se dit personlige solcelletilbud'}
-                    </a>
-                    <!--<![endif]-->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td align="center" style="background-color:${BRAND_GREEN};border-radius:8px;">
+                        <a href="${ctaUrl}" target="_blank" style="display:inline-block;padding:16px 40px;color:#ffffff !important;font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:bold;text-decoration:none;border-radius:8px;background-color:${BRAND_GREEN};mso-padding-alt:0;text-underline-color:${BRAND_GREEN};"><!--[if mso]>&nbsp;&nbsp;<![endif]-->${ctaLabel || 'Se dit personlige tilbud'} &rarr;<!--[if mso]>&nbsp;&nbsp;<![endif]--></a>
+                      </td>
+                    </tr>
+                    </table>
                   </td>
                 </tr>
                 <tr>
