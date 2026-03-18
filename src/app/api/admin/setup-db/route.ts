@@ -220,6 +220,7 @@ GRANT SELECT ON customers TO anon;
   {
     name: '00060_portal_anon_policies',
     check_table: 'portal_access_tokens',
+    check_column: '_anon_policies_applied',
     sql: `
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Anon can update portal token access time') THEN
@@ -249,6 +250,9 @@ GRANT UPDATE ON portal_access_tokens TO anon;
 GRANT SELECT ON offer_signatures TO anon;
 GRANT UPDATE ON portal_messages TO anon;
 GRANT SELECT (id, full_name, email) ON profiles TO anon;
+
+-- Sentinel: add a harmless column so setup-db knows this migration ran
+ALTER TABLE portal_access_tokens ADD COLUMN IF NOT EXISTS _anon_policies_applied boolean DEFAULT true;
     `.trim(),
   },
 ]

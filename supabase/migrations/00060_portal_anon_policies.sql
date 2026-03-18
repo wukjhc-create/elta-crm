@@ -50,3 +50,6 @@ DO $$ BEGIN
   END IF;
 END $$;
 GRANT SELECT (id, full_name, email) ON profiles TO anon;
+
+-- Sentinel column so setup-db knows this migration has been applied
+ALTER TABLE portal_access_tokens ADD COLUMN IF NOT EXISTS _anon_policies_applied boolean DEFAULT true;
