@@ -227,6 +227,11 @@ function isFreemailDomain(domain: string): boolean {
 
 /**
  * Run the full linker pipeline on one incoming email row.
+ *
+ * Matching priority:
+ * 1. conversation_id → find existing linked email in same thread
+ * 2. in_reply_to → find the original sent email by internet_message_id
+ * 3. sender email/domain → matchCustomer()
  */
 export async function linkEmail(
   emailId: string,
@@ -236,6 +241,49 @@ export async function linkEmail(
   bodyHtml: string | null,
   bodyText: string | null
 ): Promise<LinkResult> {
+  const supabase = await createClient()
+
+  // 0. Thread-based matching: check conversation_id and in_reply_to first
+  const { data: thisEmail } = await supabase
+    .from('incoming_emails')
+    .select('conversation_id, in_reply_to')
+    .eq('id', emailId)
+    .maybeSingle()
+
+  let threadCustomerId: string | null = null
+
+  // 0a. Match by conversation_id — find another email in same conversation that is already linked
+  if (thisEmail?.conversation_id) {
+    const { data: threadMatch } = await supabase
+      .from('incoming_emails')
+      .select('customer_id')
+      .eq('conversation_id', thisEmail.conversation_id)
+      .eq('link_status', 'linked')
+      .not('customer_id', 'is', null)
+      .neq('id', emailId)
+      .limit(1)
+      .maybeSingle()
+
+    if (threadMatch?.customer_id) {
+      threadCustomerId = threadMatch.customer_id
+    }
+  }
+
+  // 0b. Match by in_reply_to → find the original email by its internet_message_id
+  if (!threadCustomerId && thisEmail?.in_reply_to) {
+    const { data: replyMatch } = await supabase
+      .from('incoming_emails')
+      .select('customer_id')
+      .eq('internet_message_id', thisEmail.in_reply_to)
+      .not('customer_id', 'is', null)
+      .limit(1)
+      .maybeSingle()
+
+    if (replyMatch?.customer_id) {
+      threadCustomerId = replyMatch.customer_id
+    }
+  }
+
   // 1. Extract original sender (handles forwarded emails)
   const extracted = extractOriginalSender(
     senderEmail,
@@ -245,14 +293,18 @@ export async function linkEmail(
     bodyText
   )
 
-  // 2. Match against customers
+  // 2. Match against customers (email/domain/name)
   const match = await matchCustomer(extracted.email, extracted.name)
+
+  // Use thread match if direct match failed
+  if (!match.customerId && threadCustomerId) {
+    match.customerId = threadCustomerId
+    match.matchedOn = 'email' // Report as high-confidence since it's from the same thread
+    match.confidence = 'high'
+  }
 
   // 3. Determine status
   const status: EmailLinkStatus = match.customerId ? 'linked' : 'unidentified'
-
-  // 4. Update the email record in database
-  const supabase = await createClient()
 
   const updateData: Record<string, unknown> = {
     link_status: status,
@@ -331,6 +383,29 @@ export async function manuallyLinkEmail(
   logger.action('manual_link_email', undefined, 'incoming_emails', emailId, {
     customerId,
   })
+}
+
+/**
+ * Remove customer link from email — resets to unidentified.
+ */
+export async function unlinkEmail(emailId: string): Promise<void> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('incoming_emails')
+    .update({
+      link_status: 'unidentified' as EmailLinkStatus,
+      customer_id: null,
+      linked_by: null,
+      linked_at: null,
+    })
+    .eq('id', emailId)
+
+  if (error) {
+    throw new Error(`Kunne ikke fjerne kobling: ${error.message}`)
+  }
+
+  logger.action('unlink_email', undefined, 'incoming_emails', emailId, {})
 }
 
 /**

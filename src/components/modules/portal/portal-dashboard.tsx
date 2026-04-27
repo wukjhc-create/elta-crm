@@ -12,11 +12,17 @@ import {
   ChevronRight,
   Download,
   FolderOpen,
+  Wrench,
 } from 'lucide-react'
 import type { PortalSession, PortalOffer, PortalMessageWithRelations } from '@/types/portal.types'
 import type { PortalDocument } from '@/lib/actions/portal'
+import type { ServiceCase } from '@/types/service-cases.types'
+import { SERVICE_CASE_STATUS_LABELS, SERVICE_CASE_PRIORITY_LABELS } from '@/types/service-cases.types'
 import type { CompanySettings } from '@/types/company-settings.types'
+import type { FuldmagtData } from '@/lib/actions/fuldmagt'
 import { PortalChat } from './portal-chat'
+import { PortalBesigtigelseSection } from './portal-besigtigelse'
+import { PortalFuldmagtSection } from './portal-fuldmagt'
 import { formatDate as formatDateUtil } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils/format'
 
@@ -26,6 +32,8 @@ interface PortalDashboardProps {
   offers: PortalOffer[]
   messages: PortalMessageWithRelations[]
   documents?: PortalDocument[]
+  serviceCases?: ServiceCase[]
+  fuldmagter?: FuldmagtData[]
   companySettings?: CompanySettings | null
 }
 
@@ -35,6 +43,8 @@ export function PortalDashboard({
   offers,
   messages,
   documents = [],
+  serviceCases = [],
+  fuldmagter = [],
   companySettings,
 }: PortalDashboardProps) {
   const [showChat, setShowChat] = useState(false)
@@ -92,7 +102,7 @@ export function PortalDashboard({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${serviceCases.length > 0 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
         <div className="bg-white rounded-xl border p-6 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -136,7 +146,30 @@ export function PortalDashboard({
             </div>
           </div>
         </div>
+
+        {serviceCases.length > 0 && (
+          <div className="bg-white rounded-xl border p-6 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-violet-100 rounded-lg flex items-center justify-center">
+                <Wrench className="w-6 h-6 text-violet-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{serviceCases.length}</p>
+                <p className="text-sm text-gray-600">Serviceopgaver</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Besigtigelse Booking */}
+      <PortalBesigtigelseSection
+        token={token}
+        customerName={session.customer.company_name}
+      />
+
+      {/* Fuldmagter */}
+      <PortalFuldmagtSection token={token} fuldmagter={fuldmagter} />
 
       {/* Offers List */}
       <div className="bg-white rounded-xl border shadow-sm">
@@ -201,6 +234,62 @@ export function PortalDashboard({
           </div>
         )}
       </div>
+
+      {/* Service Cases */}
+      {serviceCases.length > 0 && (
+        <div className="bg-white rounded-xl border shadow-sm">
+          <div className="p-6 border-b">
+            <div className="flex items-center gap-2">
+              <Wrench className="w-5 h-5 text-purple-600" />
+              <h2 className="text-lg font-semibold">Serviceopgaver</h2>
+              <span className="text-sm text-gray-500">({serviceCases.length})</span>
+            </div>
+          </div>
+          <div className="divide-y">
+            {serviceCases.map((sc) => {
+              const statusColor =
+                sc.status === 'new'
+                  ? 'bg-blue-100 text-blue-700'
+                  : sc.status === 'in_progress'
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : sc.status === 'pending'
+                  ? 'bg-orange-100 text-orange-700'
+                  : 'bg-gray-100 text-gray-700'
+
+              return (
+                <div
+                  key={sc.id}
+                  className="p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm text-gray-500">{sc.case_number}</span>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColor}`}>
+                          {SERVICE_CASE_STATUS_LABELS[sc.status]}
+                        </span>
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+                          {SERVICE_CASE_PRIORITY_LABELS[sc.priority]}
+                        </span>
+                      </div>
+                      <p className="font-medium text-gray-900 mt-1">{sc.title}</p>
+                      {sc.status_note && (
+                        <p className="text-sm text-purple-700 mt-1 italic">{sc.status_note}</p>
+                      )}
+                      {sc.description && (
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{sc.description}</p>
+                      )}
+                    </div>
+                    <div className="text-right text-sm text-gray-500">
+                      {formatDateUtil(sc.created_at)}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Documents */}
       {documents.length > 0 && (

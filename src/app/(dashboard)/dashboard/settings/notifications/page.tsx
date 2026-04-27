@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Notifikationer',
-  description: 'Konfigurer e-mail og SMS notifikationer',
+  description: 'Konfigurer e-mail og push notifikationer',
 }
 
 export default async function NotificationsSettingsPage() {

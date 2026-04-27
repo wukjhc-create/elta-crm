@@ -265,7 +265,7 @@ export interface OfferTextTemplate {
 // System Alerts
 // =====================================================
 
-export type AlertType = 'price_increase' | 'price_decrease' | 'margin_below' | 'supplier_offline' | 'anomaly_detected' | 'sync_failed'
+export type AlertType = 'price_increase' | 'price_decrease' | 'margin_below' | 'supplier_offline' | 'anomaly_detected' | 'sync_failed' | 'fuldmagt_signed' | 'besigtigelse_confirmed' | 'customer_email_received'
 export type AlertSeverity = 'info' | 'warning' | 'critical'
 
 export interface SystemAlert {

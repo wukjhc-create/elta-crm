@@ -539,7 +539,7 @@ function getSupplierFields(supplierCode: string | null) {
   if (code === 'LM') {
     return {
       showEndpoint: true,
-      endpointPlaceholder: 'ftp.lemu.dk',
+      endpointPlaceholder: 'sftp.lfrp.lemvigh-mueller.com',
       showUsername: true,
       showPassword: true,
       showCustomerNumber: true,
@@ -549,8 +549,8 @@ function getSupplierFields(supplierCode: string | null) {
       showClientSecret: false,
       isCSVOnly: false,
       defaultCredentialType: 'ftp' as CredentialType,
-      endpointLabel: 'FTP Host',
-      description: 'Gem FTP-loginoplysninger til Lemvigh-Müllers prislistefiler for automatisk synkronisering',
+      endpointLabel: 'SFTP Host (port 22)',
+      description: 'Gem SFTP-loginoplysninger til Lemvigh-Müllers prislistefiler. Mappe: /FromLEMU/pricelist/',
     }
   }
 

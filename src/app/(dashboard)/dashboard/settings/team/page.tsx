@@ -2,20 +2,23 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getTeamMembers, getTeamInvitations } from '@/lib/actions/settings'
+import { getUserActivityList } from '@/lib/actions/user-activity'
 import { getUser } from '@/lib/supabase/server'
 import { TeamSettingsClient } from './team-settings-client'
+import { UserActivityPanel } from './user-activity-panel'
 
 export const metadata: Metadata = {
-  title: 'Team',
-  description: 'Administrer teammedlemmer og roller',
+  title: 'Brugerstyring | Indstillinger',
+  description: 'Administrer brugere, roller og rettigheder',
 }
 
 export const dynamic = 'force-dynamic'
 
 export default async function TeamSettingsPage() {
-  const [result, invitationsResult, user] = await Promise.all([
+  const [result, invitationsResult, activityResult, user] = await Promise.all([
     getTeamMembers(),
     getTeamInvitations(),
+    getUserActivityList(),
     getUser(),
   ])
 
@@ -30,8 +33,8 @@ export default async function TeamSettingsPage() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Team</h1>
-            <p className="text-gray-600 mt-1">Administrer brugere</p>
+            <h1 className="text-3xl font-bold text-gray-900">Brugerstyring</h1>
+            <p className="text-gray-600 mt-1">Administrer brugere, roller og rettigheder</p>
           </div>
         </div>
 
@@ -52,8 +55,8 @@ export default async function TeamSettingsPage() {
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Team</h1>
-          <p className="text-gray-600 mt-1">Administrer brugere</p>
+          <h1 className="text-3xl font-bold text-gray-900">Brugerstyring</h1>
+          <p className="text-gray-600 mt-1">Administrer brugere, roller og rettigheder</p>
         </div>
       </div>
 
@@ -62,6 +65,10 @@ export default async function TeamSettingsPage() {
         invitations={invitationsResult.success && invitationsResult.data ? invitationsResult.data : []}
         currentUserId={user.id}
       />
+
+      {activityResult.success && activityResult.data && (
+        <UserActivityPanel users={activityResult.data} />
+      )}
     </div>
   )
 }

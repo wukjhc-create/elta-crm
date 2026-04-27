@@ -9,6 +9,8 @@ import { useToast } from '@/components/ui/toast'
 import { updateProfile, uploadProfileAvatar, deleteProfileAvatar } from '@/lib/actions/settings'
 import type { Profile, UpdateProfileInput } from '@/types/settings.types'
 import { User, Phone, Building2, Mail, Save, Loader2, Camera, Trash2 } from 'lucide-react'
+import { getRoleLabel } from '@/lib/auth/roles'
+import type { UserRole } from '@/types/auth.types'
 
 interface ProfileSettingsClientProps {
   profile: Profile
@@ -111,7 +113,7 @@ export function ProfileSettingsClient({ profile }: ProfileSettingsClientProps) {
             <p className="text-gray-500">{profile.email}</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                {profile.role}
+                {getRoleLabel(profile.role as UserRole)}
               </span>
               {avatarUrl && (
                 <button
@@ -222,7 +224,7 @@ export function ProfileSettingsClient({ profile }: ProfileSettingsClientProps) {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-gray-500">Rolle:</span>
-            <span className="ml-2 font-medium">{profile.role}</span>
+            <span className="ml-2 font-medium">{getRoleLabel(profile.role as UserRole)}</span>
           </div>
           <div>
             <span className="text-gray-500">Status:</span>

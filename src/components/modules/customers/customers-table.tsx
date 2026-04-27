@@ -182,7 +182,51 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
         </div>
       )}
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-2">
+        {customers.map((customer) => (
+          <Link
+            key={customer.id}
+            href={`/dashboard/customers/${customer.id}`}
+            className="block bg-white rounded-xl border p-4 active:scale-[0.98] active:bg-gray-50 transition-all touch-manipulation"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-gray-900 truncate">{customer.company_name}</p>
+                  {customer.is_active ? (
+                    <span className="shrink-0 w-2 h-2 bg-green-500 rounded-full" />
+                  ) : (
+                    <span className="shrink-0 w-2 h-2 bg-gray-300 rounded-full" />
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 mt-0.5 truncate">{customer.contact_person || customer.email}</p>
+              </div>
+              <svg className="w-5 h-5 text-gray-300 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+            <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+              {customer.phone && (
+                <span className="flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  {customer.phone}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <Mail className="w-3 h-3" />
+                <span className="truncate max-w-[150px]">{customer.email}</span>
+              </span>
+              {customer.billing_city && (
+                <span className="ml-auto text-gray-400">{customer.billing_city}</span>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block bg-white rounded-lg border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10">

@@ -255,6 +255,228 @@ GRANT SELECT (id, full_name, email) ON profiles TO anon;
 ALTER TABLE portal_access_tokens ADD COLUMN IF NOT EXISTS _anon_policies_applied boolean DEFAULT true;
     `.trim(),
   },
+  {
+    name: '00063_enable_realtime',
+    check_table: '_realtime_sentinel_do_not_exist',
+    sql: `
+-- Enable Supabase Realtime on key tables
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'offers'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE offers;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'customer_tasks'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE customer_tasks;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'customers'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE customers;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'incoming_emails'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE incoming_emails;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'portal_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE portal_messages;
+  END IF;
+END $$;
+    `.trim(),
+  },
+  {
+    name: '00064_customer_tasks_anon_access',
+    check_table: '_anon_tasks_sentinel_do_not_exist',
+    sql: `
+-- Grant anon access to customer_tasks for portal
+GRANT SELECT, INSERT, UPDATE ON customer_tasks TO anon;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'customer_tasks' AND policyname = 'Anon portal access customer tasks') THEN
+    CREATE POLICY "Anon portal access customer tasks" ON customer_tasks FOR ALL TO anon USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+    `.trim(),
+  },
+  {
+    name: '00065_rbac_roles',
+    check_table: '_rbac_sentinel_do_not_exist',
+    sql: `
+-- Add new RBAC roles to user_role enum
+-- Use DO block to handle "already exists" gracefully
+DO $$ BEGIN
+  BEGIN
+    ALTER TYPE user_role ADD VALUE 'serviceleder';
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+  BEGIN
+    ALTER TYPE user_role ADD VALUE 'montør';
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END;
+END $$;
+    `.trim(),
+  },
+  {
+    name: '00066_service_cases_smart_fields',
+    check_table: 'service_cases',
+    check_column: 'ksr_number',
+    sql: `
+-- Add address fields to service_cases
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS postal_code TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS floor_door TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+
+-- KSR/EAN admin fields
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS ksr_number TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS ean_number TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+
+-- Checklist and signature
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS checklist JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS customer_signature TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS customer_signature_name TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ;
+
+-- Attachments table
+CREATE TABLE IF NOT EXISTS service_case_attachments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  service_case_id UUID NOT NULL REFERENCES service_cases(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL,
+  file_url TEXT NOT NULL,
+  storage_path TEXT,
+  mime_type TEXT NOT NULL DEFAULT 'image/jpeg',
+  file_size INTEGER,
+  category TEXT NOT NULL DEFAULT 'other'
+    CHECK (category IN ('inverter_photo', 'panel_photo', 'tavle_photo', 'before_photo', 'after_photo', 'signature', 'other')),
+  notes TEXT,
+  uploaded_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sca_service_case_id ON service_case_attachments(service_case_id);
+CREATE INDEX IF NOT EXISTS idx_sca_category ON service_case_attachments(category);
+
+ALTER TABLE service_case_attachments ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'service_case_attachments' AND policyname = 'Auth users manage service case attachments') THEN
+    CREATE POLICY "Auth users manage service case attachments"
+      ON service_case_attachments FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+GRANT ALL ON service_case_attachments TO authenticated;
+GRANT ALL ON service_case_attachments TO service_role;
+    `.trim(),
+  },
+  {
+    name: '00067_ordrestyring_integration',
+    check_table: 'service_cases',
+    check_column: 'os_case_id',
+    sql: `
+-- Ordrestyring integration fields
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS os_case_id TEXT;
+ALTER TABLE service_cases ADD COLUMN IF NOT EXISTS os_synced_at TIMESTAMPTZ;
+
+-- Update status CHECK to allow 'converted'
+ALTER TABLE service_cases DROP CONSTRAINT IF EXISTS service_cases_status_check;
+ALTER TABLE service_cases ADD CONSTRAINT service_cases_status_check
+  CHECK (status IN ('new', 'in_progress', 'pending', 'closed', 'converted'));
+
+-- Index for OS reference
+CREATE INDEX IF NOT EXISTS idx_service_cases_os_case_id ON service_cases(os_case_id)
+  WHERE os_case_id IS NOT NULL;
+    `.trim(),
+  },
+  {
+    name: '00068_offers_ordrestyring',
+    check_table: 'offers',
+    check_column: 'os_case_id',
+    sql: `
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS os_case_id TEXT;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS os_synced_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_offers_os_case_id ON offers(os_case_id)
+  WHERE os_case_id IS NOT NULL;
+    `.trim(),
+  },
+  {
+    name: '00069_integration_settings',
+    check_table: 'integration_settings',
+    sql: `
+CREATE TABLE IF NOT EXISTS integration_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE integration_settings ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'integration_settings' AND policyname = 'auth_read_integration_settings'
+  ) THEN
+    CREATE POLICY auth_read_integration_settings ON integration_settings FOR SELECT TO authenticated USING (true);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'integration_settings' AND policyname = 'auth_all_integration_settings'
+  ) THEN
+    CREATE POLICY auth_all_integration_settings ON integration_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+    `.trim(),
+  },
+  {
+    name: '00070_email_threading_columns',
+    check_table: 'incoming_emails',
+    check_column: 'internet_message_id',
+    sql: `
+ALTER TABLE incoming_emails
+  ADD COLUMN IF NOT EXISTS internet_message_id TEXT,
+  ADD COLUMN IF NOT EXISTS in_reply_to TEXT,
+  ADD COLUMN IF NOT EXISTS "references" TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_incoming_emails_internet_message_id
+  ON incoming_emails (internet_message_id)
+  WHERE internet_message_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_incoming_emails_conversation_id
+  ON incoming_emails (conversation_id)
+  WHERE conversation_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_incoming_emails_in_reply_to
+  ON incoming_emails (in_reply_to)
+  WHERE in_reply_to IS NOT NULL;
+    `.trim(),
+  },
+  {
+    name: '00071_multi_mailbox',
+    check_table: 'incoming_emails',
+    check_column: 'mailbox_source',
+    sql: `
+ALTER TABLE incoming_emails
+  ADD COLUMN IF NOT EXISTS mailbox_source TEXT;
+
+UPDATE incoming_emails
+  SET mailbox_source = COALESCE(to_email, sender_email)
+  WHERE mailbox_source IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_incoming_emails_mailbox_source
+  ON incoming_emails (mailbox_source)
+  WHERE mailbox_source IS NOT NULL;
+    `.trim(),
+  },
 ]
 
 function getProjectRef(): string | null {

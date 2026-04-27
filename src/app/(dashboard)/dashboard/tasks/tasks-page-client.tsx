@@ -43,6 +43,7 @@ import type {
   CreateCustomerTaskInput,
 } from '@/types/customer-tasks.types'
 import { useToast } from '@/components/ui/toast'
+import { useRealtimeTable } from '@/lib/hooks/use-realtime'
 
 type FilterStatus = TaskStatus | 'all'
 type FilterPriority = TaskPriority | 'all'
@@ -107,6 +108,9 @@ export function TasksPageClient() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // Realtime: refresh when tasks change in DB
+  useRealtimeTable('customer_tasks', loadData)
 
   // Load customers on first dialog open
   useEffect(() => {
@@ -196,6 +200,19 @@ export function TasksPageClient() {
     setIsSaving(true)
     try {
       if (editingTask) {
+        // Optimistic: update in place
+        setTasks((prev) => prev.map((t) => t.id === editingTask.id ? {
+          ...t,
+          title: formData.title,
+          description: formData.description || null,
+          priority: formData.priority,
+          assigned_to: formData.assigned_to || null,
+          due_date: formData.due_date || null,
+          reminder_at: formData.reminder_at || null,
+        } : t))
+        setDialogOpen(false)
+        toast.success('Opgave opdateret')
+
         const result = await updateCustomerTask({
           id: editingTask.id,
           title: formData.title,
@@ -205,12 +222,9 @@ export function TasksPageClient() {
           due_date: formData.due_date || null,
           reminder_at: formData.reminder_at || null,
         })
-        if (result.success) {
-          toast.success('Opgave opdateret')
-          setDialogOpen(false)
-          loadData()
-        } else {
+        if (!result.success) {
           toast.error('Fejl', result.error)
+          loadData() // revert
         }
       } else {
         const input: CreateCustomerTaskInput = {
@@ -223,14 +237,35 @@ export function TasksPageClient() {
           reminder_at: formData.reminder_at || undefined,
           offer_id: formData.offer_id || undefined,
         }
+        // Optimistic: add placeholder task
+        const optimisticTask: CustomerTaskWithRelations = {
+          id: `temp-${Date.now()}`,
+          customer_id: input.customer_id,
+          offer_id: input.offer_id || null,
+          title: input.title,
+          description: input.description || null,
+          status: 'pending',
+          priority: input.priority || 'normal',
+          assigned_to: input.assigned_to || null,
+          due_date: input.due_date || null,
+          reminder_at: input.reminder_at || null,
+          snoozed_until: null,
+          completed_at: null,
+          created_by: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          customer: customers.find((c) => c.id === input.customer_id) ? { ...customers.find((c) => c.id === input.customer_id)! } : null,
+        }
+        setTasks((prev) => [optimisticTask, ...prev])
+        setDialogOpen(false)
+        toast.success('Opgave oprettet')
+
         const result = await createCustomerTask(input)
-        if (result.success) {
-          toast.success('Opgave oprettet')
-          setDialogOpen(false)
-          loadData()
-        } else {
+        if (!result.success) {
           toast.error('Fejl', result.error)
         }
+        // Realtime or loadData will replace the optimistic entry
+        loadData()
       }
     } finally {
       setIsSaving(false)

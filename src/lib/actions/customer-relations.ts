@@ -14,7 +14,7 @@ export interface CustomerOffer {
   offer_number: string | null
   title: string
   status: string
-  total: number | null
+  final_amount: number | null
   created_at: string | null
 }
 
@@ -46,7 +46,7 @@ export async function getCustomerOffers(customerId: string): Promise<CustomerOff
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, offer_number, title, status, total, created_at')
+    .select('id, offer_number, title, status, final_amount, created_at')
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
 

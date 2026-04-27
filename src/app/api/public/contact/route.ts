@@ -86,6 +86,7 @@ async function generateCustomerNumber(
 const ALLOWED_ORIGINS = [
   'https://eltasolar.dk',
   'https://www.eltasolar.dk',
+  'https://elta-crm.vercel.app',
   'http://localhost:3000',
   'http://localhost:5500',
 ]

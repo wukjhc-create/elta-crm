@@ -12,6 +12,7 @@ import {
   BarChart3,
   Send,
   ExternalLink,
+  Wrench,
 } from 'lucide-react'
 import {
   getCustomerOffers,
@@ -19,12 +20,15 @@ import {
   getCustomerLeads,
   getCustomerSentQuotes,
 } from '@/lib/actions/customer-relations'
+import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import type {
   CustomerOffer,
   CustomerProject,
   CustomerLead,
   CustomerSentQuote,
 } from '@/lib/actions/customer-relations'
+import type { ServiceCase } from '@/types/service-cases.types'
+import { SERVICE_CASE_STATUS_LABELS, SERVICE_CASE_PRIORITY_LABELS } from '@/types/service-cases.types'
 
 interface CustomerActivityOverviewProps {
   customerId: string
@@ -36,21 +40,24 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
   const [projects, setProjects] = useState<CustomerProject[]>([])
   const [leads, setLeads] = useState<CustomerLead[]>([])
   const [sentQuotes, setSentQuotes] = useState<CustomerSentQuote[]>([])
+  const [serviceCases, setServiceCases] = useState<ServiceCase[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     async function loadAll() {
       setIsLoading(true)
-      const [o, p, l, sq] = await Promise.all([
+      const [o, p, l, sq, sc] = await Promise.all([
         getCustomerOffers(customerId),
         getCustomerProjects(customerId),
         getCustomerLeads(customerEmail),
         getCustomerSentQuotes(customerId),
+        getCustomerServiceCases(customerId),
       ])
       setOffers(o)
       setProjects(p)
       setLeads(l)
       setSentQuotes(sq)
+      setServiceCases(sc)
       setIsLoading(false)
     }
     loadAll()
@@ -82,7 +89,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
     )
   }
 
-  const totalItems = offers.length + projects.length + leads.length + sentQuotes.length
+  const totalItems = offers.length + projects.length + leads.length + sentQuotes.length + serviceCases.length
   if (totalItems === 0) {
     return (
       <div className="bg-white rounded-lg border p-6">
@@ -141,9 +148,9 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
                   )}
                 </div>
               </div>
-              {offer.total != null && (
+              {offer.final_amount != null && (
                 <span className="text-sm font-bold whitespace-nowrap ml-3" style={{ color: '#2D8A2D' }}>
-                  {Number(offer.total).toLocaleString('da-DK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} kr.
+                  {Number(offer.final_amount).toLocaleString('da-DK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} kr.
                 </span>
               )}
             </Link>
@@ -197,6 +204,34 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
                 </div>
               </div>
             </div>
+          ))}
+        </ActivitySection>
+
+        <ActivitySection
+          icon={<Wrench className="w-4 h-4" style={{ color: '#7C3AED' }} />}
+          title="Serviceopgaver"
+          count={serviceCases.length}
+          defaultOpen={serviceCases.some((sc) => sc.status !== 'closed')}
+        >
+          {serviceCases.map((sc) => (
+            <Link
+              key={sc.id}
+              href="/dashboard/service-cases"
+              className="flex items-center justify-between py-2 px-3 text-sm bg-gray-50 rounded hover:bg-purple-50 transition-colors group"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{sc.title}</span>
+                  <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                  <span className="font-mono">{sc.case_number}</span>
+                  <StatusBadge status={sc.status} />
+                  <span>{SERVICE_CASE_PRIORITY_LABELS[sc.priority]}</span>
+                  <span>{format(new Date(sc.created_at), 'd. MMM yyyy', { locale: da })}</span>
+                </div>
+              </div>
+            </Link>
           ))}
         </ActivitySection>
       </div>

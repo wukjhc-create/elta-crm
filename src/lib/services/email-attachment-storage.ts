@@ -149,12 +149,13 @@ export async function downloadAndStoreAttachment(
  */
 export async function processEmailAttachments(
   emailId: string,
-  graphMessageId: string
+  graphMessageId: string,
+  mailboxOverride?: string
 ): Promise<StoredAttachment[]> {
   const { fetchMessageWithAttachments } = await import('@/lib/services/microsoft-graph')
 
   // 1. Fetch message with attachments expanded (single API call, includes contentBytes)
-  const message = await fetchMessageWithAttachments(graphMessageId)
+  const message = await fetchMessageWithAttachments(graphMessageId, mailboxOverride)
   const attachments = message.attachments || []
 
   if (attachments.length === 0) return []

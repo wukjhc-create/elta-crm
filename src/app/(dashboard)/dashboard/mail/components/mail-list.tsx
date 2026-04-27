@@ -44,6 +44,23 @@ interface MailListProps {
 // Helpers
 // =====================================================
 
+function mailboxBadge(email: IncomingEmailWithCustomer) {
+  // Derive mailbox from mailbox_source, to_email, or sender_email
+  const source = (email as unknown as Record<string, unknown>).mailbox_source as string | null
+    || email.to_email
+    || email.sender_email
+  if (!source) return null
+
+  const prefix = source.split('@')[0]?.toLowerCase()
+  if (prefix === 'ordre' || prefix === 'order') {
+    return <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700">ordre</span>
+  }
+  if (prefix === 'kontakt' || prefix === 'contact' || prefix === 'info') {
+    return <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">kontakt</span>
+  }
+  return null
+}
+
 function statusBadge(status: EmailLinkStatus) {
   const map: Record<EmailLinkStatus, { icon: typeof Mail; label: string; cls: string }> = {
     linked: { icon: CheckCircle2, label: 'Koblet', cls: 'bg-green-100 text-green-800' },
@@ -259,6 +276,7 @@ export function MailList({
                         </p>
                         {/* Bottom row: badges + icons */}
                         <div className="flex items-center gap-1.5 mt-1.5">
+                          {mailboxBadge(email)}
                           {statusBadge(email.link_status)}
                           {emailLeadMap[email.id] && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">

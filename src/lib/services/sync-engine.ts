@@ -21,6 +21,10 @@ import type { SupplierAdapter } from './supplier-adapter'
 import { SupplierAdapterRegistry } from './supplier-adapter'
 import { ImportEngine, calculatePriceChange } from './import-engine'
 
+// Import adapters to trigger registration
+import './importers/ao-importer'
+import './importers/lm-importer'
+
 // =====================================================
 // Sync Engine Types
 // =====================================================

@@ -270,6 +270,157 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
   }
 }
 
+// =====================================================
+// Quick Create: Customer + Offer in one action
+// =====================================================
+
+interface QuickCreateInput {
+  // Customer fields (skipped if existingCustomerId provided)
+  existingCustomerId?: string
+  companyName?: string
+  contactPerson?: string
+  email?: string
+  phone?: string
+  address?: string
+  city?: string
+  postalCode?: string
+  // Offer fields
+  offerTitle: string
+  productType?: string
+  sourceEmailId?: string
+}
+
+export async function quickCreateCustomerAndOffer(
+  input: QuickCreateInput
+): Promise<ActionResult<{ customerId: string; offerId: string }>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    let customerId: string = input.existingCustomerId || ''
+
+    // Step 1: Create customer if not already linked
+    if (!customerId) {
+      if (!input.companyName || !input.email) {
+        return { success: false, error: 'Firmanavn og email er påkrævet' }
+      }
+
+      // Check if customer with this email already exists
+      const { data: existing } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('email', input.email)
+        .maybeSingle()
+
+      if (existing) {
+        customerId = existing.id
+      } else {
+        // Generate customer number
+        const { data: lastCustomer } = await supabase
+          .from('customers')
+          .select('customer_number')
+          .order('customer_number', { ascending: false })
+          .limit(1)
+
+        let customerNumber = 'C000001'
+        if (lastCustomer && lastCustomer.length > 0) {
+          const numPart = parseInt(lastCustomer[0].customer_number.substring(1), 10)
+          customerNumber = `C${(numPart + 1).toString().padStart(6, '0')}`
+        }
+
+        const { data: newCustomer, error: custError } = await supabase
+          .from('customers')
+          .insert({
+            company_name: input.companyName,
+            contact_person: input.contactPerson || null,
+            email: input.email,
+            phone: input.phone || null,
+            billing_address: input.address || null,
+            billing_city: input.city || null,
+            billing_postal_code: input.postalCode || null,
+            billing_country: 'Danmark',
+            customer_number: customerNumber,
+            created_by: userId,
+            is_active: true,
+            tags: [],
+          })
+          .select('id')
+          .single()
+
+        if (custError) {
+          logger.error('Error creating customer in quick flow', { error: custError })
+          return { success: false, error: 'Kunne ikke oprette kunde' }
+        }
+
+        customerId = newCustomer.id
+
+        await logCreate('customer', customerId, input.companyName, {
+          customer_number: customerNumber,
+          source: 'quick_create_from_mail',
+        })
+      }
+    }
+
+    // Step 2: Create offer
+    const offerNumber = await generateOfferNumber()
+
+    const insertData: Record<string, unknown> = {
+      offer_number: offerNumber,
+      title: input.offerTitle,
+      customer_id: customerId,
+      status: 'draft',
+      tax_percentage: 25,
+      discount_percentage: 0,
+      created_by: userId,
+    }
+    if (input.productType) {
+      insertData.description = `Produkttype: ${input.productType}`
+    }
+
+    const { data: offer, error: offerError } = await supabase
+      .from('offers')
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (offerError) {
+      logger.error('Error creating offer in quick flow', { error: offerError })
+      return { success: false, error: 'Kunde oprettet, men tilbud fejlede' }
+    }
+
+    // Log activity
+    await logOfferActivity(
+      offer.id,
+      'created',
+      `Tilbud "${offer.title}" oprettet via hurtig-flow`,
+      userId
+    )
+    await logCreate('offer', offer.id, offer.title, {
+      offer_number: offerNumber,
+      customer_id: customerId,
+      source: 'quick_create_from_mail',
+    })
+
+    // Link source email to customer if provided
+    if (input.sourceEmailId && customerId) {
+      await supabase
+        .from('incoming_emails')
+        .update({ customer_id: customerId, link_status: 'linked' })
+        .eq('id', input.sourceEmailId)
+    }
+
+    revalidatePath('/offers')
+    revalidatePath('/customers')
+    revalidatePath('/dashboard/mail')
+
+    return {
+      success: true,
+      data: { customerId, offerId: offer.id },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette kunde og tilbud') }
+  }
+}
+
 // Update offer
 export async function updateOffer(formData: FormData): Promise<ActionResult<Offer>> {
   try {
@@ -1450,6 +1601,14 @@ export async function searchSupplierProductsForOffer(
   unit: string
   is_available: boolean
   image_url: string | null
+  is_cheapest?: boolean
+  alternatives?: Array<{
+    supplier_code: string
+    supplier_name: string
+    cost_price: number
+    supplier_sku: string
+    id: string
+  }>
 }>>> {
   try {
     const { supabase } = await getAuthenticatedClient()
@@ -1460,6 +1619,8 @@ export async function searchSupplierProductsForOffer(
       ? calcResult.data.margins.products
       : CALC_DEFAULTS.MARGINS.PRODUCTS
 
+    // Search across ALL suppliers — increased limit for cross-supplier comparison
+    const searchLimit = (options?.limit || 20) * 2
     let dbQuery = supabase
       .from('supplier_products')
       .select(`
@@ -1473,6 +1634,7 @@ export async function searchSupplierProductsForOffer(
         unit,
         is_available,
         image_url,
+        ean,
         suppliers!inner (
           name,
           code,
@@ -1480,8 +1642,9 @@ export async function searchSupplierProductsForOffer(
         )
       `)
       .eq('suppliers.is_active', true)
-      .or(`supplier_sku.ilike.%${sanitizeSearchTerm(query)}%,supplier_name.ilike.%${sanitizeSearchTerm(query)}%`)
-      .limit(options?.limit || 20)
+      .or(`supplier_sku.ilike.%${sanitizeSearchTerm(query)}%,supplier_name.ilike.%${sanitizeSearchTerm(query)}%,ean.ilike.%${sanitizeSearchTerm(query)}%`)
+      .order('cost_price', { ascending: true })
+      .limit(searchLimit)
 
     if (options?.supplierId) {
       validateUUID(options.supplierId, 'leverandør ID')
@@ -1517,7 +1680,31 @@ export async function searchSupplierProductsForOffer(
     }
 
     // Transform results
-    const results = (data || []).map((sp) => {
+    type SearchResult = {
+      id: string
+      supplier_id: string
+      supplier_name: string
+      supplier_code: string
+      supplier_sku: string
+      product_name: string
+      cost_price: number
+      list_price: number | null
+      margin_percentage: number
+      estimated_sale_price: number
+      unit: string
+      is_available: boolean
+      image_url: string | null
+      _ean?: string
+      is_cheapest?: boolean
+      alternatives?: Array<{
+        supplier_code: string
+        supplier_name: string
+        cost_price: number
+        supplier_sku: string
+        id: string
+      }>
+    }
+    const results: SearchResult[] = (data || []).map((sp) => {
       const supplier = Array.isArray(sp.suppliers) ? sp.suppliers[0] : sp.suppliers
       const customerPricing = customerPricingMap.get(sp.supplier_id)
 
@@ -1545,6 +1732,7 @@ export async function searchSupplierProductsForOffer(
         unit: sp.unit || 'stk',
         is_available: sp.is_available,
         image_url: sp.image_url || null,
+        _ean: sp.ean || undefined,
       }
     })
 
@@ -1633,6 +1821,7 @@ export async function searchSupplierProductsForOffer(
               unit: lp.unit || 'stk',
               is_available: lp.isAvailable,
               image_url: null,
+              _ean: undefined,
             })
           }
         }
@@ -1640,6 +1829,60 @@ export async function searchSupplierProductsForOffer(
         logger.error('Live API search fallback failed', { error: liveErr })
       }
     }
+
+    // Cross-supplier comparison: group by EAN, mark cheapest, add alternatives
+    const eanGroups = new Map<string, typeof results>()
+    const noEan: typeof results = []
+
+    for (const r of results) {
+      // Fetch EAN from raw data if not on result
+      const eanKey = (r as Record<string, unknown>)._ean as string | undefined
+      if (eanKey && eanKey.length > 5) {
+        const group = eanGroups.get(eanKey) || []
+        group.push(r)
+        eanGroups.set(eanKey, group)
+      } else {
+        noEan.push(r)
+      }
+    }
+
+    // Also try to group by normalized product name for products without EAN
+    // (skip this for now — EAN is the reliable cross-supplier match)
+
+    // Mark cheapest in each EAN group and attach alternatives
+    for (const [, group] of eanGroups) {
+      if (group.length <= 1) continue
+      // Sort group by cost_price ascending
+      group.sort((a, b) => (a.cost_price || Infinity) - (b.cost_price || Infinity))
+      const cheapest = group[0]
+      for (const item of group) {
+        item.is_cheapest = item === cheapest
+        item.alternatives = group
+          .filter(alt => alt !== item)
+          .map(alt => ({
+            supplier_code: alt.supplier_code,
+            supplier_name: alt.supplier_name,
+            cost_price: alt.cost_price,
+            supplier_sku: alt.supplier_sku,
+            id: alt.id,
+          }))
+      }
+    }
+
+    // Also mark cheapest among all results when no EAN grouping
+    // Simple: mark cheapest cost_price per product_name similarity
+    if (results.length > 0) {
+      // For ungrouped results, mark the overall cheapest
+      const minCost = Math.min(...results.filter(r => r.cost_price > 0).map(r => r.cost_price))
+      for (const r of results) {
+        if (r.is_cheapest === undefined) {
+          r.is_cheapest = r.cost_price === minCost && r.cost_price > 0
+        }
+      }
+    }
+
+    // Sort: cheapest cost_price first
+    results.sort((a, b) => (a.cost_price || Infinity) - (b.cost_price || Infinity))
 
     return { success: true, data: results }
   } catch (err) {
@@ -1918,5 +2161,317 @@ export async function refreshLineItemPrice(
     return { success: true, data: data as OfferLineItem }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere pris') }
+  }
+}
+
+// =====================================================
+// Optimize Offer Prices (cross-supplier)
+// =====================================================
+
+export interface OptimizationResult {
+  lines_checked: number
+  lines_optimized: number
+  old_total_cost: number
+  new_total_cost: number
+  savings: number
+  changes: Array<{
+    line_id: string
+    description: string
+    old_supplier: string
+    new_supplier: string
+    old_cost: number
+    new_cost: number
+    saving: number
+  }>
+}
+
+/**
+ * Optimize all line items on an offer by finding the cheapest supplier
+ * for each product (matching by EAN or name) across AO + Lemvigh-Müller.
+ */
+export async function optimizeOfferPrices(
+  offerId: string
+): Promise<ActionResult<OptimizationResult>> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+    validateUUID(offerId, 'tilbuds ID')
+
+    // Get offer with line items
+    const { data: offer, error: offerError } = await supabase
+      .from('offers')
+      .select('id, status, customer_id')
+      .eq('id', offerId)
+      .maybeSingle()
+
+    if (offerError || !offer) {
+      return { success: false, error: 'Tilbud ikke fundet' }
+    }
+
+    if (offer.status !== 'draft') {
+      return { success: false, error: 'Kan kun optimere tilbud i kladde-status' }
+    }
+
+    // Get all line items with supplier links
+    const { data: lineItems, error: liError } = await supabase
+      .from('offer_line_items')
+      .select(`
+        id,
+        description,
+        quantity,
+        unit_price,
+        discount_percentage,
+        cost_price,
+        supplier_product_id,
+        supplier_cost_price_at_creation,
+        supplier_margin_applied,
+        supplier_name_at_creation
+      `)
+      .eq('offer_id', offerId)
+      .order('position')
+
+    if (liError || !lineItems) {
+      return { success: false, error: 'Kunne ikke hente tilbudslinjer' }
+    }
+
+    // Get supplier products linked to line items
+    const supplierProductIds = lineItems
+      .filter(li => li.supplier_product_id)
+      .map(li => li.supplier_product_id!)
+
+    if (supplierProductIds.length === 0) {
+      return {
+        success: true,
+        data: {
+          lines_checked: lineItems.length,
+          lines_optimized: 0,
+          old_total_cost: 0,
+          new_total_cost: 0,
+          savings: 0,
+          changes: [],
+        },
+      }
+    }
+
+    // Fetch current supplier products with EAN + supplier info
+    const { data: supplierProducts } = await supabase
+      .from('supplier_products')
+      .select(`
+        id,
+        supplier_id,
+        supplier_sku,
+        supplier_name,
+        cost_price,
+        ean,
+        suppliers ( name, code )
+      `)
+      .in('id', supplierProductIds)
+
+    const spMap = new Map((supplierProducts || []).map(sp => [sp.id, sp]))
+
+    // Get customer-specific pricing
+    let customerPricingMap = new Map<string, { discount: number; margin: number | null }>()
+    if (offer.customer_id) {
+      const { data: customerPricing } = await supabase
+        .from('customer_supplier_prices')
+        .select('supplier_id, discount_percentage, custom_margin_percentage')
+        .eq('customer_id', offer.customer_id)
+        .eq('is_active', true)
+
+      if (customerPricing) {
+        customerPricingMap = new Map(
+          customerPricing.map(cp => [
+            cp.supplier_id,
+            { discount: cp.discount_percentage || 0, margin: cp.custom_margin_percentage }
+          ])
+        )
+      }
+    }
+
+    const changes: OptimizationResult['changes'] = []
+    let oldTotalCost = 0
+    let newTotalCost = 0
+
+    for (const li of lineItems) {
+      if (!li.supplier_product_id) continue
+
+      const currentSP = spMap.get(li.supplier_product_id)
+      if (!currentSP || !currentSP.cost_price) continue
+
+      const currentSupplier = Array.isArray(currentSP.suppliers) ? currentSP.suppliers[0] : currentSP.suppliers
+      const currentCost = currentSP.cost_price
+      oldTotalCost += currentCost * li.quantity
+
+      // Try to find cheaper alternatives by EAN or product name
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let cheaperProduct: any = null
+
+      if (currentSP.ean && currentSP.ean.length > 5) {
+        // Search by EAN across all suppliers
+        const { data: alternatives } = await supabase
+          .from('supplier_products')
+          .select(`
+            id,
+            supplier_id,
+            supplier_sku,
+            supplier_name,
+            cost_price,
+            ean,
+            suppliers ( name, code )
+          `)
+          .eq('ean', currentSP.ean)
+          .eq('is_available', true)
+          .gt('cost_price', 0)
+          .neq('id', currentSP.id)
+          .order('cost_price', { ascending: true })
+          .limit(1)
+
+        if (alternatives && alternatives.length > 0 && alternatives[0].cost_price < currentCost) {
+          cheaperProduct = alternatives[0]
+        }
+      }
+
+      // Also search by similar name if no EAN match
+      if (!cheaperProduct && currentSP.supplier_name) {
+        const searchName = currentSP.supplier_name.substring(0, 30).replace(/[%_]/g, '')
+        if (searchName.length >= 5) {
+          const { data: nameAlts } = await supabase
+            .from('supplier_products')
+            .select(`
+              id,
+              supplier_id,
+              supplier_sku,
+              supplier_name,
+              cost_price,
+              ean,
+              suppliers ( name, code )
+            `)
+            .ilike('supplier_name', `%${searchName}%`)
+            .eq('is_available', true)
+            .gt('cost_price', 0)
+            .neq('supplier_id', currentSP.supplier_id)
+            .order('cost_price', { ascending: true })
+            .limit(1)
+
+          if (nameAlts && nameAlts.length > 0 && nameAlts[0].cost_price < currentCost) {
+            cheaperProduct = nameAlts[0]
+          }
+        }
+      }
+
+      if (cheaperProduct) {
+        const newSupplier = Array.isArray(cheaperProduct.suppliers) ? cheaperProduct.suppliers[0] : cheaperProduct.suppliers
+        const newCost = cheaperProduct.cost_price!
+
+        // Apply customer-specific pricing
+        const customerPrice = customerPricingMap.get(cheaperProduct.supplier_id)
+        let effectiveCost = newCost
+        let margin = li.supplier_margin_applied || CALC_DEFAULTS.MARGINS.PRODUCTS
+        if (customerPrice) {
+          effectiveCost = newCost * (1 - customerPrice.discount / 100)
+          if (customerPrice.margin !== null) margin = customerPrice.margin
+        }
+
+        const newUnitPrice = calculateSalePrice(effectiveCost, margin)
+        const discount = li.discount_percentage || 0
+        const total = calculateLineTotal(li.quantity, newUnitPrice, discount)
+
+        // Update line item to use cheaper supplier
+        await supabase
+          .from('offer_line_items')
+          .update({
+            unit_price: newUnitPrice,
+            total,
+            cost_price: newCost,
+            supplier_product_id: cheaperProduct.id,
+            supplier_cost_price_at_creation: newCost,
+            supplier_margin_applied: margin,
+            supplier_name_at_creation: newSupplier?.name || null,
+          })
+          .eq('id', li.id)
+
+        const saving = (currentCost - newCost) * li.quantity
+
+        changes.push({
+          line_id: li.id,
+          description: li.description,
+          old_supplier: currentSupplier?.code || currentSupplier?.name || '?',
+          new_supplier: newSupplier?.code || newSupplier?.name || '?',
+          old_cost: currentCost,
+          new_cost: newCost,
+          saving,
+        })
+
+        newTotalCost += newCost * li.quantity
+      } else {
+        // Also update to latest price from current supplier
+        if (currentCost !== li.supplier_cost_price_at_creation) {
+          const customerPrice = customerPricingMap.get(currentSP.supplier_id)
+          let effectiveCost = currentCost
+          let margin = li.supplier_margin_applied || CALC_DEFAULTS.MARGINS.PRODUCTS
+          if (customerPrice) {
+            effectiveCost = currentCost * (1 - customerPrice.discount / 100)
+            if (customerPrice.margin !== null) margin = customerPrice.margin
+          }
+
+          const newUnitPrice = calculateSalePrice(effectiveCost, margin)
+          const discount = li.discount_percentage || 0
+          const total = calculateLineTotal(li.quantity, newUnitPrice, discount)
+
+          await supabase
+            .from('offer_line_items')
+            .update({
+              unit_price: newUnitPrice,
+              total,
+              cost_price: currentCost,
+              supplier_cost_price_at_creation: currentCost,
+            })
+            .eq('id', li.id)
+        }
+        newTotalCost += currentCost * li.quantity
+      }
+    }
+
+    // Recalculate offer totals
+    const { data: updatedLines } = await supabase
+      .from('offer_line_items')
+      .select('total')
+      .eq('offer_id', offerId)
+
+    if (updatedLines) {
+      const newTotal = updatedLines.reduce((sum, li) => sum + (li.total || 0), 0)
+      await supabase
+        .from('offers')
+        .update({ total_amount: newTotal })
+        .eq('id', offerId)
+    }
+
+    // Log activity
+    if (changes.length > 0) {
+      const totalSaved = changes.reduce((sum, c) => sum + c.saving, 0)
+      await logOfferActivity(
+        offerId,
+        'updated',
+        `Prisoptimering: ${changes.length} linjer skiftet til billigste leverandør. Samlet besparelse: ${totalSaved.toFixed(2)} kr`,
+        userId
+      )
+    }
+
+    const savings = oldTotalCost - newTotalCost
+
+    revalidatePath(`/offers/${offerId}`)
+
+    return {
+      success: true,
+      data: {
+        lines_checked: lineItems.filter(li => li.supplier_product_id).length,
+        lines_optimized: changes.length,
+        old_total_cost: oldTotalCost,
+        new_total_cost: newTotalCost,
+        savings,
+        changes,
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Prisoptimering fejlede') }
   }
 }

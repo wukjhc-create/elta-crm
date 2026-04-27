@@ -5,12 +5,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { APP_NAME } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
 
 interface NavItem {
   name: string
   href: string
   icon: React.ReactNode
   exact?: boolean
+  permission?: Permission
 }
 
 interface NavSection {
@@ -39,6 +42,7 @@ const navSections: NavSection[] = [
       {
         name: 'Leads',
         href: '/dashboard/leads',
+        permission: 'leads.create',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -53,6 +57,7 @@ const navSections: NavSection[] = [
       {
         name: 'Kunder',
         href: '/dashboard/customers',
+        permission: 'customers.view',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -67,6 +72,7 @@ const navSections: NavSection[] = [
       {
         name: 'Tilbud',
         href: '/dashboard/offers',
+        permission: 'offers.view',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -81,6 +87,7 @@ const navSections: NavSection[] = [
       {
         name: 'Projekter',
         href: '/dashboard/projects',
+        permission: 'projects.view',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -95,6 +102,7 @@ const navSections: NavSection[] = [
       {
         name: 'Mail',
         href: '/dashboard/mail',
+        permission: 'inbox.view',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -107,8 +115,30 @@ const navSections: NavSection[] = [
         ),
       },
       {
+        name: 'Service',
+        href: '/dashboard/service-cases',
+        permission: 'service.view',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+        ),
+      },
+      {
         name: 'Opgaver',
         href: '/dashboard/tasks',
+        permission: 'tasks.view',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -116,6 +146,21 @@ const navSections: NavSection[] = [
               strokeLinejoin="round"
               strokeWidth={2}
               d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+            />
+          </svg>
+        ),
+      },
+      {
+        name: 'Kalender',
+        href: '/dashboard/calendar',
+        permission: 'calendar.view',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
         ),
@@ -128,6 +173,7 @@ const navSections: NavSection[] = [
       {
         name: 'Kalkulationer',
         href: '/dashboard/calculations',
+        permission: 'tools.calculations',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -142,6 +188,7 @@ const navSections: NavSection[] = [
       {
         name: 'AI Projekt',
         href: '/dashboard/ai-project',
+        permission: 'tools.ai_project',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -156,6 +203,7 @@ const navSections: NavSection[] = [
       {
         name: 'Produkter',
         href: '/dashboard/products',
+        permission: 'tools.products',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -170,6 +218,7 @@ const navSections: NavSection[] = [
       {
         name: 'Prisovervågning',
         href: '/dashboard/pricing',
+        permission: 'tools.pricing',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -184,6 +233,7 @@ const navSections: NavSection[] = [
       {
         name: 'Pakker',
         href: '/dashboard/packages',
+        permission: 'tools.packages',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -198,6 +248,7 @@ const navSections: NavSection[] = [
       {
         name: 'Solcelle-kalkulator',
         href: '/dashboard/calc',
+        permission: 'tools.solar_calc',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -212,6 +263,7 @@ const navSections: NavSection[] = [
       {
         name: 'Rapporter',
         href: '/dashboard/reports',
+        permission: 'tools.reports',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -231,6 +283,7 @@ const secondaryNavigation: NavItem[] = [
   {
     name: 'Indstillinger',
     href: '/dashboard/settings',
+    permission: 'settings.view',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -259,6 +312,7 @@ function isNavActive(pathname: string, item: NavItem): boolean {
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { role } = useUserRole()
   const [taskCount, setTaskCount] = useState(0)
   const [overdueCount, setOverdueCount] = useState(0)
 
@@ -283,6 +337,20 @@ export function Sidebar() {
     return () => { mounted = false; clearInterval(interval) }
   }, [])
 
+  // Filter nav items by role permissions
+  const filteredSections = navSections.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => {
+      if (!item.permission) return true
+      return hasPermission(role, item.permission)
+    }),
+  })).filter((section) => section.items.length > 0)
+
+  const filteredSecondary = secondaryNavigation.filter((item) => {
+    if (!item.permission) return true
+    return hasPermission(role, item.permission)
+  })
+
   return (
     <div className="flex w-64 flex-col bg-gray-900">
       {/* Logo */}
@@ -294,7 +362,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Hovednavigation">
-        {navSections.map((section, sectionIdx) => (
+        {filteredSections.map((section, sectionIdx) => (
           <div key={sectionIdx} className={sectionIdx > 0 ? 'mt-6' : ''}>
             {section.label && (
               <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -341,27 +409,29 @@ export function Sidebar() {
       </nav>
 
       {/* Secondary navigation */}
-      <div className="border-t border-gray-800 px-3 py-4">
-        {secondaryNavigation.map((item) => {
-          const isActive = isNavActive(pathname, item)
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              aria-current={isActive ? 'page' : undefined}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-              )}
-            >
-              {item.icon}
-              {item.name}
-            </Link>
-          )
-        })}
-      </div>
+      {filteredSecondary.length > 0 && (
+        <div className="border-t border-gray-800 px-3 py-4">
+          {filteredSecondary.map((item) => {
+            const isActive = isNavActive(pathname, item)
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-gray-800 text-white'
+                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                )}
+              >
+                {item.icon}
+                {item.name}
+              </Link>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

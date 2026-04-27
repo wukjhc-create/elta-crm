@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createClient as createJsClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 type CookieToSet = { name: string; value: string; options: CookieOptions }
@@ -27,6 +28,19 @@ export async function createClient() {
         },
       },
     }
+  )
+}
+
+/**
+ * Create a pure anon Supabase client — no cookies, no auth session.
+ * Use this for portal operations that must always run as the anon role,
+ * even when the browser has authenticated session cookies (e.g. CRM user
+ * testing the portal link in the same browser).
+ */
+export function createAnonClient() {
+  return createJsClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 }
 

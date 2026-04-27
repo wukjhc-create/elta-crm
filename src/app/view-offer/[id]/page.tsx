@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createAnonClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +14,7 @@ interface ViewOfferPageProps {
 export default async function ViewOfferPage({ params }: ViewOfferPageProps) {
   const { id: offerId } = await params
 
-  const supabase = await createClient()
+  const supabase = createAnonClient()
 
   // Look up the offer to get customer_id
   const { data: offer } = await supabase

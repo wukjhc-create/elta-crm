@@ -84,9 +84,13 @@ export function EmployeeChat({
         if (unreadIds.length > 0) {
           await markCustomerMessagesAsRead(unreadIds)
         }
+      } else {
+        console.error('Failed to load messages:', result.error)
+        setError(result.error || 'Kunne ikke hente beskeder')
       }
     } catch (err) {
       console.error('Error loading messages:', err)
+      setError('Kunne ikke hente beskeder fra serveren')
     } finally {
       setIsLoadingMessages(false)
     }
@@ -265,11 +269,24 @@ export function EmployeeChat({
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <User className="w-12 h-12 mb-2 opacity-50" />
-            <p className="text-center">
-              Ingen beskeder endnu.<br />
-              Skriv en besked for at starte samtalen.
-            </p>
+            {error ? (
+              <>
+                <div className="text-red-500 text-sm mb-2 p-3 bg-red-50 rounded-lg w-full">
+                  {error}
+                </div>
+                <button onClick={loadMessages} className="text-sm text-primary hover:underline">
+                  Prøv igen
+                </button>
+              </>
+            ) : (
+              <>
+                <User className="w-12 h-12 mb-2 opacity-50" />
+                <p className="text-center">
+                  Ingen beskeder endnu.<br />
+                  Skriv en besked for at starte samtalen.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           messages.map((message) => (

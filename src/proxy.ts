@@ -14,6 +14,16 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Track last active for authenticated dashboard users
+  if (user && request.nextUrl.pathname.startsWith('/dashboard')) {
+    supabaseResponse.cookies.set('x-last-active', new Date().toISOString(), {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+      httpOnly: true,
+      sameSite: 'lax',
+    })
+  }
+
   // Auth routes (redirect to dashboard if already logged in)
   // Note: /reset-password is NOT included here because users need a valid
   // recovery session to reset their password

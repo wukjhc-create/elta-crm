@@ -1,5 +1,6 @@
 import { SuppliersList } from '@/components/modules/suppliers'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
+import { SupplierSyncOverviewPanel } from '@/components/modules/suppliers/supplier-sync-overview'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,8 @@ export default function SuppliersPage() {
           Administrer grossister og leverandører til produktimport
         </p>
       </div>
+
+      <SupplierSyncOverviewPanel />
 
       <SupplierHealthOverview />
 

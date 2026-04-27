@@ -2,52 +2,63 @@ import type { UserRole } from '@/types/auth.types'
 
 export const PERMISSIONS = {
   // Lead permissions
-  'leads.view': ['admin', 'user', 'technician'],
-  'leads.create': ['admin', 'user'],
-  'leads.edit': ['admin', 'user'],
+  'leads.view': ['admin', 'serviceleder', 'montør'],
+  'leads.create': ['admin', 'serviceleder'],
+  'leads.edit': ['admin', 'serviceleder'],
   'leads.delete': ['admin'],
 
-  // Inbox permissions
-  'inbox.view': ['admin', 'user', 'technician'],
-  'inbox.send': ['admin', 'user', 'technician'],
+  // Inbox / mail permissions
+  'inbox.view': ['admin', 'serviceleder', 'montør'],
+  'inbox.send': ['admin', 'serviceleder'],
   'inbox.delete': ['admin'],
 
   // Offer permissions
-  'offers.view': ['admin', 'user'],
-  'offers.create': ['admin', 'user'],
-  'offers.edit': ['admin', 'user'],
+  'offers.view': ['admin', 'serviceleder'],
+  'offers.create': ['admin', 'serviceleder'],
+  'offers.edit': ['admin', 'serviceleder'],
   'offers.delete': ['admin'],
   'offers.approve': ['admin'],
 
   // Customer permissions
-  'customers.view': ['admin', 'user', 'technician'],
-  'customers.create': ['admin', 'user'],
-  'customers.edit': ['admin', 'user'],
+  'customers.view': ['admin', 'serviceleder', 'montør'],
+  'customers.create': ['admin', 'serviceleder'],
+  'customers.edit': ['admin', 'serviceleder'],
   'customers.delete': ['admin'],
 
   // Project permissions
-  'projects.view': ['admin', 'user', 'technician'],
-  'projects.create': ['admin', 'user'],
-  'projects.edit': ['admin', 'user'],
+  'projects.view': ['admin', 'serviceleder', 'montør'],
+  'projects.create': ['admin', 'serviceleder'],
+  'projects.edit': ['admin', 'serviceleder'],
   'projects.delete': ['admin'],
 
+  // Service case permissions
+  'service.view': ['admin', 'serviceleder', 'montør'],
+  'service.create': ['admin', 'serviceleder'],
+  'service.edit': ['admin', 'serviceleder', 'montør'],
+  'service.delete': ['admin'],
+  'service.close': ['admin', 'serviceleder'],
+
   // Task permissions
-  'tasks.view': ['admin', 'user', 'technician'],
-  'tasks.create': ['admin', 'user'],
-  'tasks.edit': ['admin', 'user', 'technician'],
-  'tasks.delete': ['admin', 'user'],
+  'tasks.view': ['admin', 'serviceleder', 'montør'],
+  'tasks.create': ['admin', 'serviceleder'],
+  'tasks.edit': ['admin', 'serviceleder', 'montør'],
+  'tasks.delete': ['admin', 'serviceleder'],
 
   // Time tracking permissions
-  'time.log': ['admin', 'user', 'technician'],
-  'time.view_own': ['admin', 'user', 'technician'],
-  'time.view_all': ['admin', 'user'],
-  'time.edit_own': ['admin', 'user', 'technician'],
+  'time.log': ['admin', 'serviceleder', 'montør'],
+  'time.view_own': ['admin', 'serviceleder', 'montør'],
+  'time.view_all': ['admin', 'serviceleder'],
+  'time.edit_own': ['admin', 'serviceleder', 'montør'],
   'time.edit_all': ['admin'],
   'time.delete': ['admin'],
 
+  // Financial / economy permissions (cost prices, margins, revenue)
+  'economy.view': ['admin', 'serviceleder'],
+  'economy.edit': ['admin'],
+
   // Settings permissions
   'settings.manage': ['admin'],
-  'settings.view': ['admin', 'user', 'technician'],
+  'settings.view': ['admin', 'serviceleder'],
 
   // User management permissions
   'users.view': ['admin'],
@@ -55,6 +66,18 @@ export const PERMISSIONS = {
   'users.edit': ['admin'],
   'users.delete': ['admin'],
   'users.manage_roles': ['admin'],
+
+  // Tools / advanced features
+  'tools.calculations': ['admin', 'serviceleder'],
+  'tools.ai_project': ['admin', 'serviceleder'],
+  'tools.products': ['admin', 'serviceleder'],
+  'tools.pricing': ['admin', 'serviceleder'],
+  'tools.packages': ['admin', 'serviceleder'],
+  'tools.solar_calc': ['admin', 'serviceleder'],
+  'tools.reports': ['admin', 'serviceleder'],
+
+  // Calendar
+  'calendar.view': ['admin', 'serviceleder', 'montør'],
 } as const
 
 export type Permission = keyof typeof PERMISSIONS

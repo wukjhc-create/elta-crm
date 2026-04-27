@@ -29,10 +29,15 @@ import {
   MessageSquare,
   Plug,
   ClipboardCheck,
+  ExternalLink,
+  LinkIcon,
   Search,
   AlertTriangle,
   Save,
+  Zap,
+  Star,
 } from 'lucide-react'
+import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
@@ -41,7 +46,6 @@ import { PackagePickerDialog } from '@/components/modules/packages/package-picke
 import { OfferTaskForm } from '@/components/modules/offers/offer-task-form'
 import { insertPackageIntoOffer } from '@/lib/actions/packages'
 import { SendEmailModal, EmailTimeline } from '@/components/email'
-import { SendSmsModal, SmsTimeline } from '@/components/sms'
 import {
   deleteOffer,
   updateOfferStatus,
@@ -54,8 +58,12 @@ import {
   importCalculationToOffer,
   createLineItemFromSupplierProduct,
   searchSupplierProductsForOffer,
+  optimizeOfferPrices,
+  type OptimizationResult,
 } from '@/lib/actions/offers'
 import { getIntegrations, exportOfferToIntegration } from '@/lib/actions/integrations'
+import { sendOfferToOrdrestyring, getOfferOrdrestyringRef } from '@/lib/actions/ordrestyring'
+import { getUnreadPortalMessageCount } from '@/lib/actions/portal'
 import { getProductsForSelect } from '@/lib/actions/products'
 import { getCalculationsForSelect } from '@/lib/actions/calculations'
 import { getOfferActivities } from '@/lib/actions/offer-activities'
@@ -72,6 +80,8 @@ import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
 import { computeOfferDB, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
 import { LineItemsTable, type LineItemSaveData } from '@/components/shared/line-items-table'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { canSeeFinancials } from '@/lib/auth/roles'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
@@ -82,6 +92,8 @@ interface OfferDetailClientProps {
 export function OfferDetailClient({ offer, companySettings, dbThresholds }: OfferDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
+  const { role } = useUserRole()
+  const showFinancials = canSeeFinancials(role)
   const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -93,7 +105,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [showCalculationPicker, setShowCalculationPicker] = useState(false)
   const [showSendEmailModal, setShowSendEmailModal] = useState(false)
-  const [showSendSmsModal, setShowSendSmsModal] = useState(false)
   const [showPackagePicker, setShowPackagePicker] = useState(false)
   const [products, setProducts] = useState<{ id: string; name: string; sku: string | null; list_price: number }[]>([])
   const [calculations, setCalculations] = useState<{ id: string; name: string; final_amount: number }[]>([])
@@ -120,8 +131,18 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
     image_url: string | null
   }>>([])
   const [isSearchingSupplier, setIsSearchingSupplier] = useState(false)
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [isAddingSupplierProduct, setIsAddingSupplierProduct] = useState<string | null>(null)
   const supplierSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Price optimization state
+  const [isOptimizing, setIsOptimizing] = useState(false)
+  const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null)
+
+  // Ordrestyring state
+  const [isSendingToOS, setIsSendingToOS] = useState(false)
+  const [osRef, setOsRef] = useState<{ os_case_number: string; os_url: string; synced_at?: string } | null>(null)
+  const [osError, setOsError] = useState<string | null>(null)
 
   // Inline-editable text fields
   const [scopeText, setScopeText] = useState(offer.scope || '')
@@ -166,6 +187,57 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
     }
     loadActivities()
   }, [offer.id])
+
+  // Fetch unread portal message count
+  useEffect(() => {
+    if (!offer.customer_id) return
+    async function loadUnread() {
+      const result = await getUnreadPortalMessageCount(offer.customer_id ?? undefined)
+      if (result.success && result.data !== undefined) {
+        setUnreadChatCount(result.data)
+      }
+    }
+    loadUnread()
+    const interval = setInterval(loadUnread, 30000) // poll every 30s
+    return () => clearInterval(interval)
+  }, [offer.customer_id])
+
+  // Load existing Ordrestyring reference
+  useEffect(() => {
+    async function loadOsRef() {
+      const result = await getOfferOrdrestyringRef(offer.id)
+      if (result.success && result.data) {
+        setOsRef(result.data)
+      }
+    }
+    loadOsRef()
+  }, [offer.id])
+
+  const handleSendToOrdrestyring = async () => {
+    const ok = await confirm({
+      title: 'Send til Ordrestyring',
+      description: `Vil du oprette tilbud "${offer.title}" som en sag i Ordrestyring? Kunde- og linjedata sendes med.`,
+      confirmLabel: 'Send',
+    })
+    if (!ok) return
+
+    setIsSendingToOS(true)
+    setOsError(null)
+    const result = await sendOfferToOrdrestyring(offer.id)
+    setIsSendingToOS(false)
+
+    if (result.success && result.data) {
+      setOsRef({
+        os_case_number: result.data.os_case_number,
+        os_url: result.data.os_url,
+      })
+      toast.success(`Oprettet i Ordrestyring — Sagsnr. ${result.data.os_case_number}`)
+      router.refresh()
+    } else {
+      setOsError(result.error || 'Ukendt fejl')
+      toast.error('Ordrestyring fejl', result.error)
+    }
+  }
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -252,6 +324,31 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
     } else {
       toast.error('Kunne ikke tilføje pakke', result.error)
     }
+  }
+
+  // Price optimization handler
+  const handleOptimizePrices = async () => {
+    setIsOptimizing(true)
+    setOptimizationResult(null)
+    try {
+      const result = await optimizeOfferPrices(offer.id)
+      if (result.success && result.data) {
+        setOptimizationResult(result.data)
+        if (result.data.lines_optimized > 0) {
+          toast.success(
+            `${result.data.lines_optimized} linje(r) optimeret — besparelse: ${result.data.savings.toFixed(2)} kr`
+          )
+          router.refresh()
+        } else {
+          toast.success('Alle linjer bruger allerede den billigste leverandør')
+        }
+      } else {
+        toast.error(result.error || 'Optimering fejlede')
+      }
+    } catch {
+      toast.error('Uventet fejl under prisoptimering')
+    }
+    setIsOptimizing(false)
   }
 
   const handleSupplierSearch = (query: string) => {
@@ -437,28 +534,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
     router.refresh()
   }
 
-  const handleOpenSendSms = () => {
-    if (!offer.customer) {
-      toast.warning('Tilbuddet skal have en tilknyttet kunde før det kan sendes')
-      return
-    }
-
-    if (!offer.customer.phone) {
-      toast.warning('Kunden har intet telefonnummer')
-      return
-    }
-
-    setShowSendSmsModal(true)
-  }
-
-  const handleSmsSent = async () => {
-    // Refresh activities after SMS is sent
-    const activitiesResult = await getOfferActivities(offer.id)
-    if (activitiesResult.success && activitiesResult.data) {
-      setActivities(activitiesResult.data)
-    }
-    router.refresh()
-  }
 
   const handleOpenExport = async () => {
     const result = await getIntegrations()
@@ -536,13 +611,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                   <Mail className="w-4 h-4" />
                   {offer.status === 'draft' ? 'Send Tilbud' : 'Send Email'}
                 </button>
-                <button
-                  onClick={handleOpenSendSms}
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-md hover:bg-primary/10"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  SMS
-                </button>
               </>
             )}
             <button
@@ -576,6 +644,31 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
               )}
               Eksporter
             </button>
+            {osRef ? (
+              <a
+                href={osRef.os_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 rounded-md hover:bg-green-100"
+              >
+                <ExternalLink className="w-4 h-4" />
+                OS #{osRef.os_case_number}
+              </a>
+            ) : (
+              <button
+                onClick={handleSendToOrdrestyring}
+                disabled={isSendingToOS || offer.status === 'draft'}
+                title={offer.status === 'draft' ? 'Tilbuddet skal sendes først (kan ikke sendes fra Kladde)' : undefined}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-blue-200 text-blue-700 rounded-md hover:bg-blue-50 disabled:opacity-50"
+              >
+                {isSendingToOS ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <LinkIcon className="w-4 h-4" />
+                )}
+                {isSendingToOS ? 'Sender...' : 'Send til Ordrestyring'}
+              </button>
+            )}
             <button
               onClick={() => setShowTaskForm(true)}
               className="inline-flex items-center gap-2 px-4 py-2 border border-amber-200 text-amber-700 rounded-md hover:bg-amber-50"
@@ -599,6 +692,16 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
               {isDeleting ? 'Sletter...' : 'Slet'}
             </button>
           </div>
+          {osError && (
+            <div className="mt-3 bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-700">
+                <span className="font-medium">Ordrestyring fejl: </span>
+                {osError}
+              </div>
+              <button onClick={() => setOsError(null)} className="ml-auto text-red-400 hover:text-red-600 text-xs">✕</button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -674,6 +777,18 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                   >
                     <Search className="w-4 h-4" />
                     Søg leverandør
+                  </button>
+                  <button
+                    onClick={handleOptimizePrices}
+                    disabled={isOptimizing || offer.status !== 'draft' || lineItems.filter(li => li.supplier_product_id).length === 0}
+                    className="inline-flex items-center gap-1 text-sm text-green-700 hover:text-green-800 border border-green-300 rounded px-2 py-1 bg-green-50 hover:bg-green-100 disabled:opacity-50 font-medium transition-colors"
+                  >
+                    {isOptimizing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Zap className="w-4 h-4" />
+                    )}
+                    Optimer priser
                   </button>
                   <button
                     onClick={() => handleInlineSave({
@@ -785,12 +900,57 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
                 </div>
               )}
 
+              {/* Optimization result banner */}
+              {optimizationResult && optimizationResult.lines_optimized > 0 && (
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Star className="w-5 h-5 text-green-600 fill-green-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-green-800">
+                        Prisoptimering gennemført
+                      </h4>
+                      <p className="text-sm text-green-700 mt-1">
+                        {optimizationResult.lines_optimized} af {optimizationResult.lines_checked} leverandørlinjer optimeret.
+                        Du har sparet{' '}
+                        <span className="font-bold">{formatCurrency(optimizationResult.savings, currency, 2)}</span>{' '}
+                        ved at skifte til den billigste leverandør.
+                      </p>
+                      {optimizationResult.changes.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {optimizationResult.changes.map((c) => (
+                            <div key={c.line_id} className="text-xs text-green-600 flex items-center gap-2">
+                              <span className={`inline-flex px-1 py-0 rounded font-bold uppercase ${
+                                c.old_supplier === 'AO' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+                              }`} style={{ fontSize: '9px' }}>{c.old_supplier}</span>
+                              <span>→</span>
+                              <span className={`inline-flex px-1 py-0 rounded font-bold uppercase ${
+                                c.new_supplier === 'AO' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+                              }`} style={{ fontSize: '9px' }}>{c.new_supplier}</span>
+                              <span className="truncate">{c.description}</span>
+                              <span className="text-green-700 font-medium ml-auto shrink-0">
+                                -{formatCurrency(c.saving, currency, 2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setOptimizationResult(null)}
+                      className="text-green-400 hover:text-green-600 shrink-0"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <LineItemsTable
                 items={lineItems}
                 offerId={offer.id}
                 currency={currency}
-                showCostData={true}
-                showDBSummary={true}
+                showCostData={showFinancials}
+                showDBSummary={showFinancials}
                 thresholds={thresholds}
                 editable={offer.status === 'draft'}
                 onSaveItem={handleInlineSave}
@@ -1070,25 +1230,25 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
               />
             </div>
 
-            {/* SMS Timeline */}
-            <div className="bg-white rounded-lg border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
+            {/* Portal Chat */}
+            {offer.customer_id && (
+              <div className="bg-white rounded-lg border p-6">
+                <div className="flex items-center gap-2 mb-4">
                   <MessageSquare className="w-5 h-5" />
-                  SMS
-                </h2>
-                {offer.customer?.phone && (
-                  <button
-                    onClick={handleOpenSendSms}
-                    className="text-sm text-primary hover:underline flex items-center gap-1"
-                  >
-                    <MessageSquare className="w-3 h-3" />
-                    Send SMS
-                  </button>
-                )}
+                  <h2 className="text-lg font-semibold">Kundeportal Chat</h2>
+                  {unreadChatCount > 0 && (
+                    <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+                      {unreadChatCount}
+                    </span>
+                  )}
+                </div>
+                <EmployeeChat
+                  customerId={offer.customer_id}
+                  customerName={offer.customer?.company_name || offer.customer?.contact_person || 'Kunde'}
+                  offerId={offer.id}
+                />
               </div>
-              <SmsTimeline offerId={offer.id} />
-            </div>
+            )}
 
             {/* Activity Timeline */}
             <div className="bg-white rounded-lg border p-6">
@@ -1223,13 +1383,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
         onEmailSent={handleEmailSent}
       />
 
-      {/* Send SMS Modal */}
-      <SendSmsModal
-        open={showSendSmsModal}
-        onOpenChange={setShowSendSmsModal}
-        offerId={offer.id}
-        onSmsSent={handleSmsSent}
-      />
 
       {/* Package Picker Dialog */}
       <PackagePickerDialog

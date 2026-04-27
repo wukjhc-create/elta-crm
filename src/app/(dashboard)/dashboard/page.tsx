@@ -28,6 +28,7 @@ import {
   QuickActions,
   SystemAlertsWidget,
   PriceAlertsWidget,
+  MonthlyOfferChart,
 } from '@/components/modules/dashboard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
 
@@ -46,6 +47,11 @@ export default async function DashboardPage() {
   }
 
   const profile = await getUserProfile()
+
+  // Montør gets redirected to their task view (mobile-friendly)
+  if (profile?.role === 'montør') {
+    redirect('/dashboard/tasks')
+  }
 
   // Fetch all dashboard data in parallel
   const [stats, activities, tasks, offers, settingsResult] = await Promise.all([
@@ -129,13 +135,19 @@ export default async function DashboardPage() {
           iconBgColor="bg-cyan-100"
         />
         <StatCard
-          title="Ulæste Beskeder"
-          value={stats.messages.unread}
+          title="Ulæste Kundemails"
+          value={stats.customerEmails.unread}
+          subtitle={stats.messages.unread > 0 ? `+ ${stats.messages.unread} interne` : undefined}
           icon={Mail}
-          iconColor="text-indigo-600"
-          iconBgColor="bg-indigo-100"
-          href="/dashboard/inbox"
+          iconColor="text-blue-600"
+          iconBgColor="bg-blue-100"
+          href="/dashboard/mail"
         />
+      </div>
+
+      {/* Economic Dashboard — Monthly Offer Stats */}
+      <div className="bg-white p-6 rounded-lg border">
+        <MonthlyOfferChart />
       </div>
 
       {/* Quick Actions */}

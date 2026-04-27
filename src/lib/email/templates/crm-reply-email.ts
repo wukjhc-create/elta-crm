@@ -234,7 +234,7 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
                   <td align="center" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.8); line-height: 1.8;">
                     <strong style="color: #ffffff;">Elta Solar ApS</strong> &bull; CVR: 44291028
                     <br />
-                    <a href="mailto:ordre@eltasolar.dk" style="color: rgba(255,255,255,0.9); text-decoration: none;">ordre@eltasolar.dk</a>
+                    <a href="mailto:kontakt@eltasolar.dk" style="color: rgba(255,255,255,0.9); text-decoration: none;">kontakt@eltasolar.dk</a>
                     &bull;
                     <a href="https://eltasolar.dk" style="color: rgba(255,255,255,0.9); text-decoration: none;">eltasolar.dk</a>
                   </td>

@@ -527,7 +527,7 @@ export async function updateTeamMember(
 
 export async function inviteTeamMember(
   email: string,
-  role: string = 'user',
+  role: string = 'montør',
 ): Promise<ActionResult<{ email: string }>> {
   try {
     const { supabase, userId } = await getAuthenticatedClient()

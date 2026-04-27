@@ -27,9 +27,9 @@ const settingsCards = [
   },
   {
     href: '/dashboard/settings/team',
-    title: 'Team',
-    subtitle: 'Administrer brugere',
-    description: 'Inviter teammedlemmer, tildel roller og administrer adgang',
+    title: 'Brugerstyring',
+    subtitle: 'Roller og rettigheder',
+    description: 'Opret brugere, tildel roller (Admin, Serviceleder, Montør) og administrer adgang',
     iconBg: 'bg-green-100',
     iconColor: 'text-green-600',
     icon: (
@@ -106,22 +106,6 @@ const settingsCards = [
     ),
   },
   {
-    href: '/dashboard/settings/sms',
-    title: 'SMS',
-    subtitle: 'GatewayAPI',
-    description: 'Konfigurer SMS-notifikationer via GatewayAPI, skabeloner og afsendelseslog',
-    iconBg: 'bg-emerald-100',
-    iconColor: 'text-emerald-600',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
-      />
-    ),
-  },
-  {
     href: '/dashboard/settings/integrations',
     title: 'Integrationer',
     subtitle: 'Tredjepartsapps',
@@ -182,6 +166,22 @@ const settingsCards = [
         strokeLinejoin="round"
         strokeWidth={2}
         d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+      />
+    ),
+  },
+  {
+    href: '/dashboard/settings/ordrestyring',
+    title: 'Ordrestyring',
+    subtitle: 'GraphQL API',
+    description: 'Test forbindelse, diagnostik og konfiguration for Ordrestyring-integrationen',
+    iconBg: 'bg-cyan-100',
+    iconColor: 'text-cyan-600',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"
       />
     ),
   },

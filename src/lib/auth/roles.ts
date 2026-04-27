@@ -3,15 +3,15 @@ import type { UserRole } from '@/types/auth.types'
 export const ROLES: Record<UserRole, { label: string; description: string }> = {
   admin: {
     label: 'Administrator',
-    description: 'Fuld adgang til alle funktioner og indstillinger',
+    description: 'Fuld adgang til alle funktioner, indstillinger og brugerstyring',
   },
-  user: {
-    label: 'Bruger',
-    description: 'Kan oprette og administrere leads, kunder, tilbud og projekter',
+  serviceleder: {
+    label: 'Serviceleder',
+    description: 'Kan administrere leads, kunder, tilbud og projekter. Kan se økonomi.',
   },
-  technician: {
-    label: 'Tekniker',
-    description: 'Kan se og arbejde på tildelte opgaver og projekter',
+  montør: {
+    label: 'Montør',
+    description: 'Kan se og arbejde på tildelte opgaver. Ingen adgang til økonomi.',
   },
 }
 
@@ -27,10 +27,15 @@ export function isAdmin(role: UserRole): boolean {
   return role === 'admin'
 }
 
-export function isUser(role: UserRole): boolean {
-  return role === 'user'
+export function isServiceleder(role: UserRole): boolean {
+  return role === 'serviceleder'
 }
 
-export function isTechnician(role: UserRole): boolean {
-  return role === 'technician'
+export function isMontør(role: UserRole): boolean {
+  return role === 'montør'
+}
+
+/** Returns true for roles that can see financial data (prices, margins) */
+export function canSeeFinancials(role: UserRole): boolean {
+  return role === 'admin' || role === 'serviceleder'
 }

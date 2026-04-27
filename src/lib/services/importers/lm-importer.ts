@@ -26,6 +26,19 @@ import { ImportEngine } from '../import-engine'
 // =====================================================
 
 export const LM_COLUMN_MAPPINGS: ColumnMappings = {
+  sku: 'LMnr',
+  name: 'Varebetegnelse',
+  cost_price: 'KostprisPrEnhed',
+  list_price: 'ListeprisPrEnhed',
+  discount_pct: 'Rabatpct',
+  unit: 'Enhed',
+  category: 'RabatHirakiNavn',
+  manufacturer: 'LeverandørNavn',
+  ean: 'EANnr',
+}
+
+// Legacy column names (kept for compatibility with older imports)
+export const LM_COLUMN_MAPPINGS_LEGACY: ColumnMappings = {
   sku: 'Artikelnr',
   name: 'Artikelbenævnelse',
   cost_price: 'Nettopris',
@@ -40,7 +53,7 @@ export const LM_COLUMN_MAPPINGS: ColumnMappings = {
 export const LM_DEFAULT_CONFIG: Omit<ImportConfig, 'supplier_id'> = {
   format: 'csv',
   delimiter: ';',
-  encoding: 'utf-8',
+  encoding: 'latin1', // Windows-1252 compatible
   column_mappings: LM_COLUMN_MAPPINGS,
   skip_header_rows: 0,
   has_header: true,

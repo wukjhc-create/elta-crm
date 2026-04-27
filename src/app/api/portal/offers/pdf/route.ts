@@ -2,9 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
-import { createClient } from '@/lib/supabase/server'
+import { createAnonClient } from '@/lib/supabase/server'
 import { OfferPdfDocument } from '@/lib/pdf/offer-pdf-template'
-import { getCompanySettings } from '@/lib/actions/settings'
 import type { OfferWithRelations } from '@/types/offers.types'
 import type { ReactElement, JSXElementConstructor } from 'react'
 import { logger } from '@/lib/utils/logger'
@@ -23,7 +22,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Manglende parametre' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const supabase = createAnonClient()
 
     // Validate portal token
     const { data: tokenData, error: tokenError } = await supabase
@@ -64,11 +63,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Company settings
-    const settingsResult = await getCompanySettings()
-    if (!settingsResult.success || !settingsResult.data) {
+    // Company settings — query directly (portal runs in anon context, no auth session)
+    const { data: companySettings, error: settingsError } = await supabase
+      .from('company_settings')
+      .select('*')
+      .maybeSingle()
+
+    if (settingsError || !companySettings) {
+      logger.error('Company settings not found for PDF', { error: settingsError })
       return NextResponse.json({ error: 'Indstillinger mangler' }, { status: 500 })
     }
+    const settingsResult = { success: true, data: companySettings }
 
     // Generate PDF
     const pdfDocument = OfferPdfDocument({

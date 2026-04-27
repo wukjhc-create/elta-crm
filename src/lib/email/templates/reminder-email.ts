@@ -102,7 +102,7 @@ Har du sp&oslash;rgsm&aring;l? Svar bare p&aring; denne mail.
 <span style="color:rgba(255,255,255,0.6);font-size:12px;">Elta Solar ApS</span>
 </td>
 <td align="right" style="color:rgba(255,255,255,0.6);font-size:12px;font-family:Arial,Helvetica,sans-serif;">
-ordre@eltasolar.dk<br>eltasolar.dk
+kontakt@eltasolar.dk<br>eltasolar.dk
 </td>
 </tr>
 </table>

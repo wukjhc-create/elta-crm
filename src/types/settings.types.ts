@@ -2,12 +2,14 @@
  * Settings-related type definitions
  */
 
+import type { UserRole } from '@/types/auth.types'
+
 export interface Profile {
   id: string
   email: string
   full_name: string | null
   avatar_url: string | null
-  role: string
+  role: UserRole
   phone: string | null
   department: string | null
   is_active: boolean

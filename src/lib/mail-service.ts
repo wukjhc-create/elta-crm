@@ -9,7 +9,7 @@
  *   AZURE_TENANT_ID      - Azure AD tenant
  *   AZURE_CLIENT_ID      - App registration client ID
  *   AZURE_CLIENT_SECRET   - App registration client secret value (NOT the secret ID)
- *   GRAPH_MAILBOX         - Shared mailbox to poll (e.g. ordre@eltasolar.dk)
+ *   GRAPH_MAILBOX         - Shared mailbox to poll (e.g. kontakt@eltasolar.dk)
  *   SMTP_HOST/PORT/USER/PASSWORD - Outbound SMTP config
  *
  * Required Azure permissions:

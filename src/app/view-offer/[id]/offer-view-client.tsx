@@ -632,8 +632,8 @@ export function OfferViewClient({ offer }: OfferViewClientProps) {
                 Vi respekterer din beslutning. Kontakt os gerne, hvis du ombestemmer dig eller har sp&oslash;rgsm&aring;l.
               </p>
               <div className="inline-flex items-center gap-6 text-sm text-gray-500">
-                <a href="mailto:ordre@eltasolar.dk" className="flex items-center gap-1.5 hover:text-gray-700">
-                  <Mail className="w-4 h-4" /> ordre@eltasolar.dk
+                <a href="mailto:kontakt@eltasolar.dk" className="flex items-center gap-1.5 hover:text-gray-700">
+                  <Mail className="w-4 h-4" /> kontakt@eltasolar.dk
                 </a>
               </div>
             </div>
@@ -657,8 +657,8 @@ export function OfferViewClient({ offer }: OfferViewClientProps) {
                 </div>
               </div>
               <div className="flex items-center gap-6 text-sm text-white/80">
-                <a href="mailto:ordre@eltasolar.dk" className="hover:text-white transition-colors flex items-center gap-1.5">
-                  <Mail className="w-4 h-4" /> ordre@eltasolar.dk
+                <a href="mailto:kontakt@eltasolar.dk" className="hover:text-white transition-colors flex items-center gap-1.5">
+                  <Mail className="w-4 h-4" /> kontakt@eltasolar.dk
                 </a>
                 <a href="https://eltasolar.dk" className="hover:text-white transition-colors">
                   eltasolar.dk

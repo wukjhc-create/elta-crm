@@ -11,7 +11,6 @@ import {
   Phone,
   CheckCircle,
   XCircle,
-  MessageSquare,
   Download,
   Clock,
 } from 'lucide-react'
@@ -39,7 +38,6 @@ export function OfferDetail({
 }: OfferDetailProps) {
   const [showSignature, setShowSignature] = useState(false)
   const [showReject, setShowReject] = useState(false)
-  const [showChat, setShowChat] = useState(false)
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
 
   const handleDownloadPdf = async () => {
@@ -295,14 +293,16 @@ export function OfferDetail({
               )}
             </div>
 
-            <button
-              onClick={() => setShowChat(true)}
-              className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium"
-            >
-              <MessageSquare className="w-5 h-5" />
-              Send besked
-            </button>
           </div>
+
+          {/* Chat — inline, always visible */}
+          <PortalChat
+            token={token}
+            session={session}
+            initialMessages={messages}
+            offerId={offer.id}
+            isModal={false}
+          />
 
           {/* PDF Download */}
           <div className="bg-white rounded-xl border p-6 shadow-sm">
@@ -412,15 +412,6 @@ export function OfferDetail({
         />
       )}
 
-      {showChat && (
-        <PortalChat
-          token={token}
-          session={session}
-          messages={messages}
-          offerId={offer.id}
-          onClose={() => setShowChat(false)}
-        />
-      )}
     </div>
   )
 }

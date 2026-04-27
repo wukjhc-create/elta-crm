@@ -2,15 +2,22 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Check, X, AlertTriangle, Info, AlertCircle } from 'lucide-react'
+import { Bell, Check, X, AlertTriangle, Info, AlertCircle, FileSignature, ClipboardCheck, Mail } from 'lucide-react'
 import { getSystemAlerts, markAlertRead, dismissAlert } from '@/lib/actions/calculation-intelligence'
-import type { SystemAlert, AlertSeverity } from '@/types/calculation-intelligence.types'
+import type { SystemAlert, AlertSeverity, AlertType } from '@/types/calculation-intelligence.types'
 import { formatTimeAgo } from '@/lib/utils/format'
 
 const SEVERITY_CONFIG: Record<AlertSeverity, { icon: typeof Info; bgClass: string; textClass: string; dotClass: string }> = {
   info: { icon: Info, bgClass: 'bg-blue-50', textClass: 'text-blue-600', dotClass: 'bg-blue-500' },
   warning: { icon: AlertTriangle, bgClass: 'bg-amber-50', textClass: 'text-amber-600', dotClass: 'bg-amber-500' },
   critical: { icon: AlertCircle, bgClass: 'bg-red-50', textClass: 'text-red-600', dotClass: 'bg-red-500' },
+}
+
+// CRM event icons override the severity-based icon
+const CRM_EVENT_CONFIG: Partial<Record<AlertType, { icon: typeof Info; bgClass: string; textClass: string }>> = {
+  fuldmagt_signed: { icon: FileSignature, bgClass: 'bg-green-50', textClass: 'text-green-600' },
+  besigtigelse_confirmed: { icon: ClipboardCheck, bgClass: 'bg-green-50', textClass: 'text-green-600' },
+  customer_email_received: { icon: Mail, bgClass: 'bg-indigo-50', textClass: 'text-indigo-600' },
 }
 
 const POLL_INTERVAL_MS = 60000 // 1 minute
@@ -94,126 +101,159 @@ export function NotificationDropdown() {
     setIsLoading(false)
   }
 
+  const handleAlertClick = (alert: SystemAlert) => {
+    // Navigate to relevant page based on alert type
+    const details = alert.details as Record<string, string> | undefined
+    if (alert.entity_type === 'customer' && alert.entity_id) {
+      setIsOpen(false)
+      if (alert.alert_type === 'customer_email_received') {
+        router.push(`/dashboard/customers/${alert.entity_id}`)
+      } else {
+        router.push(`/dashboard/customers/${alert.entity_id}`)
+      }
+      if (!alert.is_read) handleMarkRead(alert.id)
+    } else if (details?.customer_id) {
+      setIsOpen(false)
+      router.push(`/dashboard/customers/${details.customer_id}`)
+      if (!alert.is_read) handleMarkRead(alert.id)
+    }
+  }
+
+  const getAlertIcon = (alert: SystemAlert) => {
+    const crmConfig = CRM_EVENT_CONFIG[alert.alert_type]
+    if (crmConfig) return crmConfig
+    return SEVERITY_CONFIG[alert.severity]
+  }
+
   return (
     <div ref={dropdownRef} className="relative">
       {/* Bell button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 hover:bg-gray-100 rounded-md transition-colors"
+        className="relative p-2 hover:bg-gray-100 rounded-md transition-colors touch-manipulation"
         aria-label={`Notifikationer${unreadCount > 0 ? ` (${unreadCount} ulæste)` : ''}`}
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <Bell className="w-5 h-5 text-gray-600" />
+        <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-green-600' : 'text-gray-600'}`} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+          <>
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 animate-ping opacity-30" />
+          </>
         )}
       </button>
 
       {/* Dropdown */}
       {isOpen && (
-        <div
-          className="absolute right-0 mt-2 w-96 max-h-[480px] bg-white rounded-lg shadow-lg border z-50 flex flex-col"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Notifikationer"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <h3 className="font-semibold text-gray-900">Notifikationer</h3>
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  disabled={isLoading}
-                  className="text-xs text-primary hover:text-primary/80 font-medium disabled:opacity-50"
-                >
-                  Markér alle som læst
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Alert list */}
-          <div className="overflow-y-auto flex-1">
-            {alerts.length === 0 ? (
-              <div className="py-12 text-center text-gray-500 text-sm">
-                <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                Ingen notifikationer
-              </div>
-            ) : (
-              alerts.map((alert) => {
-                const config = SEVERITY_CONFIG[alert.severity]
-                const Icon = config.icon
-                return (
-                  <div
-                    key={alert.id}
-                    className={`px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors ${
-                      !alert.is_read ? 'bg-blue-50/30' : ''
-                    }`}
+        <>
+          {/* Mobile backdrop */}
+          <div className="fixed inset-0 z-40 md:hidden" onClick={() => setIsOpen(false)} />
+          <div
+            className="fixed inset-x-3 top-16 z-50 md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:w-96 max-h-[70vh] md:max-h-[480px] bg-white rounded-lg shadow-lg border flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Notifikationer"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <h3 className="font-semibold text-gray-900">Notifikationer</h3>
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    disabled={isLoading}
+                    className="text-xs text-primary hover:text-primary/80 font-medium disabled:opacity-50"
                   >
-                    <div className="flex gap-3">
-                      <div className={`flex-shrink-0 p-1.5 rounded-full ${config.bgClass}`}>
-                        <Icon className={`w-4 h-4 ${config.textClass}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className={`text-sm font-medium text-gray-900 ${!alert.is_read ? 'font-semibold' : ''}`}>
-                            {alert.title}
-                          </p>
-                          {!alert.is_read && (
-                            <span className={`flex-shrink-0 w-2 h-2 mt-1.5 rounded-full ${config.dotClass}`} />
-                          )}
+                    Markér alle som læst
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Alert list */}
+            <div className="overflow-y-auto flex-1">
+              {alerts.length === 0 ? (
+                <div className="py-12 text-center text-gray-500 text-sm">
+                  <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  Ingen notifikationer
+                </div>
+              ) : (
+                alerts.map((alert) => {
+                  const iconConfig = getAlertIcon(alert)
+                  const Icon = iconConfig.icon
+                  const severityConfig = SEVERITY_CONFIG[alert.severity]
+                  return (
+                    <div
+                      key={alert.id}
+                      className={`px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer ${
+                        !alert.is_read ? 'bg-blue-50/30' : ''
+                      }`}
+                      onClick={() => handleAlertClick(alert)}
+                    >
+                      <div className="flex gap-3">
+                        <div className={`flex-shrink-0 p-1.5 rounded-full ${iconConfig.bgClass}`}>
+                          <Icon className={`w-4 h-4 ${iconConfig.textClass}`} />
                         </div>
-                        <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{alert.message}</p>
-                        <div className="flex items-center gap-3 mt-1.5">
-                          <span className="text-xs text-gray-400">{formatTimeAgo(alert.created_at)}</span>
-                          <div className="flex items-center gap-1">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`text-sm font-medium text-gray-900 ${!alert.is_read ? 'font-semibold' : ''}`}>
+                              {alert.title}
+                            </p>
                             {!alert.is_read && (
-                              <button
-                                onClick={() => handleMarkRead(alert.id)}
-                                className="text-xs text-gray-400 hover:text-primary flex items-center gap-0.5"
-                                aria-label="Markér som læst"
-                              >
-                                <Check className="w-3 h-3" />
-                                Læst
-                              </button>
+                              <span className={`flex-shrink-0 w-2 h-2 mt-1.5 rounded-full ${severityConfig.dotClass}`} />
                             )}
-                            <button
-                              onClick={() => handleDismiss(alert.id)}
-                              className="text-xs text-gray-400 hover:text-red-600 flex items-center gap-0.5"
-                              aria-label="Afvis"
-                            >
-                              <X className="w-3 h-3" />
-                              Afvis
-                            </button>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{alert.message}</p>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="text-xs text-gray-400">{formatTimeAgo(alert.created_at)}</span>
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              {!alert.is_read && (
+                                <button
+                                  onClick={() => handleMarkRead(alert.id)}
+                                  className="text-xs text-gray-400 hover:text-primary flex items-center gap-0.5"
+                                  aria-label="Markér som læst"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  Læst
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDismiss(alert.id)}
+                                className="text-xs text-gray-400 hover:text-red-600 flex items-center gap-0.5"
+                                aria-label="Afvis"
+                              >
+                                <X className="w-3 h-3" />
+                                Afvis
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })
+                  )
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            {alerts.length > 0 && (
+              <div className="border-t px-4 py-2">
+                <button
+                  onClick={() => {
+                    setIsOpen(false)
+                    router.push('/dashboard')
+                  }}
+                  className="text-xs text-primary hover:text-primary/80 font-medium w-full text-center"
+                >
+                  Se alle advarsler på dashboard
+                </button>
+              </div>
             )}
           </div>
-
-          {/* Footer */}
-          {alerts.length > 0 && (
-            <div className="border-t px-4 py-2">
-              <button
-                onClick={() => {
-                  setIsOpen(false)
-                  router.push('/dashboard')
-                }}
-                className="text-xs text-primary hover:text-primary/80 font-medium w-full text-center"
-              >
-                Se alle advarsler på dashboard
-              </button>
-            </div>
-          )}
-        </div>
+        </>
       )}
     </div>
   )

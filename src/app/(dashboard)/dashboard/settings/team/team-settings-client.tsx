@@ -34,8 +34,8 @@ interface TeamSettingsClientProps {
 }
 
 const ROLES = [
-  { value: 'user', label: 'Bruger', icon: User },
-  { value: 'manager', label: 'Manager', icon: Shield },
+  { value: 'montør', label: 'Montør', icon: User },
+  { value: 'serviceleder', label: 'Serviceleder', icon: Shield },
   { value: 'admin', label: 'Administrator', icon: ShieldCheck },
 ]
 
@@ -46,7 +46,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
   const [membersList, setMembersList] = useState(members)
   const [invitationsList, setInvitationsList] = useState(invitations)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState('user')
+  const [inviteRole, setInviteRole] = useState('montør')
   const [isInviting, setIsInviting] = useState(false)
 
   const currentUser = membersList.find(m => m.id === currentUserId)
@@ -100,6 +100,34 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
 
   return (
     <div className="space-y-6">
+      {/* Role descriptions */}
+      <div className="bg-white rounded-lg border p-4">
+        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Roller og rettigheder</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 rounded-lg bg-purple-50 border border-purple-200">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="w-4 h-4 text-purple-600" />
+              <span className="font-semibold text-purple-900 text-sm">Administrator</span>
+            </div>
+            <p className="text-xs text-purple-700">Fuld adgang. Kan oprette/slette brugere, se økonomi, og administrere alle indstillinger.</p>
+          </div>
+          <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+            <div className="flex items-center gap-2 mb-1">
+              <Shield className="w-4 h-4 text-blue-600" />
+              <span className="font-semibold text-blue-900 text-sm">Serviceleder</span>
+            </div>
+            <p className="text-xs text-blue-700">Kan administrere leads, kunder, tilbud og projekter. Kan se økonomi og nettopriser.</p>
+          </div>
+          <div className="p-3 rounded-lg bg-gray-50 border border-gray-200">
+            <div className="flex items-center gap-2 mb-1">
+              <User className="w-4 h-4 text-gray-600" />
+              <span className="font-semibold text-gray-900 text-sm">Montør</span>
+            </div>
+            <p className="text-xs text-gray-600">Kan se tildelte opgaver og servicesager. Ingen adgang til økonomi eller sletning.</p>
+          </div>
+        </div>
+      </div>
+
       {/* Team stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-lg border p-4">
@@ -260,7 +288,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
               if (result.success) {
                 toast.success(`Invitation sendt til ${inviteEmail}`)
                 setInviteEmail('')
-                setInviteRole('user')
+                setInviteRole('montør')
                 // Refresh invitations list
                 setInvitationsList(prev => [
                   { id: crypto.randomUUID(), email: inviteEmail.toLowerCase(), role: inviteRole, invited_by: currentUserId, invited_by_name: null, created_at: new Date().toISOString(), status: 'pending' },
@@ -288,8 +316,8 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
               onChange={(e) => setInviteRole(e.target.value)}
               className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="user">Bruger</option>
-              <option value="manager">Manager</option>
+              <option value="montør">Montør</option>
+              <option value="serviceleder">Serviceleder</option>
               <option value="admin">Administrator</option>
             </select>
             <Button type="submit" disabled={isInviting || !inviteEmail.trim()}>

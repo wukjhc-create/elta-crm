@@ -47,6 +47,9 @@ export interface DashboardStats {
   messages: {
     unread: number
   }
+  customerEmails: {
+    unread: number
+  }
 }
 
 export interface RecentActivity {
@@ -70,6 +73,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     projectsResult,
     timeEntriesResult,
     messagesResult,
+    customerEmailsResult,
   ] = await Promise.all([
     // Leads stats
     supabase.from('leads').select('status'),
@@ -87,6 +91,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .select('id', { count: 'exact', head: true })
       .eq('to_user_id', userId)
       .eq('status', 'unread'),
+    // Unread customer emails (linked, not archived)
+    supabase
+      .from('incoming_emails')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_read', false)
+      .eq('is_archived', false)
+      .eq('link_status', 'linked')
+      .not('customer_id', 'is', null),
   ])
 
   const leads = leadsResult.data || []
@@ -200,6 +212,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     },
     messages: {
       unread: messagesResult.count || 0,
+    },
+    customerEmails: {
+      unread: customerEmailsResult.count || 0,
     },
   }
 }
@@ -392,4 +407,34 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
       created_at: offer.created_at,
     }
   })
+}
+
+export async function getMonthlyOfferStats(): Promise<{
+  sentValue: number
+  acceptedValue: number
+  sentCount: number
+  acceptedCount: number
+}> {
+  const { supabase } = await getAuthenticatedClient()
+
+  const now = new Date()
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
+  const { data } = await supabase
+    .from('offers')
+    .select('status, total_amount')
+    .gte('created_at', firstDayOfMonth)
+    .in('status', ['sent', 'viewed', 'accepted'])
+
+  const offers = data || []
+
+  const sentOffers = offers.filter((o) => o.status === 'sent' || o.status === 'viewed')
+  const acceptedOffers = offers.filter((o) => o.status === 'accepted')
+
+  return {
+    sentValue: sentOffers.reduce((sum, o) => sum + (o.total_amount || 0), 0),
+    acceptedValue: acceptedOffers.reduce((sum, o) => sum + (o.total_amount || 0), 0),
+    sentCount: sentOffers.length,
+    acceptedCount: acceptedOffers.length,
+  }
 }

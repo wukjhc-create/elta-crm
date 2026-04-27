@@ -2,13 +2,15 @@ export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Elta CRM'
 export const APP_URL = getResolvedAppUrl()
 
 function getResolvedAppUrl(): string {
-  const explicit = process.env.NEXT_PUBLIC_APP_URL
+  const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim()
   // If explicitly set to a non-localhost value, use it
   if (explicit && !explicit.includes('localhost')) return explicit
   // On Vercel, use VERCEL_PROJECT_PRODUCTION_URL (always the main domain)
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  const prodUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+  if (prodUrl) return `https://${prodUrl}`
   // Fallback to VERCEL_URL (deployment-specific)
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  const vercelUrl = process.env.VERCEL_URL?.trim()
+  if (vercelUrl) return `https://${vercelUrl}`
   // Local dev
   return explicit || 'http://localhost:3000'
 }
@@ -21,7 +23,6 @@ export const MAX_IMAGE_SIZE = 2 * 1024 * 1024 // 2MB for profile/logo images
 
 // Webhook payload size limits
 export const WEBHOOK_PAYLOAD_LIMITS = {
-  SMS: 65_536, // 64KB
   EMAIL: 5_242_880, // 5MB
   INTEGRATION: 1_048_576, // 1MB
 } as const
@@ -61,18 +62,6 @@ export const OFFER_VALIDITY_DAYS = 30
 export const PORTAL_TOKEN_EXPIRY_DAYS = 30
 export const FILE_SIGNED_URL_EXPIRY_SECONDS = 3600
 
-// SMS configuration
-export const SMS_CONFIG = {
-  UNICODE_PART_LENGTH: 70,
-  UNICODE_SEGMENT_LENGTH: 67,
-  GSM_PART_LENGTH: 160,
-  GSM_SEGMENT_LENGTH: 153,
-  SENDER_NAME_MAX_LENGTH: 11,
-  DANISH_COUNTRY_CODE: 45,
-  DANISH_PHONE_LENGTH: 8,
-  GATEWAY_API_SMS_ENDPOINT: 'https://gatewayapi.com/rest/mtsms',
-  GATEWAY_API_INFO_ENDPOINT: 'https://gatewayapi.com/rest/me',
-} as const
 
 // Supplier API configuration
 export const SUPPLIER_API_CONFIG = {
@@ -251,7 +240,6 @@ export const PROJECT_PRIORITIES = [
 // Message types
 export const MESSAGE_TYPES = [
   { value: 'email', label: 'E-mail' },
-  { value: 'sms', label: 'SMS' },
   { value: 'internal', label: 'Intern' },
   { value: 'note', label: 'Note' },
 ] as const

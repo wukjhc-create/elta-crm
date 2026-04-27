@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Copy, Loader2 } from 'lucide-react'
+import { X, Copy, Loader2, MapPin } from 'lucide-react'
+import { DawaAddressInput, lookupPostalCode, type DawaAddress } from '@/components/shared/dawa-address-input'
 import { createCustomerSchema, type CreateCustomerInput } from '@/lib/validations/customers'
 import { createCustomer, updateCustomer, checkDuplicateCustomer } from '@/lib/actions/customers'
 import { FormField, inputClass } from '@/components/shared/form-field'
@@ -218,13 +219,17 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1 md:col-span-2">
                 <label htmlFor="billing_address" className="text-sm font-medium">
-                  Adresse
+                  Adresse (DAWA-opslag)
                 </label>
-                <input
-                  {...register('billing_address')}
+                <DawaAddressInput
                   id="billing_address"
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={getValues('billing_address') || ''}
+                  onSelect={(addr: DawaAddress) => {
+                    setValue('billing_address', addr.address, { shouldDirty: true })
+                    setValue('billing_postal_code', addr.postal_code, { shouldDirty: true })
+                    setValue('billing_city', addr.city, { shouldDirty: true })
+                  }}
+                  onChange={(val) => setValue('billing_address', val, { shouldDirty: true })}
                   disabled={isLoading}
                 />
               </div>
@@ -239,6 +244,14 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
                   type="text"
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isLoading}
+                  onChange={async (e) => {
+                    register('billing_postal_code').onChange(e)
+                    if (/^\d{4}$/.test(e.target.value)) {
+                      const cityName = await lookupPostalCode(e.target.value)
+                      if (cityName) setValue('billing_city', cityName, { shouldDirty: true })
+                    }
+                  }}
+                  maxLength={4}
                 />
               </div>
 
@@ -250,8 +263,9 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
                   {...register('billing_city')}
                   id="billing_city"
                   type="text"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-gray-50"
                   disabled={isLoading}
+                  readOnly
                 />
               </div>
 
@@ -286,13 +300,17 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1 md:col-span-2">
                 <label htmlFor="shipping_address" className="text-sm font-medium">
-                  Adresse
+                  Adresse (DAWA-opslag)
                 </label>
-                <input
-                  {...register('shipping_address')}
+                <DawaAddressInput
                   id="shipping_address"
-                  type="text"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={getValues('shipping_address') || ''}
+                  onSelect={(addr: DawaAddress) => {
+                    setValue('shipping_address', addr.address, { shouldDirty: true })
+                    setValue('shipping_postal_code', addr.postal_code, { shouldDirty: true })
+                    setValue('shipping_city', addr.city, { shouldDirty: true })
+                  }}
+                  onChange={(val) => setValue('shipping_address', val, { shouldDirty: true })}
                   disabled={isLoading}
                 />
               </div>
@@ -307,6 +325,14 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
                   type="text"
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isLoading}
+                  onChange={async (e) => {
+                    register('shipping_postal_code').onChange(e)
+                    if (/^\d{4}$/.test(e.target.value)) {
+                      const cityName = await lookupPostalCode(e.target.value)
+                      if (cityName) setValue('shipping_city', cityName, { shouldDirty: true })
+                    }
+                  }}
+                  maxLength={4}
                 />
               </div>
 
@@ -318,8 +344,9 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
                   {...register('shipping_city')}
                   id="shipping_city"
                   type="text"
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-gray-50"
                   disabled={isLoading}
+                  readOnly
                 />
               </div>
 

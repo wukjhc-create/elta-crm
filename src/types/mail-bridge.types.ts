@@ -11,10 +11,21 @@
 
 export type EmailLinkStatus = 'linked' | 'unidentified' | 'ignored' | 'pending'
 
+export type MailboxType = 'ordre' | 'kontakt' | 'unknown'
+
+export interface CrmMailbox {
+  email: string
+  type: MailboxType
+  active: boolean
+}
+
 export interface IncomingEmail {
   id: string
   graph_message_id: string | null
   conversation_id: string | null
+  internet_message_id: string | null
+  in_reply_to: string | null
+  mailbox_source: string | null
   subject: string
   sender_email: string
   sender_name: string | null
@@ -88,6 +99,8 @@ export interface GraphSyncState {
 export interface GraphMailMessage {
   id: string
   conversationId: string | null
+  internetMessageId?: string | null
+  internetMessageHeaders?: Array<{ name: string; value: string }>
   subject: string | null
   bodyPreview: string
   body: {
@@ -155,6 +168,16 @@ export interface LinkResult {
 // Sync result types
 // =====================================================
 
+export interface MailboxSyncDetail {
+  mailbox: string
+  fetched: number
+  inserted: number
+  skipped: number
+  linked: number
+  status: 'success' | 'failed' | 'skipped'
+  error?: string
+}
+
 export interface EmailSyncResult {
   success: boolean
   emailsFetched: number
@@ -166,4 +189,6 @@ export interface EmailSyncResult {
   attachmentsStored: number
   errors: string[]
   durationMs: number
+  /** Per-mailbox breakdown (populated for multi-mailbox sync) */
+  mailboxResults?: MailboxSyncDetail[]
 }

@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Mark native Node.js packages as external so they're not bundled by Turbopack
+  serverExternalPackages: ['ssh2', 'ssh2-sftp-client', 'basic-ftp', 'socks', 'cpu-features'],
   images: {
     remotePatterns: [
       {

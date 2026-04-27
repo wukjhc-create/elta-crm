@@ -4,7 +4,7 @@ export const MESSAGE_STATUSES = ['unread', 'read', 'archived'] as const
 export type MessageStatus = (typeof MESSAGE_STATUSES)[number]
 
 // Message type enum
-export const MESSAGE_TYPES = ['email', 'sms', 'internal', 'note'] as const
+export const MESSAGE_TYPES = ['email', 'internal', 'note'] as const
 
 export type MessageType = (typeof MESSAGE_TYPES)[number]
 
@@ -18,7 +18,6 @@ export const MESSAGE_STATUS_LABELS: Record<MessageStatus, string> = {
 // Type labels in Danish
 export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
   email: 'E-mail',
-  sms: 'SMS',
   internal: 'Intern',
   note: 'Note',
 }
@@ -33,7 +32,6 @@ export const MESSAGE_STATUS_COLORS: Record<MessageStatus, string> = {
 // Type colors
 export const MESSAGE_TYPE_COLORS: Record<MessageType, string> = {
   email: 'bg-purple-100 text-purple-800',
-  sms: 'bg-green-100 text-green-800',
   internal: 'bg-blue-100 text-blue-800',
   note: 'bg-yellow-100 text-yellow-800',
 }

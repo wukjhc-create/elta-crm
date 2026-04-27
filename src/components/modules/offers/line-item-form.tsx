@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Search, Loader2, Package, Wifi, Database, Check, Truck } from 'lucide-react'
+import { X, Search, Loader2, Package, Wifi, Database, Check, Truck, Star } from 'lucide-react'
 import {
   createLineItemSchema,
   type CreateLineItemInput,
@@ -32,6 +32,14 @@ interface SupplierSearchResult {
   delivery_days?: number | null
   image_url: string | null
   source?: 'live' | 'cache'
+  is_cheapest?: boolean
+  alternatives?: Array<{
+    supplier_code: string
+    supplier_name: string
+    cost_price: number
+    supplier_sku: string
+    id: string
+  }>
 }
 
 interface LineItemFormProps {
@@ -323,7 +331,11 @@ export function LineItemForm({
                     key={p.id || `${p.supplier_sku}-${idx}`}
                     type="button"
                     onClick={() => handleSelectProduct(p)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-blue-50 transition-colors"
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                      p.is_cheapest
+                        ? 'bg-green-50 hover:bg-green-100 ring-1 ring-inset ring-green-300'
+                        : 'hover:bg-blue-50'
+                    }`}
                   >
                     {/* Product image or placeholder */}
                     <div className="w-12 h-12 shrink-0 rounded bg-gray-100 flex items-center justify-center overflow-hidden border">
@@ -370,10 +382,30 @@ export function LineItemForm({
 
                     <div className="text-right shrink-0">
                       <div className="text-[10px] text-gray-400">Netto</div>
-                      <div className="text-xs text-gray-500">{formatCurrency(p.cost_price, currency, 2)}</div>
+                      <div className="flex items-center justify-end gap-1">
+                        {p.is_cheapest && <Star className="w-3 h-3 text-green-500 fill-green-500" />}
+                        <span className={`text-xs ${p.is_cheapest ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
+                          {formatCurrency(p.cost_price, currency, 2)}
+                        </span>
+                      </div>
                       <div className="text-sm font-bold text-green-700">{formatCurrency(p.estimated_sale_price, currency, 2)}</div>
                       {p.list_price != null && p.list_price > 0 && (
                         <div className="text-[10px] text-gray-300">Vejl. {formatCurrency(p.list_price, currency, 2)}</div>
+                      )}
+                      {/* Show alternative supplier prices */}
+                      {p.alternatives && p.alternatives.length > 0 && (
+                        <div className="mt-0.5 space-y-0.5">
+                          {p.alternatives.map(alt => (
+                            <div key={alt.id} className="flex items-center justify-end gap-1 text-[10px]">
+                              <span className={`inline-flex px-1 py-0 rounded font-bold uppercase ${
+                                alt.supplier_code === 'AO' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+                              }`} style={{ fontSize: '8px' }}>
+                                {alt.supplier_code}
+                              </span>
+                              <span className="text-gray-400">{formatCurrency(alt.cost_price, currency, 2)}</span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </button>

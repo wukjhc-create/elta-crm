@@ -251,6 +251,105 @@ export async function linkEmailToCustomer(
   revalidatePath('/dashboard/mail')
 }
 
+// =====================================================
+// Quick Create Customer from Email (simple — no offer)
+// =====================================================
+
+interface QuickCreateCustomerInput {
+  companyName: string
+  contactPerson?: string
+  email: string
+  phone?: string
+  address?: string
+  city?: string
+  postalCode?: string
+  sourceEmailId: string
+}
+
+export async function quickCreateCustomerFromEmail(
+  input: QuickCreateCustomerInput
+): Promise<{ success: boolean; customerId?: string; error?: string }> {
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // Check if customer already exists by email
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('email', input.email)
+      .maybeSingle()
+
+    if (existing) {
+      // Just link the email to existing customer
+      await supabase
+        .from('incoming_emails')
+        .update({ customer_id: existing.id, link_status: 'linked', linked_by: 'manual', linked_at: new Date().toISOString() })
+        .eq('id', input.sourceEmailId)
+
+      revalidatePath('/dashboard/mail')
+      revalidatePath('/dashboard/customers')
+      return { success: true, customerId: existing.id }
+    }
+
+    // Generate customer number
+    const { data: lastCustomer } = await supabase
+      .from('customers')
+      .select('customer_number')
+      .order('customer_number', { ascending: false })
+      .limit(1)
+
+    let customerNumber = 'C000001'
+    if (lastCustomer && lastCustomer.length > 0) {
+      const numPart = parseInt(lastCustomer[0].customer_number.substring(1), 10)
+      customerNumber = `C${(numPart + 1).toString().padStart(6, '0')}`
+    }
+
+    // Create customer
+    const { data: newCustomer, error: custError } = await supabase
+      .from('customers')
+      .insert({
+        company_name: input.companyName,
+        contact_person: input.contactPerson || null,
+        email: input.email,
+        phone: input.phone || null,
+        billing_address: input.address || null,
+        billing_city: input.city || null,
+        billing_postal_code: input.postalCode || null,
+        billing_country: 'Danmark',
+        customer_number: customerNumber,
+        created_by: userId,
+        is_active: true,
+        tags: [],
+      })
+      .select('id')
+      .single()
+
+    if (custError) {
+      logger.error('Error creating customer from email', { error: custError })
+      return { success: false, error: 'Kunne ikke oprette kunde' }
+    }
+
+    // Link email to new customer
+    await supabase
+      .from('incoming_emails')
+      .update({ customer_id: newCustomer.id, link_status: 'linked', linked_by: 'manual', linked_at: new Date().toISOString() })
+      .eq('id', input.sourceEmailId)
+
+    revalidatePath('/dashboard/mail')
+    revalidatePath('/dashboard/customers')
+    return { success: true, customerId: newCustomer.id }
+  } catch (err) {
+    logger.error('quickCreateCustomerFromEmail failed', { error: err })
+    return { success: false, error: 'Uventet fejl ved kundeoprettelse' }
+  }
+}
+
+export async function unlinkEmailFromCustomer(emailId: string): Promise<void> {
+  const { unlinkEmail } = await import('@/lib/services/email-linker')
+  await unlinkEmail(emailId)
+  revalidatePath('/dashboard/mail')
+}
+
 export async function ignoreIncomingEmail(emailId: string): Promise<void> {
   const { ignoreEmail } = await import('@/lib/services/email-linker')
   await ignoreEmail(emailId)
@@ -711,7 +810,7 @@ export async function applyEmailKalkiaPriceUpdates(emailId: string) {
 
 export async function getGraphSyncState(): Promise<GraphSyncState | null> {
   const supabase = await createClient()
-  const mailbox = process.env.GRAPH_MAILBOX || 'ordre@eltasolar.dk'
+  const mailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
   const { data } = await supabase
     .from('graph_sync_state')
     .select('*')
@@ -719,6 +818,16 @@ export async function getGraphSyncState(): Promise<GraphSyncState | null> {
     .maybeSingle()
 
   return data as GraphSyncState | null
+}
+
+/** Get sync state for ALL configured mailboxes */
+export async function getAllGraphSyncStates(): Promise<GraphSyncState[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('graph_sync_state')
+    .select('*')
+    .order('mailbox')
+  return (data || []) as GraphSyncState[]
 }
 
 /**
@@ -733,7 +842,7 @@ export async function triggerEmailSync(): Promise<EmailSyncResult> {
 }
 
 /**
- * Test Microsoft Graph connection.
+ * Test Microsoft Graph connection for the default mailbox.
  */
 export async function testGraphConnection(): Promise<{
   success: boolean
@@ -747,12 +856,60 @@ export async function testGraphConnection(): Promise<{
   if (!isGraphConfigured()) {
     return {
       success: false,
-      mailbox: process.env.GRAPH_MAILBOX || 'ordre@eltasolar.dk',
+      mailbox: process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk',
       error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET.',
     }
   }
 
   return testConn()
+}
+
+export interface MailboxTestResult {
+  mailbox: string
+  type: string
+  success: boolean
+  error?: string
+  totalItems?: number
+  unreadItems?: number
+}
+
+/**
+ * Test Graph API access for EVERY configured mailbox.
+ * Returns per-mailbox success/failure with exact error codes.
+ * This is the key diagnostic for "403 on kontakt@ but not ordre@".
+ */
+export async function testAllMailboxes(): Promise<MailboxTestResult[]> {
+  const { isGraphConfigured, getMailboxes, testGraphConnection: testConn } = await import(
+    '@/lib/services/microsoft-graph'
+  )
+
+  if (!isGraphConfigured()) {
+    return [{ mailbox: '(not configured)', type: 'unknown', success: false, error: 'Azure env vars not set' }]
+  }
+
+  const mailboxes = getMailboxes()
+  const results: MailboxTestResult[] = []
+
+  for (const mb of mailboxes) {
+    try {
+      const r = await testConn(mb.email)
+      results.push({
+        mailbox: mb.email,
+        type: mb.type,
+        success: r.success,
+        error: r.error,
+      })
+    } catch (err) {
+      results.push({
+        mailbox: mb.email,
+        type: mb.type,
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
+  }
+
+  return results
 }
 
 // =====================================================
@@ -767,7 +924,11 @@ export async function checkGraphEnvVars(): Promise<{
   configured: boolean
   vars: Record<string, boolean>
   mailbox: string
+  mailboxes: string[]
 }> {
+  const { getMailboxes } = await import('@/lib/services/microsoft-graph')
+  const allMailboxes = getMailboxes()
+
   return {
     configured: !!(
       (process.env.AZURE_TENANT_ID || process.env.AZURE_AD_TENANT_ID) &&
@@ -782,14 +943,16 @@ export async function checkGraphEnvVars(): Promise<{
       AZURE_CLIENT_SECRET: !!process.env.AZURE_CLIENT_SECRET,
       AZURE_AD_CLIENT_SECRET: !!process.env.AZURE_AD_CLIENT_SECRET,
       GRAPH_MAILBOX: !!process.env.GRAPH_MAILBOX,
+      GRAPH_MAILBOXES: !!process.env.GRAPH_MAILBOXES,
     },
-    mailbox: process.env.GRAPH_MAILBOX || 'ordre@eltasolar.dk',
+    mailbox: process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk',
+    mailboxes: allMailboxes.map(m => m.email),
   }
 }
 
 /**
  * Send a quick reply to an incoming email via Microsoft Graph.
- * Uses the shared mailbox (ordre@eltasolar.dk).
+ * Uses the shared mailbox configured via GRAPH_MAILBOX env var.
  *
  * Requires Mail.Send application permission in Azure AD.
  */
@@ -830,6 +993,8 @@ export async function sendQuickReply(
     .eq('id', userId)
     .maybeSingle()
   const senderName = (profile as { full_name: string } | null)?.full_name || undefined
+  const { getMailbox: getGraphMailbox } = await import('@/lib/services/microsoft-graph')
+  const crmMailbox = getGraphMailbox()
 
   // 4. Build reply subject
   const subject = email.subject?.startsWith('Re:')
@@ -850,7 +1015,7 @@ export async function sendQuickReply(
   const html = generateCrmReplyHtml({
     messageBody: message,
     senderName: senderName || 'Elta Solar',
-    senderEmail: 'ordre@eltasolar.dk',
+    senderEmail: crmMailbox,
     originalDate: dateStr,
     originalSender: email.sender_name || email.sender_email,
     originalBody: safeOriginalBody,
@@ -868,11 +1033,40 @@ export async function sendQuickReply(
     })
 
     if (result.success) {
+      // Record outgoing email in incoming_emails for complete timeline
+      const supabaseForRecord = await createClient()
+      try {
+        await supabaseForRecord
+          .from('incoming_emails')
+          .insert({
+            graph_message_id: result.messageId || `sent-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+            conversation_id: email.conversation_id || null,
+            subject,
+            sender_email: crmMailbox,
+            sender_name: senderName || 'Elta Solar',
+            to_email: replyTo.toLowerCase(),
+            cc: [],
+            body_html: html,
+            body_preview: message.substring(0, 200),
+            has_attachments: false,
+            is_read: true,
+            received_at: new Date().toISOString(),
+            link_status: email.customer_id ? 'linked' : 'unidentified',
+            customer_id: email.customer_id || null,
+            linked_by: email.customer_id ? 'auto' : null,
+            linked_at: email.customer_id ? new Date().toISOString() : null,
+            processed_at: new Date().toISOString(),
+          })
+      } catch {
+        // Non-critical
+      }
+
       logger.info('Quick reply sent', {
         entity: 'incoming_emails',
         entityId: emailId,
         metadata: { to: replyTo, subject, userId },
       })
+      revalidatePath('/dashboard/mail')
     } else if (result.error?.includes('403')) {
       // 403 = Mail.Send permission not granted in Azure AD
       return {
@@ -997,6 +1191,364 @@ export async function findCustomerSuggestions(
  * Called when viewing an unlinked email in the detail pane.
  * Runs the linker service and returns whether a match was found.
  */
+// =====================================================
+// DIAGNOSTIC: Full sync chain debug
+// =====================================================
+
+export interface MailboxDiagnostic {
+  mailbox: string
+  type: string
+  connectionOk: boolean
+  connectionError?: string
+  totalItems?: number
+  unreadItems?: number
+  syncState: {
+    exists: boolean
+    lastSyncAt: string | null
+    lastSyncStatus: string | null
+    lastSyncError: string | null
+    deltaLinkExists: boolean
+    emailsSyncedTotal: number | null
+  } | null
+  inboxMessages: Array<{
+    id: string
+    subject: string | null
+    from: string
+    receivedDateTime: string
+    conversationId: string | null
+    isRead: boolean
+  }>
+  inboxError?: string
+}
+
+export interface SyncDiagnostic {
+  timestamp: string
+  mailbox: string
+  allMailboxes: string[]
+  envConfigured: boolean
+  /** Per-mailbox connection + inbox diagnostics */
+  mailboxDiagnostics: MailboxDiagnostic[]
+  /** Legacy single-mailbox fields (kept for UI compat) */
+  syncState: {
+    exists: boolean
+    mailbox: string | null
+    lastSyncAt: string | null
+    lastSyncStatus: string | null
+    lastSyncError: string | null
+    deltaLinkExists: boolean
+    emailsSyncedTotal: number | null
+  } | null
+  staleDeltaDetected: boolean
+  graphInbox: {
+    fetched: boolean
+    messageCount: number
+    messages: Array<{
+      id: string
+      subject: string | null
+      from: string
+      receivedDateTime: string
+      conversationId: string | null
+      internetMessageId: string | null
+      isRead: boolean
+    }>
+    error?: string
+  }
+  dbEmailCount: number
+  recentDbEmails: Array<{
+    id: string
+    graph_message_id: string | null
+    subject: string
+    sender_email: string
+    received_at: string
+    link_status: string
+  }>
+  missingFromDb: Array<{
+    graphId: string
+    subject: string | null
+    from: string
+    reason: string
+  }>
+  syncTestResult: {
+    ran: boolean
+    success: boolean
+    fetched: number
+    inserted: number
+    skipped: number
+    linked: number
+    errors: string[]
+    durationMs: number
+  } | null
+}
+
+/**
+ * Run a full diagnostic on the email sync chain.
+ * Traces every step: mailbox identity → Graph fetch → DB insert → linking.
+ * Returns structured data for the debug panel.
+ */
+export async function runSyncDiagnostic(): Promise<SyncDiagnostic> {
+  const { isGraphConfigured, getMailbox, getMailboxes, debugFetchInbox, testGraphConnection: testConn } = await import('@/lib/services/microsoft-graph')
+
+  const configured = isGraphConfigured()
+  const mailbox = getMailbox()
+  const allMailboxes = getMailboxes()
+
+  logger.info('Sync diagnostic: mailboxes', {
+    metadata: {
+      defaultMailbox: mailbox,
+      allMailboxes: allMailboxes.map(m => `${m.email} (${m.type}, active=${m.active})`),
+      envGRAPH_MAILBOX: process.env.GRAPH_MAILBOX || '(not set)',
+      envGRAPH_MAILBOXES: process.env.GRAPH_MAILBOXES || '(not set)',
+    },
+  })
+  const supabase = await createClient()
+
+  // 1. Test each mailbox individually
+  const mailboxDiagnostics: MailboxDiagnostic[] = []
+  for (const mb of allMailboxes) {
+    const diag: MailboxDiagnostic = {
+      mailbox: mb.email,
+      type: mb.type,
+      connectionOk: false,
+      syncState: null,
+      inboxMessages: [],
+    }
+
+    // Test connection
+    if (configured) {
+      try {
+        const connResult = await testConn(mb.email)
+        diag.connectionOk = connResult.success
+        diag.connectionError = connResult.error
+        diag.totalItems = connResult.totalItems
+        diag.unreadItems = connResult.unreadItems
+      } catch (err) {
+        diag.connectionOk = false
+        diag.connectionError = err instanceof Error ? err.message : 'Exception'
+      }
+
+      // Fetch latest inbox messages (only if connection ok)
+      if (diag.connectionOk) {
+        try {
+          const inboxResult = await debugFetchInbox(5, mb.email)
+          diag.inboxMessages = inboxResult.messages
+          diag.inboxError = inboxResult.error
+        } catch (err) {
+          diag.inboxError = err instanceof Error ? err.message : 'Exception'
+        }
+      }
+    }
+
+    // Check sync state for this mailbox
+    const { data: mbSync } = await supabase
+      .from('graph_sync_state')
+      .select('*')
+      .eq('mailbox', mb.email)
+      .maybeSingle()
+
+    if (mbSync) {
+      diag.syncState = {
+        exists: true,
+        lastSyncAt: (mbSync as Record<string, unknown>).last_sync_at as string | null,
+        lastSyncStatus: (mbSync as Record<string, unknown>).last_sync_status as string | null,
+        lastSyncError: (mbSync as Record<string, unknown>).last_sync_error as string | null,
+        deltaLinkExists: !!(mbSync as Record<string, unknown>).delta_link,
+        emailsSyncedTotal: (mbSync as Record<string, unknown>).emails_synced_total as number | null,
+      }
+    }
+
+    mailboxDiagnostics.push(diag)
+  }
+
+  // Legacy: single-mailbox sync state
+  const { data: syncStateForMailbox } = await supabase
+    .from('graph_sync_state')
+    .select('*')
+    .eq('mailbox', mailbox)
+    .maybeSingle()
+
+  let staleDeltaDetected = false
+  if (syncStateForMailbox?.delta_link) {
+    const deltaUrl = syncStateForMailbox.delta_link as string
+    if (!deltaUrl.includes(encodeURIComponent(mailbox)) && !deltaUrl.includes(mailbox)) {
+      staleDeltaDetected = true
+    }
+  }
+
+  // 2. Merge all inbox messages for the "missing from DB" check
+  const allInboxMessages = mailboxDiagnostics.flatMap(d => d.inboxMessages)
+  const graphInbox: SyncDiagnostic['graphInbox'] = {
+    fetched: mailboxDiagnostics.some(d => d.connectionOk),
+    messageCount: allInboxMessages.length,
+    messages: allInboxMessages.map(m => ({ ...m, internetMessageId: null })),
+  }
+
+  // 3. Check what's in the DB
+  const { data: dbEmails, count: dbCount } = await supabase
+    .from('incoming_emails')
+    .select('id, graph_message_id, subject, sender_email, received_at, link_status', { count: 'exact' })
+    .eq('is_archived', false)
+    .order('received_at', { ascending: false })
+    .limit(15)
+
+  // 4. Find messages in Graph inbox that are NOT in DB
+  const dbGraphIds = new Set((dbEmails || []).map((e: Record<string, unknown>) => e.graph_message_id))
+  const missingFromDb = graphInbox.messages
+    .filter(m => !dbGraphIds.has(m.id))
+    .map(m => ({
+      graphId: m.id,
+      subject: m.subject,
+      from: m.from,
+      reason: 'Graph message ID not found in incoming_emails',
+    }))
+
+  return {
+    timestamp: new Date().toISOString(),
+    mailbox,
+    allMailboxes: allMailboxes.map(m => m.email),
+    envConfigured: configured,
+    mailboxDiagnostics,
+    syncState: syncStateForMailbox ? {
+      exists: true,
+      mailbox: (syncStateForMailbox as Record<string, unknown>).mailbox as string,
+      lastSyncAt: (syncStateForMailbox as Record<string, unknown>).last_sync_at as string | null,
+      lastSyncStatus: (syncStateForMailbox as Record<string, unknown>).last_sync_status as string | null,
+      lastSyncError: (syncStateForMailbox as Record<string, unknown>).last_sync_error as string | null,
+      deltaLinkExists: !!(syncStateForMailbox as Record<string, unknown>).delta_link,
+      emailsSyncedTotal: (syncStateForMailbox as Record<string, unknown>).emails_synced_total as number | null,
+    } : null,
+    staleDeltaDetected,
+    graphInbox,
+    dbEmailCount: dbCount || 0,
+    recentDbEmails: (dbEmails || []).map((e: Record<string, unknown>) => ({
+      id: e.id as string,
+      graph_message_id: e.graph_message_id as string | null,
+      subject: e.subject as string,
+      sender_email: e.sender_email as string,
+      received_at: e.received_at as string,
+      link_status: e.link_status as string,
+    })),
+    missingFromDb,
+    syncTestResult: null, // Populated by runSyncAndDiagnose below
+  }
+}
+
+/**
+ * Run a sync AND return diagnostic data.
+ * This is the "fix it" button — resets stale delta, syncs, and reports.
+ */
+export async function runSyncAndDiagnose(): Promise<SyncDiagnostic> {
+  const { getMailboxes } = await import('@/lib/services/microsoft-graph')
+  const mailboxes = getMailboxes().map(m => m.email)
+  const supabase = await createClient()
+
+  // Step 1: Reset stale delta link for EVERY configured mailbox.
+  // Resetting only the default mailbox left ordre@ stuck on its previous
+  // delta, which is exactly the kind of state the "Reset Delta + Sync"
+  // button is supposed to clear.
+  if (mailboxes.length > 0) {
+    await supabase
+      .from('graph_sync_state')
+      .update({ delta_link: null })
+      .in('mailbox', mailboxes)
+  }
+
+  // Step 2: Run sync
+  const { runEmailSync } = await import('@/lib/services/email-sync-orchestrator')
+  const syncResult = await runEmailSync()
+
+  // Step 3: Get full diagnostic
+  const diagnostic = await runSyncDiagnostic()
+  diagnostic.syncTestResult = {
+    ran: true,
+    success: syncResult.success,
+    fetched: syncResult.emailsFetched,
+    inserted: syncResult.emailsInserted,
+    skipped: syncResult.emailsSkipped,
+    linked: syncResult.emailsLinked,
+    errors: syncResult.errors,
+    durationMs: syncResult.durationMs,
+  }
+
+  revalidatePath('/dashboard/mail')
+  return diagnostic
+}
+
+/**
+ * Reset the delta link for the current mailbox.
+ * Forces the next sync to do a full initial poll instead of incremental.
+ */
+export async function resetDeltaLink(): Promise<{ success: boolean; mailbox: string }> {
+  const { getMailbox } = await import('@/lib/services/microsoft-graph')
+  const mailbox = getMailbox()
+  const supabase = await createClient()
+
+  // Delete delta for current mailbox
+  await supabase
+    .from('graph_sync_state')
+    .update({ delta_link: null })
+    .eq('mailbox', mailbox)
+
+  // Also delete any stale sync state for OLD mailboxes
+  await supabase
+    .from('graph_sync_state')
+    .delete()
+    .neq('mailbox', mailbox)
+
+  return { success: true, mailbox }
+}
+
+/**
+ * Drain the delta query for every configured mailbox and store the
+ * resulting deltaLink. After this runs, the next sync will only see
+ * mail that arrives AFTER this point — so duplicates against the
+ * existing incoming_emails rows stop being re-fetched.
+ */
+export async function fastForwardAllMailboxes(): Promise<{
+  success: boolean
+  results: Array<{ mailbox: string; pagesScanned: number; messagesScanned: number; deltaLinkSaved: boolean; error?: string }>
+}> {
+  const { getMailboxes, fastForwardDelta } = await import('@/lib/services/microsoft-graph')
+  const supabase = await createClient()
+  const mailboxes = getMailboxes()
+  const results: Array<{ mailbox: string; pagesScanned: number; messagesScanned: number; deltaLinkSaved: boolean; error?: string }> = []
+
+  for (const mb of mailboxes) {
+    try {
+      const ff = await fastForwardDelta(mb.email, 200)
+      let saved = false
+      if (ff.deltaLink) {
+        await supabase
+          .from('graph_sync_state')
+          .upsert({
+            mailbox: mb.email,
+            delta_link: ff.deltaLink,
+            last_sync_status: 'success',
+            last_sync_error: null,
+            last_sync_at: new Date().toISOString(),
+          }, { onConflict: 'mailbox' })
+        saved = true
+      }
+      results.push({
+        mailbox: mb.email,
+        pagesScanned: ff.pagesScanned,
+        messagesScanned: ff.messagesScanned,
+        deltaLinkSaved: saved,
+      })
+    } catch (err) {
+      results.push({
+        mailbox: mb.email,
+        pagesScanned: 0,
+        messagesScanned: 0,
+        deltaLinkSaved: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
+  }
+
+  revalidatePath('/dashboard/mail')
+  return { success: results.every(r => r.deltaLinkSaved || !r.error), results }
+}
+
 export async function autoRelinkEmail(
   emailId: string
 ): Promise<{ linked: boolean; customerId?: string; customerName?: string }> {

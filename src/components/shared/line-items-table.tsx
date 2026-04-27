@@ -83,12 +83,13 @@ interface EditableRowProps {
   item: LineItemRow
   idx: number
   currency: string
+  showCostData?: boolean
   thresholds?: DBThresholds
   onSave: (data: LineItemSaveData) => Promise<boolean>
   onDelete: (id: string) => Promise<boolean>
 }
 
-function EditableRow({ item, idx, currency, thresholds, onSave, onDelete }: EditableRowProps) {
+function EditableRow({ item, idx, currency, showCostData = true, thresholds, onSave, onDelete }: EditableRowProps) {
   const [description, setDescription] = useState(item.description)
   const [quantity, setQuantity] = useState(String(item.quantity))
   const [unit, setUnit] = useState(item.unit || 'stk')
@@ -244,39 +245,43 @@ function EditableRow({ item, idx, currency, thresholds, onSave, onDelete }: Edit
           <option value="l">Liter</option>
         </select>
       </td>
-      <td className="py-1.5 px-1 w-24">
-        <input
-          type="number"
-          value={costPrice}
-          onChange={(e) => handleCostChange(e.target.value)}
-          onBlur={scheduleAutoSave}
-          onKeyDown={handleKeyDown}
-          min="0"
-          step="0.01"
-          placeholder="0"
-          className={`${inputClass} text-right text-gray-600`}
-        />
-      </td>
-      <td className="py-1.5 px-1 w-20">
-        <div className="flex items-center justify-end gap-1">
-          <input
-            type="number"
-            value={marginPct}
-            onChange={(e) => handleMarginChange(e.target.value)}
-            onBlur={scheduleAutoSave}
-            onKeyDown={handleKeyDown}
-            min="0"
-            step="0.5"
-            placeholder="0"
-            className={`${inputClass} text-right w-14`}
-          />
-          {effectiveMargin != null && (
-            <span className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${getDBBadgeClasses(effectiveMargin, thresholds)}`}>
-              {effectiveMargin}%
-            </span>
-          )}
-        </div>
-      </td>
+      {showCostData && (
+        <>
+          <td className="py-1.5 px-1 w-24">
+            <input
+              type="number"
+              value={costPrice}
+              onChange={(e) => handleCostChange(e.target.value)}
+              onBlur={scheduleAutoSave}
+              onKeyDown={handleKeyDown}
+              min="0"
+              step="0.01"
+              placeholder="0"
+              className={`${inputClass} text-right text-gray-600`}
+            />
+          </td>
+          <td className="py-1.5 px-1 w-20">
+            <div className="flex items-center justify-end gap-1">
+              <input
+                type="number"
+                value={marginPct}
+                onChange={(e) => handleMarginChange(e.target.value)}
+                onBlur={scheduleAutoSave}
+                onKeyDown={handleKeyDown}
+                min="0"
+                step="0.5"
+                placeholder="0"
+                className={`${inputClass} text-right w-14`}
+              />
+              {effectiveMargin != null && (
+                <span className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${getDBBadgeClasses(effectiveMargin, thresholds)}`}>
+                  {effectiveMargin}%
+                </span>
+              )}
+            </div>
+          </td>
+        </>
+      )}
       <td className="py-1.5 px-1 w-24">
         <input
           type="number"
@@ -411,6 +416,7 @@ export function LineItemsTable({
                   item={item}
                   idx={idx}
                   currency={currency}
+                  showCostData={showCostData}
                   thresholds={thresholds}
                   onSave={onSaveItem}
                   onDelete={onDeleteItem}

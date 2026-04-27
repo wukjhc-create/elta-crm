@@ -21,7 +21,9 @@ import {
   XCircle,
 } from 'lucide-react'
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
-import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars, autoRelinkEmail } from '@/lib/actions/incoming-emails'
+import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars } from '@/lib/actions/incoming-emails'
+import { quickCreateCustomerFromEmail } from '@/lib/actions/incoming-emails'
+import { parseCustomerFromEmail } from '@/lib/utils/email-parser'
 import type { IncomingEmailWithCustomer, EmailLinkStatus } from '@/types/mail-bridge.types'
 
 // =====================================================
@@ -33,13 +35,13 @@ interface MailDetailProps {
   onArchive: () => void
   onIgnore: () => void
   onLink: () => void
-  onCreateCustomer: () => void
   onToggleRead: () => void
   onAttachmentsBackfilled: () => void
   onLinkToCustomer?: (customerId: string) => void
-  isCreatingCustomer: boolean
-  existingLeadId?: string
-  existingLeadStatus?: string
+  onCreateServiceCase?: () => void
+  onNavigateToCustomer?: (customerId: string) => void
+  onUnlinkCustomer?: () => void
+  isCreatingServiceCase?: boolean
 }
 
 // =====================================================
@@ -90,19 +92,25 @@ export function MailDetail({
   onArchive,
   onIgnore,
   onLink,
-  onCreateCustomer,
   onToggleRead,
   onAttachmentsBackfilled,
   onLinkToCustomer,
-  isCreatingCustomer,
-  existingLeadId,
-  existingLeadStatus,
+  onCreateServiceCase,
+  onNavigateToCustomer,
+  onUnlinkCustomer,
+  isCreatingServiceCase,
 }: MailDetailProps) {
   const [portalAccess, setPortalAccess] = useState<{ hasPortal: boolean } | null>(null)
   const [isBackfilling, setIsBackfilling] = useState(false)
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [lightboxName, setLightboxName] = useState('')
+
+  // Quick create customer modal
+  const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false)
+  const [isCreatingQuickCustomer, setIsCreatingQuickCustomer] = useState(false)
+  const [quickCreateError, setQuickCreateError] = useState<string | null>(null)
+  const [detectedCustomer, setDetectedCustomer] = useState<{ id: string; company_name: string; customer_number: string; email: string } | null | undefined>(undefined)
 
   // Quick reply state
   const [isSendingReply, setIsSendingReply] = useState<string | null>(null)
@@ -128,34 +136,45 @@ export function MailDetail({
     setSuggestions([])
     setDetectedPhone(null)
     setDetectedOrderId(null)
+    setDetectedCustomer(undefined)
+
+    // Smart detect: check if sender email matches an existing customer
+    if (email.link_status !== 'linked' && email.sender_email) {
+      import('@/lib/supabase/client').then(({ createClient }) => {
+        const supabase = createClient()
+        supabase
+          .from('customers')
+          .select('id, company_name, customer_number, email')
+          .eq('email', email.sender_email)
+          .maybeSingle()
+          .then(({ data }) => {
+            setDetectedCustomer(data || null)
+          })
+      }).catch(() => setDetectedCustomer(null))
+    } else if (email.link_status === 'linked') {
+      setDetectedCustomer(undefined) // not needed when linked
+    }
 
     if (email.link_status === 'linked' && email.customer_id) {
-      checkCustomerPortalAccess(email.customer_id).then((res) => {
-        if (res.success && res.data) setPortalAccess(res.data)
-      })
+      checkCustomerPortalAccess(email.customer_id)
+        .then((res) => {
+          if (res.success && res.data) setPortalAccess(res.data)
+        })
+        .catch(() => { /* Non-critical — portal badge won't show */ })
     }
 
     // Smart suggestion: detect phone/order ID and find matching customers
     if (email.link_status !== 'linked') {
-      findCustomerSuggestions(email.id).then((res) => {
-        setSuggestions(res.suggestions)
-        setDetectedPhone(res.detectedPhone)
-        setDetectedOrderId(res.detectedOrderId)
-      })
+      findCustomerSuggestions(email.id)
+        .then((res) => {
+          setSuggestions(res.suggestions)
+          setDetectedPhone(res.detectedPhone)
+          setDetectedOrderId(res.detectedOrderId)
+        })
+        .catch(() => { /* Non-critical — suggestions won't show */ })
     }
   }, [email.id, email.link_status, email.customer_id])
 
-  // Auto-relink: try to match unlinked emails on view
-  useEffect(() => {
-    if (email.link_status === 'pending' || email.link_status === 'unidentified') {
-      autoRelinkEmail(email.id).then((result) => {
-        if (result.linked) {
-          // Trigger refresh of the email list
-          onAttachmentsBackfilled()
-        }
-      })
-    }
-  }, [email.id, email.link_status])
 
   const handleQuickReply = async (template: string) => {
     setIsSendingReply(template)
@@ -245,11 +264,23 @@ export function MailDetail({
         {/* Customer link */}
         {email.link_status === 'linked' && email.customers && (
           <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 p-2.5 rounded-md">
-            <Link2 className="w-4 h-4 text-green-600" />
+            <Link2 className="w-4 h-4 text-green-600 shrink-0" />
             <span>Koblet til: <strong>{email.customers.company_name}</strong> ({email.customers.customer_number})</span>
-            <a href={`/dashboard/customers/${email.customers.id}`} className="ml-auto text-blue-600 hover:underline inline-flex items-center gap-1 text-xs">
-              Åbn kunde <ExternalLink className="w-3 h-3" />
-            </a>
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              <a href={`/dashboard/customers/${email.customers.id}`} className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs">
+                Åbn kunde <ExternalLink className="w-3 h-3" />
+              </a>
+              {onUnlinkCustomer && (
+                <button
+                  onClick={onUnlinkCustomer}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 inline-flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors"
+                  title="Fjern kobling"
+                >
+                  <X className="w-3 h-3" />
+                  Fjern kobling
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -264,43 +295,41 @@ export function MailDetail({
           </div>
         )}
 
-        {/* ========== ACTION BUTTONS — large, clear, styled like Leads ========== */}
+        {/* ========== ACTION BUTTONS ========== */}
         <div className="flex items-center gap-2 pt-2 flex-wrap">
-          {/* Promote / View Lead */}
-          {existingLeadId ? (
-            <a
-              href={`/dashboard/leads/${existingLeadId}`}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Se Lead
-              {existingLeadStatus && (
-                <span className="bg-amber-500/40 text-white px-1.5 py-0.5 rounded text-[10px] uppercase">{existingLeadStatus}</span>
-              )}
-            </a>
-          ) : (
+          {/* ★ UNLINKED: Two clear choices — user decides */}
+          {email.link_status !== 'linked' && (
+            <>
+              <button
+                onClick={onLink}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-blue-600 text-white rounded-md hover:bg-blue-700 shadow-sm transition-all hover:shadow-md"
+              >
+                <Link2 className="w-4 h-4" />
+                Kobl til eksisterende
+              </button>
+              <button
+                onClick={() => setShowCreateCustomerModal(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm transition-all hover:shadow-md"
+              >
+                <UserPlus className="w-4 h-4" />
+                Opret som ny kunde
+              </button>
+            </>
+          )}
+
+          {/* ★ LINKED: Now show work actions */}
+          {email.link_status === 'linked' && onCreateServiceCase && (
             <button
-              onClick={onCreateCustomer}
-              disabled={isCreatingCustomer}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50"
+              onClick={onCreateServiceCase}
+              disabled={isCreatingServiceCase}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
             >
-              {isCreatingCustomer ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-              Forfrem til Lead
+              {isCreatingServiceCase ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+              Opret Service-sag
             </button>
           )}
 
-          {/* Link to customer */}
-          {email.link_status !== 'linked' && !existingLeadId && (
-            <button
-              onClick={onLink}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              <Link2 className="w-4 h-4" />
-              Kobl til kunde
-            </button>
-          )}
-
-          {/* ===== MARK AS UNREAD / READ ===== */}
+          {/* Read / Unread */}
           <button
             onClick={onToggleRead}
             className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border-2 transition-colors ${
@@ -324,7 +353,7 @@ export function MailDetail({
             <Archive className="w-4 h-4" /> Arkivér
           </button>
 
-          {/* Ignore */}
+          {/* Ignore — only when unidentified */}
           {email.link_status === 'unidentified' && (
             <button
               onClick={onIgnore}
@@ -381,37 +410,54 @@ export function MailDetail({
           )}
         </div>
 
-        {/* ========== SMART SUGGESTION — detected phone/order, customer matches ========== */}
-        {suggestions.length > 0 && (
+        {/* ========== SUGGESTIONS — helpful hints, user always decides ========== */}
+        {email.link_status !== 'linked' && (detectedCustomer || suggestions.length > 0) && (
           <div className="pt-2 border-t">
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-2">
-              <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide flex items-center gap-1.5">
+            <div className="bg-gray-50 border border-gray-200 rounded-md p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" />
-                Smart forslag — kunde fundet
+                Mulige matches (forslag)
               </p>
               {detectedPhone && (
-                <p className="text-xs text-blue-700">Telefon fundet i email: <strong>{detectedPhone}</strong></p>
+                <p className="text-xs text-gray-600">Telefon fundet i email: <strong>{detectedPhone}</strong></p>
               )}
               {detectedOrderId && (
-                <p className="text-xs text-blue-700">Ordre/ref fundet i email: <strong>{detectedOrderId}</strong></p>
+                <p className="text-xs text-gray-600">Ordre/ref fundet i email: <strong>{detectedOrderId}</strong></p>
               )}
-              <div className="space-y-1">
-                {suggestions.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-blue-100">
+              {/* Direct email match */}
+              {detectedCustomer && (
+                <div className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-blue-100">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{detectedCustomer.company_name}</p>
+                    <p className="text-xs text-gray-500">{detectedCustomer.customer_number} — email-match</p>
+                  </div>
+                  <button
+                    onClick={() => onLinkToCustomer?.(detectedCustomer.id)}
+                    className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Link2 className="w-3 h-3" />
+                    Kobl
+                  </button>
+                </div>
+              )}
+              {/* Other suggestions */}
+              {suggestions
+                .filter((s) => s.id !== detectedCustomer?.id)
+                .map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 bg-white rounded px-2.5 py-2 border border-gray-100">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{s.company_name}</p>
                       <p className="text-xs text-gray-500">{s.customer_number} — {s.matchReason}</p>
                     </div>
                     <button
                       onClick={() => onLinkToCustomer?.(s.id)}
-                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ring-2 ring-blue-300 ring-offset-1"
+                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                     >
                       <Link2 className="w-3 h-3" />
                       Kobl
                     </button>
                   </div>
                 ))}
-              </div>
             </div>
           </div>
         )}
@@ -513,6 +559,44 @@ export function MailDetail({
         )}
       </div>
 
+      {/* ============================================== */}
+      {/* QUICK CREATE CUSTOMER MODAL                    */}
+      {/* ============================================== */}
+      {showCreateCustomerModal && (
+        <QuickCreateCustomerModal
+          email={email}
+          onClose={() => { setShowCreateCustomerModal(false); setQuickCreateError(null) }}
+          onSubmit={async (data) => {
+            setIsCreatingQuickCustomer(true)
+            setQuickCreateError(null)
+            try {
+              const result = await quickCreateCustomerFromEmail({
+                companyName: data.companyName,
+                contactPerson: data.contactPerson,
+                email: data.email,
+                phone: data.phone,
+                address: data.address,
+                city: data.city,
+                postalCode: data.postalCode,
+                sourceEmailId: email.id,
+              })
+              if (result.success && result.customerId) {
+                setShowCreateCustomerModal(false)
+                onNavigateToCustomer?.(result.customerId)
+              } else {
+                setQuickCreateError(result.error || 'Ukendt fejl')
+              }
+            } catch {
+              setQuickCreateError('Uventet fejl')
+            } finally {
+              setIsCreatingQuickCustomer(false)
+            }
+          }}
+          isSubmitting={isCreatingQuickCustomer}
+          error={quickCreateError}
+        />
+      )}
+
       {/* Lightbox */}
       {lightboxUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -533,6 +617,227 @@ export function MailDetail({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// =====================================================
+// Quick Create Customer Modal
+// =====================================================
+
+interface QuickCreateCustomerModalProps {
+  email: IncomingEmailWithCustomer
+  onClose: () => void
+  onSubmit: (data: {
+    companyName: string
+    contactPerson: string
+    email: string
+    phone: string
+    address: string
+    city: string
+    postalCode: string
+  }) => void
+  isSubmitting: boolean
+  error: string | null
+}
+
+function QuickCreateCustomerModal({ email, onClose, onSubmit, isSubmitting, error }: QuickCreateCustomerModalProps) {
+  // AI-parse email body for customer data — pass sender email so it gets EXCLUDED from results
+  const parsed = parseCustomerFromEmail(email.body_text, email.body_html, email.sender_email)
+  const hasParsedData = !!(parsed.name || parsed.email || parsed.phone || parsed.address)
+
+  // IMPORTANT: Do NOT fall back to sender data — only use body-parsed data
+  const [companyName, setCompanyName] = useState(parsed.name || '')
+  const [contactPerson, setContactPerson] = useState(parsed.contactPerson || '')
+  const [emailAddr, setEmailAddr] = useState(parsed.email || '')
+  const [phone, setPhone] = useState(parsed.phone || '')
+  const [address, setAddress] = useState(parsed.address || '')
+  const [city, setCity] = useState(parsed.city || '')
+  const [postalCode, setPostalCode] = useState(parsed.postalCode || '')
+
+  // Allow user to switch back to sender data
+  const fillFromSender = () => {
+    setCompanyName(email.sender_name || '')
+    setContactPerson(email.sender_name || '')
+    setEmailAddr(email.sender_email || '')
+    setPhone('')
+    setAddress('')
+    setCity('')
+    setPostalCode('')
+  }
+
+  const fillFromParsed = () => {
+    if (parsed.name) setCompanyName(parsed.name)
+    if (parsed.contactPerson) setContactPerson(parsed.contactPerson)
+    if (parsed.email) setEmailAddr(parsed.email)
+    if (parsed.phone) setPhone(parsed.phone)
+    if (parsed.address) setAddress(parsed.address)
+    if (parsed.city) setCity(parsed.city)
+    if (parsed.postalCode) setPostalCode(parsed.postalCode)
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    onSubmit({
+      companyName,
+      contactPerson,
+      email: emailAddr,
+      phone,
+      address,
+      city,
+      postalCode,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+        {/* Header */}
+        <div className="bg-green-600 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-white">
+            <UserPlus className="w-5 h-5" />
+            <h3 className="text-lg font-bold">Opret Kunde</h3>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {hasParsedData ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 text-xs text-green-800">
+              <strong>Kundedata fundet i mailens brødtekst</strong> — felterne er udfyldt automatisk.
+              <button type="button" onClick={fillFromSender} className="ml-2 underline hover:text-green-900">
+                Brug afsender i stedet
+              </button>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700">
+              Ingen kundedata fundet i mailens brødtekst. Udfyld manuelt, eller{' '}
+              <button type="button" onClick={fillFromSender} className="underline hover:text-yellow-900">
+                brug afsenderens data ({email.sender_email})
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Firmanavn *</label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                required
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Kontaktperson</label>
+              <input
+                type="text"
+                value={contactPerson}
+                onChange={(e) => setContactPerson(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+              <input
+                type="email"
+                value={emailAddr}
+                onChange={(e) => setEmailAddr(e.target.value)}
+                required
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Telefon</label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Adresse</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Vej og husnummer (evt. etage)"
+              className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Postnr.</label>
+              <input
+                type="text"
+                value={postalCode}
+                onChange={(e) => setPostalCode(e.target.value)}
+                placeholder="f.eks. 4100"
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">By</label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="f.eks. Ringsted"
+                className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+          </div>
+          {/* Google Maps preview link */}
+          {address && (
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([address, postalCode, city].filter(Boolean).join(', '))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              Tjek adresse i Google Maps
+            </a>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 border rounded-md hover:bg-gray-50"
+            >
+              Annuller
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 shadow-sm hover:shadow-md transition-all"
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserPlus className="w-4 h-4" />
+              )}
+              Opret Kunde
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

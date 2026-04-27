@@ -267,10 +267,10 @@ export const AO_FTP_CONFIG: FtpDownloadOptions = {
   max_retries: 2,
 }
 
-/** Lemvigh-Müller FTP defaults */
+/** Lemvigh-Müller FTP defaults (legacy — SFTP config in sftp-download.ts) */
 export const LM_FTP_CONFIG: FtpDownloadOptions = {
-  remote_directory: '/export',
-  file_pattern: 'produkter*.csv',
+  remote_directory: '/FromLEMU/pricelist',
+  file_pattern: '*.csv',
   encoding: 'utf-8',
   timeout_ms: 30000,
   max_retries: 2,

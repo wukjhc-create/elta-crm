@@ -553,7 +553,7 @@ export async function generateEmailPreview(
     // Use the branded Elta Solar HTML template (code-based, not DB)
     const companySettings = {
       company_name: settings?.company_name || 'Elta Solar ApS',
-      company_email: settings?.company_email || 'ordre@eltasolar.dk',
+      company_email: settings?.company_email || 'kontakt@eltasolar.dk',
       company_phone: settings?.company_phone || '',
       company_address: settings?.company_address || '',
       company_postal_code: settings?.company_postal_code || '',
@@ -824,6 +824,32 @@ export async function sendOfferEmail(
           sent_at: new Date().toISOString(),
         })
         .eq('id', offer.id)
+    }
+
+    // Record outgoing email in incoming_emails for customer timeline
+    try {
+      await supabase
+        .from('incoming_emails')
+        .insert({
+          graph_message_id: emailResult.messageId || `sent-offer-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+          subject,
+          sender_email: fromEmail,
+          sender_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',
+          to_email: offer.customer.email.toLowerCase(),
+          cc: [],
+          body_html: finalHtml,
+          body_preview: subject.substring(0, 200),
+          has_attachments: emailAttachments.length > 0,
+          is_read: true,
+          received_at: new Date().toISOString(),
+          link_status: 'linked',
+          customer_id: offer.customer_id,
+          linked_by: 'auto',
+          linked_at: new Date().toISOString(),
+          processed_at: new Date().toISOString(),
+        })
+    } catch {
+      // Non-critical
     }
 
     // Log activity
@@ -1117,12 +1143,20 @@ export async function getEmailStats(options?: {
 /**
  * Test Graph API connection
  */
-export async function testEmailConnectionAction(): Promise<{ success: boolean; error?: string }> {
+export async function testEmailConnectionAction(): Promise<{ success: boolean; error?: string; mailbox?: string }> {
   try {
     if (!isGraphConfigured()) {
       return { success: false, error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET.' }
     }
-    return { success: true }
+
+    // Actually test the connection by calling Graph API
+    const { testGraphConnection } = await import('@/lib/services/microsoft-graph')
+    const result = await testGraphConnection()
+    return {
+      success: result.success,
+      error: result.error,
+      mailbox: result.mailbox,
+    }
   } catch (error) {
     logger.error('Error testing Graph connection', { error: error })
     return {
