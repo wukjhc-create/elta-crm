@@ -29,6 +29,7 @@ import {
   SystemAlertsWidget,
   PriceAlertsWidget,
   MonthlyOfferChart,
+  EmailIntelligenceCard,
 } from '@/components/modules/dashboard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
 
@@ -168,6 +169,9 @@ export default async function DashboardPage() {
         </div>
         <SupplierHealthOverview />
       </div>
+
+      {/* Email Intelligence — today's counts */}
+      <EmailIntelligenceCard />
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

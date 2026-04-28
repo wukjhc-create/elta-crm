@@ -21,6 +21,7 @@ import {
   fetchMessageHeaders,
 } from '@/lib/services/microsoft-graph'
 import { linkEmail } from '@/lib/services/email-linker'
+import { processEmailIntelligence } from '@/lib/services/email-intelligence'
 import { detectAOProducts, applyKalkiaPriceUpdates } from '@/lib/services/email-ao-detector'
 import { processEmailAttachments } from '@/lib/services/email-attachment-storage'
 import { logger } from '@/lib/utils/logger'
@@ -286,6 +287,28 @@ async function syncOneMailbox(
           null
         )
         if (linkResult.status === 'linked') result.emailsLinked++
+
+        // Email intelligence: classify + extract real customer + auto-link/create.
+        // Runs AFTER the cheap email-linker so we skip the AI call when a high-confidence
+        // direct match already linked the email to a customer.
+        if (linkResult.status !== 'linked') {
+          try {
+            const intel = await processEmailIntelligence(inserted.id, {
+              subject,
+              senderEmail,
+              senderName: msg.from.emailAddress.name || null,
+              bodyText: msg.body?.contentType === 'text' ? msg.body.content : null,
+              bodyHtml: msg.body?.contentType === 'html' ? msg.body.content : null,
+              bodyPreview: msg.bodyPreview || null,
+            })
+            if (intel.customerId && !intel.skipped) result.emailsLinked++
+            if (intel.created) {
+              console.log('CUSTOMER CREATED for email:', subject, '→', intel.customerId)
+            }
+          } catch (intelErr) {
+            console.warn('INTELLIGENCE FAILED:', subject, intelErr instanceof Error ? intelErr.message : '')
+          }
+        }
       } catch (linkErr) {
         console.warn('LINK FAILED:', subject, linkErr instanceof Error ? linkErr.message : '')
       }
