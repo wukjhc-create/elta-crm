@@ -76,22 +76,25 @@ export function getMailbox(): string {
  */
 export function getMailboxes(): CrmMailbox[] {
   const raw = (process.env.GRAPH_MAILBOXES || '').trim()
-  const defaultMb = getMailbox()
+  const defaultMb = getMailbox().toLowerCase()
 
-  if (!raw) {
-    // Single-mailbox fallback
-    return [{ email: defaultMb, type: inferMailboxType(defaultMb), active: true }]
+  // Always include the default GRAPH_MAILBOX, then merge in GRAPH_MAILBOXES.
+  // This prevents kontakt@ (or whichever mailbox is the configured default)
+  // from being silently dropped when GRAPH_MAILBOXES only lists ordre@.
+  const set = new Map<string, CrmMailbox>()
+  set.set(defaultMb, { email: defaultMb, type: inferMailboxType(defaultMb), active: true })
+
+  if (raw) {
+    for (const s of raw.split(',')) {
+      const email = s.trim().toLowerCase()
+      if (!email.includes('@')) continue
+      if (!set.has(email)) {
+        set.set(email, { email, type: inferMailboxType(email), active: true })
+      }
+    }
   }
 
-  return raw
-    .split(',')
-    .map(s => s.trim().toLowerCase())
-    .filter(s => s.includes('@'))
-    .map(email => ({
-      email,
-      type: inferMailboxType(email),
-      active: true,
-    }))
+  return Array.from(set.values())
 }
 
 /** Infer mailbox type from the email address prefix. */
