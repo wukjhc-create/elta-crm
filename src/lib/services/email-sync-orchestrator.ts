@@ -62,8 +62,11 @@ export async function runEmailSync(): Promise<EmailSyncResult> {
       metadata: { mailboxes: mailboxes.map(m => m.email), count: mailboxes.length },
     })
 
-    // Sync each mailbox sequentially (shared token, avoids throttling)
+    // Sync each mailbox sequentially (shared token, avoids throttling).
+    // No filter — every mailbox from getMailboxes() runs.
     for (const mb of mailboxes) {
+      console.log('SYNC MAILBOX:', mb.email)
+
       if (!mb.active) {
         result.mailboxResults.push({ mailbox: mb.email, fetched: 0, inserted: 0, skipped: 0, linked: 0, status: 'skipped' })
         continue
@@ -146,7 +149,7 @@ async function syncOneMailbox(
 
   const deltaLink = syncState?.delta_link || null
 
-  console.log('SYNC MAILBOX:', mailbox)
+  console.log('SYNC MAILBOX BEGIN:', mailbox, 'hasDelta:', !!deltaLink)
   logger.info('Syncing mailbox', {
     metadata: { mailbox, hasExistingDelta: !!deltaLink, deltaLinkPreview: deltaLink ? deltaLink.substring(0, 120) : null },
   })
