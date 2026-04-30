@@ -33,22 +33,35 @@ const sql = fs.readFileSync('supabase/migrations/00072_email_intelligence_logs.s
 console.log(`\n=== Apply 00072 to project ${projectRef} ===\n`);
 console.log(`SQL bytes: ${sql.length}\n`);
 
-console.log('1. Executing migration via Management API...');
-const exec = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+console.log('1. Pre-check: are tables already present?');
+const preCheck = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
   method: 'POST',
-  headers: {
-    Authorization: `Bearer ${ACCESS_TOKEN}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ query: sql }),
+  headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    query: `SELECT table_name FROM information_schema.tables
+             WHERE table_schema='public'
+               AND table_name IN ('email_intelligence_logs','email_intelligence_daily_summary');`,
+  }),
 });
+const preRows = preCheck.ok ? await preCheck.json() : [];
+const alreadyApplied = Array.isArray(preRows) && preRows.length === 2;
 
-const execText = await exec.text();
-if (!exec.ok) {
-  console.error(`   FAILED (${exec.status}):`, execText.substring(0, 600));
-  process.exit(1);
+if (alreadyApplied) {
+  console.log('   Both tables already exist — migration is a no-op (CREATE POLICY is not idempotent), skipping execution.');
+} else {
+  console.log('   Executing migration via Management API...');
+  const exec = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: sql }),
+  });
+  const execText = await exec.text();
+  if (!exec.ok) {
+    console.error(`   FAILED (${exec.status}):`, execText.substring(0, 600));
+    process.exit(1);
+  }
+  console.log(`   OK (${exec.status}). Response:`, execText.substring(0, 200) || '(empty)');
 }
-console.log(`   OK (${exec.status}). Response:`, execText.substring(0, 200) || '(empty)');
 
 console.log('\n2. Verifying email_intelligence_logs...');
 const v1 = await fetch(

@@ -538,6 +538,25 @@ export async function acceptOffer(
       // Non-critical — don't fail the acceptance
     }
 
+    // Phase 10 — autopilot rule engine. Default "offer_accepted →
+    // create_invoice_from_offer" rule handles this; idempotent.
+    try {
+      const { evaluateAndRunAutomations } = await import('@/lib/automation/rule-engine')
+      await evaluateAndRunAutomations({
+        trigger: 'offer_accepted',
+        entityType: 'offer',
+        entityId: data.offer_id,
+        payload: {
+          offer_id: data.offer_id,
+          customer_id: customerId,
+          final_amount: offer.final_amount,
+          title: offer.title,
+        },
+      })
+    } catch (invErr) {
+      logger.error('Autopilot offer_accepted failed (non-critical)', { error: invErr, entityId: data.offer_id })
+    }
+
     revalidatePath('/offers')
     revalidatePath('/projects')
 

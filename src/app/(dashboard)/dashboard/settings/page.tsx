@@ -202,6 +202,22 @@ const settingsCards = [
     ),
   },
   {
+    href: '/dashboard/settings/materials',
+    title: 'Materialer',
+    subtitle: 'Bind interne materialer til leverandørprodukter',
+    description: 'Lås materialer (solpanel, inverter, kabel, eltavle…) til konkrete leverandørprodukter, så auto-tilbud bruger den valgte SKU uden fallback-søgning',
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+      />
+    ),
+  },
+  {
     href: '/dashboard/settings/learning',
     title: 'Selvlærende Engine',
     subtitle: 'Kalibrering og nøjagtighed',

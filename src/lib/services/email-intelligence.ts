@@ -13,6 +13,20 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import {
+  createCaseFromEmail,
+  createSmartTasks,
+  detectIntent,
+  detectPriority,
+  generateCaseAiSummary,
+  writeCaseNote,
+} from '@/lib/services/auto-case'
+import { createOfferDraftFromCase } from '@/lib/services/auto-offer'
+import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
+import { retryOnUniqueViolation } from '@/lib/utils/retry'
+import { normalizeDanishPhone } from '@/lib/utils/phone'
+
+const OPENAI_TIMEOUT_MS = 15_000
 
 // =====================================================
 // Constants
@@ -54,6 +68,84 @@ const FORWARD_HEADERS = [
   /^[ \t>]*Afsender:\s/im,
 ]
 
+// Hard ignore filters — applied BEFORE any AI call.
+const IGNORE_SENDER_SUBSTRINGS = [
+  'no-reply',
+  'noreply',
+  'do-not-reply',
+  'donotreply',
+  'mailer-daemon',
+  'postmaster@',
+  'bounce@',
+  'bounces@',
+  'notifications@',
+  'notification@',
+  'alerts@',
+  'submissions@',
+  'newsletter@',
+  'marketing@',
+  'newsletters@',
+  'instagram.com',
+  'facebookmail.com',
+]
+
+const IGNORE_SUBJECT_KEYWORDS = [
+  'activate',
+  'aktivér',
+  'aktiver',
+  'verify',
+  'verifikation',
+  'verifikationskode',
+  'confirm',
+  'bekræft',
+  'notification',
+  'notifikation',
+  'welcome',
+  'velkommen',
+  'reset password',
+  'nulstil adgangskode',
+  'password reset',
+  'unsubscribe',
+  'afmeld',
+  'undelivered mail',
+  'mail delivery failed',
+  'out of office',
+  'fraværende',
+  'fravær',
+]
+
+const IGNORE_DOMAINS = new Set([
+  'formsubmit.co',
+  'instagram.com',
+  'facebook.com',
+  'linkedin.com',
+  'twitter.com',
+  'x.com',
+  'tiktok.com',
+  'mailchimp.com',
+  'sendgrid.net',
+  'mailerlite.com',
+  'klaviyo.com',
+  'github.com',
+  'notion.so',
+  'slack.com',
+  'zoom.us',
+])
+
+// Priority subject keywords (Danish CRM intent)
+const PRIORITY_SUBJECT_KEYWORDS = [
+  'tilbud',
+  'forespørgsel',
+  'foresporgsel',
+  'installation',
+  'projekt',
+]
+
+// Heuristics for body content scoring (not used for extraction — only scoring)
+const PHONE_RE = /(?:\+45[\s-]?)?(?:\d[\s-]?){8}\d?/
+const POSTCODE_CITY_RE = /\b\d{4}\s+[A-ZÆØÅ][a-zæøåA-ZÆØÅ\-]+/
+const FULL_NAME_RE = /\b[A-ZÆØÅ][a-zæøå]{1,}\s+[A-ZÆØÅ][a-zæøå]{1,}(?:\s+[A-ZÆØÅ][a-zæøå]{1,})?\b/
+
 const NEWSLETTER_KEYWORDS = [
   'unsubscribe',
   'afmeld nyhedsbrev',
@@ -70,7 +162,41 @@ const NEWSLETTER_KEYWORDS = [
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
 const OPENAI_MODEL = 'gpt-4o-mini'
 
-export type EmailType = 'customer' | 'supplier' | 'newsletter'
+export type EmailType = 'customer' | 'supplier' | 'newsletter' | 'ignored'
+
+// =====================================================
+// Priority scoring
+// =====================================================
+
+export function scoreEmail(email: EmailInput): number {
+  const senderEmailLower = (email.senderEmail || '').toLowerCase()
+  const senderDomain = senderEmailLower.split('@')[1] || ''
+  const subject = (email.subject || '').toLowerCase()
+  const body = email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || ''
+
+  let score = 0
+
+  // +2 per body signal (phone / address / full name)
+  if (PHONE_RE.test(body)) score += 2
+  if (POSTCODE_CITY_RE.test(body)) score += 2
+  if (FULL_NAME_RE.test(body)) score += 2
+
+  // +1 per CRM-intent subject keyword
+  if (PRIORITY_SUBJECT_KEYWORDS.some((kw) => subject.includes(kw))) score += 1
+
+  // -2 if sender matches ignore rules
+  if (
+    IGNORE_DOMAINS.has(senderDomain) ||
+    IGNORE_SENDER_SUBSTRINGS.some((s) => senderEmailLower.includes(s))
+  ) {
+    score -= 2
+  }
+
+  // -1 if subject matches ignore keywords
+  if (IGNORE_SUBJECT_KEYWORDS.some((kw) => subject.includes(kw))) score -= 1
+
+  return score
+}
 
 export interface EmailInput {
   subject: string
@@ -88,14 +214,36 @@ export interface ExtractedCustomer {
   confidence: number
 }
 
+/**
+ * Returns true if the email body or subject contains forward markers
+ * (e.g. "Fra:", "From:", "Videresendt besked", "Forwarded message", "VS:", "Fwd:").
+ * Used to:
+ *   1. Force the intelligence pipeline to run even when the email-linker
+ *      already matched a sender (the real customer is in the body).
+ *   2. Block the sender email from being used as the auto-created
+ *      customer's email (would otherwise leak the forwarder's address).
+ */
+export function isForwardedEmail(email: EmailInput): boolean {
+  const subject = (email.subject || '').toLowerCase()
+  if (/^(vs|fwd|fw|vb)[:\s]/i.test(subject)) return true
+  const body = email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || ''
+  return FORWARD_HEADERS.some((re) => re.test(body))
+}
+
 // =====================================================
 // 1. CLASSIFY EMAIL
 // =====================================================
 
 export async function classifyEmail(email: EmailInput): Promise<EmailType> {
-  const senderDomain = email.senderEmail.toLowerCase().split('@')[1] || ''
+  const senderEmailLower = (email.senderEmail || '').toLowerCase()
+  const senderDomain = senderEmailLower.split('@')[1] || ''
   const text = (email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || '').toLowerCase()
   const subject = (email.subject || '').toLowerCase()
+
+  // -------- HARD ignore filters (no AI) --------
+  if (IGNORE_DOMAINS.has(senderDomain)) return 'ignored'
+  if (IGNORE_SENDER_SUBSTRINGS.some((s) => senderEmailLower.includes(s))) return 'ignored'
+  if (IGNORE_SUBJECT_KEYWORDS.some((kw) => subject.includes(kw))) return 'ignored'
 
   if (SUPPLIER_DOMAINS.has(senderDomain)) return 'supplier'
 
@@ -148,22 +296,25 @@ export async function extractCustomer(body: string): Promise<ExtractedCustomer> 
   if (!cleaned.trim()) return { name: null, phone: null, address: null, confidence: 0 }
 
   const ai = await callOpenAI(
-    `Du udtrækker den ÆGTE kunde fra en email-body — IKKE afsenderen, IKKE videresenderen, IKKE en grossist.
+    `Du udtrækker den ÆGTE slutkunde (privat eller erhverv) fra en email-body til et dansk el/solcelle-firma.
+Du udtrækker IKKE: afsender, videresender, grossist, kollega, eller firma-signatur.
 
-Returnér JSON med tre felter:
+Returnér JSON:
 {
-  "name": "Fulde navn eller firma — null hvis ikke nævnt",
+  "name": "Fulde navn på person eller firma — null hvis ikke entydigt nævnt",
   "phone": "Dansk telefonnummer (8 cifre, evt. +45) — null hvis ikke nævnt",
-  "address": "Adresse inkl. postnummer og by — null hvis ikke nævnt"
+  "address": "Komplet adresse: gade + nr + postnummer + by — null hvis ikke nævnt"
 }
 
-Regler:
-- Hvis indholdet er videresendt ("Fra:", "From:", "Videresendt besked", "Forwarded"), så vælg kunden FRA DET VIDERESENDTE INDHOLD — aldrig videresenderen selv.
-- Ignorér helt: AO, Lemvigh-Müller, Solar A/S, Mikma, Eltagrossisten, og enhver "kundeservice"/"support"/"info"/"noreply"-signatur.
-- Vælg den person, adresse og telefon som installationen reelt handler om.
-- Hvis ingen ægte kunde kan identificeres, sæt feltet til null. Gæt ALDRIG.
+REGLER (overhold strikt):
+- Hvis emailen er videresendt (markører: "Fra:", "From:", "Videresendt besked", "Forwarded"), så vælg kunden FRA DET VIDERESENDTE INDHOLD. Aldrig videresenderen.
+- Ignorér disse afsendere/firmaer fuldstændigt: AO, Lemvigh-Müller, Solar A/S, Mikma, Eltagrossisten, EnergiNord, energinet.dk, samt enhver "kundeservice"/"support"/"info"/"noreply"/"reception"/"webmaster"-signatur.
+- Adressen skal indeholde mindst gade + nr + postnummer (4 cifre). Hvis kun en by er nævnt → null.
+- Telefonen skal være et dansk nummer (8 cifre, evt. +45). Drop kontornumre der hører til afsender-firmaet.
+- Hvis du er i tvivl om en værdi, skal den være null. Gæt ALDRIG. Vi skal hellere have null end forkerte data.
+- Returnér null for navn hvis det kun er et fornavn uden kontekst, eller en fælles e-mail-alias.
 
-Body:
+Body (oprenset, første 4000 tegn):
 ${cleaned}
 
 Svar KUN med rå JSON.`,
@@ -266,9 +417,12 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
     }
   }
 
-  // 2. Match by name (company_name OR contact_person)
-  if (data.name && data.name.length >= 3) {
-    const safeName = data.name.replace(/[%,()]/g, ' ').trim()
+  // 2. Match by name — require a full name (must contain a space) to avoid
+  //    false positives where a single first name matches an unrelated customer.
+  const nameTrimmed = (data.name || '').trim()
+  const looksLikeFullName = nameTrimmed.includes(' ') && nameTrimmed.length >= 5
+  if (looksLikeFullName) {
+    const safeName = nameTrimmed.replace(/[%,()]/g, ' ').trim()
     const { data: byName } = await supabase
       .from('customers')
       .select('id')
@@ -277,9 +431,11 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
       .limit(1)
       .maybeSingle()
     if (byName?.id) {
-      console.log('CUSTOMER FOUND:', byName.id, '(by name)')
+      console.log('CUSTOMER FOUND:', byName.id, '(by full name)')
       return { customerId: byName.id, created: false }
     }
+  } else if (nameTrimmed.length >= 3) {
+    console.log('CUSTOMER NAME-MATCH SKIPPED (single token):', nameTrimmed)
   }
 
   // 3. Create — REQUIRES phone (>= 8 digits) OR address (>= 5 chars). Name alone is NOT enough.
@@ -303,48 +459,57 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
     return { customerId: null, created: false }
   }
 
-  // Generate next customer_number
-  const { data: lastCustomer } = await supabase
-    .from('customers')
-    .select('customer_number')
-    .order('customer_number', { ascending: false })
-    .limit(1)
-
-  let customerNumber = 'C000001'
-  if (lastCustomer && lastCustomer.length > 0) {
-    const numPart = parseInt(lastCustomer[0].customer_number.substring(1), 10)
-    if (!Number.isNaN(numPart)) {
-      customerNumber = `C${(numPart + 1).toString().padStart(6, '0')}`
-    }
-  }
-
   const displayName = data.name || data.phone || 'Ukendt kunde'
-  const insertPayload = {
-    customer_number: customerNumber,
-    company_name: displayName,
-    contact_person: data.name || displayName,
-    email: data.fallbackEmail || `auto+${customerNumber.toLowerCase()}@elta-crm.local`,
-    phone: data.phone,
-    billing_address: data.address,
-    is_active: true,
-    tags: ['auto-email'],
-    notes: 'Oprettet automatisk fra indgående email (AI-udtrukket)',
-    created_by: adminProfile.id,
-  }
+  const normalizedPhone = data.phone ? normalizeDanishPhone(data.phone) : null
 
-  const { data: created, error } = await supabase
-    .from('customers')
-    .insert(insertPayload)
-    .select('id')
-    .single()
+  // Race-safe: each attempt re-reads MAX(customer_number)+1 and retries on 23505.
+  const result = await retryOnUniqueViolation<{ id: string; customer_number: string }>(
+    async () => {
+      const { data: lastCustomer } = await supabase
+        .from('customers')
+        .select('customer_number')
+        .order('customer_number', { ascending: false })
+        .limit(1)
 
-  if (error || !created) {
-    logger.error('Failed to auto-create customer from email', { error, metadata: insertPayload })
+      let customerNumber = 'C000001'
+      if (lastCustomer && lastCustomer.length > 0) {
+        const numPart = parseInt(lastCustomer[0].customer_number.substring(1), 10)
+        if (!Number.isNaN(numPart)) {
+          customerNumber = `C${(numPart + 1).toString().padStart(6, '0')}`
+        }
+      }
+
+      return await supabase
+        .from('customers')
+        .insert({
+          customer_number: customerNumber,
+          company_name: displayName,
+          contact_person: data.name || displayName,
+          email: data.fallbackEmail || `auto+${customerNumber.toLowerCase()}@elta-crm.local`,
+          phone: normalizedPhone,
+          billing_address: data.address,
+          is_active: true,
+          tags: ['auto-email'],
+          notes: 'Oprettet automatisk fra indgående email (AI-udtrukket)',
+          created_by: adminProfile.id,
+        })
+        .select('id, customer_number')
+        .single()
+    },
+    3,
+    'customer_number'
+  )
+
+  if (result.error || !result.data) {
+    logger.error('Failed to auto-create customer from email', {
+      error: result.error,
+      metadata: { displayName, hasPhone: !!normalizedPhone, hasAddress: !!data.address },
+    })
     return { customerId: null, created: false }
   }
 
-  console.log('CUSTOMER CREATED:', created.id, customerNumber, displayName)
-  return { customerId: created.id, created: true }
+  console.log('CUSTOMER CREATED:', result.data.id, result.data.customer_number, displayName)
+  return { customerId: result.data.id, created: true }
 }
 
 // =====================================================
@@ -362,13 +527,75 @@ export async function processEmailIntelligence(
   emailId: string,
   email: EmailInput
 ): Promise<IntelligenceResult> {
+  try {
+    return await processEmailIntelligenceUnsafe(emailId, email)
+  } catch (err) {
+    // Top-level safety net — a single malformed email must NEVER crash the sync.
+    console.error('INTELLIGENCE PIPELINE FAILED:', email?.subject, err)
+    logger.error('processEmailIntelligence top-level failure', {
+      entityId: emailId,
+      error: err,
+    })
+    try {
+      const { logHealth } = await import('@/lib/services/system-health')
+      const msg = err instanceof Error ? err.message : String(err)
+      await logHealth('email_intel', 'error', `intelligence threw: ${msg}`, { emailId, subject: email?.subject?.slice(0, 200) })
+    } catch { /* never crash */ }
+    return { type: 'customer', customerId: null, created: false, skipped: true }
+  }
+}
+
+async function processEmailIntelligenceUnsafe(
+  emailId: string,
+  email: EmailInput
+): Promise<IntelligenceResult> {
   const supabase = createAdminClient()
+
+  // -------- Stage 0: priority score (no AI) --------
+  const score = scoreEmail(email)
+  console.log('EMAIL SCORE:', score, email.subject)
+
+  if (score < 0) {
+    console.log('EMAIL IGNORED:', email.subject)
+    await supabase
+      .from('incoming_emails')
+      .update({ link_status: 'ignored', processed_at: new Date().toISOString() })
+      .eq('id', emailId)
+    await writeIntelligenceLog({
+      emailId,
+      subject: email.subject,
+      classification: 'ignored',
+      action: 'ignored',
+      reason: `Score ${score} (negative — hard ignore)`,
+    })
+    return { type: 'ignored', customerId: null, created: false, skipped: true }
+  }
+
+  if (score < 2) {
+    console.log('LOW SCORE SKIP —', email.subject, 'score:', score)
+    await supabase
+      .from('incoming_emails')
+      .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
+      .eq('id', emailId)
+    await writeIntelligenceLog({
+      emailId,
+      subject: email.subject,
+      classification: 'customer',
+      action: 'skipped',
+      reason: `Score ${score} (below threshold 2 — low priority)`,
+    })
+    return { type: 'customer', customerId: null, created: false, skipped: true }
+  }
 
   // -------- Stage 1: classify --------
   const type = await classifyEmail(email)
   console.log('EMAIL TYPE:', type, '—', email.subject)
 
-  if (type === 'newsletter') {
+  // Hard-ignored or newsletter → skip ALL AI extraction, mark email ignored.
+  if (type === 'ignored' || type === 'newsletter') {
+    if (type === 'ignored') {
+      console.log('EMAIL IGNORED:', email.subject)
+    }
     await supabase
       .from('incoming_emails')
       .update({ link_status: 'ignored', processed_at: new Date().toISOString() })
@@ -378,7 +605,7 @@ export async function processEmailIntelligence(
       subject: email.subject,
       classification: type,
       action: 'ignored',
-      reason: 'Newsletter classification',
+      reason: type === 'ignored' ? 'Hard ignore filter (sender/subject/domain)' : 'Newsletter classification',
     })
     return { type, customerId: null, created: false, skipped: true }
   }
@@ -433,8 +660,15 @@ export async function processEmailIntelligence(
   }
 
   // -------- Stage 3: decide (match or create) --------
-  const fallbackEmail =
-    type === 'supplier' ? null : email.senderEmail || null
+  // Suppress sender-as-customer-email when:
+  //  (a) the email is from a supplier (sender is the supplier, not the customer)
+  //  (b) the body is forwarded (sender is the forwarder, not the customer)
+  const isForwarded = isForwardedEmail(email)
+  const suppressSenderEmail = type === 'supplier' || isForwarded
+  const fallbackEmail = suppressSenderEmail ? null : email.senderEmail || null
+  if (suppressSenderEmail) {
+    console.log('FALLBACK EMAIL SUPPRESSED:', { reason: type === 'supplier' ? 'supplier' : 'forwarded' })
+  }
 
   const { customerId, created } = await findOrCreateCustomer({
     ...extracted,
@@ -462,6 +696,109 @@ export async function processEmailIntelligence(
         processed_at: new Date().toISOString(),
       })
       .eq('id', emailId)
+
+    // Auto-case creation — strict relevance guard.
+    // Required:
+    //   1. classification ∈ {'customer','supplier'}
+    //   2. score >= 2
+    //   3. extracted.phone OR extracted.address present
+    let caseSkipReason: string | null = null
+    if (type !== 'customer' && type !== 'supplier') {
+      caseSkipReason = `classification=${type} (must be customer or supplier)`
+    } else if (score < 2) {
+      caseSkipReason = `score=${score} (below 2)`
+    } else if (!extracted.phone && !extracted.address) {
+      caseSkipReason = 'no phone and no address extracted'
+    }
+
+    if (caseSkipReason) {
+      console.log('CASE SKIPPED:', caseSkipReason)
+    } else {
+      // Each post-customer step is isolated. A failure in one MUST NOT
+      // prevent the next from running, and MUST NOT crash the email sync.
+      const intent = detectIntent(email.subject || '', body)
+      const priority = detectPriority(email.subject || '', body, intent)
+
+      let caseId: string | null = null
+
+      // Step 1: case
+      try {
+        caseId = await createCaseFromEmail(
+          {
+            id: emailId,
+            subject: email.subject,
+            body,
+            extractedName: extracted.name,
+            extractedAddress: extracted.address,
+            intent,
+            priority,
+          },
+          customerId
+        )
+        if (caseId) console.log('CASE CREATED:', caseId, 'intent:', intent, 'priority:', priority)
+      } catch (caseErr) {
+        console.warn('CASE CREATION FAILED:', email.subject, caseErr instanceof Error ? caseErr.message : '')
+      }
+
+      // Step 2: smart tasks (only if we have a case)
+      if (caseId) {
+        try {
+          await createSmartTasks(caseId, intent)
+        } catch (taskErr) {
+          console.warn('SMART TASKS FAILED:', email.subject, taskErr instanceof Error ? taskErr.message : '')
+        }
+      }
+
+      // Step 3: offer draft — STRICTER gate than case creation.
+      //   Required: classification ∈ {customer, supplier} AND score >= 3.
+      //   Customer is already linked at this point. Existing offer (per
+      //   source_email_id UNIQUE index) is returned by createOfferDraftFromCase.
+      let offerSkipReason: string | null = null
+      if (type !== 'customer' && type !== 'supplier') {
+        offerSkipReason = `classification=${type} (must be customer or supplier)`
+      } else if (score < 3) {
+        offerSkipReason = `score=${score} (offer requires >=3)`
+      }
+
+      if (offerSkipReason) {
+        console.log('OFFER SKIPPED:', offerSkipReason)
+      } else {
+        try {
+          const offerId = await createOfferDraftFromCase({
+            emailId,
+            caseId,
+            customerId,
+            subject: email.subject || '',
+            body,
+            extractedAddress: extracted.address,
+            extractedName: extracted.name,
+            intent,
+            priority,
+          })
+          if (offerId) console.log('OFFER CREATED:', offerId)
+        } catch (offerErr) {
+          console.warn('OFFER DRAFT FAILED:', email.subject, offerErr instanceof Error ? offerErr.message : '')
+        }
+      }
+
+      // Step 4: AI summary as case note (only if we have a case)
+      if (caseId) {
+        try {
+          const summary = await generateCaseAiSummary(email.subject || '', body)
+          if (summary?.summary) {
+            await writeCaseNote({
+              caseId,
+              content: summary.summary,
+              kind: 'ai_summary',
+              urgency: summary.urgency,
+            })
+            console.log('CASE SUMMARY NOTE:', summary.urgency, '—', summary.summary.substring(0, 80))
+          }
+        } catch (sumErr) {
+          console.warn('AI SUMMARY FAILED:', email.subject, sumErr instanceof Error ? sumErr.message : '')
+        }
+      }
+    }
   }
 
   await writeIntelligenceLog({
@@ -534,10 +871,7 @@ function stripHtml(html: string): string {
 }
 
 function normalizePhone(raw: string): string {
-  const digits = raw.replace(/[^\d+]/g, '')
-  if (digits.startsWith('+45') && digits.length === 11) return digits
-  if (digits.length === 8) return digits
-  return digits
+  return normalizeDanishPhone(raw) ?? raw.replace(/[^\d+]/g, '')
 }
 
 async function callOpenAI(
@@ -550,9 +884,16 @@ async function callOpenAI(
     return null
   }
 
+  // Daily cost cap — refuse before hitting the network.
+  if (!(await canSpendAi())) return null
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS)
+
   try {
     const res = await fetch(OPENAI_URL, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
@@ -573,10 +914,20 @@ async function callOpenAI(
       return null
     }
 
+    // Count successful API calls toward the daily cap (best-effort).
+    void recordAiCall(1)
+
     const data = await res.json()
     return data.choices?.[0]?.message?.content || null
   } catch (err) {
-    logger.warn('OpenAI request threw', { error: err })
+    const aborted = (err as { name?: string })?.name === 'AbortError'
+    if (aborted) {
+      logger.warn('OpenAI request aborted (timeout)', { metadata: { timeoutMs: OPENAI_TIMEOUT_MS } })
+    } else {
+      logger.warn('OpenAI request threw', { error: err })
+    }
     return null
+  } finally {
+    clearTimeout(timeout)
   }
 }

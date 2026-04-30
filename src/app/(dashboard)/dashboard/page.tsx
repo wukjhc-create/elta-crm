@@ -32,6 +32,7 @@ import {
   EmailIntelligenceCard,
 } from '@/components/modules/dashboard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
+import { OperationalOverview } from '@/components/dashboard/operational-overview'
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -76,6 +77,9 @@ export default async function DashboardPage() {
           Her er et overblik over dine aktiviteter
         </p>
       </div>
+
+      {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
+      <OperationalOverview />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

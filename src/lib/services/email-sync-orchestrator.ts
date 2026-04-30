@@ -21,7 +21,7 @@ import {
   fetchMessageHeaders,
 } from '@/lib/services/microsoft-graph'
 import { linkEmail } from '@/lib/services/email-linker'
-import { processEmailIntelligence } from '@/lib/services/email-intelligence'
+import { processEmailIntelligence, isForwardedEmail } from '@/lib/services/email-intelligence'
 import { detectAOProducts, applyKalkiaPriceUpdates } from '@/lib/services/email-ao-detector'
 import { processEmailAttachments } from '@/lib/services/email-attachment-storage'
 import { logger } from '@/lib/utils/logger'
@@ -97,6 +97,11 @@ export async function runEmailSync(): Promise<EmailSyncResult> {
           error: mbError,
         })
 
+        try {
+          const { logHealth } = await import('@/lib/services/system-health')
+          await logHealth('email', 'error', `mailbox sync failed: ${mb.email}: ${errMsg}`, { mailbox: mb.email })
+        } catch { /* never crash */ }
+
         // Record failure for this mailbox
         try {
           await updateSyncState(supabase, mb.email, null, 'failed', errMsg, 0)
@@ -113,6 +118,10 @@ export async function runEmailSync(): Promise<EmailSyncResult> {
     const errMsg = error instanceof Error ? error.message : 'Unknown error'
     result.errors.push(errMsg)
     logger.error('Email sync failed', { error })
+    try {
+      const { logHealth } = await import('@/lib/services/system-health')
+      await logHealth('email', 'error', `email sync threw: ${errMsg}`)
+    } catch { /* never crash */ }
   }
 
   result.durationMs = Date.now() - startTime
@@ -289,18 +298,27 @@ async function syncOneMailbox(
         if (linkResult.status === 'linked') result.emailsLinked++
 
         // Email intelligence: classify + extract real customer + auto-link/create.
-        // Runs AFTER the cheap email-linker so we skip the AI call when a high-confidence
-        // direct match already linked the email to a customer.
-        if (linkResult.status !== 'linked') {
+        // Normally we skip when the linker already matched (saves AI cost), BUT we
+        // ALWAYS run when the email is forwarded — the linker matches the forwarder,
+        // and the real customer is in the body. Hard filters in classifyEmail still
+        // reject newsletters/system mail cheaply.
+        const intelInput = {
+          subject,
+          senderEmail,
+          senderName: msg.from.emailAddress.name || null,
+          bodyText: msg.body?.contentType === 'text' ? msg.body.content : null,
+          bodyHtml: msg.body?.contentType === 'html' ? msg.body.content : null,
+          bodyPreview: msg.bodyPreview || null,
+        }
+        const forwarded = isForwardedEmail(intelInput)
+        const shouldRunIntel = linkResult.status !== 'linked' || forwarded
+
+        if (shouldRunIntel) {
+          if (forwarded && linkResult.status === 'linked') {
+            console.log('INTEL RUN ON FORWARDED EMAIL (linker matched forwarder):', subject)
+          }
           try {
-            const intel = await processEmailIntelligence(inserted.id, {
-              subject,
-              senderEmail,
-              senderName: msg.from.emailAddress.name || null,
-              bodyText: msg.body?.contentType === 'text' ? msg.body.content : null,
-              bodyHtml: msg.body?.contentType === 'html' ? msg.body.content : null,
-              bodyPreview: msg.bodyPreview || null,
-            })
+            const intel = await processEmailIntelligence(inserted.id, intelInput)
             if (intel.customerId && !intel.skipped) result.emailsLinked++
             if (intel.created) {
               console.log('CUSTOMER CREATED for email:', subject, '→', intel.customerId)

@@ -192,6 +192,26 @@ export async function acceptPublicOffer(offerId: string, accepterName: string): 
     logger.error('Failed to send acceptance notification', { error: err, entityId: offerId })
   }
 
+  // Phase 10 — autopilot. Default rule "offer_accepted → create_invoice"
+  // handles invoice creation now; we still keep the legacy hook as a
+  // safety net during the transition. Both paths are idempotent.
+  try {
+    const { evaluateAndRunAutomations } = await import('@/lib/automation/rule-engine')
+    await evaluateAndRunAutomations({
+      trigger: 'offer_accepted',
+      entityType: 'offer',
+      entityId: offerId,
+      payload: {
+        offer_id: offerId,
+        offer_number: offer.offer_number,
+        customer_id: (offer as { customer_id?: string }).customer_id ?? null,
+        final_amount: offer.final_amount,
+      },
+    })
+  } catch (err) {
+    logger.error('Autopilot offer_accepted failed (non-critical)', { error: err, entityId: offerId })
+  }
+
   return { success: true }
 }
 
