@@ -49,6 +49,9 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
     })
   }
 
+  const isAdmin = status.current_user.is_admin
+  const writeDisabled = busy || !isAdmin
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -60,6 +63,13 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
         </div>
         <Button variant="outline" onClick={refresh} disabled={busy}>Opdater</Button>
       </div>
+
+      {!isAdmin && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm text-amber-900">
+          <strong>Læseadgang:</strong> Du ser status, men kun brugere med rollen <code>admin</code> kan toggle regler eller køre handlinger.
+          {status.current_user.role && <> Din rolle: <code>{status.current_user.role}</code>.</>}
+        </div>
+      )}
 
       {/* ---------- Status grid ---------- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -79,7 +89,7 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
           ]}
           actions={
             <Button size="sm" variant="outline"
-              onClick={() => run('Test e-conomic', testEconomicAction)} disabled={busy}>
+              onClick={() => run('Test e-conomic', testEconomicAction)} disabled={writeDisabled}>
               Test e-conomic
             </Button>
           }
@@ -110,7 +120,7 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
           ]}
           actions={
             <Button size="sm" variant="outline"
-              onClick={() => run('Test bank import', testBankImportAction)} disabled={busy}>
+              onClick={() => run('Test bank import', testBankImportAction)} disabled={writeDisabled}>
               Tjek bank-status
             </Button>
           }
@@ -131,7 +141,7 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
             `Sidste sync: ${fmtTime(status.email_sync.last_sync_at)}`,
           ]}
           actions={
-            <Button size="sm" onClick={() => run('Run email sync', runEmailSyncNowAction)} disabled={busy}>
+            <Button size="sm" onClick={() => run('Run email sync', runEmailSyncNowAction)} disabled={writeDisabled}>
               Kør email sync nu
             </Button>
           }
@@ -145,7 +155,7 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
             `Sendt sidste 24 t: ${status.invoice_reminder_cron.last_24h_sent}`,
           ]}
           actions={
-            <Button size="sm" onClick={() => run('Run invoice reminders', runInvoiceRemindersNowAction)} disabled={busy}>
+            <Button size="sm" onClick={() => run('Run invoice reminders', runInvoiceRemindersNowAction)} disabled={writeDisabled}>
               Kør rykker-tjek nu
             </Button>
           }
@@ -200,7 +210,7 @@ export function GoLiveClient({ initialStatus }: { initialStatus: GoLiveStatus })
                     <Button
                       size="sm"
                       variant={r.dry_run ? 'default' : 'outline'}
-                      disabled={busy}
+                      disabled={writeDisabled}
                       onClick={() =>
                         run(
                           r.dry_run ? `Sæt LIVE: ${r.name}` : `Sæt dry_run: ${r.name}`,

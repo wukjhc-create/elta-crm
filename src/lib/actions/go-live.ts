@@ -3,8 +3,12 @@
 /**
  * Go-Live admin panel — server actions.
  *
- * Read-only status fetch + a small set of write actions wrapping
- * existing services (no new business logic).
+ * RBAC: read (`getGoLiveStatus`) is allowed for any authenticated user;
+ * every write action requires role='admin'. Non-admin write attempts
+ * return ok=false with a clear message and never touch state.
+ *
+ * Every write action emits a go_live_audit_log row. Critical failures
+ * also trigger an admin email alert via sendAdminAlert (with cooldown).
  */
 
 import { revalidatePath } from 'next/cache'
@@ -17,6 +21,7 @@ import { logger } from '@/lib/utils/logger'
 
 export interface GoLiveStatus {
   generated_at: string
+  current_user: { id: string; role: string | null; is_admin: boolean }
   economic: {
     configured: boolean
     active: boolean
@@ -53,11 +58,18 @@ export interface GoLiveStatus {
 }
 
 export async function getGoLiveStatus(): Promise<GoLiveStatus> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, userId } = await getAuthenticatedClient()
   const now = new Date()
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
 
-  // Run all probes in parallel; each falls back individually.
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle()
+  const role = (prof?.role as string | null) ?? null
+  const isAdmin = role === 'admin'
+
   const [
     econRes,
     rulesRes,
@@ -123,6 +135,7 @@ export async function getGoLiveStatus(): Promise<GoLiveStatus> {
 
   return {
     generated_at: now.toISOString(),
+    current_user: { id: userId, role, is_admin: isAdmin },
     economic: {
       configured: !!(econ?.api_token && econ?.agreement_grant_token),
       active: !!econ?.active,
@@ -153,7 +166,7 @@ export async function getGoLiveStatus(): Promise<GoLiveStatus> {
 }
 
 // =====================================================
-// Actions
+// RBAC + audit helpers
 // =====================================================
 
 export interface ActionOutcome {
@@ -162,123 +175,220 @@ export interface ActionOutcome {
   data?: Record<string, unknown>
 }
 
+interface AdminCtx {
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClient>>['supabase']
+  userId: string
+}
+
+async function requireAdmin(): Promise<AdminCtx | { ok: false; message: string }> {
+  const { supabase, userId } = await getAuthenticatedClient()
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle()
+  if ((prof?.role as string | null) !== 'admin') {
+    return { ok: false, message: 'Kun administratorer kan udføre denne handling.' }
+  }
+  return { supabase, userId }
+}
+
+async function logAudit(input: {
+  userId: string
+  action: string
+  entityId?: string | null
+  previousValue?: unknown
+  newValue?: unknown
+  ok: boolean
+  message?: string
+}): Promise<void> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+    await supabase.from('go_live_audit_log').insert({
+      user_id: input.userId,
+      action: input.action,
+      entity_id: input.entityId ?? null,
+      previous_value: input.previousValue ?? null,
+      new_value: input.newValue ?? null,
+      ok: input.ok,
+      message: input.message ?? null,
+    })
+  } catch (err) {
+    logger.warn('go_live_audit_log insert failed', { error: err })
+  }
+}
+
+async function alertOnFailure(label: string, message: string): Promise<void> {
+  try {
+    const { sendAdminAlert } = await import('@/lib/services/admin-alerts')
+    await sendAdminAlert({
+      key: `go_live:${label}`,
+      severity: 'error',
+      subject: `[Elta CRM] ${label} fejlede`,
+      body: message,
+      cooldownMinutes: 30,
+    })
+  } catch { /* never crash */ }
+}
+
+// =====================================================
+// Actions (admin-only)
+// =====================================================
+
 export async function toggleRuleDryRunAction(
   ruleId: string,
   dryRun: boolean
 ): Promise<ActionOutcome> {
+  const ctx = await requireAdmin()
+  if ('ok' in ctx) return ctx
+
   try {
-    const { supabase } = await getAuthenticatedClient()
-    const { error } = await supabase
+    const { data: prev } = await ctx.supabase
+      .from('automation_rules')
+      .select('id, name, dry_run')
+      .eq('id', ruleId)
+      .maybeSingle()
+    if (!prev) {
+      await logAudit({ userId: ctx.userId, action: 'toggle_rule', entityId: ruleId, ok: false, message: 'rule not found' })
+      return { ok: false, message: 'Regel ikke fundet.' }
+    }
+
+    const { error } = await ctx.supabase
       .from('automation_rules')
       .update({ dry_run: dryRun })
       .eq('id', ruleId)
-    if (error) return { ok: false, message: error.message }
+    if (error) {
+      await logAudit({ userId: ctx.userId, action: 'toggle_rule', entityId: ruleId, ok: false, message: error.message })
+      return { ok: false, message: error.message }
+    }
+
+    await logAudit({
+      userId: ctx.userId,
+      action: 'toggle_rule',
+      entityId: ruleId,
+      previousValue: { name: prev.name, dry_run: prev.dry_run },
+      newValue:      { name: prev.name, dry_run: dryRun },
+      ok: true,
+      message: dryRun ? `Rule '${prev.name}' set to dry_run` : `Rule '${prev.name}' set to LIVE`,
+    })
     revalidatePath('/dashboard/go-live')
     return {
       ok: true,
       message: dryRun ? 'Regel sat til dry-run' : 'Regel sat til LIVE',
-      data: { ruleId, dry_run: dryRun },
+      data: { ruleId, dry_run: dryRun, previous: prev.dry_run },
     }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Unknown error' }
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    await logAudit({ userId: ctx.userId, action: 'toggle_rule', entityId: ruleId, ok: false, message: msg })
+    return { ok: false, message: msg }
   }
 }
 
 export async function testEconomicAction(): Promise<ActionOutcome> {
+  const ctx = await requireAdmin()
+  if ('ok' in ctx) return ctx
+
   try {
-    await getAuthenticatedClient()
     const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
     const settings = await getEconomicSettings()
     if (!settings) {
-      return { ok: false, message: 'Ingen e-conomic settings-row fundet — opret én før go-live.' }
+      const msg = 'Ingen e-conomic settings-row fundet — opret én før go-live.'
+      await logAudit({ userId: ctx.userId, action: 'test_economic', ok: false, message: msg })
+      await alertOnFailure('e-conomic test', msg)
+      return { ok: false, message: msg }
     }
     if (!isEconomicReady(settings)) {
-      return {
-        ok: false,
-        message: `Konfiguration ufuldstændig: active=${settings.active}, api_token=${!!settings.api_token}, grant_token=${!!settings.agreement_grant_token}`,
-        data: { active: settings.active, hasApiToken: !!settings.api_token, hasGrantToken: !!settings.agreement_grant_token },
-      }
+      const msg = `Konfiguration ufuldstændig: active=${settings.active}, api_token=${!!settings.api_token}, grant_token=${!!settings.agreement_grant_token}`
+      await logAudit({ userId: ctx.userId, action: 'test_economic', ok: false, message: msg })
+      await alertOnFailure('e-conomic test', msg)
+      return { ok: false, message: msg }
     }
-    // Light readiness ping — verify mandatory config fields without
-    // hitting e-conomic's network endpoints (those are exercised by
-    // the real createCustomerInEconomic call).
     const cfg = settings.config || {}
     const required = ['layoutNumber', 'paymentTermsNumber', 'vatZoneNumber', 'defaultProductNumber'] as const
     const missing = required.filter((k) => !cfg[k as keyof typeof cfg])
     if (missing.length > 0) {
-      return {
-        ok: false,
-        message: `Konfiguration mangler felter: ${missing.join(', ')}`,
-        data: { missing },
-      }
+      const msg = `Konfiguration mangler felter: ${missing.join(', ')}`
+      await logAudit({ userId: ctx.userId, action: 'test_economic', ok: false, message: msg })
+      await alertOnFailure('e-conomic test', msg)
+      return { ok: false, message: msg, data: { missing } }
     }
+    await logAudit({ userId: ctx.userId, action: 'test_economic', ok: true, message: 'e-conomic OK' })
     return {
       ok: true,
       message: 'e-conomic settings OK — credentials + config-felter til stede.',
-      data: {
-        active: settings.active,
-        last_sync_at: settings.last_sync_at,
-        config: cfg,
-      },
+      data: { active: settings.active, last_sync_at: settings.last_sync_at, config: cfg },
     }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Unknown error' }
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    await logAudit({ userId: ctx.userId, action: 'test_economic', ok: false, message: msg })
+    await alertOnFailure('e-conomic test', msg)
+    return { ok: false, message: msg }
   }
 }
 
 export async function testBankImportAction(): Promise<ActionOutcome> {
+  const ctx = await requireAdmin()
+  if ('ok' in ctx) return ctx
+
   try {
-    const { supabase } = await getAuthenticatedClient()
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const { count } = await supabase
+    const { count } = await ctx.supabase
       .from('bank_transactions')
       .select('id', { count: 'exact', head: true })
       .gte('date', since7d)
-    const { count: unmatched } = await supabase
+    const { count: unmatched } = await ctx.supabase
       .from('bank_transactions')
       .select('id', { count: 'exact', head: true })
       .eq('match_status', 'unmatched')
     if ((count ?? 0) === 0) {
-      return {
-        ok: false,
-        message: 'Ingen bankposteringer importeret de sidste 7 dage.',
-        data: { count: 0, unmatched: unmatched ?? 0 },
-      }
+      const msg = 'Ingen bankposteringer importeret de sidste 7 dage.'
+      await logAudit({ userId: ctx.userId, action: 'test_bank_import', ok: false, message: msg })
+      await alertOnFailure('bank import', msg)
+      return { ok: false, message: msg, data: { count: 0, unmatched: unmatched ?? 0 } }
     }
+    await logAudit({ userId: ctx.userId, action: 'test_bank_import', ok: true, message: `${count} rows last 7 days` })
     return {
       ok: true,
       message: `${count} bankposteringer sidste 7 dage, ${unmatched ?? 0} umatchede.`,
       data: { count, unmatched: unmatched ?? 0 },
     }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Unknown error' }
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    await logAudit({ userId: ctx.userId, action: 'test_bank_import', ok: false, message: msg })
+    return { ok: false, message: msg }
   }
 }
 
 export async function runEmailSyncNowAction(): Promise<ActionOutcome> {
+  const ctx = await requireAdmin()
+  if ('ok' in ctx) return ctx
+
   try {
-    await getAuthenticatedClient()
     const { runEmailSync } = await import('@/lib/services/email-sync-orchestrator')
     const result = await runEmailSync()
     revalidatePath('/dashboard/go-live')
     const inserted = result.emailsInserted ?? 0
     const fetched = result.emailsFetched ?? 0
-    return {
-      ok: result.success,
-      message: result.success
-        ? `Email sync OK: hentede ${fetched}, indsatte ${inserted} (${result.mailboxResults?.length ?? 0} mailboxes, ${result.durationMs ?? 0}ms)`
-        : `Email sync fejlede: ${(result.errors ?? []).join('; ') || 'unknown error'}`,
-      data: result as unknown as Record<string, unknown>,
-    }
+    const message = result.success
+      ? `Email sync OK: hentede ${fetched}, indsatte ${inserted} (${result.mailboxResults?.length ?? 0} mailboxes, ${result.durationMs ?? 0}ms)`
+      : `Email sync fejlede: ${(result.errors ?? []).join('; ') || 'unknown error'}`
+    await logAudit({ userId: ctx.userId, action: 'run_email_sync', ok: result.success, message, newValue: { inserted, fetched } })
+    if (!result.success) await alertOnFailure('email sync', message)
+    return { ok: result.success, message, data: result as unknown as Record<string, unknown> }
   } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
     logger.error('runEmailSyncNowAction failed', { error: err })
-    return { ok: false, message: err instanceof Error ? err.message : 'Unknown error' }
+    await logAudit({ userId: ctx.userId, action: 'run_email_sync', ok: false, message: msg })
+    await alertOnFailure('email sync', msg)
+    return { ok: false, message: msg }
   }
 }
 
 export async function runInvoiceRemindersNowAction(): Promise<ActionOutcome> {
+  const ctx = await requireAdmin()
+  if ('ok' in ctx) return ctx
+
   try {
-    await getAuthenticatedClient()
     const { getOverdueInvoices, sendInvoiceReminder } = await import('@/lib/services/invoices')
     const overdue = await getOverdueInvoices()
     const summary = { checked: overdue.length, sent: 0, manual_review: 0, skipped: 0, failed: 0 }
@@ -294,13 +404,13 @@ export async function runInvoiceRemindersNowAction(): Promise<ActionOutcome> {
       }
     }
     revalidatePath('/dashboard/go-live')
-    return {
-      ok: true,
-      message: `Rykker-tjek: scannet ${summary.checked}, sendt ${summary.sent}, manual ${summary.manual_review}, skip ${summary.skipped}, fejl ${summary.failed}`,
-      data: summary as unknown as Record<string, unknown>,
-    }
+    const message = `Rykker-tjek: scannet ${summary.checked}, sendt ${summary.sent}, manual ${summary.manual_review}, skip ${summary.skipped}, fejl ${summary.failed}`
+    await logAudit({ userId: ctx.userId, action: 'run_invoice_reminders', ok: true, message, newValue: summary })
+    return { ok: true, message, data: summary as unknown as Record<string, unknown> }
   } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
     logger.error('runInvoiceRemindersNowAction failed', { error: err })
-    return { ok: false, message: err instanceof Error ? err.message : 'Unknown error' }
+    await logAudit({ userId: ctx.userId, action: 'run_invoice_reminders', ok: false, message: msg })
+    return { ok: false, message: msg }
   }
 }

@@ -50,7 +50,17 @@ export async function GET(request: Request) {
       })),
     })
 
-    return NextResponse.json({ ok: true, overall: snapshot.overall, outcomes, snapshot })
+    // Phase 11.x — admin alert sweep (cooldown-deduplicated).
+    let alertReport: { alerts_sent: number; alerts_skipped: number } = {
+      alerts_sent: 0, alerts_skipped: 0,
+    }
+    try {
+      const { scanAndAlert } = await import('@/lib/services/admin-alerts')
+      const r = await scanAndAlert()
+      alertReport = { alerts_sent: r.alerts_sent, alerts_skipped: r.alerts_skipped }
+    } catch { /* never crash the cron */ }
+
+    return NextResponse.json({ ok: true, overall: snapshot.overall, outcomes, snapshot, alerts: alertReport })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Internal error' },
