@@ -603,3 +603,205 @@ export async function getInvoiceById(id: string): Promise<IncomingInvoiceRow | n
   const { data } = await supabase.from('incoming_invoices').select('*').eq('id', id).maybeSingle()
   return (data as IncomingInvoiceRow | null) ?? null
 }
+
+// =====================================================
+// Phase 15.3 — Supplier API ingestion
+// =====================================================
+
+import type { InvoiceAdapterProvider } from '@/lib/services/incoming-invoice-adapters/types'
+
+export interface SupplierApiIngestResult {
+  provider: InvoiceAdapterProvider
+  fetched: number
+  inserted: number
+  duplicates: number
+  errors: string[]
+  invoiceIds: string[]
+  skipped: boolean
+  skipReason?: string
+}
+
+/**
+ * Pull invoices from a supplier's API/EDI feed and insert any that
+ * haven't been seen before (dedup via supplier+invoice_number AND
+ * file_hash). Always runs parseAndMatch on every newly-inserted row.
+ *
+ * Fail-safe: any adapter throw / API error is caught and surfaces in
+ * the result so the cron continues processing other providers.
+ */
+export async function ingestFromSupplierAPI(
+  provider: InvoiceAdapterProvider,
+  options: { sinceDays?: number } = {}
+): Promise<SupplierApiIngestResult> {
+  const supabase = createAdminClient()
+  const { getInvoiceAdapter } = await import('@/lib/services/incoming-invoice-adapters/registry')
+  const sinceDays = options.sinceDays ?? 30
+  const sinceIso = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString()
+
+  const result: SupplierApiIngestResult = {
+    provider,
+    fetched: 0,
+    inserted: 0,
+    duplicates: 0,
+    errors: [],
+    invoiceIds: [],
+    skipped: false,
+  }
+
+  // Resolve supplier_id once.
+  const { data: supplierRow } = await supabase
+    .from('suppliers')
+    .select('id, code')
+    .ilike('code', provider)
+    .maybeSingle()
+  if (!supplierRow) {
+    result.skipped = true
+    result.skipReason = `supplier ${provider} not found`
+    console.log('API INVOICE INGEST SKIPPED:', provider, result.skipReason)
+    return result
+  }
+
+  let adapterRes
+  try {
+    const adapter = getInvoiceAdapter(provider)
+    adapterRes = await adapter.fetchInvoices({ sinceIso })
+  } catch (err) {
+    result.errors.push(err instanceof Error ? err.message : String(err))
+    logger.error('ingestFromSupplierAPI: adapter fetch threw', {
+      metadata: { provider }, error: err,
+    })
+    return result
+  }
+
+  if (adapterRes.skipped) {
+    result.skipped = true
+    result.skipReason = adapterRes.skipReason
+    console.log('API INVOICE INGEST SKIPPED:', provider, adapterRes.skipReason)
+    return result
+  }
+
+  result.fetched = adapterRes.invoices.length
+
+  for (const norm of adapterRes.invoices) {
+    try {
+      const fileHash = sha256(`${provider}|${norm.invoiceNumber}|${norm.rawText}`)
+
+      // Pre-dedup: file_hash → existing.
+      const { data: hashHit } = await supabase
+        .from('incoming_invoices')
+        .select('id')
+        .eq('file_hash', fileHash)
+        .limit(1)
+        .maybeSingle()
+      if (hashHit) {
+        result.duplicates++
+        continue
+      }
+
+      // Pre-dedup: (supplier_id, invoice_number) → existing.
+      const { data: refHit } = await supabase
+        .from('incoming_invoices')
+        .select('id')
+        .eq('supplier_id', supplierRow.id)
+        .eq('invoice_number', norm.invoiceNumber)
+        .limit(1)
+        .maybeSingle()
+      if (refHit) {
+        result.duplicates++
+        continue
+      }
+
+      const { data: ins, error } = await supabase
+        .from('incoming_invoices')
+        .insert({
+          source: 'manual',                                 // 'api' isn't in the source CHECK; reuse 'manual' + notes
+          supplier_id: supplierRow.id,
+          supplier_name_extracted: provider,
+          file_url: norm.fileUrl,
+          file_name: norm.fileName,
+          mime_type: norm.mimeType,
+          file_hash: fileHash,
+          raw_text: norm.rawText,
+          invoice_number: norm.invoiceNumber,
+          invoice_date: norm.invoiceDate,
+          due_date: norm.dueDate,
+          currency: norm.currency,
+          amount_excl_vat: norm.amountExclVat,
+          vat_amount: norm.vatAmount,
+          amount_incl_vat: norm.amountInclVat,
+          payment_reference: norm.paymentReference,
+          iban: norm.iban,
+          status: 'received',
+          parse_status: 'pending',
+          notes: `api-ingest:${provider}`,
+        })
+        .select('id')
+        .single()
+
+      if (error || !ins) {
+        if ((error as { code?: string } | null)?.code === '23505') {
+          result.duplicates++
+          continue
+        }
+        result.errors.push(`${provider}/${norm.invoiceNumber}: ${error?.message ?? 'insert failed'}`)
+        continue
+      }
+
+      const invoiceId = ins.id
+
+      // Insert lines (best-effort).
+      if (norm.lines.length > 0) {
+        const { error: lineErr } = await supabase
+          .from('incoming_invoice_lines')
+          .insert(
+            norm.lines.map((l) => ({
+              incoming_invoice_id: invoiceId,
+              line_number: l.lineNumber,
+              description: l.description,
+              quantity: l.quantity,
+              unit: l.unit,
+              unit_price: l.unitPrice,
+              total_price: l.totalPrice,
+              raw_line: null,
+            }))
+          )
+        if (lineErr) {
+          logger.warn('ingestFromSupplierAPI: lines insert failed', {
+            entityId: invoiceId, error: lineErr,
+          })
+        }
+      }
+
+      result.inserted++
+      result.invoiceIds.push(invoiceId)
+      console.log('API INVOICE INGESTED:', provider, norm.invoiceNumber)
+
+      await auditLog({
+        incomingInvoiceId: invoiceId,
+        action: 'ingested',
+        message: `api:${provider} invoice=${norm.invoiceNumber}`,
+        newValue: { source: 'api', provider, invoice_number: norm.invoiceNumber },
+      })
+
+      try {
+        await parseAndMatch(invoiceId)
+      } catch (err) {
+        logger.warn('ingestFromSupplierAPI: parseAndMatch threw', {
+          entityId: invoiceId, error: err,
+        })
+      }
+    } catch (err) {
+      result.errors.push(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  console.log(
+    'API INVOICE INGEST DONE:',
+    provider,
+    `fetched=${result.fetched}`,
+    `inserted=${result.inserted}`,
+    `dup=${result.duplicates}`,
+    `err=${result.errors.length}`
+  )
+  return result
+}
