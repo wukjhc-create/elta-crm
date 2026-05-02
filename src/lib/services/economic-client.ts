@@ -585,3 +585,163 @@ export async function markInvoicePaidInEconomic(
   console.log('ECONOMIC PAYMENT REGISTERED:', invoiceId, '→ voucher', voucherNumber)
   return { ok: true, status: 'success', externalId: inv.external_invoice_id, data: { voucherNumber } }
 }
+
+// =====================================================
+// Phase 15 — Supplier invoices (creditor invoices)
+// =====================================================
+
+/**
+ * Push a supplier (creditor) invoice draft to e-conomic.
+ *
+ * Reads `incoming_invoices.id` and POSTs to /supplier-invoices/drafts.
+ * Idempotent: if `external_invoice_id` is already set with provider
+ * 'economic', skips and returns the existing id.
+ *
+ * Required config (in accounting_integration_settings.config):
+ *   - supplierInvoiceLayoutNumber  (or invoice layout if shared)
+ *   - costAccountNumber            (default GL account for line postings)
+ *
+ * Skip-safe: returns `status: 'skipped', reason: 'ECONOMIC_NOT_CONFIGURED'`
+ * when credentials are missing.
+ */
+export async function pushSupplierInvoiceToEconomic(
+  incomingInvoiceId: string
+): Promise<EconomicResult<{ draftSupplierInvoiceNumber?: string }>> {
+  const settings = await loadReadySettings('invoice', incomingInvoiceId, 'create')
+  if (!settings) {
+    return { ok: false, status: 'skipped', reason: 'ECONOMIC_NOT_CONFIGURED' }
+  }
+  const ready = settings as AccountingSettings & { api_token: string; agreement_grant_token: string }
+  const cfg = ready.config || {}
+
+  const supabase = createAdminClient()
+
+  const { data: inv } = await supabase
+    .from('incoming_invoices')
+    .select('id, supplier_id, supplier_name_extracted, supplier_vat_number, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat, payment_reference, external_invoice_id, external_provider, status')
+    .eq('id', incomingInvoiceId)
+    .maybeSingle()
+  if (!inv) {
+    await logAttempt({ entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'create', status: 'failed', error_message: 'incoming_invoice not found' })
+    return { ok: false, status: 'failed', error: 'incoming_invoice not found' }
+  }
+  if (inv.status !== 'approved') {
+    return { ok: false, status: 'failed', error: `incoming_invoice is ${inv.status}, expected approved` }
+  }
+  if (inv.external_invoice_id && inv.external_provider === 'economic') {
+    await logAttempt({
+      entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'skip',
+      status: 'skipped', external_id: inv.external_invoice_id, error_message: 'already linked',
+    })
+    return { ok: true, status: 'skipped', externalId: inv.external_invoice_id }
+  }
+
+  // Look up the e-conomic supplier number from our suppliers row.
+  let economicSupplierNumber: number | null = null
+  if (inv.supplier_id) {
+    const { data: sup } = await supabase
+      .from('suppliers')
+      .select('id, external_supplier_id, external_provider')
+      .eq('id', inv.supplier_id)
+      .maybeSingle()
+    if (sup?.external_supplier_id && sup.external_provider === 'economic') {
+      const n = Number(sup.external_supplier_id)
+      if (Number.isFinite(n)) economicSupplierNumber = n
+    }
+  }
+  if (!economicSupplierNumber) {
+    const reason = 'supplier not synced to e-conomic (missing external_supplier_id)'
+    await logAttempt({ entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'create', status: 'failed', error_message: reason })
+    return { ok: false, status: 'failed', error: reason }
+  }
+
+  const costAccount = (cfg as { costAccountNumber?: number }).costAccountNumber
+  if (!costAccount) {
+    const reason = 'config.costAccountNumber not set'
+    await logAttempt({ entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'create', status: 'skipped', error_message: reason })
+    return { ok: false, status: 'skipped', reason }
+  }
+
+  // Pull lines (best-effort).
+  const { data: lineRows } = await supabase
+    .from('incoming_invoice_lines')
+    .select('line_number, description, quantity, unit_price, total_price')
+    .eq('incoming_invoice_id', incomingInvoiceId)
+    .order('line_number', { ascending: true })
+
+  const lines = (lineRows ?? []).map((l, i) => ({
+    lineNumber: l.line_number || i + 1,
+    description: (l.description || `Linje ${i + 1}`).slice(0, 1000),
+    quantity: Number(l.quantity ?? 1) || 1,
+    amount: Number(l.total_price ?? l.unit_price ?? 0) || 0,
+    costAccount: { accountNumber: costAccount },
+  }))
+
+  // If no lines were extracted, post the total as a single line so the
+  // draft is still bookable in e-conomic.
+  if (lines.length === 0) {
+    lines.push({
+      lineNumber: 1,
+      description: `Faktura ${inv.invoice_number ?? ''}`.trim() || 'Leverandørfaktura',
+      quantity: 1,
+      amount: Number(inv.amount_excl_vat ?? inv.amount_incl_vat ?? 0) || 0,
+      costAccount: { accountNumber: costAccount },
+    })
+  }
+
+  const body = {
+    currency: inv.currency || 'DKK',
+    date: inv.invoice_date || new Date().toISOString().slice(0, 10),
+    dueDate: inv.due_date || undefined,
+    supplier: { supplierNumber: economicSupplierNumber },
+    supplierInvoiceNumber: inv.invoice_number || undefined,
+    paymentReference: inv.payment_reference || undefined,
+    lines,
+  }
+
+  const res = await economicFetch<{ draftSupplierInvoiceNumber: number }>(
+    ready,
+    '/supplier-invoices/drafts',
+    { method: 'POST', body }
+  )
+
+  if (!res.ok || !res.data?.draftSupplierInvoiceNumber) {
+    await logAttempt({
+      entity_type: 'invoice',
+      entity_id: incomingInvoiceId,
+      action: 'create',
+      status: 'failed',
+      error_message: res.error || `HTTP ${res.status}`,
+      request_meta: { http_status: res.status },
+    })
+    return { ok: false, status: 'failed', error: res.error || `HTTP ${res.status}` }
+  }
+
+  const externalId = `draft-${String(res.data.draftSupplierInvoiceNumber)}`
+  await supabase
+    .from('incoming_invoices')
+    .update({
+      external_invoice_id: externalId,
+      external_provider: 'economic',
+      status: 'posted',
+      posted_at: new Date().toISOString(),
+    })
+    .eq('id', incomingInvoiceId)
+
+  await logAttempt({
+    entity_type: 'invoice',
+    entity_id: incomingInvoiceId,
+    action: 'create',
+    status: 'success',
+    external_id: externalId,
+    response_meta: { draftSupplierInvoiceNumber: res.data.draftSupplierInvoiceNumber },
+  })
+  await touchLastSyncAt()
+  console.log('ECONOMIC SUPPLIER INVOICE POSTED:', incomingInvoiceId, '→', externalId)
+  return {
+    ok: true,
+    status: 'success',
+    externalId,
+    data: { draftSupplierInvoiceNumber: String(res.data.draftSupplierInvoiceNumber) },
+  }
+}
