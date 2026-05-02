@@ -33,6 +33,8 @@ export interface IncomingInvoiceRow {
   iban: string | null
   parse_status: IncomingInvoiceParseStatus
   parse_confidence: number | null
+  match_breakdown: Record<string, unknown> | null
+  requires_manual_review: boolean
   matched_work_order_id: string | null
   matched_purchase_order_id: string | null
   duplicate_of_id: string | null
