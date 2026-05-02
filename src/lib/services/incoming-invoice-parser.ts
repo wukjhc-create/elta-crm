@@ -30,7 +30,10 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
     iban: null,
     currency: 'DKK',
     workOrderHints: [],
+    supplierOrderRefs: [],
+    deliveryAddressHints: [],
     confidence: 0,
+    fieldScores: {},
   }
 
   // ---- Supplier VAT ---- (CVR / DK + 8 digits)
@@ -101,12 +104,62 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
   else if (/\bUSD\b/.test(text)) out.currency = 'USD'
   else out.currency = 'DKK'
 
-  // ---- Work order / case hints (e.g. "Sag: ABC-123" / "Ordre 4321") ----
-  const hintRe = /(?:Sag|Ordre|Reference|Vores\s*ref|Jeres\s*ref|Sagsnr)[\s.:#-]*([A-Z0-9][A-Z0-9-_/]{2,20})/gi
+  // ---- Work order / case hints (Elta-side refs: "Sag:", "Vores ref") ----
+  const hintRe = /(?:Sag(?:s?nr)?|Reference|Vores\s*ref|Jeres\s*ref)[\s.:#-]*([A-Z0-9][A-Z0-9\-_/]{2,20})/gi
   const hints = new Set<string>()
   let m: RegExpExecArray | null
   while ((m = hintRe.exec(text))) hints.add(m[1].trim())
   out.workOrderHints = Array.from(hints)
+
+  // ---- Supplier-side order references (AO-ordrer, LM ordre nr) ----
+  const orderRefs = new Set<string>()
+  const supplierRefPatterns: RegExp[] = [
+    /(?:AO|Ahlsell)[\s\-#:]*ordre[\s.:#-]*([A-Z0-9\-]{4,20})/gi,
+    /Ordrenr(?:\.|ummer)?[\s.:#-]*([A-Z0-9\-]{4,20})/gi,
+    /Order\s*(?:no|number|ref|reference)[\s.:#-]*([A-Z0-9\-]{4,20})/gi,
+    /Pakkeseddel[\s.:#-]*([A-Z0-9\-]{4,20})/gi,
+    /Følgeseddel[\s.:#-]*([A-Z0-9\-]{4,20})/gi,
+    /(?:Lemvigh-Müller|LM)\s*ordre[\s.:#-]*([A-Z0-9\-]{4,20})/gi,
+  ]
+  for (const re of supplierRefPatterns) {
+    let mm: RegExpExecArray | null
+    while ((mm = re.exec(text))) orderRefs.add(mm[1].trim())
+  }
+  out.supplierOrderRefs = Array.from(orderRefs)
+
+  // ---- Customer / delivery address hints ----
+  // Pull lines that look like Danish addresses (street + number + zip + city).
+  // We use this for the customer-address fallback in the matcher.
+  const addressHints = new Set<string>()
+  const addressLineRe = /(.{4,80}?\s\d{1,4}[A-Z]?(?:,\s*[\dA-Za-z\s]{1,20})?,?\s+\d{4}\s+[A-ZÆØÅa-zæøå][A-ZÆØÅa-zæøå\s\-]{2,40})/g
+  let am: RegExpExecArray | null
+  while ((am = addressLineRe.exec(text))) {
+    const candidate = am[1].replace(/\s+/g, ' ').trim()
+    if (candidate.length <= 100) addressHints.add(candidate)
+  }
+  // Also explicit "Leveringsadresse:" / "Delivery address:" labels.
+  const labelledAddrRe = /(?:Leveringsadresse|Delivery\s*address|Leveres\s*til|Sendt\s*til)[\s:.\-]*((?:.+?\n){0,3}.{4,80}\s+\d{4}\s+[A-ZÆØÅa-zæøå][^\n]{2,40})/gi
+  let lm: RegExpExecArray | null
+  while ((lm = labelledAddrRe.exec(text))) {
+    const candidate = lm[1].replace(/\s+/g, ' ').trim()
+    if (candidate.length <= 200) addressHints.add(candidate)
+  }
+  out.deliveryAddressHints = Array.from(addressHints).slice(0, 5)
+
+  // ---- Per-field scores (for matcher's breakdown) ----
+  out.fieldScores = {
+    supplierName: out.supplierName ? 1 : 0,
+    supplierVatNumber: out.supplierVatNumber ? 1 : 0,
+    invoiceNumber: out.invoiceNumber ? 1 : 0,
+    invoiceDate: out.invoiceDate ? 1 : 0,
+    dueDate: out.dueDate ? 1 : 0,
+    amountInclVat: out.amountInclVat != null ? 1 : 0,
+    paymentReference: out.paymentReference ? 1 : 0,
+    iban: out.iban ? 1 : 0,
+    workOrderHints: out.workOrderHints.length > 0 ? 1 : 0,
+    supplierOrderRefs: out.supplierOrderRefs.length > 0 ? 1 : 0,
+    deliveryAddressHints: out.deliveryAddressHints.length > 0 ? 1 : 0,
+  }
 
   // ---- Confidence: count critical fields present ----
   const checks = [

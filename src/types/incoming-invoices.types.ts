@@ -78,8 +78,26 @@ export interface ParsedInvoiceFields {
   iban: string | null
   currency: string
   workOrderHints: string[]
+  /** Supplier-side order references (AO order id, LM ordrenummer, …). */
+  supplierOrderRefs: string[]
+  /** Customer / delivery address lines extracted from the invoice. */
+  deliveryAddressHints: string[]
   /** 0–1 score reflecting how many key fields were extracted. */
   confidence: number
+  /** Per-field score (1 if extracted, 0 otherwise). */
+  fieldScores: Record<string, number>
+}
+
+export interface MatchBreakdown {
+  vat_match: number
+  supplier_name_match: number
+  supplier_order_ref_match: number
+  work_order_via_case: number
+  work_order_via_title: number
+  customer_address_match: number
+  duplicate_detected: number
+  total: number
+  reasons: string[]
 }
 
 export interface IngestEmailResult {

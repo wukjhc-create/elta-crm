@@ -1,24 +1,27 @@
 /**
- * Supplier invoice matcher (Phase 15).
+ * Supplier invoice matcher (Phase 15.1).
  *
- * - Resolves supplier_id from extracted name + VAT number against the
- *   `suppliers` table (case-insensitive, VAT-first when available).
- * - Detects duplicates: same (supplier_id, invoice_number) OR same
- *   file_hash (DB UNIQUE indexes do the hard work; this surface returns
- *   a friendly outcome for the orchestrator).
- * - Resolves work_order from `workOrderHints` extracted by the parser.
+ *   - Supplier resolution (VAT-first → name)
+ *   - Supplier-order-ref → work_order via work_orders.title containing
+ *     the AO/LM order id
+ *   - Customer/delivery address fallback → service_cases (postal+street
+ *     match) → most recent work_order on that case
+ *   - Duplicate detection (file_hash, supplier+invoice_number)
+ *   - Returns a structured `MatchBreakdown` so the UI/audit can show
+ *     "why was this matched / not matched" without re-running.
  *
  * Pure read; never mutates anything.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { MatchBreakdown } from '@/types/incoming-invoices.types'
 
 export interface MatchResult {
   supplierId: string | null
   workOrderId: string | null
   duplicateOfId: string | null
   confidence: number
-  reasons: string[]
+  breakdown: MatchBreakdown
 }
 
 export interface MatchInput {
@@ -26,14 +29,36 @@ export interface MatchInput {
   supplierVatNumber: string | null
   invoiceNumber: string | null
   workOrderHints: string[]
+  supplierOrderRefs: string[]
+  deliveryAddressHints: string[]
   fileHash: string | null
+}
+
+const WEIGHTS = {
+  vat_match: 0.45,
+  supplier_name_match: 0.25,
+  supplier_order_ref_match: 0.30,
+  work_order_via_case: 0.30,
+  work_order_via_title: 0.20,
+  customer_address_match: 0.15,
 }
 
 export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResult> {
   const supabase = createAdminClient()
-  const reasons: string[] = []
+  const breakdown: MatchBreakdown = {
+    vat_match: 0,
+    supplier_name_match: 0,
+    supplier_order_ref_match: 0,
+    work_order_via_case: 0,
+    work_order_via_title: 0,
+    customer_address_match: 0,
+    duplicate_detected: 0,
+    total: 0,
+    reasons: [],
+  }
+
   let supplierId: string | null = null
-  let confidence = 0
+  let workOrderId: string | null = null
 
   // ---- 1. supplier resolution ----
   if (input.supplierVatNumber) {
@@ -45,13 +70,12 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       .limit(2)
     if (data && data.length === 1) {
       supplierId = data[0].id
-      confidence += 0.5
-      reasons.push(`vat_match:${vat}`)
+      breakdown.vat_match = WEIGHTS.vat_match
+      breakdown.reasons.push(`vat_match:${vat}`)
     }
   }
   if (!supplierId && input.supplierName) {
     const name = input.supplierName.trim()
-    // Try exact code (AO/LM) hit if the name contains the code as a token.
     const { data: byCode } = await supabase
       .from('suppliers')
       .select('id, code, name')
@@ -59,17 +83,16 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       .limit(5)
     if (byCode && byCode.length === 1) {
       supplierId = byCode[0].id
-      confidence += 0.3
-      reasons.push(`name_match:${byCode[0].name}`)
+      breakdown.supplier_name_match = WEIGHTS.supplier_name_match
+      breakdown.reasons.push(`name_match:${byCode[0].name}`)
     } else if (byCode && byCode.length > 1) {
-      // ambiguous — pick the strictest contains-equality if any.
       const exact = byCode.find((r) => r.name?.toLowerCase() === name.toLowerCase())
       if (exact) {
         supplierId = exact.id
-        confidence += 0.2
-        reasons.push(`name_match_exact:${exact.name}`)
+        breakdown.supplier_name_match = WEIGHTS.supplier_name_match * 0.7
+        breakdown.reasons.push(`name_match_exact:${exact.name}`)
       } else {
-        reasons.push(`ambiguous_name:${byCode.length}_candidates`)
+        breakdown.reasons.push(`ambiguous_name:${byCode.length}_candidates`)
       }
     }
   }
@@ -83,7 +106,11 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       .eq('file_hash', input.fileHash)
       .limit(1)
       .maybeSingle()
-    if (hashHit) { duplicateOfId = hashHit.id; reasons.push('duplicate_file_hash') }
+    if (hashHit) {
+      duplicateOfId = hashHit.id
+      breakdown.duplicate_detected = 1
+      breakdown.reasons.push('duplicate_file_hash')
+    }
   }
   if (!duplicateOfId && supplierId && input.invoiceNumber) {
     const { data: refHit } = await supabase
@@ -93,14 +120,32 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       .eq('invoice_number', input.invoiceNumber)
       .limit(1)
       .maybeSingle()
-    if (refHit) { duplicateOfId = refHit.id; reasons.push('duplicate_supplier_invoice_number') }
+    if (refHit) {
+      duplicateOfId = refHit.id
+      breakdown.duplicate_detected = 1
+      breakdown.reasons.push('duplicate_supplier_invoice_number')
+    }
   }
 
-  // ---- 3. work order match ----
-  let workOrderId: string | null = null
-  if (input.workOrderHints.length > 0) {
-    // Try matching against service_cases.case_number first (Elta uses these
-    // as the "Sag:" reference) — then fall back to work_orders.title contains.
+  // ---- 3. work order via supplier-side order reference ----
+  if (input.supplierOrderRefs.length > 0) {
+    for (const ref of input.supplierOrderRefs) {
+      const { data: wo } = await supabase
+        .from('work_orders')
+        .select('id, title')
+        .ilike('title', `%${escapeIlike(ref)}%`)
+        .limit(2)
+      if (wo && wo.length === 1) {
+        workOrderId = wo[0].id
+        breakdown.supplier_order_ref_match = WEIGHTS.supplier_order_ref_match
+        breakdown.reasons.push(`supplier_order_ref:${ref}`)
+        break
+      }
+    }
+  }
+
+  // ---- 4. work order via Elta-side hint (case_number / title) ----
+  if (!workOrderId && input.workOrderHints.length > 0) {
     for (const hint of input.workOrderHints) {
       const { data: caseRow } = await supabase
         .from('service_cases')
@@ -117,14 +162,13 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
           .maybeSingle()
         if (wo) {
           workOrderId = wo.id
-          confidence += 0.2
-          reasons.push(`wo_via_case:${hint}`)
+          breakdown.work_order_via_case = WEIGHTS.work_order_via_case
+          breakdown.reasons.push(`wo_via_case:${hint}`)
           break
         }
       }
     }
     if (!workOrderId) {
-      // Fallback: title ilike any hint.
       for (const hint of input.workOrderHints) {
         const { data: wo } = await supabase
           .from('work_orders')
@@ -133,25 +177,83 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
           .limit(2)
         if (wo && wo.length === 1) {
           workOrderId = wo[0].id
-          confidence += 0.15
-          reasons.push(`wo_title_match:${hint}`)
+          breakdown.work_order_via_title = WEIGHTS.work_order_via_title
+          breakdown.reasons.push(`wo_title_match:${hint}`)
           break
         }
       }
     }
   }
 
+  // ---- 5. customer / delivery address fallback ----
+  if (!workOrderId && input.deliveryAddressHints.length > 0) {
+    const candidate = pickAddressCandidate(input.deliveryAddressHints)
+    if (candidate) {
+      const { zip, streetToken } = candidate
+      const { data: cases } = await supabase
+        .from('service_cases')
+        .select('id, address, postal_code')
+        .eq('postal_code', zip)
+        .ilike('address', `%${escapeIlike(streetToken)}%`)
+        .limit(3)
+      if (cases && cases.length === 1) {
+        const caseId = cases[0].id
+        const { data: wo } = await supabase
+          .from('work_orders')
+          .select('id')
+          .eq('case_id', caseId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (wo) {
+          workOrderId = wo.id
+          breakdown.customer_address_match = WEIGHTS.customer_address_match
+          breakdown.reasons.push(`address_match:${zip}/${streetToken}`)
+        }
+      }
+    }
+  }
+
+  const total = Math.min(
+    1,
+    breakdown.vat_match +
+      breakdown.supplier_name_match +
+      breakdown.supplier_order_ref_match +
+      breakdown.work_order_via_case +
+      breakdown.work_order_via_title +
+      breakdown.customer_address_match
+  )
+  breakdown.total = round3(total)
+
   return {
     supplierId,
     workOrderId,
     duplicateOfId,
-    confidence: Math.min(1, round3(confidence)),
-    reasons,
+    confidence: breakdown.total,
+    breakdown,
   }
 }
+
+// =====================================================
+// helpers
+// =====================================================
 
 function escapeIlike(s: string): string {
   return s.replace(/[%_\\]/g, '\\$&')
 }
 
-function round3(n: number): number { return Math.round(n * 1000) / 1000 }
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000
+}
+
+function pickAddressCandidate(hints: string[]): { zip: string; streetToken: string } | null {
+  for (const raw of hints) {
+    const m = raw.match(/^(.+?\s\d{1,4}[A-Z]?)(?:,\s*[^\d]*)?\s+(\d{4})\s+[A-ZÆØÅa-zæøå]/)
+    if (!m) continue
+    const street = m[1].trim()
+    const zip = m[2]
+    const streetToken = street.split(/[\s,]+/)[0]
+    if (streetToken && streetToken.length >= 4) return { zip, streetToken }
+  }
+  return null
+}

@@ -204,21 +204,62 @@ function parseAttachments(raw: unknown): EmailAttachment[] {
 /**
  * Fetch the text of an attachment.
  *
- * For PDFs we don't ship a parser in this phase — we store the email
- * body as a soft fallback so the heuristic parser still has something
- * to chew on. When pdf-parse / similar lands later, plug it in here
- * and the rest of the pipeline keeps working unchanged.
+ * - text/plain → return the email body as the synthesised text.
+ * - PDF (mime application/pdf or .pdf filename) → download bytes from
+ *   `att.url` and pass through pdf-parse. Falls back to email body on
+ *   any error so the pipeline keeps moving.
+ * - Anything else → email body fallback.
  */
 async function fetchAttachmentText(
   att: EmailAttachment,
   fallback: string
 ): Promise<string> {
-  // Plain-text attachment we synthesised from the email body.
   if (att.mime === 'text/plain') return fallback
 
-  // No upstream PDF text extractor wired yet — fall back to the email
-  // body which usually mirrors the invoice content for AO/LM senders.
+  const looksLikePdf =
+    (att.mime || '').toLowerCase().includes('pdf') ||
+    /\.pdf(\?|$)/i.test(att.url || att.name || '')
+  if (!looksLikePdf || !att.url) return fallback
+
+  try {
+    const buf = await downloadAttachmentBytes(att.url)
+    if (!buf || buf.length === 0) return fallback
+    const text = await extractPdfText(buf)
+    if (text && text.trim().length > 50) return text
+  } catch (err) {
+    logger.warn('PDF text extraction failed (using email body)', {
+      metadata: { url: att.url }, error: err,
+    })
+  }
   return fallback
+}
+
+async function downloadAttachmentBytes(url: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const ab = await res.arrayBuffer()
+    return Buffer.from(ab)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Extract text from a PDF buffer using pdf-parse. Wrapped so a
+ * failing PDF library never crashes the ingest pipeline.
+ */
+async function extractPdfText(buf: Buffer): Promise<string> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+    const mod: any = await import('pdf-parse')
+    const fn = (mod.default || mod) as (b: Buffer) => Promise<{ text: string }>
+    const result = await fn(buf)
+    return (result?.text || '').trim()
+  } catch (err) {
+    logger.warn('pdf-parse threw', { error: err })
+    return ''
+  }
 }
 
 function sha256(s: string): string {
@@ -308,6 +349,8 @@ export async function parseAndMatch(invoiceId: string): Promise<{
     supplierVatNumber: parsed.supplierVatNumber,
     invoiceNumber: parsed.invoiceNumber,
     workOrderHints: parsed.workOrderHints,
+    supplierOrderRefs: parsed.supplierOrderRefs,
+    deliveryAddressHints: parsed.deliveryAddressHints,
     fileHash: row.file_hash,
   })
 
@@ -320,15 +363,32 @@ export async function parseAndMatch(invoiceId: string): Promise<{
         status: 'cancelled',
         parse_status: 'parsed',
         parse_confidence: parsed.confidence,
+        match_breakdown: match.breakdown as unknown as Record<string, unknown>,
       })
       .eq('id', invoiceId)
     await auditLog({
       incomingInvoiceId: invoiceId,
       action: 'duplicate_detected',
-      message: `duplicate_of=${match.duplicateOfId} reasons=${match.reasons.join(',')}`,
+      message: `duplicate_of=${match.duplicateOfId} reasons=${match.breakdown.reasons.join(',')}`,
+      newValue: { match_breakdown: match.breakdown },
     })
     return { parsed: true, matched: false, duplicate: true, message: 'duplicate' }
   }
+
+  // Phase 15.1 — needs_review threshold (parse + match averaged < 0.7).
+  // Anything below the bar gets parse_status='needs_review' AND
+  // requires_manual_review=true so the queue can prioritise it.
+  // Status remains 'awaiting_approval' — auto-approval never happens.
+  const overall = (parsed.confidence + match.confidence) / 2
+  const NEEDS_REVIEW_THRESHOLD = 0.7
+  const requiresReview = overall < NEEDS_REVIEW_THRESHOLD
+
+  const parseStatus: 'parsed' | 'failed' | 'needs_review' =
+    parsed.confidence === 0
+      ? 'failed'
+      : requiresReview
+      ? 'needs_review'
+      : 'parsed'
 
   const patch = {
     supplier_id: match.supplierId,
@@ -345,9 +405,11 @@ export async function parseAndMatch(invoiceId: string): Promise<{
     iban: parsed.iban,
     matched_work_order_id: match.workOrderId,
     match_confidence: match.confidence,
-    parse_status: parsed.confidence > 0 ? ('parsed' as const) : ('failed' as const),
+    match_breakdown: match.breakdown as unknown as Record<string, unknown>,
+    parse_status: parseStatus,
     parse_confidence: parsed.confidence,
-    status: ('awaiting_approval' as const),
+    requires_manual_review: requiresReview,
+    status: ('awaiting_approval' as const),    // never auto-approved
   }
 
   const { error: updErr } = await supabase
@@ -374,21 +436,31 @@ export async function parseAndMatch(invoiceId: string): Promise<{
   await auditLog({
     incomingInvoiceId: invoiceId,
     action: 'parsed',
-    message: `confidence=${parsed.confidence} match=${match.confidence} reasons=${match.reasons.join(',')}`,
+    message: `parse=${parsed.confidence} match=${match.confidence} overall=${(overall).toFixed(3)} status=${parseStatus} review=${requiresReview}`,
     newValue: {
       invoice_number: parsed.invoiceNumber,
       supplier_id: match.supplierId,
       work_order_id: match.workOrderId,
       amount_incl_vat: parsed.amountInclVat,
+      parse_field_scores: parsed.fieldScores,
+      match_breakdown: match.breakdown,
+      requires_manual_review: requiresReview,
     },
   })
 
-  console.log('INCOMING INVOICE PARSED:', invoiceId, `parse=${parsed.confidence}`, `match=${match.confidence}`)
+  console.log(
+    'INCOMING INVOICE PARSED:',
+    invoiceId,
+    `parse=${parsed.confidence}`,
+    `match=${match.confidence}`,
+    `status=${parseStatus}`,
+    requiresReview ? '⚠ NEEDS REVIEW' : '',
+  )
   return {
     parsed: true,
     matched: !!match.supplierId,
     duplicate: false,
-    message: `parse=${parsed.confidence} match=${match.confidence}`,
+    message: `parse=${parsed.confidence} match=${match.confidence} review=${requiresReview}`,
   }
 }
 
@@ -396,16 +468,33 @@ export async function parseAndMatch(invoiceId: string): Promise<{
 // Approval / rejection
 // =====================================================
 
-export async function approveInvoice(invoiceId: string, approverId: string): Promise<{ ok: boolean; message: string; externalId?: string }> {
+export async function approveInvoice(
+  invoiceId: string,
+  approverId: string,
+  options: { acknowledgeReview?: boolean } = {}
+): Promise<{ ok: boolean; message: string; externalId?: string }> {
   const supabase = createAdminClient()
   const { data: row } = await supabase
     .from('incoming_invoices')
-    .select('id, status, supplier_id, amount_incl_vat')
+    .select('id, status, supplier_id, amount_incl_vat, requires_manual_review, parse_status')
     .eq('id', invoiceId)
     .maybeSingle()
   if (!row) return { ok: false, message: 'not found' }
   if (row.status !== 'awaiting_approval' && row.status !== 'received') {
     return { ok: false, message: `status is ${row.status}, expected awaiting_approval` }
+  }
+  if (row.requires_manual_review && !options.acknowledgeReview) {
+    await auditLog({
+      incomingInvoiceId: invoiceId,
+      action: 'error',
+      ok: false,
+      actorId: approverId,
+      message: 'approval blocked — requires_manual_review=true; pass acknowledgeReview:true to override',
+    })
+    return {
+      ok: false,
+      message: 'Faktura kræver manuel gennemgang. Bekræft eksplicit (acknowledgeReview).',
+    }
   }
 
   const { error } = await supabase
