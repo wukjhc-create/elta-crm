@@ -10,7 +10,9 @@ import {
   type WorkOrderWithEmployee,
 } from '@/lib/actions/work-orders'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
+import { listTimeLogsForCase } from '@/lib/actions/time-logs'
 import type { WorkOrderStatus } from '@/types/workforce.types'
+import { WorkOrderTimeLogs } from './work-order-time-logs'
 
 const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   planned: 'Planlagt',
@@ -52,6 +54,11 @@ export function OrderPlanningTab({
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(false)
+  const [caseTotals, setCaseTotals] = useState<{ hours: number; cost: number; count: number }>({
+    hours: 0,
+    cost: 0,
+    count: 0,
+  })
 
   // Inline create form state
   const [showForm, setShowForm] = useState(false)
@@ -61,13 +68,22 @@ export function OrderPlanningTab({
   const [formDescription, setFormDescription] = useState('')
 
   const reload = async () => {
-    const [woRes, empRes] = await Promise.all([
+    const [woRes, empRes, logsRes] = await Promise.all([
       listWorkOrdersForCase(caseId),
       getEmployeesForOrderSelect(),
+      listTimeLogsForCase(caseId),
     ])
     if (woRes.success && woRes.data) setWorkOrders(woRes.data)
     else setError(woRes.error || 'Kunne ikke hente arbejdsordrer')
     if (empRes.success && empRes.data) setEmployees(empRes.data)
+    if (logsRes.success && logsRes.data) {
+      const logs = logsRes.data
+      setCaseTotals({
+        count: logs.length,
+        hours: logs.reduce((s, l) => s + (l.hours ?? 0), 0),
+        cost: logs.reduce((s, l) => s + (l.cost_amount ?? 0), 0),
+      })
+    }
   }
 
   useEffect(() => {
@@ -258,17 +274,47 @@ export function OrderPlanningTab({
       {workOrders.length === 0 && !showForm ? (
         <EmptyState onPlan={() => setShowForm(true)} />
       ) : (
-        <ul className="space-y-2">
-          {workOrders.map((wo) => (
-            <WorkOrderRow
-              key={wo.id}
-              wo={wo}
-              onChangeStatus={onChangeStatus}
-              onDelete={onDelete}
-              disabled={isWorking}
-            />
-          ))}
-        </ul>
+        <>
+          {/* Sag-level totals (sum across all work_orders) */}
+          {caseTotals.count > 0 && (
+            <div className="bg-gray-50 ring-1 ring-gray-200 rounded-md px-3 py-2 text-sm flex items-center gap-4">
+              <span className="font-semibold text-gray-700">Sagstotal:</span>
+              <span>
+                {caseTotals.count} timeregistrering
+                {caseTotals.count === 1 ? '' : 'er'}
+              </span>
+              <span>·</span>
+              <span>
+                {caseTotals.hours.toLocaleString('da-DK', { maximumFractionDigits: 2 })} t
+              </span>
+              <span>·</span>
+              <span>
+                Intern kost:{' '}
+                {new Intl.NumberFormat('da-DK', {
+                  style: 'currency',
+                  currency: 'DKK',
+                  maximumFractionDigits: 0,
+                }).format(caseTotals.cost)}
+              </span>
+            </div>
+          )}
+
+          <ul className="space-y-2">
+            {workOrders.map((wo) => (
+              <WorkOrderRow
+                key={wo.id}
+                wo={wo}
+                onChangeStatus={onChangeStatus}
+                onDelete={onDelete}
+                disabled={isWorking}
+                onLogsChange={() => {
+                  // Re-pull case totals when a time-log is added/changed
+                  reload()
+                }}
+              />
+            ))}
+          </ul>
+        </>
       )}
     </div>
   )
@@ -298,11 +344,13 @@ function WorkOrderRow({
   onChangeStatus,
   onDelete,
   disabled,
+  onLogsChange,
 }: {
   wo: WorkOrderWithEmployee
   onChangeStatus: (woId: string, next: WorkOrderStatus) => void
   onDelete: (woId: string) => void
   disabled?: boolean
+  onLogsChange?: () => void
 }) {
   const transitions = NEXT_TRANSITIONS[wo.status]
 
@@ -382,6 +430,15 @@ function WorkOrderRow({
           )}
         </div>
       </div>
+
+      {/* Time logs (Sprint 4C) */}
+      {wo.status !== 'cancelled' && (
+        <WorkOrderTimeLogs
+          workOrderId={wo.id}
+          defaultEmployeeId={wo.assigned_employee_id ?? null}
+          onChange={onLogsChange}
+        />
+      )}
     </li>
   )
 }
