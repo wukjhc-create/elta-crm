@@ -15,6 +15,7 @@ import { calculateSalePrice, calculateLineTotal, computeOfferDB, calculateMargin
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
+import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
 import { sendEmail } from '@/lib/email/email-service'
 import {
@@ -709,6 +710,29 @@ export async function updateOfferStatus(
         // Fire and forget - don't block the response
         triggerWebhooks(webhookEvent, payload).catch(err => {
           logger.error('Error triggering webhooks', { error: err })
+        })
+      }
+    }
+
+    // Sprint 3D — auto-create service_case when transitioning to accepted.
+    // Gated on transition (current → accepted, not already-accepted) so a
+    // re-save does not retry. Idempotent at app + DB level. Non-critical:
+    // failure does NOT roll back the status change.
+    if (status === 'accepted' && current.status !== 'accepted') {
+      try {
+        const sagResult = await createServiceCaseFromOffer(id)
+        if (!sagResult.success) {
+          logger.error('Auto-create service_case failed', {
+            error: sagResult.error,
+            entity: 'offer',
+            entityId: id,
+          })
+        }
+      } catch (sagError) {
+        logger.error('Service_case creation failed (non-critical)', {
+          error: sagError,
+          entity: 'offer',
+          entityId: id,
         })
       }
     }
