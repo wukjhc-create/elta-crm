@@ -48,6 +48,26 @@ export const SERVICE_CASE_SOURCE_LABELS: Record<ServiceCaseSource, string> = {
   manual: 'Manuel',
 }
 
+// Sprint 2 — sag/ordre type classification (added via migration 00098).
+export const SERVICE_CASE_TYPES = [
+  'solar',
+  'service',
+  'installation',
+  'project',
+  'akut',
+  'general',
+] as const
+export type ServiceCaseType = (typeof SERVICE_CASE_TYPES)[number]
+
+export const SERVICE_CASE_TYPE_LABELS: Record<ServiceCaseType, string> = {
+  solar: 'Solcelleanlæg',
+  service: 'Service',
+  installation: 'El-installation',
+  project: 'Projekt',
+  akut: 'Akut udkald',
+  general: 'Generelt',
+}
+
 export interface ChecklistItem {
   key: string
   label: string
@@ -123,6 +143,27 @@ export interface ServiceCase {
   // Ordrestyring integration
   os_case_id: string | null
   os_synced_at: string | null
+  // ---- Sprint 2 — sag/ordre fields (migration 00098) ----
+  // Display + classification
+  project_name: string | null
+  type: ServiceCaseType | null
+  // External + customer references
+  reference: string | null
+  requisition: string | null
+  // People responsible
+  formand_id: string | null
+  // Planning + economics
+  planned_hours: number | null
+  contract_sum: number | null   // tilbudt beløb
+  revised_sum: number | null    // revideret beløb
+  budget: number | null         // intern cost budget
+  start_date: string | null
+  end_date: string | null
+  // Workflow flags (mirror Phase 7/8 work_orders)
+  auto_invoice_on_done: boolean
+  low_profit: boolean
+  // Optional offer that produced this sag
+  source_offer_id: string | null
 }
 
 export interface ServiceCaseWithRelations extends ServiceCase {
