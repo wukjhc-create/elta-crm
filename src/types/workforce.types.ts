@@ -1,16 +1,22 @@
-export type EmployeeRole = 'admin' | 'electrician' | 'installer'
-export type WorkOrderStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
+/**
+ * Workforce types — work_orders + time_logs (Phase 7-9).
+ *
+ * Employee types live in src/types/employees.types.ts (Sprint 4B).
+ * This file used to duplicate EmployeeRow/EmployeeRole with a stale
+ * subset (3 roles vs the 8 in DB). Re-exports below keep the legacy
+ * import paths working without divergence.
+ */
 
-export interface EmployeeRow {
-  id: string
-  profile_id: string | null
-  name: string
-  email: string
-  role: EmployeeRole
-  active: boolean
-  created_at: string
-  updated_at: string
-}
+import type {
+  EmployeeRow as EmployeeRowFull,
+  EmployeeRole as EmployeeRoleFull,
+} from './employees.types'
+
+// Re-export so existing imports keep working.
+export type EmployeeRow = EmployeeRowFull
+export type EmployeeRole = EmployeeRoleFull
+
+export type WorkOrderStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
 
 export interface WorkOrderRow {
   id: string
@@ -23,6 +29,7 @@ export interface WorkOrderRow {
   assigned_employee_id: string | null
   source_offer_id: string | null
   auto_invoice_on_done: boolean
+  low_profit: boolean              // added migration 00089
   completed_at: string | null
   created_at: string
   updated_at: string
@@ -35,6 +42,7 @@ export interface TimeLogRow {
   start_time: string
   end_time: string | null
   hours: number | null
+  cost_amount: number | null       // added migration 00088 (trigger-computed)
   description: string | null
   billable: boolean
   invoice_line_id: string | null
