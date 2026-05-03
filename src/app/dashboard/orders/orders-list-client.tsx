@@ -89,6 +89,12 @@ export function OrdersListClient({
             {pagination.totalItems} sager · viser side {pagination.currentPage} af {pagination.totalPages || 1}
           </p>
         </div>
+        <Link
+          href="/dashboard/orders/new"
+          className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+        >
+          + Ny sag
+        </Link>
       </div>
 
       {/* Filters */}

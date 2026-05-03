@@ -13,6 +13,7 @@ import type {
   ServiceCaseStatus,
   ServiceCasePriority,
   ServiceCaseSource,
+  ServiceCaseType,
   ChecklistItem,
 } from '@/types/service-cases.types'
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
@@ -109,12 +110,14 @@ export async function getServiceCase(id: string): Promise<ActionResult<ServiceCa
 
 interface CreateServiceCaseInput {
   title: string
-  description?: string
+  description?: string | null
   customer_id?: string | null
+  status?: ServiceCaseStatus
   priority?: ServiceCasePriority
   source?: ServiceCaseSource
   source_email_id?: string | null
   assigned_to?: string | null
+  status_note?: string | null
   // Smart fields
   address?: string | null
   postal_code?: string | null
@@ -125,6 +128,19 @@ interface CreateServiceCaseInput {
   contact_phone?: string | null
   ksr_number?: string | null
   ean_number?: string | null
+  // Sprint 2 — sag/ordre fields (migration 00098)
+  project_name?: string | null
+  type?: ServiceCaseType | null
+  reference?: string | null
+  requisition?: string | null
+  formand_id?: string | null
+  planned_hours?: number | null
+  contract_sum?: number | null
+  revised_sum?: number | null
+  budget?: number | null
+  start_date?: string | null
+  end_date?: string | null
+  source_offer_id?: string | null
 }
 
 export async function createServiceCase(
@@ -139,11 +155,13 @@ export async function createServiceCase(
         title: input.title,
         description: input.description || null,
         customer_id: input.customer_id || null,
+        status: input.status || 'new',
         priority: input.priority || 'medium',
         source: input.source || 'manual',
         source_email_id: input.source_email_id || null,
         assigned_to: input.assigned_to || userId,
         created_by: userId,
+        status_note: input.status_note || null,
         address: input.address || null,
         postal_code: input.postal_code || null,
         city: input.city || null,
@@ -153,6 +171,19 @@ export async function createServiceCase(
         contact_phone: input.contact_phone || null,
         ksr_number: input.ksr_number || null,
         ean_number: input.ean_number || null,
+        // Sprint 2 fields (additive — all nullable)
+        project_name: input.project_name ?? null,
+        type: input.type ?? null,
+        reference: input.reference ?? null,
+        requisition: input.requisition ?? null,
+        formand_id: input.formand_id ?? null,
+        planned_hours: input.planned_hours ?? null,
+        contract_sum: input.contract_sum ?? null,
+        revised_sum: input.revised_sum ?? null,
+        budget: input.budget ?? null,
+        start_date: input.start_date ?? null,
+        end_date: input.end_date ?? null,
+        source_offer_id: input.source_offer_id ?? null,
       })
       .select('*')
       .single()
@@ -168,6 +199,7 @@ export async function createServiceCase(
     }
 
     revalidatePath('/dashboard/service-cases')
+    revalidatePath('/dashboard/orders')
     revalidatePath('/dashboard/mail')
     return { success: true, data: data as ServiceCase }
   } catch (error) {
@@ -336,6 +368,7 @@ export async function createServiceCaseFromEmail(
     }
 
     revalidatePath('/dashboard/service-cases')
+    revalidatePath('/dashboard/orders')
     revalidatePath('/dashboard/mail')
     return { success: true, data: data as ServiceCase }
   } catch (error) {
@@ -725,5 +758,105 @@ async function sendServiceCaseConfirmation(
     }
   } catch (err) {
     logger.error('Failed to send service case confirmation email', { error: err })
+  }
+}
+
+// =====================================================
+// Lookup helpers for /dashboard/orders forms
+// =====================================================
+
+export async function getCustomersForOrderSelect(): Promise<
+  ActionResult<{ id: string; company_name: string; customer_number: string | null }[]>
+> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, company_name, customer_number')
+      .eq('is_active', true)
+      .order('company_name')
+    if (error) {
+      logger.error('Error fetching customers for order select', { error })
+      return { success: false, error: 'Kunne ikke hente kunder' }
+    }
+    return { success: true, data: (data || []) as { id: string; company_name: string; customer_number: string | null }[] }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+export async function getProfilesForOrderSelect(): Promise<
+  ActionResult<{ id: string; full_name: string | null; email: string }[]>
+> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .eq('is_active', true)
+      .order('full_name')
+    if (error) {
+      logger.error('Error fetching profiles for order select', { error })
+      return { success: false, error: 'Kunne ikke hente brugere' }
+    }
+    return { success: true, data: (data || []) as { id: string; full_name: string | null; email: string }[] }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+export async function getEmployeesForOrderSelect(): Promise<
+  ActionResult<{ id: string; name: string }[]>
+> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id, name, first_name, last_name, active')
+      .eq('active', true)
+      .order('name')
+    if (error) {
+      // employees table may be optional in some envs; return empty rather than fail.
+      logger.warn('Error fetching employees for order select', { error })
+      return { success: true, data: [] }
+    }
+    const list = (data || []).map((e: any) => ({
+      id: e.id as string,
+      name:
+        (e.name as string | null) ||
+        [e.first_name, e.last_name].filter(Boolean).join(' ') ||
+        '—',
+    }))
+    return { success: true, data: list }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+export async function getOffersForOrderSelect(
+  customerId: string
+): Promise<ActionResult<{ id: string; offer_number: string | null; title: string }[]>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+    const { data, error } = await supabase
+      .from('offers')
+      .select('id, offer_number, title, status, created_at')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (error) {
+      logger.error('Error fetching offers for order select', { error })
+      return { success: false, error: 'Kunne ikke hente tilbud' }
+    }
+    return {
+      success: true,
+      data: (data || []).map((o: any) => ({
+        id: o.id as string,
+        offer_number: (o.offer_number as string | null) ?? null,
+        title: (o.title as string) ?? 'Uden titel',
+      })),
+    }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
   }
 }
