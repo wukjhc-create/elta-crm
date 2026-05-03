@@ -13,6 +13,7 @@ import {
 import { OrderActionsTab } from './order-actions-tab'
 import { OrderActivityTab } from './order-activity-tab'
 import { OrderPlanningTab } from './order-planning-tab'
+import { InlineStatusChanger } from './inline-status-changer'
 
 const TABS = [
   { id: 'overblik',     label: 'Overblik',           ready: true },
@@ -87,11 +88,7 @@ export function OrderDetailClient({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span
-              className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_STATUS_COLORS[sag.status]}`}
-            >
-              {SERVICE_CASE_STATUS_LABELS[sag.status]}
-            </span>
+            <InlineStatusChanger caseId={sag.id} current={sag.status} />
             <span
               className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_PRIORITY_COLORS[sag.priority]}`}
             >
@@ -231,11 +228,10 @@ function OverblikTab({
       {/* Sag side */}
       <Panel title="Sagsoplysninger">
         <Row label="Sag/Ordre nr" value={<code className="text-xs">{sag.case_number}</code>} />
-        <Row label="Status" value={
-          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${SERVICE_CASE_STATUS_COLORS[sag.status]}`}>
-            {SERVICE_CASE_STATUS_LABELS[sag.status]}
-          </span>
-        } />
+        <Row
+          label="Status"
+          value={<InlineStatusChanger caseId={sag.id} current={sag.status} />}
+        />
         <Row label="Prioritet" value={
           <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${SERVICE_CASE_PRIORITY_COLORS[sag.priority]}`}>
             {SERVICE_CASE_PRIORITY_LABELS[sag.priority]}
