@@ -11,6 +11,8 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function OrderDetailPage({
   params,
 }: {
@@ -18,7 +20,25 @@ export default async function OrderDetailPage({
 }) {
   const { id } = await params
 
-  const result = await getServiceCase(id)
+  // Accept either UUID or case_number in the URL — operators will type
+  // case_number (SVC-01000) far more often than the UUID.
+  let resolvedId = id
+  if (!UUID_RE.test(id)) {
+    try {
+      const { supabase } = await getAuthenticatedClient()
+      const { data: row } = await supabase
+        .from('service_cases')
+        .select('id')
+        .eq('case_number', id)
+        .maybeSingle()
+      if (row) resolvedId = row.id as string
+      else notFound()
+    } catch {
+      notFound()
+    }
+  }
+
+  const result = await getServiceCase(resolvedId)
   if (!result.success || !result.data) {
     notFound()
   }
