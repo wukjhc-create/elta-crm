@@ -67,6 +67,10 @@ export const PERMISSIONS = {
   'users.delete': ['admin'],
   'users.manage_roles': ['admin'],
 
+  // Employees module (HR-style records, separate from auth profiles)
+  'employees.view': ['admin', 'serviceleder'],
+  'employees.edit': ['admin'],
+
   // Tools / advanced features
   'tools.calculations': ['admin', 'serviceleder'],
   'tools.ai_project': ['admin', 'serviceleder'],
