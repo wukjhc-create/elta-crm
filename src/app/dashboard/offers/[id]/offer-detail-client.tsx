@@ -40,6 +40,7 @@ import {
 import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
+import { OfferToCaseCard } from './offer-to-case-card'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
@@ -87,9 +88,10 @@ interface OfferDetailClientProps {
   offer: OfferWithRelations
   companySettings: CompanySettings | null
   dbThresholds?: DBThresholds
+  linkedCase?: { case_id: string; case_number: string } | null
 }
 
-export function OfferDetailClient({ offer, companySettings, dbThresholds }: OfferDetailClientProps) {
+export function OfferDetailClient({ offer, companySettings, dbThresholds, linkedCase }: OfferDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { role } = useUserRole()
@@ -703,6 +705,13 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds }: Offe
             </div>
           )}
         </div>
+
+        {/* Sprint 3B — Manual "Opret sag fra tilbud" CTA / linked-sag box */}
+        <OfferToCaseCard
+          offerId={offer.id}
+          offerStatus={offer.status}
+          initialLinkedCase={linkedCase ?? null}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main content */}

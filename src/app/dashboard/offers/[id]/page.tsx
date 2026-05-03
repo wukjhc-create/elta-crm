@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getOffer } from '@/lib/actions/offers'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
+import { getServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { OfferDetailClient } from './offer-detail-client'
 
 export const dynamic = 'force-dynamic'
@@ -13,10 +14,11 @@ interface OfferDetailPageProps {
 export default async function OfferDetailPage({ params }: OfferDetailPageProps) {
   const { id } = await params
 
-  const [offerResult, settingsResult, calcSettingsResult] = await Promise.all([
+  const [offerResult, settingsResult, calcSettingsResult, linkedCaseResult] = await Promise.all([
     getOffer(id),
     getCompanySettings(),
     getCalculationSettings(),
+    getServiceCaseFromOffer(id),
   ])
 
   if (!offerResult.success || !offerResult.data) {
@@ -31,11 +33,15 @@ export default async function OfferDetailPage({ params }: OfferDetailPageProps) 
       }
     : undefined
 
+  const linkedCase =
+    linkedCaseResult.success && linkedCaseResult.data ? linkedCaseResult.data : null
+
   return (
     <OfferDetailClient
       offer={offerResult.data}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
       dbThresholds={dbThresholds}
+      linkedCase={linkedCase}
     />
   )
 }
