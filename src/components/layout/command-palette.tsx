@@ -61,7 +61,7 @@ export function CommandPalette() {
     { id: 'nav-leads', label: 'Leads', section: 'Navigation', icon: <BarChart3 className="w-4 h-4" />, action: () => navigate('/dashboard/leads'), keywords: ['emner', 'pipeline'] },
     { id: 'nav-customers', label: 'Kunder', section: 'Navigation', icon: <Users className="w-4 h-4" />, action: () => navigate('/dashboard/customers'), keywords: ['kontakter', 'firmaer'] },
     { id: 'nav-offers', label: 'Tilbud', section: 'Navigation', icon: <FileText className="w-4 h-4" />, action: () => navigate('/dashboard/offers'), keywords: ['quotes', 'salg'] },
-    { id: 'nav-projects', label: 'Projekter', section: 'Navigation', icon: <FolderKanban className="w-4 h-4" />, action: () => navigate('/dashboard/projects'), keywords: ['projekter'] },
+    { id: 'nav-orders', label: 'Sager / Ordrer', section: 'Navigation', icon: <FolderKanban className="w-4 h-4" />, action: () => navigate('/dashboard/orders'), keywords: ['sager', 'ordrer', 'projekter', 'sag', 'ordre'] },
     { id: 'nav-mail', label: 'Mail', section: 'Navigation', icon: <Mail className="w-4 h-4" />, action: () => navigate('/dashboard/mail'), keywords: ['email', 'beskeder', 'indbakke'] },
     { id: 'nav-tasks', label: 'Opgaver', section: 'Navigation', icon: <ClipboardCheck className="w-4 h-4" />, action: () => navigate('/dashboard/tasks'), keywords: ['tasks', 'påmindelser', 'todo'] },
     { id: 'nav-calculations', label: 'Kalkulationer', section: 'Navigation', icon: <Calculator className="w-4 h-4" />, action: () => navigate('/dashboard/calculations'), keywords: ['beregninger'] },
@@ -77,7 +77,7 @@ export function CommandPalette() {
     { id: 'create-customer', label: 'Ny kunde', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/customers?create=true'), keywords: ['opret', 'ny'] },
     { id: 'create-lead', label: 'Ny lead', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/leads?create=true'), keywords: ['opret', 'ny'] },
     { id: 'create-offer', label: 'Nyt tilbud', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/offers?create=true'), keywords: ['opret', 'ny'] },
-    { id: 'create-project', label: 'Nyt projekt', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/projects?create=true'), keywords: ['opret', 'ny'] },
+    { id: 'create-order', label: 'Ny sag / ordre', section: 'Opret ny', icon: <Plus className="w-4 h-4" />, action: () => navigate('/dashboard/orders'), keywords: ['opret', 'ny', 'sag', 'ordre', 'projekt'] },
 
     // Settings shortcuts
     { id: 'settings-company', label: 'Firmaindstillinger', section: 'Indstillinger', icon: <Settings className="w-4 h-4" />, action: () => navigate('/dashboard/settings/company'), keywords: ['firma', 'logo'] },

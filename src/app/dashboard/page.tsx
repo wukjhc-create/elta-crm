@@ -111,13 +111,13 @@ export default async function DashboardPage() {
           href="/dashboard/offers"
         />
         <StatCard
-          title="Aktive Projekter"
+          title="Aktive Sager"
           value={stats.projects.active}
           subtitle={`${stats.projects.total_hours}t registreret`}
           icon={FolderKanban}
           iconColor="text-orange-600"
           iconBgColor="bg-orange-100"
-          href="/dashboard/projects"
+          href="/dashboard/orders"
         />
       </div>
 

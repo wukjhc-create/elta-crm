@@ -14,7 +14,7 @@ const mobileNavLinks = [
   { name: 'Leads', href: '/dashboard/leads' },
   { name: 'Kunder', href: '/dashboard/customers' },
   { name: 'Tilbud', href: '/dashboard/offers' },
-  { name: 'Projekter', href: '/dashboard/projects' },
+  { name: 'Sager / Ordrer', href: '/dashboard/orders' },
   { name: 'Mail', href: '/dashboard/mail' },
   { name: 'Opgaver', href: '/dashboard/tasks' },
   { name: 'Kalender', href: '/dashboard/calendar' },

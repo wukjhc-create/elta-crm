@@ -101,8 +101,8 @@ export function UpcomingTasks({ tasks }: UpcomingTasksProps) {
       })}
 
       <div className="pt-2 text-center">
-        <Link href="/dashboard/projects" className="text-sm text-primary hover:underline">
-          Se alle projekter →
+        <Link href="/dashboard/orders" className="text-sm text-primary hover:underline">
+          Se alle sager →
         </Link>
       </div>
     </div>
