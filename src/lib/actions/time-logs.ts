@@ -28,7 +28,12 @@ import type { ActionResult } from '@/types/common.types'
 import type { TimeLogRow } from '@/types/workforce.types'
 
 export interface TimeLogWithEmployee extends TimeLogRow {
-  employee?: { id: string; name: string; email: string | null } | null
+  employee?: {
+    id: string
+    name: string
+    email: string | null
+    hourly_rate: number | null  // mirror of sales_rate — used for sale price calc
+  } | null
 }
 
 export interface TimeLogsForCase {
@@ -351,7 +356,7 @@ async function enrichWithEmployees(
 
   const { data: emps } = await supabase
     .from('employees')
-    .select('id, name, email')
+    .select('id, name, email, hourly_rate')
     .in('id', empIds)
 
   const empMap = new Map(
@@ -361,6 +366,7 @@ async function enrichWithEmployees(
         id: e.id as string,
         name: (e.name as string) ?? '—',
         email: (e.email as string | null) ?? null,
+        hourly_rate: (e.hourly_rate as number | null) ?? null,
       },
     ])
   )

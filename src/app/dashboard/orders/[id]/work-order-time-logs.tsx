@@ -156,7 +156,30 @@ export function WorkOrderTimeLogs({
 
   const totalHours = logs.reduce((s, l) => s + (l.hours ?? 0), 0)
   const totalCost = logs.reduce((s, l) => s + (l.cost_amount ?? 0), 0)
+  const totalSale = logs.reduce(
+    (s, l) =>
+      s +
+      (l.hours != null && l.employee?.hourly_rate != null
+        ? Number(l.hours) * Number(l.employee.hourly_rate)
+        : 0),
+    0
+  )
+  const totalDB = totalSale - totalCost
   const hasMissingCost = logs.some((l) => l.hours != null && l.cost_amount == null)
+  const hasMissingSale = logs.some(
+    (l) => l.hours != null && (l.employee?.hourly_rate == null)
+  )
+
+  const saleFor = (l: TimeLogWithEmployee): number | null =>
+    l.hours != null && l.employee?.hourly_rate != null
+      ? Number(l.hours) * Number(l.employee.hourly_rate)
+      : null
+
+  const dbFor = (l: TimeLogWithEmployee): number | null => {
+    const sale = saleFor(l)
+    if (sale == null || l.cost_amount == null) return null
+    return sale - Number(l.cost_amount)
+  }
 
   return (
     <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
@@ -165,7 +188,17 @@ export function WorkOrderTimeLogs({
           Timer ({logs.length})
           {logs.length > 0 && (
             <span className="ml-2 text-gray-500 font-normal">
-              · {fmtHours(totalHours)} · intern kost {fmtAmount(totalCost)}
+              · {fmtHours(totalHours)}
+              {totalCost > 0 && ` · kost ${fmtAmount(totalCost)}`}
+              {totalSale > 0 && ` · salg ${fmtAmount(totalSale)}`}
+              {totalSale > 0 && totalCost > 0 && (
+                <>
+                  {' · '}
+                  <span className={totalDB >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                    DB {fmtAmount(totalDB)}
+                  </span>
+                </>
+              )}
             </span>
           )}
         </div>
@@ -321,58 +354,74 @@ export function WorkOrderTimeLogs({
                 <th className="py-1 pr-2">Periode</th>
                 <th className="py-1 pr-2 text-right">Timer</th>
                 <th className="py-1 pr-2 text-right">Intern kost</th>
+                <th className="py-1 pr-2 text-right">Salgspris</th>
+                <th className="py-1 pr-2 text-right">DB</th>
                 <th className="py-1 pr-2">Beskrivelse</th>
                 <th className="py-1 pr-2">Fak.</th>
-                <th className="py-1 pr-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {logs.map((l) => (
-                <tr key={l.id} className="hover:bg-gray-50">
-                  <td className="py-1 pr-2 whitespace-nowrap">{fmtDate(l.start_time)}</td>
-                  <td className="py-1 pr-2 whitespace-nowrap">
-                    {l.employee?.name ?? <span className="text-gray-400">—</span>}
-                  </td>
-                  <td className="py-1 pr-2 whitespace-nowrap text-gray-500">
-                    {fmtTime(l.start_time)}
-                    {l.end_time && ` → ${fmtTime(l.end_time)}`}
-                    {!l.end_time && (
-                      <span className="ml-1 text-amber-600 font-medium">(åben)</span>
-                    )}
-                  </td>
-                  <td className="py-1 pr-2 text-right tabular-nums">{fmtHours(l.hours)}</td>
-                  <td className="py-1 pr-2 text-right tabular-nums">
-                    {l.cost_amount == null && l.hours != null ? (
-                      <span className="text-amber-600" title="Medarbejder mangler kostpris">
-                        —
-                      </span>
-                    ) : (
-                      fmtAmount(l.cost_amount)
-                    )}
-                  </td>
-                  <td className="py-1 pr-2 text-gray-600 max-w-[200px] truncate" title={l.description ?? ''}>
-                    {l.description ?? ''}
-                  </td>
-                  <td className="py-1 pr-2">
-                    {l.billable ? (
-                      <span className="text-emerald-700">✓</span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                    {l.invoice_line_id && (
-                      <span
-                        className="ml-1 text-[10px] uppercase bg-purple-100 text-purple-800 px-1 py-0.5 rounded"
-                        title="Faktureret — kan ikke ændres"
-                      >
-                        F
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-1 pr-2 text-right text-gray-400 text-[10px]">
-                    {l.invoice_line_id ? 'låst' : ''}
-                  </td>
-                </tr>
-              ))}
+              {logs.map((l) => {
+                const sale = saleFor(l)
+                const db = dbFor(l)
+                return (
+                  <tr key={l.id} className="hover:bg-gray-50">
+                    <td className="py-1 pr-2 whitespace-nowrap">{fmtDate(l.start_time)}</td>
+                    <td className="py-1 pr-2 whitespace-nowrap">
+                      {l.employee?.name ?? <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="py-1 pr-2 whitespace-nowrap text-gray-500">
+                      {fmtTime(l.start_time)}
+                      {l.end_time && ` → ${fmtTime(l.end_time)}`}
+                      {!l.end_time && (
+                        <span className="ml-1 text-amber-600 font-medium">(åben)</span>
+                      )}
+                    </td>
+                    <td className="py-1 pr-2 text-right tabular-nums">{fmtHours(l.hours)}</td>
+                    <td className="py-1 pr-2 text-right tabular-nums">
+                      {l.cost_amount == null && l.hours != null ? (
+                        <span className="text-amber-600" title="Medarbejder mangler kostpris">—</span>
+                      ) : (
+                        fmtAmount(l.cost_amount)
+                      )}
+                    </td>
+                    <td className="py-1 pr-2 text-right tabular-nums">
+                      {sale == null && l.hours != null ? (
+                        <span className="text-amber-600" title="Medarbejder mangler salgspris">—</span>
+                      ) : (
+                        fmtAmount(sale)
+                      )}
+                    </td>
+                    <td className="py-1 pr-2 text-right tabular-nums">
+                      {db == null ? (
+                        <span className="text-gray-400">—</span>
+                      ) : (
+                        <span className={db >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                          {fmtAmount(db)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-1 pr-2 text-gray-600 max-w-[200px] truncate" title={l.description ?? ''}>
+                      {l.description ?? ''}
+                    </td>
+                    <td className="py-1 pr-2">
+                      {l.billable ? (
+                        <span className="text-emerald-700">✓</span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                      {l.invoice_line_id && (
+                        <span
+                          className="ml-1 text-[10px] uppercase bg-purple-100 text-purple-800 px-1 py-0.5 rounded"
+                          title="Faktureret — kan ikke ændres"
+                        >
+                          F
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-300 font-semibold">
@@ -381,17 +430,35 @@ export function WorkOrderTimeLogs({
                 </td>
                 <td className="pt-1 pr-2 text-right tabular-nums">{fmtHours(totalHours)}</td>
                 <td className="pt-1 pr-2 text-right tabular-nums">{fmtAmount(totalCost)}</td>
-                <td colSpan={3}></td>
+                <td className="pt-1 pr-2 text-right tabular-nums">
+                  {totalSale > 0 ? fmtAmount(totalSale) : '—'}
+                </td>
+                <td className="pt-1 pr-2 text-right tabular-nums">
+                  {totalSale > 0 && totalCost > 0 ? (
+                    <span className={totalDB >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                      {fmtAmount(totalDB)}
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td colSpan={2}></td>
               </tr>
             </tfoot>
           </table>
         </div>
       )}
 
-      {hasMissingCost && (
+      {(hasMissingCost || hasMissingSale) && (
         <p className="text-[10px] text-amber-700">
-          ⚠ Nogle timer mangler intern kost — medarbejder har ikke fået sat
-          satser endnu. Sæt timeløn/kostpris på medarbejderens detaljeside.
+          ⚠ Økonomiberegning ufuldstændig — én eller flere medarbejdere
+          mangler {hasMissingCost && hasMissingSale
+            ? 'kostpris og/eller salgspris'
+            : hasMissingCost
+            ? 'kostpris'
+            : 'salgspris'}.
+          Sæt satser på medarbejderens detaljeside under "Rediger" → "Satser
+          og økonomi".
         </p>
       )}
     </div>

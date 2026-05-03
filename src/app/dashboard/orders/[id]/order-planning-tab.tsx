@@ -54,9 +54,15 @@ export function OrderPlanningTab({
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(false)
-  const [caseTotals, setCaseTotals] = useState<{ hours: number; cost: number; count: number }>({
+  const [caseTotals, setCaseTotals] = useState<{
+    hours: number
+    cost: number
+    sale: number
+    count: number
+  }>({
     hours: 0,
     cost: 0,
+    sale: 0,
     count: 0,
   })
 
@@ -82,6 +88,14 @@ export function OrderPlanningTab({
         count: logs.length,
         hours: logs.reduce((s, l) => s + (l.hours ?? 0), 0),
         cost: logs.reduce((s, l) => s + (l.cost_amount ?? 0), 0),
+        sale: logs.reduce(
+          (s, l) =>
+            s +
+            (l.hours != null && l.employee?.hourly_rate != null
+              ? Number(l.hours) * Number(l.employee.hourly_rate)
+              : 0),
+          0
+        ),
       })
     }
   }
@@ -277,25 +291,67 @@ export function OrderPlanningTab({
         <>
           {/* Sag-level totals (sum across all work_orders) */}
           {caseTotals.count > 0 && (
-            <div className="bg-gray-50 ring-1 ring-gray-200 rounded-md px-3 py-2 text-sm flex items-center gap-4">
+            <div className="bg-gray-50 ring-1 ring-gray-200 rounded-md px-3 py-2 text-sm flex items-center flex-wrap gap-x-4 gap-y-1">
               <span className="font-semibold text-gray-700">Sagstotal:</span>
               <span>
                 {caseTotals.count} timeregistrering
                 {caseTotals.count === 1 ? '' : 'er'}
               </span>
-              <span>·</span>
+              <span className="text-gray-400">·</span>
               <span>
                 {caseTotals.hours.toLocaleString('da-DK', { maximumFractionDigits: 2 })} t
               </span>
-              <span>·</span>
-              <span>
-                Intern kost:{' '}
-                {new Intl.NumberFormat('da-DK', {
-                  style: 'currency',
-                  currency: 'DKK',
-                  maximumFractionDigits: 0,
-                }).format(caseTotals.cost)}
-              </span>
+              {caseTotals.cost > 0 && (
+                <>
+                  <span className="text-gray-400">·</span>
+                  <span>
+                    Intern kost:{' '}
+                    <span className="font-medium">
+                      {new Intl.NumberFormat('da-DK', {
+                        style: 'currency',
+                        currency: 'DKK',
+                        maximumFractionDigits: 0,
+                      }).format(caseTotals.cost)}
+                    </span>
+                  </span>
+                </>
+              )}
+              {caseTotals.sale > 0 && (
+                <>
+                  <span className="text-gray-400">·</span>
+                  <span>
+                    Salgspris:{' '}
+                    <span className="font-medium">
+                      {new Intl.NumberFormat('da-DK', {
+                        style: 'currency',
+                        currency: 'DKK',
+                        maximumFractionDigits: 0,
+                      }).format(caseTotals.sale)}
+                    </span>
+                  </span>
+                </>
+              )}
+              {caseTotals.sale > 0 && caseTotals.cost > 0 && (
+                <>
+                  <span className="text-gray-400">·</span>
+                  <span>
+                    DB:{' '}
+                    <span
+                      className={
+                        caseTotals.sale - caseTotals.cost >= 0
+                          ? 'font-semibold text-emerald-700'
+                          : 'font-semibold text-red-700'
+                      }
+                    >
+                      {new Intl.NumberFormat('da-DK', {
+                        style: 'currency',
+                        currency: 'DKK',
+                        maximumFractionDigits: 0,
+                      }).format(caseTotals.sale - caseTotals.cost)}
+                    </span>
+                  </span>
+                </>
+              )}
             </div>
           )}
 
