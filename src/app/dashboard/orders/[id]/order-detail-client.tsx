@@ -98,6 +98,12 @@ export function OrderDetailClient({
                 Lav DB
               </span>
             )}
+            <Link
+              href={`/dashboard/orders/${sag.case_number}/edit`}
+              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Rediger
+            </Link>
           </div>
         </div>
 

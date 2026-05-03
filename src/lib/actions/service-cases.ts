@@ -213,7 +213,8 @@ export async function createServiceCase(
 
 interface UpdateServiceCaseInput {
   title?: string
-  description?: string
+  description?: string | null
+  customer_id?: string | null
   status?: ServiceCaseStatus
   priority?: ServiceCasePriority
   assigned_to?: string | null
@@ -232,6 +233,21 @@ interface UpdateServiceCaseInput {
   customer_signature?: string | null
   customer_signature_name?: string | null
   signed_at?: string | null
+  // Sprint 2 — sag/ordre fields (migration 00098)
+  project_name?: string | null
+  type?: ServiceCaseType | null
+  reference?: string | null
+  requisition?: string | null
+  formand_id?: string | null
+  planned_hours?: number | null
+  contract_sum?: number | null
+  revised_sum?: number | null
+  budget?: number | null
+  start_date?: string | null
+  end_date?: string | null
+  source_offer_id?: string | null
+  auto_invoice_on_done?: boolean
+  low_profit?: boolean
 }
 
 export async function updateServiceCase(
@@ -241,9 +257,15 @@ export async function updateServiceCase(
   try {
     const { supabase } = await getAuthenticatedClient()
 
+    // Strip undefined keys so we don't NULL columns the caller did not touch.
+    const payload: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(input)) {
+      if (v !== undefined) payload[k] = v
+    }
+
     const { data, error } = await supabase
       .from('service_cases')
-      .update(input)
+      .update(payload)
       .eq('id', id)
       .select('*')
       .single()
@@ -254,6 +276,11 @@ export async function updateServiceCase(
     }
 
     revalidatePath('/dashboard/service-cases')
+    revalidatePath('/dashboard/orders')
+    revalidatePath(`/dashboard/orders/${id}`)
+    if (data?.case_number) {
+      revalidatePath(`/dashboard/orders/${data.case_number}`)
+    }
     return { success: true, data: data as ServiceCase }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
