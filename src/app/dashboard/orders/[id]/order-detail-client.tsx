@@ -58,14 +58,13 @@ export function OrderDetailClient({
 
   return (
     <div className="p-6 space-y-4 max-w-[1400px]">
-      <div>
-        <Link
-          href="/dashboard/orders"
-          className="text-xs text-emerald-700 hover:underline"
-        >
-          ← Sager / Ordrer
-        </Link>
-      </div>
+      <nav className="text-sm text-gray-500 flex items-center gap-2">
+        <Link href="/dashboard" className="hover:text-gray-700">Dashboard</Link>
+        <span>/</span>
+        <Link href="/dashboard/orders" className="hover:text-gray-700">Sager / Ordrer</Link>
+        <span>/</span>
+        <span className="text-gray-900 font-mono">{sag.case_number}</span>
+      </nav>
 
       {/* Header */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-5 space-y-3">
@@ -167,7 +166,10 @@ export function OrderDetailClient({
           {active !== 'overblik' &&
             active !== 'handlinger' &&
             active !== 'aktivitet' && (
-              <Placeholder tabLabel={TABS.find((t) => t.id === active)?.label ?? ''} />
+              <Placeholder
+                tabId={active}
+                tabLabel={TABS.find((t) => t.id === active)?.label ?? ''}
+              />
             )}
         </div>
       </div>
@@ -228,9 +230,42 @@ function OverblikTab({
           ) : customerName
         } />
         <Row label="Kontaktperson" value={sag.customer?.contact_person ?? '—'} />
-        <Row label="Email" value={sag.customer?.email ?? '—'} />
-        <Row label="Telefon (kunde)" value={sag.customer?.phone ?? '—'} />
-        <Row label="Telefon (sag)" value={sag.contact_phone ?? '—'} />
+        <Row
+          label="Email"
+          value={
+            sag.customer?.email ? (
+              <a href={`mailto:${sag.customer.email}`} className="text-emerald-700 hover:underline">
+                {sag.customer.email}
+              </a>
+            ) : (
+              '—'
+            )
+          }
+        />
+        <Row
+          label="Telefon (kunde)"
+          value={
+            sag.customer?.phone ? (
+              <a href={`tel:${sag.customer.phone}`} className="text-emerald-700 hover:underline">
+                {sag.customer.phone}
+              </a>
+            ) : (
+              '—'
+            )
+          }
+        />
+        <Row
+          label="Telefon (sag)"
+          value={
+            sag.contact_phone ? (
+              <a href={`tel:${sag.contact_phone}`} className="text-emerald-700 hover:underline">
+                {sag.contact_phone}
+              </a>
+            ) : (
+              '—'
+            )
+          }
+        />
         <Row label="Adresse" value={fullAddress || '—'} />
         {sag.latitude != null && sag.longitude != null && (
           <Row
@@ -307,18 +342,57 @@ function OverblikTab({
   )
 }
 
-function Placeholder({ tabLabel }: { tabLabel: string }) {
+const PLACEHOLDER_INFO: Record<string, { headline: string; sprint: string; body: string }> = {
+  timer: {
+    headline: 'Timer registreres her',
+    sprint: 'Sprint 4',
+    body:
+      'Tidsregistreringer fra medarbejdere og koblede work_orders bliver listet her med priser, kostpriser og status.',
+  },
+  materialer: {
+    headline: 'Materialer på sagen',
+    sprint: 'Sprint 5',
+    body:
+      'Materialer fra kalkulationen, samt manuelle linjer og leverandørordrer, vises her med kost-/salgspriser.',
+  },
+  oevrige: {
+    headline: 'Øvrige omkostninger',
+    sprint: 'Sprint 5',
+    body:
+      'Kørsel, underleverandører og andre omkostninger der ikke er materialer eller timer.',
+  },
+  oekonomi: {
+    headline: 'Økonomisk overblik',
+    sprint: 'Sprint 8',
+    body:
+      'DB-beregning, profit-snapshots, tilbudt vs. revideret vs. faktisk forbrug.',
+  },
+  dokumentation: {
+    headline: 'Dokumentation og billeder',
+    sprint: 'Sprint 9',
+    body:
+      'Vedhæftninger, før/efter-billeder, signeret afleveringsformular, KSR/EAN-dokumentation.',
+  },
+  fakturakladde: {
+    headline: 'Fakturakladde',
+    sprint: 'Sprint 6',
+    body:
+      'Faktura forberedes ud fra timer, materialer og øvrige omkostninger og kan sendes til e-conomic.',
+  },
+}
+
+function Placeholder({ tabLabel, tabId }: { tabLabel: string; tabId?: string }) {
+  const info = tabId ? PLACEHOLDER_INFO[tabId] : undefined
   return (
     <div className="text-center py-12">
-      <h3 className="text-base font-medium text-gray-700">{tabLabel}</h3>
+      <h3 className="text-base font-medium text-gray-700">{info?.headline ?? tabLabel}</h3>
       <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-        Denne fane bygges i et kommende sprint. Strukturen er på plads, men data og handlinger
-        er ikke wired op endnu.
+        {info?.body ??
+          'Denne fane bygges i et kommende sprint. Strukturen er på plads, men data og handlinger er ikke wired op endnu.'}
       </p>
-      <p className="text-xs text-gray-400 mt-4">
-        Sprint 4: Timer · Sprint 5: Materialer + Øvrige · Sprint 6: Faktura ·
-        Sprint 8: Økonomi · Sprint 9: Dokumentation
-      </p>
+      {info?.sprint && (
+        <p className="text-xs text-gray-400 mt-4 uppercase tracking-wide">{info.sprint}</p>
+      )}
     </div>
   )
 }
@@ -343,8 +417,11 @@ function Panel({
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3 py-1 text-sm border-b border-gray-100 last:border-b-0">
-      <span className="text-gray-500">{label}</span>
-      <span className="text-right text-gray-900 max-w-[60%] truncate" title={typeof value === 'string' ? value : undefined}>
+      <span className="text-gray-500 shrink-0">{label}</span>
+      <span
+        className="text-right text-gray-900 max-w-[65%] truncate"
+        title={typeof value === 'string' ? value : undefined}
+      >
         {value}
       </span>
     </div>
