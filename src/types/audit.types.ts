@@ -7,6 +7,7 @@ export type AuditEntityType =
   | 'lead'
   | 'offer'
   | 'project'
+  | 'service_case'
   | 'calculation'
   | 'product'
   | 'package'

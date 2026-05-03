@@ -10,6 +10,8 @@ import {
   SERVICE_CASE_TYPE_LABELS,
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
+import { OrderActionsTab } from './order-actions-tab'
+import { OrderActivityTab } from './order-activity-tab'
 
 const TABS = [
   { id: 'overblik',     label: 'Overblik',           ready: true },
@@ -17,10 +19,10 @@ const TABS = [
   { id: 'materialer',   label: 'Materialer',         ready: false },
   { id: 'oevrige',      label: 'Øvrige omkostninger', ready: false },
   { id: 'oekonomi',     label: 'Økonomi',            ready: false },
-  { id: 'aktivitet',    label: 'Aktivitet',          ready: false },
+  { id: 'aktivitet',    label: 'Aktivitet',          ready: true },
   { id: 'dokumentation',label: 'Dokumentation',      ready: false },
   { id: 'fakturakladde',label: 'Fakturakladde',      ready: false },
-  { id: 'handlinger',   label: 'Handlinger',         ready: false },
+  { id: 'handlinger',   label: 'Handlinger',         ready: true },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -160,9 +162,13 @@ export function OrderDetailClient({
               creator={creator}
             />
           )}
-          {active !== 'overblik' && (
-            <Placeholder tabLabel={TABS.find((t) => t.id === active)?.label ?? ''} />
-          )}
+          {active === 'handlinger' && <OrderActionsTab sag={sag} />}
+          {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
+          {active !== 'overblik' &&
+            active !== 'handlinger' &&
+            active !== 'aktivitet' && (
+              <Placeholder tabLabel={TABS.find((t) => t.id === active)?.label ?? ''} />
+            )}
         </div>
       </div>
     </div>

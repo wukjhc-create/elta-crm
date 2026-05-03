@@ -5,6 +5,7 @@ import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helper
 import { createAnonClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
+import { createAuditLog } from '@/lib/actions/audit'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import type {
   ServiceCase,
@@ -882,6 +883,221 @@ export async function getOffersForOrderSelect(
         offer_number: (o.offer_number as string | null) ?? null,
         title: (o.title as string) ?? 'Uden titel',
       })),
+    }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+// =====================================================
+// Action functions used by the "Handlinger" tab
+// =====================================================
+//
+// Each action updates service_cases and best-effort logs to audit_logs.
+// Audit failures are non-blocking — the primary action still succeeds.
+
+async function logServiceCaseAudit(
+  caseId: string,
+  caseNumber: string,
+  action: 'create' | 'update' | 'delete' | 'status_change',
+  description: string,
+  changes?: Record<string, { old: unknown; new: unknown }>
+) {
+  try {
+    await createAuditLog({
+      entity_type: 'service_case',
+      entity_id: caseId,
+      entity_name: caseNumber,
+      action,
+      action_description: description,
+      changes: changes as any,
+    })
+  } catch {
+    /* audit is best-effort — never block the primary action */
+  }
+}
+
+export async function setServiceCaseStatus(
+  id: string,
+  status: ServiceCaseStatus,
+  note?: string | null
+): Promise<ActionResult<ServiceCase>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    // Read prior status for audit log
+    const { data: prior } = await supabase
+      .from('service_cases')
+      .select('status, case_number')
+      .eq('id', id)
+      .maybeSingle()
+
+    const update: Record<string, unknown> = { status }
+    if (note != null) update.status_note = note
+    if (status === 'closed' && !prior?.status?.toString()?.includes('closed')) {
+      update.closed_at = new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('service_cases')
+      .update(update)
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (error) {
+      logger.error('Error setting service case status', { error })
+      return { success: false, error: 'Kunne ikke ændre status' }
+    }
+
+    await logServiceCaseAudit(
+      id,
+      (data?.case_number as string) ?? id,
+      'status_change',
+      `Status ændret: ${prior?.status ?? '—'} → ${status}${note ? ` (${note})` : ''}`,
+      { status: { old: prior?.status ?? null, new: status } }
+    )
+
+    revalidatePath('/dashboard/orders')
+    revalidatePath(`/dashboard/orders/${id}`)
+    if (data?.case_number) revalidatePath(`/dashboard/orders/${data.case_number}`)
+
+    return { success: true, data: data as ServiceCase }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+export async function markServiceCaseDone(id: string): Promise<ActionResult<ServiceCase>> {
+  return setServiceCaseStatus(id, 'closed', 'Markeret som afsluttet')
+}
+
+export async function setServiceCaseLowProfit(
+  id: string,
+  value: boolean
+): Promise<ActionResult<ServiceCase>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    const { data: prior } = await supabase
+      .from('service_cases')
+      .select('low_profit, case_number')
+      .eq('id', id)
+      .maybeSingle()
+
+    const { data, error } = await supabase
+      .from('service_cases')
+      .update({ low_profit: value })
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (error) {
+      logger.error('Error toggling low_profit', { error })
+      return { success: false, error: 'Kunne ikke opdatere "Lav DB"' }
+    }
+
+    await logServiceCaseAudit(
+      id,
+      (data?.case_number as string) ?? id,
+      'update',
+      `Lav DB sat til ${value ? 'JA' : 'nej'}`,
+      { low_profit: { old: prior?.low_profit ?? null, new: value } }
+    )
+
+    revalidatePath('/dashboard/orders')
+    revalidatePath(`/dashboard/orders/${id}`)
+    if (data?.case_number) revalidatePath(`/dashboard/orders/${data.case_number}`)
+
+    return { success: true, data: data as ServiceCase }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+export async function setServiceCaseAutoInvoice(
+  id: string,
+  value: boolean
+): Promise<ActionResult<ServiceCase>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    const { data: prior } = await supabase
+      .from('service_cases')
+      .select('auto_invoice_on_done, case_number')
+      .eq('id', id)
+      .maybeSingle()
+
+    const { data, error } = await supabase
+      .from('service_cases')
+      .update({ auto_invoice_on_done: value })
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (error) {
+      logger.error('Error toggling auto_invoice_on_done', { error })
+      return { success: false, error: 'Kunne ikke opdatere auto-faktura' }
+    }
+
+    await logServiceCaseAudit(
+      id,
+      (data?.case_number as string) ?? id,
+      'update',
+      `Auto-faktura ved afsluttet sat til ${value ? 'JA' : 'nej'}`,
+      { auto_invoice_on_done: { old: prior?.auto_invoice_on_done ?? null, new: value } }
+    )
+
+    revalidatePath('/dashboard/orders')
+    revalidatePath(`/dashboard/orders/${id}`)
+    if (data?.case_number) revalidatePath(`/dashboard/orders/${data.case_number}`)
+
+    return { success: true, data: data as ServiceCase }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+// =====================================================
+// Activity log (read)
+// =====================================================
+//
+// Returns audit_logs rows for this service case (entity_type='service_case').
+// RLS allows admins to read all, and users to read their own actions.
+
+export interface ServiceCaseActivityEntry {
+  id: string
+  user_name: string | null
+  user_email: string | null
+  action: string
+  action_description: string | null
+  changes: Record<string, { old: unknown; new: unknown }> | null
+  created_at: string
+}
+
+export async function getServiceCaseActivity(
+  caseId: string
+): Promise<ActionResult<ServiceCaseActivityEntry[]>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('id, user_name, user_email, action, action_description, changes, created_at')
+      .eq('entity_type', 'service_case')
+      .eq('entity_id', caseId)
+      .order('created_at', { ascending: false })
+      .limit(100)
+
+    if (error) {
+      // Some non-admin users may see RLS-empty results — return empty list.
+      logger.warn('Could not fetch service case activity', { error })
+      return { success: true, data: [] }
+    }
+
+    return {
+      success: true,
+      data: (data || []) as ServiceCaseActivityEntry[],
     }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
