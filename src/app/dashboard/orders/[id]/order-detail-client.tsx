@@ -12,10 +12,11 @@ import {
 } from '@/types/service-cases.types'
 import { OrderActionsTab } from './order-actions-tab'
 import { OrderActivityTab } from './order-activity-tab'
+import { OrderPlanningTab } from './order-planning-tab'
 
 const TABS = [
   { id: 'overblik',     label: 'Overblik',           ready: true },
-  { id: 'timer',        label: 'Timer',              ready: false },
+  { id: 'planlaegning', label: 'Planlægning / Timer', ready: true },
   { id: 'materialer',   label: 'Materialer',         ready: false },
   { id: 'oevrige',      label: 'Øvrige omkostninger', ready: false },
   { id: 'oekonomi',     label: 'Økonomi',            ready: false },
@@ -42,10 +43,12 @@ export function OrderDetailClient({
   sag,
   formand,
   creator,
+  plannedWorkOrderCount = 0,
 }: {
   sag: ServiceCaseWithRelations
   formand: { id: string; name: string } | null
   creator: { id: string; full_name: string | null } | null
+  plannedWorkOrderCount?: number
 }) {
   const [active, setActive] = useState<TabId>('overblik')
 
@@ -125,6 +128,22 @@ export function OrderDetailClient({
                 : '—'
             }
           />
+          <Stat
+            label="Arbejdsordrer (åbne)"
+            value={
+              plannedWorkOrderCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setActive('planlaegning')}
+                  className="text-emerald-700 hover:underline"
+                >
+                  {plannedWorkOrderCount}
+                </button>
+              ) : (
+                '0'
+              )
+            }
+          />
         </div>
       </div>
 
@@ -142,6 +161,11 @@ export function OrderDetailClient({
               }`}
             >
               {t.label}
+              {t.id === 'planlaegning' && plannedWorkOrderCount > 0 && (
+                <span className="ml-2 text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                  {plannedWorkOrderCount}
+                </span>
+              )}
               {!t.ready && (
                 <span className="ml-2 text-[10px] uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
                   kommer
@@ -161,9 +185,17 @@ export function OrderDetailClient({
               creator={creator}
             />
           )}
+          {active === 'planlaegning' && (
+            <OrderPlanningTab
+              caseId={sag.id}
+              caseTitle={sag.title}
+              caseDefaultEmployeeId={sag.formand_id ?? null}
+            />
+          )}
           {active === 'handlinger' && <OrderActionsTab sag={sag} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
           {active !== 'overblik' &&
+            active !== 'planlaegning' &&
             active !== 'handlinger' &&
             active !== 'aktivitet' && (
               <Placeholder
@@ -343,12 +375,6 @@ function OverblikTab({
 }
 
 const PLACEHOLDER_INFO: Record<string, { headline: string; sprint: string; body: string }> = {
-  timer: {
-    headline: 'Timer registreres her',
-    sprint: 'Sprint 4',
-    body:
-      'Tidsregistreringer fra medarbejdere og koblede work_orders bliver listet her med priser, kostpriser og status.',
-  },
   materialer: {
     headline: 'Materialer på sagen',
     sprint: 'Sprint 5',

@@ -47,8 +47,18 @@ export default async function OrderDetailPage({
   // Resolve formand name + assignee email if formand_id is set.
   let formand: { id: string; name: string } | null = null
   let creator: { id: string; full_name: string | null } | null = null
+  let plannedCount = 0
   try {
     const { supabase } = await getAuthenticatedClient()
+
+    // Planlagte work_orders count for header badge
+    const { count } = await supabase
+      .from('work_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('case_id', sag.id)
+      .in('status', ['planned', 'in_progress'])
+    plannedCount = count ?? 0
+
     if (sag.formand_id) {
       const { data: emp } = await supabase
         .from('employees')
@@ -84,6 +94,7 @@ export default async function OrderDetailPage({
       sag={sag}
       formand={formand}
       creator={creator}
+      plannedWorkOrderCount={plannedCount}
     />
   )
 }
