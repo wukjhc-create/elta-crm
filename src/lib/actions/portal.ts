@@ -6,6 +6,7 @@ import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helper
 import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createProjectFromOffer } from '@/lib/actions/projects'
+import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
 import { sendEmail } from '@/lib/email/email-service'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
@@ -485,6 +486,43 @@ export async function acceptOffer(
     } catch (projectError) {
       logger.error('Project creation failed (non-critical)', { error: projectError })
       // Don't fail the offer acceptance if project creation fails
+    }
+
+    // Sprint 3D — auto-create service_case parallel to project (non-critical).
+    // Idempotent at app level (offer-to-case.ts) and at DB level (UNIQUE
+    // partial index uq_service_cases_source_offer_id, migration 00099).
+    // If this fails the operator can use the manual "Opret sag fra
+    // tilbud" button on the offer detail as a fallback.
+    try {
+      const sagResult = await createServiceCaseFromOffer(data.offer_id)
+      if (sagResult.success && sagResult.data) {
+        await supabase.from('offer_activities').insert({
+          offer_id: data.offer_id,
+          activity_type: 'service_case_created',
+          description: sagResult.data.created
+            ? `Sag ${sagResult.data.case_number} oprettet automatisk`
+            : `Sag ${sagResult.data.case_number} fandtes allerede (idempotency)`,
+          performed_by: null,
+          metadata: {
+            caseId: sagResult.data.case_id,
+            caseNumber: sagResult.data.case_number,
+            created: sagResult.data.created,
+          },
+        })
+      } else {
+        logger.error('Auto-create service_case failed', {
+          error: sagResult.error,
+          entity: 'offer',
+          entityId: data.offer_id,
+        })
+      }
+    } catch (sagError) {
+      logger.error('Service_case creation failed (non-critical)', {
+        error: sagError,
+        entity: 'offer',
+        entityId: data.offer_id,
+      })
+      // Don't fail the offer acceptance if sag creation fails.
     }
 
     // Trigger webhooks for offer.accepted
