@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
+import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 
 export interface PublicOffer {
   id: string
@@ -210,6 +211,26 @@ export async function acceptPublicOffer(offerId: string, accepterName: string): 
     })
   } catch (err) {
     logger.error('Autopilot offer_accepted failed (non-critical)', { error: err, entityId: offerId })
+  }
+
+  // Sprint 3D — auto-create service_case (non-critical). Idempotent at
+  // app level (offer-to-case.ts) and DB level (uq_service_cases_source_offer_id).
+  // If this fails, operator can use manual "Opret sag fra tilbud" button as fallback.
+  try {
+    const sagResult = await createServiceCaseFromOffer(offerId)
+    if (!sagResult.success) {
+      logger.error('Auto-create service_case failed', {
+        error: sagResult.error,
+        entity: 'offer',
+        entityId: offerId,
+      })
+    }
+  } catch (sagError) {
+    logger.error('Service_case creation failed (non-critical)', {
+      error: sagError,
+      entity: 'offer',
+      entityId: offerId,
+    })
   }
 
   return { success: true }
