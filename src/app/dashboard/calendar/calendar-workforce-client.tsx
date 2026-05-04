@@ -17,13 +17,14 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, CalendarCheck, Briefcase, AlertCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarCheck, Briefcase, AlertCircle, Plus } from 'lucide-react'
 import {
   EMPLOYEE_ROLE_OPTIONS,
   type EmployeeRow,
 } from '@/types/employees.types'
 import type { WorkOrderForCalendar } from '@/lib/actions/work-orders'
 import type { WorkOrderStatus } from '@/types/workforce.types'
+import { PlanWorkOrderDialog } from './plan-work-order-dialog'
 
 type CalendarView = 'day' | 'week' | 'month'
 
@@ -97,6 +98,7 @@ export function CalendarWorkforceClient({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
+  const [planDialogOpen, setPlanDialogOpen] = useState(false)
 
   const updateParam = (changes: Record<string, string | null | undefined>) => {
     const params = new URLSearchParams(Array.from(searchParams.entries()))
@@ -192,25 +194,46 @@ export function CalendarWorkforceClient({
           </p>
         </div>
 
-        {/* View toggle */}
-        <div className="inline-flex rounded-lg ring-1 ring-gray-200 overflow-hidden">
-          {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => updateParam({ view: v })}
-              className={`px-3 py-1.5 text-sm font-medium transition ${
-                view === v
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              {v === 'day' && 'Dag'}
-              {v === 'week' && 'Uge'}
-              {v === 'month' && 'Måned (besigtigelser)'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Planlæg opgave */}
+          <button
+            type="button"
+            onClick={() => setPlanDialogOpen(true)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            <Plus className="w-4 h-4" />
+            Planlæg opgave
+          </button>
+
+          {/* View toggle */}
+          <div className="inline-flex rounded-lg ring-1 ring-gray-200 overflow-hidden">
+            {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => updateParam({ view: v })}
+                className={`px-3 py-1.5 text-sm font-medium transition ${
+                  view === v
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {v === 'day' && 'Dag'}
+                {v === 'week' && 'Uge'}
+                {v === 'month' && 'Måned (besigtigelser)'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Planlæg-dialog */}
+      <PlanWorkOrderDialog
+        open={planDialogOpen}
+        onClose={() => setPlanDialogOpen(false)}
+        defaultDate={anchorDate}
+        defaultEmployeeId={filters.employee || null}
+        employees={employees}
+      />
 
       {/* Date nav */}
       <div className="flex items-center gap-2">
