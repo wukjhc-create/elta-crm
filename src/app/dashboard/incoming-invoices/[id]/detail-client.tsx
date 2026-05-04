@@ -145,12 +145,33 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
               <span>{detail.supplier.name} <span className="text-gray-400">({detail.supplier.code ?? '—'})</span></span>
             ) : <span className="text-amber-700">Ikke matchet</span>}
           />
+          <Row label="Tilknyttet sag"
+            value={detail.case ? (
+              <Link
+                href={`/dashboard/orders/${detail.case.case_number}`}
+                className="text-emerald-700 hover:underline"
+              >
+                <span className="font-mono text-xs">{detail.case.case_number}</span>
+                <span className="ml-2">{detail.case.project_name || detail.case.title}</span>
+                {detail.case.customer_name && (
+                  <span className="text-gray-500 ml-1">· {detail.case.customer_name}</span>
+                )}
+              </Link>
+            ) : <span className="text-amber-700">Ikke matchet</span>}
+          />
           <Row label="Arbejdsordre"
             value={detail.workOrder ? (
-              <Link href={`/dashboard/work-orders/${detail.workOrder.id}`} className="text-emerald-700 hover:underline">
-                {detail.workOrder.title}
-              </Link>
-            ) : <span className="text-gray-500">Ikke matchet</span>}
+              detail.case ? (
+                <Link
+                  href={`/dashboard/orders/${detail.case.case_number}?tab=planlaegning`}
+                  className="text-gray-700 hover:underline"
+                >
+                  {detail.workOrder.title}
+                </Link>
+              ) : (
+                <span className="text-gray-700">{detail.workOrder.title}</span>
+              )
+            ) : <span className="text-gray-400">Ingen specifik WO</span>}
           />
           {inv.duplicate_of_id && (
             <Row label="Duplikat af"

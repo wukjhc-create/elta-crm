@@ -42,6 +42,7 @@ export interface IncomingInvoiceListItem {
   match_confidence: number | null
   requires_manual_review: boolean
   matched_work_order_id: string | null
+  matched_case_id: string | null
   created_at: string
 }
 
@@ -62,7 +63,8 @@ export async function listIncomingInvoicesAction(
       id, supplier_id, supplier_name_extracted, invoice_number,
       amount_incl_vat, currency, invoice_date, status,
       parse_status, parse_confidence, match_confidence,
-      requires_manual_review, matched_work_order_id, created_at,
+      requires_manual_review, matched_work_order_id, matched_case_id,
+      created_at,
       suppliers:supplier_id ( name )
     `)
     .order('created_at', { ascending: false })
@@ -109,6 +111,7 @@ export async function listIncomingInvoicesAction(
       match_confidence: r.match_confidence != null ? Number(r.match_confidence) : null,
       requires_manual_review: !!r.requires_manual_review,
       matched_work_order_id: r.matched_work_order_id,
+      matched_case_id: (r as { matched_case_id?: string | null }).matched_case_id ?? null,
       created_at: r.created_at,
     }
   })
@@ -118,7 +121,14 @@ export interface IncomingInvoiceDetail {
   invoice: IncomingInvoiceRow
   lines: IncomingInvoiceLineRow[]
   supplier: { id: string; name: string; code: string | null } | null
-  workOrder: { id: string; title: string; status: string } | null
+  workOrder: { id: string; title: string; status: string; case_id: string | null } | null
+  case: {
+    id: string
+    case_number: string
+    title: string
+    project_name: string | null
+    customer_name: string | null
+  } | null
   audit: Array<{
     id: string
     action: string
@@ -137,7 +147,7 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
   const invoice = await getInvoiceById(id)
   if (!invoice) return null
 
-  const [linesRes, supplierRes, woRes, auditRes] = await Promise.all([
+  const [linesRes, supplierRes, woRes, caseRes, auditRes] = await Promise.all([
     supabase
       .from('incoming_invoice_lines')
       .select('*')
@@ -153,8 +163,18 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
     invoice.matched_work_order_id
       ? supabase
           .from('work_orders')
-          .select('id, title, status')
+          .select('id, title, status, case_id')
           .eq('id', invoice.matched_work_order_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    invoice.matched_case_id
+      ? supabase
+          .from('service_cases')
+          .select(`
+            id, case_number, title, project_name,
+            customer:customers!left(company_name)
+          `)
+          .eq('id', invoice.matched_case_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
     supabase
@@ -180,11 +200,33 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
     }
   }
 
+  const caseRow = caseRes.data as
+    | {
+        id: string
+        case_number: string
+        title: string
+        project_name: string | null
+        customer: { company_name: string | null } | { company_name: string | null }[] | null
+      }
+    | null
+  const caseDetail = caseRow
+    ? {
+        id: caseRow.id,
+        case_number: caseRow.case_number,
+        title: caseRow.title,
+        project_name: caseRow.project_name,
+        customer_name: Array.isArray(caseRow.customer)
+          ? caseRow.customer[0]?.company_name ?? null
+          : caseRow.customer?.company_name ?? null,
+      }
+    : null
+
   return {
     invoice,
     lines: (linesRes.data ?? []) as IncomingInvoiceLineRow[],
     supplier: (supplierRes.data ?? null) as IncomingInvoiceDetail['supplier'],
     workOrder: (woRes.data ?? null) as IncomingInvoiceDetail['workOrder'],
+    case: caseDetail,
     audit: (auditRes.data ?? []).map((a) => ({
       id: a.id,
       action: a.action,
@@ -284,6 +326,7 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
     match_confidence: r.match_confidence != null ? Number(r.match_confidence) : null,
     requires_manual_review: !!r.requires_manual_review,
     matched_work_order_id: r.matched_work_order_id,
+    matched_case_id: (r as { matched_case_id?: string | null }).matched_case_id ?? null,
     created_at: r.created_at,
   }))
 }

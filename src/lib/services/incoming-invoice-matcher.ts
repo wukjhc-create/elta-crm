@@ -19,6 +19,12 @@ import type { MatchBreakdown } from '@/types/incoming-invoices.types'
 export interface MatchResult {
   supplierId: string | null
   workOrderId: string | null
+  /**
+   * Sprint 5E-1: canonical sag link. May be set even when workOrderId
+   * is null (case_number direct match without a selectable WO).
+   * When workOrderId IS set, caseId mirrors work_orders.case_id.
+   */
+  caseId: string | null
   duplicateOfId: string | null
   confidence: number
   breakdown: MatchBreakdown
@@ -59,6 +65,7 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
 
   let supplierId: string | null = null
   let workOrderId: string | null = null
+  let caseId: string | null = null
 
   // ---- 1. supplier resolution ----
   if (input.supplierVatNumber) {
@@ -132,11 +139,12 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
     for (const ref of input.supplierOrderRefs) {
       const { data: wo } = await supabase
         .from('work_orders')
-        .select('id, title')
+        .select('id, title, case_id')
         .ilike('title', `%${escapeIlike(ref)}%`)
         .limit(2)
       if (wo && wo.length === 1) {
         workOrderId = wo[0].id
+        if (wo[0].case_id) caseId = wo[0].case_id as string
         breakdown.supplier_order_ref_match = WEIGHTS.supplier_order_ref_match
         breakdown.reasons.push(`supplier_order_ref:${ref}`)
         break
@@ -144,8 +152,11 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
     }
   }
 
-  // ---- 4. work order via Elta-side hint (case_number / title) ----
-  if (!workOrderId && input.workOrderHints.length > 0) {
+  // ---- 4. case + work order via Elta-side hint (case_number / title) ----
+  // Sprint 5E-1: case_number can match a sag even without a selectable
+  // WO. We always set caseId when a case_number resolves; we only set
+  // workOrderId when at least one WO exists for that case.
+  if (!caseId && input.workOrderHints.length > 0) {
     for (const hint of input.workOrderHints) {
       const { data: caseRow } = await supabase
         .from('service_cases')
@@ -153,6 +164,7 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
         .eq('case_number', hint)
         .maybeSingle()
       if (caseRow) {
+        caseId = caseRow.id as string
         const { data: wo } = await supabase
           .from('work_orders')
           .select('id')
@@ -164,19 +176,25 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
           workOrderId = wo.id
           breakdown.work_order_via_case = WEIGHTS.work_order_via_case
           breakdown.reasons.push(`wo_via_case:${hint}`)
-          break
+        } else {
+          // Case resolved directly but no WO yet — count as half-credit
+          // on the same signal so the operator knows we found the sag.
+          breakdown.work_order_via_case = WEIGHTS.work_order_via_case * 0.6
+          breakdown.reasons.push(`case_only:${hint}`)
         }
+        break
       }
     }
     if (!workOrderId) {
       for (const hint of input.workOrderHints) {
         const { data: wo } = await supabase
           .from('work_orders')
-          .select('id')
+          .select('id, case_id')
           .ilike('title', `%${escapeIlike(hint)}%`)
           .limit(2)
         if (wo && wo.length === 1) {
           workOrderId = wo[0].id
+          if (wo[0].case_id && !caseId) caseId = wo[0].case_id as string
           breakdown.work_order_via_title = WEIGHTS.work_order_via_title
           breakdown.reasons.push(`wo_title_match:${hint}`)
           break
@@ -197,11 +215,12 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
         .ilike('address', `%${escapeIlike(streetToken)}%`)
         .limit(3)
       if (cases && cases.length === 1) {
-        const caseId = cases[0].id
+        const resolvedCaseId = cases[0].id as string
+        if (!caseId) caseId = resolvedCaseId
         const { data: wo } = await supabase
           .from('work_orders')
           .select('id')
-          .eq('case_id', caseId)
+          .eq('case_id', resolvedCaseId)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -209,6 +228,10 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
           workOrderId = wo.id
           breakdown.customer_address_match = WEIGHTS.customer_address_match
           breakdown.reasons.push(`address_match:${zip}/${streetToken}`)
+        } else {
+          // Address resolved a sag but no WO — still useful signal.
+          breakdown.customer_address_match = WEIGHTS.customer_address_match * 0.6
+          breakdown.reasons.push(`address_match_case_only:${zip}/${streetToken}`)
         }
       }
     }
@@ -228,6 +251,7 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
   return {
     supplierId,
     workOrderId,
+    caseId,
     duplicateOfId,
     confidence: breakdown.total,
     breakdown,
