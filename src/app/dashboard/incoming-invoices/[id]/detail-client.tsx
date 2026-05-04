@@ -12,6 +12,7 @@ import {
 } from '@/lib/actions/incoming-invoices'
 import { Button } from '@/components/ui/button'
 import { IncomingInvoiceCasePicker } from './incoming-invoice-case-picker'
+import { ApprovePreviewDialog, type LinePlan } from './approve-preview-dialog'
 
 const fmtAmount = (n: number | null | undefined, ccy = 'DKK') =>
   n == null
@@ -44,6 +45,9 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
   const [casePickerError, setCasePickerError] = useState<string | null>(null)
   const [casePickerBusy, setCasePickerBusy] = useState(false)
   const [clearingCase, setClearingCase] = useState(false)
+  const [showApprovePreview, setShowApprovePreview] = useState(false)
+  const [approvePreviewBusy, setApprovePreviewBusy] = useState(false)
+  const [approvePreviewError, setApprovePreviewError] = useState<string | null>(null)
 
   const inv = detail.invoice
   const review = inv.requires_manual_review
@@ -68,6 +72,26 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
       await refresh()
     }
   })
+
+  /**
+   * Sprint 5E-2: approve must always go through the preview dialog.
+   * Sprint 5E-3 will hand `plan` to the server so it can convert
+   * lines into case_materials / case_other_costs. For now we just
+   * call the existing action — `plan` is ignored on the server.
+   */
+  const approveFromPreview = async (_plan: LinePlan[]) => {
+    setApprovePreviewError(null)
+    setApprovePreviewBusy(true)
+    const r = await approveIncomingInvoiceAction(inv.id, review)
+    setApprovePreviewBusy(false)
+    if (!r.ok) {
+      setApprovePreviewError(r.message)
+      return
+    }
+    setShowApprovePreview(false)
+    flash(true, r.message)
+    await refresh()
+  }
 
   const reject = () => startTransition(async () => {
     const r = await rejectIncomingInvoiceAction(inv.id, rejectReason)
@@ -348,31 +372,30 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
         ) : (
           <div className="space-y-3">
             {review && (
-              <label className="flex items-start gap-2 text-sm bg-amber-50 ring-1 ring-amber-200 p-3 rounded">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={confirmReview}
-                  onChange={(e) => setConfirmReview(e.target.checked)}
-                />
+              <div className="flex items-start gap-2 text-sm bg-amber-50 ring-1 ring-amber-200 p-3 rounded">
+                <AlertCircleIcon />
                 <span>
-                  <span className="font-medium">Jeg bekræfter</span> at jeg har gennemgået fakturaen
-                  manuelt og at felterne er korrekte.
+                  <span className="font-medium">Faktura kræver manuel gennemgang.</span>{' '}
+                  Bekræft i forhåndsvisningen før godkendelse.
                 </span>
-              </label>
+              </div>
+            )}
+            {!detail.case && (
+              <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Match fakturaen til en sag før du forhåndsviser godkendelse.
+              </div>
             )}
 
             <div className="flex gap-2 flex-wrap">
-              <Button onClick={() => approve(false)}
-                disabled={busy || review}>
-                Godkend
+              <Button
+                onClick={() => {
+                  setApprovePreviewError(null)
+                  setShowApprovePreview(true)
+                }}
+                disabled={busy || approvePreviewBusy}
+              >
+                Forhåndsvis & godkend
               </Button>
-              {review && (
-                <Button onClick={() => approve(true)}
-                  disabled={busy || !confirmReview}>
-                  Godkend med override
-                </Button>
-              )}
               <Button variant="outline" onClick={() => setShowReject(true)} disabled={busy}>Afvis</Button>
               <Button variant="outline" onClick={reparse} disabled={busy}>Kør parse + match igen</Button>
             </div>
@@ -415,7 +438,49 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
         }}
         onPick={pickCase}
       />
+
+      <ApprovePreviewDialog
+        open={showApprovePreview}
+        detail={detail}
+        requireReviewAck={review}
+        busy={approvePreviewBusy}
+        errorText={approvePreviewError}
+        onClose={() => {
+          if (!approvePreviewBusy) {
+            setShowApprovePreview(false)
+            setApprovePreviewError(null)
+          }
+        }}
+        onConfirm={approveFromPreview}
+        onMatchCase={() => {
+          setShowApprovePreview(false)
+          setCasePickerError(null)
+          setShowCasePicker(true)
+        }}
+      />
     </div>
+  )
+}
+
+function AlertCircleIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="mt-0.5 shrink-0 text-amber-700"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
   )
 }
 
