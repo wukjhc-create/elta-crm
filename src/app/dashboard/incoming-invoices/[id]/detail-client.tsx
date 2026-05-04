@@ -7,9 +7,11 @@ import {
   getIncomingInvoiceDetailAction,
   reparseIncomingInvoiceAction,
   rejectIncomingInvoiceAction,
+  setIncomingInvoiceCaseAction,
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
 import { Button } from '@/components/ui/button'
+import { IncomingInvoiceCasePicker } from './incoming-invoice-case-picker'
 
 const fmtAmount = (n: number | null | undefined, ccy = 'DKK') =>
   n == null
@@ -38,6 +40,10 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
   const [confirmReview, setConfirmReview] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [showReject, setShowReject] = useState(false)
+  const [showCasePicker, setShowCasePicker] = useState(false)
+  const [casePickerError, setCasePickerError] = useState<string | null>(null)
+  const [casePickerBusy, setCasePickerBusy] = useState(false)
+  const [clearingCase, setClearingCase] = useState(false)
 
   const inv = detail.invoice
   const review = inv.requires_manual_review
@@ -77,6 +83,28 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
     const r = await reparseIncomingInvoiceAction(inv.id)
     flash(r.ok, r.message)
     await refresh()
+  })
+
+  const pickCase = async (caseId: string) => {
+    setCasePickerError(null)
+    setCasePickerBusy(true)
+    const r = await setIncomingInvoiceCaseAction(inv.id, caseId)
+    setCasePickerBusy(false)
+    if (!r.ok) {
+      setCasePickerError(r.message)
+      return
+    }
+    setShowCasePicker(false)
+    flash(true, r.message)
+    await refresh()
+  }
+
+  const clearCase = () => startTransition(async () => {
+    setClearingCase(true)
+    const r = await setIncomingInvoiceCaseAction(inv.id, null)
+    setClearingCase(false)
+    flash(r.ok, r.message)
+    if (r.ok) await refresh()
   })
 
   return (
@@ -146,18 +174,51 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
             ) : <span className="text-amber-700">Ikke matchet</span>}
           />
           <Row label="Tilknyttet sag"
-            value={detail.case ? (
-              <Link
-                href={`/dashboard/orders/${detail.case.case_number}`}
-                className="text-emerald-700 hover:underline"
-              >
-                <span className="font-mono text-xs">{detail.case.case_number}</span>
-                <span className="ml-2">{detail.case.project_name || detail.case.title}</span>
-                {detail.case.customer_name && (
-                  <span className="text-gray-500 ml-1">· {detail.case.customer_name}</span>
+            value={
+              <div className="flex items-start justify-between gap-2 w-full">
+                <div className="min-w-0">
+                  {detail.case ? (
+                    <Link
+                      href={`/dashboard/orders/${detail.case.case_number}`}
+                      className="text-emerald-700 hover:underline"
+                    >
+                      <span className="font-mono text-xs">{detail.case.case_number}</span>
+                      <span className="ml-2">{detail.case.project_name || detail.case.title}</span>
+                      {detail.case.customer_name && (
+                        <span className="text-gray-500 ml-1">· {detail.case.customer_name}</span>
+                      )}
+                    </Link>
+                  ) : (
+                    <span className="text-amber-700">Ikke matchet</span>
+                  )}
+                </div>
+                {!terminal && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCasePickerError(null)
+                        setShowCasePicker(true)
+                      }}
+                      disabled={busy || casePickerBusy || clearingCase}
+                      className="text-[11px] px-2 py-0.5 rounded ring-1 ring-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      {detail.case ? 'Skift sag' : 'Match til sag'}
+                    </button>
+                    {detail.case && (
+                      <button
+                        type="button"
+                        onClick={clearCase}
+                        disabled={busy || casePickerBusy || clearingCase}
+                        className="text-[11px] px-2 py-0.5 rounded ring-1 ring-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        {clearingCase ? '…' : 'Fjern'}
+                      </button>
+                    )}
+                  </div>
                 )}
-              </Link>
-            ) : <span className="text-amber-700">Ikke matchet</span>}
+              </div>
+            }
           />
           <Row label="Arbejdsordre"
             value={detail.workOrder ? (
@@ -340,6 +401,20 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
           </div>
         )}
       </Panel>
+
+      <IncomingInvoiceCasePicker
+        open={showCasePicker}
+        currentCaseId={detail.case?.id ?? null}
+        submitting={casePickerBusy}
+        error={casePickerError}
+        onClose={() => {
+          if (!casePickerBusy) {
+            setShowCasePicker(false)
+            setCasePickerError(null)
+          }
+        }}
+        onPick={pickCase}
+      />
     </div>
   )
 }

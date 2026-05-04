@@ -275,6 +275,107 @@ export async function reparseIncomingInvoiceAction(id: string): Promise<ActionOu
   return { ok: r.parsed, message: r.message, data: r as unknown as Record<string, unknown> }
 }
 
+/**
+ * Sprint 5E-1 commit 3 — manual sag-match.
+ *
+ * Lets the operator override the matcher's choice from the detail UI.
+ * Behaviour:
+ *   - caseId set: writes matched_case_id, clears matched_work_order_id
+ *     (we don't know which WO on the new sag is the right one — the
+ *     caller must explicitly link a WO via a future flow).
+ *   - caseId null: clears both matched_case_id and matched_work_order_id.
+ *   - Refuses on terminal status (approved/rejected/posted/cancelled)
+ *     so we never re-match a finalised invoice.
+ *   - Records an audit log entry (action='matched') with previous and
+ *     new values so the trail is preserved.
+ */
+export async function setIncomingInvoiceCaseAction(
+  invoiceId: string,
+  caseId: string | null
+): Promise<ActionOutcome> {
+  const { supabase, userId } = await getAuthenticatedClient()
+
+  // Read current state
+  const { data: cur, error: readErr } = await supabase
+    .from('incoming_invoices')
+    .select('id, status, matched_case_id, matched_work_order_id')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (readErr || !cur) {
+    return { ok: false, message: 'Faktura ikke fundet' }
+  }
+
+  const TERMINAL = ['approved', 'rejected', 'posted', 'cancelled']
+  if (TERMINAL.includes(cur.status as string)) {
+    return {
+      ok: false,
+      message: `Faktura er ${cur.status} — sag-tilknytning kan ikke ændres`,
+    }
+  }
+
+  // Validate target case exists if not clearing
+  let caseLabel: string | null = null
+  if (caseId) {
+    const { data: caseRow, error: caseErr } = await supabase
+      .from('service_cases')
+      .select('id, case_number')
+      .eq('id', caseId)
+      .maybeSingle()
+    if (caseErr || !caseRow) {
+      return { ok: false, message: 'Sag ikke fundet' }
+    }
+    caseLabel = (caseRow.case_number as string) ?? caseRow.id
+  }
+
+  const patch = {
+    matched_case_id: caseId,
+    // Always clear WO when the case changes manually — the matcher's
+    // earlier WO choice may belong to a different sag now.
+    matched_work_order_id: null,
+  }
+
+  const { error: updErr } = await supabase
+    .from('incoming_invoices')
+    .update(patch)
+    .eq('id', invoiceId)
+  if (updErr) {
+    return { ok: false, message: updErr.message }
+  }
+
+  // Audit (best-effort — same shape as the rest of Phase 15)
+  try {
+    await supabase.from('incoming_invoice_audit_log').insert({
+      incoming_invoice_id: invoiceId,
+      action: 'matched',
+      actor_id: userId,
+      previous_value: {
+        matched_case_id: cur.matched_case_id,
+        matched_work_order_id: cur.matched_work_order_id,
+      },
+      new_value: {
+        matched_case_id: caseId,
+        matched_work_order_id: null,
+      },
+      ok: true,
+      message: caseId
+        ? `manual case match → ${caseLabel ?? caseId}`
+        : 'manual case match cleared',
+    })
+  } catch {
+    /* best-effort */
+  }
+
+  revalidatePath('/dashboard/incoming-invoices')
+  revalidatePath(`/dashboard/incoming-invoices/${invoiceId}`)
+
+  return {
+    ok: true,
+    message: caseId
+      ? `Tilknyttet sag ${caseLabel ?? ''}`
+      : 'Sag-tilknytning fjernet',
+  }
+}
+
 export async function getApprovalQueueCountsAction(): Promise<{
   awaiting_approval: number
   needs_review: number
