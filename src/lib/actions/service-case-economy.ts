@@ -71,6 +71,43 @@ export interface ServiceCaseEconomy {
     remaining_to_invoice: number | null
   }
 
+  supplier_invoices: {
+    /** total incoming_invoices linked to this sag (any status) */
+    count: number
+    awaiting_approval_count: number
+    approved_count: number
+    rejected_count: number
+    /** Sum of amount_incl_vat across linked invoices regardless of status. */
+    total_amount_incl_vat: number
+    /**
+     * Sum of incoming_invoice_lines.total_price across linked invoices
+     * for lines that are NOT yet converted (approved + line.converted_at IS NULL).
+     * Indicates work pending. Read-only — does NOT add to totals.cost.
+     */
+    unconverted_amount: number
+    unconverted_line_count: number
+    /** Lines explicitly converted to case_materials. */
+    converted_to_material_count: number
+    /** Lines explicitly converted to case_other_costs. */
+    converted_to_other_count: number
+    /** Lines explicitly skipped during approve. */
+    skipped_count: number
+    /** Approved invoices that still have unconverted lines (operator action needed). */
+    approved_with_unconverted_count: number
+    /** Click-through list for the UI (cap 50). */
+    list: Array<{
+      id: string
+      status: string
+      supplier_name: string | null
+      invoice_number: string | null
+      invoice_date: string | null
+      amount_incl_vat: number | null
+      line_count: number
+      converted_count: number
+      unconverted_count: number
+    }>
+  }
+
   quality_flags: {
     no_labor: boolean
     no_materials: boolean
@@ -81,6 +118,7 @@ export interface ServiceCaseEconomy {
     materials_without_sale: boolean
     low_margin: boolean
     no_contract_sum: boolean
+    unconverted_supplier_invoice_lines: boolean
   }
 }
 
@@ -117,8 +155,15 @@ export async function getServiceCaseEconomy(
     const woIds = (wos ?? []).map((w) => w.id as string)
     const work_order_count = woIds.length
 
-    // 3. Parallel: time_logs (with employees), case_materials, case_other_costs, invoices
-    const [timeLogsRes, materialsRes, otherCostsRes, invoicesRes] = await Promise.all([
+    // 3. Parallel: time_logs, case_materials, case_other_costs,
+    //    outgoing invoices, incoming (supplier) invoices + their lines
+    const [
+      timeLogsRes,
+      materialsRes,
+      otherCostsRes,
+      invoicesRes,
+      supplierInvoicesRes,
+    ] = await Promise.all([
       woIds.length === 0
         ? Promise.resolve({ data: [] as Array<{ hours: number | null; end_time: string | null; cost_amount: number | null; employee: { hourly_rate: number | null } | null }> })
         : supabase
@@ -139,6 +184,22 @@ export async function getServiceCaseEconomy(
             .from('invoices')
             .select('total_amount, amount_paid')
             .in('work_order_id', woIds),
+      supabase
+        .from('incoming_invoices')
+        .select(`
+          id, status, amount_incl_vat, invoice_number, invoice_date,
+          supplier_name_extracted,
+          supplier:suppliers(name),
+          lines:incoming_invoice_lines(
+            total_price,
+            converted_case_material_id,
+            converted_case_other_cost_id,
+            converted_at
+          )
+        `)
+        .eq('matched_case_id', caseId)
+        .order('invoice_date', { ascending: false, nullsFirst: false })
+        .limit(50),
     ])
 
     // ---- Labor rollup ----
@@ -217,6 +278,93 @@ export async function getServiceCaseEconomy(
     }
     const has_invoice_data = invRows.length > 0
 
+    // ---- Supplier invoices rollup (Sprint 5E-4) ----
+    // NOTE: amounts here are READ-ONLY for display. They do NOT add to
+    // totals.cost — that comes from case_materials/case_other_costs only,
+    // which is where converted invoice lines already land. Avoids double
+    // counting.
+    type SupplierInvoiceRow = {
+      id: string
+      status: string
+      amount_incl_vat: number | string | null
+      invoice_number: string | null
+      invoice_date: string | null
+      supplier_name_extracted: string | null
+      supplier: { name: string | null } | { name: string | null }[] | null
+      lines:
+        | Array<{
+            total_price: number | string | null
+            converted_case_material_id: string | null
+            converted_case_other_cost_id: string | null
+            converted_at: string | null
+          }>
+        | null
+    }
+    const sInvRows = (supplierInvoicesRes.data ?? []) as SupplierInvoiceRow[]
+
+    let si_count = 0
+    let si_awaiting = 0
+    let si_approved = 0
+    let si_rejected = 0
+    let si_total_incl_vat = 0
+    let si_unconverted_amount = 0
+    let si_unconverted_lines = 0
+    let si_to_material = 0
+    let si_to_other = 0
+    let si_skipped = 0
+    let si_approved_with_unconverted = 0
+    const si_list: ServiceCaseEconomy['supplier_invoices']['list'] = []
+
+    for (const inv of sInvRows) {
+      si_count += 1
+      if (inv.status === 'awaiting_approval') si_awaiting += 1
+      else if (inv.status === 'approved' || inv.status === 'posted') si_approved += 1
+      else if (inv.status === 'rejected' || inv.status === 'cancelled') si_rejected += 1
+      si_total_incl_vat += Number(inv.amount_incl_vat ?? 0)
+
+      const lines = Array.isArray(inv.lines) ? inv.lines : []
+      let convertedLinesOnInvoice = 0
+      let unconvertedLinesOnInvoice = 0
+      for (const ln of lines) {
+        const isConvertedMat = !!ln.converted_case_material_id
+        const isConvertedOther = !!ln.converted_case_other_cost_id
+        const isExplicitlySkipped = !!ln.converted_at && !isConvertedMat && !isConvertedOther
+        if (isConvertedMat) {
+          si_to_material += 1
+          convertedLinesOnInvoice += 1
+        } else if (isConvertedOther) {
+          si_to_other += 1
+          convertedLinesOnInvoice += 1
+        } else if (isExplicitlySkipped) {
+          si_skipped += 1
+          convertedLinesOnInvoice += 1
+        } else {
+          si_unconverted_lines += 1
+          si_unconverted_amount += Number(ln.total_price ?? 0)
+          unconvertedLinesOnInvoice += 1
+        }
+      }
+      if ((inv.status === 'approved' || inv.status === 'posted') && unconvertedLinesOnInvoice > 0) {
+        si_approved_with_unconverted += 1
+      }
+
+      const supplierObj = Array.isArray(inv.supplier) ? inv.supplier[0] : inv.supplier
+      const supplierName = supplierObj?.name ?? inv.supplier_name_extracted ?? null
+
+      si_list.push({
+        id: inv.id,
+        status: inv.status,
+        supplier_name: supplierName,
+        invoice_number: inv.invoice_number,
+        invoice_date: inv.invoice_date,
+        amount_incl_vat:
+          inv.amount_incl_vat == null ? null : Number(inv.amount_incl_vat),
+        line_count: lines.length,
+        converted_count: convertedLinesOnInvoice,
+        unconverted_count: unconvertedLinesOnInvoice,
+      })
+    }
+
     // ---- Totals ----
     const total_cost = total_labor_cost + mat_cost + oth_cost
     const total_sale = total_labor_sale + mat_sale + oth_sale
@@ -244,6 +392,7 @@ export async function getServiceCaseEconomy(
       materials_without_sale: mat_without_sale > 0,
       low_margin: total_sale > 0 && margin_pct < 10,
       no_contract_sum: sag.contract_sum == null && sag.revised_sum == null,
+      unconverted_supplier_invoice_lines: si_approved_with_unconverted > 0,
     }
 
     const result: ServiceCaseEconomy = {
@@ -289,6 +438,20 @@ export async function getServiceCaseEconomy(
         invoiced_total: r2(invoiced_total),
         invoiced_paid: r2(invoiced_paid),
         remaining_to_invoice,
+      },
+      supplier_invoices: {
+        count: si_count,
+        awaiting_approval_count: si_awaiting,
+        approved_count: si_approved,
+        rejected_count: si_rejected,
+        total_amount_incl_vat: r2(si_total_incl_vat),
+        unconverted_amount: r2(si_unconverted_amount),
+        unconverted_line_count: si_unconverted_lines,
+        converted_to_material_count: si_to_material,
+        converted_to_other_count: si_to_other,
+        skipped_count: si_skipped,
+        approved_with_unconverted_count: si_approved_with_unconverted,
+        list: si_list,
       },
       quality_flags: flags,
     }

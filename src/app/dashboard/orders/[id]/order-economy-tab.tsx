@@ -19,9 +19,11 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import {
   TrendingUp, TrendingDown, AlertTriangle, Loader2, FileWarning,
   Clock, Package, Receipt, ArrowRight, Info, Banknote, FileText,
+  FileInput, ExternalLink,
 } from 'lucide-react'
 import {
   getServiceCaseEconomy,
@@ -316,6 +318,9 @@ export function OrderEconomyTab({
         />
       </div>
 
+      {/* Supplier invoices (Sprint 5E-4) */}
+      <SupplierInvoicesPanel data={data} />
+
       {/* Invoicing */}
       <div className="rounded-lg ring-1 ring-gray-200 bg-white p-4">
         <div className="flex items-center justify-between mb-2">
@@ -360,6 +365,182 @@ export function OrderEconomyTab({
 
       {/* Quality flags */}
       <QualityFlagsPanel data={data} onSwitchTab={onSwitchTab} />
+    </div>
+  )
+}
+
+// =====================================================
+// Supplier invoices section (Sprint 5E-4)
+// =====================================================
+
+const SI_STATUS_LABEL: Record<string, string> = {
+  received: 'Modtaget',
+  awaiting_approval: 'Afventer godkendelse',
+  approved: 'Godkendt',
+  rejected: 'Afvist',
+  posted: 'Bogført',
+  cancelled: 'Annulleret',
+}
+
+const SI_STATUS_COLOR: Record<string, string> = {
+  received: 'bg-gray-100 text-gray-700',
+  awaiting_approval: 'bg-yellow-100 text-yellow-800',
+  approved: 'bg-emerald-100 text-emerald-800',
+  rejected: 'bg-red-100 text-red-700',
+  posted: 'bg-blue-100 text-blue-800',
+  cancelled: 'bg-gray-100 text-gray-600',
+}
+
+function fmtSiDate(s: string | null | undefined): string {
+  if (!s) return '—'
+  return new Intl.DateTimeFormat('da-DK', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(s + 'T12:00:00'))
+}
+
+function SupplierInvoicesPanel({ data }: { data: ServiceCaseEconomy }) {
+  const si = data.supplier_invoices
+
+  return (
+    <div className="rounded-lg ring-1 ring-gray-200 bg-white p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+          <FileInput className="w-4 h-4 text-gray-500" />
+          Leverandørfakturaer
+          {si.count > 0 && (
+            <span className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">
+              {si.count}
+            </span>
+          )}
+        </h3>
+        <Link
+          href="/dashboard/incoming-invoices"
+          className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-0.5"
+        >
+          Åbn liste
+          <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {si.count === 0 ? (
+        <p className="text-xs text-gray-500">
+          Ingen leverandørfakturaer koblet til sagen endnu. Når en leverandørfaktura
+          matches til denne sag (via fakturanr eller adresse) vises den her.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {/* Status counts */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <Mini label="Afventer" value={si.awaiting_approval_count.toString()} />
+            <Mini label="Godkendt" value={si.approved_count.toString()} />
+            <Mini label="Afvist" value={si.rejected_count.toString()} />
+            <Mini label="Total beløb" value={fmtKr(si.total_amount_incl_vat)} hint="incl. moms" />
+          </div>
+
+          {/* Conversion summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <Mini
+              label="Konverteret → Materiale"
+              value={si.converted_to_material_count.toString()}
+            />
+            <Mini
+              label="Konverteret → Øvrige"
+              value={si.converted_to_other_count.toString()}
+            />
+            <Mini label="Sprunget over" value={si.skipped_count.toString()} />
+            <Mini
+              label="Ukonverteret"
+              value={si.unconverted_line_count.toString()}
+              hint={
+                si.unconverted_amount > 0
+                  ? `${fmtKr(si.unconverted_amount)} ufordelt`
+                  : undefined
+              }
+            />
+          </div>
+
+          {/* Warning if approved invoices have unconverted lines */}
+          {si.approved_with_unconverted_count > 0 && (
+            <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                <strong>{si.approved_with_unconverted_count}</strong> godkendt
+                {si.approved_with_unconverted_count === 1 ? ' faktura' : 'e fakturaer'} har
+                ukonverterede linjer. Åbn fakturaen og kør forhåndsvis-godkendelsen igen for
+                at konvertere de manglende linjer til materialer / øvrige omkostninger.
+              </span>
+            </div>
+          )}
+
+          {/* Note: do NOT add to totals.cost — read-only afstemning */}
+          <p className="text-[11px] text-gray-500">
+            Beløbene her er <strong>kontrol/afstemning</strong>. Sagens samlede kost
+            kommer fra timer + materialer + øvrige omkostninger. Konverterede linjer
+            tæller med via dér — de tælles ikke dobbelt.
+          </p>
+
+          {/* List */}
+          <div className="rounded ring-1 ring-gray-200 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-left text-gray-600">
+                <tr>
+                  <th className="px-2 py-1.5">Dato</th>
+                  <th className="px-2 py-1.5">Leverandør</th>
+                  <th className="px-2 py-1.5">Fakturanr</th>
+                  <th className="px-2 py-1.5">Status</th>
+                  <th className="px-2 py-1.5 text-right">Beløb</th>
+                  <th className="px-2 py-1.5 text-right">Linjer</th>
+                  <th className="px-2 py-1.5 w-8" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {si.list.map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50/60">
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      {fmtSiDate(row.invoice_date)}
+                    </td>
+                    <td className="px-2 py-1.5">{row.supplier_name ?? '—'}</td>
+                    <td className="px-2 py-1.5 font-mono">
+                      {row.invoice_number ?? '—'}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <span
+                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                          SI_STATUS_COLOR[row.status] ?? 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {SI_STATUS_LABEL[row.status] ?? row.status}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      {row.amount_incl_vat == null ? '—' : fmtKr(row.amount_incl_vat)}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      {row.converted_count}/{row.line_count}
+                      {row.unconverted_count > 0 && (
+                        <span className="ml-1 text-[10px] text-amber-700">
+                          ({row.unconverted_count}!)
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Link
+                        href={`/dashboard/incoming-invoices/${row.id}`}
+                        className="inline-flex items-center text-emerald-700 hover:text-emerald-900"
+                        aria-label="Åbn faktura"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -575,6 +756,13 @@ function QualityFlagsPanel({
       severity: 'warning',
       label: 'Lav DB',
       detail: `Dækningsgrad er ${fmtPct(data.totals.margin_percentage)} — under tærsklen på 10 %.`,
+    })
+  }
+  if (data.quality_flags.unconverted_supplier_invoice_lines) {
+    items.push({
+      severity: 'warning',
+      label: 'Ukonverterede leverandørfaktura-linjer',
+      detail: `${data.supplier_invoices.approved_with_unconverted_count} godkendt(e) faktura(er) har ${data.supplier_invoices.unconverted_line_count} linje(r) der hverken er konverteret til materialer eller øvrige omkostninger. Åbn fakturaen og forhåndsvis godkendelsen igen.`,
     })
   }
   if (data.quality_flags.no_labor && data.quality_flags.no_materials && data.quality_flags.no_other_costs) {
