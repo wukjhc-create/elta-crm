@@ -16,6 +16,11 @@ import {
   parseAndMatch,
   rejectInvoice,
 } from '@/lib/services/incoming-invoices'
+import {
+  convertAndApproveInvoice,
+  type LinePlanInput,
+  type ConvertAndApproveResult,
+} from '@/lib/services/incoming-invoice-conversion'
 import type {
   IncomingInvoiceLineRow,
   IncomingInvoiceRow,
@@ -266,6 +271,41 @@ export async function rejectIncomingInvoiceAction(
   revalidatePath('/dashboard/incoming-invoices')
   revalidatePath(`/dashboard/incoming-invoices/${id}`)
   return r
+}
+
+/**
+ * Sprint 5E-3 — converts faktura-linjer to case_materials/case_other_costs
+ * and flips status to 'approved' atomically (per-line, not transaction).
+ * Honours the manual-review gate same as approveIncomingInvoiceAction.
+ *
+ * Pure server action. Schedules revalidatePath for both list, detail
+ * and the linked sag's order page so all three reflect the change.
+ */
+export async function approveIncomingInvoiceWithConversionAction(
+  invoiceId: string,
+  plan: LinePlanInput[],
+  acknowledgeReview?: boolean
+): Promise<ConvertAndApproveResult> {
+  const { userId, supabase } = await getAuthenticatedClient()
+  const result = await convertAndApproveInvoice(invoiceId, userId, plan, {
+    acknowledgeReview: acknowledgeReview === true,
+  })
+
+  revalidatePath('/dashboard/incoming-invoices')
+  revalidatePath(`/dashboard/incoming-invoices/${invoiceId}`)
+  if (result.caseId) {
+    // Resolve case_number for the canonical orders detail path.
+    const { data: caseRow } = await supabase
+      .from('service_cases')
+      .select('id, case_number')
+      .eq('id', result.caseId)
+      .maybeSingle()
+    if (caseRow?.case_number) {
+      revalidatePath(`/dashboard/orders/${caseRow.case_number}`)
+    }
+    revalidatePath(`/dashboard/orders/${result.caseId}`)
+  }
+  return result
 }
 
 export async function reparseIncomingInvoiceAction(id: string): Promise<ActionOutcome> {
