@@ -16,7 +16,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, createContext, useContext } from 'react'
 import { ChevronLeft, ChevronRight, CalendarCheck, Briefcase, AlertCircle, Plus } from 'lucide-react'
 import {
   EMPLOYEE_ROLE_OPTIONS,
@@ -25,6 +25,10 @@ import {
 import type { WorkOrderForCalendar } from '@/lib/actions/work-orders'
 import type { WorkOrderStatus } from '@/types/workforce.types'
 import { PlanWorkOrderDialog } from './plan-work-order-dialog'
+import { EditWorkOrderDialog } from './edit-work-order-dialog'
+
+// Local context: chip click handler shared across all rows
+const ChipClickContext = createContext<(wo: WorkOrderForCalendar) => void>(() => {})
 
 type CalendarView = 'day' | 'week' | 'month'
 
@@ -99,6 +103,7 @@ export function CalendarWorkforceClient({
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
   const [planDialogOpen, setPlanDialogOpen] = useState(false)
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrderForCalendar | null>(null)
 
   const updateParam = (changes: Record<string, string | null | undefined>) => {
     const params = new URLSearchParams(Array.from(searchParams.entries()))
@@ -176,6 +181,7 @@ export function CalendarWorkforceClient({
   }, [view, rangeStart, anchorDate])
 
   return (
+    <ChipClickContext.Provider value={(wo) => setSelectedWorkOrder(wo)}>
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -353,7 +359,16 @@ export function CalendarWorkforceClient({
           hasUnassigned={hasUnassigned}
         />
       )}
+
+      {/* Edit / quick-actions dialog */}
+      <EditWorkOrderDialog
+        open={selectedWorkOrder !== null}
+        onClose={() => setSelectedWorkOrder(null)}
+        workOrder={selectedWorkOrder}
+        employees={employees}
+      />
     </div>
+    </ChipClickContext.Provider>
   )
 }
 
@@ -622,12 +637,7 @@ function WorkOrderChip({
   wo: WorkOrderForCalendar
   compact?: boolean
 }) {
-  const target = wo.case?.case_number
-    ? `/dashboard/orders/${wo.case.case_number}`
-    : wo.case?.id
-    ? `/dashboard/orders/${wo.case.id}`
-    : null
-
+  const onChipClick = useContext(ChipClickContext)
   const status = wo.status as WorkOrderStatus
   const colorClass = STATUS_COLORS[status]
 
@@ -639,8 +649,15 @@ function WorkOrderChip({
   const customerLabel = wo.case?.customer_name ?? null
   const caseNumber = wo.case?.case_number ?? null
 
-  const body = (
-    <>
+  return (
+    <button
+      type="button"
+      onClick={() => onChipClick(wo)}
+      title={`Åbn arbejdsordre${caseNumber ? ` (${caseNumber})` : ''}`}
+      className={`block text-left px-2 py-1.5 rounded ring-1 ${colorClass} ${
+        compact ? 'text-[11px]' : 'text-xs'
+      } w-full max-w-[260px] hover:ring-2 hover:ring-offset-1 cursor-pointer`}
+    >
       <div className="flex items-center gap-1 min-w-0">
         <Briefcase className="w-3 h-3 shrink-0" />
         <span className="font-medium truncate">{wo.title}</span>
@@ -659,19 +676,6 @@ function WorkOrderChip({
           {STATUS_LABELS[status]}
         </span>
       </div>
-    </>
+    </button>
   )
-
-  const classes = `block px-2 py-1.5 rounded ring-1 ${colorClass} ${
-    compact ? 'text-[11px]' : 'text-xs'
-  } w-full max-w-[260px] ${target ? 'hover:ring-2 hover:ring-offset-1 cursor-pointer' : ''}`
-
-  if (target) {
-    return (
-      <Link href={target} className={classes} title={`${wo.title} → ${caseNumber ?? ''}`}>
-        {body}
-      </Link>
-    )
-  }
-  return <div className={classes}>{body}</div>
 }
