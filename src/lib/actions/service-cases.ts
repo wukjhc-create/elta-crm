@@ -833,6 +833,55 @@ export async function getProfilesForOrderSelect(): Promise<
   }
 }
 
+/**
+ * Lightweight picker for "Planlæg opgave" dialog in /dashboard/calendar.
+ * Returns only OPEN service_cases (new, in_progress, pending) — closed
+ * and converted are filtered out. Capped at 200, ordered by case_number desc.
+ *
+ * No FK joins beyond customer name to keep the payload small.
+ */
+export async function listOpenServiceCasesForPicker(): Promise<
+  ActionResult<
+    {
+      id: string
+      case_number: string
+      title: string
+      status: ServiceCaseStatus
+      customer_name: string | null
+    }[]
+  >
+> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+    const { data, error } = await supabase
+      .from('service_cases')
+      .select(`
+        id, case_number, title, status,
+        customer:customers!left(company_name)
+      `)
+      .in('status', ['new', 'in_progress', 'pending'])
+      .order('case_number', { ascending: false })
+      .limit(200)
+
+    if (error) {
+      logger.error('listOpenServiceCasesForPicker failed', { error })
+      return { success: false, error: 'Kunne ikke hente sager' }
+    }
+
+    const rows = (data || []).map((c: any) => ({
+      id: c.id as string,
+      case_number: (c.case_number as string) ?? c.id,
+      title: (c.title as string) ?? '',
+      status: c.status as ServiceCaseStatus,
+      customer_name: (c.customer?.company_name as string | null) ?? null,
+    }))
+
+    return { success: true, data: rows }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
 export async function getEmployeesForOrderSelect(): Promise<
   ActionResult<{ id: string; name: string }[]>
 > {
