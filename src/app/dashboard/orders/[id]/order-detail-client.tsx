@@ -15,6 +15,7 @@ import { OrderActivityTab } from './order-activity-tab'
 import { OrderPlanningTab } from './order-planning-tab'
 import { OrderMaterialsTab } from './order-materials-tab'
 import { OrderOtherCostsTab } from './order-other-costs-tab'
+import { OrderEconomyTab } from './order-economy-tab'
 import { InlineStatusChanger } from './inline-status-changer'
 
 const TABS = [
@@ -22,7 +23,7 @@ const TABS = [
   { id: 'planlaegning', label: 'Planlægning / Timer', ready: true },
   { id: 'materialer',   label: 'Materialer',         ready: true },
   { id: 'oevrige',      label: 'Øvrige omkostninger', ready: true },
-  { id: 'oekonomi',     label: 'Økonomi',            ready: false },
+  { id: 'oekonomi',     label: 'Økonomi',            ready: true },
   { id: 'aktivitet',    label: 'Aktivitet',          ready: true },
   { id: 'dokumentation',label: 'Dokumentation',      ready: false },
   { id: 'fakturakladde',label: 'Fakturakladde',      ready: false },
@@ -193,12 +194,19 @@ export function OrderDetailClient({
           )}
           {active === 'materialer' && <OrderMaterialsTab caseId={sag.id} />}
           {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} />}
+          {active === 'oekonomi' && (
+            <OrderEconomyTab
+              caseId={sag.id}
+              onSwitchTab={(t) => setActive(t)}
+            />
+          )}
           {active === 'handlinger' && <OrderActionsTab sag={sag} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
           {active !== 'overblik' &&
             active !== 'planlaegning' &&
             active !== 'materialer' &&
             active !== 'oevrige' &&
+            active !== 'oekonomi' &&
             active !== 'handlinger' &&
             active !== 'aktivitet' && (
               <Placeholder
