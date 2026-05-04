@@ -114,6 +114,21 @@ const navSections: NavSection[] = [
         ),
       },
       {
+        name: 'Leverandørfaktura',
+        href: '/dashboard/incoming-invoices',
+        permission: 'economy.view',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 14l6-6M9 8h.01M15 14h.01M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
+            />
+          </svg>
+        ),
+      },
+      {
         name: 'Service',
         href: '/dashboard/service-cases',
         permission: 'service.view',
