@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import {
   approveIncomingInvoiceAction,
+  approveIncomingInvoiceWithConversionAction,
   getIncomingInvoiceDetailAction,
   reparseIncomingInvoiceAction,
   rejectIncomingInvoiceAction,
@@ -74,18 +75,30 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
   })
 
   /**
-   * Sprint 5E-2: approve must always go through the preview dialog.
-   * Sprint 5E-3 will hand `plan` to the server so it can convert
-   * lines into case_materials / case_other_costs. For now we just
-   * call the existing action — `plan` is ignored on the server.
+   * Sprint 5E-3: approve through the preview dialog now actually
+   * converts each marked line into case_materials/case_other_costs
+   * before flipping status. If any conversion fails, the invoice
+   * stays awaiting_approval and the operator sees per-line errors.
    */
-  const approveFromPreview = async (_plan: LinePlan[]) => {
+  const approveFromPreview = async (plan: LinePlan[]) => {
     setApprovePreviewError(null)
     setApprovePreviewBusy(true)
-    const r = await approveIncomingInvoiceAction(inv.id, review)
+    const r = await approveIncomingInvoiceWithConversionAction(
+      inv.id,
+      plan.map((p) => ({
+        lineId: p.lineId,
+        disposition: p.disposition,
+        category: p.category,
+      })),
+      review
+    )
     setApprovePreviewBusy(false)
     if (!r.ok) {
-      setApprovePreviewError(r.message)
+      const failed = r.perLine.filter((l) => !l.ok)
+      const detail = failed.length > 0
+        ? ` (${failed.length} fejl: ${failed.slice(0, 2).map((l) => l.message ?? '').filter(Boolean).join('; ')}${failed.length > 2 ? '…' : ''})`
+        : ''
+      setApprovePreviewError(`${r.message}${detail}`)
       return
     }
     setShowApprovePreview(false)
@@ -314,19 +327,45 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
                   <th className="px-2 py-1">Enhed</th>
                   <th className="px-2 py-1 text-right">Stk-pris</th>
                   <th className="px-2 py-1 text-right">Total</th>
+                  <th className="px-2 py-1">Konvertering</th>
                 </tr>
               </thead>
               <tbody>
-                {detail.lines.map((l) => (
-                  <tr key={l.id} className="border-t">
-                    <td className="px-2 py-1">{l.line_number}</td>
-                    <td className="px-2 py-1">{l.description ?? '—'}</td>
-                    <td className="px-2 py-1 text-right">{l.quantity ?? '—'}</td>
-                    <td className="px-2 py-1">{l.unit ?? '—'}</td>
-                    <td className="px-2 py-1 text-right">{fmtAmount(l.unit_price, inv.currency)}</td>
-                    <td className="px-2 py-1 text-right font-medium">{fmtAmount(l.total_price, inv.currency)}</td>
-                  </tr>
-                ))}
+                {detail.lines.map((l) => {
+                  const convertedAs = l.converted_case_material_id
+                    ? 'material'
+                    : l.converted_case_other_cost_id
+                    ? 'other_cost'
+                    : null
+                  const skippedExplicit = l.converted_at && !convertedAs
+                  return (
+                    <tr key={l.id} className={`border-t ${l.converted_at ? 'bg-gray-50' : ''}`}>
+                      <td className="px-2 py-1">{l.line_number}</td>
+                      <td className="px-2 py-1">{l.description ?? '—'}</td>
+                      <td className="px-2 py-1 text-right">{l.quantity ?? '—'}</td>
+                      <td className="px-2 py-1">{l.unit ?? '—'}</td>
+                      <td className="px-2 py-1 text-right">{fmtAmount(l.unit_price, inv.currency)}</td>
+                      <td className="px-2 py-1 text-right font-medium">{fmtAmount(l.total_price, inv.currency)}</td>
+                      <td className="px-2 py-1">
+                        {convertedAs === 'material' ? (
+                          <span className="text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
+                            Materiale
+                          </span>
+                        ) : convertedAs === 'other_cost' ? (
+                          <span className="text-[10px] uppercase tracking-wide bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
+                            Øvrig
+                          </span>
+                        ) : skippedExplicit ? (
+                          <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                            Sprunget over
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

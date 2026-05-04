@@ -91,12 +91,20 @@ export function ApprovePreviewDialog({
   const [plan, setPlan] = useState<LinePlan[]>([])
   const [reviewAck, setReviewAck] = useState(false)
 
-  // Initial suggestion built whenever the dialog opens
+  // Initial suggestion built whenever the dialog opens. Already-converted
+  // lines (Sprint 5E-3) lock to 'skip' so we never re-convert.
   useEffect(() => {
     if (!open) return
     setReviewAck(false)
     setPlan(
       lines.map((l) => {
+        if (l.converted_at) {
+          return {
+            lineId: l.id,
+            disposition: 'skip' as LineDisposition,
+            category: 'andet',
+          }
+        }
         const s = suggestLine(l)
         return {
           lineId: l.id,
@@ -271,14 +279,31 @@ export function ApprovePreviewDialog({
                       const row = plan.find((p) => p.lineId === l.id)
                       const disposition = row?.disposition ?? 'skip'
                       const category = row?.category ?? 'andet'
+                      const alreadyConverted = !!l.converted_at
+                      const convertedAs = l.converted_case_material_id
+                        ? 'material'
+                        : l.converted_case_other_cost_id
+                        ? 'other_cost'
+                        : null
                       return (
-                        <tr key={l.id} className="align-top">
+                        <tr key={l.id} className={`align-top ${alreadyConverted ? 'bg-gray-50' : ''}`}>
                           <td className="px-2 py-1.5 text-gray-500">{l.line_number}</td>
                           <td className="px-2 py-1.5">
-                            <div className="text-gray-900">{l.description ?? '—'}</div>
-                            {l.supplier_product_id && (
+                            <div className={alreadyConverted ? 'text-gray-500 line-through' : 'text-gray-900'}>
+                              {l.description ?? '—'}
+                            </div>
+                            {l.supplier_product_id && !alreadyConverted && (
                               <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
                                 Matched produkt
+                              </span>
+                            )}
+                            {alreadyConverted && (
+                              <span className="inline-block mt-0.5 text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                                {convertedAs === 'material'
+                                  ? 'Allerede konverteret · Materiale'
+                                  : convertedAs === 'other_cost'
+                                  ? 'Allerede konverteret · Øvrig'
+                                  : 'Allerede behandlet · Sprunget over'}
                               </span>
                             )}
                           </td>
@@ -297,14 +322,16 @@ export function ApprovePreviewDialog({
                                   disposition: e.target.value as LineDisposition,
                                 })
                               }
-                              disabled={busy}
+                              disabled={busy || alreadyConverted}
                               className={`w-full border rounded px-1.5 py-1 text-xs bg-white ${
-                                disposition === 'material'
+                                alreadyConverted
+                                  ? 'text-gray-400'
+                                  : disposition === 'material'
                                   ? 'ring-1 ring-blue-200'
                                   : disposition === 'other_cost'
                                   ? 'ring-1 ring-purple-200'
                                   : 'text-gray-500'
-                              }`}
+                              } disabled:opacity-60`}
                             >
                               <option value="material">Materiale</option>
                               <option value="other_cost">Øvrig omkostning</option>
@@ -312,7 +339,7 @@ export function ApprovePreviewDialog({
                             </select>
                           </td>
                           <td className="px-2 py-1.5">
-                            {disposition === 'other_cost' ? (
+                            {disposition === 'other_cost' && !alreadyConverted ? (
                               <select
                                 value={category}
                                 onChange={(e) =>

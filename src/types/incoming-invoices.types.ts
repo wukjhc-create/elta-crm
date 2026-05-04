@@ -66,6 +66,11 @@ export interface IncomingInvoiceLineRow {
   supplier_product_id: string | null
   raw_line: string | null
   created_at: string
+  // Sprint 5E-3 (mig 00103) — conversion provenance
+  converted_case_material_id?: string | null
+  converted_case_other_cost_id?: string | null
+  converted_at?: string | null
+  converted_by?: string | null
 }
 
 export interface ParsedInvoiceFields {
