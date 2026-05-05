@@ -16,6 +16,7 @@ import {
   deleteInvoiceDraft,
   markInvoicePaid as markInvoicePaidService,
   markInvoiceSent as markInvoiceSentService,
+  sendInvoiceEmail as sendInvoiceEmailService,
 } from '@/lib/services/invoices'
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
@@ -395,6 +396,30 @@ export async function markInvoicePaidAction(
   revalidatePath('/dashboard/invoices')
   revalidatePath(`/dashboard/invoices/${invoiceId}`)
   return { ok: true, message: 'Markeret som betalt' }
+}
+
+export async function sendInvoiceEmailAction(
+  invoiceId: string
+): Promise<InvoiceActionOutcome> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  await getAuthenticatedClient()
+  const r = await sendInvoiceEmailService(invoiceId)
+  revalidatePath('/dashboard/invoices')
+  revalidatePath(`/dashboard/invoices/${invoiceId}`)
+  if (r.status === 'sent') {
+    return { ok: true, message: `Faktura sendt til ${r.recipient}` }
+  }
+  if (r.status === 'already_sent') {
+    return { ok: false, message: `Allerede sendt — ${r.reason ?? 'status er ikke draft'}` }
+  }
+  if (r.status === 'skipped') {
+    return { ok: false, message: `Sprunget over — ${r.reason ?? 'kunne ikke sende'}` }
+  }
+  return { ok: false, message: `Mail-send fejlede: ${r.error ?? 'ukendt fejl'}` }
 }
 
 export async function deleteInvoiceDraftAction(

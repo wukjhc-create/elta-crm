@@ -667,11 +667,40 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     bankAccount: process.env.INVOICE_BANK_ACCOUNT || null,
   } as const
 
+  // Sprint 6C — render the invoice PDF and attach it. Best-effort:
+  // if the render fails we still send the HTML mail (operatør skal
+  // helst ikke blokeres af en PDF-fejl). The customer can always pull
+  // the latest PDF from /api/invoices/[id]/pdf if it's missing.
+  let pdfAttachment: { filename: string; content: Buffer; contentType: string } | null = null
+  try {
+    const payload = await getInvoicePdfPayload(invoiceId)
+    const { getCompanySettings } = await import('@/lib/actions/settings')
+    const companyResult = await getCompanySettings()
+    if (payload && companyResult.success && companyResult.data) {
+      const { renderToBuffer } = await import('@react-pdf/renderer')
+      const { InvoicePdfDocument } = await import('@/lib/pdf/invoice-pdf-template')
+      const buffer = await renderToBuffer(
+        InvoicePdfDocument({ payload, companySettings: companyResult.data }) as Parameters<typeof renderToBuffer>[0]
+      )
+      pdfAttachment = {
+        filename: `${invoice.invoice_number}.pdf`,
+        content: buffer,
+        contentType: 'application/pdf',
+      }
+    }
+  } catch (err) {
+    logger.warn('sendInvoiceEmail: PDF render failed — sending without attachment', {
+      entityId: invoiceId,
+      error: err instanceof Error ? err : new Error(String(err)),
+    })
+  }
+
   const result = await sendEmailViaGraph({
     to: recipient,
     subject: buildInvoiceEmailSubject(params),
     html: buildInvoiceEmailHtml(params),
     fromMailbox: INVOICE_FROM_MAILBOX,
+    attachments: pdfAttachment ? [pdfAttachment] : undefined,
   })
 
   if (!result.success) {
