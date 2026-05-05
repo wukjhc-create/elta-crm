@@ -1,12 +1,25 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import {
+  createTestIncomingInvoiceAction,
   listIncomingInvoicesAction,
   type IncomingInvoiceListItem,
 } from '@/lib/actions/incoming-invoices'
 import { Button } from '@/components/ui/button'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+
+const TEST_INVOICE_PREFIX = 'TEST-'
+const TEST_SUPPLIER_NAME = 'TEST Leverandør ApS'
+
+function isTestRow(r: IncomingInvoiceListItem): boolean {
+  return (
+    (r.invoice_number ?? '').startsWith(TEST_INVOICE_PREFIX) ||
+    r.supplier_name === TEST_SUPPLIER_NAME
+  )
+}
 
 type FilterKey = 'needs_review' | 'awaiting_approval' | 'approved' | 'rejected' | 'posted' | 'all'
 
@@ -44,10 +57,32 @@ export function IncomingInvoicesListClient({
   initialRows: IncomingInvoiceListItem[]
   initialCounts: CountMap
 }) {
+  const router = useRouter()
+  const { role } = useUserRole()
+  const isAdmin = role === 'admin'
+
   const [rows, setRows] = useState<IncomingInvoiceListItem[]>(initialRows)
   const [filter, setFilter] = useState<FilterKey>('needs_review')
   const [busy, startTransition] = useTransition()
   const [counts] = useState<CountMap>(initialCounts)
+  const [seedBusy, setSeedBusy] = useState(false)
+  const [seedMsg, setSeedMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const createTestInvoice = async () => {
+    setSeedBusy(true)
+    setSeedMsg(null)
+    const r = await createTestIncomingInvoiceAction()
+    setSeedBusy(false)
+    setSeedMsg({ ok: r.ok, text: r.message })
+    if (r.ok && r.data && typeof r.data.invoiceId === 'string') {
+      router.push(`/dashboard/incoming-invoices/${r.data.invoiceId}`)
+    } else {
+      // Refresh the current view in case it just appeared at top
+      const next = await listIncomingInvoicesAction({ status: filter })
+      setRows(next)
+      setTimeout(() => setSeedMsg(null), 6000)
+    }
+  }
 
   useEffect(() => {
     startTransition(async () => {
@@ -58,12 +93,38 @@ export function IncomingInvoicesListClient({
 
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Indgående fakturaer</h1>
-        <p className="text-xs text-gray-500">
-          Godkend leverandørfakturaer · auto-pushed til e-conomic ved godkendelse.
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold">Indgående fakturaer</h1>
+          <p className="text-xs text-gray-500">
+            Godkend leverandørfakturaer · auto-pushed til e-conomic ved godkendelse.
+          </p>
+        </div>
+        {isAdmin && (
+          <Button
+            type="button"
+            onClick={createTestInvoice}
+            disabled={seedBusy}
+            variant="outline"
+            size="sm"
+            className="border-amber-300 text-amber-900 hover:bg-amber-50"
+          >
+            {seedBusy ? 'Opretter…' : '+ Opret test-leverandørfaktura'}
+          </Button>
+        )}
       </div>
+
+      {seedMsg && (
+        <div
+          className={`text-sm rounded px-3 py-2 ring-1 ${
+            seedMsg.ok
+              ? 'bg-emerald-50 text-emerald-900 ring-emerald-200'
+              : 'bg-red-50 text-red-900 ring-red-200'
+          }`}
+        >
+          {seedMsg.text}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => {
@@ -110,12 +171,21 @@ export function IncomingInvoicesListClient({
             {!busy && rows.length === 0 && (
               <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400 text-xs">Ingen fakturaer i denne kategori.</td></tr>
             )}
-            {!busy && rows.map((r) => (
-              <tr key={r.id} className="border-t hover:bg-gray-50">
+            {!busy && rows.map((r) => {
+              const isTest = isTestRow(r)
+              return (
+              <tr key={r.id} className={`border-t hover:bg-gray-50 ${isTest ? 'bg-amber-50/40' : ''}`}>
                 <td className="px-3 py-2">
-                  <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline">
-                    {r.supplier_name || '—'}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline">
+                      {r.supplier_name || '—'}
+                    </Link>
+                    {isTest && (
+                      <span className="inline-block text-[10px] uppercase tracking-wide bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                        TEST
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">{r.invoice_number ?? '—'}</td>
                 <td className="px-3 py-2 text-right font-medium">{fmtAmount(r.amount_incl_vat, r.currency)}</td>
@@ -132,7 +202,8 @@ export function IncomingInvoicesListClient({
                   </Link>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

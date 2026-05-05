@@ -2,15 +2,21 @@
 
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   approveIncomingInvoiceAction,
   approveIncomingInvoiceWithConversionAction,
+  deleteTestIncomingInvoiceAction,
   getIncomingInvoiceDetailAction,
   reparseIncomingInvoiceAction,
   rejectIncomingInvoiceAction,
   setIncomingInvoiceCaseAction,
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+
+const TEST_INVOICE_PREFIX = 'TEST-'
+const TEST_SUPPLIER_NAME = 'TEST Leverandør ApS'
 import { Button } from '@/components/ui/button'
 import { IncomingInvoiceCasePicker } from './incoming-invoice-case-picker'
 import { ApprovePreviewDialog, type LinePlan } from './approve-preview-dialog'
@@ -36,6 +42,9 @@ const SIGNAL_LABEL: Record<string, string> = {
 type Msg = { ok: boolean; text: string } | null
 
 export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvoiceDetail }) {
+  const router = useRouter()
+  const { role } = useUserRole()
+  const isAdmin = role === 'admin'
   const [detail, setDetail] = useState<IncomingInvoiceDetail>(initial)
   const [busy, startTransition] = useTransition()
   const [msg, setMsg] = useState<Msg>(null)
@@ -52,6 +61,9 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
 
   const inv = detail.invoice
   const review = inv.requires_manual_review
+  const isTestInvoice =
+    (inv.invoice_number ?? '').startsWith(TEST_INVOICE_PREFIX) ||
+    inv.supplier_name_extracted === TEST_SUPPLIER_NAME
   const terminal = inv.status === 'approved' || inv.status === 'rejected' || inv.status === 'posted' || inv.status === 'cancelled'
   const breakdown = (inv as unknown as { match_breakdown?: Record<string, unknown> }).match_breakdown ?? null
 
@@ -144,13 +156,35 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
     if (r.ok) await refresh()
   })
 
+  const [deletingTest, setDeletingTest] = useState(false)
+  const deleteTestInvoice = () => startTransition(async () => {
+    if (!isTestInvoice) return
+    if (!window.confirm(
+      `Slet test-faktura "${inv.invoice_number ?? inv.id.slice(0, 8)}"?\n\n` +
+      `Eventuelle case_materials / case_other_costs der blev oprettet ved konvertering ` +
+      `bliver også fjernet. Reelle fakturaer er beskyttet og kan ikke slettes ad denne vej.`
+    )) return
+    setDeletingTest(true)
+    const r = await deleteTestIncomingInvoiceAction(inv.id)
+    setDeletingTest(false)
+    flash(r.ok, r.message)
+    if (r.ok) {
+      router.push('/dashboard/incoming-invoices')
+    }
+  })
+
   return (
     <div className="p-6 space-y-4 max-w-6xl">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <Link href="/dashboard/incoming-invoices" className="text-xs text-emerald-700 hover:underline">← Indgående fakturaer</Link>
-          <h1 className="text-2xl font-semibold mt-1">
+          <h1 className="text-2xl font-semibold mt-1 flex items-center gap-2">
             {detail.supplier?.name ?? inv.supplier_name_extracted ?? 'Ukendt leverandør'}
+            {isTestInvoice && (
+              <span className="text-[11px] uppercase tracking-wide bg-amber-200 text-amber-900 px-2 py-0.5 rounded">
+                TEST
+              </span>
+            )}
           </h1>
           <p className="text-xs text-gray-500">
             Faktura nr <span className="font-mono">{inv.invoice_number ?? '—'}</span>
@@ -158,11 +192,31 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
             {inv.due_date && <> · forfald {fmtDate(inv.due_date)}</>}
           </p>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-semibold">{fmtAmount(inv.amount_incl_vat, inv.currency)}</div>
-          <div className="text-xs text-gray-500">incl. moms</div>
+        <div className="flex items-center gap-3">
+          {isTestInvoice && isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={deleteTestInvoice}
+              disabled={busy || deletingTest}
+              className="border-amber-300 text-amber-900 hover:bg-amber-50"
+            >
+              {deletingTest ? 'Sletter…' : 'Slet test-faktura'}
+            </Button>
+          )}
+          <div className="text-right">
+            <div className="text-2xl font-semibold">{fmtAmount(inv.amount_incl_vat, inv.currency)}</div>
+            <div className="text-xs text-gray-500">incl. moms</div>
+          </div>
         </div>
       </div>
+
+      {isTestInvoice && (
+        <div className="rounded-md bg-amber-50 ring-1 ring-amber-300 px-4 py-2 text-xs text-amber-900">
+          <strong>Test-faktura.</strong> Ingen rigtig leverandør, ingen e-conomic-push. Slet
+          via knappen herover når testen er kørt færdig.
+        </div>
+      )}
 
       {msg && (
         <div className={`text-sm rounded px-3 py-2 ring-1 ${
