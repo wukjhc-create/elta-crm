@@ -18,6 +18,16 @@ import {
   markInvoiceSent as markInvoiceSentService,
   sendInvoiceEmail as sendInvoiceEmailService,
 } from '@/lib/services/invoices'
+import {
+  createFinalInvoiceForCase,
+  createStageInvoiceForCase,
+  listStageInvoicesForCase,
+  type CreateFinalInvoiceInput,
+  type CreateFinalInvoiceResult,
+  type CreateStageInvoiceInput,
+  type CreateStageInvoiceResult,
+  type StageInvoiceSummary,
+} from '@/lib/services/invoice-stage'
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 
@@ -466,6 +476,92 @@ export async function deleteInvoiceDraftAction(
     revalidatePath(`/dashboard/orders/${caseNumber}`)
   }
   return { ok: true, message: 'Kladde slettet — kilderækker er igen ufakturerede' }
+}
+
+// =====================================================
+// 6D-2 — Multi-stage invoice actions (deposit / progress / final)
+// =====================================================
+
+async function revalidateForCase(supabase: Awaited<ReturnType<typeof getAuthenticatedClient>>['supabase'], caseId: string) {
+  const { data: c } = await supabase
+    .from('service_cases')
+    .select('case_number')
+    .eq('id', caseId)
+    .maybeSingle()
+  if (c?.case_number) {
+    revalidatePath(`/dashboard/orders/${c.case_number}`)
+  }
+  revalidatePath(`/dashboard/orders/${caseId}`)
+}
+
+export async function createStageInvoiceAction(
+  input: CreateStageInvoiceInput
+): Promise<CreateStageInvoiceResult> {
+  const empty: CreateStageInvoiceResult = {
+    ok: false,
+    message: '',
+    invoice_id: null,
+    invoice_number: null,
+    total_amount: null,
+    tax_amount: null,
+    final_amount: null,
+    cumulative_percentage_after: null,
+  }
+  try {
+    validateUUID(input.case_id, 'case_id')
+  } catch (err) {
+    return { ...empty, message: err instanceof Error ? err.message : 'Ugyldigt case_id' }
+  }
+  const { userId, supabase } = await getAuthenticatedClient()
+  const result = await createStageInvoiceForCase(input, userId)
+  if (result.ok && result.invoice_id) {
+    revalidatePath('/dashboard/invoices')
+    revalidatePath(`/dashboard/invoices/${result.invoice_id}`)
+    await revalidateForCase(supabase, input.case_id)
+  }
+  return result
+}
+
+export async function createFinalInvoiceAction(
+  input: CreateFinalInvoiceInput
+): Promise<CreateFinalInvoiceResult> {
+  const empty: CreateFinalInvoiceResult = {
+    ok: false,
+    message: '',
+    invoice_id: null,
+    invoice_number: null,
+    predecessor_count: 0,
+    deduction_total: 0,
+    unbilled_lines_count: 0,
+    total_amount: null,
+    tax_amount: null,
+    final_amount: null,
+  }
+  try {
+    validateUUID(input.case_id, 'case_id')
+  } catch (err) {
+    return { ...empty, message: err instanceof Error ? err.message : 'Ugyldigt case_id' }
+  }
+  const { userId, supabase } = await getAuthenticatedClient()
+  const result = await createFinalInvoiceForCase(input, userId)
+  if (result.ok && result.invoice_id) {
+    revalidatePath('/dashboard/invoices')
+    revalidatePath(`/dashboard/invoices/${result.invoice_id}`)
+    await revalidateForCase(supabase, input.case_id)
+  }
+  return result
+}
+
+export async function listStageInvoicesForCaseAction(
+  caseId: string
+): Promise<{ ok: boolean; message?: string; data?: StageInvoiceSummary[] }> {
+  try {
+    validateUUID(caseId, 'case_id')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt case_id' }
+  }
+  await getAuthenticatedClient()
+  return listStageInvoicesForCase(caseId)
 }
 
 // =====================================================
