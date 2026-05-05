@@ -120,6 +120,98 @@ export async function setInvoiceStatus(
 }
 
 /**
+ * Sprint 6B-4 — delete a draft invoice and release every source-row
+ * lock so the timer/material/cost can be billed again later.
+ *
+ * Strict: only status='draft' is deletable. Anything else throws.
+ *
+ * Steps (no transaction; FK ON DELETE rules backstop):
+ *   1. Read invoice header — must be status='draft'
+ *   2. Read invoice_lines — collect their ids
+ *   3. UPDATE time_logs           SET invoice_line_id = NULL
+ *      WHERE invoice_line_id IN (lines)
+ *   4. UPDATE case_materials      SET invoice_line_id = NULL  (same)
+ *   5. UPDATE case_other_costs    SET invoice_line_id = NULL  (same)
+ *   6. DELETE invoice_lines WHERE invoice_id = id
+ *   7. DELETE invoices WHERE id = id AND status = 'draft' (race-safe)
+ *
+ * If step 7 fails (status changed concurrently), the FK rows from
+ * 3-5 stay NULL — they're orphaned forwards but the invoice still
+ * exists with broken provenance. We catch and rethrow with detail.
+ */
+export async function deleteInvoiceDraft(invoiceId: string): Promise<void> {
+  const supabase = createAdminClient()
+
+  const { data: inv, error: readErr } = await supabase
+    .from('invoices')
+    .select('id, status, invoice_number')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (readErr || !inv) {
+    throw new Error(`deleteInvoiceDraft: invoice ${invoiceId} not found`)
+  }
+  if (inv.status !== 'draft') {
+    throw new Error(
+      `deleteInvoiceDraft: invoice ${inv.invoice_number} is ${inv.status} — only drafts can be deleted`
+    )
+  }
+
+  const { data: lines } = await supabase
+    .from('invoice_lines')
+    .select('id')
+    .eq('invoice_id', invoiceId)
+  const lineIds = (lines ?? []).map((l) => l.id as string)
+
+  if (lineIds.length > 0) {
+    // Release forward-link locks on every source kind
+    await supabase
+      .from('time_logs')
+      .update({ invoice_line_id: null })
+      .in('invoice_line_id', lineIds)
+    await supabase
+      .from('case_materials')
+      .update({ invoice_line_id: null })
+      .in('invoice_line_id', lineIds)
+    await supabase
+      .from('case_other_costs')
+      .update({ invoice_line_id: null })
+      .in('invoice_line_id', lineIds)
+
+    const { error: lineDelErr } = await supabase
+      .from('invoice_lines')
+      .delete()
+      .eq('invoice_id', invoiceId)
+    if (lineDelErr) {
+      logger.error('deleteInvoiceDraft: line delete failed', {
+        entityId: invoiceId,
+        error: lineDelErr,
+      })
+      throw new Error(`deleteInvoiceDraft: line delete failed: ${lineDelErr.message}`)
+    }
+  }
+
+  const { error: hdrDelErr, count } = await supabase
+    .from('invoices')
+    .delete({ count: 'exact' })
+    .eq('id', invoiceId)
+    .eq('status', 'draft')
+  if (hdrDelErr) {
+    logger.error('deleteInvoiceDraft: header delete failed', {
+      entityId: invoiceId,
+      error: hdrDelErr,
+    })
+    throw new Error(`deleteInvoiceDraft: header delete failed: ${hdrDelErr.message}`)
+  }
+  if ((count ?? 0) === 0) {
+    throw new Error(
+      `deleteInvoiceDraft: invoice ${invoiceId} no longer in draft state (race) — source locks have been released but header was not deleted`
+    )
+  }
+
+  console.log('INVOICE DRAFT DELETED:', invoiceId, inv.invoice_number)
+}
+
+/**
  * Read an invoice + its lines + customer info as a single bundle ready
  * for PDF rendering. No PDF code yet — just the shape.
  */

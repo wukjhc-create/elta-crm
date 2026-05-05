@@ -12,6 +12,12 @@ import {
   type CaseInvoiceOptions,
   type CreateInvoiceDraftResult,
 } from '@/lib/services/invoice-from-case'
+import {
+  deleteInvoiceDraft,
+  markInvoicePaid as markInvoicePaidService,
+  markInvoiceSent as markInvoiceSentService,
+} from '@/lib/services/invoices'
+import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 
 // =====================================================
@@ -245,6 +251,196 @@ export async function listUnbilledForCaseAction(
       other_costs,
     },
   }
+}
+
+// =====================================================
+// 6B-4 — invoice detail + status actions
+// =====================================================
+
+export interface InvoiceDetail {
+  invoice: InvoiceRow
+  lines: InvoiceLineRow[]
+  customer: {
+    id: string
+    name: string
+    email: string | null
+    address: string | null
+    zip: string | null
+    city: string | null
+    cvr: string | null
+  } | null
+  case: {
+    id: string
+    case_number: string
+    title: string | null
+    project_name: string | null
+  } | null
+}
+
+export type InvoiceActionOutcome = {
+  ok: boolean
+  message: string
+}
+
+export async function getInvoiceDetailAction(
+  invoiceId: string
+): Promise<InvoiceDetail | null> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch {
+    return null
+  }
+  const { supabase } = await getAuthenticatedClient()
+
+  const { data: invRaw, error } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (error || !invRaw) return null
+  const invoice = invRaw as InvoiceRow
+
+  const [linesRes, customerRes, caseRes] = await Promise.all([
+    supabase
+      .from('invoice_lines')
+      .select('*')
+      .eq('invoice_id', invoiceId)
+      .order('position', { ascending: true }),
+    invoice.customer_id
+      ? supabase
+          .from('customers')
+          .select('id, company_name, contact_person, billing_address, billing_postal_code, billing_city, vat_number, email')
+          .eq('id', invoice.customer_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    invoice.case_id
+      ? supabase
+          .from('service_cases')
+          .select('id, case_number, title, project_name')
+          .eq('id', invoice.case_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
+  const cust = customerRes.data as
+    | {
+        id: string
+        company_name: string | null
+        contact_person: string | null
+        billing_address: string | null
+        billing_postal_code: string | null
+        billing_city: string | null
+        vat_number: string | null
+        email: string | null
+      }
+    | null
+  const customer = cust
+    ? {
+        id: cust.id,
+        name: cust.company_name || cust.contact_person || '',
+        email: cust.email,
+        address: cust.billing_address,
+        zip: cust.billing_postal_code,
+        city: cust.billing_city,
+        cvr: cust.vat_number,
+      }
+    : null
+
+  const caseRow = caseRes.data as
+    | { id: string; case_number: string; title: string | null; project_name: string | null }
+    | null
+
+  return {
+    invoice,
+    lines: (linesRes.data ?? []) as InvoiceLineRow[],
+    customer,
+    case: caseRow,
+  }
+}
+
+export async function markInvoiceSentAction(
+  invoiceId: string
+): Promise<InvoiceActionOutcome> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  await getAuthenticatedClient()
+  try {
+    await markInvoiceSentService(invoiceId)
+  } catch (err) {
+    return { ok: false, message: formatError(err, 'Kunne ikke markere som sendt') }
+  }
+  revalidatePath('/dashboard/invoices')
+  revalidatePath(`/dashboard/invoices/${invoiceId}`)
+  return { ok: true, message: 'Markeret som sendt (ingen mail/PDF — kommer i Sprint 6C)' }
+}
+
+export async function markInvoicePaidAction(
+  invoiceId: string,
+  paymentReference?: string | null
+): Promise<InvoiceActionOutcome> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  await getAuthenticatedClient()
+  try {
+    await markInvoicePaidService(invoiceId, paymentReference ?? null)
+  } catch (err) {
+    return { ok: false, message: formatError(err, 'Kunne ikke markere som betalt') }
+  }
+  revalidatePath('/dashboard/invoices')
+  revalidatePath(`/dashboard/invoices/${invoiceId}`)
+  return { ok: true, message: 'Markeret som betalt' }
+}
+
+export async function deleteInvoiceDraftAction(
+  invoiceId: string
+): Promise<InvoiceActionOutcome> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { supabase } = await getAuthenticatedClient()
+
+  // Resolve case_number ahead of delete so we can revalidate the
+  // sag's order page (where the Fakturakladde-tab lives) AFTER the
+  // delete frees the source-row locks.
+  const { data: inv } = await supabase
+    .from('invoices')
+    .select('case_id')
+    .eq('id', invoiceId)
+    .maybeSingle()
+
+  let caseNumber: string | null = null
+  if (inv?.case_id) {
+    const { data: caseRow } = await supabase
+      .from('service_cases')
+      .select('case_number')
+      .eq('id', inv.case_id)
+      .maybeSingle()
+    caseNumber = (caseRow?.case_number as string | null) ?? null
+  }
+
+  try {
+    await deleteInvoiceDraft(invoiceId)
+  } catch (err) {
+    return { ok: false, message: formatError(err, 'Kunne ikke slette kladden') }
+  }
+
+  revalidatePath('/dashboard/invoices')
+  revalidatePath(`/dashboard/invoices/${invoiceId}`)
+  if (inv?.case_id) {
+    revalidatePath(`/dashboard/orders/${inv.case_id}`)
+  }
+  if (caseNumber) {
+    revalidatePath(`/dashboard/orders/${caseNumber}`)
+  }
+  return { ok: true, message: 'Kladde slettet — kilderækker er igen ufakturerede' }
 }
 
 // =====================================================
