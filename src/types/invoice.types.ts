@@ -68,4 +68,18 @@ export interface InvoicePdfPayload {
     cvr: string | null
     email: string | null
   } | null
+  /** Sprint 6C — sag-info for PDF header (case_number + project name). */
+  case?: {
+    id: string
+    case_number: string
+    title: string | null
+    project_name: string | null
+  } | null
+  /** Sprint 6C — beregnede totaler (subtotal/vat/final) i pure tal-form. */
+  totals?: {
+    subtotal: number
+    vat: number
+    final: number
+    vat_rate: number
+  }
 }

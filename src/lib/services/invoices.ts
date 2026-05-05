@@ -212,8 +212,13 @@ export async function deleteInvoiceDraft(invoiceId: string): Promise<void> {
 }
 
 /**
- * Read an invoice + its lines + customer info as a single bundle ready
- * for PDF rendering. No PDF code yet — just the shape.
+ * Read an invoice + its lines + customer + sag info + totals as a single
+ * bundle ready for PDF rendering.
+ *
+ * Sprint 6C: extended with `case` (case_number + project_name for PDF
+ * header) and computed `totals` (subtotal/vat/final). Totals are
+ * defensive — recomputed from the lines so the PDF cannot show a
+ * different total than the lines actually sum to.
  */
 export async function getInvoicePdfPayload(
   invoiceId: string
@@ -227,36 +232,89 @@ export async function getInvoicePdfPayload(
     .maybeSingle()
   if (invErr || !invoice) return null
 
-  const { data: lines } = await supabase
-    .from('invoice_lines')
-    .select('*')
-    .eq('invoice_id', invoiceId)
-    .order('position', { ascending: true })
+  const inv = invoice as InvoiceRow
+
+  const [linesRes, customerRes, caseRes] = await Promise.all([
+    supabase
+      .from('invoice_lines')
+      .select('*')
+      .eq('invoice_id', invoiceId)
+      .order('position', { ascending: true }),
+    inv.customer_id
+      ? supabase
+          .from('customers')
+          .select('id, company_name, contact_person, billing_address, billing_postal_code, billing_city, vat_number, email')
+          .eq('id', inv.customer_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    inv.case_id
+      ? supabase
+          .from('service_cases')
+          .select('id, case_number, title, project_name')
+          .eq('id', inv.case_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
+  const lines = (linesRes.data ?? []) as InvoiceLineRow[]
 
   let customer: InvoicePdfPayload['customer'] = null
-  if (invoice.customer_id) {
-    const { data: c } = await supabase
-      .from('customers')
-      .select('id, company_name, contact_person, billing_address, billing_postal_code, billing_city, vat_number, email')
-      .eq('id', invoice.customer_id)
-      .maybeSingle()
-    if (c) {
-      customer = {
-        id: c.id,
-        name: c.company_name || c.contact_person || '',
-        address: c.billing_address ?? null,
-        zip: c.billing_postal_code ?? null,
-        city: c.billing_city ?? null,
-        cvr: c.vat_number ?? null,
-        email: c.email ?? null,
+  const c = customerRes.data as
+    | {
+        id: string
+        company_name: string | null
+        contact_person: string | null
+        billing_address: string | null
+        billing_postal_code: string | null
+        billing_city: string | null
+        vat_number: string | null
+        email: string | null
       }
+    | null
+  if (c) {
+    customer = {
+      id: c.id,
+      name: c.company_name || c.contact_person || '',
+      address: c.billing_address ?? null,
+      zip: c.billing_postal_code ?? null,
+      city: c.billing_city ?? null,
+      cvr: c.vat_number ?? null,
+      email: c.email ?? null,
     }
   }
 
+  const caseRow = caseRes.data as
+    | { id: string; case_number: string; title: string | null; project_name: string | null }
+    | null
+
+  // Recompute totals from lines defensively. If they disagree with
+  // invoices.total_amount/tax_amount/final_amount, the line-derived
+  // numbers win — the PDF must never show a total that doesn't match
+  // the sum of its lines.
+  const subtotal = lines.reduce(
+    (s, l) => s + (Number(l.total_price) || 0),
+    0
+  )
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  const headerVat = Number(inv.tax_amount) || 0
+  const headerSubtotal = Number(inv.total_amount) || 0
+  // Derive vat_rate from header (default 25 % if header is empty)
+  const vatRate =
+    headerSubtotal > 0 ? r2((headerVat / headerSubtotal) * 100) : 25
+  const vat = r2(subtotal * (vatRate / 100))
+  const final = r2(subtotal + vat)
+
   return {
-    invoice: invoice as InvoiceRow,
-    lines: (lines ?? []) as InvoiceLineRow[],
+    invoice: inv,
+    lines,
     customer,
+    case: caseRow,
+    totals: {
+      subtotal: r2(subtotal),
+      vat,
+      final,
+      vat_rate: vatRate,
+    },
   }
 }
 
