@@ -6,6 +6,13 @@ export interface InvoiceRow {
   invoice_number: string
   customer_id: string | null
   offer_id: string | null
+  /** Phase 7.1 — invoice from work_order */
+  work_order_id?: string | null
+  /** Sprint 6B-1 (mig 00104) — direct sag-link */
+  case_id?: string | null
+  /** Phase 5.4 — e-conomic linkage when posted */
+  external_invoice_id?: string | null
+  external_provider?: string | null
   status: InvoiceStatus
   total_amount: number
   tax_amount: number
@@ -43,6 +50,10 @@ export interface InvoiceLineRow {
   unit_price: number
   total_price: number
   created_at: string
+  /** Sprint 6B-1 (mig 00104) — provenance to canonical sources */
+  source_time_log_id?: string | null
+  source_case_material_id?: string | null
+  source_case_other_cost_id?: string | null
 }
 
 export interface InvoicePdfPayload {
