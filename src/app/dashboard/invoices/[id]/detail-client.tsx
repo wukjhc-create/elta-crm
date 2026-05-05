@@ -13,13 +13,14 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import {
   ArrowLeft, AlertCircle, Loader2, FileText, ExternalLink,
-  Trash2, Send, BadgeCheck, Lock, Info, FileDown, Eye,
+  Trash2, Send, BadgeCheck, Lock, Info, FileDown, Eye, Mail,
 } from 'lucide-react'
 import {
   deleteInvoiceDraftAction,
   getInvoiceDetailAction,
   markInvoicePaidAction,
   markInvoiceSentAction,
+  sendInvoiceEmailAction,
   type InvoiceDetail,
 } from '@/lib/actions/invoices'
 import { formatCurrency } from '@/lib/utils/format'
@@ -83,7 +84,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [detail, setDetail] = useState<InvoiceDetail>(initial)
-  const [busy, setBusy] = useState<null | 'send' | 'pay' | 'delete'>(null)
+  const [busy, setBusy] = useState<null | 'send' | 'pay' | 'delete' | 'mail'>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const inv = detail.invoice
@@ -120,6 +121,30 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
     setBusy('pay')
     startTransition(async () => {
       const r = await markInvoicePaidAction(inv.id, reference || null)
+      setBusy(null)
+      flash(r.ok, r.message)
+      if (r.ok) await refresh()
+    })
+  }
+
+  const handleSendMail = () => {
+    if (!isDraft) return
+    if (!detail.customer?.email) {
+      flash(false, 'Kunden mangler email — kan ikke sende faktura')
+      return
+    }
+    if (
+      !window.confirm(
+        `Send faktura ${inv.invoice_number} til ${detail.customer.email}?\n\n` +
+          `PDF vedhæftes automatisk. Status flippes til 'sendt' ved succes. ` +
+          `Ingen e-conomic-push i denne sprint.`
+      )
+    ) {
+      return
+    }
+    setBusy('mail')
+    startTransition(async () => {
+      const r = await sendInvoiceEmailAction(inv.id)
       setBusy(null)
       flash(r.ok, r.message)
       if (r.ok) await refresh()
@@ -408,19 +433,34 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
             <div className="text-xs text-gray-600 flex items-start gap-1">
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span>
-                Kladde-fase. PDF, e-mail og e-conomic-push kommer i Sprint 6C/6E.
-                "Markér som sendt" flytter status uden at sende noget.
+                Kladde-fase. "Send faktura på mail" sender PDF til kundens email
+                og flipper status til 'sendt'. e-conomic-push kommer i Sprint 6E.
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                onClick={handleSendMail}
+                disabled={busy !== null || !detail.customer?.email}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                title={
+                  detail.customer?.email
+                    ? `Sender til ${detail.customer.email}`
+                    : 'Kunden mangler email'
+                }
+              >
+                {busy === 'mail' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                Send faktura på mail
+              </button>
+              <button
+                type="button"
                 onClick={handleSend}
                 disabled={busy !== null}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded ring-1 ring-blue-300 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-60"
+                title="Sætter status til 'sendt' uden at sende noget"
               >
                 {busy === 'send' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                Markér som sendt
+                Markér som sendt (uden mail)
               </button>
               <button
                 type="button"
@@ -432,6 +472,12 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
                 Slet kladde
               </button>
             </div>
+            {!detail.customer?.email && (
+              <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Kunden mangler email — &quot;Send faktura på mail&quot; er deaktiveret. Tilføj email på kunden eller brug &quot;Markér som sendt&quot;.
+              </div>
+            )}
             <p className="text-[11px] text-gray-500 flex items-start gap-1">
               <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
               Slet frigiver alle bundne timer / materialer / øvrige omkostninger på sagen. De bliver fakturerbare igen.
