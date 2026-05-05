@@ -16,6 +16,7 @@ import { OrderPlanningTab } from './order-planning-tab'
 import { OrderMaterialsTab } from './order-materials-tab'
 import { OrderOtherCostsTab } from './order-other-costs-tab'
 import { OrderEconomyTab } from './order-economy-tab'
+import { OrderBillingDraftTab } from './order-billing-draft-tab'
 import { InlineStatusChanger } from './inline-status-changer'
 
 const TABS = [
@@ -26,7 +27,7 @@ const TABS = [
   { id: 'oekonomi',     label: 'Økonomi',            ready: true },
   { id: 'aktivitet',    label: 'Aktivitet',          ready: true },
   { id: 'dokumentation',label: 'Dokumentation',      ready: false },
-  { id: 'fakturakladde',label: 'Fakturakladde',      ready: false },
+  { id: 'fakturakladde',label: 'Fakturakladde',      ready: true },
   { id: 'handlinger',   label: 'Handlinger',         ready: true },
 ] as const
 
@@ -200,6 +201,7 @@ export function OrderDetailClient({
               onSwitchTab={(t) => setActive(t)}
             />
           )}
+          {active === 'fakturakladde' && <OrderBillingDraftTab caseId={sag.id} />}
           {active === 'handlinger' && <OrderActionsTab sag={sag} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
           {active !== 'overblik' &&
@@ -207,6 +209,7 @@ export function OrderDetailClient({
             active !== 'materialer' &&
             active !== 'oevrige' &&
             active !== 'oekonomi' &&
+            active !== 'fakturakladde' &&
             active !== 'handlinger' &&
             active !== 'aktivitet' && (
               <Placeholder
