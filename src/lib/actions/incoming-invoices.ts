@@ -273,6 +273,229 @@ export async function rejectIncomingInvoiceAction(
   return r
 }
 
+// =====================================================
+// TEST SEED — admin-only convenience for browser-testing 5E flow
+// =====================================================
+//
+// Creates ONE clearly-marked test invoice + 3 lines (1 material-ish,
+// 1 kørsel, 1 lift). The fakturanr is hard-prefixed "TEST-" so we
+// can match-and-clean-up without touching real data. No e-conomic
+// push — never. Admin-only gate.
+
+const TEST_INVOICE_PREFIX = 'TEST-'
+const TEST_SUPPLIER_NAME = 'TEST Leverandør ApS'
+
+async function requireAdminClient() {
+  const { supabase, userId } = await getAuthenticatedClient()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle()
+  if (!profile || profile.role !== 'admin') {
+    throw new Error('Kun administratorer må oprette testdata')
+  }
+  return { supabase, userId }
+}
+
+export async function createTestIncomingInvoiceAction(): Promise<ActionOutcome> {
+  let supabase
+  let userId: string
+  try {
+    const a = await requireAdminClient()
+    supabase = a.supabase
+    userId = a.userId
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Adgang nægtet' }
+  }
+
+  // Pick the most recent open service_case to attach to so the
+  // operator can immediately exercise approve/preview without a
+  // separate sag-match step. If none, leave matched_case_id null —
+  // operator does "Match til sag" via the existing 5E-1 picker.
+  const { data: caseRow } = await supabase
+    .from('service_cases')
+    .select('id, case_number')
+    .in('status', ['new', 'in_progress', 'pending'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  // Generate a unique invoice_number so re-clicks don't trip the
+  // (supplier_id, invoice_number) UNIQUE — supplier is null on test
+  // rows so the partial index doesn't apply, but we still want
+  // distinct labels in the queue.
+  const ts = new Date()
+  const stamp =
+    `${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, '0')}` +
+    `${String(ts.getDate()).padStart(2, '0')}-` +
+    `${String(ts.getHours()).padStart(2, '0')}${String(ts.getMinutes()).padStart(2, '0')}` +
+    `${String(ts.getSeconds()).padStart(2, '0')}`
+  const invoiceNumber = `${TEST_INVOICE_PREFIX}${stamp}`
+
+  const today = ts.toISOString().slice(0, 10)
+  const dueDate = new Date(ts.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const { data: inserted, error: insErr } = await supabase
+    .from('incoming_invoices')
+    .insert({
+      source: 'manual',
+      uploaded_by: userId,
+      supplier_id: null,                                 // no supplier match — keeps things isolated
+      supplier_name_extracted: TEST_SUPPLIER_NAME,
+      invoice_number: invoiceNumber,
+      invoice_date: today,
+      due_date: dueDate,
+      currency: 'DKK',
+      amount_excl_vat: 10000,
+      vat_amount: 2500,
+      amount_incl_vat: 12500,
+      parse_status: 'parsed',
+      parse_confidence: 1.0,
+      matched_case_id: caseRow?.id ?? null,
+      match_confidence: caseRow ? 1.0 : 0,
+      requires_manual_review: false,
+      status: 'awaiting_approval',
+      notes: 'TEST FAKTURA — oprettet via admin seed-knap. Sikker at slette.',
+    })
+    .select('id, invoice_number')
+    .single()
+
+  if (insErr || !inserted) {
+    return {
+      ok: false,
+      message: `Kunne ikke oprette test-faktura: ${insErr?.message ?? 'ukendt fejl'}`,
+    }
+  }
+
+  // Lines per Henrik's spec
+  const lines = [
+    { line_number: 1, description: 'Solpanel 425W',        quantity: 8,   unit: 'stk', unit_price: 1000, total_price: 8000 },
+    { line_number: 2, description: 'Kørsel til pladsen',   quantity: 100, unit: 'km',  unit_price: 5,    total_price: 500 },
+    { line_number: 3, description: 'Liftleje',             quantity: 1,   unit: 'dag', unit_price: 1500, total_price: 1500 },
+  ]
+  const { error: lineErr } = await supabase
+    .from('incoming_invoice_lines')
+    .insert(
+      lines.map((l) => ({
+        incoming_invoice_id: inserted.id,
+        ...l,
+      }))
+    )
+  if (lineErr) {
+    // Clean up the orphan header so we don't leave half a test row.
+    await supabase.from('incoming_invoices').delete().eq('id', inserted.id)
+    return {
+      ok: false,
+      message: `Kunne ikke oprette test-linjer (faktura rullet tilbage): ${lineErr.message}`,
+    }
+  }
+
+  // Audit row so the trail shows where this came from
+  await supabase.from('incoming_invoice_audit_log').insert({
+    incoming_invoice_id: inserted.id,
+    action: 'ingested',
+    actor_id: userId,
+    ok: true,
+    message: caseRow
+      ? `TEST seed oprettet (matchet til ${caseRow.case_number ?? caseRow.id})`
+      : 'TEST seed oprettet (ingen sag matchet — brug "Match til sag")',
+    new_value: {
+      test_seed: true,
+      invoice_number: inserted.invoice_number,
+      matched_case_id: caseRow?.id ?? null,
+    },
+  })
+
+  revalidatePath('/dashboard/incoming-invoices')
+  revalidatePath(`/dashboard/incoming-invoices/${inserted.id}`)
+
+  return {
+    ok: true,
+    message: `Test-faktura oprettet (${inserted.invoice_number})${caseRow ? ` og matchet til ${caseRow.case_number ?? 'sag'}` : ''}`,
+    data: { invoiceId: inserted.id, invoiceNumber: inserted.invoice_number },
+  }
+}
+
+/**
+ * Cleanup: delete a test invoice + cascade lines/audit.
+ * Strict guard — refuses to delete anything not bearing the TEST_
+ * prefix. Also rolls back any case_materials / case_other_costs the
+ * test invoice converted into (only those linked back to its lines).
+ */
+export async function deleteTestIncomingInvoiceAction(
+  invoiceId: string
+): Promise<ActionOutcome> {
+  let supabase
+  try {
+    const a = await requireAdminClient()
+    supabase = a.supabase
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Adgang nægtet' }
+  }
+
+  const { data: inv } = await supabase
+    .from('incoming_invoices')
+    .select('id, invoice_number, supplier_name_extracted')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (!inv) return { ok: false, message: 'Faktura ikke fundet' }
+
+  const isTest =
+    (inv.invoice_number ?? '').startsWith(TEST_INVOICE_PREFIX) ||
+    inv.supplier_name_extracted === TEST_SUPPLIER_NAME
+  if (!isTest) {
+    return {
+      ok: false,
+      message: 'Refused: dette er ikke en TEST-faktura (sikkerhedsguard).',
+    }
+  }
+
+  // Find lines first so we can purge any conversions created by 5E-3.
+  const { data: lines } = await supabase
+    .from('incoming_invoice_lines')
+    .select('id, converted_case_material_id, converted_case_other_cost_id')
+    .eq('incoming_invoice_id', invoiceId)
+
+  let removedMaterials = 0
+  let removedOther = 0
+  for (const ln of lines ?? []) {
+    if (ln.converted_case_material_id) {
+      const { count } = await supabase
+        .from('case_materials')
+        .delete({ count: 'exact' })
+        .eq('id', ln.converted_case_material_id)
+      removedMaterials += count ?? 0
+    }
+    if (ln.converted_case_other_cost_id) {
+      const { count } = await supabase
+        .from('case_other_costs')
+        .delete({ count: 'exact' })
+        .eq('id', ln.converted_case_other_cost_id)
+      removedOther += count ?? 0
+    }
+  }
+
+  // CASCADE on incoming_invoice_lines.incoming_invoice_id and
+  // incoming_invoice_audit_log.incoming_invoice_id will clean those.
+  const { error: delErr } = await supabase
+    .from('incoming_invoices')
+    .delete()
+    .eq('id', invoiceId)
+  if (delErr) {
+    return { ok: false, message: `Kunne ikke slette: ${delErr.message}` }
+  }
+
+  revalidatePath('/dashboard/incoming-invoices')
+
+  return {
+    ok: true,
+    message:
+      `TEST-faktura slettet (${inv.invoice_number}). ` +
+      `Ryddet: ${removedMaterials} materiale-linje(r), ${removedOther} øvrig-linje(r).`,
+  }
+}
+
 /**
  * Sprint 5E-3 — converts faktura-linjer to case_materials/case_other_costs
  * and flips status to 'approved' atomically (per-line, not transaction).
