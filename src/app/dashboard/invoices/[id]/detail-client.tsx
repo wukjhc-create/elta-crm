@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import {
   ArrowLeft, AlertCircle, Loader2, FileText, ExternalLink,
-  Trash2, Send, BadgeCheck, Lock, Info,
+  Trash2, Send, BadgeCheck, Lock, Info, FileDown, Eye,
 } from 'lucide-react'
 import {
   deleteInvoiceDraftAction,
@@ -208,6 +208,32 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
             <div className="text-3xl font-bold tabular-nums">{fmtKr(inv.final_amount, inv.currency)}</div>
             <div className="text-xs text-gray-500">incl. {fmtKr(inv.tax_amount, inv.currency)} moms</div>
           </div>
+        </div>
+
+        {/* PDF actions — always available, even on drafts */}
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
+          <a
+            href={`/api/invoices/${inv.id}/pdf?view=1`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded ring-1 ring-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Vis PDF
+          </a>
+          <a
+            href={`/api/invoices/${inv.id}/pdf`}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded ring-1 ring-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Download PDF
+          </a>
+          {isDraft && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-amber-50 text-amber-800 ring-1 ring-amber-200">
+              <Info className="w-3 h-3" />
+              Kladde har "KLADDE"-vandmærke i PDF
+            </span>
+          )}
         </div>
       </div>
 
