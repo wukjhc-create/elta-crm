@@ -74,9 +74,12 @@ export default async function InvoicesPage() {
             {rows.map((r) => (
               <tr key={r.id} className="border-t hover:bg-gray-50">
                 <td className="px-3 py-2 font-mono">
-                  {r.customer_id ? (
-                    <Link href={`/dashboard/customers/${r.customer_id}`} className="text-emerald-700 hover:underline">{r.invoice_number}</Link>
-                  ) : r.invoice_number}
+                  <Link
+                    href={`/dashboard/invoices/${r.id}`}
+                    className="text-emerald-700 hover:underline"
+                  >
+                    {r.invoice_number}
+                  </Link>
                 </td>
                 <td className="px-3 py-2">{r.status}</td>
                 <td className="px-3 py-2">{r.payment_status}</td>
