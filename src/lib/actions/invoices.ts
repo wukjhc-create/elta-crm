@@ -80,6 +80,9 @@ export interface UnbilledForCase {
   case_number: string | null
   customer_id: string | null
   customer_name: string | null
+  /** Sprint 6D-3 — needed for percent-based stage invoices */
+  contract_sum: number | null
+  revised_sum: number | null
   time_logs: UnbilledTimeLogRow[]
   materials: UnbilledMaterialRow[]
   other_costs: UnbilledOtherCostRow[]
@@ -99,7 +102,7 @@ export async function listUnbilledForCaseAction(
   // 1. Sag header
   const { data: sag, error: sagErr } = await supabase
     .from('service_cases')
-    .select('id, case_number, customer_id, customer:customers!left(company_name, contact_person)')
+    .select('id, case_number, customer_id, contract_sum, revised_sum, customer:customers!left(company_name, contact_person)')
     .eq('id', caseId)
     .maybeSingle()
   if (sagErr || !sag) {
@@ -250,13 +253,23 @@ export async function listUnbilledForCaseAction(
     }
   })
 
+  const sagAny = sag as unknown as {
+    id: string
+    case_number: string | null
+    customer_id: string | null
+    contract_sum: number | string | null
+    revised_sum: number | string | null
+  }
+
   return {
     ok: true,
     data: {
-      case_id: sag.id as string,
-      case_number: (sag as { case_number: string | null }).case_number,
-      customer_id: sag.customer_id as string | null,
+      case_id: sagAny.id,
+      case_number: sagAny.case_number,
+      customer_id: sagAny.customer_id,
       customer_name,
+      contract_sum: sagAny.contract_sum == null ? null : Number(sagAny.contract_sum),
+      revised_sum: sagAny.revised_sum == null ? null : Number(sagAny.revised_sum),
       time_logs,
       materials,
       other_costs,
