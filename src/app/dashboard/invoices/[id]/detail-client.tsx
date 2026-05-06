@@ -659,7 +659,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
           </div>
         )}
 
-        {isSent && !isVoided && (
+        {isSent && !isVoided && !isCreditNote && (
           <div className="space-y-3">
             <div className="text-xs text-gray-600 flex items-start gap-1">
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
@@ -680,6 +680,18 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
               Slet er ikke tilladt på en sendt faktura. Brug kreditnota-flow nedenfor i stedet.
             </p>
+          </div>
+        )}
+
+        {/* Sprint 6F-3 fix — Sendt kreditnota: ingen betalingshandlinger.
+            Refundering håndteres uden for systemet indtil refund-flow bygges. */}
+        {isSent && isCreditNote && (
+          <div className="rounded ring-1 ring-gray-300 bg-gray-50 px-3 py-3 text-sm text-gray-700 flex items-start gap-2">
+            <Info className="w-4 h-4 mt-0.5 shrink-0 text-gray-500" />
+            <div>
+              <strong>Kreditnota er sendt.</strong> Eventuel refundering håndteres
+              uden for systemet indtil refund-flow bygges.
+            </div>
           </div>
         )}
 
