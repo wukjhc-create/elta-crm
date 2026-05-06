@@ -287,6 +287,49 @@ export async function getInvoicePdfPayload(
     | { id: string; case_number: string; title: string | null; project_name: string | null }
     | null
 
+  // Sprint 6D-4: load forgængere når denne faktura er final.
+  // Pulles i samme funktion (sekventielt efter første parallel) så
+  // PDF + detail-side får ét fælles payload-objekt.
+  let predecessors: NonNullable<InvoicePdfPayload['predecessors']> = []
+  if ((inv as { is_final_invoice?: boolean }).is_final_invoice) {
+    const { data: predLinks } = await supabase
+      .from('invoice_predecessors')
+      .select('predecessor_invoice_id, deduction_amount')
+      .eq('invoice_id', invoiceId)
+    const predIds = (predLinks ?? []).map(
+      (r) => r.predecessor_invoice_id as string
+    )
+    if (predIds.length > 0) {
+      const { data: predRows } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, invoice_type, stage_label, status')
+        .in('id', predIds)
+      const byId = new Map(
+        ((predRows ?? []) as Array<{
+          id: string
+          invoice_number: string
+          invoice_type: string
+          stage_label: string | null
+          status: string
+        }>).map((p) => [p.id, p])
+      )
+      type PredType = NonNullable<InvoicePdfPayload['predecessors']>[number]
+      for (const link of predLinks ?? []) {
+        const p = byId.get(link.predecessor_invoice_id as string)
+        if (!p) continue
+        const row: PredType = {
+          predecessor_invoice_id: p.id,
+          predecessor_invoice_number: p.invoice_number,
+          predecessor_invoice_type: p.invoice_type as PredType['predecessor_invoice_type'],
+          predecessor_stage_label: p.stage_label,
+          predecessor_status: p.status as PredType['predecessor_status'],
+          deduction_amount: Number(link.deduction_amount),
+        }
+        predecessors.push(row)
+      }
+    }
+  }
+
   // Recompute totals from lines defensively. If they disagree with
   // invoices.total_amount/tax_amount/final_amount, the line-derived
   // numbers win — the PDF must never show a total that doesn't match
@@ -315,6 +358,7 @@ export async function getInvoicePdfPayload(
       final,
       vat_rate: vatRate,
     },
+    predecessors,
   }
 }
 

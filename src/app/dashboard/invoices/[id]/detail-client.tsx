@@ -31,6 +31,22 @@ const STATUS_LABELS: Record<string, string> = {
   paid: 'Betalt',
 }
 
+const INVOICE_TYPE_PILL: Record<string, { label: string; bg: string; text: string }> = {
+  standard: { label: '',            bg: '',                 text: '' },
+  deposit:  { label: 'Forskud',     bg: 'bg-blue-100',      text: 'text-blue-800' },
+  progress: { label: 'Rate',        bg: 'bg-purple-100',    text: 'text-purple-800' },
+  final:    { label: 'Slutfaktura', bg: 'bg-orange-100',    text: 'text-orange-800' },
+  credit:   { label: 'Kreditnota',  bg: 'bg-red-100',       text: 'text-red-800' },
+}
+
+const PRED_TYPE_LABEL: Record<string, string> = {
+  deposit:  'Forskud',
+  progress: 'Rate',
+  standard: 'Faktura',
+  final:    'Slutfaktura',
+  credit:   'Kreditnota',
+}
+
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 ring-gray-300',
   sent: 'bg-blue-100 text-blue-800 ring-blue-300',
@@ -221,6 +237,24 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
                   {PAYMENT_LABELS[inv.payment_status] ?? inv.payment_status}
                 </span>
               )}
+              {/* Sprint 6D-4 — invoice_type pille */}
+              {(() => {
+                const t = inv.invoice_type ?? 'standard'
+                const pill = INVOICE_TYPE_PILL[t]
+                if (!pill?.label) return null
+                return (
+                  <span
+                    className={`text-[11px] uppercase tracking-wide px-2 py-0.5 rounded ${pill.bg} ${pill.text}`}
+                  >
+                    {pill.label}
+                  </span>
+                )
+              })()}
+              {inv.stage_label && (
+                <span className="text-[11px] tracking-wide px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                  {inv.stage_label}
+                </span>
+              )}
             </h1>
             <p className="text-xs text-gray-500 mt-1">
               Oprettet {fmtDate(inv.created_at)}
@@ -228,6 +262,22 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               {inv.paid_at && <> · betalt {fmtDate(inv.paid_at)}</>}
               {inv.due_date && <> · forfald {fmtDate(inv.due_date)}</>}
             </p>
+            {/* Sprint 6D-4 — procent + basis info */}
+            {inv.billing_percentage != null && inv.amount_basis_value != null && (
+              <p className="text-xs text-gray-700 mt-1">
+                Beregnes som{' '}
+                <strong>
+                  {Number(inv.billing_percentage).toLocaleString('da-DK', {
+                    minimumFractionDigits: Number(inv.billing_percentage) % 1 === 0 ? 0 : 2,
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  %
+                </strong>{' '}
+                af{' '}
+                {inv.amount_basis === 'contract_sum' ? 'kontraktsum' : 'revideret beløb'}{' '}
+                <strong>{fmtKr(Number(inv.amount_basis_value), inv.currency)}</strong>
+              </p>
+            )}
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold tabular-nums">{fmtKr(inv.final_amount, inv.currency)}</div>
@@ -335,6 +385,67 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
       {inv.notes && (
         <Panel title="Note">
           <p className="text-sm whitespace-pre-wrap text-gray-800">{inv.notes}</p>
+        </Panel>
+      )}
+
+      {/* Sprint 6D-4 — predecessor panel for final invoice */}
+      {inv.is_final_invoice && detail.predecessors.length > 0 && (
+        <Panel title={`Tidligere fakturaer fratrukket (${detail.predecessors.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-left text-gray-600">
+                <tr>
+                  <th className="px-2 py-1.5">Faktura nr</th>
+                  <th className="px-2 py-1.5">Type</th>
+                  <th className="px-2 py-1.5">Label</th>
+                  <th className="px-2 py-1.5">Status</th>
+                  <th className="px-2 py-1.5 text-right">Fradrag</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {detail.predecessors.map((p) => (
+                  <tr key={p.invoice_id}>
+                    <td className="px-2 py-1.5 font-mono">
+                      <Link
+                        href={`/dashboard/invoices/${p.invoice_id}`}
+                        className="text-emerald-700 hover:underline"
+                      >
+                        {p.invoice_number}
+                      </Link>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {PRED_TYPE_LABEL[p.invoice_type] ?? p.invoice_type}
+                    </td>
+                    <td className="px-2 py-1.5 text-gray-700">
+                      {p.stage_label ?? '—'}
+                    </td>
+                    <td className="px-2 py-1.5">{p.status}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums font-medium text-red-700">
+                      −{fmtKr(p.deduction_amount, inv.currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t-2 bg-gray-50">
+                <tr>
+                  <td colSpan={4} className="px-2 py-1.5 text-right text-xs uppercase tracking-wide text-gray-600">
+                    Total fradrag
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums font-bold text-red-700">
+                    −{fmtKr(
+                      detail.predecessors.reduce((s, p) => s + p.deduction_amount, 0),
+                      inv.currency
+                    )}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p className="text-[11px] text-gray-500 mt-2">
+            Disse fradrag indgår allerede som negative linjer i faktura-tabellen
+            nedenfor. Sletning af en fratrukket faktura er blokeret af DB ON DELETE
+            RESTRICT — slet slutfakturaen først hvis du vil ændre forgængerne.
+          </p>
         </Panel>
       )}
 

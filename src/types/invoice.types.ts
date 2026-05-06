@@ -13,6 +13,13 @@ export interface InvoiceRow {
   /** Phase 5.4 — e-conomic linkage when posted */
   external_invoice_id?: string | null
   external_provider?: string | null
+  /** Sprint 6D-1 (mig 00105) — multi-stage felter */
+  invoice_type?: 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
+  billing_percentage?: number | null
+  amount_basis?: 'contract_sum' | 'revised_sum' | 'lines'
+  amount_basis_value?: number | null
+  stage_label?: string | null
+  is_final_invoice?: boolean
   status: InvoiceStatus
   total_amount: number
   tax_amount: number
@@ -82,4 +89,19 @@ export interface InvoicePdfPayload {
     final: number
     vat_rate: number
   }
+  /**
+   * Sprint 6D-4 — forgængere når invoice.is_final_invoice=true.
+   * Hver række mapper én rad i invoice_predecessors, beriget med
+   * forgængerens fakturanummer + type/label så PDF kan rendere
+   * "Tidligere fakturaer fratrukket"-sektionen uden ekstra opslag.
+   * Er undefined eller [] når invoice ikke er final.
+   */
+  predecessors?: Array<{
+    predecessor_invoice_id: string
+    predecessor_invoice_number: string
+    predecessor_invoice_type: 'deposit' | 'progress' | 'standard' | 'final' | 'credit'
+    predecessor_stage_label: string | null
+    predecessor_status: 'draft' | 'sent' | 'paid'
+    deduction_amount: number
+  }>
 }

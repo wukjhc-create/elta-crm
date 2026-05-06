@@ -299,6 +299,15 @@ export interface InvoiceDetail {
     title: string | null
     project_name: string | null
   } | null
+  /** Sprint 6D-4 — forgængere når is_final_invoice=true. */
+  predecessors: Array<{
+    invoice_id: string
+    invoice_number: string
+    invoice_type: 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
+    stage_label: string | null
+    status: 'draft' | 'sent' | 'paid'
+    deduction_amount: number
+  }>
 }
 
 export type InvoiceActionOutcome = {
@@ -374,11 +383,48 @@ export async function getInvoiceDetailAction(
     | { id: string; case_number: string; title: string | null; project_name: string | null }
     | null
 
+  // Sprint 6D-4: predecessors for slutfaktura
+  let predecessors: InvoiceDetail['predecessors'] = []
+  if ((invoice as { is_final_invoice?: boolean }).is_final_invoice) {
+    const { data: links } = await supabase
+      .from('invoice_predecessors')
+      .select('predecessor_invoice_id, deduction_amount')
+      .eq('invoice_id', invoiceId)
+    const ids = (links ?? []).map((l) => l.predecessor_invoice_id as string)
+    if (ids.length > 0) {
+      const { data: predRows } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, invoice_type, stage_label, status')
+        .in('id', ids)
+      type PR = {
+        id: string
+        invoice_number: string
+        invoice_type: string
+        stage_label: string | null
+        status: string
+      }
+      const byId = new Map(((predRows ?? []) as PR[]).map((p) => [p.id, p]))
+      for (const link of links ?? []) {
+        const p = byId.get(link.predecessor_invoice_id as string)
+        if (!p) continue
+        predecessors.push({
+          invoice_id: p.id,
+          invoice_number: p.invoice_number,
+          invoice_type: p.invoice_type as InvoiceDetail['predecessors'][number]['invoice_type'],
+          stage_label: p.stage_label,
+          status: p.status as InvoiceDetail['predecessors'][number]['status'],
+          deduction_amount: Number(link.deduction_amount),
+        })
+      }
+    }
+  }
+
   return {
     invoice,
     lines: (linesRes.data ?? []) as InvoiceLineRow[],
     customer,
     case: caseRow,
+    predecessors,
   }
 }
 

@@ -194,7 +194,89 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     transform: 'rotate(-25deg)',
   },
+
+  // Sprint 6D-4 — stage pille + procent-strip
+  stagePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 3,
+    fontSize: 9,
+    fontWeight: 'bold',
+    marginTop: 4,
+    color: '#FFF',
+    alignSelf: 'flex-start',
+  },
+  pctStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8E1',
+    borderLeft: '3 solid #C7A02A',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 14,
+  },
+  pctStripLabel: { fontSize: 9, color: MUTED, marginRight: 6 },
+  pctStripValue: { fontSize: 11, fontWeight: 'bold' },
+
+  predHeading: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: BRAND,
+    marginTop: 16,
+    marginBottom: 6,
+  },
+  predRow: {
+    flexDirection: 'row',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderBottom: '1 solid #EEE',
+  },
+  predHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  predHeaderCell: {
+    fontSize: 8,
+    color: MUTED,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  predCell: { fontSize: 9, color: TEXT },
+  predNumberCol: { width: '22%' },
+  predTypeCol:   { width: '18%' },
+  predLabelCol:  { width: '32%' },
+  predStatusCol: { width: '12%' },
+  predAmtCol:    { width: '16%', textAlign: 'right' },
+
+  predTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    backgroundColor: BRAND_LIGHT,
+    marginTop: 4,
+  },
+  predTotalLabel: { fontSize: 10, fontWeight: 'bold', color: TEXT },
+  predTotalValue: { fontSize: 11, fontWeight: 'bold', color: '#A04040' },
 })
+
+const STAGE_PILL_LABEL: Record<string, { label: string; color: string }> = {
+  deposit:  { label: 'FORSKUD',     color: '#1F66B0' },
+  progress: { label: 'RATE',        color: '#7E3FBF' },
+  final:    { label: 'SLUTFAKTURA', color: '#C26528' },
+  credit:   { label: 'KREDITNOTA',  color: '#A04040' },
+  standard: { label: '',            color: '' },
+}
+
+const PRED_TYPE_LABEL: Record<string, string> = {
+  deposit:  'Forskud',
+  progress: 'Rate',
+  standard: 'Faktura',
+  final:    'Slutfaktura',
+  credit:   'Kreditnota',
+}
 
 interface Props {
   payload: InvoicePdfPayload
@@ -215,6 +297,29 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
 
   const isDraft = invoice.status === 'draft'
 
+  // Sprint 6D-4 — stage info
+  const invType = (invoice.invoice_type ?? 'standard') as keyof typeof STAGE_PILL_LABEL
+  const stagePill = STAGE_PILL_LABEL[invType]
+  const showStagePill = invType !== 'standard' && !!stagePill?.label
+  const stageLabel = invoice.stage_label ?? null
+  const billingPct = invoice.billing_percentage == null ? null : Number(invoice.billing_percentage)
+  const basisValue = invoice.amount_basis_value == null ? null : Number(invoice.amount_basis_value)
+  const basisLabel =
+    invoice.amount_basis === 'contract_sum'
+      ? 'kontraktsum'
+      : invoice.amount_basis === 'revised_sum'
+      ? 'revideret beløb'
+      : null
+  const showPctStrip = billingPct != null && basisValue != null && basisLabel != null
+
+  const predecessors = payload.predecessors ?? []
+  const showPredecessorsSection =
+    invoice.is_final_invoice === true && predecessors.length > 0
+  const deductionTotal = predecessors.reduce(
+    (s, p) => s + Number(p.deduction_amount),
+    0
+  )
+
   const bankRegNo = process.env.INVOICE_BANK_REG_NO || null
   const bankAccount = process.env.INVOICE_BANK_ACCOUNT || null
   const paymentReference = invoice.payment_reference || invoice.invoice_number
@@ -230,8 +335,17 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.brandTitle}>FAKTURA</Text>
-            <Text style={styles.invoiceNumberLabel}>Faktura nr.</Text>
+            <Text style={styles.brandTitle}>
+              FAKTURA{stageLabel ? ` — ${stageLabel}` : ''}
+            </Text>
+            {showStagePill && (
+              <Text
+                style={[styles.stagePill, { backgroundColor: stagePill.color }]}
+              >
+                {stagePill.label}
+              </Text>
+            )}
+            <Text style={[styles.invoiceNumberLabel, { marginTop: 6 }]}>Faktura nr.</Text>
             <Text style={styles.invoiceNumber}>{invoice.invoice_number}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -300,6 +414,20 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
           </View>
         )}
 
+        {/* Procent-strip — kun ved deposit / progress med basis */}
+        {showPctStrip && (
+          <View style={styles.pctStrip}>
+            <Text style={styles.pctStripLabel}>Beregnes som</Text>
+            <Text style={styles.pctStripValue}>
+              {billingPct?.toLocaleString('da-DK', {
+                minimumFractionDigits: billingPct % 1 === 0 ? 0 : 2,
+                maximumFractionDigits: 2,
+              })}{' '}
+              % af {basisLabel} {fmt(basisValue!)}
+            </Text>
+          </View>
+        )}
+
         {/* Lines table */}
         <View style={styles.table}>
           <View style={styles.tableHeader}>
@@ -338,6 +466,43 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
             ))
           )}
         </View>
+
+        {/* Predecessor-sektion (kun ved final med forgængere) */}
+        {showPredecessorsSection && (
+          <View>
+            <Text style={styles.predHeading}>Tidligere fakturaer fratrukket</Text>
+            <View style={styles.predHeaderRow}>
+              <Text style={[styles.predHeaderCell, styles.predNumberCol]}>Faktura nr.</Text>
+              <Text style={[styles.predHeaderCell, styles.predTypeCol]}>Type</Text>
+              <Text style={[styles.predHeaderCell, styles.predLabelCol]}>Label</Text>
+              <Text style={[styles.predHeaderCell, styles.predStatusCol]}>Status</Text>
+              <Text style={[styles.predHeaderCell, styles.predAmtCol]}>Fradrag</Text>
+            </View>
+            {predecessors.map((p) => (
+              <View key={p.predecessor_invoice_id} style={styles.predRow} wrap={false}>
+                <Text style={[styles.predCell, styles.predNumberCol]}>
+                  {p.predecessor_invoice_number}
+                </Text>
+                <Text style={[styles.predCell, styles.predTypeCol]}>
+                  {PRED_TYPE_LABEL[p.predecessor_invoice_type] ?? p.predecessor_invoice_type}
+                </Text>
+                <Text style={[styles.predCell, styles.predLabelCol]}>
+                  {p.predecessor_stage_label ?? '—'}
+                </Text>
+                <Text style={[styles.predCell, styles.predStatusCol]}>
+                  {p.predecessor_status}
+                </Text>
+                <Text style={[styles.predCell, styles.predAmtCol]}>
+                  -{fmt(Number(p.deduction_amount))}
+                </Text>
+              </View>
+            ))}
+            <View style={styles.predTotalRow}>
+              <Text style={styles.predTotalLabel}>Total fradrag (ekskl. moms)</Text>
+              <Text style={styles.predTotalValue}>-{fmt(deductionTotal)}</Text>
+            </View>
+          </View>
+        )}
 
         {/* Totals */}
         <View style={styles.totalsBlock}>
