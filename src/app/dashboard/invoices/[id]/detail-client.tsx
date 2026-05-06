@@ -341,6 +341,21 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               Kladde har "KLADDE"-vandmærke i PDF
             </span>
           )}
+          {/* Sprint 6F-4 — heads-up at PDF får ANNULLERET-watermark når
+              voided_at er sat (sker når en sendt kreditnota dækker beløbet). */}
+          {isVoided && !isCreditNote && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-gray-100 text-gray-800 ring-1 ring-gray-300">
+              <Ban className="w-3 h-3" />
+              PDF viser "ANNULLERET"-vandmærke
+            </span>
+          )}
+          {/* Sprint 6F-4 — heads-up: kreditnota har egen header+styling i PDF. */}
+          {isCreditNote && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-red-50 text-red-800 ring-1 ring-red-200">
+              <FileMinus className="w-3 h-3" />
+              Kreditnota — ingen "betal"-instruktioner i PDF
+            </span>
+          )}
         </div>
       </div>
 

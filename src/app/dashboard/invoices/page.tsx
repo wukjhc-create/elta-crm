@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
+import { Ban } from 'lucide-react'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 
 export const metadata: Metadata = {
@@ -16,6 +17,14 @@ const fmtAmount = (n: number | null | undefined, ccy = 'DKK') =>
 
 const fmtDate = (s: string | null | undefined) => (s ? s.slice(0, 10) : '—')
 
+const TYPE_PILL: Record<string, { label: string; cls: string }> = {
+  standard: { label: '',            cls: '' },
+  deposit:  { label: 'Forskud',     cls: 'bg-blue-100 text-blue-800' },
+  progress: { label: 'Rate',        cls: 'bg-purple-100 text-purple-800' },
+  final:    { label: 'Slutfaktura', cls: 'bg-orange-100 text-orange-800' },
+  credit:   { label: 'Kreditnota',  cls: 'bg-red-100 text-red-800' },
+}
+
 export default async function InvoicesPage() {
   let rows: Array<{
     id: string
@@ -27,13 +36,15 @@ export default async function InvoicesPage() {
     currency: string
     due_date: string | null
     created_at: string
+    invoice_type: string | null
+    voided_at: string | null
   }> = []
   let error: string | null = null
   try {
     const { supabase } = await getAuthenticatedClient()
     const res = await supabase
       .from('invoices')
-      .select('id, invoice_number, customer_id, status, payment_status, final_amount, currency, due_date, created_at')
+      .select('id, invoice_number, customer_id, status, payment_status, final_amount, currency, due_date, created_at, invoice_type, voided_at')
       .order('created_at', { ascending: false })
       .limit(200)
     if (res.error) error = res.error.message
@@ -60,6 +71,7 @@ export default async function InvoicesPage() {
           <thead className="bg-gray-50 text-left text-xs text-gray-600">
             <tr>
               <th className="px-3 py-2">Faktura nr</th>
+              <th className="px-3 py-2">Type</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Betalingsstatus</th>
               <th className="px-3 py-2">Forfald</th>
@@ -69,25 +81,52 @@ export default async function InvoicesPage() {
           </thead>
           <tbody>
             {rows.length === 0 && !error && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400 text-xs">Ingen fakturaer endnu.</td></tr>
+              <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400 text-xs">Ingen fakturaer endnu.</td></tr>
             )}
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t hover:bg-gray-50">
-                <td className="px-3 py-2 font-mono">
-                  <Link
-                    href={`/dashboard/invoices/${r.id}`}
-                    className="text-emerald-700 hover:underline"
-                  >
-                    {r.invoice_number}
-                  </Link>
-                </td>
-                <td className="px-3 py-2">{r.status}</td>
-                <td className="px-3 py-2">{r.payment_status}</td>
-                <td className="px-3 py-2 text-xs">{fmtDate(r.due_date)}</td>
-                <td className="px-3 py-2 text-right font-medium">{fmtAmount(r.final_amount, r.currency)}</td>
-                <td className="px-3 py-2 text-xs">{fmtDate(r.created_at)}</td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const typeKey = r.invoice_type ?? 'standard'
+              const pill = TYPE_PILL[typeKey] ?? TYPE_PILL.standard
+              const isVoided = !!r.voided_at
+              return (
+                <tr key={r.id} className="border-t hover:bg-gray-50">
+                  <td className="px-3 py-2 font-mono">
+                    <Link
+                      href={`/dashboard/invoices/${r.id}`}
+                      className="text-emerald-700 hover:underline"
+                    >
+                      {r.invoice_number}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2">
+                    {pill.label ? (
+                      <span className={`text-[11px] px-2 py-0.5 rounded ${pill.cls}`}>
+                        {pill.label}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <span>{r.status}</span>
+                      {isVoided && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] uppercase px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 ring-1 ring-gray-400"
+                          title="Annulleret via kreditnota"
+                        >
+                          <Ban className="w-3 h-3" />
+                          Annulleret
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">{r.payment_status}</td>
+                  <td className="px-3 py-2 text-xs">{fmtDate(r.due_date)}</td>
+                  <td className="px-3 py-2 text-right font-medium">{fmtAmount(r.final_amount, r.currency)}</td>
+                  <td className="px-3 py-2 text-xs">{fmtDate(r.created_at)}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

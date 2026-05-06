@@ -843,6 +843,21 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   // Use invoice number as default payment reference if none was set yet.
   const paymentReference = invoice.payment_reference || invoice.invoice_number
 
+  // Sprint 6F-4 — slå original-fakturanummer op for kreditnotaer, så
+  // mailen kan vise "Krediterer faktura F-XXXX".
+  const isCreditNote = invoice.invoice_type === 'credit'
+  let creditOfInvoiceNumber: string | null = null
+  if (isCreditNote && invoice.credit_of_invoice_id) {
+    const { data: orig } = await supabase
+      .from('invoices')
+      .select('invoice_number')
+      .eq('id', invoice.credit_of_invoice_id)
+      .maybeSingle()
+    if (orig?.invoice_number) {
+      creditOfInvoiceNumber = orig.invoice_number as string
+    }
+  }
+
   const params = {
     customerName: cust?.contact_person || cust?.company_name || 'Kunde',
     invoiceNumber: invoice.invoice_number,
@@ -861,6 +876,8 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     paymentReference,
     bankRegNo: process.env.INVOICE_BANK_REG_NO || null,
     bankAccount: process.env.INVOICE_BANK_ACCOUNT || null,
+    isCreditNote,
+    creditOfInvoiceNumber,
   } as const
 
   // Sprint 6C — render the invoice PDF and attach it. Best-effort:
@@ -933,6 +950,12 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   } catch { /* never crash */ }
 
   // Sync to e-conomic (Phase 5.4). Best-effort — never blocks send.
+  // Sprint 6F-4 — kreditnotaer skubbes IKKE til e-conomic før dedikeret
+  // refund-flow er bygget; ellers risikerer vi at booke negative bilag
+  // forkert i bogføringen. Skip guard.
+  if (isCreditNote) {
+    return { invoiceId, status: 'sent', recipient }
+  }
   try {
     const { createInvoiceInEconomic } = await import('@/lib/services/economic-client')
     const econ = await createInvoiceInEconomic(invoiceId)
