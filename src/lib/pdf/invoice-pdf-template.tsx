@@ -195,6 +195,61 @@ const styles = StyleSheet.create({
     transform: 'rotate(-25deg)',
   },
 
+  // Sprint 6F-4 — ANNULLERET watermark (lidt mørkere og mere mættet end KLADDE)
+  voidedWatermark: {
+    position: 'absolute',
+    top: 240,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 90,
+    color: 'rgba(160, 64, 64, 0.22)',
+    fontWeight: 'bold',
+    transform: 'rotate(-22deg)',
+  },
+
+  // Sprint 6F-4 — Annulleret-banner i toppen af original-PDF
+  voidedBanner: {
+    backgroundColor: '#F5DCDC',
+    border: '1 solid #A04040',
+    padding: 8,
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  voidedBannerText: {
+    fontSize: 11,
+    color: '#7A2E2E',
+    fontWeight: 'bold',
+  },
+
+  // Sprint 6F-4 — Kreditnota-info-strip (hvilken faktura krediteres)
+  creditOfStrip: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF4F4',
+    borderLeft: '3 solid #A04040',
+    padding: 8,
+    marginBottom: 18,
+  },
+  creditOfLabel: { fontSize: 9, color: MUTED, marginRight: 8 },
+  creditOfValue: { fontSize: 10, fontWeight: 'bold', color: '#A04040' },
+
+  // Sprint 6F-4 — Kreditnota refund-blok (erstatter Betalingsoplysninger)
+  creditNotePayment: {
+    marginTop: 22,
+    padding: 12,
+    border: '1 solid #DDD',
+    backgroundColor: '#FAF5F5',
+    borderRadius: 4,
+  },
+  creditNotePaymentTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    color: '#A04040',
+  },
+  creditNotePaymentText: { fontSize: 9, color: TEXT, lineHeight: 1.5 },
+
   // Sprint 6D-4 — stage pille + procent-strip
   stagePill: {
     paddingHorizontal: 8,
@@ -297,6 +352,11 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
 
   const isDraft = invoice.status === 'draft'
 
+  // Sprint 6F-4 — credit-note + voided detection
+  const isCreditNote = invoice.invoice_type === 'credit'
+  const isVoided = !!invoice.voided_at
+  const creditOfNumber = payload.credit_of_invoice_number ?? null
+
   // Sprint 6D-4 — stage info
   const invType = (invoice.invoice_type ?? 'standard') as keyof typeof STAGE_PILL_LABEL
   const stagePill = STAGE_PILL_LABEL[invType]
@@ -326,17 +386,38 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
 
   return (
     <Document
-      title={`Faktura ${invoice.invoice_number}`}
+      title={`${isCreditNote ? 'Kreditnota' : 'Faktura'} ${invoice.invoice_number}`}
       author={cs.company_name || 'Elta Solar'}
     >
       <Page size="A4" style={styles.page}>
         {isDraft && <Text style={styles.draftWatermark}>KLADDE</Text>}
+        {/* Sprint 6F-4 — ANNULLERET watermark dækker hele siden hvis original
+            er annulleret via en sendt/betalt kreditnota. Vises ikke på selve
+            kreditnotaen — kun på den krediterede faktura. */}
+        {isVoided && !isCreditNote && (
+          <Text style={styles.voidedWatermark} fixed>
+            ANNULLERET
+          </Text>
+        )}
+
+        {/* Sprint 6F-4 — top-banner på annulleret original. */}
+        {isVoided && !isCreditNote && (
+          <View style={styles.voidedBanner}>
+            <Text style={styles.voidedBannerText}>
+              Fakturaen er annulleret via kreditnota.
+            </Text>
+          </View>
+        )}
 
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.brandTitle}>
-              FAKTURA{stageLabel ? ` — ${stageLabel}` : ''}
+            <Text
+              style={isCreditNote ? [styles.brandTitle, { color: '#A04040' }] : styles.brandTitle}
+            >
+              {isCreditNote
+                ? 'KREDITNOTA'
+                : `FAKTURA${stageLabel ? ` — ${stageLabel}` : ''}`}
             </Text>
             {showStagePill && (
               <Text
@@ -345,7 +426,9 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
                 {stagePill.label}
               </Text>
             )}
-            <Text style={[styles.invoiceNumberLabel, { marginTop: 6 }]}>Faktura nr.</Text>
+            <Text style={[styles.invoiceNumberLabel, { marginTop: 6 }]}>
+              {isCreditNote ? 'Kreditnota nr.' : 'Faktura nr.'}
+            </Text>
             <Text style={styles.invoiceNumber}>{invoice.invoice_number}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -411,6 +494,15 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
                 <Text style={styles.caseValue}>{sag.project_name || sag.title}</Text>
               </>
             )}
+          </View>
+        )}
+
+        {/* Sprint 6F-4 — "Kreditnota for faktura X"-strip vises kun på
+            kreditnotaer hvor original-fakturanummer er kendt. */}
+        {isCreditNote && creditOfNumber && (
+          <View style={styles.creditOfStrip}>
+            <Text style={styles.creditOfLabel}>Kreditnota for faktura</Text>
+            <Text style={styles.creditOfValue}>{creditOfNumber}</Text>
           </View>
         )}
 
@@ -522,30 +614,41 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
           </View>
         </View>
 
-        {/* Payment block */}
-        <View style={styles.paymentBlock}>
-          <Text style={styles.paymentTitle}>Betalingsoplysninger</Text>
-          {bankRegNo && bankAccount ? (
-            <>
-              <Text style={styles.paymentLine}>
-                Bank: Reg.nr. {bankRegNo} — Konto {bankAccount}
-              </Text>
-              <Text style={styles.paymentLine}>Beløb: {fmt(final)}</Text>
-              <Text style={styles.paymentLine}>
-                Betalingsreference: {paymentReference}
-              </Text>
-              <Text style={styles.paymentLine}>
-                Forfaldsdato:{' '}
-                {invoice.due_date ? formatDateLongDK(invoice.due_date) : '—'}
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.paymentMissing}>
-              Bankoplysninger er ikke konfigureret. Kontakt {cs.company_email || 'Elta Solar'} for
-              betalingsinstruktion. (Ref: {paymentReference})
+        {/* Payment block — Sprint 6F-4: kreditnota viser refund-info,
+            ikke "betal til reg.nr/konto"-felt. */}
+        {isCreditNote ? (
+          <View style={styles.creditNotePayment}>
+            <Text style={styles.creditNotePaymentTitle}>Refundering</Text>
+            <Text style={styles.creditNotePaymentText}>
+              Kreditnotaen reducerer/udligner tidligere faktura. Eventuel
+              refundering håndteres separat.
             </Text>
-          )}
-        </View>
+          </View>
+        ) : (
+          <View style={styles.paymentBlock}>
+            <Text style={styles.paymentTitle}>Betalingsoplysninger</Text>
+            {bankRegNo && bankAccount ? (
+              <>
+                <Text style={styles.paymentLine}>
+                  Bank: Reg.nr. {bankRegNo} — Konto {bankAccount}
+                </Text>
+                <Text style={styles.paymentLine}>Beløb: {fmt(final)}</Text>
+                <Text style={styles.paymentLine}>
+                  Betalingsreference: {paymentReference}
+                </Text>
+                <Text style={styles.paymentLine}>
+                  Forfaldsdato:{' '}
+                  {invoice.due_date ? formatDateLongDK(invoice.due_date) : '—'}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.paymentMissing}>
+                Bankoplysninger er ikke konfigureret. Kontakt {cs.company_email || 'Elta Solar'} for
+                betalingsinstruktion. (Ref: {paymentReference})
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Notes */}
         {invoice.notes && (

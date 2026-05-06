@@ -95,6 +95,13 @@ export interface InvoicePdfPayload {
     vat_rate: number
   }
   /**
+   * Sprint 6F-4 — fakturanummeret på den original-faktura, denne kreditnota
+   * krediterer. Kun sat når invoice.invoice_type === 'credit' og
+   * credit_of_invoice_id er kendt. Bruges i PDF-headeren til "Kreditnota
+   * for faktura F-XXXX".
+   */
+  credit_of_invoice_number?: string | null
+  /**
    * Sprint 6D-4 — forgængere når invoice.is_final_invoice=true.
    * Hver række mapper én rad i invoice_predecessors, beriget med
    * forgængerens fakturanummer + type/label så PDF kan rendere

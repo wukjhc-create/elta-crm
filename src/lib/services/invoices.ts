@@ -441,6 +441,22 @@ export async function getInvoicePdfPayload(
     }
   }
 
+  // Sprint 6F-4 — Kreditnota: hent original fakturanummer til PDF-header.
+  let creditOfInvoiceNumber: string | null = null
+  if (
+    inv.invoice_type === 'credit' &&
+    inv.credit_of_invoice_id
+  ) {
+    const { data: orig } = await supabase
+      .from('invoices')
+      .select('invoice_number')
+      .eq('id', inv.credit_of_invoice_id)
+      .maybeSingle()
+    if (orig?.invoice_number) {
+      creditOfInvoiceNumber = orig.invoice_number as string
+    }
+  }
+
   // Recompute totals from lines defensively. If they disagree with
   // invoices.total_amount/tax_amount/final_amount, the line-derived
   // numbers win — the PDF must never show a total that doesn't match
@@ -470,6 +486,7 @@ export async function getInvoicePdfPayload(
       vat_rate: vatRate,
     },
     predecessors,
+    credit_of_invoice_number: creditOfInvoiceNumber,
   }
 }
 
@@ -535,11 +552,19 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
   cutoff.setDate(cutoff.getDate() - 3)
   const cutoffIso = cutoff.toISOString().slice(0, 10)
 
+  // Sprint 6F-4 — reminder-skip:
+  //   - voided_at IS NOT NULL  → fakturaen er annulleret via kreditnota
+  //   - invoice_type='credit'  → en kreditnota skal aldrig modtage rykker
+  //   - final_amount <= 0      → ingen aktiv fordring
+  // .or() håndterer null-safety for invoice_type (gamle rows uden kolonne).
   const { data, error } = await supabase
     .from('invoices')
     .select('*')
     .eq('status', 'sent')
     .lte('due_date', cutoffIso)
+    .is('voided_at', null)
+    .gt('final_amount', 0)
+    .or('invoice_type.is.null,invoice_type.neq.credit')
     .order('due_date', { ascending: true })
 
   if (error) {
@@ -590,6 +615,22 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
   if (invoice.status !== 'sent') {
     await logReminder(invoiceId, null, 'skipped', null, `status=${invoice.status}`)
     return { invoiceId, status: 'skipped', level: null, reason: `status=${invoice.status}` }
+  }
+
+  // Sprint 6F-4 — defense-in-depth: skip selv hvis cron-listen er forbi-filtreret.
+  // Disse vagter beskytter også eksterne kald til sendInvoiceReminder (f.eks. fra
+  // automation rule-engine eller fremtidige API-endpoints).
+  if (invoice.voided_at) {
+    await logReminder(invoiceId, null, 'skipped', null, 'voided')
+    return { invoiceId, status: 'skipped', level: null, reason: 'voided' }
+  }
+  if (invoice.invoice_type === 'credit') {
+    await logReminder(invoiceId, null, 'skipped', null, 'credit_note')
+    return { invoiceId, status: 'skipped', level: null, reason: 'credit_note' }
+  }
+  if (Number(invoice.final_amount) <= 0) {
+    await logReminder(invoiceId, null, 'skipped', null, 'final_amount<=0')
+    return { invoiceId, status: 'skipped', level: null, reason: 'final_amount<=0' }
   }
 
   if (!invoice.due_date) {
