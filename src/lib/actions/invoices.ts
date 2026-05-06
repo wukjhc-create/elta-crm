@@ -28,6 +28,13 @@ import {
   type CreateStageInvoiceResult,
   type StageInvoiceSummary,
 } from '@/lib/services/invoice-stage'
+import {
+  createCreditNoteForInvoice,
+  getCreditedAmountForInvoice,
+  type CreateCreditNoteInput,
+  type CreateCreditNoteResult,
+  type CreditSummary,
+} from '@/lib/services/invoice-credit'
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 
@@ -535,6 +542,82 @@ export async function deleteInvoiceDraftAction(
     revalidatePath(`/dashboard/orders/${caseNumber}`)
   }
   return { ok: true, message: 'Kladde slettet — kilderækker er igen ufakturerede' }
+}
+
+// =====================================================
+// 6F-2 — Credit-note actions
+// =====================================================
+
+export async function getCreditedAmountForInvoiceAction(
+  invoiceId: string
+): Promise<CreditSummary> {
+  const empty: CreditSummary = {
+    ok: false,
+    original_invoice_id: null,
+    original_invoice_number: null,
+    original_total_ex_vat: 0,
+    original_vat: 0,
+    original_total_incl_vat: 0,
+    existing_credit_notes: [],
+    credited_ex_vat_total: 0,
+    credited_vat_total: 0,
+    credited_incl_vat_total: 0,
+    remaining_creditable_ex_vat: 0,
+    remaining_creditable_incl_vat: 0,
+    is_voided: false,
+    voided_at: null,
+  }
+  try {
+    validateUUID(invoiceId, 'invoice_id')
+  } catch (err) {
+    return { ...empty, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  await getAuthenticatedClient()
+  return getCreditedAmountForInvoice(invoiceId)
+}
+
+export async function createCreditNoteForInvoiceAction(
+  input: CreateCreditNoteInput
+): Promise<CreateCreditNoteResult> {
+  const empty: CreateCreditNoteResult = {
+    ok: false,
+    message: '',
+    credit_invoice_id: null,
+    credit_invoice_number: null,
+    credited_ex_vat: 0,
+    credited_vat: 0,
+    credited_incl_vat: 0,
+    voided_original: false,
+    remaining_after_creditable_ex_vat: 0,
+  }
+  try {
+    validateUUID(input.invoice_id, 'invoice_id')
+  } catch (err) {
+    return { ...empty, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { userId, supabase } = await getAuthenticatedClient()
+  const result = await createCreditNoteForInvoice(input, userId)
+  if (result.ok && result.credit_invoice_id) {
+    revalidatePath('/dashboard/invoices')
+    revalidatePath(`/dashboard/invoices/${input.invoice_id}`)
+    revalidatePath(`/dashboard/invoices/${result.credit_invoice_id}`)
+    // Resolve sagens case_number for orders revalidate
+    const { data: orig } = await supabase
+      .from('invoices')
+      .select('case_id')
+      .eq('id', input.invoice_id)
+      .maybeSingle()
+    if (orig?.case_id) {
+      const { data: c } = await supabase
+        .from('service_cases')
+        .select('case_number')
+        .eq('id', orig.case_id)
+        .maybeSingle()
+      if (c?.case_number) revalidatePath(`/dashboard/orders/${c.case_number}`)
+      revalidatePath(`/dashboard/orders/${orig.case_id}`)
+    }
+  }
+  return result
 }
 
 // =====================================================
