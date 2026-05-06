@@ -54,13 +54,44 @@ export interface CreditSummary {
     credit_reason: string | null
     created_at: string
   }>
-  credited_ex_vat_total: number      // positivt tal — abs sum
-  credited_vat_total: number         // positivt tal — abs sum
-  credited_incl_vat_total: number    // positivt tal — abs sum
+  /**
+   * Sum af ALLE kreditnotaer (drafts + sent + paid) — bruges til
+   * remaining_creditable beregning så drafts reserverer beløb og ny
+   * kreditnota ikke kan oprette over 100 % af original.
+   * Sprint 6F-3 fix: split tilføjet for at skelne juridisk void
+   * (kun finalized) fra UI-reservation (alle drafts).
+   */
+  credited_ex_vat_total: number      // positivt tal — abs sum (drafts + finalized)
+  credited_vat_total: number
+  credited_incl_vat_total: number
+  /** Sprint 6F-3 fix — kun sent/paid kreditnotaer (juridisk gældende) */
+  credited_finalized_ex_vat_total: number
+  credited_finalized_vat_total: number
+  credited_finalized_incl_vat_total: number
+  /** Sprint 6F-3 fix — kun draft kreditnotaer (reserveret men ikke gældende) */
+  credited_draft_ex_vat_total: number
+  credited_draft_vat_total: number
+  credited_draft_incl_vat_total: number
+  /** Antal-tællere */
+  finalized_credit_count: number
+  draft_credit_count: number
   remaining_creditable_ex_vat: number
   remaining_creditable_incl_vat: number
+  /** True når voided_at er sat på original-fakturaen */
   is_voided: boolean
   voided_at: string | null
+  /**
+   * Sprint 6F-3 fix — true når der er ≥1 draft kreditnota og INGEN
+   * finalized kreditnotaer endnu. UI viser så "Kreditnota-kladde
+   * findes"-advarsel uden at vise faktura som annulleret.
+   */
+  has_only_draft_credits: boolean
+  /**
+   * Sprint 6F-3 fix — true når finalized credits dækker hele original.
+   * Kan være true uden at voided_at er sat (race), men UI behandler
+   * dem ens. Drives af credited_finalized_ex_vat_total ≥ original_total_ex_vat.
+   */
+  is_fully_credited_finalized: boolean
 }
 
 export async function getCreditedAmountForInvoice(
@@ -78,10 +109,20 @@ export async function getCreditedAmountForInvoice(
     credited_ex_vat_total: 0,
     credited_vat_total: 0,
     credited_incl_vat_total: 0,
+    credited_finalized_ex_vat_total: 0,
+    credited_finalized_vat_total: 0,
+    credited_finalized_incl_vat_total: 0,
+    credited_draft_ex_vat_total: 0,
+    credited_draft_vat_total: 0,
+    credited_draft_incl_vat_total: 0,
+    finalized_credit_count: 0,
+    draft_credit_count: 0,
     remaining_creditable_ex_vat: 0,
     remaining_creditable_incl_vat: 0,
     is_voided: false,
     voided_at: null,
+    has_only_draft_credits: false,
+    is_fully_credited_finalized: false,
   }
 
   const { data: orig, error: origErr } = await supabase
@@ -134,14 +175,37 @@ export async function getCreditedAmountForInvoice(
   let absExVat = 0
   let absVat = 0
   let absIncl = 0
+  let finalizedExVat = 0
+  let finalizedVat = 0
+  let finalizedIncl = 0
+  let draftExVat = 0
+  let draftVat = 0
+  let draftIncl = 0
+  let finalizedCount = 0
+  let draftCount = 0
   const list: CreditSummary['existing_credit_notes'] = []
   for (const c of creditRows) {
     const exv = Number(c.total_amount)
     const tax = Number(c.tax_amount)
     const incl = Number(c.final_amount)
-    absExVat += Math.abs(exv)
-    absVat += Math.abs(tax)
-    absIncl += Math.abs(incl)
+    const aExv = Math.abs(exv)
+    const aTax = Math.abs(tax)
+    const aIncl = Math.abs(incl)
+    absExVat += aExv
+    absVat += aTax
+    absIncl += aIncl
+    if (c.status === 'sent' || c.status === 'paid') {
+      finalizedExVat += aExv
+      finalizedVat += aTax
+      finalizedIncl += aIncl
+      finalizedCount += 1
+    } else {
+      // 'draft' (reservation only)
+      draftExVat += aExv
+      draftVat += aTax
+      draftIncl += aIncl
+      draftCount += 1
+    }
     list.push({
       id: c.id,
       invoice_number: c.invoice_number,
@@ -156,6 +220,9 @@ export async function getCreditedAmountForInvoice(
 
   const remaining_ex = r2(total_ex_vat - absExVat)
   const remaining_incl = r2(total_incl - absIncl)
+  const fullyCreditedFinalized =
+    total_ex_vat > 0 && finalizedExVat + 0.005 >= total_ex_vat
+  const onlyDraftCredits = draftCount > 0 && finalizedCount === 0
 
   return {
     ok: true,
@@ -168,10 +235,20 @@ export async function getCreditedAmountForInvoice(
     credited_ex_vat_total: r2(absExVat),
     credited_vat_total: r2(absVat),
     credited_incl_vat_total: r2(absIncl),
+    credited_finalized_ex_vat_total: r2(finalizedExVat),
+    credited_finalized_vat_total: r2(finalizedVat),
+    credited_finalized_incl_vat_total: r2(finalizedIncl),
+    credited_draft_ex_vat_total: r2(draftExVat),
+    credited_draft_vat_total: r2(draftVat),
+    credited_draft_incl_vat_total: r2(draftIncl),
+    finalized_credit_count: finalizedCount,
+    draft_credit_count: draftCount,
     remaining_creditable_ex_vat: remaining_ex,
     remaining_creditable_incl_vat: remaining_incl,
     is_voided: !!origTyped.voided_at,
     voided_at: origTyped.voided_at,
+    has_only_draft_credits: onlyDraftCredits,
+    is_fully_credited_finalized: fullyCreditedFinalized,
   }
 }
 
@@ -495,31 +572,19 @@ export async function createCreditNoteForInvoice(
     })
   }
 
-  // ---- Auto-void: hvis fuldt krediteret, sæt voided_at på original ----
-  let voidedOriginal = false
+  // ---- Sprint 6F-3 fix: NO auto-void on draft creation ----
+  // Tidligere version satte voided_at på original allerede her, hvilket
+  // var juridisk forkert: en draft kreditnota må IKKE annullere
+  // originalen. Voiding sker først når kreditnotaen markeres som sendt
+  // (se setInvoiceStatus → recomputeOriginalVoidStatus i invoices.ts).
+  //
+  // Beregningen efterlades for return-værdien så UI/operatør ser hvad
+  // der ER reserveret, men intet skrives til DB her.
+  const voidedOriginal = false
   const newCreditedTotalExVat = r2(summary.credited_ex_vat_total + creditExVat)
   const remainingAfter = r2(origTotalExVat - newCreditedTotalExVat)
-  if (remainingAfter <= 0.005 && !original.voided_at) {
-    // Race-safe: kun sæt hvis voided_at ER null lige nu.
-    const { error: voidErr } = await supabase
-      .from('invoices')
-      .update({
-        voided_at: new Date().toISOString(),
-        voided_by: approverId,
-      })
-      .eq('id', original.id)
-      .is('voided_at', null)
-    if (!voidErr) {
-      voidedOriginal = true
-    } else {
-      logger.warn('auto-void on original failed (credit still ok)', {
-        entityId: original.id,
-        error: voidErr,
-      })
-    }
-  }
 
-  logger.info('credit note created', {
+  logger.info('credit note created (draft — original not voided)', {
     entity: 'invoices',
     entityId: header.id,
     metadata: {
@@ -527,7 +592,6 @@ export async function createCreditNoteForInvoice(
       original_invoice_number: original.invoice_number,
       credit_type: input.credit_type,
       credited_ex_vat: creditExVat,
-      voided_original: voidedOriginal,
       created_by: approverId,
     },
   })

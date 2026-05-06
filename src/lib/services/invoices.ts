@@ -69,6 +69,88 @@ const ALLOWED_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
   paid: [],
 }
 
+/**
+ * Sprint 6F-3 fix — recompute void-status on a credit note's original.
+ *
+ * Called when a credit note transitions to/from sent/paid OR when a
+ * draft credit note is deleted. The contract:
+ *   - Original is voided ONLY when sum of FINALIZED (sent + paid)
+ *     credit notes on it ≥ original.final_amount.
+ *   - Drafts NEVER trigger void.
+ *   - This function is idempotent: it sets voided_at if missing AND
+ *     finalized credits cover the original, or clears voided_at if
+ *     it was set but no longer should be (self-healing).
+ *
+ * Best-effort: never throws. Logs warnings on FK errors.
+ */
+async function recomputeOriginalVoidStatus(
+  originalInvoiceId: string,
+  approverId: string | null
+): Promise<void> {
+  const supabase = createAdminClient()
+
+  const { data: original } = await supabase
+    .from('invoices')
+    .select('id, final_amount, voided_at')
+    .eq('id', originalInvoiceId)
+    .maybeSingle()
+  if (!original) return
+
+  const origFinal = Number((original as { final_amount: number | string }).final_amount)
+  if (!Number.isFinite(origFinal) || origFinal <= 0) return
+
+  // Only count credit notes that are FINALIZED (sent or paid).
+  // Drafts must not contribute to voiding.
+  const { data: finalizedCredits } = await supabase
+    .from('invoices')
+    .select('final_amount, status')
+    .eq('credit_of_invoice_id', originalInvoiceId)
+    .eq('invoice_type', 'credit')
+    .in('status', ['sent', 'paid'])
+
+  let creditedAbsIncl = 0
+  for (const c of (finalizedCredits ?? []) as Array<{ final_amount: number | string }>) {
+    creditedAbsIncl += Math.abs(Number(c.final_amount))
+  }
+
+  const currentlyVoided = !!(original as { voided_at: string | null }).voided_at
+  const shouldBeVoided = creditedAbsIncl + 0.005 >= origFinal
+
+  if (shouldBeVoided && !currentlyVoided) {
+    const { error } = await supabase
+      .from('invoices')
+      .update({
+        voided_at: new Date().toISOString(),
+        voided_by: approverId,
+      })
+      .eq('id', originalInvoiceId)
+      .is('voided_at', null)
+    if (error) {
+      logger.warn('recomputeOriginalVoidStatus: void-set failed', {
+        entityId: originalInvoiceId,
+        error,
+      })
+    }
+  } else if (!shouldBeVoided && currentlyVoided) {
+    // Self-healing — clear stale voided_at when finalized credits no
+    // longer cover the original (e.g. a draft was deleted that had
+    // erroneously triggered an old version of the auto-void).
+    const { error } = await supabase
+      .from('invoices')
+      .update({
+        voided_at: null,
+        voided_by: null,
+      })
+      .eq('id', originalInvoiceId)
+    if (error) {
+      logger.warn('recomputeOriginalVoidStatus: void-clear failed', {
+        entityId: originalInvoiceId,
+        error,
+      })
+    }
+  }
+}
+
 export async function setInvoiceStatus(
   invoiceId: string,
   next: InvoiceStatus
@@ -115,8 +197,20 @@ export async function setInvoiceStatus(
     throw new Error(`setInvoiceStatus update failed: ${updErr?.message ?? 'unknown'}`)
   }
 
+  // Sprint 6F-3 fix — when a credit note transitions to a finalized
+  // status (sent or paid), recompute void on its original. Voiding
+  // happens only when finalized credits cover the original total.
+  const updatedRow = updated as InvoiceRow
+  if (
+    (next === 'sent' || next === 'paid') &&
+    updatedRow.invoice_type === 'credit' &&
+    updatedRow.credit_of_invoice_id
+  ) {
+    await recomputeOriginalVoidStatus(updatedRow.credit_of_invoice_id, null)
+  }
+
   console.log('INVOICE STATUS:', invoiceId, cur, '→', next)
-  return updated as InvoiceRow
+  return updatedRow
 }
 
 /**
@@ -144,7 +238,7 @@ export async function deleteInvoiceDraft(invoiceId: string): Promise<void> {
 
   const { data: inv, error: readErr } = await supabase
     .from('invoices')
-    .select('id, status, invoice_number')
+    .select('id, status, invoice_number, invoice_type, credit_of_invoice_id')
     .eq('id', invoiceId)
     .maybeSingle()
   if (readErr || !inv) {
@@ -155,6 +249,13 @@ export async function deleteInvoiceDraft(invoiceId: string): Promise<void> {
       `deleteInvoiceDraft: invoice ${inv.invoice_number} is ${inv.status} — only drafts can be deleted`
     )
   }
+  // Capture credit-link before delete so we can recompute the original
+  // invoice's void state afterward (Sprint 6F-3 fix).
+  const isCreditOf = (
+    inv as { invoice_type?: string; credit_of_invoice_id?: string | null }
+  )
+  const creditOriginalId =
+    isCreditOf.invoice_type === 'credit' ? isCreditOf.credit_of_invoice_id ?? null : null
 
   const { data: lines } = await supabase
     .from('invoice_lines')
@@ -209,6 +310,16 @@ export async function deleteInvoiceDraft(invoiceId: string): Promise<void> {
   }
 
   console.log('INVOICE DRAFT DELETED:', invoiceId, inv.invoice_number)
+
+  // Sprint 6F-3 fix — if we just deleted a credit draft, recompute the
+  // original's void state. Self-healing: clears any stale voided_at
+  // that was set by an older buggy code-path (where draft credit
+  // erroneously triggered void). Idempotent — does nothing if the
+  // original wasn't voided or if other finalized credits still cover
+  // it.
+  if (creditOriginalId) {
+    await recomputeOriginalVoidStatus(creditOriginalId, null)
+  }
 }
 
 /**

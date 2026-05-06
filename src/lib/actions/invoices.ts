@@ -562,10 +562,20 @@ export async function getCreditedAmountForInvoiceAction(
     credited_ex_vat_total: 0,
     credited_vat_total: 0,
     credited_incl_vat_total: 0,
+    credited_finalized_ex_vat_total: 0,
+    credited_finalized_vat_total: 0,
+    credited_finalized_incl_vat_total: 0,
+    credited_draft_ex_vat_total: 0,
+    credited_draft_vat_total: 0,
+    credited_draft_incl_vat_total: 0,
+    finalized_credit_count: 0,
+    draft_credit_count: 0,
     remaining_creditable_ex_vat: 0,
     remaining_creditable_incl_vat: 0,
     is_voided: false,
     voided_at: null,
+    has_only_draft_credits: false,
+    is_fully_credited_finalized: false,
   }
   try {
     validateUUID(invoiceId, 'invoice_id')

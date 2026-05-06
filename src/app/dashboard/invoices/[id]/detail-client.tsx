@@ -659,7 +659,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
           </div>
         )}
 
-        {isSent && (
+        {isSent && !isVoided && (
           <div className="space-y-3">
             <div className="text-xs text-gray-600 flex items-start gap-1">
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
@@ -683,7 +683,26 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
           </div>
         )}
 
-        {/* Sprint 6F-3 — Krediter-knap på alle non-credit, non-draft, non-fully-credited */}
+        {/* Sprint 6F-3 fix — Annulleret-banner: skjuler både Markér betalt
+            og Krediter-knap når voided_at er sat (fuld sendt kreditnota
+            har dækket originalen). */}
+        {isVoided && !isCreditNote && (
+          <div className="rounded ring-1 ring-gray-300 bg-gray-50 px-3 py-3 text-sm text-gray-700 flex items-start gap-2">
+            <Ban className="w-4 h-4 mt-0.5 shrink-0 text-gray-500" />
+            <div>
+              <strong>Annulleret via kreditnota.</strong> Ingen yderligere
+              betalings- eller kreditnota-handlinger er tilladt på denne
+              faktura. Original betaling refunderes uden for systemet.
+            </div>
+          </div>
+        )}
+
+        {/* Sprint 6F-3 — Krediter-knap. Skjuler når:
+              - faktura ER en kreditnota
+              - status='draft'
+              - voided_at er sat (juridisk annulleret)
+              - remaining_creditable_ex_vat ≤ 0 (drafts har reserveret hele beløbet)
+            Drafts på remaining tæller med så over-credit ikke kan ske. */}
         {!isCreditNote && !isDraft && creditSummary && !creditSummary.is_voided &&
           creditSummary.remaining_creditable_ex_vat > 0 && (
             <div className="border-t pt-3 mt-3">
@@ -699,7 +718,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               <p className="text-[11px] text-gray-500 mt-1 flex items-start gap-1">
                 <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
                 Opretter ny kreditnota med eget fakturanummer. Original-fakturaen
-                bevares i historik.
+                annulleres først når kreditnotaen markeres som sendt.
               </p>
             </div>
           )}
@@ -744,10 +763,47 @@ function CreditStatusPanel({
 }) {
   const fmtKrLocal = (n: number) => formatCurrency(n, 'DKK', 2)
   const hasCredits = summary.existing_credit_notes.length > 0
-  const fullyCredited =
-    summary.remaining_creditable_ex_vat <= 0.005 || isVoided
+  const onlyDrafts = summary.has_only_draft_credits
+  const fullyFinalized = summary.is_fully_credited_finalized || isVoided
+  // "Delvist krediteret" gælder kun for faktura med ≥1 finalized credit
+  // som ikke dækker hele beløbet.
+  const partiallyFinalized =
+    summary.finalized_credit_count > 0 && !fullyFinalized
 
   if (!hasCredits && !isVoided) return null
+
+  // Pille-style efter højest-prioritets-state:
+  // 1. Annulleret (voided_at sat)
+  // 2. Fuldt krediteret (finalized = total, men race-window før voided_at)
+  // 3. Delvist krediteret (finalized < total, men > 0)
+  // 4. Kreditnota-kladde findes (kun drafts)
+  let pill: { label: string; className: string }
+  if (isVoided) {
+    pill = {
+      label: 'Annulleret',
+      className: 'bg-gray-200 text-gray-700 ring-1 ring-gray-300',
+    }
+  } else if (fullyFinalized) {
+    pill = {
+      label: 'Fuldt krediteret',
+      className: 'bg-gray-200 text-gray-700 ring-1 ring-gray-300',
+    }
+  } else if (partiallyFinalized) {
+    pill = {
+      label: 'Delvist krediteret',
+      className: 'bg-amber-100 text-amber-800',
+    }
+  } else if (onlyDrafts) {
+    pill = {
+      label: 'Kreditnota-kladde',
+      className: 'bg-yellow-100 text-yellow-900',
+    }
+  } else {
+    pill = {
+      label: '—',
+      className: 'bg-gray-100 text-gray-700',
+    }
+  }
 
   return (
     <div className="rounded-lg ring-1 ring-gray-200 bg-white overflow-hidden">
@@ -756,19 +812,28 @@ function CreditStatusPanel({
           <FileMinus className="w-4 h-4 text-red-600" />
           Kreditteringer
         </h3>
-        {fullyCredited ? (
-          <span className="text-[11px] uppercase tracking-wide bg-gray-200 text-gray-700 px-2 py-0.5 rounded ring-1 ring-gray-300">
-            {isVoided ? 'Annulleret' : 'Fuldt krediteret'}
-          </span>
-        ) : (
-          <span className="text-[11px] uppercase tracking-wide bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-            Delvist krediteret
-          </span>
-        )}
+        <span
+          className={`text-[11px] uppercase tracking-wide px-2 py-0.5 rounded ${pill.className}`}
+        >
+          {pill.label}
+        </span>
       </div>
       <div className="px-4 py-3 space-y-3">
-        {/* Krediteret X af Y */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+        {/* Sprint 6F-3 fix — gul advarsel når kun draft credits findes */}
+        {onlyDrafts && !isVoided && (
+          <div className="rounded ring-1 ring-yellow-300 bg-yellow-50 px-3 py-2 text-xs text-yellow-900 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>
+              Der findes en kreditnota-kladde, men fakturaen er <strong>ikke
+              annulleret endnu</strong>. Send eller markér kreditnotaen som sendt
+              for at fuldføre annulleringen — eller slet kladden hvis fakturaen
+              alligevel skal stå.
+            </span>
+          </div>
+        )}
+
+        {/* Krediteret X af Y — bruger finalized-tal, ikke draft */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-500">Original beløb</div>
             <div className="tabular-nums font-semibold text-gray-900">
@@ -776,9 +841,21 @@ function CreditStatusPanel({
             </div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-gray-500">Krediteret</div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">Endelig krediteret</div>
             <div className="tabular-nums font-semibold text-red-700">
-              −{fmtKrLocal(summary.credited_ex_vat_total)}
+              −{fmtKrLocal(summary.credited_finalized_ex_vat_total)}
+            </div>
+            <div className="text-[10px] text-gray-500">
+              {summary.finalized_credit_count} sendt/betalt
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">Reserveret i kladde</div>
+            <div className="tabular-nums font-semibold text-yellow-700">
+              −{fmtKrLocal(summary.credited_draft_ex_vat_total)}
+            </div>
+            <div className="text-[10px] text-gray-500">
+              {summary.draft_credit_count} kladde
             </div>
           </div>
           <div>
@@ -804,9 +881,24 @@ function CreditStatusPanel({
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {summary.existing_credit_notes.map((c) => (
-                  <tr key={c.id}>
+                  <tr
+                    key={c.id}
+                    className={c.status === 'draft' ? 'bg-yellow-50/40' : ''}
+                  >
                     <td className="px-2 py-1.5 font-mono">{c.invoice_number}</td>
-                    <td className="px-2 py-1.5">{c.status}</td>
+                    <td className="px-2 py-1.5">
+                      <span
+                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                          c.status === 'draft'
+                            ? 'bg-yellow-100 text-yellow-900'
+                            : c.status === 'sent'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {c.status}
+                      </span>
+                    </td>
                     <td className="px-2 py-1.5 text-gray-700">{c.credit_reason ?? '—'}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums font-medium text-red-700">
                       {fmtKrLocal(c.final_amount)}
@@ -827,19 +919,25 @@ function CreditStatusPanel({
           </div>
         )}
 
-        {fullyCredited ? (
+        {/* Bottom messaging + action */}
+        {isVoided ? (
           <p className="text-[11px] text-gray-500 flex items-start gap-1">
             <Ban className="w-3 h-3 mt-0.5 shrink-0" />
-            {isVoided
-              ? 'Faktura er annulleret via fuld kreditering. Ingen yderligere kreditnota er tilladt.'
-              : 'Faktura er fuldt krediteret. Ingen yderligere kreditnota er tilladt.'}
+            Faktura er annulleret via sendt fuld kreditering. Ingen yderligere
+            kreditnota er tilladt.
             {isPaidOriginal && (
               <span className="ml-1">
                 Original betaling refunderes uden for systemet.
               </span>
             )}
           </p>
-        ) : (
+        ) : fullyFinalized ? (
+          <p className="text-[11px] text-gray-500 flex items-start gap-1">
+            <Ban className="w-3 h-3 mt-0.5 shrink-0" />
+            Faktura er fuldt krediteret af sendte/betalte kreditnotaer. Ingen
+            yderligere kreditnota er tilladt.
+          </p>
+        ) : summary.remaining_creditable_ex_vat > 0 ? (
           <div className="flex justify-end pt-1">
             <button
               type="button"
@@ -850,6 +948,12 @@ function CreditStatusPanel({
               Opret yderligere kreditnota
             </button>
           </div>
+        ) : (
+          <p className="text-[11px] text-gray-500 flex items-start gap-1">
+            <Info className="w-3 h-3 mt-0.5 shrink-0" />
+            Drafts har reserveret hele resterende beløb. Send eller slet en
+            eksisterende kladde før yderligere kreditnota kan oprettes.
+          </p>
         )}
       </div>
     </div>
