@@ -10,19 +10,23 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import {
   ArrowLeft, AlertCircle, Loader2, FileText, ExternalLink,
   Trash2, Send, BadgeCheck, Lock, Info, FileDown, Eye, Mail,
+  FileMinus, Ban,
 } from 'lucide-react'
 import {
   deleteInvoiceDraftAction,
+  getCreditedAmountForInvoiceAction,
   getInvoiceDetailAction,
   markInvoicePaidAction,
   markInvoiceSentAction,
   sendInvoiceEmailAction,
   type InvoiceDetail,
 } from '@/lib/actions/invoices'
+import type { CreditSummary } from '@/lib/services/invoice-credit'
+import { CreditNoteDialog } from './credit-note-dialog'
 import { formatCurrency } from '@/lib/utils/format'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -109,6 +113,28 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
   const isSent = status === 'sent'
   const isPaid = status === 'paid'
   const isLocked = isPaid
+  const isCreditNote = inv.invoice_type === 'credit'
+  const isVoided = !!inv.voided_at
+
+  // Sprint 6F-3 — credit summary state (kun relevant når invoice IKKE er
+  // selv en kreditnota og status ≥ sent)
+  const [creditSummary, setCreditSummary] = useState<CreditSummary | null>(null)
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    if (isCreditNote || isDraft) {
+      setCreditSummary(null)
+      return
+    }
+    getCreditedAmountForInvoiceAction(inv.id).then((s) => {
+      if (cancelled) return
+      setCreditSummary(s.ok ? s : null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [inv.id, isCreditNote, isDraft, detail])
 
   const refresh = async () => {
     const fresh = await getInvoiceDetailAction(inv.id)
@@ -255,6 +281,12 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
                   {inv.stage_label}
                 </span>
               )}
+              {isVoided && (
+                <span className="text-[11px] uppercase tracking-wide px-2 py-0.5 rounded bg-gray-200 text-gray-700 ring-1 ring-gray-400 inline-flex items-center gap-1">
+                  <Ban className="w-3 h-3" />
+                  Annulleret
+                </span>
+              )}
             </h1>
             <p className="text-xs text-gray-500 mt-1">
               Oprettet {fmtDate(inv.created_at)}
@@ -386,6 +418,37 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
         <Panel title="Note">
           <p className="text-sm whitespace-pre-wrap text-gray-800">{inv.notes}</p>
         </Panel>
+      )}
+
+      {/* Sprint 6F-3 — "Kreditnota for"-panel når denne ER en kreditnota */}
+      {isCreditNote && inv.credit_of_invoice_id && (
+        <Panel title="Kreditnota for">
+          <div className="text-sm flex items-center justify-between">
+            <Link
+              href={`/dashboard/invoices/${inv.credit_of_invoice_id}`}
+              className="text-emerald-700 hover:underline inline-flex items-center gap-1"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="font-mono">Original faktura</span>
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </Link>
+            {inv.credit_reason && (
+              <span className="text-xs text-gray-700">
+                Begrundelse: <em>{inv.credit_reason}</em>
+              </span>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      {/* Sprint 6F-3 — kreditstatus banner (på original faktura) */}
+      {!isCreditNote && !isDraft && creditSummary && (
+        <CreditStatusPanel
+          summary={creditSummary}
+          isVoided={isVoided}
+          onCredit={() => setCreditDialogOpen(true)}
+          isPaidOriginal={isPaid}
+        />
       )}
 
       {/* Sprint 6D-4 — predecessor panel for final invoice */}
@@ -615,11 +678,180 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
             </div>
             <p className="text-[11px] text-gray-500 flex items-start gap-1">
               <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
-              Slet er ikke tilladt på en sendt faktura. Brug kreditnota-flow når Sprint 6D lander.
+              Slet er ikke tilladt på en sendt faktura. Brug kreditnota-flow nedenfor i stedet.
             </p>
           </div>
         )}
+
+        {/* Sprint 6F-3 — Krediter-knap på alle non-credit, non-draft, non-fully-credited */}
+        {!isCreditNote && !isDraft && creditSummary && !creditSummary.is_voided &&
+          creditSummary.remaining_creditable_ex_vat > 0 && (
+            <div className="border-t pt-3 mt-3">
+              <button
+                type="button"
+                onClick={() => setCreditDialogOpen(true)}
+                disabled={busy !== null}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                <FileMinus className="w-3.5 h-3.5" />
+                Krediter faktura
+              </button>
+              <p className="text-[11px] text-gray-500 mt-1 flex items-start gap-1">
+                <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
+                Opretter ny kreditnota med eget fakturanummer. Original-fakturaen
+                bevares i historik.
+              </p>
+            </div>
+          )}
       </Panel>
+
+      {/* Sprint 6F-3 — credit dialog */}
+      {creditSummary && !isCreditNote && (
+        <CreditNoteDialog
+          open={creditDialogOpen}
+          invoiceId={inv.id}
+          invoiceNumber={inv.invoice_number}
+          currency={inv.currency}
+          remainingExVat={creditSummary.remaining_creditable_ex_vat}
+          vatRate={
+            creditSummary.original_total_ex_vat > 0
+              ? creditSummary.original_vat / creditSummary.original_total_ex_vat
+              : 0.25
+          }
+          lines={detail.lines}
+          onClose={() => setCreditDialogOpen(false)}
+          onCreated={() => setCreditDialogOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// =====================================================
+// CreditStatusPanel — viser status på original faktura
+// =====================================================
+
+function CreditStatusPanel({
+  summary,
+  isVoided,
+  isPaidOriginal,
+  onCredit,
+}: {
+  summary: CreditSummary
+  isVoided: boolean
+  isPaidOriginal: boolean
+  onCredit: () => void
+}) {
+  const fmtKrLocal = (n: number) => formatCurrency(n, 'DKK', 2)
+  const hasCredits = summary.existing_credit_notes.length > 0
+  const fullyCredited =
+    summary.remaining_creditable_ex_vat <= 0.005 || isVoided
+
+  if (!hasCredits && !isVoided) return null
+
+  return (
+    <div className="rounded-lg ring-1 ring-gray-200 bg-white overflow-hidden">
+      <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+          <FileMinus className="w-4 h-4 text-red-600" />
+          Kreditteringer
+        </h3>
+        {fullyCredited ? (
+          <span className="text-[11px] uppercase tracking-wide bg-gray-200 text-gray-700 px-2 py-0.5 rounded ring-1 ring-gray-300">
+            {isVoided ? 'Annulleret' : 'Fuldt krediteret'}
+          </span>
+        ) : (
+          <span className="text-[11px] uppercase tracking-wide bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
+            Delvist krediteret
+          </span>
+        )}
+      </div>
+      <div className="px-4 py-3 space-y-3">
+        {/* Krediteret X af Y */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">Original beløb</div>
+            <div className="tabular-nums font-semibold text-gray-900">
+              {fmtKrLocal(summary.original_total_ex_vat)} ekskl.
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">Krediteret</div>
+            <div className="tabular-nums font-semibold text-red-700">
+              −{fmtKrLocal(summary.credited_ex_vat_total)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">Resterende</div>
+            <div className="tabular-nums font-semibold text-gray-900">
+              {fmtKrLocal(summary.remaining_creditable_ex_vat)}
+            </div>
+          </div>
+        </div>
+
+        {/* Eksisterende kreditnotaer */}
+        {hasCredits && (
+          <div className="rounded ring-1 ring-gray-200 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-left text-gray-600">
+                <tr>
+                  <th className="px-2 py-1.5">Kreditnota</th>
+                  <th className="px-2 py-1.5">Status</th>
+                  <th className="px-2 py-1.5">Begrundelse</th>
+                  <th className="px-2 py-1.5 text-right">Beløb</th>
+                  <th className="px-2 py-1.5 w-8" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {summary.existing_credit_notes.map((c) => (
+                  <tr key={c.id}>
+                    <td className="px-2 py-1.5 font-mono">{c.invoice_number}</td>
+                    <td className="px-2 py-1.5">{c.status}</td>
+                    <td className="px-2 py-1.5 text-gray-700">{c.credit_reason ?? '—'}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums font-medium text-red-700">
+                      {fmtKrLocal(c.final_amount)}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Link
+                        href={`/dashboard/invoices/${c.id}`}
+                        className="inline-flex items-center text-emerald-700 hover:text-emerald-900"
+                        aria-label="Åbn kreditnota"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {fullyCredited ? (
+          <p className="text-[11px] text-gray-500 flex items-start gap-1">
+            <Ban className="w-3 h-3 mt-0.5 shrink-0" />
+            {isVoided
+              ? 'Faktura er annulleret via fuld kreditering. Ingen yderligere kreditnota er tilladt.'
+              : 'Faktura er fuldt krediteret. Ingen yderligere kreditnota er tilladt.'}
+            {isPaidOriginal && (
+              <span className="ml-1">
+                Original betaling refunderes uden for systemet.
+              </span>
+            )}
+          </p>
+        ) : (
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              onClick={onCredit}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded ring-1 ring-red-300 text-red-700 bg-white hover:bg-red-50"
+            >
+              <FileMinus className="w-3 h-3" />
+              Opret yderligere kreditnota
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

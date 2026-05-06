@@ -20,6 +20,11 @@ export interface InvoiceRow {
   amount_basis_value?: number | null
   stage_label?: string | null
   is_final_invoice?: boolean
+  /** Sprint 6F-1 (mig 00107) — credit-note felter */
+  credit_of_invoice_id?: string | null
+  credit_reason?: string | null
+  voided_at?: string | null
+  voided_by?: string | null
   status: InvoiceStatus
   total_amount: number
   tax_amount: number
