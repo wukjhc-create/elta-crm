@@ -4,6 +4,9 @@
 **Production HEAD:** `fde82a5` (docs commit oven på Sprint 6F-4 + hardening)
 **Sprint-baggrund:** 6A (analyse) → 6B (faktura fra sag) → 6C (PDF + mail) → 6D (multi-stage forskud/rate/slut) → 6F-1..4 (kreditnota + annullering)
 
+**Sprint 6F STATUS: ✅ LUKKET (2026-05-07)**
+Browser-test bekræftet af Henrik 2026-05-07. Alle 5 test-scenarier (standard PDF, kreditnota PDF, annulleret original PDF, fakturaliste type-kolonne + annulleret-badge, kreditnota-detail uden betalingsknap) er verificeret. Modulet er produktionsklart internt. Næste sprint: 7 — RBAC / Permissions / Sag-scope (analyse i `SPRINT_7_RBAC_PERMISSIONS_ANALYSIS.md`).
+
 ---
 
 ## 1) Hvad invoice-modulet kan nu
