@@ -2,7 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import type {
   CompanySettings,
   UpdateCompanySettingsInput,
@@ -15,7 +19,10 @@ import { logger } from '@/lib/utils/logger'
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.view')) {
+      return { success: false, error: 'Manglende tilladelse: settings.view' }
+    }
 
     const { data, error } = await supabase
       .from('company_settings')
@@ -43,7 +50,10 @@ export async function updateCompanySettings(
   input: UpdateCompanySettingsInput
 ): Promise<ActionResult<CompanySettings>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.manage')) {
+      return { success: false, error: 'Manglende tilladelse: settings.manage' }
+    }
 
     // Get existing settings ID
     const { data: existing } = await supabase
@@ -85,7 +95,11 @@ export async function getSmtpSettings(): Promise<ActionResult<{
   fromName: string | null
 }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // SMTP-data inkluderer plaintext password — krav settings.manage (admin).
+    if (!hasPermission('settings.manage')) {
+      return { success: false, error: 'Manglende tilladelse: settings.manage' }
+    }
 
     const { data, error } = await supabase
       .from('company_settings')
@@ -289,17 +303,9 @@ export async function uploadCompanyLogo(
   formData: FormData,
 ): Promise<ActionResult<{ url: string }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
-
-    // Check admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Kun administratorer kan uploade logo' }
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.manage')) {
+      return { success: false, error: 'Manglende tilladelse: settings.manage' }
     }
 
     const file = formData.get('file') as File
@@ -374,17 +380,9 @@ export async function uploadCompanyLogo(
 
 export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
-
-    // Check admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Kun administratorer kan slette logo' }
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.manage')) {
+      return { success: false, error: 'Manglende tilladelse: settings.manage' }
     }
 
     const { data: existing } = await supabase
@@ -460,7 +458,10 @@ export async function changePassword(
 // Get all team members
 export async function getTeamMembers(): Promise<ActionResult<Profile[]>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('users.view')) {
+      return { success: false, error: 'Manglende tilladelse: users.view' }
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -485,17 +486,9 @@ export async function updateTeamMember(
   input: { role?: string; department?: string; is_active?: boolean }
 ): Promise<ActionResult<Profile>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
-
-    // Check if current user is admin
-    const { data: currentProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (currentProfile?.role !== 'admin') {
-      return { success: false, error: 'Kun administratorer kan ændre teammedlemmer' }
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('users.edit')) {
+      return { success: false, error: 'Manglende tilladelse: users.edit' }
     }
 
     const { data, error } = await supabase
@@ -530,17 +523,9 @@ export async function inviteTeamMember(
   role: string = 'montør',
 ): Promise<ActionResult<{ email: string }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
-
-    // Check admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, full_name')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Kun administratorer kan invitere teammedlemmer' }
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('users.create')) {
+      return { success: false, error: 'Manglende tilladelse: users.create' }
     }
 
     // Check if user already exists
@@ -594,7 +579,10 @@ export async function inviteTeamMember(
 
 export async function getTeamInvitations(): Promise<ActionResult<TeamInvitation[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('users.view')) {
+      return { success: false, error: 'Manglende tilladelse: users.view' }
+    }
 
     const { data, error } = await supabase
       .from('team_invitations')
@@ -627,17 +615,9 @@ export async function getTeamInvitations(): Promise<ActionResult<TeamInvitation[
 
 export async function cancelInvitation(invitationId: string): Promise<ActionResult<null>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
-
-    // Check admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Kun administratorer kan annullere invitationer' }
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('users.edit')) {
+      return { success: false, error: 'Manglende tilladelse: users.edit' }
     }
 
     const { error } = await supabase
@@ -712,17 +692,9 @@ export async function saveNotificationPreferences(
 
 export async function resendInvitation(invitationId: string): Promise<ActionResult<null>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
-
-    // Check admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (profile?.role !== 'admin') {
-      return { success: false, error: 'Kun administratorer kan gensende invitationer' }
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('users.edit')) {
+      return { success: false, error: 'Manglende tilladelse: users.edit' }
     }
 
     // Get invitation

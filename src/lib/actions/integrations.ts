@@ -21,19 +21,39 @@ import type {
   WebhookOfferData,
   WebhookProjectData,
 } from '@/types/integrations.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // HELPERS
 // =====================================================
+
+/**
+ * Sprint 7 Pilot — alle user-facing integration CRUD actions kraever
+ * settings.economic. Internal helpers (triggerWebhooks, buildXxxPayload,
+ * getExternalReferences) forbliver authenticated-only saa eksisterende
+ * offer/invoice flows ikke brydes naar de kaldes af salg/serviceleder
+ * under fx tilbudsaccept.
+ */
+async function checkIntegrationAccess(): Promise<boolean> {
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  return hasPermission('settings.economic')
+}
+
+const PERM_DENIED_INTEGRATION = { success: false as const, error: 'Manglende tilladelse: settings.economic' }
+
 // =====================================================
 // INTEGRATIONS CRUD
 // =====================================================
 
 export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -54,6 +74,7 @@ export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
 
 export async function getIntegration(id: string): Promise<ActionResult<IntegrationWithRelations>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     validateUUID(id, 'integration ID')
     const { supabase } = await getAuthenticatedClient()
 
@@ -86,6 +107,7 @@ export async function createIntegration(
   input: CreateIntegrationInput
 ): Promise<ActionResult<Integration>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase, userId } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -113,6 +135,7 @@ export async function updateIntegration(
   input: UpdateIntegrationInput
 ): Promise<ActionResult<Integration>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
@@ -138,6 +161,7 @@ export async function updateIntegration(
 
 export async function deleteIntegration(id: string): Promise<ActionResult> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     validateUUID(id, 'integration ID')
     const { supabase } = await getAuthenticatedClient()
 
@@ -163,6 +187,7 @@ export async function toggleIntegration(
   isActive: boolean
 ): Promise<ActionResult<Integration>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -190,6 +215,7 @@ export async function toggleIntegration(
 
 export async function getWebhooks(integrationId: string): Promise<ActionResult<IntegrationWebhook[]>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -213,6 +239,7 @@ export async function createWebhook(
   input: CreateWebhookInput
 ): Promise<ActionResult<IntegrationWebhook>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -237,6 +264,7 @@ export async function updateWebhook(
   input: UpdateWebhookInput
 ): Promise<ActionResult<IntegrationWebhook>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
@@ -262,6 +290,7 @@ export async function updateWebhook(
 
 export async function deleteWebhook(id: string): Promise<ActionResult> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     validateUUID(id, 'webhook ID')
     const { supabase } = await getAuthenticatedClient()
 
@@ -288,6 +317,7 @@ export async function deleteWebhook(id: string): Promise<ActionResult> {
 
 export async function getEndpoints(integrationId: string): Promise<ActionResult<IntegrationEndpoint[]>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -311,6 +341,7 @@ export async function createEndpoint(
   input: CreateEndpointInput
 ): Promise<ActionResult<IntegrationEndpoint>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -335,6 +366,7 @@ export async function updateEndpoint(
   input: UpdateEndpointInput
 ): Promise<ActionResult<IntegrationEndpoint>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { id, ...updateData } = input
@@ -360,6 +392,7 @@ export async function updateEndpoint(
 
 export async function deleteEndpoint(id: string): Promise<ActionResult> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { error } = await supabase
@@ -392,6 +425,7 @@ export async function getIntegrationLogs(
   }
 ): Promise<ActionResult<IntegrationLogWithRelations[]>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
@@ -711,6 +745,7 @@ export async function exportOfferToIntegration(
   integrationId: string
 ): Promise<ActionResult<{ externalId?: string }>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase, userId } = await getAuthenticatedClient()
 
     // Get integration
@@ -836,6 +871,7 @@ export async function testIntegrationConnection(
   integrationId: string
 ): Promise<ActionResult<{ status: number; message: string }>> {
   try {
+    if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
     const { data: integration, error } = await supabase
