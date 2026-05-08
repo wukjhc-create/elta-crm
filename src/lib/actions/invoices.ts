@@ -5,7 +5,10 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import {
   createInvoiceDraftFromCase as createInvoiceDraftFromCaseService,
   type CaseInvoiceSelection,
@@ -104,7 +107,10 @@ export async function listUnbilledForCaseAction(
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt case_id' }
   }
 
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.create')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.create' }
+  }
 
   // 1. Sag header
   const { data: sag, error: sagErr } = await supabase
@@ -330,7 +336,10 @@ export async function getInvoiceDetailAction(
   } catch {
     return null
   }
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.all')) {
+    return null
+  }
 
   const { data: invRaw, error } = await supabase
     .from('invoices')
@@ -443,7 +452,10 @@ export async function markInvoiceSentAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  await getAuthenticatedClient()
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.send')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.send' }
+  }
   try {
     await markInvoiceSentService(invoiceId)
   } catch (err) {
@@ -463,7 +475,10 @@ export async function markInvoicePaidAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  await getAuthenticatedClient()
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.mark_paid')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.mark_paid' }
+  }
   try {
     await markInvoicePaidService(invoiceId, paymentReference ?? null)
   } catch (err) {
@@ -482,7 +497,10 @@ export async function sendInvoiceEmailAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  await getAuthenticatedClient()
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.send')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.send' }
+  }
   const r = await sendInvoiceEmailService(invoiceId)
   revalidatePath('/dashboard/invoices')
   revalidatePath(`/dashboard/invoices/${invoiceId}`)
@@ -506,7 +524,10 @@ export async function deleteInvoiceDraftAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.delete_draft')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.delete_draft' }
+  }
 
   // Resolve case_number ahead of delete so we can revalidate the
   // sag's order page (where the Fakturakladde-tab lives) AFTER the
@@ -582,7 +603,10 @@ export async function getCreditedAmountForInvoiceAction(
   } catch (err) {
     return { ...empty, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  await getAuthenticatedClient()
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.all')) {
+    return { ...empty, message: 'Manglende tilladelse: invoices.view.all' }
+  }
   return getCreditedAmountForInvoice(invoiceId)
 }
 
@@ -605,7 +629,10 @@ export async function createCreditNoteForInvoiceAction(
   } catch (err) {
     return { ...empty, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  const { userId, supabase } = await getAuthenticatedClient()
+  const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.credit')) {
+    return { ...empty, message: 'Manglende tilladelse: invoices.credit' }
+  }
   const result = await createCreditNoteForInvoice(input, userId)
   if (result.ok && result.credit_invoice_id) {
     revalidatePath('/dashboard/invoices')
@@ -634,7 +661,7 @@ export async function createCreditNoteForInvoiceAction(
 // 6D-2 — Multi-stage invoice actions (deposit / progress / final)
 // =====================================================
 
-async function revalidateForCase(supabase: Awaited<ReturnType<typeof getAuthenticatedClient>>['supabase'], caseId: string) {
+async function revalidateForCase(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'], caseId: string) {
   const { data: c } = await supabase
     .from('service_cases')
     .select('case_number')
@@ -664,7 +691,10 @@ export async function createStageInvoiceAction(
   } catch (err) {
     return { ...empty, message: err instanceof Error ? err.message : 'Ugyldigt case_id' }
   }
-  const { userId, supabase } = await getAuthenticatedClient()
+  const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.create')) {
+    return { ...empty, message: 'Manglende tilladelse: invoices.create' }
+  }
   const result = await createStageInvoiceForCase(input, userId)
   if (result.ok && result.invoice_id) {
     revalidatePath('/dashboard/invoices')
@@ -694,7 +724,10 @@ export async function createFinalInvoiceAction(
   } catch (err) {
     return { ...empty, message: err instanceof Error ? err.message : 'Ugyldigt case_id' }
   }
-  const { userId, supabase } = await getAuthenticatedClient()
+  const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.create')) {
+    return { ...empty, message: 'Manglende tilladelse: invoices.create' }
+  }
   const result = await createFinalInvoiceForCase(input, userId)
   if (result.ok && result.invoice_id) {
     revalidatePath('/dashboard/invoices')
@@ -712,7 +745,10 @@ export async function listStageInvoicesForCaseAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt case_id' }
   }
-  await getAuthenticatedClient()
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.all')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.view.all' }
+  }
   return listStageInvoicesForCase(caseId)
 }
 
@@ -742,7 +778,18 @@ export async function createInvoiceDraftFromCaseAction(
   let approverId: string
   let supabase
   try {
-    const a = await getAuthenticatedClient()
+    const a = await getAuthenticatedClientWithRole()
+    if (!a.hasPermission('invoices.create')) {
+      return {
+        ok: false,
+        message: 'Manglende tilladelse: invoices.create',
+        invoice_id: null,
+        invoice_number: null,
+        created_lines: [],
+        skipped_lines: [],
+        totals: null,
+      }
+    }
     approverId = a.userId
     supabase = a.supabase
   } catch (err) {
