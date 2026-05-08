@@ -9,6 +9,8 @@
 
 import { getUser } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
+import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import type { UserRole } from '@/types/auth.types'
 
 // =====================================================
 // Auth Helpers
@@ -33,6 +35,61 @@ export async function getAuthenticatedClient() {
   const userId = await requireAuth()
   const supabase = await createClient()
   return { supabase, userId }
+}
+
+/**
+ * Sprint 7B-1A — Get authenticated client with role + permission helper.
+ *
+ * Læser profiles.role for current user. Returnerer fail-safe default
+ * 'montør' (mest restriktiv) hvis profile-row mangler eller læsning
+ * fejler. Det betyder: aldrig auto-elevation hvis profile ikke findes.
+ *
+ * Pilot-modus: indtil migration 00108 er kørt, er TS PERMISSIONS-matrix
+ * eneste autoritative kilde. Når migration kører, kan denne udvides til
+ * at slå op i role_permissions-tabellen via DB-funktion.
+ */
+export async function getAuthenticatedClientWithRole(): Promise<{
+  supabase: Awaited<ReturnType<typeof createClient>>
+  userId: string
+  role: UserRole
+  hasPermission: (perm: Permission) => boolean
+  requirePermission: (perm: Permission) => void
+}> {
+  const userId = await requireAuth()
+  const supabase = await createClient()
+
+  let role: UserRole = 'montør' // fail-safe default
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle()
+    if (data?.role) {
+      role = data.role as UserRole
+    }
+  } catch {
+    // beholder 'montør' default på læsefejl
+  }
+
+  const has = (perm: Permission) => hasPermission(role, perm)
+  const req = (perm: Permission) => {
+    if (!has(perm)) {
+      throw new ActionError(
+        `Manglende tilladelse: ${perm}`,
+        'PERMISSION_DENIED',
+        { required: perm, role }
+      )
+    }
+  }
+
+  return {
+    supabase,
+    userId,
+    role,
+    hasPermission: has,
+    requirePermission: req,
+  }
 }
 
 // =====================================================

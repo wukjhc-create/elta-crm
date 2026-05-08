@@ -13,6 +13,14 @@ export const ROLES: Record<UserRole, { label: string; description: string }> = {
     label: 'Montør',
     description: 'Kan se og arbejde på tildelte opgaver. Ingen adgang til økonomi.',
   },
+  salg: {
+    label: 'Salg',
+    description: 'Kan håndtere leads, kunder og tilbud. Kan se egne sager. Ingen kostpriser eller løn.',
+  },
+  bogholderi: {
+    label: 'Bogholderi',
+    description: 'Kan håndtere fakturaer, kreditnotaer og økonomi. Ingen adgang til medarbejderløn.',
+  },
 }
 
 export function getRoleLabel(role: UserRole): string {
@@ -35,7 +43,15 @@ export function isMontør(role: UserRole): boolean {
   return role === 'montør'
 }
 
+export function isSalg(role: UserRole): boolean {
+  return role === 'salg'
+}
+
+export function isBogholderi(role: UserRole): boolean {
+  return role === 'bogholderi'
+}
+
 /** Returns true for roles that can see financial data (prices, margins) */
 export function canSeeFinancials(role: UserRole): boolean {
-  return role === 'admin' || role === 'serviceleder'
+  return role === 'admin' || role === 'serviceleder' || role === 'bogholderi'
 }

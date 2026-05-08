@@ -1,10 +1,23 @@
 import type { UserRole } from '@/types/auth.types'
 
+/**
+ * Permission matrix — TS-side source of truth.
+ *
+ * Sprint 7B-1A foundation: rolle/permission tabeller foreslået i SQL
+ * (00108_rbac_foundation.sql) MEN endnu ikke godkendt/kørt af Henrik.
+ * Indtil migration er kørt, er denne fil eneste kilde.
+ *
+ * Eksisterende permission keys (sidebar/ui-gates) er BEVARET 1:1.
+ * Nye keys er tilføjet for Sprint 7 pilot. Salg + bogholderi er føjet
+ * til relevante eksisterende keys per Henrik's pilot-beslutninger.
+ */
 export const PERMISSIONS = {
+  // ===== EKSISTERENDE — BEVARES 1:1 (sidebar+UI bruger disse) =====
+
   // Lead permissions
-  'leads.view': ['admin', 'serviceleder', 'montør'],
-  'leads.create': ['admin', 'serviceleder'],
-  'leads.edit': ['admin', 'serviceleder'],
+  'leads.view': ['admin', 'serviceleder', 'montør', 'salg'],
+  'leads.create': ['admin', 'serviceleder', 'salg'],
+  'leads.edit': ['admin', 'serviceleder', 'salg'],
   'leads.delete': ['admin'],
 
   // Inbox / mail permissions
@@ -13,16 +26,16 @@ export const PERMISSIONS = {
   'inbox.delete': ['admin'],
 
   // Offer permissions
-  'offers.view': ['admin', 'serviceleder'],
-  'offers.create': ['admin', 'serviceleder'],
-  'offers.edit': ['admin', 'serviceleder'],
+  'offers.view': ['admin', 'serviceleder', 'salg'],
+  'offers.create': ['admin', 'serviceleder', 'salg'],
+  'offers.edit': ['admin', 'serviceleder', 'salg'],
   'offers.delete': ['admin'],
   'offers.approve': ['admin'],
 
   // Customer permissions
-  'customers.view': ['admin', 'serviceleder', 'montør'],
-  'customers.create': ['admin', 'serviceleder'],
-  'customers.edit': ['admin', 'serviceleder'],
+  'customers.view': ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'],
+  'customers.create': ['admin', 'serviceleder', 'salg'],
+  'customers.edit': ['admin', 'serviceleder', 'salg'],
   'customers.delete': ['admin'],
 
   // Project permissions
@@ -32,8 +45,8 @@ export const PERMISSIONS = {
   'projects.delete': ['admin'],
 
   // Service case permissions
-  'service.view': ['admin', 'serviceleder', 'montør'],
-  'service.create': ['admin', 'serviceleder'],
+  'service.view': ['admin', 'serviceleder', 'montør', 'bogholderi'],
+  'service.create': ['admin', 'serviceleder', 'salg'],
   'service.edit': ['admin', 'serviceleder', 'montør'],
   'service.delete': ['admin'],
   'service.close': ['admin', 'serviceleder'],
@@ -47,13 +60,13 @@ export const PERMISSIONS = {
   // Time tracking permissions
   'time.log': ['admin', 'serviceleder', 'montør'],
   'time.view_own': ['admin', 'serviceleder', 'montør'],
-  'time.view_all': ['admin', 'serviceleder'],
+  'time.view_all': ['admin', 'serviceleder', 'bogholderi'],
   'time.edit_own': ['admin', 'serviceleder', 'montør'],
   'time.edit_all': ['admin'],
   'time.delete': ['admin'],
 
   // Financial / economy permissions (cost prices, margins, revenue)
-  'economy.view': ['admin', 'serviceleder'],
+  'economy.view': ['admin', 'serviceleder', 'bogholderi'],
   'economy.edit': ['admin'],
 
   // Settings permissions
@@ -72,16 +85,63 @@ export const PERMISSIONS = {
   'employees.edit': ['admin'],
 
   // Tools / advanced features
-  'tools.calculations': ['admin', 'serviceleder'],
+  'tools.calculations': ['admin', 'serviceleder', 'salg'],
   'tools.ai_project': ['admin', 'serviceleder'],
-  'tools.products': ['admin', 'serviceleder'],
+  'tools.products': ['admin', 'serviceleder', 'salg'],
   'tools.pricing': ['admin', 'serviceleder'],
   'tools.packages': ['admin', 'serviceleder'],
-  'tools.solar_calc': ['admin', 'serviceleder'],
-  'tools.reports': ['admin', 'serviceleder'],
+  'tools.solar_calc': ['admin', 'serviceleder', 'salg'],
+  'tools.reports': ['admin', 'serviceleder', 'bogholderi'],
 
   // Calendar
   'calendar.view': ['admin', 'serviceleder', 'montør'],
+
+  // ===== NYE Sprint 7 PILOT KEYS =====
+
+  // Invoices — kritisk modul for pilot
+  'invoices.view.all':           ['admin', 'serviceleder', 'bogholderi'],
+  'invoices.view.own_cases':     ['admin', 'serviceleder', 'bogholderi', 'salg'],
+  'invoices.create':             ['admin', 'serviceleder', 'bogholderi'],
+  'invoices.send':               ['admin', 'serviceleder', 'bogholderi'],
+  'invoices.mark_paid':          ['admin', 'bogholderi'],
+  'invoices.credit':             ['admin', 'bogholderi'],
+  'invoices.delete_draft':       ['admin', 'bogholderi'],
+
+  // Payroll — KUN admin (bogholderi har IKKE adgang per Henrik's regel)
+  'employees.payroll.view':      ['admin'],
+  'employees.payroll.edit':      ['admin'],
+
+  // Cost prices — synlig for økonomi-roller
+  'economy.cost_prices':         ['admin', 'serviceleder', 'bogholderi'],
+
+  // Settings detail — suppliers/economic kan administreres af relevante roller
+  'settings.suppliers':          ['admin'],
+  'settings.economic':           ['admin', 'bogholderi'],
+
+  // Reports
+  'reports.view':                ['admin', 'serviceleder', 'bogholderi'],
+  'reports.export':              ['admin', 'bogholderi'],
+
+  // Materials cost prices — kun roller der ser kostpriser
+  'materials.view.cost_prices':  ['admin', 'serviceleder', 'bogholderi'],
+
+  // Products cost prices
+  'products.view.cost_prices':   ['admin', 'serviceleder', 'bogholderi'],
+
+  // Offers cost prices
+  'offers.view.cost_prices':     ['admin', 'serviceleder', 'bogholderi'],
+
+  // Bank payments (incoming invoice matching, betalinger)
+  'bank.view':                   ['admin', 'bogholderi'],
+  'bank.edit':                   ['admin', 'bogholderi'],
+
+  // Incoming invoices (faktura fra leverandører)
+  'incoming_invoices.view':      ['admin', 'serviceleder', 'bogholderi'],
+  'incoming_invoices.edit':      ['admin', 'bogholderi'],
+  'incoming_invoices.approve':   ['admin', 'bogholderi'],
+
+  // Supplier credentials (kan se/sætte API-keys)
+  'suppliers.credentials':       ['admin'],
 } as const
 
 export type Permission = keyof typeof PERMISSIONS
