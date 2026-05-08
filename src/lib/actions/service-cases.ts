@@ -1,7 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { createAnonClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
@@ -33,7 +37,10 @@ export async function getServiceCases(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<ServiceCaseWithRelations>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view.all' }
+    }
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -83,7 +90,10 @@ export async function getServiceCases(filters?: {
 
 export async function getServiceCase(id: string): Promise<ActionResult<ServiceCaseWithRelations>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view.all' }
+    }
 
     const { data, error } = await supabase
       .from('service_cases')
@@ -148,7 +158,10 @@ export async function createServiceCase(
   input: CreateServiceCaseInput
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.create')) {
+      return { success: false, error: 'Manglende tilladelse: cases.create' }
+    }
 
     const { data, error } = await supabase
       .from('service_cases')
@@ -256,7 +269,10 @@ export async function updateServiceCase(
   input: UpdateServiceCaseInput
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      return { success: false, error: 'Manglende tilladelse: cases.edit' }
+    }
 
     // Strip undefined keys so we don't NULL columns the caller did not touch.
     const payload: Record<string, unknown> = {}
@@ -290,7 +306,10 @@ export async function updateServiceCase(
 
 export async function deleteServiceCase(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.delete')) {
+      return { success: false, error: 'Manglende tilladelse: cases.delete' }
+    }
 
     const { error } = await supabase
       .from('service_cases')
@@ -344,7 +363,10 @@ export async function createServiceCaseFromEmail(
   emailId: string
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.create')) {
+      return { success: false, error: 'Manglende tilladelse: cases.create' }
+    }
 
     // Get the email
     const { data: email, error: emailError } = await supabase
@@ -410,7 +432,8 @@ export async function createServiceCaseFromEmail(
 
 export async function getCustomerServiceCases(customerId: string): Promise<ServiceCase[]> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all')) return []
 
     const { data, error } = await supabase
       .from('service_cases')
@@ -442,7 +465,10 @@ export async function getServiceCaseStats(): Promise<ActionResult<{
   converted: number
 }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view.all' }
+    }
 
     const [totalRes, newRes, progressRes, pendingRes, closedRes, convertedRes] = await Promise.all([
       supabase.from('service_cases').select('*', { count: 'exact', head: true }),
@@ -478,7 +504,10 @@ export async function updateChecklist(
   checklist: ChecklistItem[]
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      return { success: false, error: 'Manglende tilladelse: cases.edit' }
+    }
     const { data, error } = await supabase
       .from('service_cases')
       .update({ checklist })
@@ -507,7 +536,10 @@ export async function getServiceCaseAttachments(
   serviceCaseId: string
 ): Promise<ActionResult<ServiceCaseAttachment[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view.all' }
+    }
     const { data, error } = await supabase
       .from('service_case_attachments')
       .select('*')
@@ -526,7 +558,10 @@ export async function uploadServiceCaseAttachment(
   formData: FormData
 ): Promise<ActionResult<ServiceCaseAttachment>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      return { success: false, error: 'Manglende tilladelse: cases.edit' }
+    }
     const file = formData.get('file') as File
     const category = (formData.get('category') as string) || 'other'
 
@@ -581,7 +616,10 @@ export async function deleteServiceCaseAttachment(
   serviceCaseId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      return { success: false, error: 'Manglende tilladelse: cases.edit' }
+    }
 
     // Get storage path first
     const { data: att } = await supabase
@@ -620,7 +658,10 @@ export async function signOffServiceCase(
   signerName: string
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.close')) {
+      return { success: false, error: 'Manglende tilladelse: cases.close' }
+    }
 
     const { data, error } = await supabase
       .from('service_cases')
@@ -651,7 +692,10 @@ export async function sendToOrdrestyring(
   serviceCaseId: string
 ): Promise<ActionResult<{ os_case_id: string; os_case_number: string }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      return { success: false, error: 'Manglende tilladelse: cases.edit' }
+    }
 
     // Get the service case with customer data
     const { data: sc, error: scError } = await supabase
@@ -797,7 +841,10 @@ export async function getCustomersForOrderSelect(): Promise<
   ActionResult<{ id: string; company_name: string; customer_number: string | null }[]>
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) {
+      return { success: false, error: 'Manglende tilladelse: customers.view' }
+    }
     const { data, error } = await supabase
       .from('customers')
       .select('id, company_name, customer_number')
@@ -817,7 +864,10 @@ export async function getProfilesForOrderSelect(): Promise<
   ActionResult<{ id: string; full_name: string | null; email: string }[]>
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('users.view')) {
+      return { success: false, error: 'Manglende tilladelse: users.view' }
+    }
     const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, email')
@@ -852,7 +902,10 @@ export async function listOpenServiceCasesForPicker(): Promise<
   >
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view.all' }
+    }
     const { data, error } = await supabase
       .from('service_cases')
       .select(`
@@ -886,7 +939,10 @@ export async function getEmployeesForOrderSelect(): Promise<
   ActionResult<{ id: string; name: string }[]>
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('employees.view')) {
+      return { success: false, error: 'Manglende tilladelse: employees.view' }
+    }
     const { data, error } = await supabase
       .from('employees')
       .select('id, name, first_name, last_name, active')
@@ -914,7 +970,10 @@ export async function getOffersForOrderSelect(
   customerId: string
 ): Promise<ActionResult<{ id: string; offer_number: string | null; title: string }[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) {
+      return { success: false, error: 'Manglende tilladelse: offers.view' }
+    }
     const { data, error } = await supabase
       .from('offers')
       .select('id, offer_number, title, status, created_at')
@@ -972,7 +1031,12 @@ export async function setServiceCaseStatus(
   note?: string | null
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // Status-skift kan inkludere 'closed' — saa krav er enten cases.edit eller cases.close.
+    const required = status === 'closed' ? 'cases.close' : 'cases.edit'
+    if (!hasPermission(required)) {
+      return { success: false, error: `Manglende tilladelse: ${required}` }
+    }
 
     // Read prior status for audit log
     const { data: prior } = await supabase
@@ -1026,7 +1090,10 @@ export async function setServiceCaseLowProfit(
   value: boolean
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      return { success: false, error: 'Manglende tilladelse: cases.edit' }
+    }
 
     const { data: prior } = await supabase
       .from('service_cases')
@@ -1069,7 +1136,10 @@ export async function setServiceCaseAutoInvoice(
   value: boolean
 ): Promise<ActionResult<ServiceCase>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      return { success: false, error: 'Manglende tilladelse: cases.edit' }
+    }
 
     const { data: prior } = await supabase
       .from('service_cases')
@@ -1128,7 +1198,10 @@ export async function getServiceCaseActivity(
   caseId: string
 ): Promise<ActionResult<ServiceCaseActivityEntry[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view.all' }
+    }
 
     const { data, error } = await supabase
       .from('audit_logs')

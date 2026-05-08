@@ -99,6 +99,51 @@ export const PERMISSIONS = {
 
   // ===== NYE Sprint 7 PILOT KEYS =====
 
+  // Cases (service_cases) — bruges af Sprint 7C action gates.
+  // service.* eksisterer parallelt for backward compat med sidebar.
+  'cases.view.all':              ['admin', 'serviceleder', 'bogholderi'],
+  'cases.view.assigned':         ['admin', 'serviceleder', 'montør', 'bogholderi'],
+  'cases.create':                ['admin', 'serviceleder', 'salg'],
+  'cases.edit':                  ['admin', 'serviceleder'],
+  'cases.edit.own':              ['admin', 'serviceleder', 'montør'],
+  'cases.close':                 ['admin', 'serviceleder'],
+  'cases.delete':                ['admin'],
+
+  // Work orders
+  'work_orders.view.all':        ['admin', 'serviceleder'],
+  'work_orders.view.assigned':   ['admin', 'serviceleder', 'montør'],
+  'work_orders.plan':            ['admin', 'serviceleder'],
+  'work_orders.edit':            ['admin', 'serviceleder'],
+  'work_orders.complete':        ['admin', 'serviceleder', 'montør'],
+  'work_orders.delete':          ['admin', 'serviceleder'],
+
+  // Calendar — udvidet
+  'calendar.view.all':           ['admin', 'serviceleder'],
+  'calendar.view.team':          ['admin', 'serviceleder'],
+  'calendar.view.own':           ['admin', 'serviceleder', 'montør'],
+  'calendar.plan':               ['admin', 'serviceleder'],
+
+  // Time logs (udvidet, parallelt med eksisterende time.*)
+  'time_logs.view.all':          ['admin', 'serviceleder', 'bogholderi'],
+  'time_logs.view.own':          ['admin', 'serviceleder', 'montør'],
+  'time_logs.create':            ['admin', 'serviceleder', 'montør'],
+  'time_logs.edit.own':          ['admin', 'serviceleder', 'montør'],
+  'time_logs.edit.all':          ['admin', 'serviceleder'],
+  'time_logs.approve':           ['admin', 'serviceleder'],
+  'time_logs.delete':            ['admin'],
+
+  // Materials
+  'materials.view':              ['admin', 'serviceleder', 'montør', 'bogholderi'],
+  'materials.add_to_case':       ['admin', 'serviceleder', 'montør'],
+  'materials.edit':              ['admin', 'serviceleder'],
+  'materials.delete':            ['admin', 'serviceleder'],
+
+  // Other costs
+  'other_costs.view':            ['admin', 'serviceleder', 'montør', 'bogholderi'],
+  'other_costs.add_to_case':     ['admin', 'serviceleder', 'montør'],
+  'other_costs.edit':            ['admin', 'serviceleder'],
+  'other_costs.delete':          ['admin', 'serviceleder'],
+
   // Invoices — kritisk modul for pilot
   'invoices.view.all':           ['admin', 'serviceleder', 'bogholderi'],
   'invoices.view.own_cases':     ['admin', 'serviceleder', 'bogholderi', 'salg'],
