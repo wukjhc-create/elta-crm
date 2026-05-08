@@ -6,6 +6,8 @@ import {
   getEmployeesForOrderSelect,
 } from '@/lib/actions/service-cases'
 import { NewOrderForm } from './new-order-form'
+import { pageHasPermission } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Ny sag / ordre',
@@ -15,6 +17,10 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function NewOrderPage() {
+  if (!(await pageHasPermission('cases.create'))) {
+    return <NoAccess permission="cases.create" />
+  }
+
   const [customersRes, profilesRes, employeesRes] = await Promise.all([
     getCustomersForOrderSelect(),
     getProfilesForOrderSelect(),

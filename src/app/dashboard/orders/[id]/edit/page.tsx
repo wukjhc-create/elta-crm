@@ -9,6 +9,8 @@ import {
 } from '@/lib/actions/service-cases'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { EditOrderForm } from './edit-order-form'
+import { pageHasPermission } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Rediger sag / ordre',
@@ -24,6 +26,10 @@ export default async function EditOrderPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  if (!(await pageHasPermission('cases.edit'))) {
+    return <NoAccess permission="cases.edit" />
+  }
+
   const { id } = await params
 
   // Accept either UUID or case_number in the URL.
