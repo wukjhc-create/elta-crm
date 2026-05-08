@@ -14,6 +14,7 @@ import {
   getAuthenticatedClientWithRole,
   formatError,
 } from '@/lib/actions/action-helpers'
+import { userCanViewCase } from '@/lib/auth/case-scope'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
@@ -47,10 +48,29 @@ export async function listCaseOtherCosts(
 ): Promise<ActionResult<{ rows: CaseOtherCostRow[]; summary: CaseOtherCostsSummary }>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('other_costs.view')) {
       return { success: false, error: 'Manglende tilladelse: other_costs.view' }
     }
+    // Sprint 7E — bekraeft user kan se sagen.
+    if (!(await userCanViewCase(caseId, { role, userId, supabase }))) {
+      return {
+        success: true,
+        data: {
+          rows: [],
+          summary: {
+            count: 0,
+            total_cost: 0,
+            total_sales_price: 0,
+            contribution_margin: 0,
+            margin_percentage: 0,
+          },
+        },
+      }
+    }
+    // Sprint 7E — kostpriser kun for roller med materials.view.cost_prices.
+    // (Vi genbruger materials-permission da samme rolle-kreds har behov.)
+    const canSeeCostPrices = hasPermission('materials.view.cost_prices')
 
     const { data, error } = await supabase
       .from('case_other_costs')
@@ -65,7 +85,7 @@ export async function listCaseOtherCosts(
       return { success: false, error: 'Kunne ikke hente øvrige omkostninger' }
     }
 
-    const rows = ((data ?? []) as CaseOtherCostRow[]).map((r) => ({
+    const rawRows = ((data ?? []) as CaseOtherCostRow[]).map((r) => ({
       ...r,
       cost_date: (r.cost_date ?? '').slice(0, 10),
       quantity: Number(r.quantity),
@@ -75,11 +95,16 @@ export async function listCaseOtherCosts(
       total_sales_price: Number(r.total_sales_price),
     }))
 
-    const total_cost = rows.reduce((s, r) => s + r.total_cost, 0)
-    const total_sales_price = rows.reduce((s, r) => s + r.total_sales_price, 0)
-    const contribution_margin = total_sales_price - total_cost
-    const margin_percentage =
-      total_sales_price > 0 ? (contribution_margin / total_sales_price) * 100 : 0
+    const total_cost_raw = rawRows.reduce((s, r) => s + r.total_cost, 0)
+    const total_sales_price = rawRows.reduce((s, r) => s + r.total_sales_price, 0)
+    const contribution_margin_raw = total_sales_price - total_cost_raw
+    const margin_percentage_raw =
+      total_sales_price > 0 ? (contribution_margin_raw / total_sales_price) * 100 : 0
+
+    // Sprint 7E — strip kostpriser hvis user mangler permission
+    const rows = canSeeCostPrices
+      ? rawRows
+      : rawRows.map((r) => ({ ...r, unit_cost: 0, total_cost: 0 }))
 
     return {
       success: true,
@@ -87,10 +112,14 @@ export async function listCaseOtherCosts(
         rows,
         summary: {
           count: rows.length,
-          total_cost: Math.round(total_cost * 100) / 100,
+          total_cost: canSeeCostPrices ? Math.round(total_cost_raw * 100) / 100 : 0,
           total_sales_price: Math.round(total_sales_price * 100) / 100,
-          contribution_margin: Math.round(contribution_margin * 100) / 100,
-          margin_percentage: Math.round(margin_percentage * 100) / 100,
+          contribution_margin: canSeeCostPrices
+            ? Math.round(contribution_margin_raw * 100) / 100
+            : 0,
+          margin_percentage: canSeeCostPrices
+            ? Math.round(margin_percentage_raw * 100) / 100
+            : 0,
         },
       },
     }
@@ -156,9 +185,13 @@ export async function createCaseOtherCost(
       return { success: false, error: 'Dato skal være YYYY-MM-DD' }
     }
 
-    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('other_costs.add_to_case')) {
       return { success: false, error: 'Manglende tilladelse: other_costs.add_to_case' }
+    }
+    // Sprint 7E — montor maa kun tilfoeje paa egne sager.
+    if (!(await userCanViewCase(input.case_id, { role, userId, supabase }))) {
+      return { success: false, error: 'Sagen er ikke tildelt dig' }
     }
 
     const { data: caseRow, error: caseErr } = await supabase

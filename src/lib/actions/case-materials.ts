@@ -16,6 +16,7 @@ import {
   getAuthenticatedClientWithRole,
   formatError,
 } from '@/lib/actions/action-helpers'
+import { userCanViewCase } from '@/lib/auth/case-scope'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
@@ -44,10 +45,27 @@ export async function listCaseMaterials(
 ): Promise<ActionResult<{ rows: CaseMaterialRow[]; summary: CaseMaterialsSummary }>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('materials.view')) {
       return { success: false, error: 'Manglende tilladelse: materials.view' }
     }
+    // Sprint 7E — bekraeft user kan se sagen (montor scope-check).
+    if (!(await userCanViewCase(caseId, { role, userId, supabase }))) {
+      return {
+        success: true,
+        data: {
+          rows: [],
+          summary: {
+            count: 0,
+            total_cost: 0,
+            total_sales_price: 0,
+            contribution_margin: 0,
+            margin_percentage: 0,
+          },
+        },
+      }
+    }
+    const canSeeCostPrices = hasPermission('materials.view.cost_prices')
 
     const { data, error } = await supabase
       .from('case_materials')
@@ -61,7 +79,7 @@ export async function listCaseMaterials(
       return { success: false, error: 'Kunne ikke hente materialer' }
     }
 
-    const rows = ((data ?? []) as CaseMaterialRow[]).map((r) => ({
+    const rawRows = ((data ?? []) as CaseMaterialRow[]).map((r) => ({
       ...r,
       quantity: Number(r.quantity),
       unit_cost: Number(r.unit_cost),
@@ -70,11 +88,19 @@ export async function listCaseMaterials(
       total_sales_price: Number(r.total_sales_price),
     }))
 
-    const total_cost = rows.reduce((s, r) => s + r.total_cost, 0)
-    const total_sales_price = rows.reduce((s, r) => s + r.total_sales_price, 0)
-    const contribution_margin = total_sales_price - total_cost
-    const margin_percentage =
-      total_sales_price > 0 ? (contribution_margin / total_sales_price) * 100 : 0
+    // Sprint 7E — beregn summary fra raw-tal foer evt. stripping.
+    const total_cost_raw = rawRows.reduce((s, r) => s + r.total_cost, 0)
+    const total_sales_price = rawRows.reduce((s, r) => s + r.total_sales_price, 0)
+    const contribution_margin_raw = total_sales_price - total_cost_raw
+    const margin_percentage_raw =
+      total_sales_price > 0 ? (contribution_margin_raw / total_sales_price) * 100 : 0
+
+    // Sprint 7E — strip kostpriser hvis user ikke har materials.view.cost_prices
+    // (montor + salg). Sales-priser er ikke folsomme. Summary viser
+    // 0 kostpriser saa bidragsmargin laekker ikke.
+    const rows = canSeeCostPrices
+      ? rawRows
+      : rawRows.map((r) => ({ ...r, unit_cost: 0, total_cost: 0 }))
 
     return {
       success: true,
@@ -82,10 +108,14 @@ export async function listCaseMaterials(
         rows,
         summary: {
           count: rows.length,
-          total_cost: Math.round(total_cost * 100) / 100,
+          total_cost: canSeeCostPrices ? Math.round(total_cost_raw * 100) / 100 : 0,
           total_sales_price: Math.round(total_sales_price * 100) / 100,
-          contribution_margin: Math.round(contribution_margin * 100) / 100,
-          margin_percentage: Math.round(margin_percentage * 100) / 100,
+          contribution_margin: canSeeCostPrices
+            ? Math.round(contribution_margin_raw * 100) / 100
+            : 0,
+          margin_percentage: canSeeCostPrices
+            ? Math.round(margin_percentage_raw * 100) / 100
+            : 0,
         },
       },
     }
@@ -147,9 +177,14 @@ export async function createCaseMaterial(
       return { success: false, error: 'Salgspris kan ikke være negativ' }
     }
 
-    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('materials.add_to_case')) {
       return { success: false, error: 'Manglende tilladelse: materials.add_to_case' }
+    }
+
+    // Sprint 7E — montor maa kun tilfoeje materialer paa egne sager.
+    if (!(await userCanViewCase(input.case_id, { role, userId, supabase }))) {
+      return { success: false, error: 'Sagen er ikke tildelt dig' }
     }
 
     // Verify the case exists (avoid creating an orphan row from a stale UI)
