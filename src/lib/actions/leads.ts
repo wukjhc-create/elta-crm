@@ -8,7 +8,11 @@ import { isValidLeadTransition, LEAD_STATUS_LABELS } from '@/types/leads.types'
 import type { Lead, LeadWithRelations, LeadActivity, LeadStatus } from '@/types/leads.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 
 // Get all leads with optional filtering and pagination
@@ -23,7 +27,10 @@ export async function getLeads(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<LeadWithRelations>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.view')) {
+      return { success: false, error: 'Manglende tilladelse: leads.view' }
+    }
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -108,7 +115,10 @@ export async function getLeads(filters?: {
 // Get single lead by ID
 export async function getLead(id: string): Promise<ActionResult<LeadWithRelations>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.view')) {
+      return { success: false, error: 'Manglende tilladelse: leads.view' }
+    }
     validateUUID(id, 'lead ID')
 
     const { data, error } = await supabase
@@ -139,7 +149,10 @@ export async function checkDuplicateLead(
   excludeId?: string
 ): Promise<ActionResult<{ id: string; company_name: string; email: string; status: string }[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.create')) {
+      return { success: false, error: 'Manglende tilladelse: leads.create' }
+    }
 
     let query = supabase
       .from('leads')
@@ -164,7 +177,10 @@ export async function checkDuplicateLead(
 // Create new lead
 export async function createLead(formData: FormData): Promise<ActionResult<Lead>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.create')) {
+      return { success: false, error: 'Manglende tilladelse: leads.create' }
+    }
 
     // Get and validate form values
     const company_name = formData.get('company_name') as string
@@ -260,7 +276,10 @@ export async function createLead(formData: FormData): Promise<ActionResult<Lead>
 // Update lead
 export async function updateLead(formData: FormData): Promise<ActionResult<Lead>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.edit')) {
+      return { success: false, error: 'Manglende tilladelse: leads.edit' }
+    }
 
     const id = formData.get('id') as string
     if (!id) {
@@ -405,7 +424,10 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
 // Delete lead
 export async function deleteLead(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.delete')) {
+      return { success: false, error: 'Manglende tilladelse: leads.delete' }
+    }
     validateUUID(id, 'lead ID')
 
     // Get lead name before deleting for audit log
@@ -441,7 +463,10 @@ export async function updateLeadStatus(
   status: LeadStatus
 ): Promise<ActionResult<Lead>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.edit')) {
+      return { success: false, error: 'Manglende tilladelse: leads.edit' }
+    }
     validateUUID(id, 'lead ID')
 
     // Get old status and validate transition
@@ -503,7 +528,10 @@ export async function getLeadActivities(
   leadId: string
 ): Promise<ActionResult<LeadActivity[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.view')) {
+      return { success: false, error: 'Manglende tilladelse: leads.view' }
+    }
     validateUUID(leadId, 'lead ID')
 
     const { data, error } = await supabase
@@ -530,7 +558,10 @@ export async function addLeadActivity(
   description: string
 ): Promise<ActionResult<LeadActivity>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.edit')) {
+      return { success: false, error: 'Manglende tilladelse: leads.edit' }
+    }
     validateUUID(leadId, 'lead ID')
 
     const { data, error } = await supabase
@@ -564,7 +595,10 @@ export async function getTeamMembers(): Promise<
   ActionResult<{ id: string; full_name: string | null; email: string }[]>
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('users.view')) {
+      return { success: false, error: 'Manglende tilladelse: users.view' }
+    }
 
     const { data, error } = await supabase
       .from('profiles')

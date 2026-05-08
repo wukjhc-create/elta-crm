@@ -16,7 +16,11 @@ import type {
 } from '@/types/customers.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 
 // Get all customers with optional filtering and pagination
@@ -29,7 +33,10 @@ export async function getCustomers(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<CustomerWithRelations>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) {
+      return { success: false, error: 'Manglende tilladelse: customers.view' }
+    }
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -102,7 +109,10 @@ export async function getCustomers(filters?: {
 // Get single customer by ID
 export async function getCustomer(id: string): Promise<ActionResult<CustomerWithRelations>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) {
+      return { success: false, error: 'Manglende tilladelse: customers.view' }
+    }
     validateUUID(id, 'kunde ID')
 
     const { data, error } = await supabase
@@ -156,7 +166,10 @@ export async function checkDuplicateCustomer(
   excludeId?: string
 ): Promise<ActionResult<{ id: string; company_name: string; customer_number: string; email: string }[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.create')) {
+      return { success: false, error: 'Manglende tilladelse: customers.create' }
+    }
 
     let query = supabase
       .from('customers')
@@ -181,7 +194,10 @@ export async function checkDuplicateCustomer(
 // Create new customer
 export async function createCustomer(formData: FormData): Promise<ActionResult<Customer>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.create')) {
+      return { success: false, error: 'Manglende tilladelse: customers.create' }
+    }
 
     const rawData = {
       company_name: formData.get('company_name') as string,
@@ -244,7 +260,10 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
 // Update customer
 export async function updateCustomer(formData: FormData): Promise<ActionResult<Customer>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: customers.edit' }
+    }
 
     const id = formData.get('id') as string
     if (!id) {
@@ -317,7 +336,10 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
 // Delete customer
 export async function deleteCustomer(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.delete')) {
+      return { success: false, error: 'Manglende tilladelse: customers.delete' }
+    }
     validateUUID(id, 'kunde ID')
 
     // Get customer name before deleting for audit log
@@ -355,7 +377,10 @@ export async function toggleCustomerActive(
   isActive: boolean
 ): Promise<ActionResult<Customer>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: customers.edit' }
+    }
     validateUUID(id, 'kunde ID')
 
     const { data, error } = await supabase
@@ -397,7 +422,10 @@ export async function getCustomerContacts(
   customerId: string
 ): Promise<ActionResult<CustomerContact[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) {
+      return { success: false, error: 'Manglende tilladelse: customers.view' }
+    }
     validateUUID(customerId, 'kunde ID')
 
     const { data, error } = await supabase
@@ -423,7 +451,10 @@ export async function createCustomerContact(
   formData: FormData
 ): Promise<ActionResult<CustomerContact>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: customers.edit' }
+    }
 
     const customerId = formData.get('customer_id') as string
     if (!customerId) {
@@ -482,7 +513,10 @@ export async function updateCustomerContact(
   formData: FormData
 ): Promise<ActionResult<CustomerContact>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: customers.edit' }
+    }
 
     const id = formData.get('id') as string
     const customerId = formData.get('customer_id') as string
@@ -552,7 +586,10 @@ export async function deleteCustomerContact(
   customerId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: customers.edit' }
+    }
     validateUUID(id, 'kontakt ID')
     validateUUID(customerId, 'kunde ID')
 
