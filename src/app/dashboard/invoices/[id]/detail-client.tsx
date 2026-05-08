@@ -28,6 +28,8 @@ import {
 import type { CreditSummary } from '@/lib/services/invoice-credit'
 import { CreditNoteDialog } from './credit-note-dialog'
 import { formatCurrency } from '@/lib/utils/format'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Kladde',
@@ -115,6 +117,13 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
   const isLocked = isPaid
   const isCreditNote = inv.invoice_type === 'credit'
   const isVoided = !!inv.voided_at
+
+  // Sprint 7D — UI gates per rolle
+  const { role } = useUserRole()
+  const canSend = hasPermission(role, 'invoices.send')
+  const canMarkPaid = hasPermission(role, 'invoices.mark_paid')
+  const canDeleteDraft = hasPermission(role, 'invoices.delete_draft')
+  const canCredit = hasPermission(role, 'invoices.credit')
 
   // Sprint 6F-3 — credit summary state (kun relevant når invoice IKKE er
   // selv en kreditnota og status ≥ sent)
@@ -627,39 +636,45 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleSendMail}
-                disabled={busy !== null || !detail.customer?.email}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-                title={
-                  detail.customer?.email
-                    ? `Sender til ${detail.customer.email}`
-                    : 'Kunden mangler email'
-                }
-              >
-                {busy === 'mail' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-                Send faktura på mail
-              </button>
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={busy !== null}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded ring-1 ring-blue-300 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-60"
-                title="Sætter status til 'sendt' uden at sende noget"
-              >
-                {busy === 'send' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                Markér som sendt (uden mail)
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={busy !== null}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded ring-1 ring-red-300 text-red-700 bg-white hover:bg-red-50 disabled:opacity-60"
-              >
-                {busy === 'delete' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                Slet kladde
-              </button>
+              {canSend && (
+                <button
+                  type="button"
+                  onClick={handleSendMail}
+                  disabled={busy !== null || !detail.customer?.email}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                  title={
+                    detail.customer?.email
+                      ? `Sender til ${detail.customer.email}`
+                      : 'Kunden mangler email'
+                  }
+                >
+                  {busy === 'mail' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                  Send faktura på mail
+                </button>
+              )}
+              {canSend && (
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={busy !== null}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded ring-1 ring-blue-300 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-60"
+                  title="Sætter status til 'sendt' uden at sende noget"
+                >
+                  {busy === 'send' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  Markér som sendt (uden mail)
+                </button>
+              )}
+              {canDeleteDraft && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={busy !== null}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded ring-1 ring-red-300 text-red-700 bg-white hover:bg-red-50 disabled:opacity-60"
+                >
+                  {busy === 'delete' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Slet kladde
+                </button>
+              )}
             </div>
             {!detail.customer?.email && (
               <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 flex items-center gap-1">
@@ -680,17 +695,23 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span>Status sat til 'sendt'. Bemærk: ingen mail er afsendt automatisk endnu.</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handlePay}
-                disabled={busy !== null}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {busy === 'pay' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeCheck className="w-3.5 h-3.5" />}
-                Markér som betalt
-              </button>
-            </div>
+            {canMarkPaid ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handlePay}
+                  disabled={busy !== null}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {busy === 'pay' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeCheck className="w-3.5 h-3.5" />}
+                  Markér som betalt
+                </button>
+              </div>
+            ) : (
+              <div className="text-[11px] text-gray-500 italic">
+                Markér som betalt kræver bogholderi/admin-rolle.
+              </div>
+            )}
             <p className="text-[11px] text-gray-500 flex items-start gap-1">
               <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
               Slet er ikke tilladt på en sendt faktura. Brug kreditnota-flow nedenfor i stedet.
@@ -731,7 +752,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
               - remaining_creditable_ex_vat ≤ 0 (drafts har reserveret hele beløbet)
             Drafts på remaining tæller med så over-credit ikke kan ske. */}
         {!isCreditNote && !isDraft && creditSummary && !creditSummary.is_voided &&
-          creditSummary.remaining_creditable_ex_vat > 0 && (
+          creditSummary.remaining_creditable_ex_vat > 0 && canCredit && (
             <div className="border-t pt-3 mt-3">
               <button
                 type="button"
