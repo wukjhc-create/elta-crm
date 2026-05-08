@@ -6,6 +6,7 @@ import {
   getAuthenticatedClientWithRole,
   formatError,
 } from '@/lib/actions/action-helpers'
+import { getWorkOrderScope, userCanViewWorkOrder } from '@/lib/auth/case-scope'
 import { createAuditLog } from '@/lib/actions/audit'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
@@ -56,12 +57,19 @@ export async function listWorkOrdersForCase(
   caseId: string
 ): Promise<ActionResult<WorkOrderWithEmployee[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('work_orders.view.all')) {
-      return { success: false, error: 'Manglende tilladelse: work_orders.view.all' }
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    // Sprint 7E — accept enten view.all eller view.assigned + scope-filter
+    if (!hasPermission('work_orders.view.all') && !hasPermission('work_orders.view.assigned')) {
+      return { success: false, error: 'Manglende tilladelse: work_orders.view' }
+    }
+    const scope = await getWorkOrderScope({ role, userId, supabase })
+
+    // Sprint 7E — graceful empty for montor uden tildelte work orders
+    if (scope.type === 'specific' && scope.workOrderIds.length === 0) {
+      return { success: true, data: [] }
     }
 
-    const { data: rows, error } = await supabase
+    let query = supabase
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
@@ -71,6 +79,13 @@ export async function listWorkOrdersForCase(
       .eq('case_id', caseId)
       .order('scheduled_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
+
+    // Sprint 7E — for montor: kun work orders tildelt egen employee
+    if (scope.type === 'specific') {
+      query = query.in('id', scope.workOrderIds)
+    }
+
+    const { data: rows, error } = await query
 
     if (error) {
       logger.error('listWorkOrdersForCase failed', { error })

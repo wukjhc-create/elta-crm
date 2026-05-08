@@ -102,7 +102,9 @@ const navSections: NavSection[] = [
       {
         name: 'Sager / Ordrer',
         href: '/dashboard/orders',
-        permission: 'cases.view.all',
+        // Sprint 7E — view.assigned er lavere baseline (admin/serviceleder/
+        // montor/bogholderi). Scope-filter bestemmer faktisk synlige rows.
+        permission: 'cases.view.assigned',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

@@ -28,7 +28,11 @@ interface PageProps {
 }
 
 export default async function OrdersPage({ searchParams }: PageProps) {
-  if (!(await pageHasPermission('cases.view.all'))) {
+  // Sprint 7E — accept enten cases.view.all eller cases.view.assigned.
+  // Salg/montor faar kun egne sager via scope-filter i getServiceCases.
+  const canViewAll = await pageHasPermission('cases.view.all')
+  const canViewAssigned = await pageHasPermission('cases.view.assigned')
+  if (!canViewAll && !canViewAssigned) {
     return <NoAccess permission="cases.view.all" />
   }
 

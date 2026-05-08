@@ -6,6 +6,7 @@ import {
   getAuthenticatedClientWithRole,
   formatError,
 } from '@/lib/actions/action-helpers'
+import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
 import { createAnonClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
@@ -37,13 +38,25 @@ export async function getServiceCases(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<ServiceCaseWithRelations>>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('cases.view.all')) {
-      return { success: false, error: 'Manglende tilladelse: cases.view.all' }
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    // Sprint 7E — accept enten cases.view.all eller cases.view.assigned.
+    // Scope-filter applikeres efter rolle.
+    if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view' }
     }
+    const scope = await getCaseScope({ role, userId, supabase })
+
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || PAGE_SIZE
     const offset = (page - 1) * pageSize
+
+    // Sprint 7E — graceful empty for users uden assigned cases
+    if (scope.type === 'specific' && scope.caseIds.length === 0) {
+      return {
+        success: true,
+        data: { data: [], total: 0, page, pageSize, totalPages: 0 },
+      }
+    }
 
     let query = supabase
       .from('service_cases')
@@ -54,6 +67,11 @@ export async function getServiceCases(filters?: {
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + pageSize - 1)
+
+    // Sprint 7E — applikér scope-filter
+    if (scope.type === 'specific') {
+      query = query.in('id', scope.caseIds)
+    }
 
     if (filters?.status) {
       query = query.eq('status', filters.status)
@@ -90,9 +108,14 @@ export async function getServiceCases(filters?: {
 
 export async function getServiceCase(id: string): Promise<ActionResult<ServiceCaseWithRelations>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('cases.view.all')) {
-      return { success: false, error: 'Manglende tilladelse: cases.view.all' }
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view' }
+    }
+
+    // Sprint 7E — bekraft user kan se DENNE case (scope-check).
+    if (!(await userCanViewCase(id, { role, userId, supabase }))) {
+      return { success: false, error: 'Sagen er ikke tildelt dig' }
     }
 
     const { data, error } = await supabase
