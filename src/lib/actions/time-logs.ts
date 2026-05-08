@@ -27,6 +27,7 @@ import {
   getAuthenticatedClientWithRole,
   formatError,
 } from '@/lib/actions/action-helpers'
+import { getWorkOrderScope } from '@/lib/auth/case-scope'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import type { TimeLogRow } from '@/types/workforce.types'
@@ -53,9 +54,18 @@ export async function listTimeLogsForWorkOrder(
   workOrderId: string
 ): Promise<ActionResult<TimeLogWithEmployee[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    // Sprint 7E — accept enten view.all eller view.own + scope-check.
+    if (!hasPermission('time_logs.view.all') && !hasPermission('time_logs.view.own')) {
+      return { success: false, error: 'Manglende tilladelse: time_logs.view' }
+    }
+
+    // Sprint 7E — montor maa kun se time_logs paa egne work_orders.
     if (!hasPermission('time_logs.view.all')) {
-      return { success: false, error: 'Manglende tilladelse: time_logs.view.all' }
+      const woScope = await getWorkOrderScope({ role, userId, supabase })
+      if (woScope.type === 'specific' && !woScope.workOrderIds.includes(workOrderId)) {
+        return { success: true, data: [] }
+      }
     }
 
     const { data, error } = await supabase
@@ -84,9 +94,19 @@ export async function listTimeLogsForCase(
   caseId: string
 ): Promise<ActionResult<TimeLogWithEmployee[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('time_logs.view.all') && !hasPermission('time_logs.view.own')) {
+      return { success: false, error: 'Manglende tilladelse: time_logs.view' }
+    }
+
+    // Sprint 7E — montor scope: kun egne work_orders.
+    let scopedWoIds: string[] | null = null
     if (!hasPermission('time_logs.view.all')) {
-      return { success: false, error: 'Manglende tilladelse: time_logs.view.all' }
+      const woScope = await getWorkOrderScope({ role, userId, supabase })
+      if (woScope.type === 'specific') {
+        scopedWoIds = woScope.workOrderIds
+        if (scopedWoIds.length === 0) return { success: true, data: [] }
+      }
     }
 
     // Pull all work_orders for the case so we can scope the time_logs query.
@@ -98,7 +118,11 @@ export async function listTimeLogsForCase(
       logger.error('listTimeLogsForCase: failed to fetch work_orders', { error: woErr })
       return { success: false, error: 'Kunne ikke hente arbejdsordrer for sagen' }
     }
-    const woIds = (woRows || []).map((r) => r.id as string)
+    let woIds = (woRows || []).map((r) => r.id as string)
+    // Sprint 7E — for montor: skaer ned til work_orders bruger maa se.
+    if (scopedWoIds !== null) {
+      woIds = woIds.filter((id) => scopedWoIds!.includes(id))
+    }
     if (woIds.length === 0) return { success: true, data: [] }
 
     const { data, error } = await supabase
@@ -150,9 +174,23 @@ export async function createTimeLog(
       return { success: false, error: 'Dato skal være i formatet YYYY-MM-DD' }
     }
 
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('time_logs.create')) {
       return { success: false, error: 'Manglende tilladelse: time_logs.create' }
+    }
+
+    // Sprint 7E — montor maa kun create paa egne work orders + med eget
+    // employee_id. Admin/serviceleder kan create paa enhver kombination.
+    if (!hasPermission('time_logs.edit.all')) {
+      const woScope = await getWorkOrderScope({ role, userId, supabase })
+      if (woScope.type === 'specific') {
+        if (!woScope.workOrderIds.includes(input.work_order_id)) {
+          return { success: false, error: 'Arbejdsordren er ikke tildelt dig' }
+        }
+        if (woScope.employeeId && input.employee_id !== woScope.employeeId) {
+          return { success: false, error: 'Du kan kun registrere tid paa din egen medarbejder-konto' }
+        }
+      }
     }
 
     // Validate work_order exists and grab case_id for revalidate.
@@ -252,11 +290,10 @@ export async function updateTimeLog(
   input: UpdateTimeLogInput
 ): Promise<ActionResult<TimeLogRow>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    // Generel update — krav time_logs.edit.all (admin/serviceleder).
-    // Egen-only-update er ikke implementeret her endnu (krav scope-filter).
-    if (!hasPermission('time_logs.edit.all')) {
-      return { success: false, error: 'Manglende tilladelse: time_logs.edit.all' }
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    // Sprint 7E — accept enten edit.all eller edit.own (med scope-tjek).
+    if (!hasPermission('time_logs.edit.all') && !hasPermission('time_logs.edit.own')) {
+      return { success: false, error: 'Manglende tilladelse: time_logs.edit' }
     }
 
     // Read current row + check invoice lock.
@@ -266,6 +303,19 @@ export async function updateTimeLog(
       .eq('id', timeLogId)
       .maybeSingle()
     if (readErr || !cur) return { success: false, error: 'Timeregistrering ikke fundet' }
+
+    // Sprint 7E — for montor: skal eje work_order + employee_id matcher.
+    if (!hasPermission('time_logs.edit.all')) {
+      const woScope = await getWorkOrderScope({ role, userId, supabase })
+      if (woScope.type === 'specific') {
+        if (!woScope.workOrderIds.includes(cur.work_order_id as string)) {
+          return { success: false, error: 'Arbejdsordren er ikke tildelt dig' }
+        }
+        if (woScope.employeeId && cur.employee_id !== woScope.employeeId) {
+          return { success: false, error: 'Du kan kun aendre dine egne tidsregistreringer' }
+        }
+      }
+    }
 
     if (cur.invoice_line_id) {
       return {

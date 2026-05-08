@@ -428,12 +428,18 @@ export async function listWorkOrdersByDateRange(
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       return { success: false, error: 'Datoer skal være i formatet YYYY-MM-DD' }
     }
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('calendar.view.all')) {
-      return { success: false, error: 'Manglende tilladelse: calendar.view.all' }
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    // Sprint 7E — accept enten calendar.view.all eller calendar.view.own.
+    // Montor faar kun egne work orders via scope-filter.
+    if (!hasPermission('calendar.view.all') && !hasPermission('calendar.view.own')) {
+      return { success: false, error: 'Manglende tilladelse: calendar.view' }
+    }
+    const woScope = await getWorkOrderScope({ role, userId, supabase })
+    if (woScope.type === 'specific' && woScope.workOrderIds.length === 0) {
+      return { success: true, data: [] }
     }
 
-    const { data: rows, error } = await supabase
+    let woQuery = supabase
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
@@ -444,6 +450,12 @@ export async function listWorkOrdersByDateRange(
       .lte('scheduled_date', endDate)
       .order('scheduled_date', { ascending: true })
       .order('created_at', { ascending: true })
+
+    if (woScope.type === 'specific') {
+      woQuery = woQuery.in('id', woScope.workOrderIds)
+    }
+
+    const { data: rows, error } = await woQuery
 
     if (error) {
       logger.error('listWorkOrdersByDateRange failed', { error })

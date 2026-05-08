@@ -185,7 +185,9 @@ const navSections: NavSection[] = [
       {
         name: 'Kalender',
         href: '/dashboard/calendar',
-        permission: 'calendar.view.all',
+        // Sprint 7E — calendar.view.own er bredere baseline (admin/
+        // serviceleder/montor). Scope-filter bestemmer faktiske rows.
+        permission: 'calendar.view.own',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

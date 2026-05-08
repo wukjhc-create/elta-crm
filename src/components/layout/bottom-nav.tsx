@@ -13,13 +13,13 @@ const defaultNavItems = [
   { name: 'Scan Mail', href: '/dashboard/mail?filter=ao_matches', icon: ScanLine },
 ]
 
-// Sprint 7D — pilot: montor mister Kalender + Service indtil sag-scope
-// implementeres i 7E. Erstattet med opgaver + indbakke + scan.
+// Sprint 7E — montor faar Kalender tilbage. Scope-filter sikrer
+// kun egne work_orders vises i feed.
 const montørNavItems = [
   { name: 'Opgaver', href: '/dashboard/tasks', icon: ClipboardCheck },
-  { name: 'Indbakke', href: '/dashboard/mail', icon: Inbox },
-  { name: 'Scan Mail', href: '/dashboard/mail?filter=ao_matches', icon: ScanLine },
+  { name: 'Kalender', href: '/dashboard/calendar', icon: Calendar },
   { name: 'Service', href: '/dashboard/service-cases', icon: Wrench },
+  { name: 'Indbakke', href: '/dashboard/mail', icon: Inbox },
 ]
 
 export function BottomNav() {

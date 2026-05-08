@@ -53,15 +53,12 @@ function addDays(dateStr: string, n: number): string {
 }
 
 export default async function CalendarPage({ searchParams }: PageProps) {
-  // Sprint 7D — pilot: kalender-feed kraver calendar.view.all (admin/serviceleder).
-  // Montor er gated indtil sag-scope implementeres i 7E.
-  if (!(await pageHasPermission('calendar.view.all'))) {
-    return (
-      <NoAccess
-        permission="calendar.view.all"
-        message="Kalender-feed er begraenset i pilot-versionen. Montoers kalender med egne arbejdsordrer kommer i naeste sprint (7E)."
-      />
-    )
+  // Sprint 7E — accept enten calendar.view.all eller calendar.view.own.
+  // Montor faar kun egne work orders via scope-filter i listWorkOrdersByDateRange.
+  const canViewAll = await pageHasPermission('calendar.view.all')
+  const canViewOwn = await pageHasPermission('calendar.view.own')
+  if (!canViewAll && !canViewOwn) {
+    return <NoAccess permission="calendar.view.all" />
   }
 
   const params = await searchParams
