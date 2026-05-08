@@ -10,7 +10,10 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+} from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import {
   EmployeeCompensationSchema,
@@ -40,15 +43,31 @@ interface AdminCtx {
   userId: string
 }
 
-async function requireAdmin(): Promise<AdminCtx | { ok: false; message: string }> {
-  const { supabase, userId } = await getAuthenticatedClient()
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle()
-  if ((prof?.role as string | null) !== 'admin') {
-    return { ok: false, message: 'Kun administratorer kan udføre denne handling.' }
+/**
+ * Sprint 7 Pilot — replaced inline 'role===admin' check with permission-aware
+ * helpers. Each helper has same shape so callers can keep `if ('ok' in ctx)`
+ * pattern.
+ */
+async function requireEmployeesEdit(): Promise<AdminCtx | { ok: false; message: string }> {
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('employees.edit')) {
+    return { ok: false, message: 'Manglende tilladelse: employees.edit' }
+  }
+  return { supabase, userId }
+}
+
+async function requirePayrollView(): Promise<AdminCtx | { ok: false; message: string }> {
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('employees.payroll.view')) {
+    return { ok: false, message: 'Manglende tilladelse: employees.payroll.view' }
+  }
+  return { supabase, userId }
+}
+
+async function requirePayrollEdit(): Promise<AdminCtx | { ok: false; message: string }> {
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('employees.payroll.edit')) {
+    return { ok: false, message: 'Manglende tilladelse: employees.payroll.edit' }
   }
   return { supabase, userId }
 }
@@ -70,7 +89,10 @@ export interface ListFilter {
 }
 
 export async function listEmployeesAction(filter: ListFilter = {}): Promise<EmployeeRow[]> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('employees.view')) return []
+  const canSeeRates = hasPermission('employees.payroll.view')
+
   let q = supabase
     .from('employees')
     .select('*')
@@ -89,11 +111,18 @@ export async function listEmployeesAction(filter: ListFilter = {}): Promise<Empl
   }
 
   const { data } = await q
-  return (data ?? []).map(normaliseEmployee)
+  const rows = (data ?? []).map(normaliseEmployee)
+  if (!canSeeRates) {
+    return rows.map((r) => ({ ...r, hourly_rate: null, cost_rate: null }))
+  }
+  return rows
 }
 
 export async function getEmployeeAction(id: string): Promise<EmployeeWithCompensation | null> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('employees.view')) return null
+  const canSeePayroll = hasPermission('employees.payroll.view')
+
   const { data: emp } = await supabase
     .from('employees')
     .select('*')
@@ -101,15 +130,22 @@ export async function getEmployeeAction(id: string): Promise<EmployeeWithCompens
     .maybeSingle()
   if (!emp) return null
 
-  const { data: comp } = await supabase
-    .from('employee_compensation')
-    .select('*')
-    .eq('employee_id', id)
-    .maybeSingle()
+  let comp = null
+  if (canSeePayroll) {
+    const { data: c } = await supabase
+      .from('employee_compensation')
+      .select('*')
+      .eq('employee_id', id)
+      .maybeSingle()
+    comp = c ?? null
+  }
 
+  const normalised = normaliseEmployee(emp)
   return {
-    ...normaliseEmployee(emp),
-    compensation: comp ?? null,
+    ...normalised,
+    hourly_rate: canSeePayroll ? normalised.hourly_rate : null,
+    cost_rate: canSeePayroll ? normalised.cost_rate : null,
+    compensation: comp,
   }
 }
 
@@ -117,7 +153,10 @@ export async function getEmployeeProjectImpactAction(
   employeeId: string,
   options: { workOrderId?: string | null; sinceIso?: string; untilIso?: string } = {}
 ): Promise<EmployeeProjectImpact[]> {
-  await getAuthenticatedClient()
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  // Project impact udregner cost-effekter af medarbejder. Skal gates til
+  // payroll-roller saa kostpriser ikke laekker.
+  if (!hasPermission('employees.payroll.view')) return []
   return calculateEmployeeProjectImpact({ employeeId, ...options })
 }
 
@@ -125,7 +164,7 @@ export async function getCompensationHistoryAction(
   employeeId: string,
   limit = 50
 ): Promise<EmployeeCompensationHistoryRow[]> {
-  const ctx = await requireAdmin()
+  const ctx = await requirePayrollView()
   if ('ok' in ctx) return []
   const { data } = await ctx.supabase
     .from('employee_compensation_history')
@@ -143,7 +182,7 @@ export async function getCompensationHistoryAction(
 export async function createEmployeeAction(
   raw: unknown
 ): Promise<ActionOutcome<EmployeeWithCompensation>> {
-  const ctx = await requireAdmin()
+  const ctx = await requireEmployeesEdit()
   if ('ok' in ctx) return ctx
 
   const parsed = EmployeeIdentitySchema.safeParse(raw)
@@ -199,7 +238,7 @@ export async function updateEmployeeAction(
   id: string,
   raw: unknown
 ): Promise<ActionOutcome<EmployeeWithCompensation>> {
-  const ctx = await requireAdmin()
+  const ctx = await requireEmployeesEdit()
   if ('ok' in ctx) return ctx
 
   const parsed = EmployeeIdentitySchema.safeParse(raw)
@@ -243,7 +282,7 @@ export async function setEmployeeActiveAction(
   id: string,
   active: boolean
 ): Promise<ActionOutcome> {
-  const ctx = await requireAdmin()
+  const ctx = await requireEmployeesEdit()
   if ('ok' in ctx) return ctx
   const { error } = await ctx.supabase
     .from('employees')
@@ -263,7 +302,7 @@ export async function setEmployeeCompensationAction(
   employeeId: string,
   raw: unknown
 ): Promise<ActionOutcome<{ realHourlyCost: number | null }>> {
-  const ctx = await requireAdmin()
+  const ctx = await requirePayrollEdit()
   if ('ok' in ctx) return ctx
 
   const parsed = EmployeeCompensationSchema.safeParse(raw)
