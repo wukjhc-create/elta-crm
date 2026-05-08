@@ -102,6 +102,7 @@ const navSections: NavSection[] = [
       {
         name: 'Sager / Ordrer',
         href: '/dashboard/orders',
+        permission: 'cases.view.all',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -116,7 +117,7 @@ const navSections: NavSection[] = [
       {
         name: 'Fakturaer',
         href: '/dashboard/invoices',
-        permission: 'economy.view',
+        permission: 'invoices.view.all',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -131,7 +132,7 @@ const navSections: NavSection[] = [
       {
         name: 'Leverandørfaktura',
         href: '/dashboard/incoming-invoices',
-        permission: 'economy.view',
+        permission: 'incoming_invoices.view',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -182,7 +183,7 @@ const navSections: NavSection[] = [
       {
         name: 'Kalender',
         href: '/dashboard/calendar',
-        permission: 'calendar.view',
+        permission: 'calendar.view.all',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

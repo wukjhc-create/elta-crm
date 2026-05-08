@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { listEmployeesAction } from '@/lib/actions/employees'
 import { EmployeesListClient } from './employees-list-client'
+import { getPageRoleContext } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Medarbejdere',
@@ -18,6 +20,12 @@ interface PageProps {
 }
 
 export default async function EmployeesPage({ searchParams }: PageProps) {
+  const ctx = await getPageRoleContext()
+  if (!ctx.has('employees.view')) {
+    return <NoAccess permission="employees.view" />
+  }
+  const canSeePayroll = ctx.has('employees.payroll.view')
+
   const params = await searchParams
   const activeFilter = params.active ?? 'active'
   const roleFilter = params.role ?? ''
@@ -39,6 +47,7 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
     <EmployeesListClient
       employees={filtered}
       filters={{ q: search, active: activeFilter, role: roleFilter }}
+      canSeePayroll={canSeePayroll}
     />
   )
 }

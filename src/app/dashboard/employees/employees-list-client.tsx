@@ -31,9 +31,15 @@ interface FiltersState {
 export function EmployeesListClient({
   employees,
   filters,
+  canSeePayroll = false,
 }: {
   employees: EmployeeRow[]
   filters: FiltersState
+  /** Sprint 7D — gate til hourly_rate / cost_rate kolonner i listen.
+   *  Server-action stripper allerede felterne hvis ingen payroll.view,
+   *  saa hvis canSeePayroll=false er rates altid null. Vi skjuler
+   *  kolonnerne for at undgaa "—" stoej. */
+  canSeePayroll?: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -154,8 +160,12 @@ export function EmployeesListClient({
                   <th className="px-3 py-2">E-mail</th>
                   <th className="px-3 py-2">Telefon</th>
                   <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2 text-right">Intern kost</th>
-                  <th className="px-3 py-2 text-right">Salgspris</th>
+                  {canSeePayroll && (
+                    <>
+                      <th className="px-3 py-2 text-right">Intern kost</th>
+                      <th className="px-3 py-2 text-right">Salgspris</th>
+                    </>
+                  )}
                   <th className="px-3 py-2">Ansat</th>
                 </tr>
               </thead>
@@ -208,12 +218,16 @@ export function EmployeesListClient({
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {fmtAmount(e.cost_rate)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {fmtAmount(e.hourly_rate)}
-                    </td>
+                    {canSeePayroll && (
+                      <>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {fmtAmount(e.cost_rate)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {fmtAmount(e.hourly_rate)}
+                        </td>
+                      </>
+                    )}
                     <td className="px-3 py-2 text-gray-600">{fmtDate(e.hire_date)}</td>
                   </tr>
                 ))}

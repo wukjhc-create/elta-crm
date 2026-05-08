@@ -4,6 +4,8 @@ import { listWorkOrdersByDateRange } from '@/lib/actions/work-orders'
 import { listEmployeesAction } from '@/lib/actions/employees'
 import { CalendarPageClient } from './calendar-client'
 import { CalendarWorkforceClient } from './calendar-workforce-client'
+import { pageHasPermission } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Kalender',
@@ -51,6 +53,17 @@ function addDays(dateStr: string, n: number): string {
 }
 
 export default async function CalendarPage({ searchParams }: PageProps) {
+  // Sprint 7D — pilot: kalender-feed kraver calendar.view.all (admin/serviceleder).
+  // Montor er gated indtil sag-scope implementeres i 7E.
+  if (!(await pageHasPermission('calendar.view.all'))) {
+    return (
+      <NoAccess
+        permission="calendar.view.all"
+        message="Kalender-feed er begraenset i pilot-versionen. Montoers kalender med egne arbejdsordrer kommer i naeste sprint (7E)."
+      />
+    )
+  }
+
   const params = await searchParams
   const view: CalendarView = params.view ?? 'day'
   const anchorDate = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : todayKey()

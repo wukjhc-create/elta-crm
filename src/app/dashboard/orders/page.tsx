@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { getServiceCases } from '@/lib/actions/service-cases'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { pageHasPermission } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 import { OrdersListClient } from './orders-list-client'
 import type {
   ServiceCaseStatus,
@@ -26,6 +28,10 @@ interface PageProps {
 }
 
 export default async function OrdersPage({ searchParams }: PageProps) {
+  if (!(await pageHasPermission('cases.view.all'))) {
+    return <NoAccess permission="cases.view.all" />
+  }
+
   const params = await searchParams
   const page = params.page ? Math.max(1, parseInt(params.page, 10)) : 1
 

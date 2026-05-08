@@ -2,6 +2,8 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { Ban } from 'lucide-react'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { pageHasPermission } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Fakturaer',
@@ -26,6 +28,10 @@ const TYPE_PILL: Record<string, { label: string; cls: string }> = {
 }
 
 export default async function InvoicesPage() {
+  if (!(await pageHasPermission('invoices.view.all'))) {
+    return <NoAccess permission="invoices.view.all" />
+  }
+
   let rows: Array<{
     id: string
     invoice_number: string
