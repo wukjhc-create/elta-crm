@@ -22,7 +22,11 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import type { TimeLogRow } from '@/types/workforce.types'
@@ -49,7 +53,10 @@ export async function listTimeLogsForWorkOrder(
   workOrderId: string
 ): Promise<ActionResult<TimeLogWithEmployee[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('time_logs.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: time_logs.view.all' }
+    }
 
     const { data, error } = await supabase
       .from('time_logs')
@@ -77,7 +84,10 @@ export async function listTimeLogsForCase(
   caseId: string
 ): Promise<ActionResult<TimeLogWithEmployee[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('time_logs.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: time_logs.view.all' }
+    }
 
     // Pull all work_orders for the case so we can scope the time_logs query.
     const { data: woRows, error: woErr } = await supabase
@@ -140,7 +150,10 @@ export async function createTimeLog(
       return { success: false, error: 'Dato skal være i formatet YYYY-MM-DD' }
     }
 
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('time_logs.create')) {
+      return { success: false, error: 'Manglende tilladelse: time_logs.create' }
+    }
 
     // Validate work_order exists and grab case_id for revalidate.
     const { data: wo, error: woErr } = await supabase
@@ -239,7 +252,12 @@ export async function updateTimeLog(
   input: UpdateTimeLogInput
 ): Promise<ActionResult<TimeLogRow>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // Generel update — krav time_logs.edit.all (admin/serviceleder).
+    // Egen-only-update er ikke implementeret her endnu (krav scope-filter).
+    if (!hasPermission('time_logs.edit.all')) {
+      return { success: false, error: 'Manglende tilladelse: time_logs.edit.all' }
+    }
 
     // Read current row + check invoice lock.
     const { data: cur, error: readErr } = await supabase

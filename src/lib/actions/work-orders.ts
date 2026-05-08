@@ -1,7 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { createAuditLog } from '@/lib/actions/audit'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
@@ -52,7 +56,10 @@ export async function listWorkOrdersForCase(
   caseId: string
 ): Promise<ActionResult<WorkOrderWithEmployee[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('work_orders.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: work_orders.view.all' }
+    }
 
     const { data: rows, error } = await supabase
       .from('work_orders')
@@ -123,7 +130,10 @@ export async function createWorkOrderForCase(
       return { success: false, error: 'Titel er påkrævet' }
     }
 
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('work_orders.plan')) {
+      return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
+    }
 
     // Pull customer_id from the case so reporting joins work without
     // the caller having to pass it.
@@ -195,7 +205,10 @@ export async function updateWorkOrderPlanning(
   }
 ): Promise<ActionResult<WorkOrderRow>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('work_orders.plan')) {
+      return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
+    }
 
     const patch: Record<string, unknown> = {}
     if (input.title !== undefined) patch.title = input.title.trim()
@@ -252,7 +265,13 @@ export async function changeWorkOrderStatus(
   next: WorkOrderStatus
 ): Promise<ActionResult<WorkOrderRow>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // Status transitions til 'done' krav work_orders.complete (montor kan).
+    // Andre transitions krav work_orders.edit.
+    const required = next === 'done' ? 'work_orders.complete' : 'work_orders.edit'
+    if (!hasPermission(required)) {
+      return { success: false, error: `Manglende tilladelse: ${required}` }
+    }
 
     // Read current
     const { data: cur, error: readErr } = await supabase
@@ -328,7 +347,10 @@ export async function deletePlannedWorkOrder(
   workOrderId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('work_orders.delete')) {
+      return { success: false, error: 'Manglende tilladelse: work_orders.delete' }
+    }
 
     const { data: wo } = await supabase
       .from('work_orders')
@@ -391,7 +413,10 @@ export async function listWorkOrdersByDateRange(
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       return { success: false, error: 'Datoer skal være i formatet YYYY-MM-DD' }
     }
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('calendar.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: calendar.view.all' }
+    }
 
     const { data: rows, error } = await supabase
       .from('work_orders')
