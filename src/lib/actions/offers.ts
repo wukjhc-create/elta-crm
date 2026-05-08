@@ -31,7 +31,11 @@ import type {
 } from '@/types/offers.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import {
+  formatError,
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+} from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 
 // Get all offers with optional filtering and pagination
@@ -45,7 +49,10 @@ export async function getOffers(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) {
+      return { success: false, error: 'Manglende tilladelse: offers.view' }
+    }
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -129,7 +136,10 @@ export async function getOffers(filters?: {
 // Get single offer by ID with all relations
 export async function getOffer(id: string): Promise<ActionResult<OfferWithRelations>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) {
+      return { success: false, error: 'Manglende tilladelse: offers.view' }
+    }
     validateUUID(id, 'tilbud ID')
 
     const { data, error } = await supabase
@@ -189,7 +199,10 @@ async function generateOfferNumber(): Promise<string> {
 // Create new offer
 export async function createOffer(formData: FormData): Promise<ActionResult<Offer>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.create')) {
+      return { success: false, error: 'Manglende tilladelse: offers.create' }
+    }
 
     const customerId = formData.get('customer_id') as string || null
     const leadId = formData.get('lead_id') as string || null
@@ -295,7 +308,10 @@ export async function quickCreateCustomerAndOffer(
   input: QuickCreateInput
 ): Promise<ActionResult<{ customerId: string; offerId: string }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.create')) {
+      return { success: false, error: 'Manglende tilladelse: offers.create' }
+    }
 
     let customerId: string = input.existingCustomerId || ''
 
@@ -425,7 +441,10 @@ export async function quickCreateCustomerAndOffer(
 // Update offer
 export async function updateOffer(formData: FormData): Promise<ActionResult<Offer>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
 
     const id = formData.get('id') as string
     if (!id) {
@@ -524,7 +543,10 @@ export async function updateOfferField(
   value: string | null
 ): Promise<ActionResult> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
     validateUUID(offerId, 'tilbud ID')
 
     if (!ALLOWED_TEXT_FIELDS.includes(field)) {
@@ -551,7 +573,10 @@ export async function updateOfferField(
 // Delete offer
 export async function deleteOffer(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.delete')) {
+      return { success: false, error: 'Manglende tilladelse: offers.delete' }
+    }
     validateUUID(id, 'tilbud ID')
 
     // Get offer before deleting for audit log
@@ -589,7 +614,10 @@ export async function updateOfferStatus(
   status: OfferStatus
 ): Promise<ActionResult<Offer>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
     validateUUID(id, 'tilbud ID')
 
     // Fetch current status for transition validation
@@ -748,7 +776,10 @@ export async function updateOfferStatus(
 // Send offer via email
 export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.send')) {
+      return { success: false, error: 'Manglende tilladelse: offers.send' }
+    }
     validateUUID(offerId, 'tilbud ID')
 
     // Get offer with customer
@@ -956,7 +987,10 @@ export async function getOfferLineItems(
   offerId: string
 ): Promise<ActionResult<OfferLineItem[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) {
+      return { success: false, error: 'Manglende tilladelse: offers.view' }
+    }
     validateUUID(offerId, 'tilbud ID')
 
     const { data, error } = await supabase
@@ -981,7 +1015,10 @@ export async function createLineItem(
   formData: FormData
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
 
     const offerId = formData.get('offer_id') as string
     if (!offerId) {
@@ -1051,7 +1088,10 @@ export async function updateLineItem(
   formData: FormData
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
 
     const id = formData.get('id') as string
     const offerId = formData.get('offer_id') as string
@@ -1129,7 +1169,10 @@ export async function deleteLineItem(
   offerId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
     validateUUID(id, 'linje ID')
     validateUUID(offerId, 'tilbud ID')
 
@@ -1157,7 +1200,10 @@ export async function getCustomersForSelect(): Promise<
   ActionResult<{ id: string; company_name: string; customer_number: string }[]>
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) {
+      return { success: false, error: 'Manglende tilladelse: customers.view' }
+    }
 
     const { data, error } = await supabase
       .from('customers')
@@ -1181,7 +1227,10 @@ export async function getLeadsForSelect(): Promise<
   ActionResult<{ id: string; company_name: string }[]>
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('leads.view')) {
+      return { success: false, error: 'Manglende tilladelse: leads.view' }
+    }
 
     const { data, error } = await supabase
       .from('leads')
@@ -1210,7 +1259,10 @@ export async function addProductToOffer(
   position?: number
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(productId, 'produkt ID')
 
@@ -1300,7 +1352,10 @@ export async function importCalculationToOffer(
   }
 ): Promise<ActionResult<{ importedCount: number }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(calculationId, 'kalkulation ID')
 
@@ -1454,7 +1509,10 @@ export async function createLineItemFromSupplierProduct(
   }
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(supplierProductId, 'leverandør produkt ID')
 
@@ -1635,7 +1693,10 @@ export async function searchSupplierProductsForOffer(
   }>
 }>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) {
+      return { success: false, error: 'Manglende tilladelse: offers.view' }
+    }
 
     // Hent global produkt-avance fra indstillinger (auto-markup)
     const calcResult = await getCalculationSettings()
@@ -1943,7 +2004,10 @@ export async function searchSupplierProductsLive(
   source: 'live' | 'cache'
 }>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) {
+      return { success: false, error: 'Manglende tilladelse: offers.view' }
+    }
     const sanitized = sanitizeSearchTerm(query)
     if (!sanitized || sanitized.length < 2) {
       return { success: true, data: [] }
@@ -2087,7 +2151,10 @@ export async function refreshLineItemPrice(
   lineItemId: string
 ): Promise<ActionResult<OfferLineItem>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
     validateUUID(lineItemId, 'linje ID')
 
     // Get line item with supplier product link
@@ -2217,7 +2284,10 @@ export async function optimizeOfferPrices(
   offerId: string
 ): Promise<ActionResult<OptimizationResult>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
     validateUUID(offerId, 'tilbuds ID')
 
     // Get offer with line items

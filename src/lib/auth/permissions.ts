@@ -29,6 +29,7 @@ export const PERMISSIONS = {
   'offers.view': ['admin', 'serviceleder', 'salg'],
   'offers.create': ['admin', 'serviceleder', 'salg'],
   'offers.edit': ['admin', 'serviceleder', 'salg'],
+  'offers.send': ['admin', 'serviceleder', 'salg'],
   'offers.delete': ['admin'],
   'offers.approve': ['admin'],
 
