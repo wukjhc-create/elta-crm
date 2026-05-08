@@ -11,7 +11,11 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
@@ -40,7 +44,10 @@ export async function listCaseMaterials(
 ): Promise<ActionResult<{ rows: CaseMaterialRow[]; summary: CaseMaterialsSummary }>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('materials.view')) {
+      return { success: false, error: 'Manglende tilladelse: materials.view' }
+    }
 
     const { data, error } = await supabase
       .from('case_materials')
@@ -140,7 +147,10 @@ export async function createCaseMaterial(
       return { success: false, error: 'Salgspris kan ikke være negativ' }
     }
 
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('materials.add_to_case')) {
+      return { success: false, error: 'Manglende tilladelse: materials.add_to_case' }
+    }
 
     // Verify the case exists (avoid creating an orphan row from a stale UI)
     const { data: caseRow, error: caseErr } = await supabase
@@ -215,7 +225,10 @@ export async function updateCaseMaterial(
 ): Promise<ActionResult<CaseMaterialRow>> {
   try {
     validateUUID(id, 'id')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('materials.edit')) {
+      return { success: false, error: 'Manglende tilladelse: materials.edit' }
+    }
 
     // Read current to enforce billed-lock and to know the case_id for revalidate
     const { data: cur, error: readErr } = await supabase
@@ -302,7 +315,10 @@ export async function updateCaseMaterial(
 export async function deleteCaseMaterial(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'id')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('materials.delete')) {
+      return { success: false, error: 'Manglende tilladelse: materials.delete' }
+    }
 
     const { data: cur, error: readErr } = await supabase
       .from('case_materials')

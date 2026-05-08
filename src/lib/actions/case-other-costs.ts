@@ -9,7 +9,11 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
@@ -43,7 +47,10 @@ export async function listCaseOtherCosts(
 ): Promise<ActionResult<{ rows: CaseOtherCostRow[]; summary: CaseOtherCostsSummary }>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('other_costs.view')) {
+      return { success: false, error: 'Manglende tilladelse: other_costs.view' }
+    }
 
     const { data, error } = await supabase
       .from('case_other_costs')
@@ -149,7 +156,10 @@ export async function createCaseOtherCost(
       return { success: false, error: 'Dato skal være YYYY-MM-DD' }
     }
 
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('other_costs.add_to_case')) {
+      return { success: false, error: 'Manglende tilladelse: other_costs.add_to_case' }
+    }
 
     const { data: caseRow, error: caseErr } = await supabase
       .from('service_cases')
@@ -225,7 +235,10 @@ export async function updateCaseOtherCost(
 ): Promise<ActionResult<CaseOtherCostRow>> {
   try {
     validateUUID(id, 'id')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('other_costs.edit')) {
+      return { success: false, error: 'Manglende tilladelse: other_costs.edit' }
+    }
 
     const { data: cur, error: readErr } = await supabase
       .from('case_other_costs')
@@ -323,7 +336,10 @@ export async function updateCaseOtherCost(
 export async function deleteCaseOtherCost(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'id')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('other_costs.delete')) {
+      return { success: false, error: 'Manglende tilladelse: other_costs.delete' }
+    }
 
     const { data: cur, error: readErr } = await supabase
       .from('case_other_costs')
