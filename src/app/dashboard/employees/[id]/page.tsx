@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getEmployeeAction } from '@/lib/actions/employees'
 import { EmployeeDetailClient } from './employee-detail-client'
+import { getPageRoleContext } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Medarbejder',
@@ -17,11 +19,26 @@ export default async function EmployeeDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const ctx = await getPageRoleContext()
+  if (!ctx.has('employees.view')) {
+    return <NoAccess permission="employees.view" />
+  }
+  const canSeePayroll = ctx.has('employees.payroll.view')
+  const canEditPayroll = ctx.has('employees.payroll.edit')
+  const canEditEmployee = ctx.has('employees.edit')
+
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
 
   const employee = await getEmployeeAction(id)
   if (!employee) notFound()
 
-  return <EmployeeDetailClient employee={employee} />
+  return (
+    <EmployeeDetailClient
+      employee={employee}
+      canSeePayroll={canSeePayroll}
+      canEditPayroll={canEditPayroll}
+      canEditEmployee={canEditEmployee}
+    />
+  )
 }

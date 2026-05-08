@@ -38,8 +38,16 @@ const ROLE_LABEL = new Map(EMPLOYEE_ROLE_OPTIONS.map((r) => [r.value, r.label]))
 
 export function EmployeeDetailClient({
   employee,
+  canSeePayroll = false,
+  canEditPayroll = false,
+  canEditEmployee = false,
 }: {
   employee: EmployeeWithCompensation
+  /** Sprint 7D — gate til lon-felter (intern kost, salgspris, pension,
+   *  fritvalg, AM-bidrag, sociale omkostninger osv.) */
+  canSeePayroll?: boolean
+  canEditPayroll?: boolean
+  canEditEmployee?: boolean
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -140,20 +148,24 @@ export function EmployeeDetailClient({
                 Inaktiv
               </span>
             )}
-            <button
-              type="button"
-              onClick={onToggleActive}
-              disabled={isWorking}
-              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border rounded hover:bg-gray-50 disabled:opacity-50"
-            >
-              {isWorking ? 'Gemmer…' : employee.active ? 'Deaktivér' : 'Aktivér'}
-            </button>
-            <Link
-              href={`/dashboard/employees/${employee.id}/edit`}
-              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Rediger
-            </Link>
+            {canEditEmployee && (
+              <button
+                type="button"
+                onClick={onToggleActive}
+                disabled={isWorking}
+                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border rounded hover:bg-gray-50 disabled:opacity-50"
+              >
+                {isWorking ? 'Gemmer…' : employee.active ? 'Deaktivér' : 'Aktivér'}
+              </button>
+            )}
+            {canEditEmployee && (
+              <Link
+                href={`/dashboard/employees/${employee.id}/edit`}
+                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Rediger
+              </Link>
+            )}
           </div>
         </div>
 
@@ -164,8 +176,12 @@ export function EmployeeDetailClient({
             label="Fratrådt"
             value={employee.termination_date ? fmtDateLong(employee.termination_date) : '—'}
           />
-          <Stat label="Intern kost / time" value={fmtAmount(employee.cost_rate)} />
-          <Stat label="Salgspris / time" value={fmtAmount(employee.hourly_rate)} />
+          {canSeePayroll && (
+            <>
+              <Stat label="Intern kost / time" value={fmtAmount(employee.cost_rate)} />
+              <Stat label="Salgspris / time" value={fmtAmount(employee.hourly_rate)} />
+            </>
+          )}
         </div>
       </div>
 
@@ -226,37 +242,46 @@ export function EmployeeDetailClient({
           <Row label="Sidst opdateret" value={fmtDateLong(employee.updated_at)} />
         </Panel>
 
-        {/* Satser/økonomi */}
-        <Panel title="Satser og økonomi">
-          {comp ? (
-            <>
-              <Row label="Timeløn" value={fmtAmount(comp.hourly_wage)} />
-              <Row label="Intern kostpris / time" value={fmtAmount(comp.internal_cost_rate)} />
-              <Row label="Salgspris / time" value={fmtAmount(comp.sales_rate)} />
-              <Row label="Pension" value={fmtPct(comp.pension_pct)} />
-              <Row label="Fritvalg" value={fmtPct(comp.free_choice_pct)} />
-              <Row label="Feriepenge" value={fmtPct(comp.vacation_pct)} />
-              <Row label="SH" value={fmtPct(comp.sh_pct)} />
-              <Row label="Overhead" value={fmtPct(comp.overhead_pct)} />
-              <Row label="Sociale omkostninger" value={fmtAmount(comp.social_costs)} />
-              <Row label="Overtidssats" value={fmtAmount(comp.overtime_rate)} />
-              <Row label="Kørselssats / km" value={fmtAmount(comp.mileage_rate)} />
-              <Row
-                label="Reel timekost (beregnet)"
-                value={
-                  <strong className="text-gray-900">
-                    {fmtAmount(comp.real_hourly_cost)}
-                  </strong>
-                }
-              />
-            </>
-          ) : (
-            <p className="text-sm text-gray-500 py-2">
-              Ingen satser registreret endnu. Brug "Rediger" for at sætte timeløn,
-              intern kostpris og salgspris — så kan medarbejderen indgå i sagøkonomi.
+        {/* Satser/økonomi — Sprint 7D: skjult uden employees.payroll.view */}
+        {canSeePayroll && (
+          <Panel title="Satser og økonomi">
+            {comp ? (
+              <>
+                <Row label="Timeløn" value={fmtAmount(comp.hourly_wage)} />
+                <Row label="Intern kostpris / time" value={fmtAmount(comp.internal_cost_rate)} />
+                <Row label="Salgspris / time" value={fmtAmount(comp.sales_rate)} />
+                <Row label="Pension" value={fmtPct(comp.pension_pct)} />
+                <Row label="Fritvalg" value={fmtPct(comp.free_choice_pct)} />
+                <Row label="Feriepenge" value={fmtPct(comp.vacation_pct)} />
+                <Row label="SH" value={fmtPct(comp.sh_pct)} />
+                <Row label="Overhead" value={fmtPct(comp.overhead_pct)} />
+                <Row label="Sociale omkostninger" value={fmtAmount(comp.social_costs)} />
+                <Row label="Overtidssats" value={fmtAmount(comp.overtime_rate)} />
+                <Row label="Kørselssats / km" value={fmtAmount(comp.mileage_rate)} />
+                <Row
+                  label="Reel timekost (beregnet)"
+                  value={
+                    <strong className="text-gray-900">
+                      {fmtAmount(comp.real_hourly_cost)}
+                    </strong>
+                  }
+                />
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 py-2">
+                Ingen satser registreret endnu. Brug "Rediger" for at sætte timeløn,
+                intern kostpris og salgspris — så kan medarbejderen indgå i sagøkonomi.
+              </p>
+            )}
+          </Panel>
+        )}
+        {!canSeePayroll && (
+          <Panel title="Satser og økonomi">
+            <p className="text-sm text-gray-500 py-2 italic">
+              Løn og satser er kun synlige for administrator-rollen.
             </p>
-          )}
-        </Panel>
+          </Panel>
+        )}
 
         {/* Noter */}
         {employee.notes && (

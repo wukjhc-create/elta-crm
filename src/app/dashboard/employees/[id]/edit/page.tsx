@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getEmployeeAction } from '@/lib/actions/employees'
 import { EditEmployeeForm } from './edit-employee-form'
+import { pageHasPermission } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Rediger medarbejder',
@@ -18,6 +20,10 @@ export default async function EditEmployeePage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  if (!(await pageHasPermission('employees.edit'))) {
+    return <NoAccess permission="employees.edit" />
+  }
+
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
 
