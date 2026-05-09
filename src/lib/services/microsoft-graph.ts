@@ -786,24 +786,86 @@ export async function sendEmailViaGraph(
     // Graph sendMail returns 202 with no body, but we can query the latest sent message
     // Sprint 8C-1.1: capture also conversationId + internetMessageId so caller
     // can persist them for reply-threading.
+    //
+    // Sprint 8C-1.1B: V2-test viste race-condition — Sent Items er IKKE altid
+    // indekseret indenfor sub-sekund efter sendMail returnerer 202. Vi laver
+    // derfor retry-loop med stigende backoff og afslutter så snart conversationId
+    // er fundet (typisk efter 1-2 forsøg). Hele blokken må aldrig blokere send-
+    // succes — hvis alle forsøg fejler, returneres metadata som undefined og
+    // mailen markeres stadig success.
     let sentMessageId: string | undefined
     let sentConversationId: string | undefined
     let sentInternetMessageId: string | undefined
-    try {
-      const sentUrl = `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/mailFolders/sentItems/messages` +
-        `?$select=id,conversationId,internetMessageId&$top=1&$orderby=sentDateTime desc` +
-        `&$filter=subject eq '${options.subject.replace(/'/g, "''")}'`
-      const sentResult = await graphFetch<{
-        value: Array<{ id: string; conversationId?: string; internetMessageId?: string }>
-      }>(sentUrl)
-      const top = sentResult.value?.[0]
-      if (top) {
-        sentMessageId = top.id
-        sentConversationId = top.conversationId || undefined
-        sentInternetMessageId = top.internetMessageId || undefined
+
+    const SENT_LOOKUP_DELAYS_MS = [500, 1000, 1500, 2000, 2500]
+    const subjectQuoted = options.subject.replace(/'/g, "''")
+    const firstRecipient = recipients[0]?.trim().toLowerCase() || ''
+    // sentDateTime-vindue: 2 min tilbage for at undgå at fange ældre mails med
+    // samme subject. Format: ISO uden ms (Graph kræver Z-suffix).
+    const sentSinceIso = new Date(Date.now() - 2 * 60 * 1000).toISOString().replace(/\.\d+Z$/, 'Z')
+
+    for (let attempt = 0; attempt < SENT_LOOKUP_DELAYS_MS.length; attempt++) {
+      await new Promise((r) => setTimeout(r, SENT_LOOKUP_DELAYS_MS[attempt]))
+
+      try {
+        // Filter på subject + sentDateTime-vindue.
+        // Vi inkluderer ikke toRecipients i $filter — Graph kræver any()-operator
+        // som er upålidelig på flere mailboxe. Subject + tidsvindue er tilstrækkeligt
+        // entydigt indenfor 2 min ved unikke subjects som vi bruger fra task-mail.
+        const sentUrl = `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/mailFolders/sentItems/messages` +
+          `?$select=id,conversationId,internetMessageId,toRecipients,sentDateTime` +
+          `&$top=5&$orderby=sentDateTime desc` +
+          `&$filter=subject eq '${subjectQuoted}' and sentDateTime ge ${sentSinceIso}`
+        const sentResult = await graphFetch<{
+          value: Array<{
+            id: string
+            conversationId?: string
+            internetMessageId?: string
+            toRecipients?: Array<{ emailAddress?: { address?: string } }>
+            sentDateTime?: string
+          }>
+        }>(sentUrl)
+
+        // Ekstra-sikkerhed: pick row hvor toRecipients indeholder firstRecipient
+        // (klient-side filter, da Graph $filter på toRecipients er upålidelig).
+        const rows = sentResult.value || []
+        const match = rows.find((row) => {
+          if (!firstRecipient) return true
+          const tos = (row.toRecipients || [])
+            .map((r) => r.emailAddress?.address?.toLowerCase() || '')
+            .filter(Boolean)
+          return tos.includes(firstRecipient)
+        }) || rows[0]
+
+        if (match?.conversationId) {
+          sentMessageId = match.id
+          sentConversationId = match.conversationId
+          sentInternetMessageId = match.internetMessageId || undefined
+          if (attempt > 0) {
+            logger.info('Graph sentItems lookup succeeded after retry', {
+              metadata: { mailbox, attempt: attempt + 1, subject: options.subject },
+            })
+          }
+          break
+        }
+      } catch (lookupErr) {
+        // Non-fatal — vi prøver igen i næste iteration
+        logger.warn('Graph sentItems lookup attempt failed', {
+          metadata: { mailbox, attempt: attempt + 1, subject: options.subject },
+          error: lookupErr,
+        })
       }
-    } catch {
-      // Non-critical — we still sent the email successfully
+    }
+
+    if (!sentConversationId) {
+      logger.warn('Graph sentItems lookup gave up without conversationId', {
+        metadata: {
+          mailbox,
+          subject: options.subject,
+          attempts: SENT_LOOKUP_DELAYS_MS.length,
+          totalWaitMs: SENT_LOOKUP_DELAYS_MS.reduce((a, b) => a + b, 0),
+        },
+      })
     }
 
     return {
