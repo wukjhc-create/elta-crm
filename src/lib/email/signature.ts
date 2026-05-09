@@ -86,44 +86,39 @@ export function buildUserEmailSignatureHtml(input: SignatureRenderInput): string
   const labelColor = branding.textMutedColor
   const linkColor = branding.primaryDarkColor
   const textColor = branding.textColor
-  const accentColor = branding.primaryColor
+  const accentGreen = branding.primaryColor
   const accentOrange = branding.accentColor
 
-  // Logo-cell rendres KUN hvis valid absolut https URL findes.
-  // Hvis null: ingen <img>-tag overhovedet → ingen broken image.
-  const logoCell = branding.logoUrl
-    ? `<td valign="top" style="padding-right:18px;vertical-align:top;width:96px;"><img src="${escapeHtml(branding.logoUrl)}" alt="${escapeHtml(branding.companyName)}" width="80" height="80" style="display:block;border:0;outline:none;text-decoration:none;width:80px;height:auto;" /></td>`
+  // Sprint 8C-2 fix: simpel <div>-stack uden <table>.
+  // Outlook stripper aggressive table/td-styling — <div>-stack overlever.
+  // Logo udelades helt hvis ikke valid absolut https URL.
+  const logoBlock = branding.logoUrl
+    ? `<div style="margin-bottom:12px;"><img src="${escapeHtml(branding.logoUrl)}" alt="${escapeHtml(branding.companyName)}" width="80" height="80" style="display:block;border:0;outline:none;text-decoration:none;width:80px;height:auto;" /></div>`
     : ''
 
   const titleLine = titleHtml
-    ? `<div style="color:${labelColor};font-size:12px;margin:0 0 6px 0;">${titleHtml}</div>`
+    ? `<div style="color:${labelColor};font-size:12px;margin-bottom:4px;">${titleHtml}</div>`
     : ''
 
   const directLine = directHtml
-    ? `<div style="margin:2px 0;"><span style="color:${labelColor};">Direkte:</span> ${directHtml}</div>`
+    ? `<div>Direkte: ${directHtml}</div>`
     : ''
 
   const emailLine = emailHtml
-    ? `<div style="margin:2px 0;"><span style="color:${labelColor};">E-mail:</span> <a href="mailto:${emailHtml}" style="color:${linkColor};text-decoration:none;">${emailHtml}</a></div>`
+    ? `<div>E-mail: <a href="mailto:${emailHtml}" style="color:${linkColor};text-decoration:none;">${emailHtml}</a></div>`
     : ''
 
-  // Wrapper-div så hele signaturen er adskilt fra body med visuel margin
-  // selv om mailklienten stripper noget af table-attributerne. Inline
-  // styles på alle elementer for at overleve mest aggressive Outlook-strip.
-  return `<div style="margin-top:32px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${textColor};line-height:1.55;">
-  <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${textColor};">Med venlig hilsen,</p>
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${textColor};line-height:1.55;">
-    <tr>${logoCell}<td valign="top" style="border-left:4px solid ${accentColor};padding-left:14px;vertical-align:top;">
-      <div style="font-weight:bold;color:${textColor};font-size:15px;margin:0 0 4px 0;">${nameHtml}</div>
-      ${titleLine}
-      <div style="margin:2px 0;"><span style="color:${labelColor};">Firma:</span> <strong style="color:${accentOrange};">${companyNameHtml}</strong></div>
-      <div style="margin:2px 0;"><span style="color:${labelColor};">Telefon:</span> ${mainPhoneHtml}</div>
-      ${directLine}
-      ${emailLine}
-      <div style="margin:2px 0;"><span style="color:${labelColor};">CVR:</span> ${cvrHtml}</div>
-      <div style="margin:8px 0 0 0;"><a href="${websiteUrlHtml}" style="color:${linkColor};text-decoration:none;">${websiteHtml}</a></div>
-    </td></tr>
-  </table>
+  return `<div style="margin-top:24px;border-left:4px solid ${accentGreen};padding-left:14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:${textColor};">
+  ${logoBlock}<div>Med venlig hilsen,</div>
+  <br>
+  <div style="font-weight:700;font-size:15px;color:${textColor};">${nameHtml}</div>
+  ${titleLine}
+  <div>Firma: <span style="color:${accentOrange};font-weight:700;">${companyNameHtml}</span></div>
+  <div>Telefon: ${mainPhoneHtml}</div>
+  ${directLine}
+  ${emailLine}
+  <div>CVR: ${cvrHtml}</div>
+  <div><a href="${websiteUrlHtml}" style="color:${linkColor};text-decoration:none;">${websiteHtml}</a></div>
 </div>`
 }
 
