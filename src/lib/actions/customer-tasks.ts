@@ -25,20 +25,42 @@ import type {
 type ProfileMap = Record<string, { id: string; full_name: string | null; email: string }>
 
 async function enrichWithProfiles(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   tasks: CustomerTaskWithRelations[]
 ): Promise<CustomerTaskWithRelations[]> {
   const assignedIds = [...new Set(tasks.map((t) => t.assigned_to).filter(Boolean))] as string[]
   if (assignedIds.length === 0) return tasks
 
-  const { data: profiles } = await supabase
+  // Sprint 7E fix — profiles RLS begraenser authenticated user til at se
+  // egen profile. Konsekvens: tasks tildelt andre brugere viste
+  // "Ikke tildelt" i UI'et fordi enrichment-lookup'et returnerede
+  // tom map. Vi bypasser RLS via admin-client server-side. Samme
+  // moenster som getActiveProfiles + getTeamMembers.
+  const admin = createAdminClient()
+  const { data: profiles } = await admin
     .from('profiles')
     .select('id, full_name, email')
     .in('id', assignedIds)
 
   const profileMap: ProfileMap = {}
   for (const p of profiles || []) {
-    profileMap[p.id] = p
+    profileMap[p.id] = p as ProfileMap[string]
+  }
+
+  // Berig email fra auth.users naar profile.email er NULL.
+  const missingEmail = Object.values(profileMap).filter((p) => !p.email).map((p) => p.id)
+  if (missingEmail.length > 0) {
+    try {
+      const { data: { users } } = await admin.auth.admin.listUsers({ perPage: 200 })
+      for (const u of users || []) {
+        const entry = profileMap[u.id]
+        if (entry && !entry.email && u.email) {
+          entry.email = u.email
+        }
+      }
+    } catch {
+      // ikke-kritisk
+    }
   }
 
   return tasks.map((t) => ({
