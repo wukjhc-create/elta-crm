@@ -222,6 +222,133 @@ function isFreemailDomain(domain: string): boolean {
 }
 
 // =====================================================
+// Sprint 8C-3 Noise filter
+// Auto-markér nyhedsbreve/sociale-medier/system-mails som 'ignored'
+// så de ikke fylder i inbox-tabben. De kan stadig findes via
+// "Ignorerede"-filteret. INGEN sletning. INGEN permanent skjul.
+// =====================================================
+
+/** Domæner der typisk sender støj (sociale medier, system, marketing). */
+const NOISE_SENDER_DOMAINS = new Set([
+  // Sociale medier
+  'linkedin.com', 'linkedinmail.com',
+  'facebookmail.com', 'facebook.com', 'instagram.com', 'meta.com',
+  'twitter.com', 'x.com',
+  // Google system
+  'accounts.google.com', 'googlealerts-noreply.google.com',
+  'googlecommunityteam-noreply.google.com',
+  // Microsoft system
+  'microsoftonline.com', 'account.microsoft.com',
+  'accountprotection.microsoft.com',
+  // Dev/SaaS notifications der ikke er kunderelevante
+  'vercel.com', 'supabase.com', 'supabase.io', 'github.com',
+  'notifications.github.com',
+])
+
+/** Sender-prefix der typisk er notifikationer (skal kombineres med
+ *  noise-subject for at blive markeret som støj). */
+const NOISE_SENDER_PREFIXES = [
+  'noreply', 'no-reply', 'donotreply', 'do-not-reply',
+  'mailer-daemon', 'newsletter', 'marketing',
+]
+
+/** Subject/body-mønstre der indikerer støj. */
+const NOISE_SUBJECT_KEYWORDS = [
+  'unsubscribe', 'afmeld nyhedsbrev', 'afmeld dig',
+  'newsletter', 'nyhedsbrev', 'tilbudsavis',
+  'kampagne', 'promotion', 'special offer',
+  'login code', 'verification code', 'verifikationskode',
+  'security alert', 'sikkerhedsadvarsel',
+  'terms of service', 'privacy policy update', 'opdatering af vilkår',
+  'din rapport er klar', 'weekly digest', 'daily digest',
+]
+
+/** Domæner der ALDRIG markeres som støj — kerne-leverandører + interne. */
+const PROTECTED_DOMAINS = new Set([
+  'eltasolar.dk',
+  'ao.dk', 'lemu.dk', 'lemvigh-muller.dk',
+  'cerius.dk', 'radius.dk', 'trefor.dk', 'n1.dk',
+  'energinet.dk', 'mikma.dk', 'fasetech.dk',
+])
+
+/** Subject/body-mønstre der ALDRIG må markeres som støj — uanset
+ *  hvor mailen kommer fra. Beskytter kerneforretnings-mails. */
+const PROTECTED_KEYWORDS = [
+  'tilbud', 'faktura', 'kreditnota', 'betaling',
+  'ordrebekraeftelse', 'ordrebekræftelse', 'ordre ',
+  'reklamation', 'sag ', 'sagsnummer', 'opgave',
+  'arbejdsseddel', 'service', 'fejlmelding',
+  'solcelle', 'installation', 'batteri', 'inverter',
+  'ladestander', 'el-installation', 'eltavle',
+  'måler', 'maaler',
+]
+
+/**
+ * Klassificér om en mail er "støj" (reklame/system/social) ud fra
+ * sender og subject/body. Returnerer true hvis støj — caller kan
+ * så sætte link_status='ignored'.
+ *
+ * Sikkerhedsbælter:
+ * 1. PROTECTED_DOMAINS afvises ALDRIG
+ * 2. PROTECTED_KEYWORDS i subject/body afvises ALDRIG
+ * 3. Først efter beskyttelse: tjek noise-mønstre
+ */
+export function classifyNoise(
+  senderEmail: string,
+  subject: string,
+  bodyText: string | null,
+  bodyHtml: string | null
+): boolean {
+  if (!senderEmail) return false
+  const senderLower = senderEmail.toLowerCase()
+  const atIdx = senderLower.indexOf('@')
+  if (atIdx < 0) return false
+  const senderPrefix = senderLower.substring(0, atIdx)
+  const senderDomain = senderLower.substring(atIdx + 1)
+
+  // Subject + first 1000 chars af body til keyword-tjek
+  const subjectLower = (subject || '').toLowerCase()
+  const bodyForCheck = (bodyText || stripHtml(bodyHtml || '')).toLowerCase().substring(0, 1000)
+  const haystack = `${subjectLower} ${bodyForCheck}`
+
+  // Beskyttelse 1: PROTECTED_DOMAINS — kerne-leverandører
+  if (PROTECTED_DOMAINS.has(senderDomain)) return false
+  for (const protectedDomain of PROTECTED_DOMAINS) {
+    if (senderDomain === protectedDomain || senderDomain.endsWith(`.${protectedDomain}`)) {
+      return false
+    }
+  }
+
+  // Beskyttelse 2: PROTECTED_KEYWORDS — kerneforretningssprog
+  for (const kw of PROTECTED_KEYWORDS) {
+    if (haystack.includes(kw)) return false
+  }
+
+  // Tjek 1: noise sender-domæne (eksakt eller subdomæne)
+  if (NOISE_SENDER_DOMAINS.has(senderDomain)) return true
+  for (const noiseDomain of NOISE_SENDER_DOMAINS) {
+    if (senderDomain.endsWith(`.${noiseDomain}`)) return true
+  }
+
+  // Tjek 2: noise subject-keyword (uafhængig af sender — typisk meget
+  // entydigt: "unsubscribe", "newsletter", "verification code")
+  for (const kw of NOISE_SUBJECT_KEYWORDS) {
+    if (subjectLower.includes(kw)) return true
+  }
+
+  // Tjek 3: noise sender-prefix KOMBINERET med subject-keyword.
+  // noreply@-mails kan stadig være relevante (ordrebekraeftelser),
+  // så vi kraever ekstra signal i subject for at markere som støj.
+  if (NOISE_SENDER_PREFIXES.some((p) => senderPrefix === p || senderPrefix.startsWith(`${p}-`))) {
+    for (const kw of NOISE_SUBJECT_KEYWORDS) {
+      if (subjectLower.includes(kw)) return true
+    }
+  }
+
+  return false
+}
+
+// =====================================================
 // Process a single email
 // =====================================================
 
@@ -304,13 +431,28 @@ export async function linkEmail(
   }
 
   // 3. Determine status
-  const status: EmailLinkStatus = match.customerId ? 'linked' : 'unidentified'
+  // Sprint 8C-3 noise filter: hvis ingen customer-match og mailen ligner
+  // marketing/social/system-stoej, markér som 'ignored' i stedet for
+  // 'unidentified'. Beskytter kerneforretnings-mails via PROTECTED_DOMAINS
+  // og PROTECTED_KEYWORDS — disse markeres ALDRIG som stoej.
+  let status: EmailLinkStatus
+  let linkedBy: string | null
+  if (match.customerId) {
+    status = 'linked'
+    linkedBy = 'auto'
+  } else if (classifyNoise(extracted.email, subject, bodyText, bodyHtml)) {
+    status = 'ignored'
+    linkedBy = 'auto-noise'
+  } else {
+    status = 'unidentified'
+    linkedBy = null
+  }
 
   const updateData: Record<string, unknown> = {
     link_status: status,
     customer_id: match.customerId,
     customer_contact_id: match.customerContactId,
-    linked_by: match.customerId ? 'auto' : null,
+    linked_by: linkedBy,
     linked_at: match.customerId ? new Date().toISOString() : null,
     original_sender_email: extracted.isForwarded ? extracted.email : null,
     original_sender_name: extracted.isForwarded ? extracted.name : null,
