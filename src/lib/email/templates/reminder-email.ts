@@ -4,7 +4,7 @@
  * Simple, clean HTML. No Outlook hacks. No complex table-based buttons.
  * Uses Elta Solar brand colors from brand.ts.
  */
-import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE } from '@/lib/brand'
+import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE, BRAND_EMAIL, BRAND_WEBSITE, BRAND_COMPANY_NAME } from '@/lib/brand'
 
 interface ReminderEmailParams {
   customerName: string
@@ -99,10 +99,10 @@ Har du sp&oslash;rgsm&aring;l? Svar bare p&aring; denne mail.
 <tr>
 <td style="color:rgba(255,255,255,0.9);font-size:13px;font-family:Arial,Helvetica,sans-serif;">
 <strong>${senderName}</strong><br>
-<span style="color:rgba(255,255,255,0.6);font-size:12px;">Elta Solar ApS</span>
+<span style="color:rgba(255,255,255,0.6);font-size:12px;">${BRAND_COMPANY_NAME}</span>
 </td>
 <td align="right" style="color:rgba(255,255,255,0.6);font-size:12px;font-family:Arial,Helvetica,sans-serif;">
-kontakt@eltasolar.dk<br>eltasolar.dk
+${BRAND_EMAIL}<br>${BRAND_WEBSITE}
 </td>
 </tr>
 </table>
@@ -141,5 +141,5 @@ Har du spørgsmål? Svar bare på denne mail.
 
 Med venlig hilsen,
 ${senderName}
-Elta Solar ApS`
+${BRAND_COMPANY_NAME}`
 }

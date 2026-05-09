@@ -29,7 +29,7 @@ export interface CrmReplyTemplateParams {
   ctaLabel?: string
 }
 
-import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE, BRAND_ORANGE_DARK } from '@/lib/brand'
+import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE, BRAND_ORANGE_DARK, BRAND_EMAIL, BRAND_WEBSITE, BRAND_CVR, BRAND_COMPANY_NAME } from '@/lib/brand'
 
 export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
   const {
@@ -232,11 +232,11 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
                   <td align="center" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.8); line-height: 1.8;">
-                    <strong style="color: #ffffff;">Elta Solar ApS</strong> &bull; CVR: 45630897
+                    <strong style="color: #ffffff;">${BRAND_COMPANY_NAME}</strong> &bull; CVR: ${BRAND_CVR}
                     <br />
-                    <a href="mailto:kontakt@eltasolar.dk" style="color: rgba(255,255,255,0.9); text-decoration: none;">kontakt@eltasolar.dk</a>
+                    <a href="mailto:${BRAND_EMAIL}" style="color: rgba(255,255,255,0.9); text-decoration: none;">${BRAND_EMAIL}</a>
                     &bull;
-                    <a href="https://eltasolar.dk" style="color: rgba(255,255,255,0.9); text-decoration: none;">eltasolar.dk</a>
+                    <a href="https://${BRAND_WEBSITE}" style="color: rgba(255,255,255,0.9); text-decoration: none;">${BRAND_WEBSITE}</a>
                   </td>
                 </tr>
               </table>
