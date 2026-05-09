@@ -185,6 +185,12 @@ export function SendTaskMailDialog({
               placeholder="kunde@example.dk"
               autoComplete="off"
             />
+            {initialTo &&
+              to.trim().toLowerCase() !== initialTo.trim().toLowerCase() && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Bemærk: Modtager-adressen er ændret fra kundens registrerede email ({initialTo}).
+                </p>
+              )}
           </div>
 
           {showCc ? (
@@ -240,7 +246,7 @@ export function SendTaskMailDialog({
               disabled={sending}
               maxLength={MAX_BODY_LEN}
               rows={10}
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 font-mono"
+              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
               placeholder="Skriv din besked her..."
             />
             <p className="mt-1 text-xs text-gray-400">

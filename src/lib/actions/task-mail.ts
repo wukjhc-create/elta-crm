@@ -82,7 +82,9 @@ export async function sendTaskEmail(
 
     const to = (input.to || '').trim().toLowerCase()
     const cc = (input.cc || '').trim().toLowerCase()
-    const subject = (input.subject || '').trim()
+    // Defense-in-depth: strip CR/LF fra subject for at undgå header-injection
+    // selvom Graph også sanitizer. body bevarer linjeskift.
+    const subject = (input.subject || '').trim().replace(/[\r\n]+/g, ' ')
     const body = (input.body || '').trim()
 
     if (!EMAIL_REGEX.test(to)) {
