@@ -262,6 +262,10 @@ export async function sendTaskEmail(
           graph_message_id:
             sendResult.messageId ||
             `task-mail-${messageRowId}-${Date.now()}`,
+          // Sprint 8C-1.1 — gem Graph thread-metadata så reply kan threades.
+          conversation_id: sendResult.conversationId || null,
+          internet_message_id: sendResult.internetMessageId || null,
+          mailbox_source: fromEmail,
           subject,
           sender_email: fromEmail,
           sender_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',

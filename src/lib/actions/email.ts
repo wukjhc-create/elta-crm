@@ -832,6 +832,10 @@ export async function sendOfferEmail(
         .from('incoming_emails')
         .insert({
           graph_message_id: emailResult.messageId || `sent-offer-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+          // Sprint 8C-1.1 — gem Graph thread-metadata så reply kan threades.
+          conversation_id: emailResult.conversationId || null,
+          internet_message_id: emailResult.internetMessageId || null,
+          mailbox_source: fromEmail,
           subject,
           sender_email: fromEmail,
           sender_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',

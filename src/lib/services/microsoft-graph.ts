@@ -606,7 +606,16 @@ export interface GraphEmailOptions {
  */
 export async function sendEmailViaGraph(
   options: GraphEmailOptions
-): Promise<{ success: boolean; messageId?: string; error?: string }> {
+): Promise<{
+  success: boolean
+  messageId?: string
+  /** Sprint 8C-1.1 — Graph conversation ID, så caller kan threade outbound
+   *  mirror med kommende reply i samme tråd. */
+  conversationId?: string
+  /** Sprint 8C-1.1 — RFC 2822 Message-ID, så reply.in_reply_to kan matches. */
+  internetMessageId?: string
+  error?: string
+}> {
   try {
     const mailbox = resolveMailbox(options.fromMailbox)
 
@@ -775,20 +784,34 @@ export async function sendEmailViaGraph(
 
     // Try to find the sent message ID from the Sent Items folder
     // Graph sendMail returns 202 with no body, but we can query the latest sent message
+    // Sprint 8C-1.1: capture also conversationId + internetMessageId so caller
+    // can persist them for reply-threading.
     let sentMessageId: string | undefined
+    let sentConversationId: string | undefined
+    let sentInternetMessageId: string | undefined
     try {
       const sentUrl = `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/mailFolders/sentItems/messages` +
-        `?$select=id,conversationId&$top=1&$orderby=sentDateTime desc` +
+        `?$select=id,conversationId,internetMessageId&$top=1&$orderby=sentDateTime desc` +
         `&$filter=subject eq '${options.subject.replace(/'/g, "''")}'`
-      const sentResult = await graphFetch<{ value: Array<{ id: string; conversationId: string }> }>(sentUrl)
-      if (sentResult.value?.[0]) {
-        sentMessageId = sentResult.value[0].id
+      const sentResult = await graphFetch<{
+        value: Array<{ id: string; conversationId?: string; internetMessageId?: string }>
+      }>(sentUrl)
+      const top = sentResult.value?.[0]
+      if (top) {
+        sentMessageId = top.id
+        sentConversationId = top.conversationId || undefined
+        sentInternetMessageId = top.internetMessageId || undefined
       }
     } catch {
       // Non-critical — we still sent the email successfully
     }
 
-    return { success: true, messageId: sentMessageId }
+    return {
+      success: true,
+      messageId: sentMessageId,
+      conversationId: sentConversationId,
+      internetMessageId: sentInternetMessageId,
+    }
   } catch (error) {
     logger.error('sendEmailViaGraph failed', { error })
     return {
