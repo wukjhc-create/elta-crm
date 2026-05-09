@@ -399,12 +399,15 @@ export async function linkEmail(
     .maybeSingle()
 
   let threadCustomerId: string | null = null
+  // Sprint 8D-1: arv også service_case_id fra existing thread så reply
+  // kobler til samme sag som outbound mailen var sendt fra.
+  let threadServiceCaseId: string | null = null
 
   // 0a. Match by conversation_id — find another email in same conversation that is already linked
   if (thisEmail?.conversation_id) {
     const { data: threadMatch } = await supabase
       .from('incoming_emails')
-      .select('customer_id')
+      .select('customer_id, service_case_id')
       .eq('conversation_id', thisEmail.conversation_id)
       .eq('link_status', 'linked')
       .not('customer_id', 'is', null)
@@ -414,6 +417,7 @@ export async function linkEmail(
 
     if (threadMatch?.customer_id) {
       threadCustomerId = threadMatch.customer_id
+      threadServiceCaseId = threadMatch.service_case_id || null
     }
   }
 
@@ -421,7 +425,7 @@ export async function linkEmail(
   if (!threadCustomerId && thisEmail?.in_reply_to) {
     const { data: replyMatch } = await supabase
       .from('incoming_emails')
-      .select('customer_id')
+      .select('customer_id, service_case_id')
       .eq('internet_message_id', thisEmail.in_reply_to)
       .not('customer_id', 'is', null)
       .limit(1)
@@ -429,6 +433,7 @@ export async function linkEmail(
 
     if (replyMatch?.customer_id) {
       threadCustomerId = replyMatch.customer_id
+      threadServiceCaseId = replyMatch.service_case_id || null
     }
   }
 
@@ -479,6 +484,10 @@ export async function linkEmail(
     original_sender_name: extracted.isForwarded ? extracted.name : null,
     is_forwarded: extracted.isForwarded,
     processed_at: new Date().toISOString(),
+    // Sprint 8D-1: arv service_case_id fra existing thread (0a/0b match).
+    // Hvis ingen thread-match, forbliver rowen med service_case_id=NULL —
+    // brugeren kan manuelt koble via UI.
+    service_case_id: threadServiceCaseId,
   }
 
   const { error } = await supabase

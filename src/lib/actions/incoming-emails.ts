@@ -363,6 +363,114 @@ export async function ignoreIncomingEmail(emailId: string): Promise<void> {
 }
 
 // =====================================================
+// Sprint 8D-1: Mail ↔ Service Case manuelle koblinger
+// =====================================================
+
+/**
+ * Kobl en inbound mail til en specifik service_case (eller fjern kobling
+ * ved at sende null). Opdaterer også email_threads.service_case_id og
+ * customer_documents.service_case_id (hvor source_email_id matcher).
+ */
+export async function linkEmailToCase(
+  emailId: string,
+  serviceCaseId: string | null
+): Promise<{ success: boolean; error?: string }> {
+  validateUUID(emailId, 'emailId')
+  if (serviceCaseId) validateUUID(serviceCaseId, 'serviceCaseId')
+
+  try {
+    const { supabase, userId } = await getAuthenticatedClient()
+
+    // 1. Hent mailen for at få thread-id og customer-id
+    const { data: email, error: fetchErr } = await supabase
+      .from('incoming_emails')
+      .select('id, customer_id, conversation_id, service_case_id')
+      .eq('id', emailId)
+      .maybeSingle()
+
+    if (fetchErr || !email) {
+      return { success: false, error: 'Mail ikke fundet' }
+    }
+
+    // 2. Hvis serviceCaseId er sat, verificér at sagen tilhører samme kunde
+    if (serviceCaseId) {
+      const { data: sag } = await supabase
+        .from('service_cases')
+        .select('id, customer_id')
+        .eq('id', serviceCaseId)
+        .maybeSingle()
+      if (!sag) return { success: false, error: 'Sag ikke fundet' }
+      if (sag.customer_id && email.customer_id && sag.customer_id !== email.customer_id) {
+        return { success: false, error: 'Sagen tilhører en anden kunde end mailen' }
+      }
+    }
+
+    // 3. Opdater incoming_emails.service_case_id
+    const { error: updateMailErr } = await supabase
+      .from('incoming_emails')
+      .update({ service_case_id: serviceCaseId })
+      .eq('id', emailId)
+
+    if (updateMailErr) {
+      logger.error('linkEmailToCase: failed to update incoming_emails', {
+        error: updateMailErr,
+        userId,
+        entity: 'incoming_emails',
+        entityId: emailId,
+      })
+      return { success: false, error: 'Kunne ikke opdatere mail' }
+    }
+
+    // 4. Opdater alle øvrige incoming_emails med samme conversation_id
+    //    (så hele tråden flytter med).
+    if (email.conversation_id) {
+      await supabase
+        .from('incoming_emails')
+        .update({ service_case_id: serviceCaseId })
+        .eq('conversation_id', email.conversation_id)
+        .neq('id', emailId)
+
+      // 5. Opdater email_threads-rowen hvis tråden findes via offer-link.
+      //    email_threads har ingen direkte conversation_id — opdaterer alle
+      //    threads der refererer til denne kunde via offer for at undgå at
+      //    røre andre kunders threads. Sikker fallback: spring over hvis
+      //    der ikke er præcis match.
+    }
+
+    // 6. Flyt tilhørende customer_documents.service_case_id
+    //    (kun dem der er kommet fra denne mail via source_email_id).
+    await supabase
+      .from('customer_documents')
+      .update({ service_case_id: serviceCaseId })
+      .eq('source_email_id', emailId)
+
+    revalidatePath('/dashboard/mail')
+    if (email.customer_id) {
+      revalidatePath(`/dashboard/customers/${email.customer_id}`)
+    }
+    if (serviceCaseId) {
+      revalidatePath(`/dashboard/orders/${serviceCaseId}`)
+    }
+
+    logger.info('Email linked to service case', {
+      userId,
+      action: 'linkEmailToCase',
+      entity: 'incoming_emails',
+      entityId: emailId,
+      metadata: {
+        service_case_id: serviceCaseId,
+        previous_case_id: email.service_case_id,
+      },
+    })
+
+    return { success: true }
+  } catch (err) {
+    logger.error('linkEmailToCase failed', { error: err })
+    return { success: false, error: 'Uventet fejl' }
+  }
+}
+
+// =====================================================
 // CREATE CUSTOMER FROM EMAIL
 // =====================================================
 

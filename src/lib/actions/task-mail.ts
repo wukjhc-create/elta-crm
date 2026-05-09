@@ -121,9 +121,11 @@ export async function sendTaskEmail(
       }
     }
 
+    // Sprint 8D-1: hent også service_case_id så outbound thread kan
+    // koble til samme sag som task'en hører til.
     const { data: task, error: taskError } = await supabase
       .from('customer_tasks')
-      .select('id, title, customer_id, offer_id, assigned_to')
+      .select('id, title, customer_id, offer_id, assigned_to, service_case_id')
       .eq('id', input.task_id)
       .maybeSingle()
 
@@ -193,11 +195,14 @@ export async function sendTaskEmail(
     }
 
     if (!threadId) {
+      // Sprint 8D-1: gem service_case_id på thread så reply automatisk
+      // arver samme sag via conversation_id-match i email-linker.
       const { data: newThread, error: threadErr } = await supabase
         .from('email_threads')
         .insert({
           customer_id: task.customer_id,
           offer_id: task.offer_id || null,
+          service_case_id: task.service_case_id || null,
           subject,
           status: 'draft',
           created_by: userId,
@@ -207,11 +212,19 @@ export async function sendTaskEmail(
       if (threadErr || !newThread) {
         logger.error('sendTaskEmail: failed to create email_thread', {
           error: threadErr,
-          metadata: { task_id: task.id, customer_id: task.customer_id },
+          metadata: { task_id: task.id, customer_id: task.customer_id, service_case_id: task.service_case_id },
         })
         return { success: false, error: 'Kunne ikke oprette mail-tråd' }
       }
       threadId = newThread.id
+    } else if (task.service_case_id) {
+      // Eksisterende thread fundet via offer_id — backfill service_case_id
+      // hvis tråden ikke har det endnu (dvs. ny task er kommet til på samme tilbud).
+      await supabase
+        .from('email_threads')
+        .update({ service_case_id: task.service_case_id })
+        .eq('id', threadId)
+        .is('service_case_id', null)
     }
 
     const { data: messageRow, error: messageErr } = await supabase
@@ -314,6 +327,8 @@ export async function sendTaskEmail(
           received_at: sentAt,
           link_status: 'linked',
           customer_id: task.customer_id,
+          // Sprint 8D-1: arv service_case_id fra task → mirror er case-aware
+          service_case_id: task.service_case_id || null,
           linked_by: 'auto',
           linked_at: sentAt,
           processed_at: sentAt,
