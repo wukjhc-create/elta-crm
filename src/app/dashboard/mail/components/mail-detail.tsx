@@ -41,6 +41,8 @@ interface MailDetailProps {
   onCreateServiceCase?: () => void
   onNavigateToCustomer?: (customerId: string) => void
   onUnlinkCustomer?: () => void
+  /** Sprint 8C-3: tilbagefoer en ignoreret mail til 'unidentified'. */
+  onRestoreFromIgnored?: () => void
   isCreatingServiceCase?: boolean
 }
 
@@ -98,6 +100,7 @@ export function MailDetail({
   onCreateServiceCase,
   onNavigateToCustomer,
   onUnlinkCustomer,
+  onRestoreFromIgnored,
   isCreatingServiceCase,
 }: MailDetailProps) {
   const [portalAccess, setPortalAccess] = useState<{ hasPortal: boolean } | null>(null)
@@ -360,6 +363,19 @@ export function MailDetail({
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 text-gray-500"
             >
               <EyeOff className="w-4 h-4" /> Ignorér
+            </button>
+          )}
+
+          {/* Sprint 8C-3: Restore — only when ignored. Saetter mailen
+               tilbage til 'unidentified' saa Henrik kan koble den
+               manuelt eller lade auto-linker prove igen. */}
+          {email.link_status === 'ignored' && onRestoreFromIgnored && (
+            <button
+              onClick={onRestoreFromIgnored}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-amber-50 text-amber-700 border-amber-300"
+              title="Saet mailen tilbage til Uidentificeret saa den kan kobles manuelt"
+            >
+              <AlertCircle className="w-4 h-4" /> Markér som relevant
             </button>
           )}
         </div>

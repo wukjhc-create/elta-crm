@@ -932,6 +932,7 @@ export function MailClient() {
               onCreateServiceCase={() => handleCreateServiceCase(selectedEmail.id)}
               onNavigateToCustomer={(customerId) => router.push(`/dashboard/customers/${customerId}`)}
               onUnlinkCustomer={() => handleUnlinkEmail(selectedEmail.id)}
+              onRestoreFromIgnored={() => handleUnlinkEmail(selectedEmail.id)}
               isCreatingServiceCase={isCreatingServiceCase}
             />
           ) : (
