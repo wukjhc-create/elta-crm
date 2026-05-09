@@ -272,35 +272,33 @@ export function MailClient() {
   }
 
   const handleSync = async () => {
-    console.log('SYNC CLICKED')
     setIsSyncing(true)
     setError(null)
 
     try {
-      const res = await fetch('/api/email/sync', { method: 'POST' })
-      console.log('SYNC RESPONSE STATUS:', res.status)
-      const data = await res.json()
-      console.log('SYNC RESULT:', data)
+      // Sprint 8C-2 fix: kalder server action i stedet for /api/email/sync.
+      // /api/email/sync kraever Bearer CRON_SECRET efter security-fix d516461,
+      // hvilket vi ikke kan eller boer eksponere til browseren. Server action
+      // koerer same-origin og er beskyttet af Next.js CSRF-mekanik.
+      const result = await triggerEmailSync()
 
-      // Show result
-      if (data.success) {
-        const mbResults = data.mailboxResults || []
+      if (result.success) {
+        const mbResults = result.mailboxResults || []
         if (mbResults.length > 0) {
-          const detail = mbResults.map((m: { mailbox: string; inserted?: number; status: string; error?: string }) =>
+          const detail = mbResults.map((m) =>
             `${m.mailbox.split('@')[0]}: ${m.status === 'success' ? `${m.inserted ?? 0} nye` : `FEJL: ${m.error || 'ukendt'}`}`
           ).join(' | ')
           toast.success('Sync fuldført', detail)
         } else {
-          toast.success('Sync fuldført', `${data.emailsInserted ?? 0} nye emails`)
+          toast.success('Sync fuldført', `${result.emailsInserted ?? 0} nye emails`)
         }
       } else {
-        setError(data.errors?.join('; ') || 'Sync fejlede')
+        setError(result.errors?.join('; ') || 'Sync fejlede')
       }
 
       await loadEmails()
       setLastRefresh(new Date())
     } catch (err) {
-      console.error('SYNC FETCH ERROR:', err)
       setError(err instanceof Error ? err.message : 'Sync fejlede')
     } finally {
       setIsSyncing(false)
