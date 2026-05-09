@@ -21,10 +21,13 @@ import {
   XCircle,
 } from 'lucide-react'
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
-import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars } from '@/lib/actions/incoming-emails'
+import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars, linkEmailToCase } from '@/lib/actions/incoming-emails'
 import { quickCreateCustomerFromEmail } from '@/lib/actions/incoming-emails'
+import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { parseCustomerFromEmail } from '@/lib/utils/email-parser'
 import type { IncomingEmailWithCustomer, EmailLinkStatus } from '@/types/mail-bridge.types'
+import type { ServiceCase } from '@/types/service-cases.types'
+import { Briefcase } from 'lucide-react'
 
 // =====================================================
 // Props
@@ -285,6 +288,15 @@ export function MailDetail({
               )}
             </div>
           </div>
+        )}
+
+        {/* Sprint 8D-1: Service case picker */}
+        {email.link_status === 'linked' && email.customers && (
+          <EmailCasePicker
+            emailId={email.id}
+            customerId={email.customers.id}
+            currentCaseId={email.service_case_id || null}
+          />
         )}
 
         {/* Portal */}
@@ -853,6 +865,123 @@ function QuickCreateCustomerModal({ email, onClose, onSubmit, isSubmitting, erro
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// =====================================================
+// Sprint 8D-1 — Email Case Picker
+// =====================================================
+
+function EmailCasePicker({
+  emailId,
+  customerId,
+  currentCaseId,
+}: {
+  emailId: string
+  customerId: string
+  currentCaseId: string | null
+}) {
+  const [cases, setCases] = useState<ServiceCase[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(currentCaseId)
+  const [feedback, setFeedback] = useState<string | null>(null)
+
+  useEffect(() => {
+    setSelectedCaseId(currentCaseId)
+  }, [currentCaseId, emailId])
+
+  useEffect(() => {
+    let cancelled = false
+    setIsLoading(true)
+    getCustomerServiceCases(customerId)
+      .then((data) => {
+        if (cancelled) return
+        // Vis åbne sager først, derefter lukkede
+        const sorted = [...data].sort((a, b) => {
+          const aClosed = a.status === 'closed' ? 1 : 0
+          const bClosed = b.status === 'closed' ? 1 : 0
+          if (aClosed !== bClosed) return aClosed - bClosed
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        })
+        setCases(sorted)
+      })
+      .catch(() => {
+        if (!cancelled) setCases([])
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [customerId])
+
+  const currentCase = cases.find((c) => c.id === currentCaseId) || null
+
+  const handleChange = async (newCaseId: string | null) => {
+    setIsSaving(true)
+    setFeedback(null)
+    setSelectedCaseId(newCaseId)
+    try {
+      const result = await linkEmailToCase(emailId, newCaseId)
+      if (result.success) {
+        setFeedback(newCaseId ? 'Koblet til sag' : 'Kobling fjernet')
+        setTimeout(() => setFeedback(null), 2500)
+      } else {
+        setFeedback(`Fejl: ${result.error || 'ukendt'}`)
+        setSelectedCaseId(currentCaseId) // rul tilbage
+      }
+    } catch {
+      setFeedback('Uventet fejl')
+      setSelectedCaseId(currentCaseId)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 p-2.5 rounded-md">
+      <Briefcase className="w-4 h-4 text-blue-600 shrink-0" />
+      {currentCase ? (
+        <span>
+          Sag:{' '}
+          <a
+            href={`/dashboard/orders/${currentCase.id}`}
+            className="font-semibold text-blue-700 hover:underline"
+          >
+            {currentCase.case_number} — {currentCase.title}
+          </a>
+        </span>
+      ) : (
+        <span className="text-gray-600">Ingen sag tilknyttet</span>
+      )}
+      <div className="ml-auto flex items-center gap-2 shrink-0">
+        <select
+          value={selectedCaseId || ''}
+          onChange={(e) => handleChange(e.target.value || null)}
+          disabled={isLoading || isSaving}
+          className="text-xs border rounded px-2 py-1 bg-white max-w-[280px] truncate"
+          title="Vælg sag"
+        >
+          <option value="">— Ingen sag —</option>
+          {cases.map((c) => {
+            const closedTag = c.status === 'closed' ? ' (lukket)' : ''
+            return (
+              <option key={c.id} value={c.id}>
+                {c.case_number} — {c.title.substring(0, 40)}{closedTag}
+              </option>
+            )
+          })}
+        </select>
+        {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />}
+        {feedback && (
+          <span className={`text-xs ${feedback.startsWith('Fejl') ? 'text-red-600' : 'text-green-700'}`}>
+            {feedback}
+          </span>
+        )}
       </div>
     </div>
   )

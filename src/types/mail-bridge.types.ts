@@ -53,6 +53,8 @@ export interface IncomingEmail {
   received_at: string
   created_at: string
   updated_at: string
+  /** Sprint 8D-1: kobling til service_case (sag). NULL = ikke koblet. */
+  service_case_id?: string | null
 }
 
 export interface IncomingEmailWithCustomer extends IncomingEmail {
