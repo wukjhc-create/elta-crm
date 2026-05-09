@@ -942,8 +942,12 @@ function EmailCasePicker({
     }
   }
 
+  // Sprint 8D-1 bug-fix: hvis kunden ingen sager har, vis tydelig
+  // vejledning i stedet for tom dropdown.
+  const hasNoCases = !isLoading && cases.length === 0
+
   return (
-    <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 p-2.5 rounded-md">
+    <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 p-2.5 rounded-md flex-wrap">
       <Briefcase className="w-4 h-4 text-blue-600 shrink-0" />
       {currentCase ? (
         <span>
@@ -955,27 +959,33 @@ function EmailCasePicker({
             {currentCase.case_number} — {currentCase.title}
           </a>
         </span>
+      ) : hasNoCases ? (
+        <span className="text-amber-700">
+          Kunden har ingen sager endnu — brug <strong>&quot;Opret sag&quot;</strong>-knappen nedenfor for at oprette en
+        </span>
       ) : (
         <span className="text-gray-600">Ingen sag tilknyttet</span>
       )}
       <div className="ml-auto flex items-center gap-2 shrink-0">
-        <select
-          value={selectedCaseId || ''}
-          onChange={(e) => handleChange(e.target.value || null)}
-          disabled={isLoading || isSaving}
-          className="text-xs border rounded px-2 py-1 bg-white max-w-[280px] truncate"
-          title="Vælg sag"
-        >
-          <option value="">— Ingen sag —</option>
-          {cases.map((c) => {
-            const closedTag = c.status === 'closed' ? ' (lukket)' : ''
-            return (
-              <option key={c.id} value={c.id}>
-                {c.case_number} — {c.title.substring(0, 40)}{closedTag}
-              </option>
-            )
-          })}
-        </select>
+        {!hasNoCases && (
+          <select
+            value={selectedCaseId || ''}
+            onChange={(e) => handleChange(e.target.value || null)}
+            disabled={isLoading || isSaving}
+            className="text-xs border rounded px-2 py-1 bg-white max-w-[280px] truncate"
+            title="Vælg sag"
+          >
+            <option value="">— Ingen sag —</option>
+            {cases.map((c) => {
+              const closedTag = c.status === 'closed' ? ' (lukket)' : ''
+              return (
+                <option key={c.id} value={c.id}>
+                  {c.case_number} — {c.title.substring(0, 40)}{closedTag}
+                </option>
+              )
+            })}
+          </select>
+        )}
         {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />}
         {feedback && (
           <span className={`text-xs ${feedback.startsWith('Fejl') ? 'text-red-600' : 'text-green-700'}`}>

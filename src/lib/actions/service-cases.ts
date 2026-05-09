@@ -435,15 +435,56 @@ export async function createServiceCaseFromEmail(
       return { success: false, error: 'Kunne ikke oprette serviceopgave' }
     }
 
+    const newCase = data as ServiceCase
+
+    // Sprint 8D-1: når en sag oprettes fra en mail, kobles selve mailen
+    // også automatisk til den nye sag. Tidligere blev kun
+    // service_cases.source_email_id sat (envejs), nu sættes også
+    // incoming_emails.service_case_id (begge veje) plus alle relaterede
+    // mails i samme conversation_id og dokumenter via source_email_id.
+    try {
+      // Selve mailen
+      await supabase
+        .from('incoming_emails')
+        .update({ service_case_id: newCase.id })
+        .eq('id', emailId)
+
+      // Andre mails i samme conversation
+      const { data: emailFull } = await supabase
+        .from('incoming_emails')
+        .select('conversation_id')
+        .eq('id', emailId)
+        .maybeSingle()
+      if (emailFull?.conversation_id) {
+        await supabase
+          .from('incoming_emails')
+          .update({ service_case_id: newCase.id })
+          .eq('conversation_id', emailFull.conversation_id)
+          .neq('id', emailId)
+      }
+
+      // Dokumenter der kom fra denne mail
+      await supabase
+        .from('customer_documents')
+        .update({ service_case_id: newCase.id })
+        .eq('source_email_id', emailId)
+    } catch (linkErr) {
+      // Ikke-kritisk — sagen er oprettet, kobling kan rettes manuelt
+      logger.warn('createServiceCaseFromEmail: failed to backlink mail/docs', {
+        error: linkErr,
+        metadata: { emailId, caseId: newCase.id },
+      })
+    }
+
     // Send confirmation email
     if (customerId) {
-      await sendServiceCaseConfirmation(supabase, data as ServiceCase, customerId)
+      await sendServiceCaseConfirmation(supabase, newCase, customerId)
     }
 
     revalidatePath('/dashboard/service-cases')
     revalidatePath('/dashboard/orders')
     revalidatePath('/dashboard/mail')
-    return { success: true, data: data as ServiceCase }
+    return { success: true, data: newCase }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

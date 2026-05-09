@@ -461,19 +461,17 @@ export function MailClient() {
     setShowLinkModal(false)
     setLinkSearch('')
     setCustomerResults([])
-    // Reload everything to get fresh customer join data
+    // Reload list (filter-based) for left panel
     await loadEmails()
-    // Re-select the email to get updated customer data
+    // Sprint 8D-1 bug-fix: re-select via DIREKTE id-lookup, ikke via
+    // filter-baseret list. Hvis brugeren stod på "Uidentificerede"-tab,
+    // er mailen NU 'linked' og forsvinder fra den filtrerede liste —
+    // tidligere fix-attempt med freshEmails.find returnerede undefined,
+    // så selectedEmail blev IKKE opdateret og EmailCasePicker kunne
+    // ikke vises (email.link_status forblev 'unidentified' + customers=null).
     if (selectedEmail?.id === emailId) {
-      const { data: freshEmails } = await getIncomingEmails({
-        filter: currentFilter,
-        readFilter,
-        sortOrder,
-        search: search || undefined,
-        page: currentPage,
-        pageSize: 25,
-      })
-      const updated = freshEmails.find((e) => e.id === emailId)
+      const { getIncomingEmail } = await import('@/lib/actions/incoming-emails')
+      const updated = await getIncomingEmail(emailId)
       if (updated) {
         setSelectedEmail(updated)
       }
