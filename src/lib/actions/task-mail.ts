@@ -27,6 +27,8 @@ import {
 } from '@/lib/services/microsoft-graph'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
+import { resolveAndBuildSignature } from '@/lib/email/signature'
+import { getCompanyBranding } from '@/lib/branding/company-branding'
 import crypto from 'crypto'
 
 export interface SendTaskEmailInput {
@@ -59,12 +61,18 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function plainTextToHtml(plain: string, senderName: string | null): string {
+/**
+ * Sprint 8C-2: bygger HTML body med dynamisk signatur fra branding-helper.
+ * Den hardcodede minimal-signatur er erstattet — alt signaturindhold kommer
+ * nu fra resolveAndBuildSignature() (profile + employee + company_settings).
+ */
+function buildHtmlBodyWithSignature(
+  plain: string,
+  signatureHtml: string,
+  textColor: string
+): string {
   const escaped = escapeHtml(plain).replace(/\n/g, '<br>')
-  const signature = senderName
-    ? `<br><br>--<br>${escapeHtml(senderName)}<br>Elta Solar`
-    : `<br><br>--<br>Elta Solar`
-  return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;line-height:1.5;color:#222;">${escaped}${signature}</body></html>`
+  return `<!DOCTYPE html><html><body style="font-family:Arial,Helvetica,sans-serif;line-height:1.55;color:${textColor};">${escaped}${signatureHtml}</body></html>`
 }
 
 export async function sendTaskEmail(
@@ -131,17 +139,18 @@ export async function sendTaskEmail(
       return { success: false, error: 'Opgaven har ingen tilknyttet kunde' }
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('id', userId)
-      .maybeSingle()
-    const senderName: string | null = profile?.full_name || null
+    // Sprint 8C-2: hent branding + signatur defensivt. Crasher aldrig på
+    // manglende felter; falder tilbage til konstanter i branding-helperen.
+    const branding = await getCompanyBranding()
+    const signature = await resolveAndBuildSignature(userId)
+
+    // Brug signaturens navn som from-name (kanonisk fallback-kæde)
+    const senderName: string = signature.text.split('\n')[0] || branding.legalName
 
     const fromEmail = getMailbox()
     const trackingId = generateTrackingId()
-    const bodyHtml = plainTextToHtml(body, senderName)
-    const bodyText = body
+    const bodyHtml = buildHtmlBodyWithSignature(body, signature.html, branding.textColor)
+    const bodyText = `${body}\n\n--\n${signature.text}`
     const ccArr = cc ? [cc] : null
 
     let threadId: string | null = null
@@ -185,7 +194,7 @@ export async function sendTaskEmail(
         thread_id: threadId,
         direction: 'outbound',
         from_email: fromEmail,
-        from_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',
+        from_name: `${senderName} | ${branding.companyName}`,
         to_email: to,
         cc: ccArr,
         subject,
@@ -268,7 +277,7 @@ export async function sendTaskEmail(
           mailbox_source: fromEmail,
           subject,
           sender_email: fromEmail,
-          sender_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',
+          sender_name: `${senderName} | ${branding.companyName}`,
           to_email: to,
           cc: ccArr || [],
           body_html: bodyHtml,
