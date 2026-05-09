@@ -33,6 +33,14 @@ export interface CustomerTaskWithRelations extends CustomerTask {
     id: string
     company_name: string
     customer_number: string
+    /** Sprint 8B-1 — kontakt/adresse-felter til quick action-knapper.
+     *  Tom/null betyder "skjul knappen" i UI. */
+    phone?: string | null
+    mobile?: string | null
+    email?: string | null
+    billing_address?: string | null
+    billing_postal_code?: string | null
+    billing_city?: string | null
   } | null
   offer?: {
     id: string

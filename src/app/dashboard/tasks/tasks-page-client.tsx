@@ -22,6 +22,9 @@ import {
   Eye,
   EyeOff,
   MoreHorizontal,
+  Phone,
+  Mail as MailIcon,
+  MapPin,
 } from 'lucide-react'
 import {
   getAllTasks,
@@ -481,6 +484,77 @@ export function TasksPageClient({
 }
 
 // =====================================================
+// Sprint 8B-1 — Quick action buttons (Ring/Mail/Maps)
+//
+// Vises i task-row's customer-celle. Hver knap kun synlig hvis
+// underliggende data findes paa customer-rowen. Brug native
+// tel:/mailto:/maps-URLer — ingen ny integration noedvendig.
+// =====================================================
+
+function CustomerQuickActions({
+  customer,
+}: {
+  customer: NonNullable<CustomerTaskWithRelations['customer']>
+}) {
+  // Ring: prioritér mobile over phone
+  const phone = (customer.mobile?.trim() || customer.phone?.trim() || '').replace(/[\s-]/g, '')
+  const email = customer.email?.trim() || ''
+
+  // Maps: kombinér adresse + postnr + by hvis sat
+  const addrParts = [
+    customer.billing_address?.trim(),
+    [customer.billing_postal_code?.trim(), customer.billing_city?.trim()].filter(Boolean).join(' '),
+  ].filter(Boolean)
+  const fullAddress = addrParts.join(', ')
+  const mapsUrl = fullAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`
+    : null
+
+  // Hvis ingen handlinger, render intet (ingen tom <div>)
+  if (!phone && !email && !mapsUrl) return null
+
+  return (
+    <div className="flex items-center gap-1">
+      {phone && (
+        <a
+          href={`tel:${phone}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center justify-center w-6 h-6 rounded text-gray-500 hover:text-emerald-700 hover:bg-emerald-50"
+          aria-label={`Ring til ${customer.company_name}`}
+          title={`Ring: ${phone}`}
+        >
+          <Phone className="w-3.5 h-3.5" />
+        </a>
+      )}
+      {email && (
+        <a
+          href={`mailto:${email}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center justify-center w-6 h-6 rounded text-gray-500 hover:text-blue-700 hover:bg-blue-50"
+          aria-label={`Send mail til ${customer.company_name}`}
+          title={`Mail: ${email}`}
+        >
+          <MailIcon className="w-3.5 h-3.5" />
+        </a>
+      )}
+      {mapsUrl && (
+        <a
+          href={mapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center justify-center w-6 h-6 rounded text-gray-500 hover:text-red-700 hover:bg-red-50"
+          aria-label={`Åbn ${fullAddress} i Google Maps`}
+          title={`Maps: ${fullAddress}`}
+        >
+          <MapPin className="w-3.5 h-3.5" />
+        </a>
+      )}
+    </div>
+  )
+}
+
+// =====================================================
 // Task Row with inline actions
 // =====================================================
 
@@ -550,16 +624,19 @@ function TaskRow({
         )}
       </div>
 
-      {/* Customer */}
-      <div className="min-w-0">
+      {/* Customer + Sprint 8B-1 quick action buttons */}
+      <div className="min-w-0 space-y-1">
         {task.customer ? (
-          <Link
-            href={`/dashboard/customers/${task.customer.id}`}
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline truncate"
-          >
-            {task.customer.company_name}
-            <ExternalLink className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100" />
-          </Link>
+          <>
+            <Link
+              href={`/dashboard/customers/${task.customer.id}`}
+              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline truncate"
+            >
+              {task.customer.company_name}
+              <ExternalLink className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100" />
+            </Link>
+            <CustomerQuickActions customer={task.customer} />
+          </>
         ) : (
           <span className="text-sm text-gray-400">—</span>
         )}

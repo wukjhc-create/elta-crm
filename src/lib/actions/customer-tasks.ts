@@ -121,7 +121,13 @@ export async function getAllTasks(options?: {
       customer:customers (
         id,
         company_name,
-        customer_number
+        customer_number,
+        phone,
+        mobile,
+        email,
+        billing_address,
+        billing_postal_code,
+        billing_city
       ),
       offer:offers (
         id,
