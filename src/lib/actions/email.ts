@@ -558,7 +558,7 @@ export async function generateEmailPreview(
       company_address: settings?.company_address || '',
       company_postal_code: settings?.company_postal_code || '',
       company_city: settings?.company_city || '',
-      company_vat_number: settings?.company_vat_number || '44291028',
+      company_vat_number: settings?.company_vat_number || '45630897',
       company_website: settings?.company_website || 'eltasolar.dk',
     }
 

@@ -666,7 +666,7 @@ export function OfferViewClient({ offer }: OfferViewClientProps) {
               </div>
             </div>
             <div className="border-t border-white/10 mt-6 pt-6 text-center text-white/50 text-xs">
-              Elta Solar ApS &bull; CVR: 44291028 &bull; Dette tilbud er personligt og fortroligt.
+              Elta Solar ApS &bull; CVR: 45630897 &bull; Dette tilbud er personligt og fortroligt.
             </div>
           </div>
         </div>

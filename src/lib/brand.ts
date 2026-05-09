@@ -18,7 +18,7 @@ export const BRAND_ORANGE_LIGHT = '#fef3e2'
 // ── Company Info ─────────────────────────────────────
 export const BRAND_COMPANY_NAME = 'Elta Solar ApS'
 export const BRAND_TAGLINE = 'Professionelle el- & solcelleinstallationer'
-export const BRAND_CVR = '44291028'
+export const BRAND_CVR = '45630897'
 export const BRAND_EMAIL = 'kontakt@eltasolar.dk'
 export const BRAND_WEBSITE = 'eltasolar.dk'
 
