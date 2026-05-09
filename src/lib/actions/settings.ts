@@ -458,12 +458,16 @@ export async function changePassword(
 // Get all team members
 export async function getTeamMembers(): Promise<ActionResult<Profile[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('users.view')) {
       return { success: false, error: 'Manglende tilladelse: users.view' }
     }
 
-    const { data, error } = await supabase
+    // Sprint 7E fix — profiles RLS begraenser auth users til at se kun
+    // egen profile. Brug admin-client (bypass RLS) for at vise alle
+    // brugere i Brugerstyring. Service-role bruges KUN server-side.
+    const admin = createAdminClient()
+    const { data, error } = await admin
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: true })
@@ -473,7 +477,23 @@ export async function getTeamMembers(): Promise<ActionResult<Profile[]>> {
       return { success: false, error: 'Kunne ikke hente teammedlemmer' }
     }
 
-    return { success: true, data: data as Profile[] }
+    // Berig med auth.users.email naar profile.email er NULL.
+    let authEmailMap = new Map<string, string>()
+    try {
+      const { data: { users } } = await admin.auth.admin.listUsers({ perPage: 200 })
+      authEmailMap = new Map(
+        (users || []).map((u) => [u.id, u.email ?? ''] as const).filter((x) => x[1])
+      )
+    } catch {
+      // ikke-kritisk
+    }
+
+    const enriched = (data ?? []).map((p) => ({
+      ...p,
+      email: (p.email as string | null) || authEmailMap.get(p.id as string) || null,
+    }))
+
+    return { success: true, data: enriched as Profile[] }
   } catch (error) {
     logger.error('Error in getTeamMembers', { error: error })
     return { success: false, error: 'Der opstod en fejl' }

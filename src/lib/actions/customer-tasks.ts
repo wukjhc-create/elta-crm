@@ -5,6 +5,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 import { sendEmailViaGraph } from '@/lib/services/microsoft-graph'
@@ -176,13 +177,26 @@ export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations
 }
 
 export async function getActiveProfiles(): Promise<
-  Array<{ id: string; full_name: string | null; email: string }>
+  Array<{ id: string; full_name: string | null; email: string; role?: string | null }>
 > {
-  const supabase = await createClient()
+  // Sprint 7E fix — profiles RLS begraenser authenticated users til at
+  // se egen profile only. For at vise alle interne brugere i tasks
+  // assignee-dropdown skal vi bypasse RLS via admin-client.
+  // Permission gate: kun roller der maa se brugerlister.
+  let allowed = false
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    allowed = ctx.hasPermission('users.view') || ctx.hasPermission('tasks.create')
+  } catch {
+    return []
+  }
+  if (!allowed) return []
 
-  const { data, error } = await supabase
+  const admin = createAdminClient()
+
+  const { data: profiles, error } = await admin
     .from('profiles')
-    .select('id, full_name, email')
+    .select('id, full_name, email, role')
     .order('full_name', { ascending: true })
 
   if (error) {
@@ -190,7 +204,24 @@ export async function getActiveProfiles(): Promise<
     return []
   }
 
-  return data || []
+  // Berig med auth.users.email saa profiler uden profile.email stadig
+  // har et brugbart label.
+  let authEmailMap = new Map<string, string>()
+  try {
+    const { data: { users } } = await admin.auth.admin.listUsers({ perPage: 200 })
+    authEmailMap = new Map(
+      (users || []).map((u) => [u.id, u.email ?? ''] as const).filter((x) => x[1])
+    )
+  } catch {
+    // ikke-kritisk; fortsat med profile.email-only
+  }
+
+  return (profiles ?? []).map((p) => ({
+    id: p.id as string,
+    full_name: (p.full_name as string | null) || null,
+    email: (p.email as string | null) || authEmailMap.get(p.id as string) || '',
+    role: (p.role as string | null) ?? null,
+  }))
 }
 
 // =====================================================

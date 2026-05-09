@@ -82,7 +82,7 @@ export function TasksPageClient({
 } = {}) {
   const toast = useToast()
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
-  const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string }>>([])
+  const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string; role?: string | null }>>([])
   const [customers, setCustomers] = useState<Array<{ id: string; company_name: string; customer_number: string }>>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -673,7 +673,7 @@ function TaskFormDialog({
   isEditing: boolean
   formData: TaskFormData
   setFormData: React.Dispatch<React.SetStateAction<TaskFormData>>
-  profiles: Array<{ id: string; full_name: string | null; email: string }>
+  profiles: Array<{ id: string; full_name: string | null; email: string; role?: string | null }>
   customers: Array<{ id: string; company_name: string; customer_number: string }>
   isSaving: boolean
   onSave: () => void
@@ -775,11 +775,16 @@ function TaskFormDialog({
                 className="w-full px-3 py-2 border rounded-md text-sm"
               >
                 <option value="">Mig selv</option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name || p.email}
-                  </option>
-                ))}
+                {profiles.map((p) => {
+                  const name = p.full_name?.trim() || (p.email ? p.email.split('@')[0] : '(uden navn)')
+                  const role = p.role ? ` — ${p.role}` : ''
+                  const email = p.email ? ` (${p.email})` : ''
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {name}{email}{role}
+                    </option>
+                  )
+                })}
               </select>
             </div>
           </div>
