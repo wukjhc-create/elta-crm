@@ -10,6 +10,7 @@ import { logger } from '@/lib/utils/logger'
 import { sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { generateBesigtigelseICS } from '@/lib/utils/ics'
 import { APP_URL } from '@/lib/constants'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type {
   CustomerTaskWithRelations,
   CreateCustomerTaskInput,
@@ -74,7 +75,21 @@ export async function getAllTasks(options?: {
   assignedTo?: string
   search?: string
 }): Promise<CustomerTaskWithRelations[]> {
-  const supabase = await createClient()
+  // Sprint 7E fix — scope tasks per rolle.
+  // Montor maa kun se tasks tildelt til egen profile.id (assigned_to).
+  // Andre roller (admin/serviceleder/salg/bogholderi) ser alle tasks.
+  let role: string = 'montør'
+  let userId: string | null = null
+  let supabase: Awaited<ReturnType<typeof createClient>>
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    role = ctx.role
+    userId = ctx.userId
+    supabase = ctx.supabase
+  } catch {
+    // Ikke logget ind — returnér tom liste.
+    return []
+  }
 
   let query = supabase
     .from('customer_tasks')
@@ -93,13 +108,20 @@ export async function getAllTasks(options?: {
     `)
     .order('created_at', { ascending: false })
 
+  // Sprint 7E — montor scope
+  if (role === 'montør') {
+    if (!userId) return []
+    query = query.eq('assigned_to', userId)
+  }
+
   if (options?.status && options.status !== 'all') {
     query = query.eq('status', options.status)
   }
   if (options?.priority && options.priority !== 'all') {
     query = query.eq('priority', options.priority)
   }
-  if (options?.assignedTo && options.assignedTo !== 'all') {
+  if (options?.assignedTo && options.assignedTo !== 'all' && role !== 'montør') {
+    // Montor's filter ignoreres — assigned_to er allerede fast til userId.
     query = query.eq('assigned_to', options.assignedTo)
   }
   if (options?.search) {

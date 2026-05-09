@@ -70,7 +70,16 @@ const emptyForm: TaskFormData = {
   reminder_at: '',
 }
 
-export function TasksPageClient() {
+export function TasksPageClient({
+  isMontor = false,
+  canManage = true,
+}: {
+  /** Sprint 7E fix — montor ser kun egne tildelte tasks (server-action
+   *  scoper data). UI skifter samtidig header + skjuler create/edit/
+   *  delete handlinger der kraever tasks.create/edit/delete. */
+  isMontor?: boolean
+  canManage?: boolean
+} = {}) {
   const toast = useToast()
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
   const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string }>>([])
@@ -288,16 +297,22 @@ export function TasksPageClient() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Opgaver</h1>
-          <p className="text-gray-500">Oversigt over alle opgaver på tværs af kunder</p>
+          <h1 className="text-2xl font-bold">{isMontor ? 'Mine opgaver' : 'Opgaver'}</h1>
+          <p className="text-gray-500">
+            {isMontor
+              ? 'Opgaver tildelt til dig'
+              : 'Oversigt over alle opgaver på tværs af kunder'}
+          </p>
         </div>
-        <button
-          onClick={openCreateDialog}
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Ny opgave
-        </button>
+        {canManage && (
+          <button
+            onClick={openCreateDialog}
+            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Ny opgave
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -366,18 +381,20 @@ export function TasksPageClient() {
             ))}
           </select>
 
-          <select
-            value={assignedFilter}
-            onChange={(e) => setAssignedFilter(e.target.value)}
-            className="px-3 py-2 border rounded-md text-sm"
-          >
-            <option value="all">Alle ansvarlige</option>
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name || p.email}
-              </option>
-            ))}
-          </select>
+          {!isMontor && (
+            <select
+              value={assignedFilter}
+              onChange={(e) => setAssignedFilter(e.target.value)}
+              className="px-3 py-2 border rounded-md text-sm"
+            >
+              <option value="all">Alle ansvarlige</option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name || p.email}
+                </option>
+              ))}
+            </select>
+          )}
 
           <button
             onClick={() => setShowDone(!showDone)}
@@ -400,9 +417,13 @@ export function TasksPageClient() {
         ) : visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <ClipboardCheck className="w-12 h-12 mb-3 opacity-30" />
-            <p className="font-medium">Ingen opgaver fundet</p>
+            <p className="font-medium">
+              {isMontor ? 'Ingen tildelte opgaver' : 'Ingen opgaver fundet'}
+            </p>
             <p className="text-sm mt-1">
-              Klik &quot;Ny opgave&quot; for at oprette en
+              {isMontor
+                ? 'Du har ikke nogen tildelte opgaver lige nu'
+                : 'Klik "Ny opgave" for at oprette en'}
             </p>
           </div>
         ) : (
@@ -434,6 +455,7 @@ export function TasksPageClient() {
                 onDeleteConfirm={() => setDeleteConfirm(task.id)}
                 onDeleteCancel={() => setDeleteConfirm(null)}
                 onDelete={() => handleDelete(task.id)}
+                canManage={canManage}
               />
             ))}
           </div>
@@ -471,6 +493,7 @@ function TaskRow({
   onDeleteConfirm,
   onDeleteCancel,
   onDelete,
+  canManage = true,
 }: {
   task: CustomerTaskWithRelations
   deleteConfirm: string | null
@@ -480,6 +503,9 @@ function TaskRow({
   onDeleteConfirm: () => void
   onDeleteCancel: () => void
   onDelete: () => void
+  /** Sprint 7E fix — gates Edit/Delete-knapper. Montor kan complete + status,
+   *  men ikke redigere eller slette tasks. */
+  canManage?: boolean
 }) {
   const statusCfg = TASK_STATUS_CONFIG[task.status]
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority]
@@ -585,7 +611,7 @@ function TaskRow({
 
       {/* Actions */}
       <div className="flex items-center gap-1 justify-end">
-        {isDeleting ? (
+        {canManage && isDeleting ? (
           <div className="flex items-center gap-1">
             <button
               onClick={onDelete}
@@ -604,7 +630,7 @@ function TaskRow({
               <X className="w-4 h-4" />
             </button>
           </div>
-        ) : (
+        ) : canManage ? (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={onEdit}
@@ -623,7 +649,7 @@ function TaskRow({
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )
