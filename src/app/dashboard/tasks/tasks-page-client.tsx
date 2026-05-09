@@ -47,6 +47,7 @@ import type {
 } from '@/types/customer-tasks.types'
 import { useToast } from '@/components/ui/toast'
 import { useRealtimeTable } from '@/lib/hooks/use-realtime'
+import { SendTaskMailDialog } from '@/components/tasks/send-task-mail-dialog'
 
 type FilterStatus = TaskStatus | 'all'
 type FilterPriority = TaskPriority | 'all'
@@ -76,12 +77,16 @@ const emptyForm: TaskFormData = {
 export function TasksPageClient({
   isMontor = false,
   canManage = true,
+  graphConfigured = false,
 }: {
   /** Sprint 7E fix — montor ser kun egne tildelte tasks (server-action
    *  scoper data). UI skifter samtidig header + skjuler create/edit/
    *  delete handlinger der kraever tasks.create/edit/delete. */
   isMontor?: boolean
   canManage?: boolean
+  /** Sprint 8C-1 — om Microsoft Graph er konfigureret. Hvis false viser
+   *  send-mail-dialogen advarsel + mailto-fallback. */
+  graphConfigured?: boolean
 } = {}) {
   const toast = useToast()
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
@@ -100,6 +105,9 @@ export function TasksPageClient({
   const [formData, setFormData] = useState<TaskFormData>(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  // Sprint 8C-1 — send-mail-dialog state
+  const [mailTask, setMailTask] = useState<CustomerTaskWithRelations | null>(null)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -458,6 +466,7 @@ export function TasksPageClient({
                 onDeleteConfirm={() => setDeleteConfirm(task.id)}
                 onDeleteCancel={() => setDeleteConfirm(null)}
                 onDelete={() => handleDelete(task.id)}
+                onMailClick={() => setMailTask(task)}
                 canManage={canManage}
               />
             ))}
@@ -479,6 +488,15 @@ export function TasksPageClient({
           disableCustomer={!!editingTask}
         />
       )}
+
+      {/* Sprint 8C-1 — Send Mail Dialog */}
+      {mailTask && (
+        <SendTaskMailDialog
+          task={mailTask}
+          graphConfigured={graphConfigured}
+          onClose={() => setMailTask(null)}
+        />
+      )}
     </div>
   )
 }
@@ -487,14 +505,21 @@ export function TasksPageClient({
 // Sprint 8B-1 — Quick action buttons (Ring/Mail/Maps)
 //
 // Vises i task-row's customer-celle. Hver knap kun synlig hvis
-// underliggende data findes paa customer-rowen. Brug native
-// tel:/mailto:/maps-URLer — ingen ny integration noedvendig.
+// underliggende data findes paa customer-rowen.
+//
+// Sprint 8C-1 — Mail-knappen aabner intern SendTaskMailDialog (ikke
+// mailto:) saa mailen kan logges i CRM. Ring/Maps bruger fortsat
+// native tel:/maps-URLer.
 // =====================================================
 
 function CustomerQuickActions({
   customer,
+  onMailClick,
 }: {
   customer: NonNullable<CustomerTaskWithRelations['customer']>
+  /** Sprint 8C-1 — kaldes naar mail-knappen klikkes. Aabner intern
+   *  send-mail-dialog i parent-komponent. */
+  onMailClick?: () => void
 }) {
   // Ring: prioritér mobile over phone
   const phone = (customer.mobile?.trim() || customer.phone?.trim() || '').replace(/[\s-]/g, '')
@@ -526,16 +551,19 @@ function CustomerQuickActions({
           <Phone className="w-3.5 h-3.5" />
         </a>
       )}
-      {email && (
-        <a
-          href={`mailto:${email}`}
-          onClick={(e) => e.stopPropagation()}
+      {email && onMailClick && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onMailClick()
+          }}
           className="inline-flex items-center justify-center w-6 h-6 rounded text-gray-500 hover:text-blue-700 hover:bg-blue-50"
           aria-label={`Send mail til ${customer.company_name}`}
-          title={`Mail: ${email}`}
+          title={`Mail (CRM): ${email}`}
         >
           <MailIcon className="w-3.5 h-3.5" />
-        </a>
+        </button>
       )}
       {mapsUrl && (
         <a
@@ -567,6 +595,7 @@ function TaskRow({
   onDeleteConfirm,
   onDeleteCancel,
   onDelete,
+  onMailClick,
   canManage = true,
 }: {
   task: CustomerTaskWithRelations
@@ -577,6 +606,9 @@ function TaskRow({
   onDeleteConfirm: () => void
   onDeleteCancel: () => void
   onDelete: () => void
+  /** Sprint 8C-1 — kaldes naar mail-knappen klikkes paa task-row.
+   *  Aabner intern send-mail-dialog i parent. */
+  onMailClick: () => void
   /** Sprint 7E fix — gates Edit/Delete-knapper. Montor kan complete + status,
    *  men ikke redigere eller slette tasks. */
   canManage?: boolean
@@ -635,7 +667,7 @@ function TaskRow({
               {task.customer.company_name}
               <ExternalLink className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100" />
             </Link>
-            <CustomerQuickActions customer={task.customer} />
+            <CustomerQuickActions customer={task.customer} onMailClick={onMailClick} />
           </>
         ) : (
           <span className="text-sm text-gray-400">—</span>
