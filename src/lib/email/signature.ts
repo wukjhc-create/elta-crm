@@ -42,6 +42,34 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;')
 }
 
+/**
+ * Sprint 8C-2 fix: brugerspecifikke fallback-konstanter for personlige
+ * felter der endnu ikke findes på profile/employee. Når employee-tabellen
+ * har dem korrekt udfyldt, fjernes denne map.
+ *
+ * Match er case-insensitive på navnets normaliserede form.
+ */
+const USER_DEFAULTS: Record<string, { email?: string; directPhone?: string }> = {
+  'henrik christensen': {
+    email: 'hc@eltasolar.dk',
+    directPhone: '61 10 75 30',
+  },
+}
+
+function applyUserDefaults(
+  name: string,
+  email: string | undefined,
+  directPhone: string | undefined
+): { email: string | undefined; directPhone: string | undefined } {
+  const key = name.trim().toLowerCase()
+  const defaults = USER_DEFAULTS[key]
+  if (!defaults) return { email, directPhone }
+  return {
+    email: email || defaults.email,
+    directPhone: directPhone || defaults.directPhone,
+  }
+}
+
 export function buildUserEmailSignatureHtml(input: SignatureRenderInput): string {
   const { name, email, directPhone, title, branding } = input
 
@@ -59,49 +87,51 @@ export function buildUserEmailSignatureHtml(input: SignatureRenderInput): string
   const linkColor = branding.primaryDarkColor
   const textColor = branding.textColor
   const accentColor = branding.primaryColor
+  const accentOrange = branding.accentColor
 
   // Logo-cell rendres KUN hvis valid absolut https URL findes.
   // Hvis null: ingen <img>-tag overhovedet → ingen broken image.
   const logoCell = branding.logoUrl
-    ? `
-    <td valign="top" style="padding-right:18px;vertical-align:top;">
-      <img src="${escapeHtml(branding.logoUrl)}" alt="${escapeHtml(branding.companyName)}"
-           width="80" height="80"
-           style="display:block;border:0;outline:none;text-decoration:none;width:80px;height:auto;" />
-    </td>`
+    ? `<td valign="top" style="padding-right:18px;vertical-align:top;width:96px;"><img src="${escapeHtml(branding.logoUrl)}" alt="${escapeHtml(branding.companyName)}" width="80" height="80" style="display:block;border:0;outline:none;text-decoration:none;width:80px;height:auto;" /></td>`
     : ''
 
   const titleLine = titleHtml
-    ? `<div style="color:${labelColor};font-size:12px;margin-bottom:6px;">${titleHtml}</div>`
+    ? `<div style="color:${labelColor};font-size:12px;margin:0 0 6px 0;">${titleHtml}</div>`
     : ''
 
   const directLine = directHtml
-    ? `<div><span style="color:${labelColor};">Direkte:</span> ${directHtml}</div>`
+    ? `<div style="margin:2px 0;"><span style="color:${labelColor};">Direkte:</span> ${directHtml}</div>`
     : ''
 
   const emailLine = emailHtml
-    ? `<div><span style="color:${labelColor};">E-mail:</span> <a href="mailto:${emailHtml}" style="color:${linkColor};text-decoration:none;">${emailHtml}</a></div>`
+    ? `<div style="margin:2px 0;"><span style="color:${labelColor};">E-mail:</span> <a href="mailto:${emailHtml}" style="color:${linkColor};text-decoration:none;">${emailHtml}</a></div>`
     : ''
 
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${textColor};line-height:1.55;border-collapse:collapse;margin-top:24px;">
-  <tr>${logoCell}
-    <td valign="top" style="border-left:4px solid ${accentColor};padding-left:14px;vertical-align:top;">
-      <div style="font-weight:bold;color:${textColor};font-size:15px;margin-bottom:2px;">${nameHtml}</div>
+  // Wrapper-div så hele signaturen er adskilt fra body med visuel margin
+  // selv om mailklienten stripper noget af table-attributerne. Inline
+  // styles på alle elementer for at overleve mest aggressive Outlook-strip.
+  return `<div style="margin-top:32px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${textColor};line-height:1.55;">
+  <p style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${textColor};">Med venlig hilsen,</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${textColor};line-height:1.55;">
+    <tr>${logoCell}<td valign="top" style="border-left:4px solid ${accentColor};padding-left:14px;vertical-align:top;">
+      <div style="font-weight:bold;color:${textColor};font-size:15px;margin:0 0 4px 0;">${nameHtml}</div>
       ${titleLine}
-      <div><span style="color:${labelColor};">Firma:</span> ${companyNameHtml}</div>
-      <div><span style="color:${labelColor};">Telefon:</span> ${mainPhoneHtml}</div>
+      <div style="margin:2px 0;"><span style="color:${labelColor};">Firma:</span> <strong style="color:${accentOrange};">${companyNameHtml}</strong></div>
+      <div style="margin:2px 0;"><span style="color:${labelColor};">Telefon:</span> ${mainPhoneHtml}</div>
       ${directLine}
       ${emailLine}
-      <div><span style="color:${labelColor};">CVR:</span> ${cvrHtml}</div>
-      <div style="margin-top:4px;"><a href="${websiteUrlHtml}" style="color:${linkColor};text-decoration:none;">${websiteHtml}</a></div>
-    </td>
-  </tr>
-</table>`
+      <div style="margin:2px 0;"><span style="color:${labelColor};">CVR:</span> ${cvrHtml}</div>
+      <div style="margin:8px 0 0 0;"><a href="${websiteUrlHtml}" style="color:${linkColor};text-decoration:none;">${websiteHtml}</a></div>
+    </td></tr>
+  </table>
+</div>`
 }
 
 export function buildUserEmailSignatureText(input: SignatureRenderInput): string {
   const { name, email, directPhone, title, branding } = input
   const lines: string[] = []
+  lines.push('Med venlig hilsen,')
+  lines.push('')
   lines.push(name)
   if (title) lines.push(title)
   lines.push(`Firma: ${branding.legalName}`)
@@ -181,13 +211,18 @@ async function resolveUserSignatureInput(
     pickString(profile, 'email') ||
     branding.legalName
 
-  const email =
+  const rawEmail =
     pickString(employee, 'email') ||
     pickString(profile, 'email')
 
-  const directPhone =
+  const rawDirectPhone =
     pickString(employee, 'direct_phone', 'mobile', 'phone') ||
     pickString(profile, 'direct_phone', 'mobile', 'phone')
+
+  // Sprint 8C-2 fix: anvend brugerspecifikke fallbacks for personlige felter.
+  // Henrik har eksempelvis ikke email/phone på profile/employee, men
+  // signaturen skal stadig vise hc@eltasolar.dk + 61 10 75 30.
+  const { email, directPhone } = applyUserDefaults(name, rawEmail, rawDirectPhone)
 
   const titleRaw =
     pickString(employee, 'title') ||

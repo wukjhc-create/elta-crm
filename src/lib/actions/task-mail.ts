@@ -144,13 +144,16 @@ export async function sendTaskEmail(
     const branding = await getCompanyBranding()
     const signature = await resolveAndBuildSignature(userId)
 
-    // Brug signaturens navn som from-name (kanonisk fallback-kæde)
-    const senderName: string = signature.text.split('\n')[0] || branding.legalName
+    // Brug signaturens navn som from-name (kanonisk fallback-kæde).
+    // signature.text starter nu med "Med venlig hilsen,\n\n<navn>" — find
+    // navnet på 3. linje. Fallback til branding.legalName hvis tomt.
+    const sigLines = signature.text.split('\n')
+    const senderName: string = sigLines[2]?.trim() || branding.legalName
 
     const fromEmail = getMailbox()
     const trackingId = generateTrackingId()
     const bodyHtml = buildHtmlBodyWithSignature(body, signature.html, branding.textColor)
-    const bodyText = `${body}\n\n--\n${signature.text}`
+    const bodyText = `${body}\n\n${signature.text}`
     const ccArr = cc ? [cc] : null
 
     let threadId: string | null = null
