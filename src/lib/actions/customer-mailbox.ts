@@ -104,6 +104,15 @@ export interface CustomerMailboxEmail {
   direction: 'incoming' | 'outgoing'
   reply_to: string | null
   conversation_id?: string | null
+  /** Sprint 8D-1: kobling til service_case (sag). NULL = ikke koblet. */
+  service_case_id?: string | null
+  /** Sprint 8D-1: case-info til at vise sag-label uden ekstra fetch. */
+  service_case?: {
+    id: string
+    case_number: string
+    title: string
+    status: string
+  } | null
 }
 
 export interface CustomerConversation {
@@ -132,9 +141,16 @@ export async function getCustomerMailbox(
   // Fetch all non-archived emails involving this customer:
   // 1. By email address match (sender, original sender, or to)
   // 2. By customer_id link (for manually linked emails)
+  // Sprint 8D-1: select også service_case_id + join service_cases
+  // for at vise sag-label uden ekstra fetch.
   const { data, error } = await supabase
     .from('incoming_emails')
-    .select('id, subject, sender_email, sender_name, to_email, body_html, body_text, body_preview, has_attachments, is_read, received_at, reply_to, original_sender_email, conversation_id, customer_id')
+    .select(`
+      id, subject, sender_email, sender_name, to_email, body_html, body_text,
+      body_preview, has_attachments, is_read, received_at, reply_to,
+      original_sender_email, conversation_id, customer_id, service_case_id,
+      service_case:service_cases (id, case_number, title, status)
+    `)
     .eq('is_archived', false)
     .or(`sender_email.ilike.${emailLower},original_sender_email.ilike.${emailLower},to_email.ilike.${emailLower},customer_id.eq.${customerId}`)
     .order('received_at', { ascending: false })
@@ -152,6 +168,11 @@ export async function getCustomerMailbox(
       e.original_sender_email?.toLowerCase() === emailLower
     const direction: 'incoming' | 'outgoing' = senderMatch ? 'incoming' : 'outgoing'
 
+    const rec = e as Record<string, unknown>
+    // Supabase nested-select kan returnere objekt eller array — håndter begge
+    const sagJoinRaw = rec.service_case
+    const sagJoin = Array.isArray(sagJoinRaw) ? sagJoinRaw[0] : sagJoinRaw
+
     return {
       id: e.id,
       subject: e.subject,
@@ -166,7 +187,16 @@ export async function getCustomerMailbox(
       received_at: e.received_at,
       direction,
       reply_to: e.reply_to,
-      conversation_id: (e as Record<string, unknown>).conversation_id as string | null,
+      conversation_id: rec.conversation_id as string | null,
+      service_case_id: (rec.service_case_id as string | null) || null,
+      service_case: sagJoin
+        ? {
+            id: (sagJoin as Record<string, unknown>).id as string,
+            case_number: (sagJoin as Record<string, unknown>).case_number as string,
+            title: (sagJoin as Record<string, unknown>).title as string,
+            status: (sagJoin as Record<string, unknown>).status as string,
+          }
+        : null,
     }
   })
 

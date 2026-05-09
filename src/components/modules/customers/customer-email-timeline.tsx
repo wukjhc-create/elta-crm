@@ -264,6 +264,17 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                         {conv.hasUnread && (
                           <span className="w-2 h-2 bg-blue-500 rounded-full" />
                         )}
+                        {/* Sprint 8D-1: sag-label hvis tråden er koblet til en sag */}
+                        {latestMsg.service_case && (
+                          <a
+                            href={`/dashboard/orders/${latestMsg.service_case.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[10px] font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 px-1.5 py-0.5 rounded inline-flex items-center gap-1"
+                            title={`Sag: ${latestMsg.service_case.title}`}
+                          >
+                            {latestMsg.service_case.case_number}
+                          </a>
+                        )}
                         <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">
                           {format(new Date(conv.latestAt), 'd. MMM yyyy HH:mm', { locale: da })}
                         </span>

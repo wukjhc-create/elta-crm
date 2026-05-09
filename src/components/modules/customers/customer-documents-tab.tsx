@@ -15,6 +15,8 @@ import {
   Archive,
   Upload,
   Plus,
+  Mail,
+  Briefcase,
 } from 'lucide-react'
 import {
   getCustomerDocuments,
@@ -71,8 +73,23 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
       return desc.type === 'fuldmagt'
     } catch { return false }
   })
+  // Sprint 8D-1: filtrér mail-vedhæftninger ud i egen sektion baseret
+  // på description.type === 'email_attachment' eller source_email_id.
+  const mailAttachments = documents.filter((d) => {
+    if (d.source_email_id) return true
+    try {
+      const desc = JSON.parse(d.description || '{}')
+      return desc.type === 'email_attachment'
+    } catch {
+      return false
+    }
+  })
   const otherDocs = documents.filter(
-    (d) => !besigtigelseReports.includes(d) && !fuldmagter.includes(d) && d.file_url
+    (d) =>
+      !besigtigelseReports.includes(d) &&
+      !fuldmagter.includes(d) &&
+      !mailAttachments.includes(d) &&
+      d.file_url
   )
 
   const imagesByCategory: Record<string, CustomerImage[]> = {}
@@ -298,6 +315,58 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     </a>
                   ))}
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sprint 8D-1: Mail-vedhæftninger */}
+      {mailAttachments.length > 0 && (
+        <div className="bg-white rounded-lg border">
+          <div className="p-3 sm:p-4 border-b flex items-center gap-2">
+            <Mail className="w-4 h-4 text-blue-600" />
+            <h3 className="font-semibold text-sm">Mail-vedhæftninger</h3>
+            <span className="text-xs text-gray-400 ml-1">({mailAttachments.length})</span>
+          </div>
+          <div className="divide-y">
+            {mailAttachments.map((doc) => (
+              <div key={doc.id} className="p-3 sm:p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 shrink-0 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{doc.file_name}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs text-gray-500">
+                        {new Date(doc.created_at).toLocaleDateString('da-DK')}
+                        {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
+                      </p>
+                      {doc.service_case && (
+                        <a
+                          href={`/dashboard/orders/${doc.service_case.id}`}
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 px-1.5 py-0.5 rounded"
+                          title={doc.service_case.title}
+                        >
+                          <Briefcase className="w-3 h-3" />
+                          {doc.service_case.case_number}
+                        </a>
+                      )}
+                      {!doc.service_case_id && (
+                        <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
+                          Ingen sag
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {doc.file_url && (
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform">
+                    <Download className="w-3.5 h-3.5" /> Åbn
+                  </a>
+                )}
               </div>
             ))}
           </div>

@@ -19,6 +19,15 @@ export interface CustomerDocument {
   // Parsed from description for fuldmagt
   fuldmagt_status?: 'pending' | 'signed'
   fuldmagt_signed_at?: string | null
+  // Sprint 8D-1: kobling til sag + mail
+  service_case_id?: string | null
+  source_email_id?: string | null
+  service_case?: {
+    id: string
+    case_number: string
+    title: string
+    status: string
+  } | null
 }
 
 export interface CustomerImage {
@@ -37,9 +46,14 @@ export async function getCustomerDocuments(
   try {
     const { supabase } = await getAuthenticatedClient()
 
+    // Sprint 8D-1: select også service_case_id + source_email_id
+    // og join service_cases for at vise sag-label uden ekstra fetch
     const { data: docs, error } = await supabase
       .from('customer_documents')
-      .select('*')
+      .select(`
+        *,
+        service_case:service_cases (id, case_number, title, status)
+      `)
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
 
@@ -58,6 +72,10 @@ export async function getCustomerDocuments(
         }
       } catch { /* not JSON */ }
 
+      // Supabase nested-select: kan returnere objekt eller array
+      const sagJoinRaw = (doc as Record<string, unknown>).service_case
+      const sagJoin = Array.isArray(sagJoinRaw) ? sagJoinRaw[0] : sagJoinRaw
+
       return {
         id: doc.id,
         customer_id: doc.customer_id,
@@ -72,6 +90,16 @@ export async function getCustomerDocuments(
         created_at: doc.created_at,
         fuldmagt_status,
         fuldmagt_signed_at,
+        service_case_id: (doc as Record<string, unknown>).service_case_id as string | null,
+        source_email_id: (doc as Record<string, unknown>).source_email_id as string | null,
+        service_case: sagJoin
+          ? {
+              id: (sagJoin as Record<string, unknown>).id as string,
+              case_number: (sagJoin as Record<string, unknown>).case_number as string,
+              title: (sagJoin as Record<string, unknown>).title as string,
+              status: (sagJoin as Record<string, unknown>).status as string,
+            }
+          : null,
       }
     })
 
