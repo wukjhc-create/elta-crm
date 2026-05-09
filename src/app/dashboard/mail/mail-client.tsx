@@ -129,7 +129,10 @@ export function MailClient() {
   // Data loading
   // =====================================================
 
-  const loadEmails = useCallback(async () => {
+  // Sprint 8C-3 mini-fix: returnerer fetched emails så caller kan
+  // bruge dem (fx auto-select nyeste efter manuel sync) uden at
+  // afhænge af React state-batching.
+  const loadEmails = useCallback(async (): Promise<IncomingEmailWithCustomer[]> => {
     setIsLoading(true)
     setError(null)
     try {
@@ -163,8 +166,11 @@ export function MailClient() {
         const leadMap = await getLeadsForEmails(emailIds)
         setEmailLeadMap(leadMap)
       }
+
+      return emailResult.data
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Kunne ikke hente emails')
+      return []
     } finally {
       setIsLoading(false)
     }
@@ -279,6 +285,10 @@ export function MailClient() {
     setError(null)
     const startedAt = Date.now()
 
+    // Sprint 8C-3 mini-fix: husk hvilken mail der pt. ligger oeverst,
+    // så vi kan auto-select den nye nyeste hvis sync henter nye mails.
+    const previousNewestId = emails[0]?.id ?? null
+
     try {
       // Sprint 8C-2 fix: kalder server action i stedet for /api/email/sync.
       // /api/email/sync kraever Bearer CRON_SECRET efter security-fix d516461,
@@ -327,8 +337,20 @@ export function MailClient() {
         setError(result.errors?.join('; ') || 'Sync fejlede')
       }
 
-      await loadEmails()
+      const refreshedEmails = await loadEmails()
       setLastRefresh(new Date())
+
+      // Sprint 8C-3 mini-fix: hvis sync gav nye mails, auto-select nyeste
+      // i hoejre panel — saa Henrik ser indholdet uden ekstra klik.
+      // Bevar eksisterende valg hvis 0 nye eller nyeste ikke aendrede sig.
+      if (
+        result.success &&
+        (result.emailsInserted ?? 0) > 0 &&
+        refreshedEmails.length > 0 &&
+        refreshedEmails[0].id !== previousNewestId
+      ) {
+        setSelectedEmail(refreshedEmails[0])
+      }
 
       // Sprint 8C-3: hvis sync indsatte nye rows, kør en ekstra loadEmails
       // efter 2 sek for at fange eventual consistency / realtime-delay
