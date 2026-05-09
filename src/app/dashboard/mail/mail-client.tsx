@@ -225,7 +225,10 @@ export function MailClient() {
   // Realtime: incoming_emails table changes → instant refresh
   useRealtimeTable('incoming_emails', backgroundRefresh)
 
-  // Background Graph sync every 90s — triggers server-side email fetch
+  // Sprint 8C-3: Background Graph sync every 60s mens siden er aaben.
+  // Reduceret fra 90s for hurtigere reply-pickup. Skip hvis manuel eller
+  // baggrunds-sync allerede koerer (overlap-beskyttelse via isBgSyncing-ref
+  // og isSyncing-state).
   useEffect(() => {
     const interval = setInterval(async () => {
       if (isBgSyncing.current || isSyncing) return
@@ -235,7 +238,7 @@ export function MailClient() {
       } catch {
         // Silent fail
       }
-    }, 90_000)
+    }, 60_000)
     return () => clearInterval(interval)
   }, [isSyncing])
 
@@ -274,6 +277,7 @@ export function MailClient() {
   const handleSync = async () => {
     setIsSyncing(true)
     setError(null)
+    const startedAt = Date.now()
 
     try {
       // Sprint 8C-2 fix: kalder server action i stedet for /api/email/sync.
@@ -281,16 +285,43 @@ export function MailClient() {
       // hvilket vi ikke kan eller boer eksponere til browseren. Server action
       // koerer same-origin og er beskyttet af Next.js CSRF-mekanik.
       const result = await triggerEmailSync()
+      const elapsedMs = Date.now() - startedAt
+      const elapsedSec = (elapsedMs / 1000).toFixed(1)
 
       if (result.success) {
         const mbResults = result.mailboxResults || []
-        if (mbResults.length > 0) {
-          const detail = mbResults.map((m) =>
-            `${m.mailbox.split('@')[0]}: ${m.status === 'success' ? `${m.inserted ?? 0} nye` : `FEJL: ${m.error || 'ukendt'}`}`
-          ).join(' | ')
-          toast.success('Sync fuldført', detail)
+        const totalInserted = result.emailsInserted ?? 0
+
+        if (totalInserted > 0) {
+          // Vis per-mailbox detail + total + tid
+          const detail = mbResults.length > 0
+            ? mbResults.map((m) =>
+                `${m.mailbox.split('@')[0]}: ${m.status === 'success' ? `${m.inserted ?? 0} nye` : `FEJL: ${m.error || 'ukendt'}`}`
+              ).join(' | ')
+            : `${totalInserted} nye emails`
+          toast.success(
+            `Sync fuldført — ${totalInserted} ny${totalInserted === 1 ? '' : 'e'} (${elapsedSec}s)`,
+            detail
+          )
         } else {
-          toast.success('Sync fuldført', `${result.emailsInserted ?? 0} nye emails`)
+          // 0 nye: tydelig "ingen nye"-besked med sidste-sync tidsstempel
+          const lastSyncLabel = result.mailboxResults && result.mailboxResults.length > 0
+            ? result.mailboxResults
+                .filter((m) => m.status === 'success')
+                .map((m) => m.mailbox.split('@')[0])
+                .join(', ')
+            : 'alle mailboxe'
+          toast.info(
+            `Ingen nye mails fundet (${elapsedSec}s)`,
+            `Synket: ${lastSyncLabel} — ${new Date().toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}`
+          )
+        }
+
+        // Sprint 8C-3: log per-mailbox fejl tydeligt (uden at skjule succes)
+        const failed = mbResults.filter((m) => m.status !== 'success')
+        if (failed.length > 0) {
+          const failDetail = failed.map((m) => `${m.mailbox}: ${m.error || 'ukendt fejl'}`).join('; ')
+          setError(`Mailbox-fejl: ${failDetail}`)
         }
       } else {
         setError(result.errors?.join('; ') || 'Sync fejlede')
@@ -298,6 +329,16 @@ export function MailClient() {
 
       await loadEmails()
       setLastRefresh(new Date())
+
+      // Sprint 8C-3: hvis sync indsatte nye rows, kør en ekstra loadEmails
+      // efter 2 sek for at fange eventual consistency / realtime-delay
+      // (Supabase replication tager nogle gange 0.5-1.5s for nye INSERT
+      // at blive synlige via SELECT). Kun hvis nye mails faktisk kom ind.
+      if (result.success && (result.emailsInserted ?? 0) > 0) {
+        setTimeout(() => {
+          backgroundRefresh().catch(() => { /* silent */ })
+        }, 2000)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync fejlede')
     } finally {
@@ -554,10 +595,14 @@ export function MailClient() {
             <ShieldAlert className="w-4 h-4" />
             Test
           </button>
+          {/* Sprint 8C-3: auto-sync indikator */}
+          <span className="hidden sm:inline-flex items-center text-xs text-gray-500 mr-1" title="Auto-sync koerer hvert 60. sekund mens siden er aaben">
+            Auto-sync • sidst {lastRefreshLabel}
+          </span>
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
             {isSyncing ? 'Synkroniserer...' : 'Sync nu'}
