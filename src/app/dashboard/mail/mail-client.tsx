@@ -187,6 +187,9 @@ export function MailClient() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [lastRefreshLabel, setLastRefreshLabel] = useState('Lige nu')
   const isBgSyncing = useRef(false)
+  // Sprint 8C-3 polish: shared in-flight guard. Saetter sand naar AENTEN
+  // manuel eller auto-sync er i gang — saa de aldrig overlapper.
+  const inFlightSyncRef = useRef(false)
 
   // Silent background refresh — no loading spinners, no UI flash
   const backgroundRefresh = useCallback(async () => {
@@ -233,16 +236,21 @@ export function MailClient() {
 
   // Sprint 8C-3: Background Graph sync every 60s mens siden er aaben.
   // Reduceret fra 90s for hurtigere reply-pickup. Skip hvis manuel eller
-  // baggrunds-sync allerede koerer (overlap-beskyttelse via isBgSyncing-ref
-  // og isSyncing-state).
+  // baggrunds-sync allerede koerer — beskyttet via 3 lag:
+  //  1. inFlightSyncRef (delt med manuel handleSync)
+  //  2. isBgSyncing (delt med backgroundRefresh)
+  //  3. isSyncing-state (manuel-knap loading)
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (isBgSyncing.current || isSyncing) return
+      if (inFlightSyncRef.current || isBgSyncing.current || isSyncing) return
+      inFlightSyncRef.current = true
       try {
         await triggerEmailSync()
         // Realtime subscription will pick up new rows automatically
       } catch {
         // Silent fail
+      } finally {
+        inFlightSyncRef.current = false
       }
     }, 60_000)
     return () => clearInterval(interval)
@@ -281,6 +289,14 @@ export function MailClient() {
   }
 
   const handleSync = async () => {
+    // Sprint 8C-3 polish: spring over hvis sync allerede koerer (manuel
+    // eller auto). Saa undgaar vi to parallelle Graph-poll-flows der
+    // kan race paa graph_sync_state.delta_link.
+    if (inFlightSyncRef.current) {
+      toast.info('Sync allerede i gang', 'Vent et oejeblik...')
+      return
+    }
+    inFlightSyncRef.current = true
     setIsSyncing(true)
     setError(null)
     const startedAt = Date.now()
@@ -365,6 +381,7 @@ export function MailClient() {
       setError(err instanceof Error ? err.message : 'Sync fejlede')
     } finally {
       setIsSyncing(false)
+      inFlightSyncRef.current = false
     }
   }
 
@@ -919,10 +936,16 @@ export function MailClient() {
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">
-              <div className="text-center">
+              <div className="text-center max-w-md px-4">
                 <Mail className="w-16 h-16 mx-auto mb-3 opacity-20" />
-                <p className="text-lg font-medium">Vælg en email</p>
-                <p className="text-sm mt-1">Klik på en email i listen til venstre</p>
+                <p className="text-lg font-medium">
+                  {emails.length > 0 ? 'Vælg en mail i listen' : 'Ingen mails endnu'}
+                </p>
+                <p className="text-sm mt-1">
+                  {emails.length > 0
+                    ? 'Klik på en mail til venstre — eller tryk Sync nu for at hente nye mails'
+                    : 'Tryk Sync nu for at hente mails fra Outlook'}
+                </p>
               </div>
             </div>
           )}
