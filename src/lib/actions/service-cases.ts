@@ -713,6 +713,92 @@ export async function deleteServiceCaseAttachment(
 }
 
 // =====================================================
+// Sprint 8D-1: Mails og dokumenter pr. sag
+// =====================================================
+
+export interface CaseEmail {
+  id: string
+  subject: string
+  sender_email: string
+  sender_name: string | null
+  to_email: string | null
+  link_status: string
+  has_attachments: boolean
+  is_read: boolean
+  received_at: string
+  conversation_id: string | null
+}
+
+export async function getEmailsForCase(
+  serviceCaseId: string
+): Promise<CaseEmail[]> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
+      return []
+    }
+
+    const { data, error } = await supabase
+      .from('incoming_emails')
+      .select('id, subject, sender_email, sender_name, to_email, link_status, has_attachments, is_read, received_at, conversation_id')
+      .eq('service_case_id', serviceCaseId)
+      .eq('is_archived', false)
+      .order('received_at', { ascending: false })
+      .limit(200)
+
+    if (error) {
+      logger.error('getEmailsForCase failed', { error, entityId: serviceCaseId })
+      return []
+    }
+
+    return (data || []) as CaseEmail[]
+  } catch {
+    return []
+  }
+}
+
+export interface CaseDocument {
+  id: string
+  title: string
+  file_name: string
+  file_url: string
+  storage_path: string | null
+  mime_type: string
+  file_size: number | null
+  source_email_id: string | null
+  document_type: string
+  description: string | null
+  created_at: string
+}
+
+export async function getDocumentsForCase(
+  serviceCaseId: string
+): Promise<CaseDocument[]> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
+      return []
+    }
+
+    const { data, error } = await supabase
+      .from('customer_documents')
+      .select('id, title, file_name, file_url, storage_path, mime_type, file_size, source_email_id, document_type, description, created_at')
+      .eq('service_case_id', serviceCaseId)
+      .order('created_at', { ascending: false })
+      .limit(200)
+
+    if (error) {
+      logger.error('getDocumentsForCase failed', { error, entityId: serviceCaseId })
+      return []
+    }
+
+    return (data || []) as CaseDocument[]
+  } catch {
+    return []
+  }
+}
+
+// =====================================================
 // Sign off (customer handover signature)
 // =====================================================
 

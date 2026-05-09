@@ -17,6 +17,8 @@ import { OrderMaterialsTab } from './order-materials-tab'
 import { OrderOtherCostsTab } from './order-other-costs-tab'
 import { OrderEconomyTab } from './order-economy-tab'
 import { OrderBillingDraftTab } from './order-billing-draft-tab'
+import { OrderMailsTab } from './order-mails-tab'
+import { OrderDocumentsTab } from './order-documents-tab'
 import { InlineStatusChanger } from './inline-status-changer'
 
 const TABS = [
@@ -24,6 +26,9 @@ const TABS = [
   { id: 'planlaegning', label: 'Planlægning / Timer', ready: true },
   { id: 'materialer',   label: 'Materialer',         ready: true },
   { id: 'oevrige',      label: 'Øvrige omkostninger', ready: true },
+  // Sprint 8D-1: Mails + Dokumenter pr. sag
+  { id: 'mails',        label: 'Mails',              ready: true },
+  { id: 'dokumenter',   label: 'Dokumenter',         ready: true },
   { id: 'oekonomi',     label: 'Økonomi',            ready: true },
   { id: 'aktivitet',    label: 'Aktivitet',          ready: true },
   { id: 'dokumentation',label: 'Dokumentation',      ready: false },
@@ -195,6 +200,8 @@ export function OrderDetailClient({
           )}
           {active === 'materialer' && <OrderMaterialsTab caseId={sag.id} />}
           {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} />}
+          {active === 'mails' && <OrderMailsTab caseId={sag.id} />}
+          {active === 'dokumenter' && <OrderDocumentsTab caseId={sag.id} />}
           {active === 'oekonomi' && (
             <OrderEconomyTab
               caseId={sag.id}
@@ -208,6 +215,8 @@ export function OrderDetailClient({
             active !== 'planlaegning' &&
             active !== 'materialer' &&
             active !== 'oevrige' &&
+            active !== 'mails' &&
+            active !== 'dokumenter' &&
             active !== 'oekonomi' &&
             active !== 'fakturakladde' &&
             active !== 'handlinger' &&
