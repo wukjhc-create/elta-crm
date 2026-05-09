@@ -231,7 +231,7 @@ function isFreemailDomain(domain: string): boolean {
 /** Domæner der typisk sender støj (sociale medier, system, marketing). */
 const NOISE_SENDER_DOMAINS = new Set([
   // Sociale medier
-  'linkedin.com', 'linkedinmail.com',
+  'linkedin.com', 'linkedinmail.com', 'e.linkedin.com',
   'facebookmail.com', 'facebook.com', 'instagram.com', 'meta.com',
   'twitter.com', 'x.com',
   // Google system
@@ -243,6 +243,16 @@ const NOISE_SENDER_DOMAINS = new Set([
   // Dev/SaaS notifications der ikke er kunderelevante
   'vercel.com', 'supabase.com', 'supabase.io', 'github.com',
   'notifications.github.com',
+  // Job-portaler (ofte job-alerts, ikke kunde-relevante)
+  'jobindex.dk', 'mail.jobindex.dk',
+  'stepstone.dk', 'mail.stepstone.dk',
+  'jobnet.dk',
+  'indeed.com', 'indeed.dk', 'mail.indeed.com',
+  'monster.dk', 'monster.com',
+  // Email-marketing platforms (transaktionelle mails kan stadig komme
+  // gennem disse, men typisk kampagner — beskyttelses-kæden fanger
+  // forretningsmails via subject-keyword)
+  'mailchimp.com', 'mailchimpapp.com', 'sendinblue.com', 'mailerlite.com',
 ])
 
 /** Sender-prefix der typisk er notifikationer (skal kombineres med
@@ -261,14 +271,25 @@ const NOISE_SUBJECT_KEYWORDS = [
   'security alert', 'sikkerhedsadvarsel',
   'terms of service', 'privacy policy update', 'opdatering af vilkår',
   'din rapport er klar', 'weekly digest', 'daily digest',
+  // Job-relaterede alerts
+  'job alert', 'jobalert', 'jobannonce', 'din ansoegning', 'din ansøgning',
+  'job for dig', 'matchende jobs', 'nye jobs',
+  // LinkedIn / sociale notifikationer
+  'connection request', 'nye personer du kender', 'people you may know',
+  'someone viewed your profile', 'din profil blev vist',
 ]
 
 /** Domæner der ALDRIG markeres som støj — kerne-leverandører + interne. */
 const PROTECTED_DOMAINS = new Set([
   'eltasolar.dk',
-  'ao.dk', 'lemu.dk', 'lemvigh-muller.dk',
-  'cerius.dk', 'radius.dk', 'trefor.dk', 'n1.dk',
-  'energinet.dk', 'mikma.dk', 'fasetech.dk',
+  // Grossister
+  'ao.dk', 'lemu.dk', 'lemvigh-muller.dk', 'lemvighmuller.dk',
+  'mikma.dk', 'fasetech.dk', 'solarsupply.dk',
+  // Netselskaber
+  'cerius.dk', 'radius.dk', 'trefor.dk', 'n1.dk', 'tre-for.dk',
+  'energinet.dk',
+  // Inverter/batteri-producenter (driftsrelevante notifikationer)
+  'huawei.com', 'sungrow.com', 'goodwe.com', 'fronius.com',
 ])
 
 /** Subject/body-mønstre der ALDRIG må markeres som støj — uanset
