@@ -156,6 +156,29 @@ export async function sendTaskEmail(
     const bodyText = `${body}\n\n${signature.text}`
     const ccArr = cc ? [cc] : null
 
+    // Sprint 8C-2 fail-fast: sikr at signaturen faktisk er appended.
+    // Hvis CVR-konstanten ikke er i bodyHtml/bodyText er noget galt med
+    // signature-helperen — vi sender ikke en mail uden fuld signatur.
+    const cvrSentinel = `CVR: ${branding.cvr}`
+    if (!bodyHtml.includes(cvrSentinel) || !bodyText.includes(cvrSentinel)) {
+      logger.error('sendTaskEmail: signature missing CVR sentinel — refusing to send', {
+        userId,
+        action: 'sendTaskEmail',
+        entity: 'customer_tasks',
+        entityId: task.id,
+        metadata: {
+          htmlLen: bodyHtml.length,
+          textLen: bodyText.length,
+          htmlHasSentinel: bodyHtml.includes(cvrSentinel),
+          textHasSentinel: bodyText.includes(cvrSentinel),
+        },
+      })
+      return {
+        success: false,
+        error: 'Intern fejl: signaturen er ufuldstændig (CVR mangler). Mailen blev ikke sendt.',
+      }
+    }
+
     let threadId: string | null = null
     if (task.offer_id) {
       const { data: existingThreads } = await supabase

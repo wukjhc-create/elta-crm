@@ -274,7 +274,13 @@ export async function sendEmailToCustomer(
       .maybeSingle()
     const senderName = (profile as { full_name: string } | null)?.full_name || undefined
 
-    const { BRAND_COMPANY_NAME, BRAND_EMAIL, BRAND_WEBSITE, BRAND_GREEN } = await import('@/lib/brand')
+    const { BRAND_COMPANY_NAME, BRAND_GREEN } = await import('@/lib/brand')
+
+    // Sprint 8C-2: brug signatur-helper i stedet for hardkodet footer.
+    // Dette eliminerer "kontakt@eltasolar.dk • eltasolar.dk"-footeren
+    // som forhindrede V2/V3-testene i at vise fuld branded signatur.
+    const { resolveAndBuildSignature } = await import('@/lib/email/signature')
+    const signature = await resolveAndBuildSignature(userId)
 
     const html = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 640px; margin: 0 auto;">
@@ -284,11 +290,7 @@ export async function sendEmailToCustomer(
         <div style="padding: 28px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
           <div style="font-size: 15px; color: #111827; line-height: 1.6; white-space: pre-wrap;">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-          <p style="color: #374151; margin: 0;">
-            Med venlig hilsen,<br/>
-            <strong>${senderName || BRAND_COMPANY_NAME}</strong><br/>
-            <span style="color: #6b7280; font-size: 13px;">${BRAND_EMAIL} &bull; ${BRAND_WEBSITE}</span>
-          </p>
+          ${signature.html}
         </div>
       </div>
     `
