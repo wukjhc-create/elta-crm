@@ -95,7 +95,14 @@ export function MailClient() {
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
   const [syncState, setSyncState] = useState<GraphSyncState | null>(null)
   const [allSyncStates, setAllSyncStates] = useState<GraphSyncState[]>([])
-  const [stats, setStats] = useState({ total: 0, unread: 0, unidentified: 0, linked: 0 })
+  const [stats, setStats] = useState({
+    total: 0,
+    unread: 0,
+    unidentified: 0,
+    linked: 0,
+    pending: 0,
+    ignored: 0,
+  })
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
   const [emailLeadMap, setEmailLeadMap] = useState<Record<string, { leadId: string; status: string }>>({})
@@ -156,6 +163,8 @@ export function MailClient() {
         unread: statsResult.unread,
         unidentified: statsResult.unidentified,
         linked: statsResult.linked,
+        pending: statsResult.pending,
+        ignored: statsResult.ignored,
       })
       setAllSyncStates(allStatesResult)
       setSyncState(syncStateResult)
@@ -215,6 +224,8 @@ export function MailClient() {
         unread: statsResult.unread,
         unidentified: statsResult.unidentified,
         linked: statsResult.linked,
+        pending: statsResult.pending,
+        ignored: statsResult.ignored,
       })
       setSyncState(syncStateResult)
       setLastRefresh(new Date())
@@ -879,6 +890,16 @@ export function MailClient() {
         {FILTER_TABS.map((tab) => {
           const Icon = tab.icon
           const isActive = currentFilter === tab.value
+          // Sprint 8C-3 polish: vis count-badge pr. tab så Henrik
+          // hurtigt ser hvor mange uidentificerede / koblede / ignorerede
+          // mails der ligger.
+          const count =
+            tab.value === 'all' ? stats.total :
+            tab.value === 'unidentified' ? stats.unidentified :
+            tab.value === 'linked' ? stats.linked :
+            tab.value === 'pending' ? stats.pending :
+            tab.value === 'ignored' ? stats.ignored :
+            null
           return (
             <button
               key={tab.value}
@@ -891,6 +912,17 @@ export function MailClient() {
             >
               <Icon className="w-4 h-4" />
               {tab.label}
+              {count !== null && count > 0 && (
+                <span className={`ml-1 inline-flex items-center justify-center min-w-[20px] px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : tab.value === 'unidentified' ? 'bg-amber-100 text-amber-800'
+                    : tab.value === 'ignored' ? 'bg-gray-200 text-gray-600'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {count}
+                </span>
+              )}
             </button>
           )
         })}

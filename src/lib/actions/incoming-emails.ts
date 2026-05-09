@@ -133,15 +133,19 @@ export async function getIncomingEmailStats(): Promise<{
   unread: number
   unidentified: number
   linked: number
+  pending: number
+  ignored: number
   aoMatches: number
 }> {
   const supabase = await createClient()
 
-  const [totalRes, unreadRes, unidentifiedRes, linkedRes, aoRes] = await Promise.all([
+  const [totalRes, unreadRes, unidentifiedRes, linkedRes, pendingRes, ignoredRes, aoRes] = await Promise.all([
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_read', false).eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'unidentified').eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'linked').eq('is_archived', false),
+    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'pending').eq('is_archived', false),
+    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'ignored').eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('has_ao_matches', true).eq('is_archived', false),
   ])
 
@@ -150,6 +154,8 @@ export async function getIncomingEmailStats(): Promise<{
     unread: unreadRes.count || 0,
     unidentified: unidentifiedRes.count || 0,
     linked: linkedRes.count || 0,
+    pending: pendingRes.count || 0,
+    ignored: ignoredRes.count || 0,
     aoMatches: aoRes.count || 0,
   }
 }
