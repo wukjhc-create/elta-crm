@@ -863,21 +863,34 @@ export async function sendOfferEmail(
       subject,
     })
 
-    // Auto-opret opfølgningsopgave (3 dages påmindelse)
+    // Auto-opret opfølgningsopgave (3 dages påmindelse).
+    // Dedup: hvis der allerede findes en åben follow-up task for dette
+    // tilbud, springer vi over (ellers oprettes en ny ved hver mail-send).
     try {
-      const reminderDate = new Date()
-      reminderDate.setDate(reminderDate.getDate() + 3)
+      const { data: existingFollowUp } = await supabase
+        .from('customer_tasks')
+        .select('id')
+        .eq('offer_id', offer.id)
+        .neq('status', 'done')
+        .ilike('title', 'Følg op:%')
+        .limit(1)
+        .maybeSingle()
 
-      await supabase.from('customer_tasks').insert({
-        customer_id: offer.customer_id,
-        offer_id: offer.id,
-        title: `Følg op: ${offer.title || offer.offer_number} — intet svar modtaget`,
-        description: `Automatisk opfølgning oprettet ved afsendelse af tilbud til ${offer.customer.email}.`,
-        priority: 'normal',
-        assigned_to: userId,
-        reminder_at: reminderDate.toISOString(),
-        created_by: userId,
-      })
+      if (!existingFollowUp) {
+        const reminderDate = new Date()
+        reminderDate.setDate(reminderDate.getDate() + 3)
+
+        await supabase.from('customer_tasks').insert({
+          customer_id: offer.customer_id,
+          offer_id: offer.id,
+          title: `Følg op: ${offer.title || offer.offer_number} — intet svar modtaget`,
+          description: `Automatisk opfølgning oprettet ved afsendelse af tilbud til ${offer.customer.email}.`,
+          priority: 'normal',
+          assigned_to: userId,
+          reminder_at: reminderDate.toISOString(),
+          created_by: userId,
+        })
+      }
     } catch (taskErr) {
       logger.warn('Failed to create follow-up task', { error: taskErr })
     }
