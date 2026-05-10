@@ -37,6 +37,7 @@ import {
   type CaseEmailDetail,
 } from '@/lib/actions/service-cases'
 import { backfillEmailAttachments } from '@/lib/actions/incoming-emails'
+import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: typeof Mail }> = {
   linked:       { label: 'Koblet',         cls: 'bg-green-100 text-green-800', icon: CheckCircle2 },
@@ -308,7 +309,7 @@ function ExpandedMailDetail({
         {detail.body_html ? (
           <div
             className="prose prose-sm max-w-none text-sm"
-            dangerouslySetInnerHTML={{ __html: detail.body_html }}
+            dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(detail.body_html) }}
           />
         ) : detail.body_text ? (
           <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">{detail.body_text}</pre>

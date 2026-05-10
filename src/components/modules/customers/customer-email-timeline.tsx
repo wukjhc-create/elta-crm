@@ -27,6 +27,7 @@ import {
   type CustomerConversation,
 } from '@/lib/actions/customer-mailbox'
 import { useToast } from '@/components/ui/toast'
+import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
 
 interface CustomerEmailTimelineProps {
   customerId: string
@@ -340,7 +341,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                             {msg.body_html ? (
                               <div
                                 className="prose prose-sm max-w-none text-gray-700 overflow-auto max-h-[400px] border rounded-lg p-3 bg-white"
-                                dangerouslySetInnerHTML={{ __html: msg.body_html }}
+                                dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(msg.body_html) }}
                               />
                             ) : msg.body_text ? (
                               <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans border rounded-lg p-3 bg-white overflow-auto max-h-[400px]">
@@ -495,7 +496,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                       {viewingEmail.body_html ? (
                         <div
                           className="prose prose-sm max-w-none text-gray-700 overflow-auto max-h-[500px] border rounded-lg p-4 bg-gray-50/50"
-                          dangerouslySetInnerHTML={{ __html: viewingEmail.body_html }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(viewingEmail.body_html) }}
                         />
                       ) : viewingEmail.body_text ? (
                         <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans border rounded-lg p-4 bg-gray-50/50 overflow-auto max-h-[500px]">

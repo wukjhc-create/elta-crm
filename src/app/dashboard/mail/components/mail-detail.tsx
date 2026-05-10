@@ -25,6 +25,7 @@ import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, chec
 import { quickCreateCustomerFromEmail } from '@/lib/actions/incoming-emails'
 import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { parseCustomerFromEmail } from '@/lib/utils/email-parser'
+import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
 import type { IncomingEmailWithCustomer, EmailLinkStatus } from '@/types/mail-bridge.types'
 import type { ServiceCase } from '@/types/service-cases.types'
 import { Briefcase } from 'lucide-react'
@@ -496,7 +497,7 @@ export function MailDetail({
       {/* ============================================== */}
       <div className="flex-1 overflow-y-auto p-5">
         {email.body_html ? (
-          <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: email.body_html }} />
+          <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }} />
         ) : (
           <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans">
             {email.body_text || email.body_preview || '(Tom email)'}
