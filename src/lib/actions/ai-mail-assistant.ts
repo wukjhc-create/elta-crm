@@ -1,18 +1,22 @@
 'use server'
 
 /**
- * Sprint 8E-3 Phase 1 — AI mail-assistant (forslag/rettelser, ALDRIG send).
+ * Sprint 8E-3 — AI mail-assistant (forslag/rettelser, ALDRIG send).
  *
- * Eksponerer 4 helpers:
- * 1. suggestReplyToEmail(emailId): generér dansk svarforslag baseret på
- *    indkommende mail + valgfri kunde/sag-kontekst.
- * 2. proofreadText(text): ret stavefejl, komma, punktum, grammatik.
- * 3. makeProfessional(text): mere formel tone, samme indhold.
- * 4. makeShorter(text): kortere version, bevar vigtig info.
+ * Phase 1 helpers (godkendt):
+ * 1. suggestReplyToEmail(emailId)
+ * 2. proofreadText(text)
+ * 3. makeProfessional(text)
+ * 4. makeShorter(text)
+ *
+ * Phase 2 helpers (denne sprint):
+ * 5. generateDraftFromInstruction(emailId, instruction)
+ * 6. translateText(text, targetLanguage)
+ * 7. makeFriendlier(text)
  *
  * Sikkerhed:
  * - Bruger eksisterende OpenAI/budget setup (ai-budget.ts).
- * - 8s timeout, fallback til { ok:false, error } ved fejl.
+ * - 12s timeout, fallback til { ok:false, error } ved fejl.
  * - System-prompt forbyder eksplicit at opfinde priser, datoer, løfter.
  * - Markerer manglende info med [BRUGER UDFYLDER].
  * - Returnerer ALDRIG en sendt mail — kalder ALDRIG sendQuickReply.
@@ -269,6 +273,163 @@ export async function makeShorter(text: string): Promise<AiTextResult> {
   const prompt = `Forkort følgende danske tekst. Bevar alle vigtige fakta, navne, beløb og datoer.
 Mål: cirka halv længde, men aldrig så kort at vigtige detaljer mistes.
 Tilføj IKKE nyt indhold.
+
+TEKST:
+"""
+${truncate(text)}
+"""`
+
+  return callAI(prompt)
+}
+
+// =====================================================
+// 5. generateDraftFromInstruction (Phase 2)
+// =====================================================
+
+/**
+ * Lav et udkast på baggrund af brugerens instruktion + mail-kontekst.
+ * Eksempler på instruktioner:
+ *  - "Skriv at vi vender tilbage i morgen"
+ *  - "Bed kunden sende billeder af tavlen"
+ *  - "Skriv at vi mangler fuldmagt før vi kan gå videre"
+ *
+ * AI får adgang til den indkommende mail, kunde og sag (hvis tilknyttet)
+ * som kontekst — men brugerens instruktion er den primære retning.
+ */
+export async function generateDraftFromInstruction(
+  emailId: string,
+  instruction: string
+): Promise<AiTextResult> {
+  validateUUID(emailId, 'emailId')
+  if (!instruction || instruction.trim().length === 0) {
+    return { ok: false, text: null, error: 'Skriv en instruktion først' }
+  }
+  if (instruction.length > 1000) {
+    return { ok: false, text: null, error: 'Instruktion må højst være 1000 tegn' }
+  }
+
+  const supabase = await createClient()
+  const { data: email } = await supabase
+    .from('incoming_emails')
+    .select(
+      `id, subject, sender_email, sender_name, body_text, body_html, body_preview,
+       received_at, customer_id, service_case_id,
+       customers ( id, company_name, contact_person, customer_number )`
+    )
+    .eq('id', emailId)
+    .maybeSingle()
+
+  if (!email) {
+    return { ok: false, text: null, error: 'Mail ikke fundet' }
+  }
+
+  const customer = (email as { customers?: { company_name?: string; contact_person?: string | null; customer_number?: string } }).customers || null
+  const senderLabel = email.sender_name || email.sender_email || 'Kunde'
+
+  let caseContext = ''
+  if (email.service_case_id) {
+    const { data: caseRow } = await supabase
+      .from('service_cases')
+      .select('case_number, title, status, description')
+      .eq('id', email.service_case_id)
+      .maybeSingle()
+    if (caseRow) {
+      caseContext = `\nSAGSREFERENCE: ${caseRow.case_number} — ${caseRow.title} (status: ${caseRow.status})`
+      if (caseRow.description) {
+        caseContext += `\nSagsbeskrivelse: ${truncate(caseRow.description, 500)}`
+      }
+    }
+  }
+
+  const bodyForAI = truncate(email.body_text || stripHtml(email.body_html || '') || email.body_preview || '')
+
+  const customerLine = customer
+    ? `KUNDE: ${customer.company_name}${customer.contact_person ? ` (kontakt: ${customer.contact_person})` : ''}${customer.customer_number ? ` — kundenr. ${customer.customer_number}` : ''}`
+    : 'KUNDE: ikke koblet'
+
+  const prompt = `Skriv et dansk svar baseret på medarbejderens instruktion. Brug mailen + kundekontekst som baggrund.
+Følg instruktionen præcist. Hvis instruktionen kræver konkrete oplysninger som du IKKE kan udlede, brug [BRUGER UDFYLDER].
+Ingen overskrift som "Hej X" hvis det føles forceret. Underskrift kun hvis naturligt.
+
+INDKOMMENDE MAIL:
+Fra: ${senderLabel}
+Emne: ${email.subject || '(intet emne)'}
+
+${customerLine}${caseContext}
+
+MAILTEKST:
+"""
+${bodyForAI}
+"""
+
+MEDARBEJDERENS INSTRUKTION:
+"""
+${instruction.trim()}
+"""
+
+Skriv KUN selve svarteksten — ingen forklaringer.`
+
+  return callAI(prompt)
+}
+
+// =====================================================
+// 6. translateText (Phase 2)
+// =====================================================
+
+const SUPPORTED_LANGS = ['da', 'en'] as const
+export type SupportedLang = typeof SUPPORTED_LANGS[number]
+
+const LANG_LABELS: Record<SupportedLang, string> = {
+  da: 'dansk',
+  en: 'engelsk',
+}
+
+export async function translateText(
+  text: string,
+  targetLanguage: SupportedLang
+): Promise<AiTextResult> {
+  if (!text || text.trim().length === 0) {
+    return { ok: false, text: null, error: 'Tom tekst — intet at oversætte' }
+  }
+  if (!SUPPORTED_LANGS.includes(targetLanguage)) {
+    return { ok: false, text: null, error: 'Ikke-understøttet sprog' }
+  }
+
+  const langLabel = LANG_LABELS[targetLanguage]
+
+  const prompt = `Oversæt følgende tekst til ${langLabel}.
+KRAV:
+- Bevar alle navne, datoer, beløb, kundenumre og tekniske termer UÆNDREDE
+- Bevar betydning og tone præcist
+- Ændr IKKE indholdet — kun sproget
+- Bevar afsnit og linjeskift
+- Hvis teksten allerede er på ${langLabel}, returnér den uændret
+
+TEKST:
+"""
+${truncate(text)}
+"""
+
+Returnér KUN selve oversættelsen.`
+
+  return callAI(prompt)
+}
+
+// =====================================================
+// 7. makeFriendlier (Phase 2)
+// =====================================================
+
+export async function makeFriendlier(text: string): Promise<AiTextResult> {
+  if (!text || text.trim().length === 0) {
+    return { ok: false, text: null, error: 'Tom tekst' }
+  }
+
+  const prompt = `Omskriv følgende danske tekst til en mere venlig, varm og kundevenlig tone.
+KRAV:
+- Bevar alt konkret indhold (navne, beløb, datoer, fakta) UÆNDRET
+- Bevar professionel tone — ikke for kammeratlig
+- Tilføj IKKE nye løfter eller information
+- Brug venlige formuleringer som "tak", "gerne", "vi hjælper med..."
 
 TEKST:
 """

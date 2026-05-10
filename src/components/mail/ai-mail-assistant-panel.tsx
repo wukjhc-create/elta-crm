@@ -1,7 +1,10 @@
 'use client'
 
 /**
- * Sprint 8E-3 Phase 1 — AI mail-assistant panel.
+ * Sprint 8E-3 Phase 1+2 — AI mail-assistant panel.
+ *
+ * Phase 1 (godkendt): Foreslå svar, Ret tekst, Gør professionel, Gør kortere.
+ * Phase 2: Lav udkast (instruction-baseret), Gør venligere, Oversæt da/en.
  *
  * Bruger AI til at FORESLÅ/RETTE tekst i en kladde. Sender ALDRIG selv —
  * 'Send svar'-knappen kalder onSend(text) og lader parent håndtere det
@@ -9,16 +12,39 @@
  */
 
 import { useState } from 'react'
-import { Sparkles, Pencil, FileText, Scissors, Loader2, Send, AlertCircle } from 'lucide-react'
+import {
+  Sparkles,
+  Pencil,
+  FileText,
+  Scissors,
+  Loader2,
+  Send,
+  AlertCircle,
+  Heart,
+  Languages,
+  Wand2,
+} from 'lucide-react'
 import {
   suggestReplyToEmail,
   proofreadText,
   makeProfessional,
   makeShorter,
+  generateDraftFromInstruction,
+  translateText,
+  makeFriendlier,
   type AiTextResult,
+  type SupportedLang,
 } from '@/lib/actions/ai-mail-assistant'
 
-type AiAction = 'suggest' | 'proofread' | 'professional' | 'shorter'
+type AiAction =
+  | 'suggest'
+  | 'proofread'
+  | 'professional'
+  | 'shorter'
+  | 'friendlier'
+  | 'translate-da'
+  | 'translate-en'
+  | 'instruct'
 
 interface AIMailAssistantPanelProps {
   emailId: string
@@ -38,10 +64,20 @@ export function AIMailAssistantPanel({
   helperText,
 }: AIMailAssistantPanelProps) {
   const [draft, setDraft] = useState(initialDraft)
+  const [instruction, setInstruction] = useState('')
   const [busy, setBusy] = useState<AiAction | 'send' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sendStatus, setSendStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [placeholders, setPlaceholders] = useState<string[]>([])
+
+  const requireDraft = (): boolean => {
+    if (!draft.trim()) {
+      setError('Skriv først noget tekst — så kan AI rette/forbedre den.')
+      setBusy(null)
+      return false
+    }
+    return true
+  }
 
   const handleAi = async (action: AiAction) => {
     setBusy(action)
@@ -51,25 +87,54 @@ export function AIMailAssistantPanel({
 
     let result: AiTextResult
     try {
-      if (action === 'suggest') {
-        result = await suggestReplyToEmail(emailId)
-      } else {
-        if (!draft.trim()) {
-          setError('Skriv først noget tekst — så kan AI rette/forbedre den.')
-          setBusy(null)
-          return
-        }
-        if (action === 'proofread') result = await proofreadText(draft)
-        else if (action === 'professional') result = await makeProfessional(draft)
-        else result = await makeShorter(draft)
+      switch (action) {
+        case 'suggest':
+          result = await suggestReplyToEmail(emailId)
+          break
+        case 'instruct':
+          if (!instruction.trim()) {
+            setError('Skriv en instruktion først (fx: "Bed kunden sende billeder af tavlen").')
+            setBusy(null)
+            return
+          }
+          result = await generateDraftFromInstruction(emailId, instruction.trim())
+          break
+        case 'proofread':
+          if (!requireDraft()) return
+          result = await proofreadText(draft)
+          break
+        case 'professional':
+          if (!requireDraft()) return
+          result = await makeProfessional(draft)
+          break
+        case 'shorter':
+          if (!requireDraft()) return
+          result = await makeShorter(draft)
+          break
+        case 'friendlier':
+          if (!requireDraft()) return
+          result = await makeFriendlier(draft)
+          break
+        case 'translate-da':
+          if (!requireDraft()) return
+          result = await translateText(draft, 'da' as SupportedLang)
+          break
+        case 'translate-en':
+          if (!requireDraft()) return
+          result = await translateText(draft, 'en' as SupportedLang)
+          break
+        default:
+          result = { ok: false, text: null, error: 'Ukendt handling' }
       }
     } catch {
+      // Fejl må ikke slette brugerens tekst
       setError('Uventet fejl — prøv igen.')
       setBusy(null)
       return
     }
 
     if (!result.ok || !result.text) {
+      // Bevar eksisterende draft ved fejl
       setError(result.error || 'AI ikke tilgængelig — skriv selv.')
     } else {
       setDraft(result.text)
@@ -94,6 +159,7 @@ export function AIMailAssistantPanel({
       if (res.success) {
         setSendStatus('success')
         setDraft('')
+        setInstruction('')
         setPlaceholders([])
       } else {
         setSendStatus('error')
@@ -109,6 +175,8 @@ export function AIMailAssistantPanel({
 
   const aiButtonClass =
     'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+
+  const isAnyBusy = busy !== null
 
   return (
     <div className="space-y-2 border-t pt-3">
@@ -133,12 +201,35 @@ export function AIMailAssistantPanel({
         disabled={busy === 'send'}
       />
 
-      {/* AI-knaprække */}
+      {/* Phase 2: Instruction-baseret udkast */}
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          placeholder="Skriv fx: Bed kunden sende billeder af tavlen"
+          maxLength={1000}
+          className="flex-1 text-xs border rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400"
+          disabled={isAnyBusy}
+        />
+        <button
+          type="button"
+          onClick={() => handleAi('instruct')}
+          disabled={isAnyBusy || !instruction.trim()}
+          className={`${aiButtonClass} bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100`}
+          title="AI laver et udkast baseret på din instruktion + mail-kontekst"
+        >
+          {busy === 'instruct' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+          Lav udkast
+        </button>
+      </div>
+
+      {/* AI-knaprække: forslag + tekstværktøjer */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => handleAi('suggest')}
-          disabled={busy !== null}
+          disabled={isAnyBusy}
           className={`${aiButtonClass} bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100`}
           title="AI læser indkommende mail + kunde-kontekst og foreslår dansk svarforslag"
         >
@@ -148,7 +239,7 @@ export function AIMailAssistantPanel({
         <button
           type="button"
           onClick={() => handleAi('proofread')}
-          disabled={busy !== null || !draft.trim()}
+          disabled={isAnyBusy || !draft.trim()}
           className={`${aiButtonClass} bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300`}
           title="Ret stavefejl, komma og grammatik"
         >
@@ -158,7 +249,7 @@ export function AIMailAssistantPanel({
         <button
           type="button"
           onClick={() => handleAi('professional')}
-          disabled={busy !== null || !draft.trim()}
+          disabled={isAnyBusy || !draft.trim()}
           className={`${aiButtonClass} bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300`}
           title="Gør teksten mere formel og professionel"
         >
@@ -168,19 +259,49 @@ export function AIMailAssistantPanel({
         <button
           type="button"
           onClick={() => handleAi('shorter')}
-          disabled={busy !== null || !draft.trim()}
+          disabled={isAnyBusy || !draft.trim()}
           className={`${aiButtonClass} bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300`}
           title="Forkort teksten — bevar alle vigtige fakta"
         >
           {busy === 'shorter' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Scissors className="w-3 h-3" />}
           Gør kortere
         </button>
+        <button
+          type="button"
+          onClick={() => handleAi('friendlier')}
+          disabled={isAnyBusy || !draft.trim()}
+          className={`${aiButtonClass} bg-pink-50 text-pink-800 border-pink-200 hover:bg-pink-100`}
+          title="Gør teksten venligere og mere kundevenlig"
+        >
+          {busy === 'friendlier' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Heart className="w-3 h-3" />}
+          Gør venligere
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAi('translate-da')}
+          disabled={isAnyBusy || !draft.trim()}
+          className={`${aiButtonClass} bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100`}
+          title="Oversæt teksten til dansk"
+        >
+          {busy === 'translate-da' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Languages className="w-3 h-3" />}
+          Oversæt til dansk
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAi('translate-en')}
+          disabled={isAnyBusy || !draft.trim()}
+          className={`${aiButtonClass} bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100`}
+          title="Oversæt teksten til engelsk"
+        >
+          {busy === 'translate-en' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Languages className="w-3 h-3" />}
+          Oversæt til engelsk
+        </button>
 
         <div className="ml-auto">
           <button
             type="button"
             onClick={handleSend}
-            disabled={busy !== null || !draft.trim()}
+            disabled={isAnyBusy || !draft.trim()}
             className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {busy === 'send' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
