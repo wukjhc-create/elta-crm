@@ -26,6 +26,7 @@ import {
   FileText,
   CheckSquare,
   Image as ImageIcon,
+  X,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
@@ -192,6 +193,8 @@ function ExpandedMailDetail({
     success: boolean
     msg: string
   } | null>(null)
+  // Sprint 8D-1 polish: lightbox til billed-thumbnails
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
 
   const refetchDetail = async () => {
     const data = await getCaseEmailDetail(emailId, caseId)
@@ -213,6 +216,16 @@ function ExpandedMailDetail({
       cancelled = true
     }
   }, [emailId, caseId])
+
+  // ESC lukker lightbox
+  useEffect(() => {
+    if (!lightbox) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null)
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [lightbox])
 
   // Sprint 8D-1: kombineret "Download fra Graph + arkivér på sag" i ét klik.
   // Bruger eksisterende backfillEmailAttachments som henter contentBytes
@@ -377,17 +390,16 @@ function ExpandedMailDetail({
 
             return (
               <>
-                {/* Billed-thumbnails grid */}
+                {/* Billed-thumbnails grid — klik åbner lightbox */}
                 {imageDownloaded.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-3">
                     {imageDownloaded.map((att, idx) => (
-                      <a
+                      <button
                         key={`img-${att.filename}-${idx}`}
-                        href={att.url!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group relative block rounded-lg overflow-hidden border bg-gray-50 hover:ring-2 hover:ring-blue-500 transition-all"
-                        title={`${att.filename} — ${formatSize(att.size)}`}
+                        type="button"
+                        onClick={() => setLightbox({ url: att.url!, name: att.filename })}
+                        className="group relative block rounded-lg overflow-hidden border bg-gray-50 hover:ring-2 hover:ring-blue-500 transition-all text-left"
+                        title={`${att.filename} — ${formatSize(att.size)} (klik for stort billede)`}
                       >
                         <div className="relative aspect-square">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -398,11 +410,11 @@ function ExpandedMailDetail({
                             className="absolute inset-0 w-full h-full object-cover"
                           />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                            <Download className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 drop-shadow" />
+                            <ExternalLink className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 drop-shadow" />
                           </div>
                         </div>
                         <div className="p-1.5 text-[11px] text-gray-700 truncate">{att.filename}</div>
-                      </a>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -477,6 +489,52 @@ function ExpandedMailDetail({
           <ExternalLink className="w-3 h-3" /> Åbn i mailmodul
         </Link>
       </div>
+
+      {/* Sprint 8D-1 polish: lightbox modal til billed-thumbnails */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            // Klik udenfor billedet lukker modal
+            if (e.target === e.currentTarget) setLightbox(null)
+          }}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
+            <div className="flex items-center justify-between w-full mb-2 px-1 gap-2">
+              <span className="text-sm text-white/80 truncate max-w-[60%]" title={lightbox.name}>
+                {lightbox.name}
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={lightbox.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-full bg-white/10 hover:bg-white/20"
+                  title="Åbn i ny fane / Download"
+                >
+                  <Download className="w-4 h-4 text-white" />
+                </a>
+                <button
+                  onClick={() => setLightbox(null)}
+                  className="p-1.5 rounded-full bg-white/10 hover:bg-white/20"
+                  title="Luk (Esc)"
+                  aria-label="Luk billede-visning"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightbox.url}
+              alt={lightbox.name}
+              className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain bg-white"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
