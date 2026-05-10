@@ -13,9 +13,30 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Mail, X, AlertTriangle } from 'lucide-react'
+import {
+  Loader2,
+  Mail,
+  X,
+  AlertTriangle,
+  Pencil,
+  FileText,
+  Scissors,
+  Heart,
+  Languages,
+  Sparkles,
+  AlertCircle,
+} from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { sendTaskEmail } from '@/lib/actions/task-mail'
+import {
+  proofreadText,
+  makeProfessional,
+  makeShorter,
+  makeFriendlier,
+  translateText,
+  type AiTextResult,
+  type SupportedLang,
+} from '@/lib/actions/ai-mail-assistant'
 import type { CustomerTaskWithRelations } from '@/types/customer-tasks.types'
 
 interface SendTaskMailDialogProps {
@@ -49,6 +70,11 @@ export function SendTaskMailDialog({
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Sprint 8E-3 Phase 2: AI tekst-værktøjer
+  type AiTool = 'proofread' | 'professional' | 'shorter' | 'friendlier' | 'translate-da' | 'translate-en'
+  const [aiBusy, setAiBusy] = useState<AiTool | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -105,6 +131,52 @@ export function SendTaskMailDialog({
     } finally {
       setSending(false)
     }
+  }
+
+  const handleAiTool = async (tool: AiTool) => {
+    if (!body.trim()) {
+      setAiError('Skriv først noget tekst — så kan AI rette/forbedre den.')
+      return
+    }
+    setAiBusy(tool)
+    setAiError(null)
+
+    let result: AiTextResult
+    try {
+      switch (tool) {
+        case 'proofread':
+          result = await proofreadText(body)
+          break
+        case 'professional':
+          result = await makeProfessional(body)
+          break
+        case 'shorter':
+          result = await makeShorter(body)
+          break
+        case 'friendlier':
+          result = await makeFriendlier(body)
+          break
+        case 'translate-da':
+          result = await translateText(body, 'da' as SupportedLang)
+          break
+        case 'translate-en':
+          result = await translateText(body, 'en' as SupportedLang)
+          break
+        default:
+          result = { ok: false, text: null, error: 'Ukendt handling' }
+      }
+    } catch {
+      setAiError('Uventet fejl — prøv igen.')
+      setAiBusy(null)
+      return
+    }
+
+    if (!result.ok || !result.text) {
+      setAiError(result.error || 'AI ikke tilgængelig — skriv selv.')
+    } else {
+      setBody(result.text.substring(0, MAX_BODY_LEN))
+    }
+    setAiBusy(null)
   }
 
   const mailtoFallbackHref = (() => {
@@ -242,7 +314,10 @@ export function SendTaskMailDialog({
             <textarea
               id="task-mail-body"
               value={body}
-              onChange={(e) => setBody(e.target.value.substring(0, MAX_BODY_LEN))}
+              onChange={(e) => {
+                setBody(e.target.value.substring(0, MAX_BODY_LEN))
+                if (aiError) setAiError(null)
+              }}
               disabled={sending}
               maxLength={MAX_BODY_LEN}
               rows={10}
@@ -252,6 +327,82 @@ export function SendTaskMailDialog({
             <p className="mt-1 text-xs text-gray-400">
               Din signatur tilføjes automatisk når mailen sendes.
             </p>
+
+            {/* Sprint 8E-3 Phase 2: AI tekst-værktøjer (ingen auto-send) */}
+            <div className="mt-2 pt-2 border-t border-dashed border-gray-200 space-y-2">
+              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-purple-500" />
+                AI-værktøjer
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleAiTool('proofread')}
+                  disabled={sending || aiBusy !== null || !body.trim()}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Ret stavefejl, komma og grammatik"
+                >
+                  {aiBusy === 'proofread' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Pencil className="w-3 h-3" />}
+                  Ret tekst
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAiTool('professional')}
+                  disabled={sending || aiBusy !== null || !body.trim()}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Gør teksten mere formel og professionel"
+                >
+                  {aiBusy === 'professional' ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                  Gør professionel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAiTool('shorter')}
+                  disabled={sending || aiBusy !== null || !body.trim()}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Forkort teksten — bevar alle vigtige fakta"
+                >
+                  {aiBusy === 'shorter' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Scissors className="w-3 h-3" />}
+                  Gør kortere
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAiTool('friendlier')}
+                  disabled={sending || aiBusy !== null || !body.trim()}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-pink-50 text-pink-800 border-pink-200 hover:bg-pink-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Gør teksten venligere og mere kundevenlig"
+                >
+                  {aiBusy === 'friendlier' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Heart className="w-3 h-3" />}
+                  Gør venligere
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAiTool('translate-da')}
+                  disabled={sending || aiBusy !== null || !body.trim()}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Oversæt teksten til dansk"
+                >
+                  {aiBusy === 'translate-da' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Languages className="w-3 h-3" />}
+                  Til dansk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAiTool('translate-en')}
+                  disabled={sending || aiBusy !== null || !body.trim()}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Oversæt teksten til engelsk"
+                >
+                  {aiBusy === 'translate-en' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Languages className="w-3 h-3" />}
+                  Til engelsk
+                </button>
+              </div>
+              {aiError && (
+                <p className="text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {aiError}
+                </p>
+              )}
+            </div>
           </div>
 
           {error && (
