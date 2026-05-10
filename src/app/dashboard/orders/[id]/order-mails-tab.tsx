@@ -3,27 +3,68 @@
 /**
  * Sprint 8D-1: Mails-tab på orders/[id]-detalje.
  *
- * Viser alle incoming_emails koblet til denne service_case (via
- * service_case_id). Read-only liste — klik åbner mail i /dashboard/mail.
+ * Liste over alle incoming_emails koblet til service_case (via
+ * service_case_id). Klik på row expander INLINE og viser hele mailen
+ * + vedhæftninger + "Arkivér på sag"-knap. Brugeren forlader IKKE
+ * sagsiden.
  */
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Mail, Paperclip, AlertCircle, CheckCircle2, Clock, XCircle, Loader2, ExternalLink } from 'lucide-react'
+import {
+  Mail,
+  Paperclip,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Loader2,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  FileText,
+  CheckSquare,
+  Image as ImageIcon,
+} from 'lucide-react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
-import { getEmailsForCase, type CaseEmail } from '@/lib/actions/service-cases'
+import {
+  getEmailsForCase,
+  getCaseEmailDetail,
+  archiveEmailAttachmentsToCase,
+  type CaseEmail,
+  type CaseEmailDetail,
+} from '@/lib/actions/service-cases'
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: typeof Mail }> = {
-  linked:       { label: 'Koblet',        cls: 'bg-green-100 text-green-800',  icon: CheckCircle2 },
+  linked:       { label: 'Koblet',         cls: 'bg-green-100 text-green-800', icon: CheckCircle2 },
   unidentified: { label: 'Uidentificeret', cls: 'bg-amber-100 text-amber-800', icon: AlertCircle },
   pending:      { label: 'Afventer',       cls: 'bg-gray-100 text-gray-600',   icon: Clock },
   ignored:      { label: 'Ignoreret',      cls: 'bg-gray-100 text-gray-400',   icon: XCircle },
 }
 
+function isImage(mime: string | null | undefined, filename: string | null | undefined): boolean {
+  if (mime?.startsWith('image/')) return true
+  if (!filename) return false
+  return /\.(jpe?g|png|webp|gif|bmp|svg|heic)$/i.test(filename)
+}
+
+function formatSize(bytes: number | null | undefined): string {
+  if (!bytes) return ''
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`
+  return `${Math.round(bytes / 1024)} KB`
+}
+
 export function OrderMailsTab({ caseId }: { caseId: string }) {
   const [emails, setEmails] = useState<CaseEmail[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const loadEmails = async () => {
+    const data = await getEmailsForCase(caseId)
+    setEmails(data)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -72,43 +113,247 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
         {emails.map((email) => {
           const status = STATUS_CONFIG[email.link_status] || STATUS_CONFIG.pending
           const StatusIcon = status.icon
+          const isExpanded = expandedId === email.id
           return (
-            <Link
-              key={email.id}
-              href={`/dashboard/mail?emailId=${email.id}`}
-              className="flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors group"
-            >
-              <div className="pt-1 w-8 shrink-0">
-                {!email.is_read && (
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-blue-200" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
-                    {email.sender_name || email.sender_email}
-                  </span>
-                  <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
-                    {format(new Date(email.received_at), 'd. MMM yyyy HH:mm', { locale: da })}
-                  </span>
-                </div>
-                <p className={`text-sm truncate ${!email.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
-                  {email.subject || '(Intet emne)'}
-                </p>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.cls}`}>
-                    <StatusIcon className="w-3 h-3" />
-                    {status.label}
-                  </span>
-                  {email.has_attachments && (
-                    <Paperclip className="w-3.5 h-3.5 text-gray-400" />
+            <div key={email.id}>
+              {/* Header row — clickable */}
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : email.id)}
+                className={`w-full text-left flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors ${
+                  isExpanded ? 'bg-blue-50/50' : ''
+                }`}
+              >
+                <div className="pt-1 w-8 shrink-0">
+                  {!email.is_read && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-blue-200" />
                   )}
                 </div>
-              </div>
-              <ExternalLink className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity self-center shrink-0" />
-            </Link>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span className={`text-sm truncate ${!email.is_read ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
+                      {email.sender_name || email.sender_email}
+                    </span>
+                    <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
+                      {format(new Date(email.received_at), 'd. MMM yyyy HH:mm', { locale: da })}
+                    </span>
+                  </div>
+                  <p className={`text-sm truncate ${!email.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                    {email.subject || '(Intet emne)'}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.cls}`}>
+                      <StatusIcon className="w-3 h-3" />
+                      {status.label}
+                    </span>
+                    {email.has_attachments && (
+                      <Paperclip className="w-3.5 h-3.5 text-gray-400" />
+                    )}
+                  </div>
+                </div>
+                {isExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400 shrink-0 self-center" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 self-center" />
+                )}
+              </button>
+
+              {/* Inline mail-detail */}
+              {isExpanded && (
+                <ExpandedMailDetail
+                  emailId={email.id}
+                  caseId={caseId}
+                  onArchived={loadEmails}
+                />
+              )}
+            </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+function ExpandedMailDetail({
+  emailId,
+  caseId,
+  onArchived,
+}: {
+  emailId: string
+  caseId: string
+  onArchived: () => void
+}) {
+  const [detail, setDetail] = useState<CaseEmailDetail | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isArchiving, setIsArchiving] = useState(false)
+  const [archiveResult, setArchiveResult] = useState<{
+    success: boolean
+    msg: string
+  } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setIsLoading(true)
+    setArchiveResult(null)
+    getCaseEmailDetail(emailId, caseId)
+      .then((data) => {
+        if (!cancelled) setDetail(data)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [emailId, caseId])
+
+  const handleArchive = async () => {
+    setIsArchiving(true)
+    setArchiveResult(null)
+    try {
+      const result = await archiveEmailAttachmentsToCase(emailId)
+      if (result.success) {
+        const archived = result.archivedCount ?? 0
+        const skipped = result.skippedCount ?? 0
+        setArchiveResult({
+          success: true,
+          msg: archived > 0
+            ? `Arkiveret ${archived} fil${archived === 1 ? '' : 'er'}${skipped > 0 ? ` (${skipped} allerede arkiveret)` : ''}`
+            : `Allerede arkiveret (${skipped} fil${skipped === 1 ? '' : 'er'})`,
+        })
+        onArchived()
+      } else if (result.needsDownload) {
+        setArchiveResult({
+          success: false,
+          msg: 'Vedhæftninger ikke downloadet endnu — åbn mailen i mailmodulet og klik "Download vedhæftninger"',
+        })
+      } else {
+        setArchiveResult({ success: false, msg: result.error || 'Ukendt fejl' })
+      }
+    } catch {
+      setArchiveResult({ success: false, msg: 'Uventet fejl' })
+    } finally {
+      setIsArchiving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="bg-gray-50 px-12 py-6 flex items-center justify-center">
+        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  if (!detail) {
+    return (
+      <div className="bg-gray-50 px-12 py-6 text-center text-sm text-gray-500">
+        Kunne ikke hente mail-indhold
+      </div>
+    )
+  }
+
+  const attachments = detail.attachment_urls || []
+  const downloadedCount = attachments.filter((a) => a.url && a.storagePath).length
+
+  return (
+    <div className="bg-gray-50 border-t p-5 space-y-4">
+      {/* Meta */}
+      <div className="text-xs text-gray-600 space-y-0.5">
+        <div><span className="text-gray-500">Fra:</span> <span className="font-medium">{detail.sender_name || detail.sender_email}</span> &lt;{detail.sender_email}&gt;</div>
+        {detail.to_email && (
+          <div><span className="text-gray-500">Til:</span> {detail.to_email}</div>
+        )}
+        <div><span className="text-gray-500">Modtaget:</span> {format(new Date(detail.received_at), 'd. MMM yyyy HH:mm', { locale: da })}</div>
+      </div>
+
+      {/* Body */}
+      <div className="bg-white border rounded-md p-4 max-h-[500px] overflow-y-auto">
+        {detail.body_html ? (
+          <div
+            className="prose prose-sm max-w-none text-sm"
+            dangerouslySetInnerHTML={{ __html: detail.body_html }}
+          />
+        ) : detail.body_text ? (
+          <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">{detail.body_text}</pre>
+        ) : (
+          <p className="text-sm text-gray-400 italic">{detail.body_preview || 'Ingen brødtekst'}</p>
+        )}
+      </div>
+
+      {/* Attachments */}
+      {attachments.length > 0 && (
+        <div className="bg-white border rounded-md p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Paperclip className="w-4 h-4 text-gray-500" />
+              <h4 className="font-semibold text-sm">Vedhæftninger ({attachments.length})</h4>
+            </div>
+            <button
+              onClick={handleArchive}
+              disabled={isArchiving || downloadedCount === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              title={downloadedCount === 0 ? 'Download vedhæftninger først via mailmodulet' : 'Opretter rows i customer_documents'}
+            >
+              {isArchiving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CheckSquare className="w-3.5 h-3.5" />
+              )}
+              Arkivér på sag
+            </button>
+          </div>
+          <div className="divide-y">
+            {attachments.map((att, idx) => {
+              const isImg = isImage(att.contentType, att.filename)
+              const isDownloaded = !!(att.url && att.storagePath)
+              return (
+                <div key={`${att.filename}-${idx}`} className="flex items-center justify-between gap-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isImg ? (
+                      <ImageIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                    ) : (
+                      <FileText className="w-4 h-4 text-gray-500 shrink-0" />
+                    )}
+                    <span className="text-sm truncate">{att.filename}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{formatSize(att.size)}</span>
+                    {!isDownloaded && (
+                      <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
+                        Ikke downloadet
+                      </span>
+                    )}
+                  </div>
+                  {isDownloaded && att.url && (
+                    <a
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 inline-flex items-center gap-1 text-xs text-gray-600 hover:text-blue-600"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Åbn
+                    </a>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {archiveResult && (
+            <div className={`mt-2 text-xs px-2 py-1.5 rounded ${
+              archiveResult.success ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'
+            }`}>
+              {archiveResult.msg}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sekundær link til fuld mailmodul */}
+      <div className="text-right">
+        <Link
+          href={`/dashboard/mail?emailId=${emailId}`}
+          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600"
+        >
+          <ExternalLink className="w-3 h-3" /> Åbn i mailmodul
+        </Link>
       </div>
     </div>
   )

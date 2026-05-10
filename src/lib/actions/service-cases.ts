@@ -771,6 +771,192 @@ export interface CaseDocument {
   created_at: string
 }
 
+export interface CaseEmailDetail extends CaseEmail {
+  body_html: string | null
+  body_text: string | null
+  body_preview: string | null
+  attachment_urls: Array<{
+    filename: string
+    contentType?: string
+    size: number
+    url?: string
+    storagePath?: string
+  }>
+  customer_id: string | null
+  service_case_id: string | null
+}
+
+export async function getCaseEmailDetail(
+  emailId: string,
+  serviceCaseId: string
+): Promise<CaseEmailDetail | null> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
+      return null
+    }
+
+    const { data, error } = await supabase
+      .from('incoming_emails')
+      .select(`
+        id, subject, sender_email, sender_name, to_email, link_status,
+        has_attachments, is_read, received_at, conversation_id,
+        body_html, body_text, body_preview, attachment_urls,
+        customer_id, service_case_id
+      `)
+      .eq('id', emailId)
+      .eq('service_case_id', serviceCaseId)
+      .maybeSingle()
+
+    if (error || !data) {
+      logger.error('getCaseEmailDetail failed', {
+        error,
+        entityId: emailId,
+        metadata: { serviceCaseId },
+      })
+      return null
+    }
+
+    return data as CaseEmailDetail
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Sprint 8D-1: arkiver attachments fra én mail til sagens dokumentarkiv.
+ * Forudsætter at attachments allerede er downloadet (attachment_urls har
+ * 'url' og 'storagePath' sat). Hvis ikke, returneres { needsDownload: true }
+ * og brugeren skal trigge "Download vedhæftninger" på selve mailen først.
+ *
+ * Idempotent: skipper hvis customer_documents allerede har row med samme
+ * storage_path eller (source_email_id + file_name).
+ */
+export async function archiveEmailAttachmentsToCase(
+  emailId: string
+): Promise<{
+  success: boolean
+  archivedCount?: number
+  skippedCount?: number
+  needsDownload?: boolean
+  error?: string
+}> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      return { success: false, error: 'Manglende tilladelse: cases.edit' }
+    }
+
+    const { data: email, error: fetchErr } = await supabase
+      .from('incoming_emails')
+      .select('id, customer_id, service_case_id, attachment_urls, has_attachments')
+      .eq('id', emailId)
+      .maybeSingle()
+
+    if (fetchErr || !email) {
+      return { success: false, error: 'Mail ikke fundet' }
+    }
+
+    if (!email.customer_id) {
+      return { success: false, error: 'Mail er ikke koblet til kunde' }
+    }
+    if (!email.service_case_id) {
+      return { success: false, error: 'Mail er ikke koblet til sag' }
+    }
+
+    const attachments = (email.attachment_urls || []) as Array<{
+      filename: string
+      contentType?: string
+      size: number
+      url?: string
+      storagePath?: string
+    }>
+
+    // Filtrér til attachments der faktisk har storage URL (downloadet)
+    const ready = attachments.filter((a) => a.url && a.storagePath)
+
+    if (attachments.length === 0) {
+      return { success: true, archivedCount: 0, skippedCount: 0 }
+    }
+
+    if (ready.length === 0) {
+      // Alle attachments mangler storage — bruger skal trigge download først
+      return {
+        success: false,
+        needsDownload: true,
+        error: 'Vedhæftninger er ikke downloadet endnu. Klik "Download vedhæftninger" på selve mailen først.',
+      }
+    }
+
+    let archived = 0
+    let skipped = 0
+
+    for (const att of ready) {
+      // Idempotent: tjek om dokumentet allerede er arkiveret
+      const { data: existing } = await supabase
+        .from('customer_documents')
+        .select('id')
+        .eq('storage_path', att.storagePath!)
+        .maybeSingle()
+
+      if (existing) {
+        skipped++
+        continue
+      }
+
+      const description = JSON.stringify({
+        type: 'email_attachment',
+        archived_via: 'order_detail',
+      })
+
+      const { error: insertErr } = await supabase
+        .from('customer_documents')
+        .insert({
+          customer_id: email.customer_id,
+          service_case_id: email.service_case_id,
+          source_email_id: email.id,
+          title: att.filename,
+          description,
+          document_type: 'other',
+          file_url: att.url!,
+          storage_path: att.storagePath!,
+          file_name: att.filename,
+          mime_type: att.contentType || 'application/octet-stream',
+          file_size: att.size || null,
+          shared_by: null,
+        })
+
+      if (insertErr) {
+        logger.error('archiveEmailAttachmentsToCase: insert failed', {
+          error: insertErr,
+          userId,
+          metadata: { emailId, filename: att.filename },
+        })
+      } else {
+        archived++
+      }
+    }
+
+    if (archived > 0) {
+      revalidatePath(`/dashboard/orders/${email.service_case_id}`)
+      revalidatePath(`/dashboard/customers/${email.customer_id}`)
+    }
+
+    logger.info('Archived email attachments to case', {
+      userId,
+      action: 'archiveEmailAttachmentsToCase',
+      entity: 'service_cases',
+      entityId: email.service_case_id,
+      metadata: { emailId, archived, skipped, totalAttachments: attachments.length },
+    })
+
+    return { success: true, archivedCount: archived, skippedCount: skipped }
+  } catch (err) {
+    logger.error('archiveEmailAttachmentsToCase failed', { error: err })
+    return { success: false, error: 'Uventet fejl' }
+  }
+}
+
 export async function getDocumentsForCase(
   serviceCaseId: string
 ): Promise<CaseDocument[]> {
