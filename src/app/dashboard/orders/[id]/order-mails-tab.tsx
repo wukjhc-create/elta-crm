@@ -36,6 +36,7 @@ import {
   type CaseEmail,
   type CaseEmailDetail,
 } from '@/lib/actions/service-cases'
+import { backfillEmailAttachments } from '@/lib/actions/incoming-emails'
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: typeof Mail }> = {
   linked:       { label: 'Koblet',         cls: 'bg-green-100 text-green-800', icon: CheckCircle2 },
@@ -185,10 +186,16 @@ function ExpandedMailDetail({
   const [detail, setDetail] = useState<CaseEmailDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isArchiving, setIsArchiving] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
   const [archiveResult, setArchiveResult] = useState<{
     success: boolean
     msg: string
   } | null>(null)
+
+  const refetchDetail = async () => {
+    const data = await getCaseEmailDetail(emailId, caseId)
+    setDetail(data)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -205,6 +212,36 @@ function ExpandedMailDetail({
       cancelled = true
     }
   }, [emailId, caseId])
+
+  // Sprint 8D-1: kombineret "Download fra Graph + arkivér på sag" i ét klik.
+  // Bruger eksisterende backfillEmailAttachments som henter contentBytes
+  // fra Graph, uploader til Storage, opdaterer incoming_emails.attachment_urls
+  // OG kalder processEmailAttachments → archiveAttachmentsToCustomerDocuments
+  // (commit 750570e). Da mailen allerede har service_case_id sat, oprettes
+  // customer_documents-rows automatisk med korrekt sag-tilknytning.
+  const handleDownloadAndArchive = async () => {
+    setIsDownloading(true)
+    setArchiveResult(null)
+    try {
+      const result = await backfillEmailAttachments(emailId)
+      if (result.success) {
+        await refetchDetail()
+        setArchiveResult({
+          success: true,
+          msg: result.count > 0
+            ? `Downloadet ${result.count} fil${result.count === 1 ? '' : 'er'} og arkiveret på sagen`
+            : 'Ingen filer at downloade',
+        })
+        onArchived()
+      } else {
+        setArchiveResult({ success: false, msg: result.error || 'Download fejlede' })
+      }
+    } catch {
+      setArchiveResult({ success: false, msg: 'Uventet fejl ved download' })
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   const handleArchive = async () => {
     setIsArchiving(true)
@@ -283,24 +320,47 @@ function ExpandedMailDetail({
       {/* Attachments */}
       {attachments.length > 0 && (
         <div className="bg-white border rounded-md p-3">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Paperclip className="w-4 h-4 text-gray-500" />
               <h4 className="font-semibold text-sm">Vedhæftninger ({attachments.length})</h4>
             </div>
-            <button
-              onClick={handleArchive}
-              disabled={isArchiving || downloadedCount === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-              title={downloadedCount === 0 ? 'Download vedhæftninger først via mailmodulet' : 'Opretter rows i customer_documents'}
-            >
-              {isArchiving ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <CheckSquare className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2">
+              {/* Sprint 8D-1: hvis attachments mangler download → vis kombineret
+                  download+arkiv-knap (Graph fetch → Storage → customer_documents) */}
+              {downloadedCount < attachments.length && (
+                <button
+                  onClick={handleDownloadAndArchive}
+                  disabled={isDownloading || isArchiving}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Henter vedhæftninger fra Outlook og arkiverer dem på sagen i ét klik"
+                >
+                  {isDownloading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  Download og arkivér
+                </button>
               )}
-              Arkivér på sag
-            </button>
+              {/* Hvis nogle attachments allerede er downloadet men måske ikke arkiveret —
+                  re-arkivér for at sikre customer_documents er up-to-date (idempotent) */}
+              {downloadedCount > 0 && (
+                <button
+                  onClick={handleArchive}
+                  disabled={isArchiving || isDownloading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Sikrer at downloadede vedhæftninger findes i customer_documents (idempotent)"
+                >
+                  {isArchiving ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckSquare className="w-3.5 h-3.5" />
+                  )}
+                  Arkivér på sag
+                </button>
+              )}
+            </div>
           </div>
           {/* Sprint 8D-1 polish: split images (thumbnail-grid) fra files (rows) */}
           {(() => {
