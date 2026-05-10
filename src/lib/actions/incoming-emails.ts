@@ -67,7 +67,9 @@ export async function getIncomingEmails(options?: {
   } else if (filter === 'ignored') {
     query = query.eq('link_status', 'ignored')
   } else if (filter === 'ao_matches') {
-    query = query.eq('has_ao_matches', true)
+    // Skip noise i AO-matches også — undgå at marketing-mails om AO
+    // dukker op selvom de matcher et AO-produkt-keyword
+    query = query.eq('has_ao_matches', true).neq('link_status', 'ignored')
   } else if (filter === 'requires_response') {
     // Sprint 8E-1A: filter til mails der kræver svar.
     // Live-beregnet: hent IDs fra helper og filtrér via .in()
@@ -79,6 +81,10 @@ export async function getIncomingEmails(options?: {
       return { data: [], count: 0 }
     }
     query = query.in('id', ids)
+  } else if (filter === 'all') {
+    // Sprint 8E noise-cleanup: 'Alle' viser ALDRIG ignored/noise.
+    // Brugeren skal aktivt vælge 'Ignorerede'-tab (debug) for at se dem.
+    query = query.neq('link_status', 'ignored')
   }
 
   // Apply read/unread filter
@@ -151,14 +157,17 @@ export async function getIncomingEmailStats(): Promise<{
 }> {
   const supabase = await createClient()
 
+  // Sprint 8E noise-cleanup: total + unread ekskluderer ignored/noise
+  // så CRM-tæller afspejler den arbejds-relevante indbakke.
+  // ignored-counter beholder rå count så debug-tab viser præcis tal.
   const [totalRes, unreadRes, unidentifiedRes, linkedRes, pendingRes, ignoredRes, aoRes] = await Promise.all([
-    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', false),
-    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_read', false).eq('is_archived', false),
+    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', false).neq('link_status', 'ignored'),
+    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_read', false).eq('is_archived', false).neq('link_status', 'ignored'),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'unidentified').eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'linked').eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'pending').eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'ignored').eq('is_archived', false),
-    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('has_ao_matches', true).eq('is_archived', false),
+    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('has_ao_matches', true).eq('is_archived', false).neq('link_status', 'ignored'),
   ])
 
   // Sprint 8E-1A: requires_response counter (live-beregnet via helper)

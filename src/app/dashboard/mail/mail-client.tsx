@@ -56,14 +56,22 @@ import type {
 
 type FilterTab = 'all' | EmailLinkStatus | 'requires_response'
 
-const FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[] = [
+// Sprint 8E noise-cleanup: 'ignored'-tab er KUN synlig i debug-mode
+// (URL ?debug=1). Til daglig brug må støj/marketing/social-mails ikke
+// fylde i CRM-overblikket. De ligger stadig i DB og kan tilgås via
+// debug-tab hvis vi skal finde fejlfiltrerede mails.
+const BASE_FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[] = [
   { value: 'all', label: 'Alle', icon: Mail },
   // Sprint 8E-1A: ny "Kræver svar"-tab
   { value: 'requires_response', label: 'Kræver svar', icon: AlertCircle },
   { value: 'unidentified', label: 'Uidentificerede', icon: AlertCircle },
   { value: 'linked', label: 'Koblede', icon: CheckCircle2 },
   { value: 'pending', label: 'Afventer', icon: Clock },
-  { value: 'ignored', label: 'Ignorerede', icon: XCircle },
+]
+
+const DEBUG_FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[] = [
+  ...BASE_FILTER_TABS,
+  { value: 'ignored', label: 'Ignorerede (debug)', icon: XCircle },
 ]
 
 // =====================================================
@@ -136,6 +144,10 @@ export function MailClient() {
   // URL-driven state
   const currentFilter = (searchParams.get('filter') as FilterTab) || 'all'
   const currentPage = parseInt(searchParams.get('page') || '1')
+  // Sprint 8E noise-cleanup: ?debug=1 viser 'Ignorerede'-tab + tillader
+  // direkte navigation til ignored-filter. Uden debug skjules tabben helt.
+  const isDebugMode = searchParams.get('debug') === '1' || showDebug
+  const FILTER_TABS = isDebugMode ? DEBUG_FILTER_TABS : BASE_FILTER_TABS
 
   // =====================================================
   // Data loading
