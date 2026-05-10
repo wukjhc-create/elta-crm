@@ -109,6 +109,8 @@ export function MailClient() {
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
   const [emailLeadMap, setEmailLeadMap] = useState<Record<string, { leadId: string; status: string }>>({})
+  // Sprint 8E-1A: requires_response status pr. email i nuværende side
+  const [requiresResponseMap, setRequiresResponseMap] = useState<Record<string, { requiresResponse: boolean; ageHours: number | null }>>({})
 
   // Search + filter state
   const [search, setSearch] = useState(searchParams.get('search') || '')
@@ -178,6 +180,21 @@ export function MailClient() {
       if (emailIds.length > 0) {
         const leadMap = await getLeadsForEmails(emailIds)
         setEmailLeadMap(leadMap)
+
+        // Sprint 8E-1A: hent requires_response-status pr. email
+        try {
+          const { getRequiresResponseStatus } = await import('@/lib/actions/email-response-status')
+          const respMap = await getRequiresResponseStatus(emailIds)
+          const compact: Record<string, { requiresResponse: boolean; ageHours: number | null }> = {}
+          for (const [id, info] of Object.entries(respMap)) {
+            if (info.requiresResponse) {
+              compact[id] = { requiresResponse: true, ageHours: info.ageHours }
+            }
+          }
+          setRequiresResponseMap(compact)
+        } catch { /* non-critical */ }
+      } else {
+        setRequiresResponseMap({})
       }
 
       return emailResult.data
@@ -945,6 +962,7 @@ export function MailClient() {
           readFilter={readFilter}
           sortOrder={sortOrder}
           emailLeadMap={emailLeadMap}
+          requiresResponseMap={requiresResponseMap}
           onSelectEmail={handleSelectEmail}
           onSearchChange={setSearch}
           onSearchSubmit={handleSearchSubmit}

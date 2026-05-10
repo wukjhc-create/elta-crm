@@ -32,12 +32,39 @@ interface MailListProps {
   readFilter: ReadFilter
   sortOrder: SortOrder
   emailLeadMap: Record<string, { leadId: string; status: string }>
+  /** Sprint 8E-1A: hvilke mails kræver svar + alder i timer */
+  requiresResponseMap?: Record<string, { requiresResponse: boolean; ageHours: number | null }>
   onSelectEmail: (email: IncomingEmailWithCustomer) => void
   onSearchChange: (value: string) => void
   onSearchSubmit: () => void
   onReadFilterChange: (filter: ReadFilter) => void
   onSortOrderChange: (order: SortOrder) => void
   onToggleReadStatus: (id: string, currentlyRead: boolean) => void
+}
+
+// Sprint 8E-1A: format age + farve for "kræver svar"-badge
+function formatRequiresResponseBadge(ageHours: number | null): { label: string; cls: string } {
+  if (ageHours == null) {
+    return { label: 'Kræver svar', cls: 'bg-yellow-100 text-yellow-800 border-yellow-300' }
+  }
+  if (ageHours < 4) {
+    const m = Math.max(1, Math.floor(ageHours * 60))
+    return {
+      label: `Ubesvaret ${m} min`,
+      cls: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    }
+  }
+  if (ageHours < 24) {
+    return {
+      label: `Ubesvaret ${Math.floor(ageHours)} t`,
+      cls: 'bg-orange-100 text-orange-800 border-orange-300',
+    }
+  }
+  const days = Math.floor(ageHours / 24)
+  return {
+    label: `Ubesvaret ${days} ${days === 1 ? 'dag' : 'dage'}`,
+    cls: 'bg-red-100 text-red-800 border-red-300',
+  }
 }
 
 // =====================================================
@@ -100,6 +127,7 @@ export function MailList({
   readFilter,
   sortOrder,
   emailLeadMap,
+  requiresResponseMap = {},
   onSelectEmail,
   onSearchChange,
   onSearchSubmit,
@@ -275,7 +303,22 @@ export function MailList({
                           {email.body_preview}
                         </p>
                         {/* Bottom row: badges + icons */}
-                        <div className="flex items-center gap-1.5 mt-1.5">
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {/* Sprint 8E-1A: kræver svar-badge */}
+                          {requiresResponseMap[email.id]?.requiresResponse && (() => {
+                            const { label, cls } = formatRequiresResponseBadge(
+                              requiresResponseMap[email.id].ageHours
+                            )
+                            return (
+                              <span
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${cls}`}
+                                title="Denne mail kræver et svar fra os"
+                              >
+                                <AlertCircle className="w-3 h-3" />
+                                {label}
+                              </span>
+                            )
+                          })()}
                           {mailboxBadge(email)}
                           {statusBadge(email.link_status)}
                           {emailLeadMap[email.id] && (

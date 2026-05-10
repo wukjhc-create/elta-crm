@@ -38,6 +38,7 @@ import {
   type CaseEmailDetail,
 } from '@/lib/actions/service-cases'
 import { backfillEmailAttachments } from '@/lib/actions/incoming-emails'
+import { getRequiresResponseStatus } from '@/lib/actions/email-response-status'
 import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: typeof Mail }> = {
@@ -59,22 +60,61 @@ function formatSize(bytes: number | null | undefined): string {
   return `${Math.round(bytes / 1024)} KB`
 }
 
+// Sprint 8E-1A: badge-formatter for "kræver svar" på sagsside
+function rrBadge(ageHours: number | null): { label: string; cls: string } {
+  if (ageHours == null) return { label: 'Kræver svar', cls: 'bg-yellow-100 text-yellow-800 border-yellow-300' }
+  if (ageHours < 4) {
+    const m = Math.max(1, Math.floor(ageHours * 60))
+    return { label: `Ubesvaret ${m} min`, cls: 'bg-yellow-100 text-yellow-800 border-yellow-300' }
+  }
+  if (ageHours < 24) {
+    return { label: `Ubesvaret ${Math.floor(ageHours)} t`, cls: 'bg-orange-100 text-orange-800 border-orange-300' }
+  }
+  const days = Math.floor(ageHours / 24)
+  return { label: `Ubesvaret ${days} ${days === 1 ? 'dag' : 'dage'}`, cls: 'bg-red-100 text-red-800 border-red-300' }
+}
+
 export function OrderMailsTab({ caseId }: { caseId: string }) {
   const [emails, setEmails] = useState<CaseEmail[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Sprint 8E-1A: requires_response status pr. mail
+  const [requiresResponseMap, setRequiresResponseMap] = useState<Record<string, { requiresResponse: boolean; ageHours: number | null }>>({})
+
+  const fetchRequiresResponse = async (emailList: CaseEmail[]) => {
+    if (emailList.length === 0) {
+      setRequiresResponseMap({})
+      return
+    }
+    try {
+      const map = await getRequiresResponseStatus(emailList.map((e) => e.id))
+      const compact: Record<string, { requiresResponse: boolean; ageHours: number | null }> = {}
+      for (const [id, info] of Object.entries(map)) {
+        if (info.requiresResponse) {
+          compact[id] = { requiresResponse: true, ageHours: info.ageHours }
+        }
+      }
+      setRequiresResponseMap(compact)
+    } catch {
+      /* non-critical */
+    }
+  }
 
   const loadEmails = async () => {
     const data = await getEmailsForCase(caseId)
     setEmails(data)
+    await fetchRequiresResponse(data)
   }
 
   useEffect(() => {
     let cancelled = false
     setIsLoading(true)
     getEmailsForCase(caseId)
-      .then((data) => {
-        if (!cancelled) setEmails(data)
+      .then(async (data) => {
+        if (!cancelled) {
+          setEmails(data)
+          await fetchRequiresResponse(data)
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -82,7 +122,10 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId])
+
+  const requiresResponseCount = Object.keys(requiresResponseMap).length
 
   if (isLoading) {
     return (
@@ -111,6 +154,16 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
         <Mail className="w-4 h-4 text-blue-600" />
         <h3 className="font-semibold text-sm">Mails</h3>
         <span className="text-xs text-gray-400 ml-1">({emails.length})</span>
+        {/* Sprint 8E-1A: counter for ubesvarede */}
+        {requiresResponseCount > 0 && (
+          <span
+            className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800"
+            title="Antal mails der kræver svar"
+          >
+            <AlertCircle className="w-3 h-3" />
+            {requiresResponseCount} kræver svar
+          </span>
+        )}
       </div>
       <div className="divide-y">
         {emails.map((email) => {
@@ -143,7 +196,20 @@ export function OrderMailsTab({ caseId }: { caseId: string }) {
                   <p className={`text-sm truncate ${!email.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
                     {email.subject || '(Intet emne)'}
                   </p>
-                  <div className="flex items-center gap-1.5 mt-1.5">
+                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    {/* Sprint 8E-1A: kræver svar-badge */}
+                    {requiresResponseMap[email.id]?.requiresResponse && (() => {
+                      const { label, cls } = rrBadge(requiresResponseMap[email.id].ageHours)
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cls}`}
+                          title="Denne mail kræver et svar fra os"
+                        >
+                          <AlertCircle className="w-3 h-3" />
+                          {label}
+                        </span>
+                      )
+                    })()}
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.cls}`}>
                       <StatusIcon className="w-3 h-3" />
                       {status.label}
