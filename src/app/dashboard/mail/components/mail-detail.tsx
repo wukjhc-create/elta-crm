@@ -23,6 +23,7 @@ import {
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
 import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars, linkEmailToCase } from '@/lib/actions/incoming-emails'
 import { getOpenAutoTasksForEmail } from '@/lib/actions/auto-tasks'
+import { AIMailAssistantPanel } from '@/components/mail/ai-mail-assistant-panel'
 import { quickCreateCustomerFromEmail } from '@/lib/actions/incoming-emails'
 import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { parseCustomerFromEmail } from '@/lib/utils/email-parser'
@@ -468,6 +469,35 @@ export function MailDetail({
             </button>
           )}
         </div>
+
+        {/* ========== Sprint 8E-3: AI mail-assistent ========== */}
+        {/* Bevarer Quick Reply ovenfor — AI-panelet er en ekstra mulighed.
+            AI sender ALDRIG selv: Send-knappen kalder sendQuickReply via
+            samme flow som Quick Reply-knapperne. */}
+        <AIMailAssistantPanel
+          key={email.id}
+          emailId={email.id}
+          helperText="AI skriver kun kladde — du trykker Send"
+          onSend={async (text) => {
+            setIsSendingReply(text)
+            setReplyMsg(null)
+            try {
+              const result = await sendQuickReply(email.id, text)
+              if (result.success) {
+                setReplyMsg('Svar sendt!')
+                return { success: true }
+              }
+              setReplyMsg(`Fejl: ${result.error || 'Ukendt'}`)
+              return { success: false, error: result.error }
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Fejl ved afsendelse'
+              setReplyMsg(`Fejl: ${msg}`)
+              return { success: false, error: msg }
+            } finally {
+              setIsSendingReply(null)
+            }
+          }}
+        />
 
         {/* ========== SUGGESTIONS — helpful hints, user always decides ========== */}
         {email.link_status !== 'linked' && (detectedCustomer || suggestions.length > 0) && (
