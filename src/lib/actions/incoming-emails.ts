@@ -23,7 +23,7 @@ import type {
 // =====================================================
 
 export async function getIncomingEmails(options?: {
-  filter?: EmailLinkStatus | 'all' | 'ao_matches'
+  filter?: EmailLinkStatus | 'all' | 'ao_matches' | 'requires_response'
   readFilter?: 'all' | 'read' | 'unread'
   sortOrder?: 'newest' | 'oldest'
   search?: string
@@ -68,6 +68,17 @@ export async function getIncomingEmails(options?: {
     query = query.eq('link_status', 'ignored')
   } else if (filter === 'ao_matches') {
     query = query.eq('has_ao_matches', true)
+  } else if (filter === 'requires_response') {
+    // Sprint 8E-1A: filter til mails der kræver svar.
+    // Live-beregnet: hent IDs fra helper og filtrér via .in()
+    const { getRequiresResponseEmailIds } = await import(
+      '@/lib/actions/email-response-status'
+    )
+    const ids = await getRequiresResponseEmailIds()
+    if (ids.length === 0) {
+      return { data: [], count: 0 }
+    }
+    query = query.in('id', ids)
   }
 
   // Apply read/unread filter
@@ -136,6 +147,7 @@ export async function getIncomingEmailStats(): Promise<{
   pending: number
   ignored: number
   aoMatches: number
+  requiresResponse: number
 }> {
   const supabase = await createClient()
 
@@ -149,6 +161,17 @@ export async function getIncomingEmailStats(): Promise<{
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('has_ao_matches', true).eq('is_archived', false),
   ])
 
+  // Sprint 8E-1A: requires_response counter (live-beregnet via helper)
+  let requiresResponse = 0
+  try {
+    const { countRequiresResponseEmails } = await import(
+      '@/lib/actions/email-response-status'
+    )
+    requiresResponse = await countRequiresResponseEmails()
+  } catch {
+    // Non-critical — counter viser bare 0 ved fejl
+  }
+
   return {
     total: totalRes.count || 0,
     unread: unreadRes.count || 0,
@@ -157,6 +180,7 @@ export async function getIncomingEmailStats(): Promise<{
     pending: pendingRes.count || 0,
     ignored: ignoredRes.count || 0,
     aoMatches: aoRes.count || 0,
+    requiresResponse,
   }
 }
 
