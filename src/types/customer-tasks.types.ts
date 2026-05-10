@@ -18,9 +18,17 @@ export interface CustomerTask {
   reminder_at: string | null
   snoozed_until: string | null
   completed_at: string | null
-  created_by: string
+  /** Sprint 8E-1B: nullable for system-genererede tasks (cron) */
+  created_by: string | null
   created_at: string
   updated_at: string
+  /** Sprint 8D-1: kobling til service case (sag) */
+  service_case_id?: string | null
+  /** Sprint 8E-1B: source-tracking for auto-genererede tasks */
+  source_email_id?: string | null
+  source_conversation_id?: string | null
+  auto_generated?: boolean
+  auto_rule?: string | null
 }
 
 export interface CustomerTaskWithRelations extends CustomerTask {

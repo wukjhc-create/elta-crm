@@ -271,7 +271,7 @@ export function TasksPageClient({
           reminder_at: input.reminder_at || null,
           snoozed_until: null,
           completed_at: null,
-          created_by: '',
+          created_by: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           customer: customers.find((c) => c.id === input.customer_id) ? { ...customers.find((c) => c.id === input.customer_id)! } : null,
@@ -638,9 +638,19 @@ function TaskRow({
 
       {/* Title + description */}
       <div className="min-w-0 cursor-pointer" onClick={onEdit}>
-        <p className={`text-sm font-medium truncate ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-          {task.title}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className={`text-sm font-medium truncate ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+            {task.title}
+          </p>
+          {task.auto_generated && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 border border-orange-300 shrink-0"
+              title={`Auto-oprettet af systemet${task.auto_rule ? ` (${task.auto_rule})` : ''}`}
+            >
+              Auto
+            </span>
+          )}
+        </div>
         {task.offer && (
           <Link
             href={`/dashboard/offers/${task.offer.id}`}

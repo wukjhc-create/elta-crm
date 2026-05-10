@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
 import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars, linkEmailToCase } from '@/lib/actions/incoming-emails'
+import { getOpenAutoTasksForEmail } from '@/lib/actions/auto-tasks'
 import { quickCreateCustomerFromEmail } from '@/lib/actions/incoming-emails'
 import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { parseCustomerFromEmail } from '@/lib/utils/email-parser'
@@ -129,6 +130,9 @@ export function MailDetail({
   const [detectedPhone, setDetectedPhone] = useState<string | null>(null)
   const [detectedOrderId, setDetectedOrderId] = useState<string | null>(null)
 
+  // Sprint 8E-1B: åbne auto-tasks for denne mail/tråd
+  const [openAutoTasks, setOpenAutoTasks] = useState<Array<{ id: string; title: string; priority: string; created_at: string }>>([])
+
   const attachments = (email.attachment_urls || []) as Array<{
     url?: string; filename: string; contentType?: string; size: number; storagePath?: string
   }>
@@ -180,7 +184,13 @@ export function MailDetail({
         })
         .catch(() => { /* Non-critical — suggestions won't show */ })
     }
-  }, [email.id, email.link_status, email.customer_id])
+
+    // Sprint 8E-1B: hent åbne auto-tasks for denne mail/tråd
+    setOpenAutoTasks([])
+    getOpenAutoTasksForEmail(email.id, email.conversation_id || null)
+      .then((tasks) => setOpenAutoTasks(tasks))
+      .catch(() => { /* Non-critical */ })
+  }, [email.id, email.link_status, email.customer_id, email.conversation_id])
 
 
   const handleQuickReply = async (template: string) => {
@@ -298,6 +308,26 @@ export function MailDetail({
             customerId={email.customers.id}
             currentCaseId={email.service_case_id || null}
           />
+        )}
+
+        {/* Sprint 8E-1B: åben auto-task for denne tråd */}
+        {openAutoTasks.length > 0 && (
+          <div className="flex items-center gap-2 text-sm bg-orange-50 border border-orange-200 p-2.5 rounded-md">
+            <AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />
+            <span className="text-orange-800">
+              {openAutoTasks.length === 1 ? (
+                <>Auto-opgave oprettet: <strong>{openAutoTasks[0].title}</strong></>
+              ) : (
+                <>{openAutoTasks.length} åbne auto-opgaver for denne tråd</>
+              )}
+            </span>
+            <a
+              href={`/dashboard/tasks?source_email_id=${email.id}`}
+              className="ml-auto text-orange-700 hover:underline inline-flex items-center gap-1 text-xs font-medium"
+            >
+              Se opgave <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
         )}
 
         {/* Portal */}
