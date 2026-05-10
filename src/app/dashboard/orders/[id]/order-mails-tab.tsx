@@ -302,40 +302,101 @@ function ExpandedMailDetail({
               Arkivér på sag
             </button>
           </div>
-          <div className="divide-y">
-            {attachments.map((att, idx) => {
-              const isImg = isImage(att.contentType, att.filename)
-              const isDownloaded = !!(att.url && att.storagePath)
-              return (
-                <div key={`${att.filename}-${idx}`} className="flex items-center justify-between gap-3 py-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {isImg ? (
-                      <ImageIcon className="w-4 h-4 text-blue-500 shrink-0" />
-                    ) : (
-                      <FileText className="w-4 h-4 text-gray-500 shrink-0" />
-                    )}
-                    <span className="text-sm truncate">{att.filename}</span>
-                    <span className="text-xs text-gray-400 shrink-0">{formatSize(att.size)}</span>
-                    {!isDownloaded && (
-                      <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
-                        Ikke downloadet
-                      </span>
-                    )}
+          {/* Sprint 8D-1 polish: split images (thumbnail-grid) fra files (rows) */}
+          {(() => {
+            const imageDownloaded = attachments.filter(
+              (a) => isImage(a.contentType, a.filename) && a.url && a.storagePath
+            )
+            const imageMissing = attachments.filter(
+              (a) => isImage(a.contentType, a.filename) && (!a.url || !a.storagePath)
+            )
+            const nonImages = attachments.filter(
+              (a) => !isImage(a.contentType, a.filename)
+            )
+
+            return (
+              <>
+                {/* Billed-thumbnails grid */}
+                {imageDownloaded.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-3">
+                    {imageDownloaded.map((att, idx) => (
+                      <a
+                        key={`img-${att.filename}-${idx}`}
+                        href={att.url!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group relative block rounded-lg overflow-hidden border bg-gray-50 hover:ring-2 hover:ring-blue-500 transition-all"
+                        title={`${att.filename} — ${formatSize(att.size)}`}
+                      >
+                        <div className="relative aspect-square">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={att.url!}
+                            alt={att.filename}
+                            loading="lazy"
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                            <Download className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 drop-shadow" />
+                          </div>
+                        </div>
+                        <div className="p-1.5 text-[11px] text-gray-700 truncate">{att.filename}</div>
+                      </a>
+                    ))}
                   </div>
-                  {isDownloaded && att.url && (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 inline-flex items-center gap-1 text-xs text-gray-600 hover:text-blue-600"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Åbn
-                    </a>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                )}
+
+                {/* Billeder uden storage — placeholders */}
+                {imageMissing.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-3">
+                    {imageMissing.map((att, idx) => (
+                      <div
+                        key={`imgm-${att.filename}-${idx}`}
+                        className="rounded-lg border border-dashed bg-amber-50/50 p-3 flex flex-col items-center justify-center text-center"
+                      >
+                        <ImageIcon className="w-6 h-6 text-amber-500 mb-1" />
+                        <p className="text-[11px] text-amber-800 font-medium truncate w-full">{att.filename}</p>
+                        <p className="text-[10px] text-amber-600 mt-0.5">Ikke downloadet</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Filer (ikke-billeder) — rows */}
+                {nonImages.length > 0 && (
+                  <div className="divide-y">
+                    {nonImages.map((att, idx) => {
+                      const isDownloaded = !!(att.url && att.storagePath)
+                      return (
+                        <div key={`file-${att.filename}-${idx}`} className="flex items-center justify-between gap-3 py-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-4 h-4 text-gray-500 shrink-0" />
+                            <span className="text-sm truncate">{att.filename}</span>
+                            <span className="text-xs text-gray-400 shrink-0">{formatSize(att.size)}</span>
+                            {!isDownloaded && (
+                              <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
+                                Ikke downloadet
+                              </span>
+                            )}
+                          </div>
+                          {isDownloaded && att.url && (
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 inline-flex items-center gap-1 text-xs text-gray-600 hover:text-blue-600"
+                            >
+                              <Download className="w-3.5 h-3.5" /> Åbn
+                            </a>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )
+          })()}
           {archiveResult && (
             <div className={`mt-2 text-xs px-2 py-1.5 rounded ${
               archiveResult.success ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'
