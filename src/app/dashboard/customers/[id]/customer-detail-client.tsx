@@ -28,6 +28,7 @@ import {
   FileSignature,
   FolderOpen,
   GitBranch,
+  Briefcase,
 } from 'lucide-react'
 import { BookBesigtigelseModal } from '@/components/modules/customers/book-besigtigelse-modal'
 import { CustomerForm } from '@/components/modules/customers/customer-form'
@@ -40,6 +41,7 @@ import { CustomerActivityOverview } from '@/components/modules/customers/custome
 import { CustomerEmailTimeline } from '@/components/modules/customers/customer-email-timeline'
 import { BesigtigelsesNotat } from '@/components/modules/customers/besigtigelse-notat'
 import { CustomerDocumentsTab } from '@/components/modules/customers/customer-documents-tab'
+import { CustomerCasesTab } from '@/components/modules/customers/customer-cases-tab'
 import { CustomerStatusFlow } from '@/components/modules/customers/customer-status-flow'
 import {
   deleteCustomer,
@@ -67,7 +69,7 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
   const [showChat, setShowChat] = useState(false)
   const [showBesigtigelse, setShowBesigtigelse] = useState(false)
-  const [activeTab, setActiveTab] = useState<'oversigt' | 'besigtigelse' | 'dokumenter' | 'status'>('oversigt')
+  const [activeTab, setActiveTab] = useState<'oversigt' | 'sager' | 'besigtigelse' | 'dokumenter' | 'status'>('oversigt')
   const [showFuldmagtModal, setShowFuldmagtModal] = useState(false)
   const [fuldmagtOrderNr, setFuldmagtOrderNr] = useState('')
   const [isSendingFuldmagt, setIsSendingFuldmagt] = useState(false)
@@ -243,6 +245,18 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
           >
             Oversigt
           </button>
+          {/* Sprint 8D-1: Sager-tab */}
+          <button
+            onClick={() => setActiveTab('sager')}
+            className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
+              activeTab === 'sager'
+                ? 'border-green-600 text-green-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Briefcase className="w-4 h-4" />
+            Sager
+          </button>
           <button
             onClick={() => setActiveTab('besigtigelse')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
@@ -277,6 +291,11 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
             Status
           </button>
         </div>
+
+        {/* Sprint 8D-1: Tab: Sager */}
+        {activeTab === 'sager' && (
+          <CustomerCasesTab customerId={customer.id} />
+        )}
 
         {/* Tab: Besigtigelse */}
         {activeTab === 'besigtigelse' && (
