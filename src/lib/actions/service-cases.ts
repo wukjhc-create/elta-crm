@@ -287,6 +287,10 @@ interface UpdateServiceCaseInput {
   source_offer_id?: string | null
   auto_invoice_on_done?: boolean
   low_profit?: boolean
+  // Sprint 8G — site/leveringskontakt (migration 00111)
+  site_contact_id?: string | null
+  site_customer_id?: string | null
+  access_notes?: string | null
 }
 
 export async function updateServiceCase(
