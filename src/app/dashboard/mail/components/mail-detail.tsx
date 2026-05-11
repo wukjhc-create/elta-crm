@@ -480,11 +480,11 @@ export function MailDetail({
           customerId={email.customer_id || null}
           serviceCaseId={email.service_case_id || null}
           helperText="AI skriver kun kladde — du trykker Send"
-          onSend={async (text, attachmentIds) => {
+          onSend={async (text, attachmentIds, recipientOverride) => {
             setIsSendingReply(text)
             setReplyMsg(null)
             try {
-              const result = await sendQuickReply(email.id, text, attachmentIds)
+              const result = await sendQuickReply(email.id, text, attachmentIds, recipientOverride)
               if (result.success) {
                 setReplyMsg('Svar sendt!')
                 return { success: true }

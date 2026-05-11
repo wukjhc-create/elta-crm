@@ -29,6 +29,7 @@ import {
 import { useToast } from '@/components/ui/toast'
 import { sendTaskEmail } from '@/lib/actions/task-mail'
 import { AttachmentPicker, type PickerAttachment } from '@/components/mail/attachment-picker'
+import { RecipientPicker } from '@/components/mail/recipient-picker'
 import {
   proofreadText,
   makeProfessional,
@@ -254,21 +255,20 @@ export function SendTaskMailDialog({
           </div>
 
           <div>
-            <label htmlFor="task-mail-to" className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Til <span className="text-red-500">*</span>
             </label>
-            <input
-              id="task-mail-to"
-              type="email"
+            <RecipientPicker
+              serviceCaseId={taskServiceCaseId}
+              customerId={taskCustomerId}
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={setTo}
               disabled={sending}
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-              placeholder="kunde@example.dk"
-              autoComplete="off"
+              label={undefined}
             />
             {initialTo &&
-              to.trim().toLowerCase() !== initialTo.trim().toLowerCase() && (
+              to.trim().toLowerCase() !== initialTo.trim().toLowerCase() &&
+              to.trim().length > 0 && (
                 <p className="mt-1 text-xs text-amber-700">
                   Bemærk: Modtager-adressen er ændret fra kundens registrerede email ({initialTo}).
                 </p>

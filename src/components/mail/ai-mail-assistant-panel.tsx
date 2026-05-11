@@ -36,6 +36,7 @@ import {
   type SupportedLang,
 } from '@/lib/actions/ai-mail-assistant'
 import { AttachmentPicker, type PickerAttachment } from '@/components/mail/attachment-picker'
+import { RecipientPicker } from '@/components/mail/recipient-picker'
 
 type AiAction =
   | 'suggest'
@@ -57,10 +58,13 @@ interface AIMailAssistantPanelProps {
   /** Sprint 8F: service_case_id hvis mailen er knyttet til en sag. */
   serviceCaseId?: string | null
   /** Kaldes når brugeren klikker Send. Returnerer succes/fejl.
-   *  attachmentIds er customer_documents-IDs fra AttachmentPicker. */
+   *  attachmentIds er customer_documents-IDs fra AttachmentPicker.
+   *  recipientOverride er valgt modtager fra RecipientPicker (eller
+   *  undefined hvis bruger lader auto-valg gælde). */
   onSend: (
     text: string,
-    attachmentIds?: string[]
+    attachmentIds?: string[],
+    recipientOverride?: string
   ) => Promise<{ success: boolean; error?: string }>
   /** Vises som info-tekst under panelet (fx 'Bekræft modtagelse' o.l.). */
   helperText?: string
@@ -81,6 +85,7 @@ export function AIMailAssistantPanel({
   const [sendStatus, setSendStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [placeholders, setPlaceholders] = useState<string[]>([])
   const [attachments, setAttachments] = useState<PickerAttachment[]>([])
+  const [recipient, setRecipient] = useState<string>('')
 
   const requireDraft = (): boolean => {
     if (!draft.trim()) {
@@ -168,7 +173,12 @@ export function AIMailAssistantPanel({
 
     try {
       const ids = attachments.map((a) => a.document_id)
-      const res = await onSend(draft, ids.length > 0 ? ids : undefined)
+      const recipientToPass = recipient.trim() || undefined
+      const res = await onSend(
+        draft,
+        ids.length > 0 ? ids : undefined,
+        recipientToPass
+      )
       if (res.success) {
         setSendStatus('success')
         setDraft('')
@@ -201,6 +211,20 @@ export function AIMailAssistantPanel({
         </p>
         {helperText && <span className="text-[11px] text-gray-400">{helperText}</span>}
       </div>
+
+      {/* Sprint 8G: Modtager-picker — viser betaler / site / kontakter
+          med rolle. Hvis ingen ekstern modtager findes, kan brugeren
+          skrive manuelt. */}
+      {customerId && (
+        <RecipientPicker
+          serviceCaseId={serviceCaseId}
+          customerId={customerId}
+          value={recipient}
+          onChange={setRecipient}
+          disabled={busy === 'send'}
+          label="Modtager"
+        />
+      )}
 
       <textarea
         value={draft}

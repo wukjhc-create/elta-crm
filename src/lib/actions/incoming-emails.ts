@@ -1106,11 +1106,13 @@ export async function checkGraphEnvVars(): Promise<{
 export async function sendQuickReply(
   emailId: string,
   message: string,
-  attachmentIds?: string[]
+  attachmentIds?: string[],
+  recipientOverride?: string
 ): Promise<{ success: boolean; error?: string }> {
   validateUUID(emailId, 'emailId')
   const { userId } = await getAuthenticatedClient()
   const safeAttachmentIds = (attachmentIds || []).filter((x): x is string => !!x)
+  const overrideTrim = (recipientOverride || '').trim().toLowerCase()
   for (const id of safeAttachmentIds) {
     try {
       validateUUID(id, 'attachmentId')
@@ -1160,7 +1162,26 @@ export async function sendQuickReply(
     customerEmail,
   ].filter((c): c is string => !!c && c.trim().length > 0)
 
-  let replyTo = candidates.find((c) => !isInternalAddr(c)) || null
+  // Sprint 8G: brugeren kan eksplicit overrule auto-valg via UI-picker.
+  // Override skal stadig være ekstern.
+  let replyTo: string | null = null
+  if (overrideTrim) {
+    if (isInternalAddr(overrideTrim)) {
+      return {
+        success: false,
+        error: 'Kan ikke sende reply: valgt modtager er en intern mailbox',
+      }
+    }
+    if (!overrideTrim.includes('@')) {
+      return {
+        success: false,
+        error: 'Ugyldig modtager-emailadresse',
+      }
+    }
+    replyTo = overrideTrim
+  } else {
+    replyTo = candidates.find((c) => !isInternalAddr(c)) || null
+  }
 
   if (!replyTo) {
     return {
