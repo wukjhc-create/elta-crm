@@ -477,12 +477,14 @@ export function MailDetail({
         <AIMailAssistantPanel
           key={email.id}
           emailId={email.id}
+          customerId={email.customer_id || null}
+          serviceCaseId={email.service_case_id || null}
           helperText="AI skriver kun kladde — du trykker Send"
-          onSend={async (text) => {
+          onSend={async (text, attachmentIds) => {
             setIsSendingReply(text)
             setReplyMsg(null)
             try {
-              const result = await sendQuickReply(email.id, text)
+              const result = await sendQuickReply(email.id, text, attachmentIds)
               if (result.success) {
                 setReplyMsg('Svar sendt!')
                 return { success: true }

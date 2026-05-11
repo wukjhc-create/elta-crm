@@ -35,6 +35,7 @@ import {
   type AiTextResult,
   type SupportedLang,
 } from '@/lib/actions/ai-mail-assistant'
+import { AttachmentPicker, type PickerAttachment } from '@/components/mail/attachment-picker'
 
 type AiAction =
   | 'suggest'
@@ -51,8 +52,16 @@ interface AIMailAssistantPanelProps {
   /** Initial draft (kan være tom). Når brugeren har skrevet noget,
    *  bruger AI-knapperne den nuværende textarea-værdi som input. */
   initialDraft?: string
-  /** Kaldes når brugeren klikker Send. Returnerer succes/fejl. */
-  onSend: (text: string) => Promise<{ success: boolean; error?: string }>
+  /** Sprint 8F: customer_id på mailen — nødvendig for AttachmentPicker. */
+  customerId?: string | null
+  /** Sprint 8F: service_case_id hvis mailen er knyttet til en sag. */
+  serviceCaseId?: string | null
+  /** Kaldes når brugeren klikker Send. Returnerer succes/fejl.
+   *  attachmentIds er customer_documents-IDs fra AttachmentPicker. */
+  onSend: (
+    text: string,
+    attachmentIds?: string[]
+  ) => Promise<{ success: boolean; error?: string }>
   /** Vises som info-tekst under panelet (fx 'Bekræft modtagelse' o.l.). */
   helperText?: string
 }
@@ -60,6 +69,8 @@ interface AIMailAssistantPanelProps {
 export function AIMailAssistantPanel({
   emailId,
   initialDraft = '',
+  customerId = null,
+  serviceCaseId = null,
   onSend,
   helperText,
 }: AIMailAssistantPanelProps) {
@@ -69,6 +80,7 @@ export function AIMailAssistantPanel({
   const [error, setError] = useState<string | null>(null)
   const [sendStatus, setSendStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [placeholders, setPlaceholders] = useState<string[]>([])
+  const [attachments, setAttachments] = useState<PickerAttachment[]>([])
 
   const requireDraft = (): boolean => {
     if (!draft.trim()) {
@@ -155,12 +167,14 @@ export function AIMailAssistantPanel({
     setSendStatus('idle')
 
     try {
-      const res = await onSend(draft)
+      const ids = attachments.map((a) => a.document_id)
+      const res = await onSend(draft, ids.length > 0 ? ids : undefined)
       if (res.success) {
         setSendStatus('success')
         setDraft('')
         setInstruction('')
         setPlaceholders([])
+        setAttachments([]) // Lokal liste ryddes — filerne ligger nu på customer/sag
       } else {
         setSendStatus('error')
         setError(res.error || 'Kunne ikke sende.')
@@ -223,6 +237,16 @@ export function AIMailAssistantPanel({
           Lav udkast
         </button>
       </div>
+
+      {/* Sprint 8F: Vedhæftninger — picker virker kun når mailen er
+          koblet til en kunde. Filerne uploades FØR Send. */}
+      <AttachmentPicker
+        customerId={customerId}
+        serviceCaseId={serviceCaseId}
+        disabled={busy !== null}
+        attachments={attachments}
+        onChange={setAttachments}
+      />
 
       {/* AI-knaprække: forslag + tekstværktøjer */}
       <div className="flex flex-wrap items-center gap-2">

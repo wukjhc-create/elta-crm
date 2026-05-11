@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { sendTaskEmail } from '@/lib/actions/task-mail'
+import { AttachmentPicker, type PickerAttachment } from '@/components/mail/attachment-picker'
 import {
   proofreadText,
   makeProfessional,
@@ -76,6 +77,12 @@ export function SendTaskMailDialog({
   const [aiBusy, setAiBusy] = useState<AiTool | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
 
+  // Sprint 8F: vedhæftninger
+  const [attachments, setAttachments] = useState<PickerAttachment[]>([])
+  // Sprint 8D-1: task har customer_id + service_case_id (interfacet er udvidet)
+  const taskCustomerId = (task as { customer_id?: string | null }).customer_id || null
+  const taskServiceCaseId = (task as { service_case_id?: string | null }).service_case_id || null
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !sending) onClose()
@@ -116,6 +123,9 @@ export function SendTaskMailDialog({
         cc: cc.trim() || undefined,
         subject: trimmedSubject,
         body: trimmedBody,
+        attachmentIds: attachments.length > 0
+          ? attachments.map((a) => a.document_id)
+          : undefined,
       })
 
       if (!result.success) {
@@ -402,6 +412,20 @@ export function SendTaskMailDialog({
                   {aiError}
                 </p>
               )}
+            </div>
+
+            {/* Sprint 8F: Vedhæftninger */}
+            <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                Vedhæftninger
+              </p>
+              <AttachmentPicker
+                customerId={taskCustomerId}
+                serviceCaseId={taskServiceCaseId}
+                disabled={sending || aiBusy !== null}
+                attachments={attachments}
+                onChange={setAttachments}
+              />
             </div>
           </div>
 
