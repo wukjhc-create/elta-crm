@@ -10,6 +10,10 @@ import {
   SERVICE_CASE_TYPE_LABELS,
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
+import {
+  CUSTOMER_CONTACT_ROLE_LABELS,
+  type CustomerContactRole,
+} from '@/types/customers.types'
 import { OrderActionsTab } from './order-actions-tab'
 import { OrderActivityTab } from './order-activity-tab'
 import { OrderPlanningTab } from './order-planning-tab'
@@ -275,7 +279,7 @@ function OverblikTab({
       </Panel>
 
       {/* Kunde side */}
-      <Panel title="Kunde og kontakt">
+      <Panel title="Betalende kunde / ordregiver">
         <Row label="Kunde" value={
           sag.customer?.id ? (
             <Link href={`/dashboard/customers/${sag.customer.id}`} className="text-emerald-700 hover:underline">
@@ -338,6 +342,121 @@ function OverblikTab({
         )}
         <Row label="KSR-nummer" value={sag.ksr_number ?? '—'} />
         <Row label="EAN-nummer" value={sag.ean_number ?? '—'} />
+      </Panel>
+
+      {/* Sprint 8G — Leveringskontakt / arbejdssted */}
+      <Panel title="Leveringskontakt / arbejdssted">
+        {sag.site_customer ? (
+          <>
+            <Row
+              label="Leveringskunde"
+              value={
+                <Link
+                  href={`/dashboard/customers/${sag.site_customer.id}`}
+                  className="text-emerald-700 hover:underline"
+                >
+                  {sag.site_customer.company_name}
+                </Link>
+              }
+            />
+            {sag.site_customer.contact_person && (
+              <Row label="Kontaktperson" value={sag.site_customer.contact_person} />
+            )}
+            {sag.site_customer.email && (
+              <Row
+                label="Email"
+                value={
+                  <a
+                    href={`mailto:${sag.site_customer.email}`}
+                    className="text-emerald-700 hover:underline"
+                  >
+                    {sag.site_customer.email}
+                  </a>
+                }
+              />
+            )}
+            {sag.site_customer.phone && (
+              <Row
+                label="Telefon"
+                value={
+                  <a
+                    href={`tel:${sag.site_customer.phone}`}
+                    className="text-emerald-700 hover:underline"
+                  >
+                    {sag.site_customer.phone}
+                  </a>
+                }
+              />
+            )}
+          </>
+        ) : (
+          <Row
+            label="Leveringskunde"
+            value={<span className="text-gray-400">Ikke valgt — samme som betaler</span>}
+          />
+        )}
+
+        {sag.site_contact ? (
+          <>
+            <Row
+              label="Kontakt på stedet"
+              value={
+                <span>
+                  {sag.site_contact.name}
+                  {sag.site_contact.role && (
+                    <span className="ml-1.5 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
+                      {CUSTOMER_CONTACT_ROLE_LABELS[
+                        sag.site_contact.role as CustomerContactRole
+                      ] || sag.site_contact.role}
+                    </span>
+                  )}
+                </span>
+              }
+            />
+            {sag.site_contact.email && (
+              <Row
+                label="Email"
+                value={
+                  <a
+                    href={`mailto:${sag.site_contact.email}`}
+                    className="text-emerald-700 hover:underline"
+                  >
+                    {sag.site_contact.email}
+                  </a>
+                }
+              />
+            )}
+            {(sag.site_contact.mobile || sag.site_contact.phone) && (
+              <Row
+                label="Telefon"
+                value={
+                  <a
+                    href={`tel:${sag.site_contact.mobile || sag.site_contact.phone}`}
+                    className="text-emerald-700 hover:underline"
+                  >
+                    {sag.site_contact.mobile || sag.site_contact.phone}
+                  </a>
+                }
+              />
+            )}
+          </>
+        ) : (
+          <Row
+            label="Kontakt på stedet"
+            value={<span className="text-gray-400">Ikke valgt</span>}
+          />
+        )}
+
+        <Row
+          label="Adgangsnoter"
+          value={
+            sag.access_notes ? (
+              <span className="whitespace-pre-wrap text-sm text-gray-700">{sag.access_notes}</span>
+            ) : (
+              <span className="text-gray-400">Ingen</span>
+            )
+          }
+        />
       </Panel>
 
       {/* Ansvar */}
