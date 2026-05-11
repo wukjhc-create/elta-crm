@@ -12,11 +12,12 @@
  */
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, AlertCircle, Loader2 } from 'lucide-react'
+import { ChevronDown, AlertCircle, Loader2, Send } from 'lucide-react'
 import {
   getRecipientOptionsForCase,
   getRecipientOptionsForCustomer,
   type RecipientOption,
+  type RecipientContext,
 } from '@/lib/actions/mail-recipients'
 
 interface RecipientPickerProps {
@@ -44,6 +45,12 @@ export function RecipientPicker({
 }: RecipientPickerProps) {
   const [options, setOptions] = useState<RecipientOption[]>([])
   const [defaultEmail, setDefaultEmail] = useState<string | null>(null)
+  const [context, setContext] = useState<RecipientContext>({
+    payerName: null,
+    siteCustomerName: null,
+    siteContactName: null,
+    caseNumber: null,
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -54,17 +61,22 @@ export function RecipientPicker({
     setError(null)
     const load = async () => {
       try {
-        let result: { options: RecipientOption[]; defaultEmail: string | null }
+        let result: { options: RecipientOption[]; defaultEmail: string | null; context: RecipientContext }
         if (serviceCaseId) {
           result = await getRecipientOptionsForCase(serviceCaseId)
         } else if (customerId) {
           result = await getRecipientOptionsForCustomer(customerId)
         } else {
-          result = { options: [], defaultEmail: null }
+          result = {
+            options: [],
+            defaultEmail: null,
+            context: { payerName: null, siteCustomerName: null, siteContactName: null, caseNumber: null },
+          }
         }
         if (cancelled) return
         setOptions(result.options)
         setDefaultEmail(result.defaultEmail)
+        setContext(result.context)
         // Sæt default kun hvis value er tom og vi har en default
         if (!value && result.defaultEmail) {
           onChange(result.defaultEmail)
@@ -144,10 +156,36 @@ export function RecipientPicker({
         )}
       </div>
 
-      {/* Label på aktiv option */}
-      {activeOption && !open && (
-        <p className="text-[11px] text-gray-500">{activeOption.label}</p>
-      )}
+      {/* Sprint 8H Phase 1B: context-bar — viser hvem mailen sendes til,
+          hvem der betaler, og hvilken sag det handler om. */}
+      {value && !open && (() => {
+        const isManual = !activeOption && value.trim().length > 0
+        const parts: string[] = []
+        if (isManual) {
+          parts.push(`Manuel modtager — kontrollér email før afsendelse`)
+        } else if (activeOption) {
+          parts.push(`Sendes til: ${activeOption.label}`)
+        }
+        if (context.payerName && !isManual && activeOption?.kind !== 'paying_customer') {
+          parts.push(`Betaler: ${context.payerName}`)
+        }
+        if (context.caseNumber) {
+          parts.push(`Sag: ${context.caseNumber}`)
+        }
+        if (parts.length === 0) return null
+        return (
+          <div
+            className={`flex items-start gap-1.5 text-[11px] rounded px-2 py-1 ${
+              isManual
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : 'bg-blue-50/60 text-blue-900 border border-blue-100'
+            }`}
+          >
+            <Send className="w-3 h-3 mt-0.5 shrink-0" />
+            <span>{parts.join(' · ')}</span>
+          </div>
+        )
+      })()}
 
       {/* States */}
       {hasNoOptions && (

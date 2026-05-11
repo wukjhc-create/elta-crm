@@ -101,6 +101,14 @@ function firstOrNull<T>(value: T | T[] | null | undefined): T | null {
   return value
 }
 
+/** Sprint 8H Phase 1B: kontext-info til RecipientPicker context-bar. */
+export interface RecipientContext {
+  payerName: string | null
+  siteCustomerName: string | null
+  siteContactName: string | null
+  caseNumber: string | null
+}
+
 /**
  * Byg den komplette modtager-liste for en mail på en service_case.
  * Sortering: betaler → site_customer → site_contact → øvrige kontakter.
@@ -108,14 +116,14 @@ function firstOrNull<T>(value: T | T[] | null | undefined): T | null {
  */
 export async function getRecipientOptionsForCase(
   serviceCaseId: string
-): Promise<{ options: RecipientOption[]; defaultEmail: string | null }> {
+): Promise<{ options: RecipientOption[]; defaultEmail: string | null; context: RecipientContext }> {
   validateUUID(serviceCaseId, 'serviceCaseId')
   const supabase = await createClient()
 
   const { data: caseRow, error } = await supabase
     .from('service_cases')
     .select(`
-      id,
+      id, case_number,
       customer:customers!service_cases_customer_id_fkey(id, company_name, email),
       site_customer:customers!service_cases_site_customer_id_fkey(id, company_name, email),
       site_contact:customer_contacts!service_cases_site_contact_id_fkey(
@@ -126,7 +134,11 @@ export async function getRecipientOptionsForCase(
     .maybeSingle()
 
   if (error || !caseRow) {
-    return { options: [], defaultEmail: null }
+    return {
+      options: [],
+      defaultEmail: null,
+      context: { payerName: null, siteCustomerName: null, siteContactName: null, caseNumber: null },
+    }
   }
 
   const options: RecipientOption[] = []
@@ -210,7 +222,14 @@ export async function getRecipientOptionsForCase(
     options[0]?.email ||
     null
 
-  return { options, defaultEmail }
+  const context: RecipientContext = {
+    payerName: customer?.company_name || null,
+    siteCustomerName: siteCust?.company_name || null,
+    siteContactName: siteContact?.name || null,
+    caseNumber: (caseRow as { case_number?: string | null }).case_number || null,
+  }
+
+  return { options, defaultEmail, context }
 }
 
 /**
@@ -219,7 +238,7 @@ export async function getRecipientOptionsForCase(
  */
 export async function getRecipientOptionsForCustomer(
   customerId: string
-): Promise<{ options: RecipientOption[]; defaultEmail: string | null }> {
+): Promise<{ options: RecipientOption[]; defaultEmail: string | null; context: RecipientContext }> {
   validateUUID(customerId, 'customerId')
   const supabase = await createClient()
 
@@ -259,5 +278,12 @@ export async function getRecipientOptionsForCustomer(
     options[0]?.email ||
     null
 
-  return { options, defaultEmail }
+  const context: RecipientContext = {
+    payerName: customer?.company_name || null,
+    siteCustomerName: null,
+    siteContactName: null,
+    caseNumber: null,
+  }
+
+  return { options, defaultEmail, context }
 }
