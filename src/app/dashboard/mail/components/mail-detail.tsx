@@ -134,6 +134,9 @@ export function MailDetail({
   // Sprint 8E-1B: åbne auto-tasks for denne mail/tråd
   const [openAutoTasks, setOpenAutoTasks] = useState<Array<{ id: string; title: string; priority: string; created_at: string }>>([])
 
+  // Sprint 8H Phase 1A polish: loading-state på "Fjern kobling"-knap
+  const [isUnlinking, setIsUnlinking] = useState(false)
+
   const attachments = (email.attachment_urls || []) as Array<{
     url?: string; filename: string; contentType?: string; size: number; storagePath?: string
   }>
@@ -290,11 +293,20 @@ export function MailDetail({
               </a>
               {onUnlinkCustomer && (
                 <button
-                  onClick={onUnlinkCustomer}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 inline-flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors"
+                  onClick={async () => {
+                    if (isUnlinking) return
+                    setIsUnlinking(true)
+                    try {
+                      await onUnlinkCustomer()
+                    } finally {
+                      setIsUnlinking(false)
+                    }
+                  }}
+                  disabled={isUnlinking}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 inline-flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Fjern kobling"
                 >
-                  <X className="w-3 h-3" />
+                  {isUnlinking ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
                   Fjern kobling
                 </button>
               )}

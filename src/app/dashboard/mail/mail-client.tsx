@@ -43,6 +43,7 @@ import {
   type SyncDiagnostic,
 } from '@/lib/actions/incoming-emails'
 import { createServiceCaseFromEmail } from '@/lib/actions/service-cases'
+import { CustomerLinkDialog } from '@/components/mail/customer-link-dialog'
 import { useRealtimeTable } from '@/lib/hooks/use-realtime'
 import type {
   IncomingEmailWithCustomer,
@@ -490,47 +491,78 @@ export function MailClient() {
     ignoreIncomingEmail(id).catch(() => {})
   }
 
-  const handleManualLink = async (emailId: string, customerId: string) => {
-    await linkEmailToCustomer(emailId, customerId)
+  const handleManualLink = async (
+    emailId: string,
+    customerId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await linkEmailToCustomer(emailId, customerId)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Kunne ikke koble mailen'
+      toast.error('Fejl', msg)
+      return { success: false, error: msg }
+    }
     setShowLinkModal(false)
     setLinkSearch('')
     setCustomerResults([])
-    // Reload list (filter-based) for left panel
-    await loadEmails()
-    // Sprint 8D-1 bug-fix: re-select via DIREKTE id-lookup, ikke via
-    // filter-baseret list. Hvis brugeren stod på "Uidentificerede"-tab,
-    // er mailen NU 'linked' og forsvinder fra den filtrerede liste —
-    // tidligere fix-attempt med freshEmails.find returnerede undefined,
-    // så selectedEmail blev IKKE opdateret og EmailCasePicker kunne
-    // ikke vises (email.link_status forblev 'unidentified' + customers=null).
-    if (selectedEmail?.id === emailId) {
-      const { getIncomingEmail } = await import('@/lib/actions/incoming-emails')
-      const updated = await getIncomingEmail(emailId)
-      if (updated) {
+
+    // Sprint 8H Phase 1A polish: skip den tunge loadEmails (henter alt + stats
+    // + requires_response). Genhent KUN den valgte mail og update list-state
+    // optimistisk. Hvis brugeren er paa "Uidentificerede"-filteret, forsvinder
+    // mailen fra listen — det er korrekt, fordi mailen nu er 'linked'.
+    const { getIncomingEmail } = await import('@/lib/actions/incoming-emails')
+    const updated = await getIncomingEmail(emailId)
+    if (updated) {
+      if (selectedEmail?.id === emailId) {
         setSelectedEmail(updated)
       }
+      setEmails((prev) =>
+        prev.map((e) =>
+          e.id === emailId ? { ...e, ...updated } : e
+        )
+      )
+      // Hvis vi er paa Uidentificerede/Kraever-svar/Ignorerede-filteret,
+      // skal mailen muligvis fjernes — men det haandterer realtime og
+      // naeste backgroundRefresh. Vi undgaar fuld page-stall.
     }
     toast.success('Kunde tildelt', 'Mailen er nu koblet')
+    return { success: true }
   }
 
   const handleUnlinkEmail = async (emailId: string) => {
+    // Sprint 8H Phase 1A polish: optimistic FØR server-call så UI'et
+    // ikke føles frosset mens netværket arbejder. Hvis server-call
+    // fejler, rulles state tilbage.
+    const prevEmails = emails
+    const prevSelected = selectedEmail
+    const prevLeadMap = emailLeadMap
+
+    setEmails((curr) =>
+      curr.map((e) =>
+        e.id === emailId
+          ? { ...e, link_status: 'unidentified' as const, customer_id: null, customers: null }
+          : e
+      )
+    )
+    if (selectedEmail?.id === emailId) {
+      setSelectedEmail((curr) =>
+        curr ? { ...curr, link_status: 'unidentified' as const, customer_id: null, customers: null } : null
+      )
+    }
+    setEmailLeadMap((curr) => {
+      const next = { ...curr }
+      delete next[emailId]
+      return next
+    })
+
     try {
       await unlinkEmailFromCustomer(emailId)
       toast.success('Kobling fjernet', 'Mailen er nu uidentificeret')
-      // Update UI immediately
-      setEmails((prev) =>
-        prev.map((e) => e.id === emailId ? { ...e, link_status: 'unidentified' as const, customer_id: null, customers: null } : e)
-      )
-      if (selectedEmail?.id === emailId) {
-        setSelectedEmail((prev) => prev ? { ...prev, link_status: 'unidentified' as const, customer_id: null, customers: null } : null)
-      }
-      // Refresh lead map
-      setEmailLeadMap((prev) => {
-        const next = { ...prev }
-        delete next[emailId]
-        return next
-      })
     } catch {
+      // Rul tilbage
+      setEmails(prevEmails)
+      setSelectedEmail(prevSelected)
+      setEmailLeadMap(prevLeadMap)
       toast.error('Fejl', 'Kunne ikke fjerne kobling')
     }
   }
@@ -1052,46 +1084,28 @@ export function MailClient() {
         </div>
       )}
 
-      {/* Manual Link Modal */}
+      {/* Sprint 8H Phase 1A polish: ny dialog med initial liste, debounced
+          søgning, loading-state, sender-match-fremhævning og keyboard nav. */}
       {showLinkModal && selectedEmail && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-4">Kobl til kunde</h3>
-            <p className="text-sm text-gray-500 mb-3">
-              Søg efter kunden for at koble denne email manuelt.
-            </p>
-            <input
-              type="text"
-              value={linkSearch}
-              onChange={(e) => searchCustomers(e.target.value)}
-              placeholder="Søg firmanavn, email..."
-              className="w-full px-3 py-2 border rounded-md text-sm mb-3"
-              autoFocus
-            />
-            {customerResults.length > 0 && (
-              <div className="border rounded-md divide-y max-h-60 overflow-y-auto mb-3">
-                {customerResults.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => handleManualLink(selectedEmail.id, c.id)}
-                    className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
-                  >
-                    <div className="font-medium">{c.company_name}</div>
-                    <div className="text-xs text-gray-500">{c.customer_number} - {c.email}</div>
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => { setShowLinkModal(false); setLinkSearch(''); setCustomerResults([]) }}
-                className="px-4 py-2 text-sm border rounded-md hover:bg-gray-50"
-              >
-                Annuller
-              </button>
-            </div>
-          </div>
-        </div>
+        <CustomerLinkDialog
+          title="Kobl til kunde"
+          hint="Vælg fra listen eller søg efter en specifik kunde."
+          senderEmailHint={
+            selectedEmail.original_sender_email || selectedEmail.sender_email || null
+          }
+          onClose={() => {
+            setShowLinkModal(false)
+            setLinkSearch('')
+            setCustomerResults([])
+          }}
+          onLink={async (customerId) => {
+            const r = await handleManualLink(selectedEmail.id, customerId)
+            return r
+          }}
+          onCreateNew={async () => {
+            await handlePromoteToLead(selectedEmail.id)
+          }}
+        />
       )}
     </div>
   )
