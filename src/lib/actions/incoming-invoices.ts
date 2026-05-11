@@ -177,7 +177,7 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
           .from('service_cases')
           .select(`
             id, case_number, title, project_name,
-            customer:customers!left(company_name)
+            customer:customers!service_cases_customer_id_fkey(company_name)
           `)
           .eq('id', invoice.matched_case_id)
           .maybeSingle()

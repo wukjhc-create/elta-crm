@@ -115,7 +115,7 @@ export async function listUnbilledForCaseAction(
   // 1. Sag header
   const { data: sag, error: sagErr } = await supabase
     .from('service_cases')
-    .select('id, case_number, customer_id, contract_sum, revised_sum, customer:customers!left(company_name, contact_person)')
+    .select('id, case_number, customer_id, contract_sum, revised_sum, customer:customers!service_cases_customer_id_fkey(company_name, contact_person)')
     .eq('id', caseId)
     .maybeSingle()
   if (sagErr || !sag) {

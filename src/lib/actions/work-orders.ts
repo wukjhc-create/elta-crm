@@ -483,7 +483,7 @@ export async function listWorkOrdersByDateRange(
             .from('service_cases')
             .select(`
               id, case_number, title, project_name,
-              customer:customers!left(id, company_name)
+              customer:customers!service_cases_customer_id_fkey(id, company_name)
             `)
             .in('id', caseIds),
     ])

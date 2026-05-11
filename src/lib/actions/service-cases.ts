@@ -62,7 +62,7 @@ export async function getServiceCases(filters?: {
       .from('service_cases')
       .select(`
         *,
-        customer:customers!left(id, company_name, contact_person, email, phone),
+        customer:customers!service_cases_customer_id_fkey(id, company_name, contact_person, email, phone),
         assignee:profiles!service_cases_assigned_to_fkey(id, full_name)
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
@@ -1040,7 +1040,7 @@ export async function sendToOrdrestyring(
       .from('service_cases')
       .select(`
         *,
-        customer:customers!left(id, company_name, contact_person, email, phone, billing_address, billing_postal_code, billing_city)
+        customer:customers!service_cases_customer_id_fkey(id, company_name, contact_person, email, phone, billing_address, billing_postal_code, billing_city)
       `)
       .eq('id', serviceCaseId)
       .single()
@@ -1248,7 +1248,7 @@ export async function listOpenServiceCasesForPicker(): Promise<
       .from('service_cases')
       .select(`
         id, case_number, title, status,
-        customer:customers!left(company_name)
+        customer:customers!service_cases_customer_id_fkey(company_name)
       `)
       .in('status', ['new', 'in_progress', 'pending'])
       .order('case_number', { ascending: false })
