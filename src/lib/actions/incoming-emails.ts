@@ -1140,56 +1140,21 @@ export async function sendQuickReply(
   const email = await getIncomingEmail(emailId)
   if (!email) return { success: false, error: 'Email ikke fundet' }
 
-  // Sprint 8F bugfix: Pick recipient SAFELY.
-  // Hvis brugeren klikker reply på en outbound mirror, er
-  // email.sender_email vores egen CRM-mailbox (kontakt@/ordre@).
-  // Tag derfor første EKSTERNE adresse fra reply_to / sender_email /
-  // to_email, og fallback til customer.email hvis intet er eksternt.
-  // Stop med eksplicit fejl hvis vi ender med en intern adresse —
-  // CRM må aldrig auto-reply til sig selv.
-  const INTERNAL_DOMAIN = '@eltasolar.dk'
-  const isInternalAddr = (addr: string | null | undefined): boolean => {
-    if (!addr) return true
-    return addr.toLowerCase().includes(INTERNAL_DOMAIN)
+  // Sprint 8H Phase 1B: central mail-routing erstatter den lokale
+  // candidate/intern-guard-logik. resolveReplyRoute har samme regler
+  // (eksterne first, intern-guard, self-reply-block) men er nu delt
+  // mellem flere flows.
+  const { resolveReplyRoute, logMailRoute } = await import(
+    '@/lib/actions/mail-route-resolvers'
+  )
+  const routeResult = await resolveReplyRoute(emailId, {
+    recipientOverride: overrideTrim || null,
+  })
+  if (!routeResult.ok || !routeResult.route) {
+    return { success: false, error: routeResult.error || 'Kunne ikke bygge route' }
   }
-  const customerEmail =
-    (email as { customers?: { email?: string | null } }).customers?.email || null
-
-  const candidates = [
-    email.reply_to,
-    email.sender_email,
-    email.to_email,
-    customerEmail,
-  ].filter((c): c is string => !!c && c.trim().length > 0)
-
-  // Sprint 8G: brugeren kan eksplicit overrule auto-valg via UI-picker.
-  // Override skal stadig være ekstern.
-  let replyTo: string | null = null
-  if (overrideTrim) {
-    if (isInternalAddr(overrideTrim)) {
-      return {
-        success: false,
-        error: 'Kan ikke sende reply: valgt modtager er en intern mailbox',
-      }
-    }
-    if (!overrideTrim.includes('@')) {
-      return {
-        success: false,
-        error: 'Ugyldig modtager-emailadresse',
-      }
-    }
-    replyTo = overrideTrim
-  } else {
-    replyTo = candidates.find((c) => !isInternalAddr(c)) || null
-  }
-
-  if (!replyTo) {
-    return {
-      success: false,
-      error:
-        'Kan ikke finde kundens mailadresse. Mailen er enten intern, eller modtageren er ikke registreret. Kobl mailen til en kunde med ekstern mail-adresse for at svare.',
-    }
-  }
+  const route = routeResult.route
+  const replyTo = route.toEmail
 
   // 3. Get sender's display name from profile
   const supabase = await createClient()
@@ -1244,31 +1209,10 @@ export async function sendQuickReply(
     attachmentMetadata = prep.metadata
   }
 
-  // 5c. Vælg FROM mailbox: den mailbox der oprindeligt modtog mailen
-  // (så svaret threader korrekt). Hvis email.to_email er en af vores
-  // mailboxes, brug den; ellers default GRAPH_MAILBOX.
-  let fromMailbox = crmMailbox
-  if (email.to_email && isInternalAddr(email.to_email)) {
-    fromMailbox = email.to_email.toLowerCase().trim()
-  }
-
-  // 5d. SAFETY GUARD før send: aldrig svar til intern adresse eller egen mailbox
+  // Sprint 8H Phase 1B: fromMailbox er bestemt af route. Safety guards
+  // er allerede kørt af resolveReplyRoute → assertExternalRecipient.
+  const fromMailbox = route.fromMailbox
   const replyToLower = replyTo.toLowerCase().trim()
-  if (isInternalAddr(replyToLower)) {
-    logger.warn('sendQuickReply blocked: recipient is internal', {
-      metadata: { emailId, replyTo: replyToLower },
-    })
-    return {
-      success: false,
-      error: 'Kan ikke sende reply: modtager ser ud til at være intern mailbox',
-    }
-  }
-  if (replyToLower === fromMailbox.toLowerCase()) {
-    return {
-      success: false,
-      error: `Kan ikke sende reply: modtager (${replyToLower}) matcher afsender-mailbox (${fromMailbox})`,
-    }
-  }
 
   // 6. Send via Graph API
   try {
@@ -1323,6 +1267,7 @@ export async function sendQuickReply(
           attachmentCount: attachmentMetadata.length,
         },
       })
+      await logMailRoute(route, 'sent', { messageId: result.messageId })
       revalidatePath('/dashboard/mail')
     } else if (result.error?.includes('403')) {
       // 403 = Mail.Send permission not granted in Azure AD

@@ -368,51 +368,33 @@ export async function replyToCustomerEmail(
     const { userId } = await getAuthenticatedClient()
     const supabase = await createClient()
 
-    // Fetch original email
-    // Sprint 8H Phase 1A: hent ogsaa to_email + customer_id + customers.email
-    // saa vi kan vaelge en EKSTERN modtager. Outbound mirror-rows har
-    // sender_email = vores egen mailbox — uden denne guard ender CRM med
-    // at sende til sig selv.
+    // Sprint 8H Phase 1B: central mail-router.
+    // resolveCustomerMailboxReplyRoute kører candidate-logik + intern-guard
+    // + self-reply-block og returnerer en validated MailRoute.
+    const { resolveCustomerMailboxReplyRoute, logMailRoute } = await import(
+      '@/lib/actions/mail-route-resolvers'
+    )
+    const routeResult = await resolveCustomerMailboxReplyRoute(emailId)
+    if (!routeResult.ok || !routeResult.route) {
+      return {
+        success: false,
+        error: routeResult.error || 'Kunne ikke bygge route',
+      }
+    }
+    const route = routeResult.route
+    const replyTo = route.toEmail
+
+    // Hent mailen for body/subject + metadata vi stadig skal bruge
     const { data: email } = await supabase
       .from('incoming_emails')
       .select(`
-        subject, sender_email, sender_name, reply_to, to_email,
-        body_text, body_preview, received_at, customer_id,
-        customers ( email )
+        subject, sender_email, sender_name, body_text, body_preview,
+        received_at, conversation_id, customer_id, to_email
       `)
       .eq('id', emailId)
       .maybeSingle()
 
     if (!email) return { success: false, error: 'Email ikke fundet' }
-
-    // Sprint 8H Phase 1A: vaelg foerste EKSTERNE adresse fra
-    // reply_to / sender_email / to_email / customer.email. Stop med
-    // tydelig fejl hvis vi kun har interne adresser — saa CRM aldrig
-    // svarer sig selv paa en outbound mirror.
-    const INTERNAL_DOMAIN = '@eltasolar.dk'
-    const isInternalAddr = (addr: string | null | undefined): boolean => {
-      if (!addr) return true
-      return addr.toLowerCase().includes(INTERNAL_DOMAIN)
-    }
-    const customerEmailJoin =
-      (email as { customers?: { email?: string | null } | null }).customers?.email || null
-
-    const candidates = [
-      email.reply_to,
-      email.sender_email,
-      email.to_email,
-      customerEmailJoin,
-    ].filter((c): c is string => !!c && c.trim().length > 0)
-
-    const replyTo = candidates.find((c) => !isInternalAddr(c)) || null
-
-    if (!replyTo) {
-      return {
-        success: false,
-        error:
-          'Kan ikke finde kundens mailadresse. Mailen er enten intern, eller modtageren er ikke registreret.',
-      }
-    }
 
     // Get sender profile
     const { data: profile } = await supabase
@@ -446,34 +428,9 @@ export async function replyToCustomerEmail(
       originalBody,
     })
 
-    // Sprint 8H Phase 1A: vaelg FROM mailbox — hvis email.to_email er
-    // en af vores mailboxes (intern), brug den saa svaret threader paa
-    // rette indbakke. Ellers default GRAPH_MAILBOX.
-    const crmMailbox = getMailbox()
-    let fromMailbox = crmMailbox
-    if (email.to_email && isInternalAddr(email.to_email)) {
-      fromMailbox = email.to_email.toLowerCase().trim()
-    }
-
-    // SAFETY GUARD foer Graph-send
-    const replyToLower = replyTo.toLowerCase().trim()
-    if (isInternalAddr(replyToLower)) {
-      logger.warn('replyToCustomerEmail blocked: recipient is internal', {
-        entity: 'customer_mailbox',
-        entityId: emailId,
-        metadata: { replyTo: replyToLower },
-      })
-      return {
-        success: false,
-        error: 'Kan ikke sende reply: modtager ser ud til at vaere intern mailbox',
-      }
-    }
-    if (replyToLower === fromMailbox.toLowerCase()) {
-      return {
-        success: false,
-        error: `Kan ikke sende reply: modtager (${replyToLower}) matcher afsender-mailbox (${fromMailbox})`,
-      }
-    }
+    // Sprint 8H Phase 1B: fromMailbox + safety guards er nu bestemt af
+    // resolveCustomerMailboxReplyRoute. Lokale guards fjernet.
+    const fromMailbox = route.fromMailbox
 
     const result = await sendEmailViaGraph({
       to: replyTo,
@@ -508,6 +465,7 @@ export async function replyToCustomerEmail(
         entityId: emailId,
         metadata: { to: replyTo, subject, userId },
       })
+      await logMailRoute(route, 'sent', { messageId: result.messageId })
     }
 
     return result

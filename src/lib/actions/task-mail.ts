@@ -106,24 +106,20 @@ export async function sendTaskEmail(
       return { success: false, error: 'Ugyldig Cc-emailadresse' }
     }
 
-    // Sprint 8F bugfix: blokér mail til vores egen mailbox.
-    // sendTaskEmail tager `to` direkte fra UI så brugeren KAN skrive
-    // en intern adresse — det stoppes her med eksplicit fejl.
-    const fromMailbox = getMailbox().toLowerCase()
-    if (to === fromMailbox) {
-      return {
-        success: false,
-        error: `Kan ikke sende: modtager (${to}) matcher CRM-afsender-mailbox (${fromMailbox})`,
-      }
+    // Sprint 8H Phase 1B: brug central mail-router til at validere
+    // recipient + bygge route. Det erstatter de lokale intern-guards.
+    const { resolveTaskMailRoute, logMailRoute } = await import(
+      '@/lib/actions/mail-route-resolvers'
+    )
+    const routeResult = await resolveTaskMailRoute(input.task_id, {
+      recipientOverride: to,
+    })
+    if (!routeResult.ok || !routeResult.route) {
+      return { success: false, error: routeResult.error || 'Kunne ikke bygge route' }
     }
-    if (to.endsWith('@eltasolar.dk')) {
-      // Tillad kun hvis det er en KENDT bruger der eksplicit ønsker
-      // intern mail — for nu blokerer vi alle automatisk.
-      return {
-        success: false,
-        error: 'Kan ikke sende: modtager ser ud til at være intern mailbox',
-      }
-    }
+    const route = routeResult.route
+    const fromMailbox = route.fromMailbox
+
     if (!subject) {
       return { success: false, error: 'Emne mangler' }
     }
@@ -408,6 +404,10 @@ export async function sendTaskEmail(
         graph_message_id: sendResult.messageId,
         offer_id: task.offer_id,
       },
+    })
+    await logMailRoute(route, 'sent', {
+      task_id: task.id,
+      message_id: messageRowId,
     })
 
     revalidatePath('/dashboard/tasks')
