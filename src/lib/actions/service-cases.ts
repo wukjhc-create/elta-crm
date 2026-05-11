@@ -122,7 +122,9 @@ export async function getServiceCase(id: string): Promise<ActionResult<ServiceCa
       .from('service_cases')
       .select(`
         *,
-        customer:customers!left(id, company_name, contact_person, email, phone),
+        customer:customers!service_cases_customer_id_fkey(id, company_name, contact_person, email, phone),
+        site_customer:customers!service_cases_site_customer_id_fkey(id, company_name, contact_person, email, phone),
+        site_contact:customer_contacts!service_cases_site_contact_id_fkey(id, name, email, phone, mobile, role),
         assignee:profiles!service_cases_assigned_to_fkey(id, full_name)
       `)
       .eq('id', id)

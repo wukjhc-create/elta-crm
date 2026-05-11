@@ -36,6 +36,28 @@ export interface CustomerWithRelations extends Customer {
   } | null
 }
 
+// Sprint 8G: kontaktrolle (CHECK constraint i DB)
+export const CUSTOMER_CONTACT_ROLES = [
+  'billing',
+  'ordering',
+  'site',
+  'technical',
+  'resident',
+  'property_manager',
+  'other',
+] as const
+export type CustomerContactRole = (typeof CUSTOMER_CONTACT_ROLES)[number]
+
+export const CUSTOMER_CONTACT_ROLE_LABELS: Record<CustomerContactRole, string> = {
+  billing: 'Faktura',
+  ordering: 'Ordregiver',
+  site: 'Kontakt på stedet',
+  technical: 'Teknisk kontakt',
+  resident: 'Beboer',
+  property_manager: 'Ejendomsadministrator',
+  other: 'Andet',
+}
+
 // Customer contact type
 export interface CustomerContact {
   id: string
@@ -47,6 +69,9 @@ export interface CustomerContact {
   mobile: string | null
   is_primary: boolean
   notes: string | null
+  /** Sprint 8G — kontaktrolle (nullable). Bruges til at vælge default
+   *  modtager pr. mailtype (faktura vs praktisk vs teknisk). */
+  role?: CustomerContactRole | null
   created_at: string
   updated_at: string
 }
@@ -88,6 +113,8 @@ export interface CreateCustomerContactInput {
   mobile?: string | null
   is_primary?: boolean
   notes?: string | null
+  /** Sprint 8G — kontaktrolle. */
+  role?: CustomerContactRole | null
 }
 
 // Update customer contact input

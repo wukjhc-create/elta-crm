@@ -164,6 +164,13 @@ export interface ServiceCase {
   low_profit: boolean
   // Optional offer that produced this sag
   source_offer_id: string | null
+  // ---- Sprint 8G — betalende kunde vs. leveringskunde (migration 00111) ----
+  /** Kontaktperson på stedet — FK customer_contacts. Nullable. */
+  site_contact_id: string | null
+  /** Leveringskunde / slutkunde hvis forskellig fra betaler — FK customers. Nullable. */
+  site_customer_id: string | null
+  /** Praktiske noter til arbejdssted (adgangskode, parkering, hund, etc.). */
+  access_notes: string | null
 }
 
 export interface ServiceCaseWithRelations extends ServiceCase {
@@ -173,6 +180,23 @@ export interface ServiceCaseWithRelations extends ServiceCase {
     contact_person: string | null
     email: string | null
     phone: string | null
+  } | null
+  /** Sprint 8G — leveringskunde (separat customer-row hvis forskellig fra betaler). */
+  site_customer?: {
+    id: string
+    company_name: string
+    contact_person: string | null
+    email: string | null
+    phone: string | null
+  } | null
+  /** Sprint 8G — kontaktperson på stedet. */
+  site_contact?: {
+    id: string
+    name: string
+    email: string | null
+    phone: string | null
+    mobile: string | null
+    role: string | null
   } | null
   assignee?: {
     id: string
