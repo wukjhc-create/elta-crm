@@ -105,6 +105,25 @@ export async function sendTaskEmail(
     if (cc && !EMAIL_REGEX.test(cc)) {
       return { success: false, error: 'Ugyldig Cc-emailadresse' }
     }
+
+    // Sprint 8F bugfix: blokér mail til vores egen mailbox.
+    // sendTaskEmail tager `to` direkte fra UI så brugeren KAN skrive
+    // en intern adresse — det stoppes her med eksplicit fejl.
+    const fromMailbox = getMailbox().toLowerCase()
+    if (to === fromMailbox) {
+      return {
+        success: false,
+        error: `Kan ikke sende: modtager (${to}) matcher CRM-afsender-mailbox (${fromMailbox})`,
+      }
+    }
+    if (to.endsWith('@eltasolar.dk')) {
+      // Tillad kun hvis det er en KENDT bruger der eksplicit ønsker
+      // intern mail — for nu blokerer vi alle automatisk.
+      return {
+        success: false,
+        error: 'Kan ikke sende: modtager ser ud til at være intern mailbox',
+      }
+    }
     if (!subject) {
       return { success: false, error: 'Emne mangler' }
     }

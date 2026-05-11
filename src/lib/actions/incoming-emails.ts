@@ -1138,8 +1138,37 @@ export async function sendQuickReply(
   const email = await getIncomingEmail(emailId)
   if (!email) return { success: false, error: 'Email ikke fundet' }
 
-  const replyTo = email.reply_to || email.sender_email
-  if (!replyTo) return { success: false, error: 'Ingen modtager-adresse fundet' }
+  // Sprint 8F bugfix: Pick recipient SAFELY.
+  // Hvis brugeren klikker reply på en outbound mirror, er
+  // email.sender_email vores egen CRM-mailbox (kontakt@/ordre@).
+  // Tag derfor første EKSTERNE adresse fra reply_to / sender_email /
+  // to_email, og fallback til customer.email hvis intet er eksternt.
+  // Stop med eksplicit fejl hvis vi ender med en intern adresse —
+  // CRM må aldrig auto-reply til sig selv.
+  const INTERNAL_DOMAIN = '@eltasolar.dk'
+  const isInternalAddr = (addr: string | null | undefined): boolean => {
+    if (!addr) return true
+    return addr.toLowerCase().includes(INTERNAL_DOMAIN)
+  }
+  const customerEmail =
+    (email as { customers?: { email?: string | null } }).customers?.email || null
+
+  const candidates = [
+    email.reply_to,
+    email.sender_email,
+    email.to_email,
+    customerEmail,
+  ].filter((c): c is string => !!c && c.trim().length > 0)
+
+  let replyTo = candidates.find((c) => !isInternalAddr(c)) || null
+
+  if (!replyTo) {
+    return {
+      success: false,
+      error:
+        'Kan ikke finde kundens mailadresse. Mailen er enten intern, eller modtageren er ikke registreret. Kobl mailen til en kunde med ekstern mail-adresse for at svare.',
+    }
+  }
 
   // 3. Get sender's display name from profile
   const supabase = await createClient()
@@ -1194,6 +1223,32 @@ export async function sendQuickReply(
     attachmentMetadata = prep.metadata
   }
 
+  // 5c. Vælg FROM mailbox: den mailbox der oprindeligt modtog mailen
+  // (så svaret threader korrekt). Hvis email.to_email er en af vores
+  // mailboxes, brug den; ellers default GRAPH_MAILBOX.
+  let fromMailbox = crmMailbox
+  if (email.to_email && isInternalAddr(email.to_email)) {
+    fromMailbox = email.to_email.toLowerCase().trim()
+  }
+
+  // 5d. SAFETY GUARD før send: aldrig svar til intern adresse eller egen mailbox
+  const replyToLower = replyTo.toLowerCase().trim()
+  if (isInternalAddr(replyToLower)) {
+    logger.warn('sendQuickReply blocked: recipient is internal', {
+      metadata: { emailId, replyTo: replyToLower },
+    })
+    return {
+      success: false,
+      error: 'Kan ikke sende reply: modtager ser ud til at være intern mailbox',
+    }
+  }
+  if (replyToLower === fromMailbox.toLowerCase()) {
+    return {
+      success: false,
+      error: `Kan ikke sende reply: modtager (${replyToLower}) matcher afsender-mailbox (${fromMailbox})`,
+    }
+  }
+
   // 6. Send via Graph API
   try {
     const { sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
@@ -1203,6 +1258,7 @@ export async function sendQuickReply(
       subject,
       html,
       senderName,
+      fromMailbox,
       attachments: graphAttachments.length > 0 ? graphAttachments : undefined,
     })
 
@@ -1216,9 +1272,9 @@ export async function sendQuickReply(
             graph_message_id: result.messageId || `sent-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
             conversation_id: email.conversation_id || null,
             subject,
-            sender_email: crmMailbox,
+            sender_email: fromMailbox,
             sender_name: senderName || 'Elta Solar',
-            to_email: replyTo.toLowerCase(),
+            to_email: replyToLower,
             cc: [],
             body_html: html,
             body_preview: message.substring(0, 200),
