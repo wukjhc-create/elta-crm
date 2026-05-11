@@ -126,10 +126,9 @@ export function MailClient() {
   const [readFilter, setReadFilter] = useState<ReadFilter>('all')
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
 
-  // Link modal state
+  // Link modal state — Sprint 8H polish: CustomerLinkDialog ejer egen
+  // søge-state. Vi behøver kun en open/closed-flag her.
   const [showLinkModal, setShowLinkModal] = useState(false)
-  const [linkSearch, setLinkSearch] = useState('')
-  const [customerResults, setCustomerResults] = useState<Array<{ id: string; company_name: string; email: string; customer_number: string }>>([])
 
   // Graph connection test
   const [graphStatus, setGraphStatus] = useState<{ tested: boolean; success: boolean; error?: string; mailbox?: string }>({ tested: false, success: false })
@@ -503,8 +502,6 @@ export function MailClient() {
       return { success: false, error: msg }
     }
     setShowLinkModal(false)
-    setLinkSearch('')
-    setCustomerResults([])
 
     // Sprint 8H Phase 1A polish: skip den tunge loadEmails (henter alt + stats
     // + requires_response). Genhent KUN den valgte mail og update list-state
@@ -608,21 +605,8 @@ export function MailClient() {
     }
   }
 
-  const searchCustomers = async (term: string) => {
-    setLinkSearch(term)
-    if (term.length < 2) {
-      setCustomerResults([])
-      return
-    }
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('customers')
-      .select('id, company_name, email, customer_number')
-      .or(`company_name.ilike.%${term}%,email.ilike.%${term}%,contact_person.ilike.%${term}%`)
-      .limit(8)
-    setCustomerResults(data || [])
-  }
+  // Sprint 8H polish: searchCustomers fjernet — CustomerLinkDialog ejer
+  // sin egen søge-logik (debounced, sender-match, keyboard-nav).
 
   // Service case from email
   const [isCreatingServiceCase, setIsCreatingServiceCase] = useState(false)
@@ -1103,11 +1087,7 @@ export function MailClient() {
           senderEmailHint={
             selectedEmail.original_sender_email || selectedEmail.sender_email || null
           }
-          onClose={() => {
-            setShowLinkModal(false)
-            setLinkSearch('')
-            setCustomerResults([])
-          }}
+          onClose={() => setShowLinkModal(false)}
           onLink={async (customerId) => {
             const r = await handleManualLink(selectedEmail.id, customerId)
             return r
