@@ -118,8 +118,23 @@ export async function GET(request: Request) {
               reminderCount,
             }
 
+            // Sprint 8H Phase 2: route gennem central mail-router.
+            // resolveOfferReminderRoute prefererer billing_contact;
+            // forhindrer at rykker sendes til site_contact.
+            const { resolveOfferReminderRoute, logMailRoute } = await import(
+              '@/lib/actions/mail-route-resolvers'
+            )
+            const routeResult = await resolveOfferReminderRoute(offer.id)
+            if (!routeResult.ok || !routeResult.route) {
+              errors.push(
+                `Tilbud ${offer.offer_number}: routing fejlede — ${routeResult.error || 'unknown'}`
+              )
+              continue
+            }
+            const route = routeResult.route
+
             const result = await sendEmailViaGraph({
-              to: customer.email,
+              to: route.toEmail,
               subject: `${subject} (${offer.offer_number})`,
               html: generateReminderEmailHtml(emailParams),
               text: generateReminderEmailText(emailParams),
@@ -132,6 +147,16 @@ export async function GET(request: Request) {
                 reminder_count: reminderCount,
               }).eq('id', offer.id)
               totalSent++
+              await logMailRoute(route, 'sent', {
+                offer_id: offer.id,
+                reminderCount,
+                messageId: result.messageId,
+              })
+            } else {
+              await logMailRoute(route, 'failed', {
+                offer_id: offer.id,
+                error: result.error,
+              })
             }
           } catch (err) {
             errors.push(`Tilbud ${offer.offer_number}: ${err instanceof Error ? err.message : 'Fejl'}`)

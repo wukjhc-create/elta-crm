@@ -678,16 +678,39 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     return { invoiceId, status: 'skipped', level, reason: 'no customer linked' }
   }
 
+  // Sprint 8H Phase 2: central mail-router med isReminder=true.
+  // Prefererer billing_contact, fallback til customer.email.
+  const { resolveInvoiceMailRoute, logMailRoute } = await import(
+    '@/lib/actions/mail-route-resolvers'
+  )
+  const routeResult = await resolveInvoiceMailRoute(invoiceId, {
+    isReminder: true,
+    fromMailboxOverride: REMINDER_FROM_MAILBOX,
+  })
+  if (!routeResult.ok || !routeResult.route) {
+    await logReminder(
+      invoiceId,
+      level,
+      'skipped',
+      null,
+      routeResult.error || 'routing failed'
+    )
+    return {
+      invoiceId,
+      status: 'skipped',
+      level,
+      reason: routeResult.error || 'routing failed',
+    }
+  }
+  const route = routeResult.route
+  const recipient = route.toEmail
+
+  // Hent kunde-metadata til template
   const { data: cust } = await supabase
     .from('customers')
     .select('id, company_name, contact_person, email')
     .eq('id', invoice.customer_id)
     .maybeSingle()
-  const recipient = cust?.email
-  if (!recipient) {
-    await logReminder(invoiceId, level, 'skipped', null, 'customer has no email')
-    return { invoiceId, status: 'skipped', level, reason: 'customer has no email' }
-  }
 
   const { isGraphConfigured, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
   if (!isGraphConfigured()) {
@@ -720,6 +743,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 
   if (!result.success) {
     await logReminder(invoiceId, level, 'failed', recipient, null, result.error || 'send failed')
+    await logMailRoute(route, 'failed', { invoiceId, level, error: result.error })
     return { invoiceId, status: 'failed', level, error: result.error }
   }
 
@@ -731,6 +755,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     })
     .eq('id', invoiceId)
   await logReminder(invoiceId, level, 'sent', recipient, null)
+  await logMailRoute(route, 'sent', { invoiceId, level, messageId: result.messageId })
   console.log('INVOICE REMINDER SENT:', invoice.invoice_number, 'level', level, '→', recipient)
   return { invoiceId, status: 'sent', level }
 }
