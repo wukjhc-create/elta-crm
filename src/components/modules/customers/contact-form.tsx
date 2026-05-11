@@ -13,7 +13,11 @@ import {
   createCustomerContact,
   updateCustomerContact,
 } from '@/lib/actions/customers'
-import type { CustomerContact } from '@/types/customers.types'
+import {
+  CUSTOMER_CONTACT_ROLES,
+  CUSTOMER_CONTACT_ROLE_LABELS,
+  type CustomerContact,
+} from '@/types/customers.types'
 
 interface ContactFormProps {
   customerId: string
@@ -56,10 +60,12 @@ export function ContactForm({
           mobile: contact.mobile,
           is_primary: contact.is_primary,
           notes: contact.notes,
+          role: contact.role ?? null,
         }
       : {
           customer_id: customerId,
           is_primary: false,
+          role: null,
         },
   })
 
@@ -143,18 +149,41 @@ export function ContactForm({
             )}
           </div>
 
-          <div className="space-y-1">
-            <label htmlFor="title" className="text-sm font-medium">
-              Titel / Stilling
-            </label>
-            <input
-              {...register('title')}
-              id="title"
-              type="text"
-              placeholder="f.eks. Direktør, Indkøbschef"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              disabled={isLoading}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label htmlFor="title" className="text-sm font-medium">
+                Titel / Stilling
+              </label>
+              <input
+                {...register('title')}
+                id="title"
+                type="text"
+                placeholder="f.eks. Direktør, Indkøbschef"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="role" className="text-sm font-medium">
+                Rolle
+              </label>
+              <select
+                {...register('role')}
+                id="role"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100"
+                disabled={isLoading}
+              >
+                <option value="">— Ingen rolle —</option>
+                {CUSTOMER_CONTACT_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {CUSTOMER_CONTACT_ROLE_LABELS[r]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-500">
+                Faktura/tilbud sendes automatisk til kontakter med rolle &ldquo;Faktura&rdquo; hvis sat.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-1">

@@ -462,6 +462,7 @@ export async function createCustomerContact(
     }
     validateUUID(customerId, 'kunde ID')
 
+    const rawRole = (formData.get('role') as string) || ''
     const rawData = {
       customer_id: customerId,
       name: formData.get('name') as string,
@@ -471,6 +472,8 @@ export async function createCustomerContact(
       mobile: formData.get('mobile') as string || null,
       is_primary: formData.get('is_primary') === 'true',
       notes: formData.get('notes') as string || null,
+      // Sprint 8G+2: kontaktrolle — tom streng → null
+      role: rawRole.trim().length > 0 ? rawRole : null,
     }
 
     const validated = createCustomerContactSchema.safeParse(rawData)
@@ -530,6 +533,7 @@ export async function updateCustomerContact(
       validateUUID(customerId, 'kunde ID')
     }
 
+    const rawRole = (formData.get('role') as string) || ''
     const rawData = {
       id,
       name: formData.get('name') as string,
@@ -539,6 +543,8 @@ export async function updateCustomerContact(
       mobile: formData.get('mobile') as string || null,
       is_primary: formData.get('is_primary') === 'true',
       notes: formData.get('notes') as string || null,
+      // Sprint 8G+2: kontaktrolle — tom streng → null
+      role: rawRole.trim().length > 0 ? rawRole : null,
     }
 
     const validated = updateCustomerContactSchema.safeParse(rawData)

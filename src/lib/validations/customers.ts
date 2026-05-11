@@ -126,6 +126,12 @@ export const createCustomerContactSchema = z.object({
     .max(1000, 'Noter må højst være 1000 tegn')
     .nullable()
     .optional(),
+  /** Sprint 8G+2 — kontaktrolle. CHECK constraint i DB håndhæver
+   *  samme værdier. null = ingen rolle endnu. */
+  role: z
+    .enum(['billing', 'ordering', 'site', 'technical', 'resident', 'property_manager', 'other'])
+    .nullable()
+    .optional(),
 })
 
 export type CreateCustomerContactInput = z.infer<typeof createCustomerContactSchema>

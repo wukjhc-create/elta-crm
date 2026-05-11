@@ -49,7 +49,11 @@ import {
   deleteCustomerContact,
 } from '@/lib/actions/customers'
 import { createFuldmagt } from '@/lib/actions/fuldmagt'
-import type { CustomerWithRelations, CustomerContact } from '@/types/customers.types'
+import {
+  CUSTOMER_CONTACT_ROLE_LABELS,
+  type CustomerWithRelations,
+  type CustomerContact,
+} from '@/types/customers.types'
 import type { PortalAccessToken } from '@/types/portal.types'
 import { useToast } from '@/components/ui/toast'
 
@@ -501,12 +505,27 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
                           <User className="w-4 h-4 text-gray-600" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-medium">{contact.name}</p>
                             {contact.is_primary && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">
                                 <Star className="w-3 h-3" />
                                 Primær
+                              </span>
+                            )}
+                            {contact.role && (
+                              <span
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  contact.role === 'billing'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : contact.role === 'site' || contact.role === 'resident'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : contact.role === 'technical'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {CUSTOMER_CONTACT_ROLE_LABELS[contact.role]}
                               </span>
                             )}
                           </div>
