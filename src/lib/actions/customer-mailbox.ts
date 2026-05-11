@@ -369,16 +369,50 @@ export async function replyToCustomerEmail(
     const supabase = await createClient()
 
     // Fetch original email
+    // Sprint 8H Phase 1A: hent ogsaa to_email + customer_id + customers.email
+    // saa vi kan vaelge en EKSTERN modtager. Outbound mirror-rows har
+    // sender_email = vores egen mailbox — uden denne guard ender CRM med
+    // at sende til sig selv.
     const { data: email } = await supabase
       .from('incoming_emails')
-      .select('subject, sender_email, sender_name, reply_to, body_text, body_preview, received_at')
+      .select(`
+        subject, sender_email, sender_name, reply_to, to_email,
+        body_text, body_preview, received_at, customer_id,
+        customers ( email )
+      `)
       .eq('id', emailId)
       .maybeSingle()
 
     if (!email) return { success: false, error: 'Email ikke fundet' }
 
-    const replyTo = email.reply_to || email.sender_email
-    if (!replyTo) return { success: false, error: 'Ingen modtager-adresse' }
+    // Sprint 8H Phase 1A: vaelg foerste EKSTERNE adresse fra
+    // reply_to / sender_email / to_email / customer.email. Stop med
+    // tydelig fejl hvis vi kun har interne adresser — saa CRM aldrig
+    // svarer sig selv paa en outbound mirror.
+    const INTERNAL_DOMAIN = '@eltasolar.dk'
+    const isInternalAddr = (addr: string | null | undefined): boolean => {
+      if (!addr) return true
+      return addr.toLowerCase().includes(INTERNAL_DOMAIN)
+    }
+    const customerEmailJoin =
+      (email as { customers?: { email?: string | null } | null }).customers?.email || null
+
+    const candidates = [
+      email.reply_to,
+      email.sender_email,
+      email.to_email,
+      customerEmailJoin,
+    ].filter((c): c is string => !!c && c.trim().length > 0)
+
+    const replyTo = candidates.find((c) => !isInternalAddr(c)) || null
+
+    if (!replyTo) {
+      return {
+        success: false,
+        error:
+          'Kan ikke finde kundens mailadresse. Mailen er enten intern, eller modtageren er ikke registreret.',
+      }
+    }
 
     // Get sender profile
     const { data: profile } = await supabase
@@ -411,11 +445,42 @@ export async function replyToCustomerEmail(
       originalSender: email.sender_name || email.sender_email,
       originalBody,
     })
+
+    // Sprint 8H Phase 1A: vaelg FROM mailbox — hvis email.to_email er
+    // en af vores mailboxes (intern), brug den saa svaret threader paa
+    // rette indbakke. Ellers default GRAPH_MAILBOX.
+    const crmMailbox = getMailbox()
+    let fromMailbox = crmMailbox
+    if (email.to_email && isInternalAddr(email.to_email)) {
+      fromMailbox = email.to_email.toLowerCase().trim()
+    }
+
+    // SAFETY GUARD foer Graph-send
+    const replyToLower = replyTo.toLowerCase().trim()
+    if (isInternalAddr(replyToLower)) {
+      logger.warn('replyToCustomerEmail blocked: recipient is internal', {
+        entity: 'customer_mailbox',
+        entityId: emailId,
+        metadata: { replyTo: replyToLower },
+      })
+      return {
+        success: false,
+        error: 'Kan ikke sende reply: modtager ser ud til at vaere intern mailbox',
+      }
+    }
+    if (replyToLower === fromMailbox.toLowerCase()) {
+      return {
+        success: false,
+        error: `Kan ikke sende reply: modtager (${replyToLower}) matcher afsender-mailbox (${fromMailbox})`,
+      }
+    }
+
     const result = await sendEmailViaGraph({
       to: replyTo,
       subject,
       html,
       senderName,
+      fromMailbox,
     })
 
     if (result.success) {
@@ -431,7 +496,7 @@ export async function replyToCustomerEmail(
         to_email: replyTo,
         subject,
         body_html: html,
-        sender_email: getMailbox(),
+        sender_email: fromMailbox,
         sender_name: senderName || 'Elta Solar',
         graph_message_id: result.messageId || null,
         conversation_id: origEmail?.conversation_id || null,
