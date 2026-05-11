@@ -1,7 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { Pencil } from 'lucide-react'
+import { EditSiteInfoDialog } from '@/components/modules/orders/edit-site-info-dialog'
 import {
   SERVICE_CASE_PRIORITY_LABELS,
   SERVICE_CASE_PRIORITY_COLORS,
@@ -253,7 +256,11 @@ function OverblikTab({
   formand: { id: string; name: string } | null
   creator: { id: string; full_name: string | null } | null
 }) {
+  const router = useRouter()
+  const [editingSite, setEditingSite] = useState(false)
+
   return (
+    <>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       {/* Sag side */}
       <Panel title="Sagsoplysninger">
@@ -345,7 +352,19 @@ function OverblikTab({
       </Panel>
 
       {/* Sprint 8G — Leveringskontakt / arbejdssted */}
-      <Panel title="Leveringskontakt / arbejdssted">
+      <Panel
+        title="Leveringskontakt / arbejdssted"
+        action={
+          <button
+            type="button"
+            onClick={() => setEditingSite(true)}
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+          >
+            <Pencil className="w-3 h-3" />
+            Rediger
+          </button>
+        }
+      >
         {sag.site_customer ? (
           <>
             <Row
@@ -512,6 +531,29 @@ function OverblikTab({
         </Panel>
       )}
     </div>
+
+    {editingSite && (
+      <EditSiteInfoDialog
+        caseId={sag.id}
+        payingCustomerId={sag.customer_id}
+        initial={{
+          address: sag.address,
+          postal_code: sag.postal_code,
+          city: sag.city,
+          floor_door: sag.floor_door,
+          access_notes: sag.access_notes,
+          site_customer: sag.site_customer
+            ? { id: sag.site_customer.id, company_name: sag.site_customer.company_name }
+            : null,
+          site_contact: sag.site_contact
+            ? { id: sag.site_contact.id, name: sag.site_contact.name }
+            : null,
+        }}
+        onClose={() => setEditingSite(false)}
+        onSaved={() => router.refresh()}
+      />
+    )}
+    </>
   )
 }
 
@@ -568,14 +610,20 @@ function Panel({
   title,
   children,
   full,
+  action,
 }: {
   title: string
   children: React.ReactNode
   full?: boolean
+  /** Valgfri højre-stillet action (fx Rediger-knap). */
+  action?: React.ReactNode
 }) {
   return (
     <div className={`bg-gray-50 rounded ring-1 ring-gray-200 p-4 ${full ? 'lg:col-span-2' : ''}`}>
-      <h3 className="text-sm font-semibold mb-3">{title}</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
       <div className="space-y-1">{children}</div>
     </div>
   )
