@@ -578,8 +578,18 @@ export function MailClient() {
         } else {
           toast.success('Lead oprettet', `Ny kunde + lead oprettet fra email${result.customerName ? `: ${result.customerName}` : ''}`)
         }
-        await loadEmails()
-        if (selectedEmail?.id === emailId) {
+        // Sprint 8H polish: skip den tunge loadEmails() — opdatér state lokalt.
+        // Hent kun den enkelte mail for at få den friske customer-relation.
+        const { getIncomingEmail } = await import('@/lib/actions/incoming-emails')
+        const updated = await getIncomingEmail(emailId)
+        if (updated) {
+          setEmails((prev) =>
+            prev.map((e) => (e.id === emailId ? { ...e, ...updated } : e))
+          )
+          if (selectedEmail?.id === emailId) {
+            setSelectedEmail(updated)
+          }
+        } else if (selectedEmail?.id === emailId) {
           setSelectedEmail((prev) => prev ? { ...prev, link_status: 'linked' as const } : null)
         }
         if (result.leadId) {

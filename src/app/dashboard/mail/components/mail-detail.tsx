@@ -136,6 +136,21 @@ export function MailDetail({
 
   // Sprint 8H Phase 1A polish: loading-state på "Fjern kobling"-knap
   const [isUnlinking, setIsUnlinking] = useState(false)
+  // Sprint 8H polish: én pendingAction kan køre ad gangen for header-knapper
+  const [pendingAction, setPendingAction] = useState<'archive' | 'ignore' | 'restore' | null>(null)
+
+  const runHeaderAction = async (
+    name: 'archive' | 'ignore' | 'restore',
+    fn: (() => void) | (() => Promise<void>) | undefined
+  ) => {
+    if (!fn || pendingAction !== null) return
+    setPendingAction(name)
+    try {
+      await fn()
+    } finally {
+      setPendingAction(null)
+    }
+  }
 
   const attachments = (email.attachment_urls || []) as Array<{
     url?: string; filename: string; contentType?: string; size: number; storagePath?: string
@@ -406,19 +421,31 @@ export function MailDetail({
 
           {/* Archive */}
           <button
-            onClick={onArchive}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50"
+            onClick={() => runHeaderAction('archive', onArchive)}
+            disabled={pendingAction !== null}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Archive className="w-4 h-4" /> Arkivér
+            {pendingAction === 'archive' ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Archive className="w-4 h-4" />
+            )}
+            Arkivér
           </button>
 
           {/* Ignore — only when unidentified */}
           {email.link_status === 'unidentified' && (
             <button
-              onClick={onIgnore}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 text-gray-500"
+              onClick={() => runHeaderAction('ignore', onIgnore)}
+              disabled={pendingAction !== null}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-gray-50 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <EyeOff className="w-4 h-4" /> Ignorér
+              {pendingAction === 'ignore' ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <EyeOff className="w-4 h-4" />
+              )}
+              Ignorér
             </button>
           )}
 
@@ -427,11 +454,17 @@ export function MailDetail({
                manuelt eller lade auto-linker prove igen. */}
           {email.link_status === 'ignored' && onRestoreFromIgnored && (
             <button
-              onClick={onRestoreFromIgnored}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-amber-50 text-amber-700 border-amber-300"
+              onClick={() => runHeaderAction('restore', onRestoreFromIgnored)}
+              disabled={pendingAction !== null}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-amber-50 text-amber-700 border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Saet mailen tilbage til Uidentificeret saa den kan kobles manuelt"
             >
-              <AlertCircle className="w-4 h-4" /> Markér som relevant
+              {pendingAction === 'restore' ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <AlertCircle className="w-4 h-4" />
+              )}
+              Markér som relevant
             </button>
           )}
         </div>
