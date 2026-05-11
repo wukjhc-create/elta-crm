@@ -1105,10 +1105,19 @@ export async function checkGraphEnvVars(): Promise<{
  */
 export async function sendQuickReply(
   emailId: string,
-  message: string
+  message: string,
+  attachmentIds?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   validateUUID(emailId, 'emailId')
   const { userId } = await getAuthenticatedClient()
+  const safeAttachmentIds = (attachmentIds || []).filter((x): x is string => !!x)
+  for (const id of safeAttachmentIds) {
+    try {
+      validateUUID(id, 'attachmentId')
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Ugyldigt vedhæftningsID' }
+    }
+  }
 
   // 1. Pre-flight: check env vars with specific diagnostics
   const envCheck = await checkGraphEnvVars()
@@ -1168,6 +1177,23 @@ export async function sendQuickReply(
     originalBody: safeOriginalBody,
   })
 
+  // 5b. Sprint 8F: prepare attachments fra customer_documents hvis nogen
+  let graphAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = []
+  let attachmentMetadata: Array<{ filename: string; contentType: string; size: number; url: string; storagePath: string }> = []
+
+  if (safeAttachmentIds.length > 0) {
+    if (!email.customer_id) {
+      return { success: false, error: 'Mailen er ikke koblet til en kunde — kan ikke vedhæfte filer' }
+    }
+    const { prepareGraphAttachmentsFromDocumentIds } = await import('@/lib/services/outbound-attachments')
+    const prep = await prepareGraphAttachmentsFromDocumentIds(safeAttachmentIds, email.customer_id)
+    if (!prep.ok) {
+      return { success: false, error: prep.error || 'Kunne ikke klargøre vedhæftninger' }
+    }
+    graphAttachments = prep.attachments
+    attachmentMetadata = prep.metadata
+  }
+
   // 6. Send via Graph API
   try {
     const { sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
@@ -1177,6 +1203,7 @@ export async function sendQuickReply(
       subject,
       html,
       senderName,
+      attachments: graphAttachments.length > 0 ? graphAttachments : undefined,
     })
 
     if (result.success) {
@@ -1195,7 +1222,8 @@ export async function sendQuickReply(
             cc: [],
             body_html: html,
             body_preview: message.substring(0, 200),
-            has_attachments: false,
+            has_attachments: attachmentMetadata.length > 0,
+            attachment_urls: attachmentMetadata.length > 0 ? attachmentMetadata : null,
             is_read: true,
             received_at: new Date().toISOString(),
             link_status: email.customer_id ? 'linked' : 'unidentified',
@@ -1211,7 +1239,12 @@ export async function sendQuickReply(
       logger.info('Quick reply sent', {
         entity: 'incoming_emails',
         entityId: emailId,
-        metadata: { to: replyTo, subject, userId },
+        metadata: {
+          to: replyTo,
+          subject,
+          userId,
+          attachmentCount: attachmentMetadata.length,
+        },
       })
       revalidatePath('/dashboard/mail')
     } else if (result.error?.includes('403')) {

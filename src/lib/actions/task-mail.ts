@@ -37,6 +37,10 @@ export interface SendTaskEmailInput {
   cc?: string
   subject: string
   body: string
+  /** Sprint 8F: customer_documents-IDs der allerede er uploaded via
+   *  attachment-picker. Server-action henter filerne fra Storage og
+   *  sender dem som Graph fileAttachments. */
+  attachmentIds?: string[]
 }
 
 export interface SendTaskEmailResult {
@@ -258,6 +262,38 @@ export async function sendTaskEmail(
 
     const messageRowId = messageRow.id
 
+    // Sprint 8F: forbered attachments hvis nogen IDs sendt med
+    const attachmentIds = (input.attachmentIds || []).filter((x): x is string => !!x)
+    for (const id of attachmentIds) {
+      try {
+        validateUUID(id, 'attachmentId')
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : 'Ugyldigt vedhæftningsID' }
+      }
+    }
+
+    let graphAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = []
+    let attachmentMetadata: Array<{ filename: string; contentType: string; size: number; url: string; storagePath: string }> = []
+
+    if (attachmentIds.length > 0) {
+      const { prepareGraphAttachmentsFromDocumentIds } = await import('@/lib/services/outbound-attachments')
+      const prep = await prepareGraphAttachmentsFromDocumentIds(attachmentIds, task.customer_id)
+      if (!prep.ok) {
+        // Marker message-rowen som failed inden vi returnerer fejl
+        await supabase
+          .from('email_messages')
+          .update({
+            status: 'failed',
+            failed_at: new Date().toISOString(),
+            error_message: prep.error || 'Vedhæftninger kunne ikke klargøres',
+          })
+          .eq('id', messageRowId)
+        return { success: false, error: prep.error || 'Vedhæftninger kunne ikke klargøres' }
+      }
+      graphAttachments = prep.attachments
+      attachmentMetadata = prep.metadata
+    }
+
     const sendResult = await sendEmailViaGraph({
       to,
       subject,
@@ -265,6 +301,7 @@ export async function sendTaskEmail(
       text: bodyText,
       replyTo: fromEmail,
       senderName: senderName || undefined,
+      attachments: graphAttachments.length > 0 ? graphAttachments : undefined,
     })
 
     if (!sendResult.success) {
@@ -322,7 +359,8 @@ export async function sendTaskEmail(
           body_html: bodyHtml,
           body_text: bodyText,
           body_preview: subject.substring(0, 200),
-          has_attachments: false,
+          has_attachments: attachmentMetadata.length > 0,
+          attachment_urls: attachmentMetadata.length > 0 ? attachmentMetadata : null,
           is_read: true,
           received_at: sentAt,
           link_status: 'linked',
