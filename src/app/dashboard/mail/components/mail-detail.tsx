@@ -24,6 +24,7 @@ import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
 import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars, linkEmailToCase } from '@/lib/actions/incoming-emails'
 import { getOpenAutoTasksForEmail } from '@/lib/actions/auto-tasks'
 import { AIMailAssistantPanel } from '@/components/mail/ai-mail-assistant-panel'
+import { CreateFromMailDialog } from '@/components/mail/create-from-mail-dialog'
 import { quickCreateCustomerFromEmail } from '@/lib/actions/incoming-emails'
 import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { parseCustomerFromEmail } from '@/lib/utils/email-parser'
@@ -696,40 +697,24 @@ export function MailDetail({
       </div>
 
       {/* ============================================== */}
-      {/* QUICK CREATE CUSTOMER MODAL                    */}
+      {/* Sprint 8H polish — CREATE FROM MAIL DIALOG     */}
+      {/* med 3 valg: payer_only / body_only /            */}
+      {/* payer_plus_site (Fasetech-scenarie)             */}
       {/* ============================================== */}
       {showCreateCustomerModal && (
-        <QuickCreateCustomerModal
+        <CreateFromMailDialog
           email={email}
-          onClose={() => { setShowCreateCustomerModal(false); setQuickCreateError(null) }}
-          onSubmit={async (data) => {
-            setIsCreatingQuickCustomer(true)
-            setQuickCreateError(null)
-            try {
-              const result = await quickCreateCustomerFromEmail({
-                companyName: data.companyName,
-                contactPerson: data.contactPerson,
-                email: data.email,
-                phone: data.phone,
-                address: data.address,
-                city: data.city,
-                postalCode: data.postalCode,
-                sourceEmailId: email.id,
-              })
-              if (result.success && result.customerId) {
-                setShowCreateCustomerModal(false)
-                onNavigateToCustomer?.(result.customerId)
-              } else {
-                setQuickCreateError(result.error || 'Ukendt fejl')
-              }
-            } catch {
-              setQuickCreateError('Uventet fejl')
-            } finally {
-              setIsCreatingQuickCustomer(false)
+          onClose={() => setShowCreateCustomerModal(false)}
+          onSuccess={(result) => {
+            setShowCreateCustomerModal(false)
+            // Hvis en sag blev oprettet, naviger til den; ellers til kunden.
+            if (result.serviceCaseId) {
+              // Naviger via router push for at se sagen straks
+              window.location.href = `/dashboard/orders/${result.serviceCaseId}`
+            } else if (result.customerId) {
+              onNavigateToCustomer?.(result.customerId)
             }
           }}
-          isSubmitting={isCreatingQuickCustomer}
-          error={quickCreateError}
         />
       )}
 
