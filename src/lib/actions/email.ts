@@ -777,9 +777,30 @@ export async function sendOfferEmail(
       .update({ tracking_id: trackingId })
       .eq('id', message.id)
 
+    // Sprint 8H Phase 2: central mail-router bestemmer recipient
+    // (billing_contact hvis findes, ellers paying_customer). Tving
+    // intent='offer' så site_contact ALDRIG kan vælges.
+    const { resolveOfferMailRoute, logMailRoute } = await import(
+      '@/lib/actions/mail-route-resolvers'
+    )
+    const routeResult = await resolveOfferMailRoute(input.offer_id)
+    if (!routeResult.ok || !routeResult.route) {
+      // Marker message-rowen som failed FØR retur
+      await supabase
+        .from('email_messages')
+        .update({
+          status: 'failed',
+          failed_at: new Date().toISOString(),
+          error_message: routeResult.error || 'routing failed',
+        })
+        .eq('id', message.id)
+      return { success: false, error: routeResult.error || 'Kunne ikke bygge route' }
+    }
+    const route = routeResult.route
+
     // Actually send the email via Microsoft Graph
     const emailResult = await sendEmailViaGraph({
-      to: offer.customer.email,
+      to: route.toEmail,
       subject,
       html: finalHtml,
       senderName,
@@ -815,6 +836,11 @@ export async function sendOfferEmail(
       })
       .eq('id', message.id)
 
+    await logMailRoute(route, 'sent', {
+      offer_id: input.offer_id,
+      message_id: emailResult.messageId,
+    })
+
     // Update offer status if it was draft
     if (offer.status === 'draft') {
       await supabase
@@ -839,7 +865,7 @@ export async function sendOfferEmail(
           subject,
           sender_email: fromEmail,
           sender_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',
-          to_email: offer.customer.email.toLowerCase(),
+          to_email: route.toEmail,
           cc: [],
           body_html: finalHtml,
           body_preview: subject.substring(0, 200),

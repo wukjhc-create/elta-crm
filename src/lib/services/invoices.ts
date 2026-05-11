@@ -825,15 +825,31 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     return { invoiceId, status: 'skipped', reason: 'no customer linked' }
   }
 
+  // Sprint 8H Phase 2: central mail-router.
+  // resolveInvoiceMailRoute prefererer billing_contact, fallback til
+  // customer.email. ALDRIG site_contact.
+  const { resolveInvoiceMailRoute, logMailRoute } = await import(
+    '@/lib/actions/mail-route-resolvers'
+  )
+  const routeResult = await resolveInvoiceMailRoute(invoiceId, {
+    fromMailboxOverride: INVOICE_FROM_MAILBOX,
+  })
+  if (!routeResult.ok || !routeResult.route) {
+    return {
+      invoiceId,
+      status: 'skipped',
+      reason: routeResult.error || 'routing failed',
+    }
+  }
+  const route = routeResult.route
+  const recipient = route.toEmail
+
+  // Hent kunde-metadata for template
   const { data: cust } = await supabase
     .from('customers')
     .select('id, company_name, contact_person, email')
     .eq('id', invoice.customer_id)
     .maybeSingle()
-  const recipient = cust?.email
-  if (!recipient) {
-    return { invoiceId, status: 'skipped', reason: 'customer has no email' }
-  }
 
   const { isGraphConfigured, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
   if (!isGraphConfigured()) {
@@ -922,8 +938,11 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
       metadata: { recipient, invoice_number: invoice.invoice_number },
       error: new Error(result.error || 'send failed'),
     })
+    await logMailRoute(route, 'failed', { invoiceId, error: result.error })
     return { invoiceId, status: 'failed', recipient, error: result.error }
   }
+
+  await logMailRoute(route, 'sent', { invoiceId, messageId: result.messageId })
 
   // Flip status draft → sent and persist payment_reference if we
   // generated one.

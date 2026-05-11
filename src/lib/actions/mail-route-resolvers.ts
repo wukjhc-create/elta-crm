@@ -306,6 +306,292 @@ export async function resolveCustomerMailboxReplyRoute(
 }
 
 // =====================================================
+// 4. resolveOfferMailRoute (Phase 2)
+// =====================================================
+
+/**
+ * Bygger MailRoute for tilbuds-mail.
+ *
+ * Regler:
+ *  - Default: billing_contact hvis findes, ellers paying_customer.
+ *  - ALDRIG site_contact (faktura/tilbud skal til betaler, ikke
+ *    arbejdspladsen).
+ *  - Override fra UI er TILLADT, men recipient skal være ekstern.
+ *  - fromMailbox: default GRAPH_MAILBOX (kontakt@) — tilbud sendes
+ *    fra hoved-mailbox med replyTo lokalt sat af caller hvis nødvendigt.
+ */
+export async function resolveOfferMailRoute(
+  offerId: string,
+  ctx?: MailRouteContext
+): Promise<ResolvedRouteResult> {
+  try {
+    validateUUID(offerId, 'offerId')
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Ugyldigt offerId',
+      errorCode: 'INVALID_INPUT',
+    }
+  }
+
+  const supabase = await createClient()
+  const { data: offer } = await supabase
+    .from('offers')
+    .select(`
+      id, offer_number, customer_id,
+      customers ( id, company_name, email )
+    `)
+    .eq('id', offerId)
+    .maybeSingle()
+
+  if (!offer) {
+    return { ok: false, error: 'Tilbud ikke fundet', errorCode: 'NOT_FOUND' }
+  }
+  if (!offer.customer_id) {
+    return {
+      ok: false,
+      error: 'Tilbud har ingen tilknyttet kunde',
+      errorCode: 'NO_CUSTOMER',
+    }
+  }
+
+  const customerJoin = (offer as { customers?: { id?: string; company_name?: string; email?: string } | null }).customers
+  const payerName = customerJoin?.company_name || null
+  const fromMailbox = defaultFromMailbox()
+
+  // 1. Override (manual)
+  if (ctx?.recipientOverride && ctx.recipientOverride.trim()) {
+    try {
+      assertValidRecipient(ctx.recipientOverride)
+    } catch (err) {
+      if (err instanceof MailRouteError) {
+        return { ok: false, error: err.message, errorCode: err.code }
+      }
+      throw err
+    }
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(ctx.recipientOverride),
+      toName: null,
+      recipientRole: 'manual',
+      intent: 'offer',
+      customerId: offer.customer_id,
+      serviceCaseId: null,
+      customerContactId: ctx.customerContactIdOverride || null,
+      reason: buildRouteReason('offer', 'manual', {
+        payerName,
+        manualNote: `Tilbud ${offer.offer_number}`,
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 2. Billing contact under betaler
+  const { data: billingContact } = await supabase
+    .from('customer_contacts')
+    .select('id, name, email')
+    .eq('customer_id', offer.customer_id)
+    .eq('role', 'billing')
+    .not('email', 'is', null)
+    .limit(1)
+    .maybeSingle()
+
+  if (billingContact?.email && !normalizeEmail(billingContact.email).includes('@eltasolar.dk')) {
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(billingContact.email),
+      toName: billingContact.name || null,
+      recipientRole: 'billing_contact',
+      intent: 'offer',
+      customerId: offer.customer_id,
+      serviceCaseId: null,
+      customerContactId: billingContact.id as string,
+      reason: buildRouteReason('offer', 'billing_contact', {
+        payerName,
+        contactName: billingContact.name,
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 3. Fallback: customer.email
+  if (!customerJoin?.email) {
+    return {
+      ok: false,
+      error: 'Kunden mangler en email — sæt customer.email eller billing-kontakt',
+      errorCode: 'NO_CUSTOMER_EMAIL',
+    }
+  }
+
+  const route: MailRoute = {
+    fromMailbox,
+    toEmail: normalizeEmail(customerJoin.email),
+    toName: customerJoin.company_name || null,
+    recipientRole: 'paying_customer',
+    intent: 'offer',
+    customerId: offer.customer_id,
+    serviceCaseId: null,
+    customerContactId: null,
+    reason: buildRouteReason('offer', 'paying_customer', { payerName }),
+    isInternalAllowed: false,
+  }
+  return toResult(route)
+}
+
+// =====================================================
+// 5. resolveInvoiceMailRoute (Phase 2)
+// =====================================================
+
+/**
+ * Som resolveOfferMailRoute, men for faktura. intent='invoice'.
+ */
+export async function resolveInvoiceMailRoute(
+  invoiceId: string,
+  ctx?: MailRouteContext & { isReminder?: boolean; fromMailboxOverride?: string }
+): Promise<ResolvedRouteResult> {
+  try {
+    validateUUID(invoiceId, 'invoiceId')
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Ugyldigt invoiceId',
+      errorCode: 'INVALID_INPUT',
+    }
+  }
+
+  const supabase = await createClient()
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select(`
+      id, invoice_number, customer_id,
+      customers ( id, company_name, email )
+    `)
+    .eq('id', invoiceId)
+    .maybeSingle()
+
+  if (!invoice) {
+    return { ok: false, error: 'Faktura ikke fundet', errorCode: 'NOT_FOUND' }
+  }
+  if (!invoice.customer_id) {
+    return {
+      ok: false,
+      error: 'Faktura har ingen tilknyttet kunde',
+      errorCode: 'NO_CUSTOMER',
+    }
+  }
+
+  const customerJoin = (invoice as { customers?: { id?: string; company_name?: string; email?: string } | null }).customers
+  const payerName = customerJoin?.company_name || null
+  const fromMailbox = ctx?.fromMailboxOverride || defaultFromMailbox()
+  const intent = ctx?.isReminder ? 'invoice_reminder' : 'invoice'
+
+  // 1. Override
+  if (ctx?.recipientOverride && ctx.recipientOverride.trim()) {
+    try {
+      assertValidRecipient(ctx.recipientOverride)
+    } catch (err) {
+      if (err instanceof MailRouteError) {
+        return { ok: false, error: err.message, errorCode: err.code }
+      }
+      throw err
+    }
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(ctx.recipientOverride),
+      toName: null,
+      recipientRole: 'manual',
+      intent,
+      customerId: invoice.customer_id,
+      serviceCaseId: null,
+      customerContactId: ctx.customerContactIdOverride || null,
+      reason: buildRouteReason(intent, 'manual', {
+        payerName,
+        manualNote: `Faktura ${invoice.invoice_number}`,
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 2. Billing contact
+  const { data: billingContact } = await supabase
+    .from('customer_contacts')
+    .select('id, name, email')
+    .eq('customer_id', invoice.customer_id)
+    .eq('role', 'billing')
+    .not('email', 'is', null)
+    .limit(1)
+    .maybeSingle()
+
+  if (billingContact?.email && !normalizeEmail(billingContact.email).includes('@eltasolar.dk')) {
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(billingContact.email),
+      toName: billingContact.name || null,
+      recipientRole: 'billing_contact',
+      intent,
+      customerId: invoice.customer_id,
+      serviceCaseId: null,
+      customerContactId: billingContact.id as string,
+      reason: buildRouteReason(intent, 'billing_contact', {
+        payerName,
+        contactName: billingContact.name,
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 3. Fallback: customer.email
+  if (!customerJoin?.email) {
+    return {
+      ok: false,
+      error: 'Kunden mangler en email — sæt customer.email eller billing-kontakt',
+      errorCode: 'NO_CUSTOMER_EMAIL',
+    }
+  }
+
+  const route: MailRoute = {
+    fromMailbox,
+    toEmail: normalizeEmail(customerJoin.email),
+    toName: customerJoin.company_name || null,
+    recipientRole: 'paying_customer',
+    intent,
+    customerId: invoice.customer_id,
+    serviceCaseId: null,
+    customerContactId: null,
+    reason: buildRouteReason(intent, 'paying_customer', { payerName }),
+    isInternalAllowed: false,
+  }
+  return toResult(route)
+}
+
+// =====================================================
+// 6. resolveOfferReminderRoute (Phase 2)
+// =====================================================
+
+/**
+ * Tilbuds-rykker — samme route som tilbud, men intent='offer'
+ * markeres som reminder via reason.
+ */
+export async function resolveOfferReminderRoute(
+  offerId: string,
+  ctx?: MailRouteContext
+): Promise<ResolvedRouteResult> {
+  const result = await resolveOfferMailRoute(offerId, ctx)
+  if (!result.ok || !result.route) return result
+  return {
+    ok: true,
+    route: {
+      ...result.route,
+      reason: result.route.reason + ' [rykker]',
+    },
+  }
+}
+
+// =====================================================
 // Logger helper
 // =====================================================
 
