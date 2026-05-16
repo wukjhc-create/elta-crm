@@ -207,20 +207,41 @@ export async function generateAndSendQuote(
       logger.error('Microsoft Graph not configured — cannot send email')
       emailResult = { success: false, error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET.' }
     } else {
-      emailResult = await sendEmailViaGraph({
-        to: input.customer.email,
-        subject: emailSubject,
-        html: emailHtml,
-        senderName: input.senderName,
-        replyTo: companySettings.company_email || undefined,
-        attachments: [
-          {
-            filename: `${quoteReference}.pdf`,
-            content: Buffer.from(pdfBuffer),
-            contentType: 'application/pdf',
-          },
-        ],
+      // Sprint 8H Phase 5: central mail-router (offer-intent, quote).
+      // resolveQuoteMailRoute laver billing_contact > customer.email >
+      // input.customer.email. ALDRIG site_contact.
+      const { resolveQuoteMailRoute, logMailRoute } = await import(
+        '@/lib/actions/mail-route-resolvers'
+      )
+      const routeResult = await resolveQuoteMailRoute({
+        customerId: input.customerId || null,
+        fallbackEmail: input.customer.email,
+        quoteReference,
       })
+      if (!routeResult.ok || !routeResult.route) {
+        emailResult = { success: false, error: routeResult.error || 'Kunne ikke bygge mail-route' }
+      } else {
+        const route = routeResult.route
+        emailResult = await sendEmailViaGraph({
+          to: route.toEmail,
+          subject: emailSubject,
+          html: emailHtml,
+          senderName: input.senderName,
+          replyTo: companySettings.company_email || undefined,
+          attachments: [
+            {
+              filename: `${quoteReference}.pdf`,
+              content: Buffer.from(pdfBuffer),
+              contentType: 'application/pdf',
+            },
+          ],
+        })
+        await logMailRoute(
+          route,
+          emailResult.success ? 'sent' : 'failed',
+          { quote_reference: quoteReference, error: emailResult.error }
+        )
+      }
     }
 
     if (!emailResult.success) {
