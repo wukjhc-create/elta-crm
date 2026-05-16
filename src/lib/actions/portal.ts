@@ -687,7 +687,28 @@ export async function rejectOffer(
       const text = `Tilbud afvist\n\n${safeReason ? `Begrundelse: ${safeReason}` : 'Ingen begrundelse.'}\n\nSe tilbuddet i CRM-systemet.`
 
       if (isGraphConfigured()) {
-        await sendEmailViaGraph({ to: crmMailbox, subject, html, text })
+        // Sprint 8H Phase 3: central mail-router (internal_notification).
+        const { resolveInternalNotificationRoute, logMailRoute } = await import(
+          '@/lib/actions/mail-route-resolvers'
+        )
+        const routeResult = await resolveInternalNotificationRoute({
+          recipientEmail: crmMailbox,
+          contextLabel: `offer_rejected:${offerId}`,
+        })
+        if (routeResult.ok && routeResult.route) {
+          const route = routeResult.route
+          const sendResult = await sendEmailViaGraph({
+            to: route.toEmail,
+            subject,
+            html,
+            text,
+          })
+          await logMailRoute(
+            route,
+            sendResult.success ? 'sent' : 'failed',
+            { offer_id: offerId, error: sendResult.error }
+          )
+        }
       } else {
         await sendEmail({ to: crmMailbox, subject, html, text })
       }
@@ -808,7 +829,29 @@ export async function sendPortalMessage(
       const text = `Ny besked fra ${contactPerson} (${companyName}):\n\n${data.message}\n\nSvar kunden i CRM-systemet.`
 
       if (isGraphConfigured()) {
-        await sendEmailViaGraph({ to: crmMailbox, subject, html, text })
+        // Sprint 8H Phase 3: central mail-router (internal_notification).
+        const { resolveInternalNotificationRoute, logMailRoute } = await import(
+          '@/lib/actions/mail-route-resolvers'
+        )
+        const routeResult = await resolveInternalNotificationRoute({
+          recipientEmail: crmMailbox,
+          customerId,
+          contextLabel: `portal_message:${customerId}`,
+        })
+        if (routeResult.ok && routeResult.route) {
+          const route = routeResult.route
+          const sendResult = await sendEmailViaGraph({
+            to: route.toEmail,
+            subject,
+            html,
+            text,
+          })
+          await logMailRoute(
+            route,
+            sendResult.success ? 'sent' : 'failed',
+            { customer_id: customerId, error: sendResult.error }
+          )
+        }
       } else {
         await sendEmail({ to: crmMailbox, subject, html, text })
       }
