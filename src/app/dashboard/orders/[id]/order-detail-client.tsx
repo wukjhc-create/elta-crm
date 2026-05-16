@@ -11,6 +11,7 @@ import {
   SERVICE_CASE_STATUS_LABELS,
   SERVICE_CASE_STATUS_COLORS,
   SERVICE_CASE_TYPE_LABELS,
+  BILLING_MODE_LABELS,
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
 import {
@@ -351,6 +352,43 @@ function OverblikTab({
         <Row label="EAN-nummer" value={sag.ean_number ?? '—'} />
       </Panel>
 
+      {/* Sprint 9E Phase 2 — Sagspartner-overblik (read-only) */}
+      <Panel title="Sagspartnere">
+        <Row label="Ordregiver" value={renderPartyLink(sag.orderer_customer, 'Samme som nuværende kunde')} />
+        <Row label="Kunde/anlægsejer" value={renderPartyLink(sag.end_customer, 'Samme som leveringskunde/kunde')} />
+        <Row label="Betaler" value={renderPartyLink(sag.payer_customer, 'Samme som betaler/kunde')} />
+        <Row
+          label="Købssted/forhandler"
+          value={
+            sag.purchased_from_customer ? (
+              <Link
+                href={`/dashboard/customers/${sag.purchased_from_customer.id}`}
+                className="text-emerald-700 hover:underline"
+              >
+                {sag.purchased_from_customer.company_name}
+              </Link>
+            ) : sag.purchase_source ? (
+              <span className="text-gray-700">{sag.purchase_source}</span>
+            ) : (
+              <span className="text-gray-400">Ikke angivet</span>
+            )
+          }
+        />
+        <Row
+          label="Billing mode"
+          value={
+            sag.billing_mode ? (
+              <span className="text-gray-700">{BILLING_MODE_LABELS[sag.billing_mode]}</span>
+            ) : (
+              <span className="text-gray-400">—</span>
+            )
+          }
+        />
+        <div className="col-span-full mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Dette panel er foreløbig read-only. Tilbud/faktura sendes fortsat efter eksisterende routing indtil Phase 6.
+        </div>
+      </Panel>
+
       {/* Sprint 8G — Leveringskontakt / arbejdssted */}
       <Panel
         title="Leveringskontakt / arbejdssted"
@@ -603,6 +641,27 @@ function Placeholder({ tabLabel, tabId }: { tabLabel: string; tabId?: string }) 
         <p className="text-xs text-gray-400 mt-4 uppercase tracking-wide">{info.sprint}</p>
       )}
     </div>
+  )
+}
+
+/**
+ * Sprint 9E Phase 2 — render-helper for sagspartner-felter.
+ * Returnerer link til kundekort hvis partneren er sat, ellers fallback-tekst.
+ */
+function renderPartyLink(
+  party: { id: string; company_name: string } | null | undefined,
+  fallback: string
+): React.ReactNode {
+  if (!party?.id) {
+    return <span className="text-gray-400">{fallback}</span>
+  }
+  return (
+    <Link
+      href={`/dashboard/customers/${party.id}`}
+      className="text-emerald-700 hover:underline"
+    >
+      {party.company_name}
+    </Link>
   )
 }
 

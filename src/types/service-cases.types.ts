@@ -171,6 +171,35 @@ export interface ServiceCase {
   site_customer_id: string | null
   /** Praktiske noter til arbejdssted (adgangskode, parkering, hund, etc.). */
   access_notes: string | null
+  // ---- Sprint 9E Phase 1 — sagspartner-model (migration 00112) ----
+  /** Ordregiver — den der bestilte opgaven. Backfilled til customer_id. */
+  orderer_customer_id: string | null
+  /** Slutkunde / anlægsejer. Kan = orderer ved B2C. Backfilled til site_customer_id ?? customer_id. */
+  end_customer_id: string | null
+  /** Hvem får tilbud/faktura. Mail-router bruger denne fra Phase 6. */
+  payer_customer_id: string | null
+  /** Forhandler/købssted hvis customer-row findes. Får ALDRIG mail automatisk. */
+  purchased_from_customer_id: string | null
+  /** Fritekst-købssted hvis ingen customer-row passer ("Direkte", "Bilka"). */
+  purchase_source: string | null
+  /** Deskriptiv markering af payer-relation. Autoritativ kilde er payer_customer_id. */
+  billing_mode: ServiceCaseBillingMode | null
+}
+
+/** Sprint 9E Phase 1 — billing_mode CHECK-værdier. */
+export type ServiceCaseBillingMode =
+  | 'same_as_customer'
+  | 'orderer_pays'
+  | 'end_customer_pays'
+  | 'third_party_pays'
+  | 'unknown'
+
+export const BILLING_MODE_LABELS: Record<ServiceCaseBillingMode, string> = {
+  same_as_customer: 'Samme som kunde (B2C / direkte)',
+  orderer_pays: 'Ordregiver betaler',
+  end_customer_pays: 'Slutkunde betaler',
+  third_party_pays: 'Tredje part betaler',
+  unknown: 'Ikke afklaret endnu',
 }
 
 export interface ServiceCaseWithRelations extends ServiceCase {
@@ -197,6 +226,29 @@ export interface ServiceCaseWithRelations extends ServiceCase {
     phone: string | null
     mobile: string | null
     role: string | null
+  } | null
+  /** Sprint 9E — sagspartnere (alle valgfrie joins). */
+  orderer_customer?: {
+    id: string
+    company_name: string
+    contact_person: string | null
+    email: string | null
+  } | null
+  end_customer?: {
+    id: string
+    company_name: string
+    contact_person: string | null
+    email: string | null
+  } | null
+  payer_customer?: {
+    id: string
+    company_name: string
+    contact_person: string | null
+    email: string | null
+  } | null
+  purchased_from_customer?: {
+    id: string
+    company_name: string
   } | null
   assignee?: {
     id: string
