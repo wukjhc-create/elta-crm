@@ -140,6 +140,11 @@ export function TasksPageClient({
   // URL'en bagefter saa highlight'et ikke re-trigger ved refresh.
   // Hvis tasken ikke findes i den nuvaerende filterede liste, viser vi
   // en toast — Henrik kan saa selv aabne 'showDone' / aendre filter.
+  //
+  // Sprint 9C fix: highlight-auto-clear flyttet til separat useEffect
+  // (lytter paa highlightedTaskId). Tidligere blev clear-timeren ryddet
+  // af cleanup naar router.replace() trigger searchParams-aendring,
+  // saa highlightet aldrig forsvandt.
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null)
   useEffect(() => {
     const targetId = searchParams.get('taskId')
@@ -156,13 +161,11 @@ export function TasksPageClient({
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
       })
-      // Fjern highlight efter 4 sek saa rowen normaliserer sig
-      const timer = setTimeout(() => setHighlightedTaskId(null), 4000)
-      // Ryd taskId fra URL
+      // Ryd taskId fra URL — auto-clear af highlight haandteres af
+      // den separate useEffect nedenfor.
       const params = new URLSearchParams(searchParams.toString())
       params.delete('taskId')
       router.replace(`/dashboard/tasks${params.toString() ? `?${params.toString()}` : ''}`)
-      return () => clearTimeout(timer)
     } else {
       toast.error('Opgave ikke fundet', 'Tjek om dit filter skjuler den (fx udførte opgaver).')
       const params = new URLSearchParams(searchParams.toString())
@@ -171,6 +174,16 @@ export function TasksPageClient({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isLoading, tasks])
+
+  // Sprint 9C fix: ryd highlight automatisk 4 sek efter den blev sat.
+  // Adskilt fra deeplink-effect saa timeren ikke ryddes af
+  // searchParams-cleanup. Hvis highlight skiftes til en ny task inden
+  // 4 sek, nulstilles timeren korrekt af cleanup.
+  useEffect(() => {
+    if (!highlightedTaskId) return
+    const timer = setTimeout(() => setHighlightedTaskId(null), 4000)
+    return () => clearTimeout(timer)
+  }, [highlightedTaskId])
 
   // Load customers on first dialog open
   useEffect(() => {
