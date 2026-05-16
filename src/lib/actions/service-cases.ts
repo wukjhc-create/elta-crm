@@ -1168,7 +1168,32 @@ async function sendServiceCaseConfirmation(
     `
 
     if (isGraphConfigured()) {
-      await sendEmailViaGraph({ to: customer.email, subject, html, text: `Serviceopgave ${serviceCase.case_number}: ${serviceCase.title}` })
+      // Sprint 8H Phase 4: central mail-router (task_practical-intent).
+      // Service-case bekraeftelse prioriterer site_contact > site_customer
+      // > paying_customer — billing_contact bruges aldrig.
+      const { resolveServiceCaseConfirmationRoute, logMailRoute } = await import(
+        '@/lib/actions/mail-route-resolvers'
+      )
+      const routeResult = await resolveServiceCaseConfirmationRoute(serviceCase.id)
+      if (routeResult.ok && routeResult.route) {
+        const route = routeResult.route
+        const sendResult = await sendEmailViaGraph({
+          to: route.toEmail,
+          subject,
+          html,
+          text: `Serviceopgave ${serviceCase.case_number}: ${serviceCase.title}`,
+        })
+        await logMailRoute(
+          route,
+          sendResult.success ? 'sent' : 'failed',
+          { case_id: serviceCase.id, error: sendResult.error }
+        )
+      } else {
+        logger.error('Service case confirmation route failed', {
+          error: routeResult.error,
+          entityId: serviceCase.id,
+        })
+      }
     }
   } catch (err) {
     logger.error('Failed to send service case confirmation email', { error: err })
