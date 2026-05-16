@@ -17,7 +17,8 @@ mails:
 
    | Intent | Hvem skal modtage | Resolver |
    |---|---|---|
-   | `offer`, `invoice`, `invoice_reminder` | Økonomi → `billing_contact` (faldback: `paying_customer`) | `resolveOfferMailRoute`, `resolveInvoiceMailRoute`, `resolveOfferReminderRoute` |
+   | `offer`, `invoice`, `invoice_reminder` | Økonomi → `billing_contact` (faldback: `paying_customer`) | `resolveOfferMailRoute`, `resolveInvoiceMailRoute`, `resolveOfferReminderRoute`, `resolveQuoteMailRoute` (quote-generator) |
+   | `fuldmagt` | Juridisk → `paying_customer` (cron-rykker uden sag-kontekst) | `resolveFuldmagtReminderRoute` |
    | `task_practical`, `task_technical` | Praktik → `site_contact` (fallback: `site_customer` → `paying_customer`) | `resolveTaskMailRoute`, `resolveServiceCaseConfirmationRoute` |
    | `besigtigelse` | Site-besøg → `site_contact` (fallback: `site_customer` → `paying_customer`) | `resolveBesigtigelseMailRoute` |
    | `reply_inbound`, `reply_thread` | Den der skrev til os (ekstern) | `resolveReplyRoute`, `resolveCustomerMailboxReplyRoute` |
@@ -33,13 +34,20 @@ mails:
    Den må **aldrig** bruges til kunde-mails, da `isInternalAllowed=true`
    skipper den eksterne-recipient-guard.
 
-4. **Direkte `sendEmailViaGraph`-kald er kun tilladt i:**
-   - `src/lib/services/microsoft-graph.ts` (selve implementationen).
-   - Test-flows (`reminder-test.ts`, `email.ts:sendTestEmail`).
-   - Cron-jobs, der allerede bygger en route via en resolver.
-   - Eksperimentelle/automation-flows hvor recipient-kontekst endnu er
-     uklar (`automation/actions/send-email.ts`) — dokumentér gap i stedet
-     for at gætte recipient.
+4. **Direkte `sendEmailViaGraph`-kald er kun tilladt i (whitelist):**
+   - `src/lib/services/microsoft-graph.ts` — selve implementationen.
+   - `src/lib/actions/email.ts:sendTestEmail` — test-flow til admin (recipient
+     er bruger-tastet og logges separat).
+   - `src/lib/actions/reminder-test.ts:sendTestReminder` — test-flow til
+     den aktuelle bruger, ikke kunder.
+   - `src/lib/automation/actions/send-email.ts:runSendEmail` — generic
+     automation. Recipient kommer fra rule-config / event-payload uden
+     domain-kontekst, så router-resolver kan ikke vælges. Filen
+     håndhæver minimum-validering (tom/ugyldig email, intern-guard med
+     opt-in `allow_internal`).
+
+   Alle andre `sendEmailViaGraph`-kald skal gå gennem en resolver fra
+   `src/lib/actions/mail-route-resolvers.ts` + `logMailRoute`.
 
 5. **Besigtigelse / service-case regler (Phase 4):**
    - Besigtigelses-bekræftelser og praktiske service-case mails går aldrig
@@ -100,3 +108,8 @@ værre end at vente.
   `customer-tasks.ts` (bookBesigtigelse), `service-cases.ts`
   (sendServiceCaseConfirmation), `customer-mailbox.ts`
   (sendEmailToCustomer).
+- **Phase 5** (Sprint 8H): quote-generator (`resolveQuoteMailRoute`),
+  cron fuldmagt-rykker (`resolveFuldmagtReminderRoute`), cron
+  besigtigelse-rykker (genbruger `resolveBesigtigelseMailRoute`). Plus
+  minimum-validering på `automation/actions/send-email.ts` og formel
+  whitelist over de få direkte `sendEmailViaGraph`-kald der må bestå.
