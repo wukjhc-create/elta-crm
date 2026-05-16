@@ -33,6 +33,19 @@ interface CustomerOption {
   company_name: string
   customer_number: string | null
 }
+
+// Sprint 9E Phase 5c — én fælles "+ Opret ny"-pattern paa alle 5
+// kunde-dropdowns. Discriminator-typen styrer hvilken form-felt der
+// auto-vaelges efter oprettelse.
+type CustomerTargetField = 'customer' | 'orderer' | 'end' | 'payer' | 'purchased_from'
+
+const TARGET_FIELD_MAP: Record<CustomerTargetField, keyof CreateServiceCaseInput> = {
+  customer: 'customer_id',
+  orderer: 'orderer_customer_id',
+  end: 'end_customer_id',
+  payer: 'payer_customer_id',
+  purchased_from: 'purchased_from_customer_id',
+}
 interface ProfileOption {
   id: string
   full_name: string | null
@@ -59,7 +72,9 @@ export function NewOrderForm({
   // Sprint 9E Phase 5a — lokal customers-state saa quick-create kan
   // tilfoeje uden at miste form-state.
   const [customers, setCustomers] = useState<CustomerOption[]>(initialCustomers)
-  const [showQuickCreate, setShowQuickCreate] = useState(false)
+  // Sprint 9E Phase 5c — én modal-instans, og state-feltet identificerer
+  // hvilken dropdown der trigger'ede den. Null = modal lukket.
+  const [createTargetField, setCreateTargetField] = useState<CustomerTargetField | null>(null)
 
   const {
     register,
@@ -111,11 +126,12 @@ export function NewOrderForm({
     // Samme princip: brugeren udfylder felterne, vi saetter kun billing_mode.
   }
 
-  // Sprint 9E Phase 5a — modtag ny kunde fra quick-create modal og vaelg
-  // den automatisk som primaer Kunde uden at miste form-state.
-  const handleQuickCreatedCustomer = (c: CreatedCustomerRef) => {
+  // Sprint 9E Phase 5c — generaliseret callback. Tilfoejer kunden til
+  // lokal state og auto-vaelger i det felt som createTargetField peger paa.
+  // Erstatter Phase 5a's hardcoded customer_id-handler.
+  const handleCustomerCreatedForField = (c: CreatedCustomerRef) => {
     setCustomers((prev) => {
-      // Indsaet alfabetisk for at matche server-prop's order('company_name')
+      // Dedup + indsaet alfabetisk (matcher server-prop's order(company_name))
       const next: CustomerOption = {
         id: c.id,
         company_name: c.company_name,
@@ -126,7 +142,17 @@ export function NewOrderForm({
       merged.sort((a, b) => a.company_name.localeCompare(b.company_name, 'da'))
       return merged
     })
-    setValue('customer_id', c.id, { shouldDirty: true, shouldValidate: true })
+
+    // Auto-vaelg i target-feltet via TARGET_FIELD_MAP-lookup
+    if (createTargetField) {
+      const fieldName = TARGET_FIELD_MAP[createTargetField]
+      setValue(fieldName, c.id, { shouldDirty: true, shouldValidate: true })
+      // Speciel-case: ved Koebssted ryddes fritekst saa data ikke duplikerer
+      if (createTargetField === 'purchased_from') {
+        setValue('purchase_source', null)
+      }
+    }
+    setCreateTargetField(null)
   }
 
   // Load offers when customer changes (for source_offer_id picker)
@@ -300,7 +326,7 @@ export function NewOrderForm({
             </select>
             <button
               type="button"
-              onClick={() => setShowQuickCreate(true)}
+              onClick={() => setCreateTargetField('customer')}
               disabled={isSubmitting}
               className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
             >
@@ -376,48 +402,81 @@ export function NewOrderForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Ordregiver">
-            <select
-              {...register('orderer_customer_id')}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              disabled={isSubmitting}
-            >
-              <option value="">— Samme som kunde —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                {...register('orderer_customer_id')}
+                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                disabled={isSubmitting}
+              >
+                <option value="">— Samme som kunde —</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setCreateTargetField('orderer')}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Opret ny
+              </button>
+            </div>
           </Field>
 
           <Field label="Kunde / anlægsejer">
-            <select
-              {...register('end_customer_id')}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              disabled={isSubmitting}
-            >
-              <option value="">— Samme som kunde —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                {...register('end_customer_id')}
+                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                disabled={isSubmitting}
+              >
+                <option value="">— Samme som kunde —</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setCreateTargetField('end')}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Opret ny
+              </button>
+            </div>
           </Field>
 
           <Field label="Betaler">
-            <select
-              {...register('payer_customer_id')}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              disabled={isSubmitting}
-            >
-              <option value="">— Samme som kunde —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                {...register('payer_customer_id')}
+                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                disabled={isSubmitting}
+              >
+                <option value="">— Samme som kunde —</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setCreateTargetField('payer')}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Opret ny
+              </button>
+            </div>
           </Field>
 
           <Field label="Billing mode">
@@ -445,18 +504,30 @@ export function NewOrderForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Købssted / forhandler (vælg kunde)">
-            <select
-              {...register('purchased_from_customer_id')}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              disabled={isSubmitting || !!purchaseSource}
-            >
-              <option value="">— Ingen valgt —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                {...register('purchased_from_customer_id')}
+                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                disabled={isSubmitting || !!purchaseSource}
+              >
+                <option value="">— Ingen valgt —</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setCreateTargetField('purchased_from')}
+                disabled={isSubmitting || !!purchaseSource}
+                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
+                title={purchaseSource ? 'Ryd fritekst-købssted først' : undefined}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Opret ny
+              </button>
+            </div>
           </Field>
 
           <Field label="Eller fritekst-købssted">
@@ -638,11 +709,11 @@ export function NewOrderForm({
       </div>
     </form>
 
-    {showQuickCreate && (
+    {createTargetField !== null && (
       <CustomerCreateDialog
         mode="quick"
-        onClose={() => setShowQuickCreate(false)}
-        onCreated={handleQuickCreatedCustomer}
+        onClose={() => setCreateTargetField(null)}
+        onCreated={handleCustomerCreatedForField}
       />
     )}
     </>
