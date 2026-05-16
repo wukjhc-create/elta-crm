@@ -12,7 +12,10 @@
  *   - resolveTaskMailRoute    (sendTaskEmail)
  *   - resolveCustomerMailboxReplyRoute (customer-mailbox.replyToCustomerEmail)
  *
- * Phase 2 udvider med offer/invoice/reminder/besigtigelse/fuldmagt.
+ * Phase 2 udvider med offer/invoice/reminder.
+ *
+ * Phase 3 tilfoejer resolveInternalNotificationRoute for bevidst interne
+ * systemmails (admin-alerts, fuldmagt admin-notif, portal CRM-notif).
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -589,6 +592,66 @@ export async function resolveOfferReminderRoute(
       reason: result.route.reason + ' [rykker]',
     },
   }
+}
+
+// =====================================================
+// 7. resolveInternalNotificationRoute (Phase 3)
+// =====================================================
+
+export interface InternalNotificationContext {
+  /** Intern modtager — typisk @eltasolar.dk-mailbox. */
+  recipientEmail: string
+  customerId?: string | null
+  serviceCaseId?: string | null
+  /** Kort, menneske-laesbar kontekst, fx 'admin_alert:email_sync_failed'. */
+  contextLabel?: string | null
+}
+
+/**
+ * Sprint 8H Phase 3 — bevidst intern systemmail.
+ *
+ * Maa KUN bruges til:
+ *   - admin-alerts (system-advarsler til admins)
+ *   - fuldmagt admin-notifikation
+ *   - portal/CRM intern notifikation (rejected offer, ny portal-besked)
+ *   - intern medarbejder-notifikation (fx tilbud accepteret/afvist)
+ *
+ * Maa IKKE bruges til kunde-mails. Routen er markeret med
+ * isInternalAllowed=true og bruger kun syntaks-validering — den
+ * eksterne-recipient guard er bevidst ikke kaldt, saa routen kan
+ * pege paa en @eltasolar.dk-mailbox.
+ */
+export async function resolveInternalNotificationRoute(
+  ctx: InternalNotificationContext
+): Promise<ResolvedRouteResult> {
+  try {
+    assertValidRecipient(ctx.recipientEmail)
+  } catch (err) {
+    if (err instanceof MailRouteError) {
+      return { ok: false, error: err.message, errorCode: err.code }
+    }
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Ugyldig intern modtager',
+      errorCode: 'UNKNOWN',
+    }
+  }
+
+  const route: MailRoute = {
+    fromMailbox: defaultFromMailbox(),
+    toEmail: normalizeEmail(ctx.recipientEmail),
+    toName: null,
+    recipientRole: 'internal_admin',
+    intent: 'internal_notification',
+    customerId: ctx.customerId || null,
+    serviceCaseId: ctx.serviceCaseId || null,
+    customerContactId: null,
+    reason: buildRouteReason('internal_notification', 'internal_admin', {
+      manualNote: ctx.contextLabel || null,
+    }),
+    isInternalAllowed: true,
+  }
+  return { ok: true, route }
 }
 
 // =====================================================
