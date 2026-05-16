@@ -17,6 +17,7 @@ import {
   getUpcomingTasks,
   getPendingOffers,
 } from '@/lib/actions/dashboard'
+import { getDashboardOverview } from '@/lib/actions/dashboard-overview'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { formatCurrency } from '@/lib/utils/format'
 import {
@@ -33,6 +34,7 @@ import {
 } from '@/components/modules/dashboard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
 import { OperationalOverview } from '@/components/dashboard/operational-overview'
+import { StyringsCockpit } from '@/components/dashboard/styrings-cockpit'
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -56,12 +58,13 @@ export default async function DashboardPage() {
   }
 
   // Fetch all dashboard data in parallel
-  const [stats, activities, tasks, offers, settingsResult] = await Promise.all([
+  const [stats, activities, tasks, offers, settingsResult, overview] = await Promise.all([
     getDashboardStats(),
     getRecentActivity(8),
     getUpcomingTasks(5),
     getPendingOffers(5),
     getCompanySettings(),
+    getDashboardOverview(),
   ])
 
   const companySettings = settingsResult.success && settingsResult.data ? settingsResult.data : null
@@ -77,6 +80,9 @@ export default async function DashboardPage() {
           Her er et overblik over dine aktiviteter
         </p>
       </div>
+
+      {/* Sprint 9A — Styringscockpit (kraever handling) */}
+      <StyringsCockpit overview={overview} />
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />
