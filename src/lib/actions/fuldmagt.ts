@@ -314,18 +314,35 @@ export async function submitSignedFuldmagt(
           </div>
         `
 
-        await sendEmailViaGraph({
-          to: adminEmail,
-          subject: `Fuldmagt underskrevet — ${updatedDesc.customer_name}`,
-          html: emailHtml,
-          attachments: [
-            {
-              filename: fileName,
-              content: pdfBuffer,
-              contentType: 'application/pdf',
-            },
-          ],
+        // Sprint 8H Phase 3: central mail-router (internal_notification).
+        const { resolveInternalNotificationRoute, logMailRoute } = await import(
+          '@/lib/actions/mail-route-resolvers'
+        )
+        const routeResult = await resolveInternalNotificationRoute({
+          recipientEmail: adminEmail,
+          customerId: tokenData.customer_id,
+          contextLabel: `fuldmagt_signed:${updatedDesc.order_number}`,
         })
+        if (routeResult.ok && routeResult.route) {
+          const route = routeResult.route
+          const sendResult = await sendEmailViaGraph({
+            to: route.toEmail,
+            subject: `Fuldmagt underskrevet — ${updatedDesc.customer_name}`,
+            html: emailHtml,
+            attachments: [
+              {
+                filename: fileName,
+                content: pdfBuffer,
+                contentType: 'application/pdf',
+              },
+            ],
+          })
+          await logMailRoute(
+            route,
+            sendResult.success ? 'sent' : 'failed',
+            { document_id: documentId, error: sendResult.error }
+          )
+        }
       }
     } catch {
       // Non-critical — fuldmagt is still saved
