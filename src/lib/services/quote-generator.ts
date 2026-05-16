@@ -15,7 +15,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { GenerateQuoteInput, GenerateQuoteResult } from '@/types/quote-templates.types'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
-import { generateQuoteEmailHtml, generateQuoteEmailText } from '@/lib/email/templates/quote-email'
+import { generateQuoteEmailHtml } from '@/lib/email/templates/quote-email'
 import { logger } from '@/lib/utils/logger'
 
 // Service role client for storage + DB operations
