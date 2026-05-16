@@ -20,6 +20,7 @@ import type {
   ServiceCasePriority,
   ServiceCaseSource,
   ServiceCaseType,
+  ServiceCaseBillingMode,
   ChecklistItem,
 } from '@/types/service-cases.types'
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
@@ -181,6 +182,13 @@ interface CreateServiceCaseInput {
   start_date?: string | null
   end_date?: string | null
   source_offer_id?: string | null
+  // Sprint 9E Phase 4 — sagspartner-roller (alle valgfri)
+  orderer_customer_id?: string | null
+  end_customer_id?: string | null
+  payer_customer_id?: string | null
+  purchased_from_customer_id?: string | null
+  purchase_source?: string | null
+  billing_mode?: ServiceCaseBillingMode | null
 }
 
 export async function createServiceCase(
@@ -192,12 +200,26 @@ export async function createServiceCase(
       return { success: false, error: 'Manglende tilladelse: cases.create' }
     }
 
+    // Sprint 9E Phase 4 — sagspartner-roller med smart defaults.
+    // Hvis et partner-felt ikke er sat, peger vi det paa customer_id
+    // (samme adfaerd som migration 00112 backfill). Saa nye sager
+    // har 5 roller udfyldt fra start og UI-panelet viser klare navne.
+    const baseCustomerId = input.customer_id || null
+    const orderer = input.orderer_customer_id || baseCustomerId
+    const endCustomer = input.end_customer_id || baseCustomerId
+    const payer = input.payer_customer_id || baseCustomerId
+    const purchasedFrom = input.purchased_from_customer_id || null
+    // Hvis purchased_from_customer er sat, nulstil fritekst saa data
+    // ikke duplikerer (samme regel som updateServiceCaseParties).
+    const purchaseSource = purchasedFrom ? null : (input.purchase_source || null)
+    const billingMode = input.billing_mode || 'same_as_customer'
+
     const { data, error } = await supabase
       .from('service_cases')
       .insert({
         title: input.title,
         description: input.description || null,
-        customer_id: input.customer_id || null,
+        customer_id: baseCustomerId,
         status: input.status || 'new',
         priority: input.priority || 'medium',
         source: input.source || 'manual',
@@ -227,6 +249,13 @@ export async function createServiceCase(
         start_date: input.start_date ?? null,
         end_date: input.end_date ?? null,
         source_offer_id: input.source_offer_id ?? null,
+        // Sprint 9E Phase 4 — sagspartner-roller
+        orderer_customer_id: orderer,
+        end_customer_id: endCustomer,
+        payer_customer_id: payer,
+        purchased_from_customer_id: purchasedFrom,
+        purchase_source: purchaseSource,
+        billing_mode: billingMode,
       })
       .select('*')
       .single()

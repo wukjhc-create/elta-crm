@@ -19,6 +19,8 @@ import {
   SERVICE_CASE_PRIORITY_LABELS,
   SERVICE_CASE_TYPES,
   SERVICE_CASE_TYPE_LABELS,
+  BILLING_MODE_LABELS,
+  type ServiceCaseBillingMode,
 } from '@/types/service-cases.types'
 
 interface CustomerOption {
@@ -54,6 +56,7 @@ export function NewOrderForm({
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<CreateServiceCaseInput>({
     resolver: zodResolver(createServiceCaseSchema),
@@ -61,10 +64,43 @@ export function NewOrderForm({
       status: 'new',
       priority: 'medium',
       source: 'manual',
+      billing_mode: 'same_as_customer',
     },
   })
 
   const customerId = watch('customer_id')
+  const payerCustomerId = watch('payer_customer_id')
+  const purchasedFromCustomerId = watch('purchased_from_customer_id')
+  const purchaseSource = watch('purchase_source')
+
+  // Diskret banner naar payer eksplicit adskiller sig fra customer/orderer/end
+  const payerDiffersFromCustomer =
+    !!payerCustomerId && !!customerId && payerCustomerId !== customerId
+
+  // Preset-handlere: justerer felter til de mest almindelige scenarier.
+  // Tomme strenge bevares fordi server-action har smart-default til customer_id.
+  const applyPresetDirectCustomer = () => {
+    setValue('orderer_customer_id', null)
+    setValue('end_customer_id', null)
+    setValue('payer_customer_id', null)
+    setValue('billing_mode', 'same_as_customer')
+  }
+
+  const applyPresetPartnerPaysAsOrderer = () => {
+    // Partner = ordregiver + betaler. Slutkunde lader vi staa tom saa
+    // Henrik kan vaelge en specifik slutkunde — ellers falder server-default
+    // tilbage til customer_id.
+    setValue('billing_mode', 'orderer_pays')
+    // Payer = samme som ordregiver; men bemaerk: vi ved ikke endnu hvem
+    // ordregiveren er. Henrik vaelger ordregiver i dropdown'en, og payer
+    // skal saa pege paa samme. Vi efterlader payer/orderer som null saa
+    // Henrik aktivt vaelger; server-action saetter dem korrekt.
+  }
+
+  const applyPresetEndCustomerPays = () => {
+    setValue('billing_mode', 'end_customer_pays')
+    // Samme princip: brugeren udfylder felterne, vi saetter kun billing_mode.
+  }
 
   // Load offers when customer changes (for source_offer_id picker)
   useEffect(() => {
@@ -107,6 +143,13 @@ export function NewOrderForm({
         contract_sum: data.contract_sum,
         revised_sum: data.revised_sum,
         budget: data.budget,
+        // Sprint 9E Phase 4 — sagspartner-roller (alle valgfri)
+        orderer_customer_id: data.orderer_customer_id,
+        end_customer_id: data.end_customer_id,
+        payer_customer_id: data.payer_customer_id,
+        purchased_from_customer_id: data.purchased_from_customer_id,
+        purchase_source: data.purchase_source,
+        billing_mode: data.billing_mode,
       })
 
       if (!result.success || !result.data) {
@@ -253,6 +296,146 @@ export function NewOrderForm({
               ))}
             </select>
           </Field>
+        )}
+      </fieldset>
+
+      {/* --- Sprint 9E Phase 4 — Sagspartnere --- */}
+      <fieldset className="space-y-4">
+        <legend className="text-sm font-semibold text-gray-700">Sagspartnere</legend>
+
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Tilbud/faktura sendes stadig efter eksisterende routing indtil Phase 6.
+          Adresse og kontakt på stedet sættes via &quot;Rediger leveringskontakt&quot; efter oprettelse.
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={applyPresetDirectCustomer}
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 disabled:opacity-50"
+          >
+            Direkte kunde
+          </button>
+          <button
+            type="button"
+            onClick={applyPresetPartnerPaysAsOrderer}
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100 disabled:opacity-50"
+          >
+            Partner bestiller — partner betaler
+          </button>
+          <button
+            type="button"
+            onClick={applyPresetEndCustomerPays}
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100 disabled:opacity-50"
+          >
+            Partner bestiller — slutkunde betaler
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Ordregiver">
+            <select
+              {...register('orderer_customer_id')}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              disabled={isSubmitting}
+            >
+              <option value="">— Samme som kunde —</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Kunde / anlægsejer">
+            <select
+              {...register('end_customer_id')}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              disabled={isSubmitting}
+            >
+              <option value="">— Samme som kunde —</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Betaler">
+            <select
+              {...register('payer_customer_id')}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              disabled={isSubmitting}
+            >
+              <option value="">— Samme som kunde —</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Billing mode">
+            <select
+              {...register('billing_mode')}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              disabled={isSubmitting}
+            >
+              {(Object.entries(BILLING_MODE_LABELS) as Array<[ServiceCaseBillingMode, string]>).map(
+                ([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                )
+              )}
+            </select>
+          </Field>
+        </div>
+
+        {payerDiffersFromCustomer && (
+          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+            Betaler er valgt separat. Tilbud/faktura-routing ændres først i Phase 6.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Købssted / forhandler (vælg kunde)">
+            <select
+              {...register('purchased_from_customer_id')}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              disabled={isSubmitting || !!purchaseSource}
+            >
+              <option value="">— Ingen valgt —</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Eller fritekst-købssted">
+            <input
+              {...register('purchase_source')}
+              type="text"
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50 disabled:text-gray-400"
+              placeholder={`Fx "Direkte", "Bilka"`}
+              disabled={isSubmitting || !!purchasedFromCustomerId}
+              maxLength={200}
+            />
+          </Field>
+        </div>
+
+        {purchasedFromCustomerId && (
+          <p className="text-[11px] text-gray-500">
+            Købssted bruges kun som reference og modtager ikke automatisk mails.
+          </p>
         )}
       </fieldset>
 

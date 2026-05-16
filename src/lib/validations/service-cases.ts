@@ -6,6 +6,14 @@ import {
   SERVICE_CASE_TYPES,
 } from '@/types/service-cases.types'
 
+const BILLING_MODE_VALUES = [
+  'same_as_customer',
+  'orderer_pays',
+  'end_customer_pays',
+  'third_party_pays',
+  'unknown',
+] as const
+
 const optionalString = (max: number, label: string) =>
   z
     .string()
@@ -75,6 +83,14 @@ export const createServiceCaseSchema = z.object({
   contract_sum: optionalNumber,
   revised_sum: optionalNumber,
   budget: optionalNumber,
+
+  // Sprint 9E Phase 4 — sagspartner-roller (alle valgfri)
+  orderer_customer_id: optionalUuid,
+  end_customer_id: optionalUuid,
+  payer_customer_id: optionalUuid,
+  purchased_from_customer_id: optionalUuid,
+  purchase_source: optionalString(200, 'Købssted'),
+  billing_mode: z.enum(BILLING_MODE_VALUES).nullable().optional(),
 })
 
 export type CreateServiceCaseInput = z.infer<typeof createServiceCaseSchema>
