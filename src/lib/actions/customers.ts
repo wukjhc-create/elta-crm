@@ -139,23 +139,37 @@ export async function getCustomer(id: string): Promise<ActionResult<CustomerWith
   }
 }
 
-// Generate next customer number
+// Generate next customer number.
+// Bugfix Sprint 9E (customer_number-collision):
+//   - Filtrér kun paa C-prefix saa ikke-standard formats ikke paavirker MAX.
+//   - Parse defensivt: ignorer rows med ikke-numerisk suffix.
+//   - Returner C000001 hvis ingen valid row findes.
+// Race-condition mellem SELECT og INSERT handles via retry-loop i callers.
 async function generateCustomerNumber(): Promise<string> {
   const { supabase } = await getAuthenticatedClient()
 
   const { data } = await supabase
     .from('customers')
     .select('customer_number')
+    .like('customer_number', 'C%')
     .order('customer_number', { ascending: false })
-    .limit(1)
+    .limit(20)
 
   if (!data || data.length === 0) {
     return 'C000001'
   }
 
-  const lastNumber = data[0].customer_number
-  const numPart = parseInt(lastNumber.substring(1), 10)
-  const nextNum = numPart + 1
+  let maxNum = 0
+  for (const row of data) {
+    const raw = row.customer_number as string | null
+    if (!raw || raw.length < 2 || raw[0] !== 'C') continue
+    const suffix = raw.substring(1)
+    if (!/^\d+$/.test(suffix)) continue
+    const n = parseInt(suffix, 10)
+    if (Number.isFinite(n) && n > maxNum) maxNum = n
+  }
+
+  const nextNum = maxNum + 1
   return 'C' + nextNum.toString().padStart(6, '0')
 }
 
@@ -225,33 +239,58 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-    const customerNumber = await generateCustomerNumber()
+    // Bugfix Sprint 9E — retry-loop ved customer_number-collision.
+    // Samme pattern som quickCreateCustomer for konsistens.
+    const MAX_ATTEMPTS = 5
+    let lastDbError: { code?: string; message?: string } | null = null
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const customerNumber = await generateCustomerNumber()
 
-    const { data, error } = await supabase
-      .from('customers')
-      .insert({
-        ...validated.data,
-        customer_number: customerNumber,
-        created_by: userId,
-      })
-      .select()
-      .single()
+      const { data, error } = await supabase
+        .from('customers')
+        .insert({
+          ...validated.data,
+          customer_number: customerNumber,
+          created_by: userId,
+        })
+        .select()
+        .single()
 
-    if (error) {
-      if (error.code === '23505') {
-        return { success: false, error: 'En kunde med dette kundenummer findes allerede' }
+      if (!error && data) {
+        if (attempt > 0) {
+          logger.info('createCustomer succeeded after retry', {
+            metadata: { attempts: attempt + 1, customer_number: customerNumber },
+          })
+        }
+        await logCreate('customer', data.id, data.company_name, {
+          customer_number: data.customer_number,
+        })
+        revalidatePath('/customers')
+        return { success: true, data: data as Customer }
       }
-      logger.error('Database error creating customer', { error: error })
+
+      lastDbError = error
+      if (error?.code === '23505') {
+        logger.warn('createCustomer customer_number collision — retrying', {
+          metadata: { attempt: attempt + 1, customer_number: customerNumber },
+        })
+        const wait = 50 + Math.floor(Math.random() * 100)
+        await new Promise((r) => setTimeout(r, wait))
+        continue
+      }
+
+      // Anden DB-fejl — stop straks
+      logger.error('Database error creating customer', { error })
       throw new Error('DATABASE_ERROR')
     }
 
-    // Audit log
-    await logCreate('customer', data.id, data.company_name, {
-      customer_number: data.customer_number,
+    logger.error('createCustomer exhausted retries', {
+      metadata: { attempts: MAX_ATTEMPTS, lastErrorCode: lastDbError?.code },
     })
-
-    revalidatePath('/customers')
-    return { success: true, data: data as Customer }
+    return {
+      success: false,
+      error: 'Kunne ikke generere et unikt kundenummer. Proev igen om lidt.',
+    }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette kunde') }
   }
@@ -345,34 +384,63 @@ export async function quickCreateCustomer(
       return { success: false, error: errors }
     }
 
-    const customerNumber = await generateCustomerNumber()
+    // Bugfix Sprint 9E — retry-loop ved customer_number-collision.
+    // Andre parallelle create-paths (mail-flow, AI, offer-flow, public API)
+    // kan have indsat samme nummer mellem vores SELECT og INSERT. Retry
+    // op til 5 gange med jitter foer vi giver op.
+    const MAX_ATTEMPTS = 5
+    let lastDbError: { code?: string; message?: string } | null = null
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const customerNumber = await generateCustomerNumber()
 
-    const { data, error } = await supabase
-      .from('customers')
-      .insert({
-        ...validated.data,
-        customer_number: customerNumber,
-        created_by: userId,
-      })
-      .select()
-      .single()
+      const { data, error } = await supabase
+        .from('customers')
+        .insert({
+          ...validated.data,
+          customer_number: customerNumber,
+          created_by: userId,
+        })
+        .select()
+        .single()
 
-    if (error) {
-      if (error.code === '23505') {
-        return { success: false, error: 'En kunde med dette kundenummer findes allerede' }
+      if (!error && data) {
+        if (attempt > 0) {
+          logger.info('quickCreateCustomer succeeded after retry', {
+            metadata: { attempts: attempt + 1, customer_number: customerNumber },
+          })
+        }
+        await logCreate('customer', data.id, data.company_name, {
+          customer_number: data.customer_number,
+          customer_type: input.customer_type,
+          source: 'quick_create',
+        })
+        revalidatePath('/dashboard/customers')
+        return { success: true, data: data as Customer }
       }
+
+      lastDbError = error
+      if (error?.code === '23505') {
+        logger.warn('quickCreateCustomer customer_number collision — retrying', {
+          metadata: { attempt: attempt + 1, customer_number: customerNumber },
+        })
+        // Jitter 50-150ms foer ny generering
+        const wait = 50 + Math.floor(Math.random() * 100)
+        await new Promise((r) => setTimeout(r, wait))
+        continue
+      }
+
+      // Anden DB-fejl — stop straks
       logger.error('Database error in quickCreateCustomer', { error })
       return { success: false, error: 'Kunne ikke oprette kunde' }
     }
 
-    await logCreate('customer', data.id, data.company_name, {
-      customer_number: data.customer_number,
-      customer_type: input.customer_type,
-      source: 'quick_create',
+    logger.error('quickCreateCustomer exhausted retries', {
+      metadata: { attempts: MAX_ATTEMPTS, lastErrorCode: lastDbError?.code },
     })
-
-    revalidatePath('/dashboard/customers')
-    return { success: true, data: data as Customer }
+    return {
+      success: false,
+      error: 'Kunne ikke generere et unikt kundenummer. Proev igen om lidt.',
+    }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette kunde') }
   }
