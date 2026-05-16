@@ -333,10 +333,28 @@ async function sendOfferStatusNotification(
     offerUrl,
   })
 
-  await sendEmailViaGraph({
-    to: recipientEmail,
+  // Sprint 8H Phase 3: central mail-router (internal_notification).
+  // recipientEmail er medarbejderens egen mailbox eller GRAPH_MAILBOX-fallback.
+  const { resolveInternalNotificationRoute, logMailRoute } = await import(
+    '@/lib/actions/mail-route-resolvers'
+  )
+  const routeResult = await resolveInternalNotificationRoute({
+    recipientEmail,
+    customerId: offer.customer_id || null,
+    contextLabel: `offer_${action}:${offer.offer_number}`,
+  })
+  if (!routeResult.ok || !routeResult.route) return
+
+  const route = routeResult.route
+  const sendResult = await sendEmailViaGraph({
+    to: route.toEmail,
     subject,
     html,
     text: `Tilbud ${statusLabel}: ${offer.title} (${offer.offer_number}) — ${finalAmount}. Se: ${offerUrl}`,
   })
+  await logMailRoute(
+    route,
+    sendResult.success ? 'sent' : 'failed',
+    { offer_id: offer.id, action, error: sendResult.error }
+  )
 }
