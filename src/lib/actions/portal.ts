@@ -1391,18 +1391,38 @@ export async function portalBookBesigtigelse(
         </div>
       `
 
-      await sendEmailViaGraph({
-        to: session.customer.email,
-        subject: `Bekræftelse: Besigtigelse d. ${formattedDate}`,
-        html: emailHtml,
-        attachments: [
-          {
-            filename: 'besigtigelse.ics',
-            content: Buffer.from(icsContent, 'utf-8'),
-            contentType: 'text/calendar',
-          },
-        ],
-      })
+      // Sprint 8H Phase 4: central mail-router (besigtigelse-intent).
+      // Portal-flowet kender kun customer_id, saa routen falder tilbage
+      // paa paying_customer (customer.email). Adfaerden bibeholdes.
+      const { resolveBesigtigelseMailRoute, logMailRoute } = await import(
+        '@/lib/actions/mail-route-resolvers'
+      )
+      const routeResult = await resolveBesigtigelseMailRoute(session.customer_id)
+      if (routeResult.ok && routeResult.route) {
+        const route = routeResult.route
+        const sendResult = await sendEmailViaGraph({
+          to: route.toEmail,
+          subject: `Bekræftelse: Besigtigelse d. ${formattedDate}`,
+          html: emailHtml,
+          attachments: [
+            {
+              filename: 'besigtigelse.ics',
+              content: Buffer.from(icsContent, 'utf-8'),
+              contentType: 'text/calendar',
+            },
+          ],
+        })
+        await logMailRoute(
+          route,
+          sendResult.success ? 'sent' : 'failed',
+          { task_id: task.id, source: 'portal_book_besigtigelse', error: sendResult.error }
+        )
+      } else {
+        logger.error('Portal besigtigelse: route failed', {
+          error: routeResult.error,
+          entityId: session.customer_id,
+        })
+      }
     } catch (emailErr) {
       // Non-critical — task is created, email is a bonus
       logger.error('Portal besigtigelse: email failed', { error: emailErr })
@@ -1563,6 +1583,10 @@ export async function portalConfirmBesigtigelse(
     // Send "Tak for bekræftelsen" email
     try {
       const { sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
+      // Sprint 8H Phase 4: central mail-router (besigtigelse-intent).
+      const { resolveBesigtigelseMailRoute, logMailRoute } = await import(
+        '@/lib/actions/mail-route-resolvers'
+      )
 
       const portalUrl = `${APP_URL}/portal/${token}`
 
@@ -1597,11 +1621,25 @@ export async function portalConfirmBesigtigelse(
         ? `Tak for din bekræftelse — vi ses d. ${formattedDate}`
         : 'Tak for din bekræftelse af besigtigelsen'
 
-      await sendEmailViaGraph({
-        to: session.customer.email,
-        subject,
-        html: emailHtml,
-      })
+      const routeResult = await resolveBesigtigelseMailRoute(session.customer_id)
+      if (routeResult.ok && routeResult.route) {
+        const route = routeResult.route
+        const sendResult = await sendEmailViaGraph({
+          to: route.toEmail,
+          subject,
+          html: emailHtml,
+        })
+        await logMailRoute(
+          route,
+          sendResult.success ? 'sent' : 'failed',
+          { task_id: taskId, source: 'portal_confirm_besigtigelse', error: sendResult.error }
+        )
+      } else {
+        logger.error('Portal confirm besigtigelse: route failed', {
+          error: routeResult.error,
+          entityId: session.customer_id,
+        })
+      }
     } catch (emailErr) {
       // Non-critical — confirmation is saved, email is a bonus
       logger.error('Portal confirm besigtigelse: email failed', { error: emailErr })
