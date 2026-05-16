@@ -1,7 +1,7 @@
 {
   "app": {
-    "name": "Elta CRM",
-    "description": "Professionelt CRM system"
+    "name": "ELTA Drift",
+    "description": "Ordre, kunder, mail og drift samlet ét sted"
   },
   "navigation": {
     "home": "Hjem",

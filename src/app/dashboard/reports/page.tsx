@@ -4,7 +4,7 @@ import ReportsClient from './reports-client'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Rapporter | Elta CRM',
+  title: 'Rapporter | ELTA Drift',
   description: 'Omsætning, projekt-rentabilitet og team-produktivitet',
 }
 

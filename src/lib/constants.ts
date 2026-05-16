@@ -1,4 +1,4 @@
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Elta CRM'
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'ELTA Drift'
 export const APP_URL = getResolvedAppUrl()
 
 function getResolvedAppUrl(): string {

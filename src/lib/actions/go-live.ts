@@ -224,7 +224,7 @@ async function alertOnFailure(label: string, message: string): Promise<void> {
     await sendAdminAlert({
       key: `go_live:${label}`,
       severity: 'error',
-      subject: `[Elta CRM] ${label} fejlede`,
+      subject: `[ELTA Drift] ${label} fejlede`,
       body: message,
       cooldownMinutes: 30,
     })

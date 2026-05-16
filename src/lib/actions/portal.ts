@@ -565,11 +565,11 @@ export async function acceptOffer(
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Beløb:</td><td style="font-weight:600;">${new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(offer.final_amount)}</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Tidspunkt:</td><td>${new Date().toLocaleString('da-DK')}</td></tr>
           </table>
-          <p>Se tilbuddet i CRM: <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app'}/dashboard/offers">Gå til Tilbud</a></p>
+          <p>Se tilbuddet i ELTA Drift: <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app'}/dashboard/offers">Gå til Tilbud</a></p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
           <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ${companyName} CRM.</p>
         `,
-        text: `Tilbud accepteret\n\nKunden har accepteret tilbud: ${offer.title}\nUnderskrevet af: ${data.signer_name} (${data.signer_email})\nBeløb: ${offer.final_amount} DKK\nTidspunkt: ${new Date().toLocaleString('da-DK')}\n\nSe tilbuddet i CRM-systemet.`,
+        text: `Tilbud accepteret\n\nKunden har accepteret tilbud: ${offer.title}\nUnderskrevet af: ${data.signer_name} (${data.signer_email})\nBeløb: ${offer.final_amount} DKK\nTidspunkt: ${new Date().toLocaleString('da-DK')}\n\nSe tilbuddet i ELTA Drift.`,
       }, smtpConfig)
     } catch (emailError) {
       logger.error('Failed to send acceptance confirmation email', { error: emailError })
@@ -680,11 +680,11 @@ export async function rejectOffer(
         <h2>Tilbud afvist</h2>
         <p>Kunden har afvist et tilbud via kundeportalen.</p>
         ${safeReason ? `<p><strong>Begrundelse:</strong> ${safeReason}</p>` : '<p>Ingen begrundelse angivet.</p>'}
-        <p>Se tilbuddet i CRM: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/offers">Gå til Tilbud</a></p>
+        <p>Se tilbuddet i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/offers">Gå til Tilbud</a></p>
         <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
-        <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af Elta Solar CRM.</p>
+        <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ELTA Drift.</p>
       `
-      const text = `Tilbud afvist\n\n${safeReason ? `Begrundelse: ${safeReason}` : 'Ingen begrundelse.'}\n\nSe tilbuddet i CRM-systemet.`
+      const text = `Tilbud afvist\n\n${safeReason ? `Begrundelse: ${safeReason}` : 'Ingen begrundelse.'}\n\nSe tilbuddet i ELTA Drift.`
 
       if (isGraphConfigured()) {
         // Sprint 8H Phase 3: central mail-router (internal_notification).
@@ -822,11 +822,11 @@ export async function sendPortalMessage(
           ${data.message.replace(/\n/g, '<br />')}
         </blockquote>
         ${data.attachments && data.attachments.length > 0 ? `<p style="color:#666;">Vedhæftede filer: ${data.attachments.length}</p>` : ''}
-        <p>Svar kunden i CRM: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/customers">Gå til Kunder</a></p>
+        <p>Svar kunden i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/customers">Gå til Kunder</a></p>
         <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
-        <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af Elta Solar CRM.</p>
+        <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ELTA Drift.</p>
       `
-      const text = `Ny besked fra ${contactPerson} (${companyName}):\n\n${data.message}\n\nSvar kunden i CRM-systemet.`
+      const text = `Ny besked fra ${contactPerson} (${companyName}):\n\n${data.message}\n\nSvar kunden i ELTA Drift.`
 
       if (isGraphConfigured()) {
         // Sprint 8H Phase 3: central mail-router (internal_notification).

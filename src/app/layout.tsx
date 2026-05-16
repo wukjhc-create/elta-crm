@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     default: APP_NAME,
     template: `%s | ${APP_NAME}`,
   },
-  description: 'Professionelt CRM system til el- og solcelleinstallationer',
+  description: 'Ordre, kunder, mail og drift samlet ét sted',
   robots: {
     index: false,
     follow: false,
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Elta CRM',
+    title: 'ELTA Drift',
   },
   other: {
     'mobile-web-app-capable': 'yes',

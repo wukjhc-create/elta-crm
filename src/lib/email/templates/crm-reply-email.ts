@@ -251,7 +251,7 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
           <tr>
             <td align="center" style="padding: 16px 0;">
               <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 11px; color: #b0b5bd;">
-                Denne email er sendt fra Elta Solar CRM. Svar direkte p&aring; denne email for at kontakte os.
+                Denne email er sendt fra ELTA Drift. Svar direkte p&aring; denne email for at kontakte os.
               </span>
             </td>
           </tr>

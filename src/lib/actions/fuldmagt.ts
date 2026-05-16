@@ -309,7 +309,7 @@ export async function submitSignedFuldmagt(
                 <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Fødselsdato/CVR:</td><td>${input.foedselsdato_cvr}</td></tr>
                 <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Marketing:</td><td>${input.marketing_samtykke ? 'Ja — billeder må bruges' : 'Nej'}</td></tr>
               </table>
-              <p style="color: #374151;">PDF'en er gemt under kundens dokumenter i CRM.</p>
+              <p style="color: #374151;">PDF'en er gemt under kundens dokumenter i ELTA Drift.</p>
             </div>
           </div>
         `

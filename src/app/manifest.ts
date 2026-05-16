@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Elta Solar CRM',
-    short_name: 'Elta CRM',
-    description: 'Professionelt CRM system til el- og solcelleinstallationer',
+    name: 'ELTA Drift',
+    short_name: 'ELTA Drift',
+    description: 'Ordre, kunder, mail og drift samlet ét sted',
     start_url: '/dashboard',
     display: 'standalone',
     background_color: '#ffffff',

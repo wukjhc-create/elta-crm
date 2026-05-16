@@ -207,7 +207,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
             rows={5}
           />
           <div className="flex items-center justify-between mt-2">
-            <p className="text-xs text-gray-400">Sendes fra CRM-postkasse</p>
+            <p className="text-xs text-gray-400">Sendes fra ELTA Drift-postkasse</p>
             <button
               onClick={handleCompose}
               disabled={composeSending || !composeSubject.trim() || !composeBody.trim()}
@@ -523,7 +523,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                         />
                         <div className="flex items-center justify-between mt-2">
                           <p className="text-xs text-gray-400">
-                            Sendes fra CRM-postkasse til {viewingEmail.reply_to || viewingEmail.sender_email}
+                            Sendes fra ELTA Drift-postkasse til {viewingEmail.reply_to || viewingEmail.sender_email}
                           </p>
                           <div className="flex items-center gap-2">
                             <button

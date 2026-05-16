@@ -67,7 +67,7 @@ export function generateOfferNotificationHtml({
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
   <tr><td style="border-radius:8px;background-color:${BRAND_GREEN};">
     <a href="${offerUrl}" target="_blank" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;border-radius:8px;">
-      &Aring;bn tilbud i CRM &rarr;
+      &Aring;bn tilbud i ELTA Drift &rarr;
     </a>
   </td></tr>
   </table>

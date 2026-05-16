@@ -3,7 +3,7 @@ import { LoginForm } from '@/components/auth/login-form'
 
 export const metadata = {
   title: 'Log ind',
-  description: 'Log ind på din Elta CRM konto',
+  description: 'Log ind på din ELTA Drift konto',
 }
 
 function LoginFormFallback() {

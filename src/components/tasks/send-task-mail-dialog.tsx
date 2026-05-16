@@ -238,7 +238,7 @@ export function SendTaskMailDialog({
                 <p className="font-medium">Intern mailafsendelse er ikke konfigureret.</p>
                 <p className="mt-1">
                   Brug fallback-knappen nederst for at sende via dit lokale mailprogram.
-                  Bemærk: mails sendt via fallback gemmes IKKE i CRM.
+                  Bemærk: mails sendt via fallback gemmes IKKE i ELTA Drift.
                 </p>
               </div>
             </div>
@@ -444,7 +444,7 @@ export function SendTaskMailDialog({
                 className="text-xs text-amber-700 hover:underline"
                 onClick={() => onClose()}
               >
-                Åbn i lokalt mailprogram (gemmes ikke i CRM)
+                Åbn i lokalt mailprogram (gemmes ikke i ELTA Drift)
               </a>
             )}
           </div>

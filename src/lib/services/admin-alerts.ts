@@ -163,7 +163,7 @@ export async function scanAndAlert(): Promise<ScanReport> {
       await dispatch(
         `system_errors`,
         'error',
-        `[Elta CRM] ${errs.length} system-fejl i sidste time`,
+        `[ELTA Drift] ${errs.length} system-fejl i sidste time`,
         `${errs.length} fejl-rækker registreret i system_health_log.\n\nSeneste:\n${sample}`,
       )
     }
@@ -182,7 +182,7 @@ export async function scanAndAlert(): Promise<ScanReport> {
       await dispatch(
         'economic_not_configured',
         'warning',
-        '[Elta CRM] e-conomic er ikke konfigureret',
+        '[ELTA Drift] e-conomic er ikke konfigureret',
         ec
           ? `Settings-row findes, men er ufuldstændig: active=${ec.active}, api_token=${!!ec.api_token}, grant_token=${!!ec.agreement_grant_token}`
           : 'Ingen accounting_integration_settings-row for provider="economic". Faktura-sync er deaktiveret.',
@@ -203,7 +203,7 @@ export async function scanAndAlert(): Promise<ScanReport> {
       await dispatch(
         'email_sync_failed',
         'error',
-        `[Elta CRM] Email sync fejler (${failed.length} mailboxes)`,
+        `[ELTA Drift] Email sync fejler (${failed.length} mailboxes)`,
         lines,
       )
     }
@@ -222,7 +222,7 @@ export async function scanAndAlert(): Promise<ScanReport> {
       await dispatch(
         'bank_import_stale',
         'warning',
-        '[Elta CRM] Ingen bankposteringer importeret i 7 dage',
+        '[ELTA Drift] Ingen bankposteringer importeret i 7 dage',
         'bank_transactions er tom for de sidste 7 dage. Tjek bank-importen.',
       )
     }
@@ -284,7 +284,7 @@ function renderAlertEmail(input: AdminAlertInput): string {
     <p style="font-size:14px;color:${tone};margin:0 0 12px"><strong>${escape(input.severity.toUpperCase())}</strong> · ${escape(input.key)}</p>
     <h2 style="margin:0 0 12px;font-size:16px">${escape(input.subject)}</h2>
     <div style="font-size:13px;color:#374151;line-height:1.5">${safeBody}</div>
-    <p style="margin-top:24px;font-size:12px;color:#6b7280">Auto-genereret af Elta CRM monitoring.</p>
+    <p style="margin-top:24px;font-size:12px;color:#6b7280">Auto-genereret af ELTA Drift monitoring.</p>
   </div>
 </div>`.trim()
 }

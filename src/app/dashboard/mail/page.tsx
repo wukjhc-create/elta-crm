@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Mail',
-  description: 'Indgående emails fra CRM-postkassen med automatisk kundekobling',
+  description: 'Indgående emails fra fælles postkasse med automatisk kundekobling',
 }
 
 export default function MailPage() {
