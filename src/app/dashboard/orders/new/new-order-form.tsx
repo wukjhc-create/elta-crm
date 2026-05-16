@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Plus } from 'lucide-react'
 import {
   createServiceCaseSchema,
   type CreateServiceCaseInput,
@@ -12,6 +13,10 @@ import {
   createServiceCase,
   getOffersForOrderSelect,
 } from '@/lib/actions/service-cases'
+import {
+  QuickCreateCustomerDialog,
+  type CreatedCustomerRef,
+} from '@/components/modules/customers/quick-create-customer-dialog'
 import {
   SERVICE_CASE_STATUSES,
   SERVICE_CASE_STATUS_LABELS,
@@ -39,7 +44,7 @@ interface EmployeeOption {
 }
 
 export function NewOrderForm({
-  customers,
+  customers: initialCustomers,
   profiles,
   employees,
 }: {
@@ -51,6 +56,10 @@ export function NewOrderForm({
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [offers, setOffers] = useState<{ id: string; offer_number: string | null; title: string }[]>([])
+  // Sprint 9E Phase 5a — lokal customers-state saa quick-create kan
+  // tilfoeje uden at miste form-state.
+  const [customers, setCustomers] = useState<CustomerOption[]>(initialCustomers)
+  const [showQuickCreate, setShowQuickCreate] = useState(false)
 
   const {
     register,
@@ -100,6 +109,24 @@ export function NewOrderForm({
   const applyPresetEndCustomerPays = () => {
     setValue('billing_mode', 'end_customer_pays')
     // Samme princip: brugeren udfylder felterne, vi saetter kun billing_mode.
+  }
+
+  // Sprint 9E Phase 5a — modtag ny kunde fra quick-create modal og vaelg
+  // den automatisk som primaer Kunde uden at miste form-state.
+  const handleQuickCreatedCustomer = (c: CreatedCustomerRef) => {
+    setCustomers((prev) => {
+      // Indsaet alfabetisk for at matche server-prop's order('company_name')
+      const next: CustomerOption = {
+        id: c.id,
+        company_name: c.company_name,
+        customer_number: c.customer_number,
+      }
+      const filtered = prev.filter((p) => p.id !== c.id)
+      const merged = [...filtered, next]
+      merged.sort((a, b) => a.company_name.localeCompare(b.company_name, 'da'))
+      return merged
+    })
+    setValue('customer_id', c.id, { shouldDirty: true, shouldValidate: true })
   }
 
   // Load offers when customer changes (for source_offer_id picker)
@@ -168,6 +195,7 @@ export function NewOrderForm({
   }
 
   return (
+    <>
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 bg-white rounded-lg border p-4 sm:p-6">
       {error && (
         <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">
@@ -257,18 +285,29 @@ export function NewOrderForm({
         <legend className="text-sm font-semibold text-gray-700">Kunde</legend>
 
         <Field label="Kunde" error={errors.customer_id?.message}>
-          <select
-            {...register('customer_id')}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-            disabled={isSubmitting}
-          >
-            <option value="">— Vælg kunde —</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              {...register('customer_id')}
+              className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              disabled={isSubmitting}
+            >
+              <option value="">— Vælg kunde —</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setShowQuickCreate(true)}
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Opret ny
+            </button>
+          </div>
         </Field>
 
         <Field label="Rekvirent" error={errors.requisition?.message}>
@@ -598,6 +637,14 @@ export function NewOrderForm({
         </button>
       </div>
     </form>
+
+    {showQuickCreate && (
+      <QuickCreateCustomerDialog
+        onClose={() => setShowQuickCreate(false)}
+        onCreated={handleQuickCreatedCustomer}
+      />
+    )}
+    </>
   )
 }
 

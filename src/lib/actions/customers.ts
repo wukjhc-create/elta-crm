@@ -257,6 +257,116 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
   }
 }
 
+/**
+ * Sprint 9E Phase 5a — quick-create customer fra opret-sag-flow.
+ *
+ * Tager et plain JSON-objekt (i stedet for FormData) saa modal-callers
+ * kan kalde det direkte fra klient-state. Genbruger createCustomerSchema
+ * via Zod-validation og samme insert/audit-pattern som createCustomer.
+ *
+ * Type-haandtering:
+ *  - customer_type = 'private': navn mappes til BAADE company_name og
+ *    contact_person; vat_number tvinges til null.
+ *  - customer_type = 'business': separate firmanavn + kontaktperson +
+ *    valgfri CVR.
+ */
+export interface QuickCreateCustomerInput {
+  customer_type: 'private' | 'business'
+  /** Privat: fulde navn. Erhverv: firmanavn. */
+  primary_name: string
+  /** Erhverv: kontaktperson. Privat: bruges ikke (samme som primary_name). */
+  contact_person?: string | null
+  email: string
+  phone?: string | null
+  mobile?: string | null
+  /** Erhverv: CVR-nummer. Privat: ignoreres. */
+  vat_number?: string | null
+  billing_address?: string | null
+  billing_postal_code?: string | null
+  billing_city?: string | null
+}
+
+export async function quickCreateCustomer(
+  input: QuickCreateCustomerInput
+): Promise<ActionResult<Customer>> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.create')) {
+      return { success: false, error: 'Manglende tilladelse: customers.create' }
+    }
+
+    const isPrivate = input.customer_type === 'private'
+    const primaryName = (input.primary_name || '').trim()
+    if (!primaryName) {
+      return { success: false, error: isPrivate ? 'Navn er paakraevet' : 'Firmanavn er paakraevet' }
+    }
+    const contactPerson = isPrivate
+      ? primaryName
+      : (input.contact_person || '').trim()
+    if (!contactPerson) {
+      return { success: false, error: 'Kontaktperson er paakraevet' }
+    }
+
+    const rawData = {
+      company_name: primaryName,
+      contact_person: contactPerson,
+      email: (input.email || '').trim(),
+      phone: input.phone?.trim() || null,
+      mobile: input.mobile?.trim() || null,
+      website: null,
+      vat_number: isPrivate ? null : (input.vat_number?.trim() || null),
+      billing_address: input.billing_address?.trim() || null,
+      billing_city: input.billing_city?.trim() || null,
+      billing_postal_code: input.billing_postal_code?.trim() || null,
+      billing_country: 'Danmark',
+      shipping_address: null,
+      shipping_city: null,
+      shipping_postal_code: null,
+      shipping_country: 'Danmark',
+      notes: null,
+      tags: [],
+      is_active: true,
+    }
+
+    const validated = createCustomerSchema.safeParse(rawData)
+    if (!validated.success) {
+      const errors = validated.error.errors.map((e) => e.message).join(', ')
+      return { success: false, error: errors }
+    }
+
+    const customerNumber = await generateCustomerNumber()
+
+    const { data, error } = await supabase
+      .from('customers')
+      .insert({
+        ...validated.data,
+        customer_number: customerNumber,
+        created_by: userId,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      if (error.code === '23505') {
+        return { success: false, error: 'En kunde med dette kundenummer findes allerede' }
+      }
+      logger.error('Database error in quickCreateCustomer', { error })
+      return { success: false, error: 'Kunne ikke oprette kunde' }
+    }
+
+    await logCreate('customer', data.id, data.company_name, {
+      customer_number: data.customer_number,
+      customer_type: input.customer_type,
+      source: 'quick_create',
+    })
+
+    revalidatePath('/dashboard/customers')
+    return { success: true, data: data as Customer }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette kunde') }
+  }
+}
+
 // Update customer
 export async function updateCustomer(formData: FormData): Promise<ActionResult<Customer>> {
   try {
