@@ -21,6 +21,10 @@
  *   - resolveBesigtigelseMailRoute (kunde-bekraeftelse for besigtigelse)
  *   - resolveServiceCaseConfirmationRoute (service-case bekraeftelse)
  *   - resolveManualCustomerMailRoute (ad hoc compose med fri-tekst recipient)
+ *
+ * Phase 5 tilfoejer:
+ *   - resolveQuoteMailRoute (quote-generator, billing > paying)
+ *   - resolveFuldmagtReminderRoute (fuldmagt-rykker fra cron)
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -976,7 +980,247 @@ export async function resolveManualCustomerMailRoute(
 }
 
 // =====================================================
-// 10. resolveInternalNotificationRoute (Phase 3)
+// 10. resolveQuoteMailRoute (Phase 5)
+// =====================================================
+
+export interface QuoteMailContext extends MailRouteContext {
+  customerId?: string | null
+  /** Recipient hvis customerId mangler eller DB ikke har email — typisk
+   *  input.customer.email fra quote-generator. */
+  fallbackEmail: string
+  quoteReference?: string | null
+}
+
+/**
+ * Sprint 8H Phase 5 — quote-generator (salgs-/monteringstilbud).
+ *
+ * Recipient-prioritet:
+ *   1. billing_contact (hvis customerId og kontakt har email)
+ *   2. customer.email fra DB (paying_customer)
+ *   3. fallbackEmail (input.customer.email) — markeres som manual-rolle
+ *      saa quote stadig kan sendes for ad hoc kunder uden customerId.
+ *
+ * intent='offer'. Bruger ALDRIG site_contact — tilbud gaar til oekonomi.
+ */
+export async function resolveQuoteMailRoute(
+  ctx: QuoteMailContext
+): Promise<ResolvedRouteResult> {
+  try {
+    if (ctx.customerId) validateUUID(ctx.customerId, 'customerId')
+    assertValidRecipient(ctx.fallbackEmail)
+  } catch (err) {
+    if (err instanceof MailRouteError) {
+      return { ok: false, error: err.message, errorCode: err.code }
+    }
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Ugyldig input',
+      errorCode: 'INVALID_INPUT',
+    }
+  }
+
+  const fromMailbox = defaultFromMailbox()
+  const quoteRef = ctx.quoteReference || null
+
+  // 0. Override (manual)
+  if (ctx.recipientOverride && ctx.recipientOverride.trim()) {
+    try {
+      assertValidRecipient(ctx.recipientOverride)
+    } catch (err) {
+      if (err instanceof MailRouteError) {
+        return { ok: false, error: err.message, errorCode: err.code }
+      }
+      throw err
+    }
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(ctx.recipientOverride),
+      toName: null,
+      recipientRole: 'manual',
+      intent: 'offer',
+      customerId: ctx.customerId || null,
+      serviceCaseId: null,
+      customerContactId: ctx.customerContactIdOverride || null,
+      reason: buildRouteReason('offer', 'manual', {
+        manualNote: quoteRef ? `Tilbud ${quoteRef}` : 'Tilbud',
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 1/2. Brug DB hvis customerId tilgaengelig
+  if (ctx.customerId) {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const supabase = createAdminClient()
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('id, company_name, email')
+      .eq('id', ctx.customerId)
+      .maybeSingle()
+    const payerName = customer?.company_name || null
+
+    const { data: billingContact } = await supabase
+      .from('customer_contacts')
+      .select('id, name, email')
+      .eq('customer_id', ctx.customerId)
+      .eq('role', 'billing')
+      .not('email', 'is', null)
+      .limit(1)
+      .maybeSingle()
+
+    if (billingContact?.email && !normalizeEmail(billingContact.email).includes('@eltasolar.dk')) {
+      const route: MailRoute = {
+        fromMailbox,
+        toEmail: normalizeEmail(billingContact.email),
+        toName: billingContact.name || null,
+        recipientRole: 'billing_contact',
+        intent: 'offer',
+        customerId: ctx.customerId,
+        serviceCaseId: null,
+        customerContactId: billingContact.id as string,
+        reason: buildRouteReason('offer', 'billing_contact', {
+          payerName,
+          contactName: billingContact.name,
+          manualNote: quoteRef ? `Tilbud ${quoteRef}` : null,
+        }),
+        isInternalAllowed: false,
+      }
+      return toResult(route)
+    }
+
+    if (customer?.email && !normalizeEmail(customer.email).includes('@eltasolar.dk')) {
+      const route: MailRoute = {
+        fromMailbox,
+        toEmail: normalizeEmail(customer.email),
+        toName: customer.company_name || null,
+        recipientRole: 'paying_customer',
+        intent: 'offer',
+        customerId: ctx.customerId,
+        serviceCaseId: null,
+        customerContactId: null,
+        reason: buildRouteReason('offer', 'paying_customer', {
+          payerName,
+          manualNote: quoteRef ? `Tilbud ${quoteRef}` : null,
+        }),
+        isInternalAllowed: false,
+      }
+      return toResult(route)
+    }
+  }
+
+  // 3. Fallback: input.customer.email som manuel — quote-generator skal
+  //    stadig kunne sende selv uden customerId (ad hoc CSV/manual flow).
+  const route: MailRoute = {
+    fromMailbox,
+    toEmail: normalizeEmail(ctx.fallbackEmail),
+    toName: null,
+    recipientRole: 'manual',
+    intent: 'offer',
+    customerId: ctx.customerId || null,
+    serviceCaseId: null,
+    customerContactId: null,
+    reason: buildRouteReason('offer', 'manual', {
+      manualNote: quoteRef
+        ? `Tilbud ${quoteRef} (input-email)`
+        : 'Tilbud (input-email)',
+    }),
+    isInternalAllowed: false,
+  }
+  return toResult(route)
+}
+
+// =====================================================
+// 11. resolveFuldmagtReminderRoute (Phase 5)
+// =====================================================
+
+/**
+ * Sprint 8H Phase 5 — rykker-mail for ubesvaret fuldmagt fra cron.
+ *
+ * Modtager: customer.email (paying_customer). Da cron-flowet ikke har
+ * sag-kontekst, bruges ikke site-prioritet. intent='fuldmagt'.
+ */
+export async function resolveFuldmagtReminderRoute(
+  customerId: string,
+  ctx?: MailRouteContext
+): Promise<ResolvedRouteResult> {
+  try {
+    validateUUID(customerId, 'customerId')
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Ugyldigt customerId',
+      errorCode: 'INVALID_INPUT',
+    }
+  }
+
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const supabase = createAdminClient()
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('id, company_name, email')
+    .eq('id', customerId)
+    .maybeSingle()
+  if (!customer) {
+    return { ok: false, error: 'Kunde ikke fundet', errorCode: 'NOT_FOUND' }
+  }
+
+  const fromMailbox = defaultFromMailbox()
+  const payerName = customer.company_name || null
+
+  // 0. Override
+  if (ctx?.recipientOverride && ctx.recipientOverride.trim()) {
+    try {
+      assertValidRecipient(ctx.recipientOverride)
+    } catch (err) {
+      if (err instanceof MailRouteError) {
+        return { ok: false, error: err.message, errorCode: err.code }
+      }
+      throw err
+    }
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(ctx.recipientOverride),
+      toName: null,
+      recipientRole: 'manual',
+      intent: 'fuldmagt',
+      customerId,
+      serviceCaseId: null,
+      customerContactId: ctx.customerContactIdOverride || null,
+      reason: buildRouteReason('fuldmagt', 'manual', { payerName, manualNote: 'Fuldmagt-rykker' }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  if (!customer.email) {
+    return {
+      ok: false,
+      error: 'Kunden mangler en email — saet customer.email',
+      errorCode: 'NO_CUSTOMER_EMAIL',
+    }
+  }
+
+  const route: MailRoute = {
+    fromMailbox,
+    toEmail: normalizeEmail(customer.email),
+    toName: customer.company_name || null,
+    recipientRole: 'paying_customer',
+    intent: 'fuldmagt',
+    customerId,
+    serviceCaseId: null,
+    customerContactId: null,
+    reason: buildRouteReason('fuldmagt', 'paying_customer', {
+      payerName,
+      manualNote: 'Rykker',
+    }),
+    isInternalAllowed: false,
+  }
+  return toResult(route)
+}
+
+// =====================================================
+// 12. resolveInternalNotificationRoute (Phase 3)
 // =====================================================
 
 export interface InternalNotificationContext {
