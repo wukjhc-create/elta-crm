@@ -61,26 +61,56 @@ export async function sendAdminAlert(input: AdminAlertInput): Promise<AdminAlert
     return { sent: false, reason: 'no_recipients' }
   }
 
-  // Send via Microsoft Graph.
+  // Send via Microsoft Graph + central mail-router (Sprint 8H Phase 3).
+  // Hver admin-recipient routes som internal_notification saa @eltasolar.dk
+  // ikke blokeres af extern-guard, og hver send faar sin egen audit-trail.
   try {
     const { isGraphConfigured, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
     if (!isGraphConfigured()) {
       await markAttempted(input, 'graph_not_configured')
       return { sent: false, reason: 'graph_not_configured' }
     }
+    const { resolveInternalNotificationRoute, logMailRoute } = await import(
+      '@/lib/actions/mail-route-resolvers'
+    )
     const html = renderAlertEmail(input)
-    const result = await sendEmailViaGraph({
-      to: recipients,
-      subject: input.subject,
-      html,
-    })
-    if (!result.success) {
-      await markAttempted(input, `graph_failed:${result.error ?? 'unknown'}`)
-      return { sent: false, reason: result.error ?? 'graph_failed' }
+
+    const sentRecipients: string[] = []
+    let lastError: string | undefined
+    for (const recipient of recipients) {
+      const routeResult = await resolveInternalNotificationRoute({
+        recipientEmail: recipient,
+        contextLabel: `admin_alert:${input.key}`,
+      })
+      if (!routeResult.ok || !routeResult.route) {
+        lastError = routeResult.error || 'route_failed'
+        continue
+      }
+      const route = routeResult.route
+      const sendResult = await sendEmailViaGraph({
+        to: route.toEmail,
+        subject: input.subject,
+        html,
+      })
+      if (sendResult.success) {
+        sentRecipients.push(route.toEmail)
+        await logMailRoute(route, 'sent', { alert_key: input.key })
+      } else {
+        lastError = sendResult.error
+        await logMailRoute(route, 'failed', {
+          alert_key: input.key,
+          error: sendResult.error,
+        })
+      }
     }
-    await markAttempted(input, 'sent', recipients)
-    console.log('ADMIN ALERT SENT:', input.key, '→', recipients.join(', '))
-    return { sent: true, recipients }
+
+    if (sentRecipients.length === 0) {
+      await markAttempted(input, `graph_failed:${lastError ?? 'unknown'}`)
+      return { sent: false, reason: lastError ?? 'graph_failed' }
+    }
+    await markAttempted(input, 'sent', sentRecipients)
+    console.log('ADMIN ALERT SENT:', input.key, '→', sentRecipients.join(', '))
+    return { sent: true, recipients: sentRecipients }
   } catch (err) {
     logger.error('sendAdminAlert threw', { error: err instanceof Error ? err : new Error(String(err)) })
     await markAttempted(input, `threw:${err instanceof Error ? err.message : String(err)}`)
