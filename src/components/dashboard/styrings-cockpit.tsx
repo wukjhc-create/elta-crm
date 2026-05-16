@@ -101,14 +101,10 @@ function MailsCard({ overview }: { overview: DashboardOverview }) {
         <ul className="text-xs divide-y">
           {oldest.map((m) => (
             <li key={m.id}>
-              {/*
-                Mail-modulet styrer selectedEmail som lokal state og har
-                endnu ingen ?emailId-deeplink. Indtil videre lander vi
-                paa requires_response-filtret saa Henrik kan finde mailen
-                med ét klik mere. Gap dokumenteret i Sprint 9A-fix.
-              */}
+              {/* Sprint 9B: ?emailId deeplink. Mail-clienten auto-selecter
+                  mailen og fjerner emailId fra URL'en bagefter. */}
               <Link
-                href={MAIL_HREF}
+                href={`${MAIL_HREF}&emailId=${m.id}`}
                 className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
               >
                 <div className="min-w-0">
@@ -155,14 +151,10 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
         <ul className="text-xs divide-y">
           {overdue.map((t) => (
             <li key={t.id}>
-              {/*
-                Tasks-page-clienten har endnu ingen ?taskId-deeplink, saa
-                rows linker til kunde-kort hvis tasken har en kunde
-                (kundekort viser tasks i sidebaren) — ellers fald tilbage
-                til tasks-listen. Gap dokumenteret i Sprint 9A-fix.
-              */}
+              {/* Sprint 9B: ?taskId deeplink — tasks-clienten highlight'er
+                  og scroller rowen ind i viewport. */}
               <Link
-                href={t.customer_id ? `/dashboard/customers/${t.customer_id}` : TASKS_HREF}
+                href={`${TASKS_HREF}?taskId=${t.id}`}
                 className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
               >
                 <div className="min-w-0">
@@ -284,8 +276,9 @@ function VisitsCard({ overview }: { overview: DashboardOverview }) {
         <ul className="text-xs divide-y">
           {upcoming.map((v) => (
             <li key={v.id}>
+              {/* Sprint 9B: besigtigelser er customer_tasks — brug taskId-deeplink. */}
               <Link
-                href={v.customer_id ? `/dashboard/customers/${v.customer_id}` : '/dashboard/calendar'}
+                href={`/dashboard/tasks?taskId=${v.id}`}
                 className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
               >
                 <div className="min-w-0">
