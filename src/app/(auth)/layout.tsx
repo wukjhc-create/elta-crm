@@ -13,7 +13,7 @@ export default function AuthLayout({
         <div className="max-w-md text-primary-foreground">
           <h1 className="text-4xl font-bold mb-4">{APP_NAME}</h1>
           <p className="text-xl mb-8 opacity-90">
-            Professionelt CRM system til administration af leads, kunder, tilbud og projekter
+            Ordre, kunder, mail og drift samlet ét sted
           </p>
           <ul className="space-y-4">
             <li className="flex items-start">

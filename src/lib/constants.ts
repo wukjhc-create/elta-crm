@@ -1,4 +1,8 @@
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'ELTA Drift'
+// Sprint branding-fix: hardcoded saa Vercel env-var ikke kan overskrive
+// product-brandet. Hvis whitelabel-behov senere opstaar, indfoer en
+// dedikeret env-var med tydeligt navn (fx NEXT_PUBLIC_BRAND_OVERRIDE)
+// og lad denne konstant blive default.
+export const APP_NAME = 'ELTA Drift'
 export const APP_URL = getResolvedAppUrl()
 
 function getResolvedAppUrl(): string {

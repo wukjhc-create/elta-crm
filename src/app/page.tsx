@@ -8,7 +8,7 @@ export default function Home() {
         <div className="text-center">
           <h1 className="text-6xl font-bold mb-4">{APP_NAME}</h1>
           <p className="text-xl text-muted-foreground mb-8">
-            Professionelt CRM system til administration af leads, kunder, tilbud og projekter
+            Ordre, kunder, mail og drift samlet ét sted
           </p>
 
           <div className="flex gap-4 justify-center">
