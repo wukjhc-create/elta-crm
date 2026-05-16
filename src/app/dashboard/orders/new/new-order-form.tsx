@@ -126,6 +126,46 @@ export function NewOrderForm({
     // Samme princip: brugeren udfylder felterne, vi saetter kun billing_mode.
   }
 
+  // Sprint 9E Phase 5c — intern helper saa alle 5 customer-dropdowns
+  // har konsistent layout (label + select + "+ Ny"-knap). Bruger
+  // closure for at undgaa at passe register/setCreateTargetField rundt.
+  const renderCustomerSelectWithCreate = (args: {
+    label: string
+    fieldName: keyof CreateServiceCaseInput
+    targetField: CustomerTargetField
+    placeholderOption: string
+    buttonExtraDisabled?: boolean
+    buttonTitle?: string
+    error?: string
+  }) => (
+    <Field label={args.label} error={args.error}>
+      <div className="flex gap-2">
+        <select
+          {...register(args.fieldName)}
+          className="flex-1 min-w-0 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+          disabled={isSubmitting || args.buttonExtraDisabled}
+        >
+          <option value="">{args.placeholderOption}</option>
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => setCreateTargetField(args.targetField)}
+          disabled={isSubmitting || args.buttonExtraDisabled}
+          title={args.buttonTitle}
+          className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Ny
+        </button>
+      </div>
+    </Field>
+  )
+
   // Sprint 9E Phase 5c — generaliseret callback. Tilfoejer kunden til
   // lokal state og auto-vaelger i det felt som createTargetField peger paa.
   // Erstatter Phase 5a's hardcoded customer_id-handler.
@@ -310,31 +350,13 @@ export function NewOrderForm({
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-gray-700">Kunde</legend>
 
-        <Field label="Kunde" error={errors.customer_id?.message}>
-          <div className="flex items-center gap-2">
-            <select
-              {...register('customer_id')}
-              className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              disabled={isSubmitting}
-            >
-              <option value="">— Vælg kunde —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setCreateTargetField('customer')}
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Opret ny
-            </button>
-          </div>
-        </Field>
+        {renderCustomerSelectWithCreate({
+          label: 'Kunde',
+          fieldName: 'customer_id',
+          targetField: 'customer',
+          placeholderOption: '— Vælg kunde —',
+          error: errors.customer_id?.message,
+        })}
 
         <Field label="Rekvirent" error={errors.requisition?.message}>
           <input
@@ -400,84 +422,27 @@ export function NewOrderForm({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Ordregiver">
-            <div className="flex items-center gap-2">
-              <select
-                {...register('orderer_customer_id')}
-                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                disabled={isSubmitting}
-              >
-                <option value="">— Samme som kunde —</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setCreateTargetField('orderer')}
-                disabled={isSubmitting}
-                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Opret ny
-              </button>
-            </div>
-          </Field>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {renderCustomerSelectWithCreate({
+            label: 'Ordregiver',
+            fieldName: 'orderer_customer_id',
+            targetField: 'orderer',
+            placeholderOption: '— Samme som kunde —',
+          })}
 
-          <Field label="Kunde / anlægsejer">
-            <div className="flex items-center gap-2">
-              <select
-                {...register('end_customer_id')}
-                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                disabled={isSubmitting}
-              >
-                <option value="">— Samme som kunde —</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setCreateTargetField('end')}
-                disabled={isSubmitting}
-                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Opret ny
-              </button>
-            </div>
-          </Field>
+          {renderCustomerSelectWithCreate({
+            label: 'Kunde / anlægsejer',
+            fieldName: 'end_customer_id',
+            targetField: 'end',
+            placeholderOption: '— Samme som kunde —',
+          })}
 
-          <Field label="Betaler">
-            <div className="flex items-center gap-2">
-              <select
-                {...register('payer_customer_id')}
-                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                disabled={isSubmitting}
-              >
-                <option value="">— Samme som kunde —</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setCreateTargetField('payer')}
-                disabled={isSubmitting}
-                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Opret ny
-              </button>
-            </div>
-          </Field>
+          {renderCustomerSelectWithCreate({
+            label: 'Betaler',
+            fieldName: 'payer_customer_id',
+            targetField: 'payer',
+            placeholderOption: '— Samme som kunde —',
+          })}
 
           <Field label="Billing mode">
             <select
@@ -502,33 +467,15 @@ export function NewOrderForm({
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Købssted / forhandler (vælg kunde)">
-            <div className="flex items-center gap-2">
-              <select
-                {...register('purchased_from_customer_id')}
-                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                disabled={isSubmitting || !!purchaseSource}
-              >
-                <option value="">— Ingen valgt —</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.company_name}{c.customer_number ? ` (${c.customer_number})` : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setCreateTargetField('purchased_from')}
-                disabled={isSubmitting || !!purchaseSource}
-                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
-                title={purchaseSource ? 'Ryd fritekst-købssted først' : undefined}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Opret ny
-              </button>
-            </div>
-          </Field>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {renderCustomerSelectWithCreate({
+            label: 'Købssted / forhandler (vælg kunde)',
+            fieldName: 'purchased_from_customer_id',
+            targetField: 'purchased_from',
+            placeholderOption: '— Ingen valgt —',
+            buttonExtraDisabled: !!purchaseSource,
+            buttonTitle: purchaseSource ? 'Ryd fritekst-købssted først' : undefined,
+          })}
 
           <Field label="Eller fritekst-købssted">
             <input
