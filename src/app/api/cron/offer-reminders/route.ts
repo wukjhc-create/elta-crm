@@ -194,11 +194,26 @@ export async function GET(request: Request) {
               'Log ind på din kundeportal for at underskrive digitalt — det tager under 1 minut.'
             )
 
+            // Sprint 8H Phase 5: central mail-router (fuldmagt-intent).
+            const { resolveFuldmagtReminderRoute, logMailRoute } = await import(
+              '@/lib/actions/mail-route-resolvers'
+            )
+            const routeResult = await resolveFuldmagtReminderRoute(doc.customer_id)
+            if (!routeResult.ok || !routeResult.route) {
+              errors.push(`Fuldmagt ${doc.id}: route ${routeResult.error || 'fejlede'}`)
+              continue
+            }
+            const route = routeResult.route
             const result = await sendEmailViaGraph({
-              to: customer.email,
+              to: route.toEmail,
               subject: `Påmindelse: Fuldmagt afventer din underskrift — ${BRAND_COMPANY_NAME}`,
               html,
             })
+            await logMailRoute(
+              route,
+              result.success ? 'sent' : 'failed',
+              { document_id: doc.id, error: result.error }
+            )
 
             if (result.success) {
               // Mark as reminded so we don't spam
@@ -244,11 +259,26 @@ export async function GET(request: Request) {
               'Log ind på din kundeportal for at bekræfte eller foreslå et nyt tidspunkt.'
             )
 
+            // Sprint 8H Phase 5: central mail-router (besigtigelse-intent).
+            const { resolveBesigtigelseMailRoute, logMailRoute } = await import(
+              '@/lib/actions/mail-route-resolvers'
+            )
+            const routeResult = await resolveBesigtigelseMailRoute(task.customer_id)
+            if (!routeResult.ok || !routeResult.route) {
+              errors.push(`Besigtigelse ${task.id}: route ${routeResult.error || 'fejlede'}`)
+              continue
+            }
+            const route = routeResult.route
             const result = await sendEmailViaGraph({
-              to: customer.email,
+              to: route.toEmail,
               subject: `Påmindelse: Bekræft din besigtigelse — ${BRAND_COMPANY_NAME}`,
               html,
             })
+            await logMailRoute(
+              route,
+              result.success ? 'sent' : 'failed',
+              { task_id: task.id, source: 'cron_besigtigelse_reminder', error: result.error }
+            )
 
             if (result.success) {
               descData.reminder_sent = new Date().toISOString()
