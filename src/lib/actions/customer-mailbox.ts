@@ -325,13 +325,33 @@ export async function sendEmailToCustomer(
       </div>
     `
 
+    // Sprint 8H Phase 4: central mail-router (manual-intent).
+    // sendEmailToCustomer kaldes med en bruger-valgt recipient — vi
+    // validerer kun at adressen er ekstern og syntaks-gyldig.
+    const { resolveManualCustomerMailRoute, logMailRoute } = await import(
+      '@/lib/actions/mail-route-resolvers'
+    )
+    const routeResult = await resolveManualCustomerMailRoute({
+      recipientEmail: customerEmail,
+      manualNote: 'Compose: kunde-mail',
+    })
+    if (!routeResult.ok || !routeResult.route) {
+      return { success: false, error: routeResult.error || 'Kunne ikke bygge route' }
+    }
+    const route = routeResult.route
+
     const { sendEmailViaGraph, getMailbox } = await import('@/lib/services/microsoft-graph')
     const result = await sendEmailViaGraph({
-      to: customerEmail,
+      to: route.toEmail,
       subject,
       html,
       senderName,
     })
+    await logMailRoute(
+      route,
+      result.success ? 'sent' : 'failed',
+      { source: 'send_email_to_customer', error: result.error }
+    )
 
     if (result.success) {
       // Record outgoing email in incoming_emails for customer timeline
