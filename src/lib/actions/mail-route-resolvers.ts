@@ -16,6 +16,11 @@
  *
  * Phase 3 tilfoejer resolveInternalNotificationRoute for bevidst interne
  * systemmails (admin-alerts, fuldmagt admin-notif, portal CRM-notif).
+ *
+ * Phase 4 tilfoejer:
+ *   - resolveBesigtigelseMailRoute (kunde-bekraeftelse for besigtigelse)
+ *   - resolveServiceCaseConfirmationRoute (service-case bekraeftelse)
+ *   - resolveManualCustomerMailRoute (ad hoc compose med fri-tekst recipient)
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -595,7 +600,383 @@ export async function resolveOfferReminderRoute(
 }
 
 // =====================================================
-// 7. resolveInternalNotificationRoute (Phase 3)
+// 7. resolveBesigtigelseMailRoute (Phase 4)
+// =====================================================
+
+/**
+ * Sprint 8H Phase 4 — besigtigelse/site-visit bekraeftelse til kunde.
+ *
+ * Recipient-prioritet:
+ *   1. site_contact (hvis serviceCaseId og kontakt har email)
+ *   2. site_customer (hvis serviceCaseId og leveringskunde har email)
+ *   3. customer.email (paying_customer)
+ *
+ * intent='besigtigelse'. Maa aldrig pege paa @eltasolar.dk
+ * (assertExternalRecipient enforcer).
+ *
+ * Bruger admin-client til DB-lookups saa resolveren ogsaa kan kaldes
+ * fra portal-anon kontekst (kun read-only af kunde/kontakt-email).
+ */
+export async function resolveBesigtigelseMailRoute(
+  customerId: string,
+  serviceCaseId?: string | null,
+  ctx?: MailRouteContext
+): Promise<ResolvedRouteResult> {
+  try {
+    validateUUID(customerId, 'customerId')
+    if (serviceCaseId) validateUUID(serviceCaseId, 'serviceCaseId')
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Ugyldigt id',
+      errorCode: 'INVALID_INPUT',
+    }
+  }
+
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const supabase = createAdminClient()
+
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('id, company_name, email')
+    .eq('id', customerId)
+    .maybeSingle()
+  if (!customer) {
+    return { ok: false, error: 'Kunde ikke fundet', errorCode: 'NOT_FOUND' }
+  }
+
+  let siteContact: { id: string; name?: string | null; email?: string | null } | null = null
+  let siteCustomer: { id: string; company_name?: string | null; email?: string | null } | null = null
+  if (serviceCaseId) {
+    const { data: caseRow } = await supabase
+      .from('service_cases')
+      .select(`
+        id,
+        site_contact:customer_contacts!service_cases_site_contact_id_fkey(id, name, email),
+        site_customer:customers!service_cases_site_customer_id_fkey(id, company_name, email)
+      `)
+      .eq('id', serviceCaseId)
+      .maybeSingle()
+    if (caseRow) {
+      const raw = caseRow as unknown as {
+        site_contact?: Array<{ id: string; name?: string | null; email?: string | null }> | { id: string; name?: string | null; email?: string | null } | null
+        site_customer?: Array<{ id: string; company_name?: string | null; email?: string | null }> | { id: string; company_name?: string | null; email?: string | null } | null
+      }
+      siteContact = Array.isArray(raw.site_contact) ? raw.site_contact[0] || null : raw.site_contact || null
+      siteCustomer = Array.isArray(raw.site_customer) ? raw.site_customer[0] || null : raw.site_customer || null
+    }
+  }
+
+  const fromMailbox = defaultFromMailbox()
+  const payerName = customer.company_name || null
+
+  // 0. Override (manual)
+  if (ctx?.recipientOverride && ctx.recipientOverride.trim()) {
+    try {
+      assertValidRecipient(ctx.recipientOverride)
+    } catch (err) {
+      if (err instanceof MailRouteError) {
+        return { ok: false, error: err.message, errorCode: err.code }
+      }
+      throw err
+    }
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(ctx.recipientOverride),
+      toName: null,
+      recipientRole: 'manual',
+      intent: 'besigtigelse',
+      customerId,
+      serviceCaseId: serviceCaseId || null,
+      customerContactId: ctx.customerContactIdOverride || null,
+      reason: buildRouteReason('besigtigelse', 'manual', {
+        payerName,
+        manualNote: 'Besigtigelse — manuel modtager',
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 1. site_contact
+  if (siteContact?.email && !normalizeEmail(siteContact.email).includes('@eltasolar.dk')) {
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(siteContact.email),
+      toName: siteContact.name || null,
+      recipientRole: 'site_contact',
+      intent: 'besigtigelse',
+      customerId,
+      serviceCaseId: serviceCaseId || null,
+      customerContactId: siteContact.id,
+      reason: buildRouteReason('besigtigelse', 'site_contact', {
+        payerName,
+        contactName: siteContact.name,
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 2. site_customer
+  if (siteCustomer?.email && !normalizeEmail(siteCustomer.email).includes('@eltasolar.dk')) {
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(siteCustomer.email),
+      toName: siteCustomer.company_name || null,
+      recipientRole: 'site_customer',
+      intent: 'besigtigelse',
+      customerId,
+      serviceCaseId: serviceCaseId || null,
+      customerContactId: null,
+      siteCustomerId: siteCustomer.id,
+      reason: buildRouteReason('besigtigelse', 'site_customer', {
+        payerName,
+        contactName: siteCustomer.company_name,
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 3. Fallback: paying_customer
+  if (!customer.email) {
+    return {
+      ok: false,
+      error: 'Kunden mangler en email — saet customer.email eller site-kontakt',
+      errorCode: 'NO_CUSTOMER_EMAIL',
+    }
+  }
+  const route: MailRoute = {
+    fromMailbox,
+    toEmail: normalizeEmail(customer.email),
+    toName: customer.company_name || null,
+    recipientRole: 'paying_customer',
+    intent: 'besigtigelse',
+    customerId,
+    serviceCaseId: serviceCaseId || null,
+    customerContactId: null,
+    reason: buildRouteReason('besigtigelse', 'paying_customer', { payerName }),
+    isInternalAllowed: false,
+  }
+  return toResult(route)
+}
+
+// =====================================================
+// 8. resolveServiceCaseConfirmationRoute (Phase 4)
+// =====================================================
+
+/**
+ * Sprint 8H Phase 4 — bekraeftelse paa service-case oprettelse.
+ *
+ * Recipient-prioritet (samme som besigtigelse):
+ *   1. site_contact
+ *   2. site_customer
+ *   3. paying_customer
+ *
+ * intent='task_practical' (praktisk kunde-bekraeftelse). billing_contact
+ * bruges ALDRIG som default, da dette ikke er en faktura.
+ */
+export async function resolveServiceCaseConfirmationRoute(
+  caseId: string,
+  ctx?: MailRouteContext
+): Promise<ResolvedRouteResult> {
+  try {
+    validateUUID(caseId, 'caseId')
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Ugyldigt caseId',
+      errorCode: 'INVALID_INPUT',
+    }
+  }
+
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const supabase = createAdminClient()
+
+  const { data: caseRow } = await supabase
+    .from('service_cases')
+    .select(`
+      id, case_number, customer_id,
+      customer:customers!service_cases_customer_id_fkey(id, company_name, email),
+      site_customer:customers!service_cases_site_customer_id_fkey(id, company_name, email),
+      site_contact:customer_contacts!service_cases_site_contact_id_fkey(id, name, email)
+    `)
+    .eq('id', caseId)
+    .maybeSingle()
+  if (!caseRow) {
+    return { ok: false, error: 'Sag ikke fundet', errorCode: 'NOT_FOUND' }
+  }
+
+  const raw = caseRow as unknown as {
+    case_number?: string | null
+    customer_id?: string
+    customer?: Array<{ id: string; company_name?: string | null; email?: string | null }> | { id: string; company_name?: string | null; email?: string | null } | null
+    site_customer?: Array<{ id: string; company_name?: string | null; email?: string | null }> | { id: string; company_name?: string | null; email?: string | null } | null
+    site_contact?: Array<{ id: string; name?: string | null; email?: string | null }> | { id: string; name?: string | null; email?: string | null } | null
+  }
+  const customer = Array.isArray(raw.customer) ? raw.customer[0] || null : raw.customer
+  const siteCustomer = Array.isArray(raw.site_customer) ? raw.site_customer[0] || null : raw.site_customer
+  const siteContact = Array.isArray(raw.site_contact) ? raw.site_contact[0] || null : raw.site_contact
+  const customerId = raw.customer_id || customer?.id || null
+  const caseNumber = raw.case_number || null
+  const payerName = customer?.company_name || null
+  const fromMailbox = defaultFromMailbox()
+
+  // 0. Override
+  if (ctx?.recipientOverride && ctx.recipientOverride.trim()) {
+    try {
+      assertValidRecipient(ctx.recipientOverride)
+    } catch (err) {
+      if (err instanceof MailRouteError) {
+        return { ok: false, error: err.message, errorCode: err.code }
+      }
+      throw err
+    }
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(ctx.recipientOverride),
+      toName: null,
+      recipientRole: 'manual',
+      intent: 'task_practical',
+      customerId,
+      serviceCaseId: caseId,
+      customerContactId: ctx.customerContactIdOverride || null,
+      reason: buildRouteReason('task_practical', 'manual', {
+        payerName,
+        caseNumber,
+        manualNote: 'Service-case bekraeftelse',
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 1. site_contact
+  if (siteContact?.email && !normalizeEmail(siteContact.email).includes('@eltasolar.dk')) {
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(siteContact.email),
+      toName: siteContact.name || null,
+      recipientRole: 'site_contact',
+      intent: 'task_practical',
+      customerId,
+      serviceCaseId: caseId,
+      customerContactId: siteContact.id,
+      reason: buildRouteReason('task_practical', 'site_contact', {
+        payerName,
+        contactName: siteContact.name,
+        caseNumber,
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 2. site_customer
+  if (siteCustomer?.email && !normalizeEmail(siteCustomer.email).includes('@eltasolar.dk')) {
+    const route: MailRoute = {
+      fromMailbox,
+      toEmail: normalizeEmail(siteCustomer.email),
+      toName: siteCustomer.company_name || null,
+      recipientRole: 'site_customer',
+      intent: 'task_practical',
+      customerId,
+      serviceCaseId: caseId,
+      customerContactId: null,
+      siteCustomerId: siteCustomer.id,
+      reason: buildRouteReason('task_practical', 'site_customer', {
+        payerName,
+        contactName: siteCustomer.company_name,
+        caseNumber,
+      }),
+      isInternalAllowed: false,
+    }
+    return toResult(route)
+  }
+
+  // 3. Fallback: paying_customer
+  if (!customer?.email) {
+    return {
+      ok: false,
+      error: 'Kunden mangler en email — saet customer.email eller site-kontakt',
+      errorCode: 'NO_CUSTOMER_EMAIL',
+    }
+  }
+  const route: MailRoute = {
+    fromMailbox,
+    toEmail: normalizeEmail(customer.email),
+    toName: customer.company_name || null,
+    recipientRole: 'paying_customer',
+    intent: 'task_practical',
+    customerId,
+    serviceCaseId: caseId,
+    customerContactId: null,
+    reason: buildRouteReason('task_practical', 'paying_customer', {
+      payerName,
+      caseNumber,
+    }),
+    isInternalAllowed: false,
+  }
+  return toResult(route)
+}
+
+// =====================================================
+// 9. resolveManualCustomerMailRoute (Phase 4)
+// =====================================================
+
+export interface ManualCustomerMailContext {
+  recipientEmail: string
+  customerId?: string | null
+  customerContactId?: string | null
+  /** Kort label til audit, fx 'Compose: tilbud-opfoelgning'. */
+  manualNote?: string | null
+}
+
+/**
+ * Sprint 8H Phase 4 — wrapper for compose / ad hoc kunde-mails hvor
+ * brugeren manuelt har valgt eller tastet recipient.
+ *
+ * Validerer at recipient er ekstern (intern-guard via
+ * assertExternalRecipient) og syntaks-gyldig. intent='manual'.
+ * Gætter IKKE recipient — brug resolveOfferMailRoute /
+ * resolveTaskMailRoute hvis kontekst er kendt.
+ */
+export async function resolveManualCustomerMailRoute(
+  ctx: ManualCustomerMailContext
+): Promise<ResolvedRouteResult> {
+  try {
+    assertValidRecipient(ctx.recipientEmail)
+  } catch (err) {
+    if (err instanceof MailRouteError) {
+      return { ok: false, error: err.message, errorCode: err.code }
+    }
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Ugyldig modtager',
+      errorCode: 'UNKNOWN',
+    }
+  }
+
+  const route: MailRoute = {
+    fromMailbox: defaultFromMailbox(),
+    toEmail: normalizeEmail(ctx.recipientEmail),
+    toName: null,
+    recipientRole: 'manual',
+    intent: 'manual',
+    customerId: ctx.customerId || null,
+    serviceCaseId: null,
+    customerContactId: ctx.customerContactId || null,
+    reason: buildRouteReason('manual', 'manual', {
+      manualNote: ctx.manualNote || 'Ad hoc compose',
+    }),
+    isInternalAllowed: false,
+  }
+  return toResult(route)
+}
+
+// =====================================================
+// 10. resolveInternalNotificationRoute (Phase 3)
 // =====================================================
 
 export interface InternalNotificationContext {
