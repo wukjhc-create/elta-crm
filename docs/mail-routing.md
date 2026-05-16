@@ -18,10 +18,11 @@ mails:
    | Intent | Hvem skal modtage | Resolver |
    |---|---|---|
    | `offer`, `invoice`, `invoice_reminder` | Økonomi → `billing_contact` (faldback: `paying_customer`) | `resolveOfferMailRoute`, `resolveInvoiceMailRoute`, `resolveOfferReminderRoute` |
-   | `task_practical`, `task_technical` | Praktik → `site_contact` (faldback: kundens email) | `resolveTaskMailRoute` |
+   | `task_practical`, `task_technical` | Praktik → `site_contact` (fallback: `site_customer` → `paying_customer`) | `resolveTaskMailRoute`, `resolveServiceCaseConfirmationRoute` |
+   | `besigtigelse` | Site-besøg → `site_contact` (fallback: `site_customer` → `paying_customer`) | `resolveBesigtigelseMailRoute` |
    | `reply_inbound`, `reply_thread` | Den der skrev til os (ekstern) | `resolveReplyRoute`, `resolveCustomerMailboxReplyRoute` |
    | `internal_notification` | Bevidst intern modtager (`@eltasolar.dk`) | `resolveInternalNotificationRoute` |
-   | `manual` | Brugerens eksplicitte valg fra recipient-picker | Override-grenen i hver resolver |
+   | `manual` | Brugerens eksplicitte valg / fri-tekst recipient | `resolveManualCustomerMailRoute` eller override-grenen i hver resolver |
 
 3. **`internal_notification` må KUN bruges til:**
    - Admin-alerts (system-advarsler).
@@ -36,6 +37,27 @@ mails:
    - `src/lib/services/microsoft-graph.ts` (selve implementationen).
    - Test-flows (`reminder-test.ts`, `email.ts:sendTestEmail`).
    - Cron-jobs, der allerede bygger en route via en resolver.
+   - Eksperimentelle/automation-flows hvor recipient-kontekst endnu er
+     uklar (`automation/actions/send-email.ts`) — dokumentér gap i stedet
+     for at gætte recipient.
+
+5. **Besigtigelse / service-case regler (Phase 4):**
+   - Besigtigelses-bekræftelser og praktiske service-case mails går aldrig
+     til `billing_contact` som default — kun til betaler hvis ingen site
+     er sat.
+   - Hvis kun `customerId` er kendt (fx fra kundekortet eller
+     portal-flowet) bruger routen `paying_customer` — det er accepteret
+     og dokumenteret som gap. Service-case-flowet (`serviceCaseId`)
+     bruger fuld site_contact → site_customer → paying_customer prioritet.
+   - Inspectionsrapport-PDF'en sendes med `intent='besigtigelse'`;
+     service-case-bekræftelse bruger `intent='task_practical'`.
+
+6. **Manual / ad hoc compose regler (Phase 4):**
+   - `resolveManualCustomerMailRoute` valideres KUN at recipient er
+     ekstern og syntaks-gyldig — den gætter ikke recipient.
+   - Bruges når UI'en allerede har en specifik recipient (compose-dialog,
+     reply-picker override). For known kontekst (tilbud, faktura, sag)
+     skal en kontekst-resolver bruges i stedet.
 
 ## Audit-trail
 
@@ -71,3 +93,10 @@ værre end at vente.
   (`resolveInternalNotificationRoute`) + refactor af admin-alerts,
   fuldmagt-admin-notif, portal-CRM-notifs, public-offer
   medarbejder-notif.
+- **Phase 4** (Sprint 8H): besigtigelse + service-case + ad hoc compose
+  (`resolveBesigtigelseMailRoute`, `resolveServiceCaseConfirmationRoute`,
+  `resolveManualCustomerMailRoute`) + refactor af `besigtigelse.ts`,
+  `portal.ts` (portalBookBesigtigelse + portalConfirmBesigtigelse),
+  `customer-tasks.ts` (bookBesigtigelse), `service-cases.ts`
+  (sendServiceCaseConfirmation), `customer-mailbox.ts`
+  (sendEmailToCustomer).
