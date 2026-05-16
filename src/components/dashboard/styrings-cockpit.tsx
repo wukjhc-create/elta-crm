@@ -9,6 +9,9 @@
  *   5. Kommende besigtigelser
  *
  * Server-component — modtager pre-fetched overview fra side-page.
+ *
+ * Sprint 9A-fix: hele kort-headeren samt hver list-row er nu egne <Link>-elementer
+ * (cursor-pointer, hover-state, korrekt filter-param 'requires_response').
  */
 
 import Link from 'next/link'
@@ -19,6 +22,7 @@ import {
   FileText,
   CalendarClock,
   AlertTriangle,
+  ChevronRight,
 } from 'lucide-react'
 import type { DashboardOverview } from '@/lib/actions/dashboard-overview'
 
@@ -76,6 +80,8 @@ export function StyringsCockpit({ overview }: Props) {
 // 1. Mails kræver svar
 // =====================================================
 
+const MAIL_HREF = '/dashboard/mail?filter=requires_response'
+
 function MailsCard({ overview }: { overview: DashboardOverview }) {
   const { requiresResponseCount, oldest } = overview.mails
   const err = overview.errors.mails
@@ -84,7 +90,7 @@ function MailsCard({ overview }: { overview: DashboardOverview }) {
       title="Mails kræver svar"
       icon={<Mail className="h-4 w-4" />}
       tone={requiresResponseCount > 0 ? 'amber' : 'green'}
-      href="/dashboard/mail?filter=requires-response"
+      href={MAIL_HREF}
       headline={requiresResponseCount}
       headlineLabel="ubesvarede tråde"
       error={err}
@@ -94,16 +100,28 @@ function MailsCard({ overview }: { overview: DashboardOverview }) {
       ) : (
         <ul className="text-xs divide-y">
           {oldest.map((m) => (
-            <li key={m.id} className="py-1.5 flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate font-medium">{m.subject || '(uden emne)'}</div>
-                <div className="truncate text-gray-500">
-                  {m.sender_name || m.sender_email || 'Ukendt afsender'}
+            <li key={m.id}>
+              {/*
+                Mail-modulet styrer selectedEmail som lokal state og har
+                endnu ingen ?emailId-deeplink. Indtil videre lander vi
+                paa requires_response-filtret saa Henrik kan finde mailen
+                med ét klik mere. Gap dokumenteret i Sprint 9A-fix.
+              */}
+              <Link
+                href={MAIL_HREF}
+                className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{m.subject || '(uden emne)'}</div>
+                  <div className="truncate text-gray-500">
+                    {m.sender_name || m.sender_email || 'Ukendt afsender'}
+                  </div>
                 </div>
-              </div>
-              <span className={`shrink-0 text-[11px] ${ageBadge(m.ageDays)}`}>
-                {m.ageDays}d
-              </span>
+                <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(m.ageDays)}`}>
+                  {m.ageDays}d
+                  <ChevronRight className="h-3 w-3 opacity-50" />
+                </span>
+              </Link>
             </li>
           ))}
         </ul>
@@ -116,6 +134,8 @@ function MailsCard({ overview }: { overview: DashboardOverview }) {
 // 2. Åbne opgaver
 // =====================================================
 
+const TASKS_HREF = '/dashboard/tasks'
+
 function TasksCard({ overview }: { overview: DashboardOverview }) {
   const { openCount, autoCount, overdue } = overview.tasks
   const err = overview.errors.tasks
@@ -124,7 +144,7 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
       title="Åbne opgaver"
       icon={<ListChecks className="h-4 w-4" />}
       tone={overdue.length > 0 ? 'red' : openCount > 0 ? 'amber' : 'green'}
-      href="/dashboard/tasks"
+      href={TASKS_HREF}
       headline={openCount}
       headlineLabel={`åbne · ${autoCount} auto-genererede`}
       error={err}
@@ -134,21 +154,33 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
       ) : (
         <ul className="text-xs divide-y">
           {overdue.map((t) => (
-            <li key={t.id} className="py-1.5 flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate font-medium">{t.title}</div>
-                <div className="truncate text-gray-500">
-                  {t.customer_name || '—'}
-                  {t.auto_generated && (
-                    <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700">
-                      auto
-                    </span>
-                  )}
+            <li key={t.id}>
+              {/*
+                Tasks-page-clienten har endnu ingen ?taskId-deeplink, saa
+                rows linker til kunde-kort hvis tasken har en kunde
+                (kundekort viser tasks i sidebaren) — ellers fald tilbage
+                til tasks-listen. Gap dokumenteret i Sprint 9A-fix.
+              */}
+              <Link
+                href={t.customer_id ? `/dashboard/customers/${t.customer_id}` : TASKS_HREF}
+                className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{t.title}</div>
+                  <div className="truncate text-gray-500">
+                    {t.customer_name || '—'}
+                    {t.auto_generated && (
+                      <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700">
+                        auto
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <span className="shrink-0 text-[11px] text-red-700">
-                {t.daysOverdue}d
-              </span>
+                <span className="shrink-0 text-[11px] flex items-center gap-1 text-red-700">
+                  {t.daysOverdue}d
+                  <ChevronRight className="h-3 w-3 opacity-50" />
+                </span>
+              </Link>
             </li>
           ))}
         </ul>
@@ -205,10 +237,10 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
       ) : (
         <ul className="text-xs divide-y">
           {oldest.map((o) => (
-            <li key={o.id} className="py-1.5">
+            <li key={o.id}>
               <Link
                 href={`/dashboard/offers/${o.id}`}
-                className="flex items-center justify-between gap-2 hover:underline"
+                className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
               >
                 <div className="min-w-0">
                   <div className="truncate font-medium">
@@ -216,8 +248,9 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
                   </div>
                   <div className="truncate text-gray-500">{o.customer_name || '—'}</div>
                 </div>
-                <span className={`shrink-0 text-[11px] ${ageBadge(o.ageDays)}`}>
+                <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(o.ageDays)}`}>
                   {o.ageDays}d
+                  <ChevronRight className="h-3 w-3 opacity-50" />
                 </span>
               </Link>
             </li>
@@ -250,14 +283,20 @@ function VisitsCard({ overview }: { overview: DashboardOverview }) {
       ) : (
         <ul className="text-xs divide-y">
           {upcoming.map((v) => (
-            <li key={v.id} className="py-1.5 flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate font-medium">{v.title}</div>
-                <div className="truncate text-gray-500">{v.customer_name || '—'}</div>
-              </div>
-              <span className="shrink-0 text-[11px] text-gray-600">
-                {fmtDateDK(v.due_date)}
-              </span>
+            <li key={v.id}>
+              <Link
+                href={v.customer_id ? `/dashboard/customers/${v.customer_id}` : '/dashboard/calendar'}
+                className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1 cursor-pointer transition-colors"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{v.title}</div>
+                  <div className="truncate text-gray-500">{v.customer_name || '—'}</div>
+                </div>
+                <span className="shrink-0 text-[11px] flex items-center gap-1 text-gray-600">
+                  {fmtDateDK(v.due_date)}
+                  <ChevronRight className="h-3 w-3 opacity-50" />
+                </span>
+              </Link>
             </li>
           ))}
         </ul>
@@ -272,12 +311,12 @@ function VisitsCard({ overview }: { overview: DashboardOverview }) {
 
 type Tone = 'red' | 'amber' | 'green' | 'blue' | 'gray'
 
-const TONE_CLASSES: Record<Tone, { ring: string; dot: string; text: string }> = {
-  red: { ring: 'ring-red-200', dot: 'bg-red-500', text: 'text-red-700' },
-  amber: { ring: 'ring-amber-200', dot: 'bg-amber-500', text: 'text-amber-700' },
-  green: { ring: 'ring-emerald-200', dot: 'bg-emerald-500', text: 'text-emerald-700' },
-  blue: { ring: 'ring-blue-200', dot: 'bg-blue-500', text: 'text-blue-700' },
-  gray: { ring: 'ring-gray-200', dot: 'bg-gray-400', text: 'text-gray-700' },
+const TONE_CLASSES: Record<Tone, { ring: string; dot: string; text: string; hoverRing: string }> = {
+  red: { ring: 'ring-red-200', dot: 'bg-red-500', text: 'text-red-700', hoverRing: 'hover:ring-red-300' },
+  amber: { ring: 'ring-amber-200', dot: 'bg-amber-500', text: 'text-amber-700', hoverRing: 'hover:ring-amber-300' },
+  green: { ring: 'ring-emerald-200', dot: 'bg-emerald-500', text: 'text-emerald-700', hoverRing: 'hover:ring-emerald-300' },
+  blue: { ring: 'ring-blue-200', dot: 'bg-blue-500', text: 'text-blue-700', hoverRing: 'hover:ring-blue-300' },
+  gray: { ring: 'ring-gray-200', dot: 'bg-gray-400', text: 'text-gray-700', hoverRing: 'hover:ring-gray-300' },
 }
 
 function Card({
@@ -301,27 +340,35 @@ function Card({
 }) {
   const cls = TONE_CLASSES[tone]
   return (
-    <div className={`bg-white rounded-lg ring-1 ${cls.ring} p-4 flex flex-col gap-3`}>
-      <div className="flex items-start justify-between">
+    <div
+      className={`bg-white rounded-lg ring-1 ${cls.ring} ${cls.hoverRing} hover:shadow-sm transition p-4 flex flex-col gap-3`}
+    >
+      {/*
+        Header er hovedklik-omraadet (titel, tal, label, ikon, chevron).
+        Listerow'ne neden under er separate Links saa vi undgaar ulovlige
+        nested anchors.
+      */}
+      <Link
+        href={href}
+        aria-label={`Gå til ${title}`}
+        className="flex items-start justify-between cursor-pointer group"
+      >
         <div>
           <h3 className="text-sm font-semibold flex items-center gap-1.5">
             <span className={`inline-block h-2 w-2 rounded-full ${cls.dot}`} />
             {title}
           </h3>
           <p className="mt-1 text-2xl font-semibold leading-none">{headline}</p>
-          <p className="text-[11px] text-gray-500 mt-1">{headlineLabel}</p>
+          <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
+            {headlineLabel}
+            <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-60 transition" />
+          </p>
         </div>
-        <Link
-          href={href}
-          aria-label={`Gå til ${title}`}
-          className={`shrink-0 ${cls.text} hover:opacity-80`}
-        >
-          {icon}
-        </Link>
-      </div>
-      <div className="border-t border-gray-100 pt-2 -mx-1 px-1 min-h-[88px]">
-        {children}
-      </div>
+        <span className={`shrink-0 ${cls.text} group-hover:opacity-80`}>{icon}</span>
+      </Link>
+
+      <div className="border-t border-gray-100 pt-2 min-h-[88px]">{children}</div>
+
       {error && (
         <p className="text-[11px] text-amber-700 flex items-center gap-1">
           <AlertTriangle className="h-3 w-3" />
