@@ -222,6 +222,56 @@ export function MailClient() {
     loadEmails()
   }, [loadEmails])
 
+  // Sprint 9B: deeplink — naar ?emailId=<id> er sat i URL'en, auto-select
+  // den mail. Hvis ikke i nuvaerende liste, hent den direkte via
+  // getIncomingEmail. Kører efter emails er loadet (saa list-lookup
+  // virker). emailId fjernes fra URL'en bagefter saa refresh ikke
+  // re-trigger.
+  useEffect(() => {
+    const targetId = searchParams.get('emailId')
+    if (!targetId) return
+    if (isLoading) return
+    if (selectedEmail?.id === targetId) {
+      // Allerede valgt — fjern bare param fra URL'en
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('emailId')
+      router.replace(`/dashboard/mail${params.toString() ? `?${params.toString()}` : ''}`)
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      const inList = emails.find((e) => e.id === targetId)
+      if (inList) {
+        setSelectedEmail(inList)
+      } else {
+        try {
+          const { getIncomingEmail } = await import('@/lib/actions/incoming-emails')
+          const fetched = await getIncomingEmail(targetId)
+          if (!cancelled && fetched) {
+            setSelectedEmail(fetched)
+          } else if (!cancelled) {
+            toast.error('Mail ikke fundet', 'Den valgte mail kunne ikke hentes — vises i listen i stedet.')
+          }
+        } catch {
+          if (!cancelled) {
+            toast.error('Mail ikke fundet', 'Den valgte mail kunne ikke hentes.')
+          }
+        }
+      }
+      if (!cancelled) {
+        const params = new URLSearchParams(searchParams.toString())
+        params.delete('emailId')
+        router.replace(`/dashboard/mail${params.toString() ? `?${params.toString()}` : ''}`)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, isLoading, emails])
+
   // =====================================================
   // Realtime + Background sync
   // =====================================================
