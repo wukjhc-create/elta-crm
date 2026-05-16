@@ -21,6 +21,8 @@ import {
   searchCustomersForSite,
   type CustomerSearchResult,
 } from '@/lib/actions/service-case-site'
+import { AddressAutocomplete } from '@/components/forms/address-autocomplete'
+import type { AddressSuggestion } from '@/lib/services/address-lookup'
 import {
   CUSTOMER_CONTACT_ROLES,
   CUSTOMER_CONTACT_ROLE_LABELS,
@@ -252,14 +254,28 @@ export function EditSiteInfoDialog({
               Arbejdsadresse
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Adresse"
-                disabled={saving}
-                className="sm:col-span-2 px-2.5 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400"
-              />
+              <div className="sm:col-span-2">
+                <AddressAutocomplete
+                  value={address}
+                  onChange={setAddress}
+                  onSelect={(s: AddressSuggestion) => {
+                    // Saml gade + husnr til ét adressefelt, og udfyld
+                    // postnr/by + etage/doer automatisk. floor/door overskrives
+                    // KUN hvis DAWA returnerer en vaerdi, saa eksisterende
+                    // manuelt indtastet etage bevares ved postnr-skift.
+                    const street = [s.street, s.houseNumber].filter(Boolean).join(' ')
+                    setAddress(street)
+                    setPostalCode(s.postalCode)
+                    setCity(s.city)
+                    const fd = [s.floor, s.door].filter(Boolean).join('. ')
+                    if (fd) setFloorDoor(fd)
+                  }}
+                  placeholder="Adresse"
+                  disabled={saving}
+                  className="px-2.5 py-1.5 text-sm"
+                  showIcon={false}
+                />
+              </div>
               <input
                 type="text"
                 value={floorDoor}
