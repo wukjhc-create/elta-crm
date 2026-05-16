@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import {
@@ -89,6 +90,8 @@ export function TasksPageClient({
   graphConfigured?: boolean
 } = {}) {
   const toast = useToast()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [tasks, setTasks] = useState<CustomerTaskWithRelations[]>([])
   const [profiles, setProfiles] = useState<Array<{ id: string; full_name: string | null; email: string; role?: string | null }>>([])
   const [customers, setCustomers] = useState<Array<{ id: string; company_name: string; customer_number: string }>>([])
@@ -131,6 +134,43 @@ export function TasksPageClient({
 
   // Realtime: refresh when tasks change in DB
   useRealtimeTable('customer_tasks', loadData)
+
+  // Sprint 9B: deeplink — naar /dashboard/tasks?taskId=<id> aabnes,
+  // highlight rowen og scroll den ind i viewport. taskId fjernes fra
+  // URL'en bagefter saa highlight'et ikke re-trigger ved refresh.
+  // Hvis tasken ikke findes i den nuvaerende filterede liste, viser vi
+  // en toast — Henrik kan saa selv aabne 'showDone' / aendre filter.
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null)
+  useEffect(() => {
+    const targetId = searchParams.get('taskId')
+    if (!targetId) return
+    if (isLoading) return
+
+    const found = tasks.find((t) => t.id === targetId)
+    if (found) {
+      setHighlightedTaskId(targetId)
+      // Scroll efter render
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`task-${targetId}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
+      // Fjern highlight efter 4 sek saa rowen normaliserer sig
+      const timer = setTimeout(() => setHighlightedTaskId(null), 4000)
+      // Ryd taskId fra URL
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('taskId')
+      router.replace(`/dashboard/tasks${params.toString() ? `?${params.toString()}` : ''}`)
+      return () => clearTimeout(timer)
+    } else {
+      toast.error('Opgave ikke fundet', 'Tjek om dit filter skjuler den (fx udførte opgaver).')
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('taskId')
+      router.replace(`/dashboard/tasks${params.toString() ? `?${params.toString()}` : ''}`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, isLoading, tasks])
 
   // Load customers on first dialog open
   useEffect(() => {
@@ -456,6 +496,7 @@ export function TasksPageClient({
                 key={task.id}
                 task={task}
                 deleteConfirm={deleteConfirm}
+                highlighted={highlightedTaskId === task.id}
                 onComplete={() =>
                   task.status === 'done'
                     ? handleReopen(task.id)
@@ -589,6 +630,7 @@ function CustomerQuickActions({
 function TaskRow({
   task,
   deleteConfirm,
+  highlighted = false,
   onComplete,
   onStatusChange,
   onEdit,
@@ -600,6 +642,9 @@ function TaskRow({
 }: {
   task: CustomerTaskWithRelations
   deleteConfirm: string | null
+  /** Sprint 9B — naar tasks-page aabnes med ?taskId=<id> bliver den
+   *  matchede row highlighted i 4 sek (ring + bg-flash). */
+  highlighted?: boolean
   onComplete: () => void
   onStatusChange: (status: TaskStatus) => void
   onEdit: () => void
@@ -620,7 +665,9 @@ function TaskRow({
   const isDeleting = deleteConfirm === task.id
 
   return (
-    <div className={`grid grid-cols-[40px_1fr_160px_110px_100px_140px_140px_80px] gap-3 px-4 py-3 items-center hover:bg-gray-50 transition-colors group ${isDone ? 'opacity-60' : ''}`}>
+    <div
+      id={`task-${task.id}`}
+      className={`grid grid-cols-[40px_1fr_160px_110px_100px_140px_140px_80px] gap-3 px-4 py-3 items-center hover:bg-gray-50 transition-colors group ${isDone ? 'opacity-60' : ''} ${highlighted ? 'ring-2 ring-blue-400 bg-blue-50 rounded' : ''}`}>
       {/* Checkbox */}
       <div>
         <button
