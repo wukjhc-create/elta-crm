@@ -523,8 +523,23 @@ export async function bookBesigtigelse(
       </html>
     `.trim()
 
+    // Sprint 8H Phase 4: central mail-router (besigtigelse-intent).
+    // Kun customerId tilgaengelig — routen falder tilbage paa
+    // paying_customer (samme som customerEmail-param tidligere).
+    const { resolveBesigtigelseMailRoute, logMailRoute } = await import(
+      '@/lib/actions/mail-route-resolvers'
+    )
+    const routeResult = await resolveBesigtigelseMailRoute(customerId)
+    if (!routeResult.ok || !routeResult.route) {
+      logger.error('bookBesigtigelse mail-route failed', {
+        error: routeResult.error,
+        entityId: customerId,
+      })
+      return { success: false, error: routeResult.error || 'Kunne ikke bygge mail-route' }
+    }
+    const route = routeResult.route
     const emailResult = await sendEmailViaGraph({
-      to: customerEmail,
+      to: route.toEmail,
       subject,
       html,
       attachments: [
@@ -535,6 +550,11 @@ export async function bookBesigtigelse(
         },
       ],
     })
+    await logMailRoute(
+      route,
+      emailResult.success ? 'sent' : 'failed',
+      { source: 'book_besigtigelse', error: emailResult.error }
+    )
     if (!emailResult.success) {
       logger.error('Failed to send besigtigelse confirmation email', {
         error: emailResult.error,
