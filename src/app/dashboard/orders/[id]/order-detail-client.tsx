@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { EditSiteInfoDialog } from '@/components/modules/orders/edit-site-info-dialog'
+import { EditServiceCasePartiesDialog } from '@/components/modules/orders/edit-service-case-parties-dialog'
 import {
   SERVICE_CASE_PRIORITY_LABELS,
   SERVICE_CASE_PRIORITY_COLORS,
@@ -259,6 +260,7 @@ function OverblikTab({
 }) {
   const router = useRouter()
   const [editingSite, setEditingSite] = useState(false)
+  const [editingParties, setEditingParties] = useState(false)
 
   return (
     <>
@@ -352,8 +354,20 @@ function OverblikTab({
         <Row label="EAN-nummer" value={sag.ean_number ?? '—'} />
       </Panel>
 
-      {/* Sprint 9E Phase 2 — Sagspartner-overblik (read-only) */}
-      <Panel title="Sagspartnere">
+      {/* Sprint 9E Phase 2 — Sagspartner-overblik (Phase 3: redigerbar) */}
+      <Panel
+        title="Sagspartnere"
+        action={
+          <button
+            type="button"
+            onClick={() => setEditingParties(true)}
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+          >
+            <Pencil className="w-3 h-3" />
+            Rediger
+          </button>
+        }
+      >
         <Row label="Ordregiver" value={renderPartyLink(sag.orderer_customer, 'Samme som nuværende kunde')} />
         <Row label="Kunde/anlægsejer" value={renderPartyLink(sag.end_customer, 'Samme som leveringskunde/kunde')} />
         <Row label="Betaler" value={renderPartyLink(sag.payer_customer, 'Samme som betaler/kunde')} />
@@ -588,6 +602,31 @@ function OverblikTab({
             : null,
         }}
         onClose={() => setEditingSite(false)}
+        onSaved={() => router.refresh()}
+      />
+    )}
+
+    {editingParties && (
+      <EditServiceCasePartiesDialog
+        caseId={sag.id}
+        payingCustomerName={sag.customer?.company_name ?? null}
+        initial={{
+          orderer_customer: sag.orderer_customer
+            ? { id: sag.orderer_customer.id, company_name: sag.orderer_customer.company_name }
+            : null,
+          end_customer: sag.end_customer
+            ? { id: sag.end_customer.id, company_name: sag.end_customer.company_name }
+            : null,
+          payer_customer: sag.payer_customer
+            ? { id: sag.payer_customer.id, company_name: sag.payer_customer.company_name }
+            : null,
+          purchased_from_customer: sag.purchased_from_customer
+            ? { id: sag.purchased_from_customer.id, company_name: sag.purchased_from_customer.company_name }
+            : null,
+          purchase_source: sag.purchase_source,
+          billing_mode: sag.billing_mode,
+        }}
+        onClose={() => setEditingParties(false)}
         onSaved={() => router.refresh()}
       />
     )}
