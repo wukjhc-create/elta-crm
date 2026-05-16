@@ -264,8 +264,25 @@ export async function sendBesigtigelsePdf(
       </div>
     `
 
-    await sendEmailViaGraph({
-      to: customer.email,
+    // Sprint 8H Phase 4: central mail-router (besigtigelse-intent).
+    // Da besigtigelses-rapporten sendes fra kundekortet uden specifik
+    // sag, falder routen tilbage paa customer.email (paying_customer)
+    // saa adfaerden bibeholdes.
+    const { resolveBesigtigelseMailRoute, logMailRoute } = await import(
+      '@/lib/actions/mail-route-resolvers'
+    )
+    const routeResult = await resolveBesigtigelseMailRoute(customerId)
+    if (!routeResult.ok || !routeResult.route) {
+      logger.error('Besigtigelse mail-route failed', {
+        error: routeResult.error,
+        entityId: customerId,
+      })
+      return { success: false, error: routeResult.error || 'Kunne ikke bygge mail-route' }
+    }
+    const route = routeResult.route
+
+    const sendResult = await sendEmailViaGraph({
+      to: route.toEmail,
       subject: `Besigtigelsesrapport — ${customer.company_name}`,
       html: emailHtml,
       attachments: [
@@ -276,8 +293,13 @@ export async function sendBesigtigelsePdf(
         },
       ],
     })
+    await logMailRoute(
+      route,
+      sendResult.success ? 'sent' : 'failed',
+      { document_id: documentId, error: sendResult.error }
+    )
 
-    return { success: true }
+    return { success: sendResult.success, error: sendResult.error }
   } catch (error) {
     logger.error('Error in sendBesigtigelsePdf', { error })
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
