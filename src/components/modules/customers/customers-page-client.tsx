@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Search, X } from 'lucide-react'
-import { CustomerForm } from './customer-form'
+import { CustomerCreateDialog } from './customer-create-dialog'
 import { CustomersTable } from './customers-table'
 import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
@@ -202,7 +202,16 @@ export function CustomersPageClient({ customers, pagination, filters, sort }: Cu
         </div>
       </div>
 
-      {showForm && <CustomerForm onClose={() => setShowForm(false)} />}
+      {showForm && (
+        <CustomerCreateDialog
+          mode="full"
+          onClose={() => setShowForm(false)}
+          onCreated={() => {
+            setShowForm(false)
+            router.refresh()
+          }}
+        />
+      )}
     </>
   )
 }

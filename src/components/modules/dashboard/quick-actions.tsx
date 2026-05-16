@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { Plus, Users, Building2, FileText, FolderKanban, Mail } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { LeadForm } from '@/components/modules/leads/lead-form'
-import { CustomerForm } from '@/components/modules/customers/customer-form'
+import { CustomerCreateDialog } from '@/components/modules/customers/customer-create-dialog'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { ProjectForm } from '@/components/modules/projects/project-form'
 import { MessageForm } from '@/components/modules/messages/message-form'
@@ -54,6 +55,7 @@ const ACTIONS = [
 ]
 
 export function QuickActions({ companySettings }: QuickActionsProps) {
+  const router = useRouter()
   const [activeForm, setActiveForm] = useState<ActionType>(null)
 
   return (
@@ -81,7 +83,14 @@ export function QuickActions({ companySettings }: QuickActionsProps) {
         <LeadForm onClose={() => setActiveForm(null)} />
       )}
       {activeForm === 'customer' && (
-        <CustomerForm onClose={() => setActiveForm(null)} />
+        <CustomerCreateDialog
+          mode="full"
+          onClose={() => setActiveForm(null)}
+          onCreated={() => {
+            setActiveForm(null)
+            router.refresh()
+          }}
+        />
       )}
       {activeForm === 'offer' && (
         <OfferForm companySettings={companySettings} onClose={() => setActiveForm(null)} />

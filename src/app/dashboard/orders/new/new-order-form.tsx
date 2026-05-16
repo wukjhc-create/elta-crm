@@ -14,9 +14,9 @@ import {
   getOffersForOrderSelect,
 } from '@/lib/actions/service-cases'
 import {
-  QuickCreateCustomerDialog,
+  CustomerCreateDialog,
   type CreatedCustomerRef,
-} from '@/components/modules/customers/quick-create-customer-dialog'
+} from '@/components/modules/customers/customer-create-dialog'
 import {
   SERVICE_CASE_STATUSES,
   SERVICE_CASE_STATUS_LABELS,
@@ -639,7 +639,8 @@ export function NewOrderForm({
     </form>
 
     {showQuickCreate && (
-      <QuickCreateCustomerDialog
+      <CustomerCreateDialog
+        mode="quick"
         onClose={() => setShowQuickCreate(false)}
         onCreated={handleQuickCreatedCustomer}
       />

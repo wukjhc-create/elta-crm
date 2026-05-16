@@ -281,9 +281,18 @@ export interface QuickCreateCustomerInput {
   mobile?: string | null
   /** Erhverv: CVR-nummer. Privat: ignoreres. */
   vat_number?: string | null
+  /** Sprint 9E Phase 5b — erhverv hjemmeside. Privat: ignoreres. */
+  website?: string | null
   billing_address?: string | null
   billing_postal_code?: string | null
   billing_city?: string | null
+  /** Sprint 9E Phase 5b — separat leveringsadresse (full-mode). */
+  shipping_address?: string | null
+  shipping_postal_code?: string | null
+  shipping_city?: string | null
+  shipping_country?: string | null
+  /** Sprint 9E Phase 5b — interne noter (full-mode). */
+  notes?: string | null
 }
 
 export async function quickCreateCustomer(
@@ -313,17 +322,19 @@ export async function quickCreateCustomer(
       email: (input.email || '').trim(),
       phone: input.phone?.trim() || null,
       mobile: input.mobile?.trim() || null,
-      website: null,
+      // Sprint 9E Phase 5b — website kun for erhverv
+      website: isPrivate ? null : (input.website?.trim() || null),
       vat_number: isPrivate ? null : (input.vat_number?.trim() || null),
       billing_address: input.billing_address?.trim() || null,
       billing_city: input.billing_city?.trim() || null,
       billing_postal_code: input.billing_postal_code?.trim() || null,
       billing_country: 'Danmark',
-      shipping_address: null,
-      shipping_city: null,
-      shipping_postal_code: null,
-      shipping_country: 'Danmark',
-      notes: null,
+      // Sprint 9E Phase 5b — separat leveringsadresse (full-mode)
+      shipping_address: input.shipping_address?.trim() || null,
+      shipping_city: input.shipping_city?.trim() || null,
+      shipping_postal_code: input.shipping_postal_code?.trim() || null,
+      shipping_country: input.shipping_country?.trim() || 'Danmark',
+      notes: input.notes?.trim() || null,
       tags: [],
       is_active: true,
     }

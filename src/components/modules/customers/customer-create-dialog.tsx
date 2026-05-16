@@ -1,22 +1,26 @@
 'use client'
 
 /**
- * Sprint 9E Phase 5a — Quick-create customer modal.
+ * Sprint 9E Phase 5b — Faelles CustomerCreateDialog.
  *
- * Aabnes fra opret-sag-flowet (og kan senere genbruges andre steder).
- * Understoetter to typer:
- *  - Privatkunde: ét navn-felt (mappes til BAADE company_name og contact_person)
- *  - Erhverv: separate firmanavn + kontaktperson + CVR
+ * EN dialog til kundeoprettelse i hele ELTA Drift. To modes:
+ *  - mode="quick" (default): minimum felter, bruges fra opret-sag-flow
+ *  - mode="full": alle felter + dublet-check, bruges paa /dashboard/customers
+ *    og dashboard quick-action
  *
- * Adresse-felter bruger den eksisterende AddressAutocomplete (DAWA)
- * saa postnr/by udfyldes automatisk.
+ * Begge modes bruger:
+ *  - Privatkunde / Erhverv-toggle
+ *  - Server-side DAWA-wrapper via AddressAutocomplete (Sprint 9D)
+ *  - Samme server-action quickCreateCustomer (med valgfri felter)
+ *  - Samme createCustomerSchema-validering
  *
- * Caller modtager den oprettede kunde via onCreated.
+ * Edit-flow bruger fortsat eksisterende CustomerForm — denne dialog
+ * haandterer KUN CREATE.
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, X, User, Building2 } from 'lucide-react'
-import { quickCreateCustomer } from '@/lib/actions/customers'
+import { Loader2, X, User, Building2, Copy } from 'lucide-react'
+import { quickCreateCustomer, checkDuplicateCustomer } from '@/lib/actions/customers'
 import { AddressAutocomplete } from '@/components/forms/address-autocomplete'
 import type { AddressSuggestion } from '@/lib/services/address-lookup'
 import type { Customer } from '@/types/customers.types'
@@ -29,17 +33,27 @@ export interface CreatedCustomerRef {
   email: string
 }
 
-export interface QuickCreateCustomerDialogProps {
+export type CustomerCreateMode = 'quick' | 'full'
+
+export interface CustomerCreateDialogProps {
+  /** "quick" = minimum felter (opret-sag-flow), "full" = alle felter (kundeside). */
+  mode?: CustomerCreateMode
   onClose: () => void
   onCreated: (customer: CreatedCustomerRef) => void
 }
 
 type CustomerType = 'private' | 'business'
 
-export function QuickCreateCustomerDialog({ onClose, onCreated }: QuickCreateCustomerDialogProps) {
+export function CustomerCreateDialog({
+  mode = 'quick',
+  onClose,
+  onCreated,
+}: CustomerCreateDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
 
   const [type, setType] = useState<CustomerType>('private')
+
+  // Faelles felter
   const [primaryName, setPrimaryName] = useState('')
   const [contactPerson, setContactPerson] = useState('')
   const [vatNumber, setVatNumber] = useState('')
@@ -49,8 +63,20 @@ export function QuickCreateCustomerDialog({ onClose, onCreated }: QuickCreateCus
   const [postalCode, setPostalCode] = useState('')
   const [city, setCity] = useState('')
 
+  // Full-mode only
+  const [mobile, setMobile] = useState('')
+  const [website, setWebsite] = useState('')
+  const [shippingAddress, setShippingAddress] = useState('')
+  const [shippingPostalCode, setShippingPostalCode] = useState('')
+  const [shippingCity, setShippingCity] = useState('')
+  const [notes, setNotes] = useState('')
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
+
+  const isFullMode = mode === 'full'
+  const isPrivate = type === 'private'
 
   // Esc lukker modal
   useEffect(() => {
@@ -68,37 +94,90 @@ export function QuickCreateCustomerDialog({ onClose, onCreated }: QuickCreateCus
     setCity(s.city)
   }
 
-  const isPrivate = type === 'private'
+  const handleShippingAddressSelect = (s: AddressSuggestion) => {
+    const street = [s.street, s.houseNumber].filter(Boolean).join(' ')
+    setShippingAddress(street)
+    setShippingPostalCode(s.postalCode)
+    setShippingCity(s.city)
+  }
+
+  const copyBillingToShipping = () => {
+    setShippingAddress(address)
+    setShippingPostalCode(postalCode)
+    setShippingCity(city)
+  }
+
+  const validateBasics = (): string | null => {
+    if (!primaryName.trim()) {
+      return isPrivate ? 'Navn er paakraevet' : 'Firmanavn er paakraevet'
+    }
+    if (!isPrivate && !contactPerson.trim()) {
+      return 'Kontaktperson er paakraevet'
+    }
+    if (!email.trim()) {
+      return 'Email er paakraevet'
+    }
+    return null
+  }
+
+  // Phase 5b — dublet-check kun i full-mode. Returnerer true hvis save
+  // skal fortsaette, false hvis brugeren afviser pga. dublet.
+  const checkForDuplicates = async (): Promise<boolean> => {
+    if (!isFullMode) return true
+    if (!email.trim()) return true
+    try {
+      const dup = await checkDuplicateCustomer(email, primaryName)
+      if (dup.success && dup.data && dup.data.length > 0) {
+        const matches = dup.data.map((d) => `${d.company_name} (${d.customer_number})`).join(', ')
+        const proceed = window.confirm(
+          `Mulig dublet fundet:\n${matches}\n\nOpret alligevel?`
+        )
+        if (!proceed) {
+          setDuplicateWarning(`Annulleret. Eksisterende kunde fundet: ${matches}`)
+          return false
+        }
+      }
+    } catch {
+      // Net-fejl maa ikke blokere save — fortsaet
+    }
+    return true
+  }
 
   const handleSave = async () => {
     setError(null)
+    setDuplicateWarning(null)
 
-    // Klient-side basis-validering (server gentager via Zod)
-    if (!primaryName.trim()) {
-      setError(isPrivate ? 'Navn er paakraevet' : 'Firmanavn er paakraevet')
-      return
-    }
-    if (!isPrivate && !contactPerson.trim()) {
-      setError('Kontaktperson er paakraevet')
-      return
-    }
-    if (!email.trim()) {
-      setError('Email er paakraevet')
+    const basicError = validateBasics()
+    if (basicError) {
+      setError(basicError)
       return
     }
 
     setSaving(true)
     try {
+      const proceed = await checkForDuplicates()
+      if (!proceed) {
+        setSaving(false)
+        return
+      }
+
       const res = await quickCreateCustomer({
         customer_type: type,
         primary_name: primaryName,
         contact_person: isPrivate ? null : contactPerson,
         email,
         phone: phone || null,
+        mobile: isFullMode ? (mobile || null) : null,
         vat_number: isPrivate ? null : (vatNumber || null),
+        website: isFullMode && !isPrivate ? (website || null) : null,
         billing_address: address || null,
         billing_postal_code: postalCode || null,
         billing_city: city || null,
+        shipping_address: isFullMode ? (shippingAddress || null) : null,
+        shipping_postal_code: isFullMode ? (shippingPostalCode || null) : null,
+        shipping_city: isFullMode ? (shippingCity || null) : null,
+        shipping_country: isFullMode ? 'Danmark' : null,
+        notes: isFullMode ? (notes || null) : null,
       })
       if (!res.success || !res.data) {
         setError(res.error || 'Kunne ikke oprette kunde')
@@ -125,17 +204,17 @@ export function QuickCreateCustomerDialog({ onClose, onCreated }: QuickCreateCus
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="quick-create-customer-title"
+      aria-labelledby="customer-create-title"
       onClick={(e) => {
         if (e.target === e.currentTarget && !saving) onClose()
       }}
     >
       <div
         ref={dialogRef}
-        className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col"
+        className={`bg-white rounded-lg shadow-xl w-full ${isFullMode ? 'max-w-2xl' : 'max-w-xl'} max-h-[90vh] flex flex-col`}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 id="quick-create-customer-title" className="text-lg font-semibold text-gray-900">
+          <h2 id="customer-create-title" className="text-lg font-semibold text-gray-900">
             Opret ny kunde
           </h2>
           <button
@@ -248,8 +327,38 @@ export function QuickCreateCustomerDialog({ onClose, onCreated }: QuickCreateCus
             </Field>
           </div>
 
+          {/* Full-mode: Mobil + Website */}
+          {isFullMode && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Mobil">
+                <input
+                  type="tel"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                  placeholder="+45 ..."
+                  maxLength={50}
+                  disabled={saving}
+                  className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </Field>
+              {!isPrivate && (
+                <Field label="Hjemmeside">
+                  <input
+                    type="url"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    placeholder="https://..."
+                    maxLength={200}
+                    disabled={saving}
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </Field>
+              )}
+            </div>
+          )}
+
           {/* Adresse */}
-          <Field label="Adresse">
+          <Field label={isFullMode ? 'Faktureringsadresse' : 'Adresse'}>
             <AddressAutocomplete
               value={address}
               onChange={setAddress}
@@ -283,6 +392,78 @@ export function QuickCreateCustomerDialog({ onClose, onCreated }: QuickCreateCus
               </Field>
             </div>
           </div>
+
+          {/* Full-mode: Leveringsadresse */}
+          {isFullMode && (
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">Leveringsadresse</h3>
+                <button
+                  type="button"
+                  onClick={copyBillingToShipping}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 disabled:opacity-50"
+                >
+                  <Copy className="w-3 h-3" />
+                  Kopiér fra faktureringsadresse
+                </button>
+              </div>
+              <Field label="Adresse">
+                <AddressAutocomplete
+                  value={shippingAddress}
+                  onChange={setShippingAddress}
+                  onSelect={handleShippingAddressSelect}
+                  placeholder="Soeg adresse..."
+                  disabled={saving}
+                />
+              </Field>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Field label="Postnr">
+                  <input
+                    type="text"
+                    value={shippingPostalCode}
+                    onChange={(e) => setShippingPostalCode(e.target.value)}
+                    maxLength={20}
+                    disabled={saving}
+                    className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="By">
+                    <input
+                      type="text"
+                      value={shippingCity}
+                      onChange={(e) => setShippingCity(e.target.value)}
+                      maxLength={100}
+                      disabled={saving}
+                      className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </Field>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Full-mode: Noter */}
+          {isFullMode && (
+            <Field label="Interne noter">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                maxLength={5000}
+                disabled={saving}
+                className="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary resize-y"
+                placeholder="Synlige kun internt..."
+              />
+            </Field>
+          )}
+
+          {duplicateWarning && (
+            <div className="p-3 rounded border border-amber-300 bg-amber-50 text-amber-900 text-sm">
+              {duplicateWarning}
+            </div>
+          )}
 
           {error && (
             <div className="p-3 rounded border border-red-300 bg-red-50 text-red-800 text-sm">

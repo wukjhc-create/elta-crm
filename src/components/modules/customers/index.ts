@@ -1,4 +1,5 @@
 export { CustomerForm } from './customer-form'
+export { CustomerCreateDialog, type CreatedCustomerRef, type CustomerCreateMode } from './customer-create-dialog'
 export { CustomersTable } from './customers-table'
 export { CustomersPageClient } from './customers-page-client'
 export { ContactForm } from './contact-form'
