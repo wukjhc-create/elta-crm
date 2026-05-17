@@ -18,6 +18,7 @@
  */
 
 import { retryOnUniqueViolation } from '@/lib/utils/retry'
+import { logger } from '@/lib/utils/logger'
 
 const CUSTOMER_NUMBER_PREFIX = 'C'
 const CUSTOMER_NUMBER_PADDING = 6
@@ -94,17 +95,41 @@ export async function insertCustomerWithRetry<TResult = unknown>(
   options?: InsertCustomerWithRetryOptions
 ): Promise<{ data: TResult | null; error: { code?: string; message?: string } | null }> {
   const maxAttempts = options?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
-  const selectClause = options?.selectClause ?? '*'
+  const explicitSelectClause = options?.selectClause
   const label = options?.label ?? 'customer_number'
 
   return retryOnUniqueViolation<TResult>(async () => {
     const customerNumber = await generateNextCustomerNumber(supabase)
     const payload = buildPayload(customerNumber)
-    const result = await supabase
-      .from('customers')
-      .insert(payload)
-      .select(selectClause)
-      .single()
-    return result as { data: TResult | null; error: { code?: string; message?: string } | null }
+
+    // Bugfix Sprint 9E Phase 5d-fix: brug .select() UDEN argument som
+    // default — matcher Phase 5a-c-mønsteret. Caller kan stadig
+    // explicit angive selectClause hvis de kun vil have specifikke
+    // kolonner. Eksplicit destructuring i stedet for cast af hele
+    // result-objektet sikrer at vi ikke maskerer en runtime-fejl.
+    const insertQuery = supabase.from('customers').insert(payload)
+    const { data, error } = explicitSelectClause
+      ? await insertQuery.select(explicitSelectClause).single()
+      : await insertQuery.select().single()
+
+    // Defensiv validering: hvis insert lykkes men data mangler eller
+    // mangler id, log tydeligt — det maa aldrig ske, men giver os
+    // signal hvis Supabase-clienten en dag aendrer return-shape.
+    if (!error && (!data || typeof data !== 'object' || !('id' in data))) {
+      logger.error('insertCustomerWithRetry unexpected data shape', {
+        metadata: {
+          label,
+          customer_number: customerNumber,
+          data_type: typeof data,
+          data_is_null: data === null,
+        },
+      })
+    }
+
+    return {
+      data: (data as TResult | null) ?? null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      error: (error as any) ?? null,
+    }
   }, maxAttempts, label)
 }

@@ -213,7 +213,7 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
     }
     // Sprint 9E Phase 5d: bruger faelles insertCustomerWithRetry-helper.
     // Generation + insert + retry mod 23505 sker i ét kald.
-    const { data, error } = await insertCustomerWithRetry<Customer>(
+    const { data: inserted, error } = await insertCustomerWithRetry<Customer>(
       supabase,
       (customerNumber) => ({
         ...validated.data,
@@ -223,7 +223,7 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       { label: 'createCustomer' }
     )
 
-    if (!data || error) {
+    if (!inserted || error) {
       if (error?.code === '23505') {
         logger.error('createCustomer exhausted retries', { metadata: { code: error.code } })
         return {
@@ -235,11 +235,37 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       throw new Error('DATABASE_ERROR')
     }
 
-    await logCreate('customer', data.id, data.company_name, {
-      customer_number: data.customer_number,
+    // Bugfix Sprint 9E Phase 5d-fix: defensiv re-fetch ved manglende felter.
+    let customer: Customer = inserted
+    if (!inserted.id || !inserted.company_name || !inserted.customer_number) {
+      logger.warn('createCustomer insufficient data — re-fetching', {
+        metadata: {
+          has_id: !!inserted.id,
+          has_company_name: !!inserted.company_name,
+          has_customer_number: !!inserted.customer_number,
+        },
+      })
+      if (inserted.id) {
+        const { data: refreshed } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('id', inserted.id)
+          .single()
+        if (refreshed) customer = refreshed as Customer
+      } else {
+        logger.error('createCustomer: no id returned from insert', { error })
+        return {
+          success: false,
+          error: 'Kunden blev muligvis oprettet, men data mangler. Genindlæs siden.',
+        }
+      }
+    }
+
+    await logCreate('customer', customer.id, customer.company_name, {
+      customer_number: customer.customer_number,
     })
     revalidatePath('/customers')
-    return { success: true, data }
+    return { success: true, data: customer }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette kunde') }
   }
@@ -334,7 +360,7 @@ export async function quickCreateCustomer(
     }
 
     // Sprint 9E Phase 5d: bruger faelles insertCustomerWithRetry-helper.
-    const { data, error } = await insertCustomerWithRetry<Customer>(
+    const { data: inserted, error } = await insertCustomerWithRetry<Customer>(
       supabase,
       (customerNumber) => ({
         ...validated.data,
@@ -344,7 +370,7 @@ export async function quickCreateCustomer(
       { label: 'quickCreateCustomer' }
     )
 
-    if (!data || error) {
+    if (!inserted || error) {
       if (error?.code === '23505') {
         logger.error('quickCreateCustomer exhausted retries', { metadata: { code: error.code } })
         return {
@@ -356,13 +382,41 @@ export async function quickCreateCustomer(
       return { success: false, error: 'Kunne ikke oprette kunde' }
     }
 
-    await logCreate('customer', data.id, data.company_name, {
-      customer_number: data.customer_number,
+    // Bugfix Sprint 9E Phase 5d-fix: defensiv re-fetch hvis helper-resultatet
+    // mangler vigtige felter. Sikrer at dialog/auto-select altid har fuld
+    // customer-row med id, company_name, contact_person, customer_number, email.
+    let customer: Customer = inserted
+    if (!inserted.id || !inserted.company_name || !inserted.customer_number) {
+      logger.warn('quickCreateCustomer insufficient data — re-fetching', {
+        metadata: {
+          has_id: !!inserted.id,
+          has_company_name: !!inserted.company_name,
+          has_customer_number: !!inserted.customer_number,
+        },
+      })
+      if (inserted.id) {
+        const { data: refreshed } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('id', inserted.id)
+          .single()
+        if (refreshed) customer = refreshed as Customer
+      } else {
+        logger.error('quickCreateCustomer: no id returned from insert', { error })
+        return {
+          success: false,
+          error: 'Kunden blev muligvis oprettet, men data mangler. Genindlæs siden.',
+        }
+      }
+    }
+
+    await logCreate('customer', customer.id, customer.company_name, {
+      customer_number: customer.customer_number,
       customer_type: input.customer_type,
       source: 'quick_create',
     })
     revalidatePath('/dashboard/customers')
-    return { success: true, data }
+    return { success: true, data: customer }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette kunde') }
   }
