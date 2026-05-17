@@ -22,6 +22,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 
 export type CreateFromEmailMode = 'payer_only' | 'body_only' | 'payer_plus_site'
 
@@ -69,18 +70,8 @@ export interface CreateFromEmailResult {
   payerExisted?: boolean
 }
 
-async function generateCustomerNumber(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string> {
-  const { data: last } = await supabase
-    .from('customers')
-    .select('customer_number')
-    .order('customer_number', { ascending: false })
-    .limit(1)
-  if (last && last.length > 0) {
-    const lastNum = parseInt((last[0].customer_number as string).substring(1), 10)
-    return 'C' + (lastNum + 1).toString().padStart(6, '0')
-  }
-  return 'C000001'
-}
+// Sprint 9E Phase 5d: lokal generateCustomerNumber fjernet.
+// Bruger faelles helper i src/lib/customers/customer-number.ts.
 
 async function findOrCreateCustomerByEmail(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -108,10 +99,11 @@ async function findOrCreateCustomerByEmail(
     return { id: existing.id as string, existed: true }
   }
 
-  const customerNumber = await generateCustomerNumber(supabase)
-  const { data: created, error } = await supabase
-    .from('customers')
-    .insert({
+  // Sprint 9E Phase 5d — faelles insertCustomerWithRetry. Tilfoejer retry
+  // mod 23505 customer_number-collisions, hvilket den gamle path manglede.
+  const { data: created, error } = await insertCustomerWithRetry<{ id: string }>(
+    supabase,
+    (customerNumber) => ({
       customer_number: customerNumber,
       company_name: data.companyName.trim(),
       contact_person: (data.contactPerson || data.companyName).trim(),
@@ -120,14 +112,14 @@ async function findOrCreateCustomerByEmail(
       tags: ['email'],
       is_active: true,
       created_by: userId,
-    })
-    .select('id')
-    .single()
+    }),
+    { selectClause: 'id', label: 'findOrCreateCustomerByEmail' }
+  )
 
   if (error || !created) {
     return { error: error?.message || 'Kunne ikke oprette kunde' }
   }
-  return { id: created.id as string, existed: false }
+  return { id: created.id, existed: false }
 }
 
 export async function createCustomerAndCaseFromEmail(

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
 import { contactFormSchema } from '@/lib/validations/contact-form'
 import { logger } from '@/lib/utils/logger'
+import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,25 +60,8 @@ function validateApiKey(request: NextRequest): boolean {
   }
 }
 
-// =====================================================
-// Auto-generate next customer number
-// =====================================================
-
-async function generateCustomerNumber(
-  supabase: ReturnType<typeof createClient>
-): Promise<string> {
-  const { data } = await supabase
-    .from('customers')
-    .select('customer_number')
-    .order('customer_number', { ascending: false })
-    .limit(1)
-
-  if (!data || data.length === 0) return 'C000001'
-
-  const lastNumber = (data[0] as any).customer_number as string
-  const numPart = parseInt(lastNumber.substring(1), 10)
-  return 'C' + (numPart + 1).toString().padStart(6, '0')
-}
+// Sprint 9E Phase 5d: lokal generateCustomerNumber fjernet.
+// Bruger faelles insertCustomerWithRetry-helper.
 
 // =====================================================
 // CORS headers for eltasolar.dk
@@ -215,12 +199,13 @@ export async function POST(request: NextRequest) {
         metadata: { email, customer_number: existingCustomer.customer_number },
       })
     } else {
-      // 6. Create new customer
-      const customerNumber = await generateCustomerNumber(supabase as any)
-
-      const { data: newCustomer, error: customerError } = await supabase
-        .from('customers')
-        .insert({
+      // 6. Create new customer — Sprint 9E Phase 5d: faelles helper med retry
+      const { data: newCustomer, error: customerError } = await insertCustomerWithRetry<{
+        id: string
+        customer_number: string
+      }>(
+        supabase,
+        (customerNumber) => ({
           customer_number: customerNumber,
           company_name: name, // Privatperson → name as company
           contact_person: name,
@@ -233,11 +218,11 @@ export async function POST(request: NextRequest) {
           notes: `Oprettet automatisk fra hjemmeside-kontaktformular.\nHenvendelsestype: ${inquiry_type}`,
           is_active: true,
           created_by: createdBy,
-        })
-        .select('id, customer_number')
-        .single()
+        }),
+        { selectClause: 'id, customer_number', label: 'public_contact_form' }
+      )
 
-      if (customerError) {
+      if (customerError || !newCustomer) {
         logger.error('Contact form: Failed to create customer', {
           error: customerError,
           metadata: { email },

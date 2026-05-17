@@ -23,7 +23,7 @@ import {
 } from '@/lib/services/auto-case'
 import { createOfferDraftFromCase } from '@/lib/services/auto-offer'
 import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
-import { retryOnUniqueViolation } from '@/lib/utils/retry'
+import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { normalizeDanishPhone } from '@/lib/utils/phone'
 
 const OPENAI_TIMEOUT_MS = 15_000
@@ -462,42 +462,28 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
   const displayName = data.name || data.phone || 'Ukendt kunde'
   const normalizedPhone = data.phone ? normalizeDanishPhone(data.phone) : null
 
-  // Race-safe: each attempt re-reads MAX(customer_number)+1 and retries on 23505.
-  const result = await retryOnUniqueViolation<{ id: string; customer_number: string }>(
-    async () => {
-      const { data: lastCustomer } = await supabase
-        .from('customers')
-        .select('customer_number')
-        .order('customer_number', { ascending: false })
-        .limit(1)
-
-      let customerNumber = 'C000001'
-      if (lastCustomer && lastCustomer.length > 0) {
-        const numPart = parseInt(lastCustomer[0].customer_number.substring(1), 10)
-        if (!Number.isNaN(numPart)) {
-          customerNumber = `C${(numPart + 1).toString().padStart(6, '0')}`
-        }
-      }
-
-      return await supabase
-        .from('customers')
-        .insert({
-          customer_number: customerNumber,
-          company_name: displayName,
-          contact_person: data.name || displayName,
-          email: data.fallbackEmail || `auto+${customerNumber.toLowerCase()}@elta-crm.local`,
-          phone: normalizedPhone,
-          billing_address: data.address,
-          is_active: true,
-          tags: ['auto-email'],
-          notes: 'Oprettet automatisk fra indgående email (AI-udtrukket)',
-          created_by: adminProfile.id,
-        })
-        .select('id, customer_number')
-        .single()
-    },
-    3,
-    'customer_number'
+  // Sprint 9E Phase 5d — faelles insertCustomerWithRetry-helper.
+  // Erstatter inline retry + generator. Bevarer eksisterende tags/notes
+  // og fallback-email-mønster med customer_number-suffix.
+  const result = await insertCustomerWithRetry<{ id: string; customer_number: string }>(
+    supabase,
+    (customerNumber) => ({
+      customer_number: customerNumber,
+      company_name: displayName,
+      contact_person: data.name || displayName,
+      email: data.fallbackEmail || `auto+${customerNumber.toLowerCase()}@elta-crm.local`,
+      phone: normalizedPhone,
+      billing_address: data.address,
+      is_active: true,
+      tags: ['auto-email'],
+      notes: 'Oprettet automatisk fra indgående email (AI-udtrukket)',
+      created_by: adminProfile.id,
+    }),
+    {
+      selectClause: 'id, customer_number',
+      maxAttempts: 3,
+      label: 'ai_email_intelligence_customer',
+    }
   )
 
   if (result.error || !result.data) {

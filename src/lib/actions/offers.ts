@@ -14,6 +14,7 @@ import { PORTAL_TOKEN_EXPIRY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
 import { calculateSalePrice, calculateLineTotal, computeOfferDB, calculateMarginFromPrices, resolveMargin } from '@/lib/logic/pricing'
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
+import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
@@ -331,22 +332,13 @@ export async function quickCreateCustomerAndOffer(
       if (existing) {
         customerId = existing.id
       } else {
-        // Generate customer number
-        const { data: lastCustomer } = await supabase
-          .from('customers')
-          .select('customer_number')
-          .order('customer_number', { ascending: false })
-          .limit(1)
-
-        let customerNumber = 'C000001'
-        if (lastCustomer && lastCustomer.length > 0) {
-          const numPart = parseInt(lastCustomer[0].customer_number.substring(1), 10)
-          customerNumber = `C${(numPart + 1).toString().padStart(6, '0')}`
-        }
-
-        const { data: newCustomer, error: custError } = await supabase
-          .from('customers')
-          .insert({
+        // Sprint 9E Phase 5d — faelles helper med retry mod 23505.
+        const { data: newCustomer, error: custError } = await insertCustomerWithRetry<{
+          id: string
+          customer_number: string
+        }>(
+          supabase,
+          (customerNumber) => ({
             company_name: input.companyName,
             contact_person: input.contactPerson || null,
             email: input.email,
@@ -359,11 +351,11 @@ export async function quickCreateCustomerAndOffer(
             created_by: userId,
             is_active: true,
             tags: [],
-          })
-          .select('id')
-          .single()
+          }),
+          { selectClause: 'id, customer_number', label: 'quickCreateCustomerAndOffer' }
+        )
 
-        if (custError) {
+        if (custError || !newCustomer) {
           logger.error('Error creating customer in quick flow', { error: custError })
           return { success: false, error: 'Kunne ikke oprette kunde' }
         }
@@ -371,7 +363,7 @@ export async function quickCreateCustomerAndOffer(
         customerId = newCustomer.id
 
         await logCreate('customer', customerId, input.companyName, {
-          customer_number: customerNumber,
+          customer_number: newCustomer.customer_number,
           source: 'quick_create_from_mail',
         })
       }
