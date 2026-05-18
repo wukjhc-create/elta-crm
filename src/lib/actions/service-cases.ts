@@ -10,6 +10,7 @@ import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
 import { createAnonClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
+import type { MailRoute } from '@/lib/services/mail-routing'
 import { createAuditLog } from '@/lib/actions/audit'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import type {
@@ -1216,10 +1217,16 @@ async function sendServiceCaseConfirmation(
           html,
           text: `Serviceopgave ${serviceCase.case_number}: ${serviceCase.title}`,
         })
+
+        // Sprint 9F Phase 6a — shadow-preview (read-only, ingen
+        // aendring i faktisk send ovenfor). Hvis flag er off eller
+        // preview fejler, fortsaetter vi med eksisterende meta.
+        const shadowMeta = await maybeBuildServiceCaseShadowMeta(serviceCase.id, route)
+
         await logMailRoute(
           route,
           sendResult.success ? 'sent' : 'failed',
-          { case_id: serviceCase.id, error: sendResult.error }
+          { case_id: serviceCase.id, error: sendResult.error, ...(shadowMeta || {}) }
         )
       } else {
         logger.error('Service case confirmation route failed', {
@@ -1230,6 +1237,37 @@ async function sendServiceCaseConfirmation(
     }
   } catch (err) {
     logger.error('Failed to send service case confirmation email', { error: err })
+  }
+}
+
+/**
+ * Sprint 9F Phase 6a — shadow-preview wrapper for service-case
+ * bekraeftelse. Skal aldrig kunne faa send-flowet til at fejle.
+ *
+ * - Hvis MAIL_ROUTING_SHADOW_LOG env-flag ikke er sat → returner null.
+ * - Hvis preview eller meta-builder fejler → log warn, returner null.
+ *
+ * Returner-vaerdien laegges direkte ind i logMailRoute meta og bliver
+ * logget som structured JSON i Vercel logs (shadow_only=true).
+ */
+async function maybeBuildServiceCaseShadowMeta(
+  caseId: string,
+  actualRoute: MailRoute
+): Promise<Record<string, unknown> | null> {
+  try {
+    const { isShadowLogEnabled, getServiceCaseRoutePreview, buildShadowLogMeta } =
+      await import('@/lib/actions/service-case-route-preview')
+    if (!(await isShadowLogEnabled())) return null
+
+    const preview = await getServiceCaseRoutePreview(caseId, actualRoute)
+    if (!preview) return null
+    return buildShadowLogMeta(preview) as unknown as Record<string, unknown>
+  } catch (err) {
+    logger.warn('Service case shadow-log preview failed (non-fatal)', {
+      error: err,
+      entityId: caseId,
+    })
+    return null
   }
 }
 

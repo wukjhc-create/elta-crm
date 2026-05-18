@@ -1286,6 +1286,15 @@ export async function resolveInternalNotificationRoute(
 /**
  * Log en route i én ensartet form. Bruges af sender-flows efter
  * Graph-send for at lave audit-trail.
+ *
+ * Sprint 9F Phase 6a — meta-parameteren er stadig et frit-form
+ * Record<string, unknown>. Hvis caller saetter `shadow_only: true`
+ * markerer vi log-eventet som en route-preview saa det er let at
+ * filtrere i Vercel-logs (search: shadow_only true). Det aendrer
+ * IKKE faktisk afsendelse.
+ *
+ * Eksisterende callers fortsaetter uaendret — alle nye meta-felter
+ * er optional og additive.
  */
 export async function logMailRoute(
   route: MailRoute,
@@ -1293,6 +1302,11 @@ export async function logMailRoute(
   meta?: Record<string, unknown>
 ): Promise<void> {
   try {
+    const shadowOnly = !!(meta && meta.shadow_only === true)
+    const divergence = (meta && typeof meta.routing_divergence === 'string')
+      ? meta.routing_divergence
+      : undefined
+
     logger.info('Mail routed', {
       action: 'mail_route',
       entity: route.serviceCaseId ? 'service_cases' : 'customers',
@@ -1304,6 +1318,10 @@ export async function logMailRoute(
         to: route.toEmail,
         reason: route.reason,
         outcome,
+        // Phase 6a — let-filtrerbare top-level felter for log-queries.
+        // Begge er undefined for legacy-callers og bliver ikke skrevet.
+        ...(shadowOnly ? { shadow: true } : {}),
+        ...(divergence ? { divergence } : {}),
         ...(meta || {}),
       },
     })

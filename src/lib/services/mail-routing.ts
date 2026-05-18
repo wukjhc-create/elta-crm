@@ -63,6 +63,87 @@ export interface MailRouteContext {
   recipientOverride?: string | null
   /** Hvis bruger eksplicit har valgt en specifik kontakt-id. */
   customerContactIdOverride?: string | null
+  // ---------------------------------------------------------------
+  // Sprint 9F Phase 6a — sagspartner-felter (read-only shadow input).
+  //
+  // Disse felter paavirker IKKE eksisterende resolveres faktiske
+  // recipient-valg. De er udelukkende til at give preview-helperen
+  // praecis kontekst hvis caller har dataet allerede. Bliver de ikke
+  // sat, slaar preview-helperen selv op via service_cases-rowen.
+  // ---------------------------------------------------------------
+  ordererCustomerId?: string | null
+  endCustomerId?: string | null
+  payerCustomerId?: string | null
+  siteContactId?: string | null
+  purchasedFromCustomerId?: string | null
+  billingMode?: string | null
+}
+
+// =====================================================
+// Sprint 9F Phase 6a — Routing-preview types (shadow-only)
+// =====================================================
+//
+// Disse typer beskriver "hvad fremtidig sagspartner-routing ville
+// have anbefalet" — uden at aendre faktisk afsendelse. Bruges af
+// service-case-route-preview.ts og logMailRoute-meta.
+
+/**
+ * Snapshot af parti-rolle-felterne paa en service_case paa det
+ * tidspunkt mailen blev routet. Alle felter optional fordi
+ * eksisterende sager (foer migration 00112-backfill) eller andre
+ * entiteter (offers, invoices) ikke har felterne sat.
+ */
+export interface PartyRolesSnapshot {
+  customerId?: string | null
+  ordererCustomerId?: string | null
+  endCustomerId?: string | null
+  payerCustomerId?: string | null
+  siteCustomerId?: string | null
+  siteContactId?: string | null
+  purchasedFromCustomerId?: string | null
+  billingMode?: string | null
+}
+
+/**
+ * En "anbefalet" route — samme shape som MailRoute, men markeret
+ * shadow_only saa intet konsumeres ved en fejltagelse som faktisk
+ * recipient. Indeholder kun de felter der er meningsfulde for
+ * sammenligning.
+ */
+export interface RecommendedRoute {
+  toEmail: string | null
+  toName?: string | null
+  recipientRole: RecipientRole | 'unresolved'
+  intent: MailIntent
+  reason: string
+  /** UUID af den rolle der loeste routen, hvis relevant. */
+  resolvedFromCustomerId?: string | null
+  resolvedFromContactId?: string | null
+  /** True hvis vi ikke kunne finde nogen brugbar email. */
+  unresolved?: boolean
+  /** Fejl-kode hvis recommended ikke kunne bygges. */
+  errorCode?: string
+}
+
+/**
+ * Type af afvigelse mellem nuvaerende og anbefalet route.
+ *  - none      : begge peger paa samme email + samme rolle
+ *  - role_only : samme email, men anden rolle-label (audit-trail-forskel)
+ *  - recipient : anden email — den vigtige forskel
+ *  - error     : recommended kunne ikke bygges (data mangler)
+ */
+export type RoutingDivergence = 'none' | 'role_only' | 'recipient' | 'error'
+
+export interface RoutePreview {
+  current: {
+    toEmail: string
+    recipientRole: RecipientRole
+    reason: string
+  }
+  recommended: RecommendedRoute
+  divergence: RoutingDivergence
+  divergenceReason: string
+  partyRoles: PartyRolesSnapshot
 }
 
 // =====================================================

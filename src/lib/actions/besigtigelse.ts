@@ -3,9 +3,38 @@
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
+import type { MailRoute } from '@/lib/services/mail-routing'
 import type { ActionResult } from '@/types/common.types'
 import { logger } from '@/lib/utils/logger'
 import { BRAND } from '@/lib/brand'
+
+/**
+ * Sprint 9F Phase 6a — shadow-preview wrapper for besigtigelse.
+ *
+ * Read-only. Aldrig blokerende. Returnerer null hvis flag er off
+ * eller preview fejler.
+ */
+async function maybeBuildBesigtigelseShadowMeta(
+  customerId: string,
+  serviceCaseId: string | null,
+  actualRoute: MailRoute
+): Promise<Record<string, unknown> | null> {
+  try {
+    const { isShadowLogEnabled, getBesigtigelseRoutePreview, buildShadowLogMeta } =
+      await import('@/lib/actions/service-case-route-preview')
+    if (!(await isShadowLogEnabled())) return null
+
+    const preview = await getBesigtigelseRoutePreview(customerId, serviceCaseId, actualRoute)
+    if (!preview) return null
+    return buildShadowLogMeta(preview) as unknown as Record<string, unknown>
+  } catch (err) {
+    logger.warn('Besigtigelse shadow-log preview failed (non-fatal)', {
+      error: err,
+      entityId: customerId,
+    })
+    return null
+  }
+}
 
 export interface BesigtigelsesNotatInput {
   customerId: string
@@ -293,10 +322,15 @@ export async function sendBesigtigelsePdf(
         },
       ],
     })
+    // Sprint 9F Phase 6a — shadow-preview (read-only). Aldrig
+    // blokerende: hvis flag er off eller preview fejler, fortsaetter
+    // vi med tom shadow-meta.
+    const shadowMeta = await maybeBuildBesigtigelseShadowMeta(customerId, null, route)
+
     await logMailRoute(
       route,
       sendResult.success ? 'sent' : 'failed',
-      { document_id: documentId, error: sendResult.error }
+      { document_id: documentId, error: sendResult.error, ...(shadowMeta || {}) }
     )
 
     return { success: sendResult.success, error: sendResult.error }
