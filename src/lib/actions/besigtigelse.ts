@@ -159,7 +159,29 @@ export async function saveBesigtigelsesnotat(
       })
 
     if (uploadErr) {
-      logger.error('PDF upload failed', { error: uploadErr })
+      // Sprint 9G besigtigelse-diagnostik — struktureret log saa root-cause
+      // kan bestemmes uden ny deploy. Bemaerk: uploadErr kan have flere
+      // shapes afhaengigt af supabase-js version, derfor defensiv read.
+      const errAny = uploadErr as unknown as {
+        message?: string
+        statusCode?: string | number
+        error?: string
+        name?: string
+      }
+      logger.error('PDF upload failed', {
+        error: uploadErr,
+        entity: 'customers',
+        entityId: input.customerId,
+        metadata: {
+          bucket: 'attachments',
+          storage_path: storagePath,
+          pdf_buffer_size: pdfBuffer.length,
+          err_message: errAny.message,
+          err_status_code: errAny.statusCode,
+          err_error: errAny.error,
+          err_name: errAny.name,
+        },
+      })
       return { success: false, error: 'Kunne ikke uploade PDF' }
     }
 

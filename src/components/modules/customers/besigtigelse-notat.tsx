@@ -1,6 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import {
+  useState,
+  useRef,
+  useEffect,
+  createContext,
+  useContext,
+  useMemo,
+  type MutableRefObject,
+} from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ClipboardCheck,
@@ -64,6 +72,127 @@ const EMPTY_FORM: BesigtigelseFormData = {
   jordingStatus: '', netvaerkSSID: '', netvaerkPassword: '',
   acKabelvej: '', dcKabelvej: '', kabelvej: '',
   saerligeAftaler: '', signatureData: null, signerName: '',
+}
+
+// =====================================================
+// Form-controller context (Sprint 9G besigtigelse fokus-fix)
+//
+// Sub-komponenter (Input, Select, CameraBtn, ImageThumbs) er flyttet
+// til module-scope og bruger denne context i stedet for at vaere
+// defineret inde i BesigtigelsesNotat. Det forhindrer remount af DOM-
+// elementer ved hvert tastetryk (fokus-tab efter ét tegn).
+// =====================================================
+
+interface BesigtigelseFormController {
+  form: BesigtigelseFormData
+  set: (field: keyof BesigtigelseFormData, value: string) => void
+  images: ImageUpload[]
+  addImage: (category: ImageUpload['category'], files: FileList | null) => void
+  removeImage: (idx: number) => void
+  fileInputRefs: MutableRefObject<Record<string, HTMLInputElement | null>>
+}
+
+const BesigtigelseFormCtx = createContext<BesigtigelseFormController | null>(null)
+
+function useBesigtigelseForm(): BesigtigelseFormController {
+  const ctx = useContext(BesigtigelseFormCtx)
+  if (!ctx) {
+    throw new Error('useBesigtigelseForm must be used inside BesigtigelseFormCtx.Provider')
+  }
+  return ctx
+}
+
+// Module-scope sub-components — IKKE definér disse inde i parent.
+function CameraBtn({ category, label }: { category: ImageUpload['category']; label: string }) {
+  const { images, fileInputRefs, addImage } = useBesigtigelseForm()
+  const count = images.filter((i) => i.category === category).length
+  return (
+    <button
+      type="button"
+      onClick={() => fileInputRefs.current[category]?.click()}
+      className="inline-flex items-center justify-center gap-2 w-full sm:w-auto min-h-[50px] sm:min-h-0 px-4 sm:px-3 py-3 sm:py-1.5 text-sm sm:text-xs font-medium bg-gray-100 text-gray-700 rounded-xl sm:rounded-lg hover:bg-green-50 hover:text-green-700 active:scale-95 transition-all touch-manipulation"
+    >
+      <span className="text-lg sm:text-sm">📷</span>
+      {label}
+      {count > 0 && <span className="ml-1 px-2 py-0.5 bg-green-600 text-white rounded-full text-xs sm:text-[10px] leading-none font-bold">{count}</span>}
+      <input
+        ref={(el) => { fileInputRefs.current[category] = el }}
+        type="file"
+        accept="image/*"
+        multiple
+        capture="environment"
+        className="hidden"
+        onChange={(e) => addImage(category, e.target.files)}
+      />
+    </button>
+  )
+}
+
+function ImageThumbs({ category }: { category: ImageUpload['category'] }) {
+  const { images, removeImage } = useBesigtigelseForm()
+  const catImages = images.filter((i) => i.category === category)
+  if (catImages.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {catImages.map((img) => {
+        const globalIdx = images.indexOf(img)
+        return (
+          <div key={globalIdx} className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border bg-gray-50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={img.preview} alt="" className="w-full h-full object-cover" />
+            <button
+              type="button"
+              onClick={() => removeImage(globalIdx)}
+              className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 text-white rounded-full"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function Select({ label, value, field, options }: {
+  label: string; value: string; field: keyof BesigtigelseFormData; options: string[]
+}) {
+  const { set } = useBesigtigelseForm()
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => set(field, e.target.value)}
+        className="w-full px-3 py-3 sm:py-2.5 min-h-[50px] sm:min-h-0 border rounded-xl sm:rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white appearance-none"
+      >
+        <option value="">Vælg...</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function Input({ label, field, placeholder, inputMode, autoComplete }: {
+  label: string; field: keyof BesigtigelseFormData; placeholder?: string
+  inputMode?: 'text' | 'numeric' | 'decimal' | 'tel' | 'email' | 'url'
+  autoComplete?: string
+}) {
+  const { form, set } = useBesigtigelseForm()
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <input
+        type="text"
+        inputMode={inputMode || 'text'}
+        autoComplete={autoComplete || 'off'}
+        value={form[field] as string}
+        onChange={(e) => set(field, e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-3 py-3 sm:py-2.5 min-h-[50px] sm:min-h-0 border rounded-xl sm:rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+      />
+    </div>
+  )
 }
 
 export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
@@ -213,92 +342,13 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
     customer.shipping_city || customer.billing_city,
   ].filter(Boolean).join(', ')
 
-  // Inline camera button for a section
-  const CameraBtn = ({ category, label }: { category: ImageUpload['category']; label: string }) => {
-    const count = images.filter((i) => i.category === category).length
-    return (
-      <button
-        type="button"
-        onClick={() => fileInputRefs.current[category]?.click()}
-        className="inline-flex items-center justify-center gap-2 w-full sm:w-auto min-h-[50px] sm:min-h-0 px-4 sm:px-3 py-3 sm:py-1.5 text-sm sm:text-xs font-medium bg-gray-100 text-gray-700 rounded-xl sm:rounded-lg hover:bg-green-50 hover:text-green-700 active:scale-95 transition-all touch-manipulation"
-      >
-        <span className="text-lg sm:text-sm">📷</span>
-        {label}
-        {count > 0 && <span className="ml-1 px-2 py-0.5 bg-green-600 text-white rounded-full text-xs sm:text-[10px] leading-none font-bold">{count}</span>}
-        <input
-          ref={(el) => { fileInputRefs.current[category] = el }}
-          type="file"
-          accept="image/*"
-          multiple
-          capture="environment"
-          className="hidden"
-          onChange={(e) => addImage(category, e.target.files)}
-        />
-      </button>
-    )
-  }
-
-  // Image thumbnails for a category
-  const ImageThumbs = ({ category }: { category: ImageUpload['category'] }) => {
-    const catImages = images.filter((i) => i.category === category)
-    if (catImages.length === 0) return null
-    return (
-      <div className="flex flex-wrap gap-2 mt-2">
-        {catImages.map((img) => {
-          const globalIdx = images.indexOf(img)
-          return (
-            <div key={globalIdx} className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border bg-gray-50">
-              <img src={img.preview} alt="" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={() => removeImage(globalIdx)}
-                className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 text-white rounded-full"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  const Select = ({ label, value, field, options }: {
-    label: string; value: string; field: keyof BesigtigelseFormData; options: string[]
-  }) => (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => set(field, e.target.value)}
-        className="w-full px-3 py-3 sm:py-2.5 min-h-[50px] sm:min-h-0 border rounded-xl sm:rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white appearance-none"
-      >
-        <option value="">Vælg...</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </div>
-  )
-
-  const Input = ({ label, field, placeholder, inputMode, autoComplete }: {
-    label: string; field: keyof BesigtigelseFormData; placeholder?: string
-    inputMode?: 'text' | 'numeric' | 'decimal' | 'tel' | 'email' | 'url'
-    autoComplete?: string
-  }) => (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input
-        type="text"
-        inputMode={inputMode || 'text'}
-        autoComplete={autoComplete || 'off'}
-        value={form[field] as string}
-        onChange={(e) => set(field, e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-3 sm:py-2.5 min-h-[50px] sm:min-h-0 border rounded-xl sm:rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-      />
-    </div>
+  const ctrl = useMemo<BesigtigelseFormController>(
+    () => ({ form, set, images, addImage, removeImage, fileInputRefs }),
+    [form, images]
   )
 
   return (
+    <BesigtigelseFormCtx.Provider value={ctrl}>
     <div className="bg-white rounded-lg border">
       {/* Header — sticky on mobile */}
       <div className="p-3 sm:p-6 border-b sticky top-0 bg-white z-10 rounded-t-lg">
@@ -501,5 +551,6 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
         </section>
       </div>
     </div>
+    </BesigtigelseFormCtx.Provider>
   )
 }
