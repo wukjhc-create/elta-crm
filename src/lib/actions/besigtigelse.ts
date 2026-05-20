@@ -72,6 +72,14 @@ export interface BesigtigelsesNotatInput {
 export async function saveBesigtigelsesnotat(
   input: BesigtigelsesNotatInput
 ): Promise<ActionResult<{ id: string; pdfUrl: string }>> {
+  // Sprint 9G besigtigelse-diagnostik (midlertidig) — direkte console.error
+  // saa output ikke gaar gennem logger.ts. Fjernes naar root-cause er fundet.
+  console.error('[BESIGTIGELSE-DIAG] start', {
+    customerId: input.customerId,
+    sendToCustomer: !!input.sendToCustomer,
+    imageCount: input.images?.length ?? 0,
+  })
+
   try {
     const { supabase, userId } = await getAuthenticatedClient()
 
@@ -83,8 +91,19 @@ export async function saveBesigtigelsesnotat(
       .single()
 
     if (custErr || !customer) {
+      console.error('[BESIGTIGELSE-DIAG] customer fetch failed', {
+        customerId: input.customerId,
+        custErr,
+        customerExists: !!customer,
+      })
       return { success: false, error: 'Kunde ikke fundet' }
     }
+
+    console.error('[BESIGTIGELSE-DIAG] customer fetched', {
+      customerId: customer.id,
+      customerEmail: customer.email,
+      customerNumber: customer.customer_number,
+    })
 
     const now = new Date()
     const dateStr = now.toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -129,6 +148,14 @@ export async function saveBesigtigelsesnotat(
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
     const baseUrl = appUrl.startsWith('http') ? appUrl : `https://${appUrl}`
 
+    console.error('[BESIGTIGELSE-DIAG] before PDF generation fetch', {
+      baseUrl,
+      endpoint: `${baseUrl}/api/besigtigelse/pdf`,
+      customerId: input.customerId,
+      hasNextPublicAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
+      hasVercelUrl: !!process.env.VERCEL_URL,
+    })
+
     const pdfRes = await fetch(`${baseUrl}/api/besigtigelse/pdf`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -140,8 +167,19 @@ export async function saveBesigtigelsesnotat(
       }),
     })
 
+    console.error('[BESIGTIGELSE-DIAG] PDF generation response', {
+      status: pdfRes.status,
+      ok: pdfRes.ok,
+      contentType: pdfRes.headers.get('content-type'),
+      contentLength: pdfRes.headers.get('content-length'),
+    })
+
     if (!pdfRes.ok) {
       const errText = await pdfRes.text()
+      console.error('[BESIGTIGELSE-DIAG] PDF generation failed', {
+        status: pdfRes.status,
+        errText: errText?.slice(0, 500),
+      })
       logger.error('PDF generation failed', { error: errText })
       return { success: false, error: 'Kunne ikke generere PDF' }
     }
@@ -149,6 +187,19 @@ export async function saveBesigtigelsesnotat(
     const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer())
     const fileName = `besigtigelse-${customer.customer_number}-${fileDate}.pdf`
     const storagePath = `customer-documents/${input.customerId}/${fileName}`
+
+    console.error('[BESIGTIGELSE-DIAG] PDF buffer built', {
+      pdfBufferSize: pdfBuffer.length,
+      fileName,
+      storagePath,
+    })
+
+    console.error('[BESIGTIGELSE-DIAG] before Supabase upload', {
+      bucket: 'attachments',
+      storagePath,
+      pdfBufferSize: pdfBuffer.length,
+      contentType: 'application/pdf',
+    })
 
     // Upload PDF to Supabase Storage
     const { error: uploadErr } = await supabase.storage
@@ -168,6 +219,11 @@ export async function saveBesigtigelsesnotat(
         error?: string
         name?: string
       }
+      console.error('[BESIGTIGELSE-DIAG] PDF upload failed', {
+        uploadErr,
+        storagePath,
+        bufferSize: pdfBuffer.length,
+      })
       logger.error('PDF upload failed', {
         error: uploadErr,
         entity: 'customers',
@@ -184,6 +240,11 @@ export async function saveBesigtigelsesnotat(
       })
       return { success: false, error: 'Kunne ikke uploade PDF' }
     }
+
+    console.error('[BESIGTIGELSE-DIAG] PDF upload success', {
+      storagePath,
+      bufferSize: pdfBuffer.length,
+    })
 
     // Get signed URL
     const { data: urlData } = await supabase.storage
@@ -211,9 +272,18 @@ export async function saveBesigtigelsesnotat(
       .single()
 
     if (docErr || !doc) {
+      console.error('[BESIGTIGELSE-DIAG] document insert failed', {
+        docErr,
+        customerId: input.customerId,
+      })
       logger.error('Document save failed', { error: docErr })
       return { success: false, error: 'Kunne ikke gemme dokument' }
     }
+
+    console.error('[BESIGTIGELSE-DIAG] document insert success', {
+      documentId: doc.id,
+      storagePath,
+    })
 
     // Auto-complete besigtigelse task for this customer
     try {
@@ -246,6 +316,7 @@ export async function saveBesigtigelsesnotat(
     revalidatePath(`/dashboard/customers/${input.customerId}`)
     return { success: true, data: { id: doc.id, pdfUrl } }
   } catch (error) {
+    console.error('[BESIGTIGELSE-DIAG] outer catch', error)
     logger.error('Error in saveBesigtigelsesnotat', { error })
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
   }
