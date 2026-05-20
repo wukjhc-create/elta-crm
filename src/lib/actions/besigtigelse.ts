@@ -238,6 +238,17 @@ export async function saveBesigtigelsesnotat(
           err_name: errAny.name,
         },
       })
+
+      // Sprint 9G besigtigelse-diagnostik (midlertidig) — naar
+      // BESIGTIGELSE_DEBUG_UPLOAD=1 er sat, returnér detaljeret fejl-
+      // streng til UI/toast saa vi kan diagnosticere uden Vercel Logs.
+      // Default: uaendret bruger-besked. Flaget fjernes naar root-cause
+      // er fundet.
+      const debugUpload = (process.env.BESIGTIGELSE_DEBUG_UPLOAD || '').toLowerCase().trim()
+      if (debugUpload === '1' || debugUpload === 'true' || debugUpload === 'yes' || debugUpload === 'on') {
+        const debugMsg = `Kunne ikke uploade PDF — ${errAny.message || errAny.error || 'ukendt fejl'} — status: ${errAny.statusCode ?? 'ukendt'} — size: ${pdfBuffer.length} — path: ${storagePath}`
+        return { success: false, error: debugMsg }
+      }
       return { success: false, error: 'Kunne ikke uploade PDF' }
     }
 
