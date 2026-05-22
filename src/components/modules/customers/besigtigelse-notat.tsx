@@ -75,30 +75,135 @@ const EMPTY_FORM: BesigtigelseFormData = {
 }
 
 /**
- * Sprint 9G — robust base64-konvertering af billeder.
+ * Sprint 9G — robust billede-pipeline til besigtigelse.
  *
- * Tidligere brugte koden `btoa(String.fromCharCode(...new Uint8Array(buf)))`,
- * som spreader hele billede-bufferen som funktions-argumenter. V8 har en
- * grænse omkring 65k argumenter, saa billeder over ~64KB (alle moderne
- * telefon-kameraer) udloeste `RangeError: Maximum call stack size exceeded`.
- * Fejlen ramte klientens handleSave-catch og endte som generisk
- * "Der opstod en fejl"-toast — server action blev aldrig kaldt.
+ * Selvom FileReader.readAsDataURL ikke crasher som det gamle
+ * btoa(String.fromCharCode(...))-mønster, sender det STADIG hele billedet
+ * som base64 (typisk 5-7 MB per telefon-foto) til server action + PDF-route.
+ * Det stresser:
+ *   - Next.js server action body-limit (default 1 MB pr. action!)
+ *   - @react-pdf/renderer's memory-budget under render
+ *   - Supabase storage 10 MB per-file-limit
  *
- * FileReader.readAsDataURL haandterer vilkaarlig fil-stoerrelse uden at
- * stresse JS call-stack. Returnerer samme `data:<mime>;base64,<data>`-format
- * som server action og PDF-renderen forventer — payload-format uaendret.
+ * Loesning: komprimer + resize klientside FOER upload.
+ *   - HTMLImageElement loader billedet (afkoder JPG/PNG/WebP/AVIF via browser)
+ *   - Canvas resize til max 1600x1600 (bevarer aspect ratio)
+ *   - canvas.toDataURL('image/jpeg', 0.76) — JPEG-kvalitet 76%
+ *   - Output: data:image/jpeg;base64,... (samme format som foer)
+ *
+ * Fejl-haandtering:
+ *   - HEIC eller andre browser-ikke-supporterede formater fejler image.onload
+ *     → ImageDecodeError → bruger ser "Billedet kunne ikke behandles. Brug JPG eller PNG."
+ *   - Hvis billede stadig > 5 MB efter komprimering → ImageTooLargeError
+ *     → bruger ser "Billedet er for stort. Proev et mindre billede."
  */
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = reader.result
-      if (typeof result === 'string') resolve(result)
-      else reject(new Error('FileReader returned non-string result'))
+
+const MAX_IMAGE_DIMENSION = 1600
+const IMAGE_QUALITY = 0.76
+const MAX_COMPRESSED_BYTES = 5 * 1024 * 1024 // 5 MB post-komprimering
+
+class ImageDecodeError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ImageDecodeError'
+  }
+}
+
+class ImageTooLargeError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ImageTooLargeError'
+  }
+}
+
+interface ProcessedImage {
+  dataUrl: string
+  name: string
+  width: number
+  height: number
+  originalSize: number
+  compressedSize: number
+}
+
+async function processImageForBesigtigelse(file: File): Promise<ProcessedImage> {
+  const originalSize = file.size
+  const objectUrl = URL.createObjectURL(file)
+
+  try {
+    // Load image via HTMLImageElement — browser-native decode (HEIC fejler her).
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = () =>
+        reject(new ImageDecodeError(`Kunne ikke decode billede: ${file.name} (${file.type || 'ukendt type'})`))
+      image.src = objectUrl
+    })
+
+    const { naturalWidth, naturalHeight } = img
+    if (!naturalWidth || !naturalHeight) {
+      throw new ImageDecodeError(`Ugyldig billed-dimension: ${file.name}`)
     }
-    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'))
-    reader.readAsDataURL(file)
-  })
+
+    // Beregn skala — bevarer aspect ratio. Skala maks 1 (forstoerrer aldrig).
+    const scale = Math.min(
+      1,
+      MAX_IMAGE_DIMENSION / naturalWidth,
+      MAX_IMAGE_DIMENSION / naturalHeight,
+    )
+    const targetWidth = Math.round(naturalWidth * scale)
+    const targetHeight = Math.round(naturalHeight * scale)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = targetWidth
+    canvas.height = targetHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      throw new ImageDecodeError('Canvas 2D context ikke tilgaengelig')
+    }
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight)
+
+    const dataUrl = canvas.toDataURL('image/jpeg', IMAGE_QUALITY)
+
+    // Estimer post-komprimerings-stoerrelse fra base64-laengde
+    // (base64 ~= bytes * 4/3, saa bytes ~= base64Len * 3/4).
+    const base64Part = dataUrl.split(',')[1] || ''
+    const compressedSize = Math.floor((base64Part.length * 3) / 4)
+
+    if (compressedSize > MAX_COMPRESSED_BYTES) {
+      throw new ImageTooLargeError(
+        `Komprimeret billede er stadig for stort: ${compressedSize} bytes`,
+      )
+    }
+
+    // Filnavn faar .jpg suffix da output altid er JPEG.
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'billede'
+    const safeName = `${baseName}.jpg`
+
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[BESIGTIGELSE-CLIENT] image processed', {
+        name: file.name,
+        type: file.type,
+        originalSize,
+        naturalWidth,
+        naturalHeight,
+        targetWidth,
+        targetHeight,
+        compressedSize,
+        compressedDataUrlLength: dataUrl.length,
+      })
+    }
+
+    return {
+      dataUrl,
+      name: safeName,
+      width: targetWidth,
+      height: targetHeight,
+      originalSize,
+      compressedSize,
+    }
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
 }
 
 // =====================================================
@@ -324,16 +429,36 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
         signatureData = canvasRef.current.toDataURL('image/png')
       }
 
-      // Convert images to base64 (Sprint 9G fix — bruger FileReader saa
-      // store telefon-billeder ikke crasher klienten).
+      // Sprint 9G — komprimer + resize billeder klientside saa server-payload
+      // og PDF-render-budget holdes nede. Hvis et billede ikke kan decodes
+      // (fx HEIC) eller stadig er for stort efter komprimering, vises en
+      // specifik bruger-toast og handleSave afbrydes (finally-blok resetter
+      // saving/sending state).
       const imageData: { category: string; base64: string; name: string }[] = []
       for (const img of images) {
-        const dataUrl = await fileToDataUrl(img.file)
-        imageData.push({
-          category: img.category,
-          base64: dataUrl,
-          name: img.file.name,
-        })
+        try {
+          const processed = await processImageForBesigtigelse(img.file)
+          imageData.push({
+            category: img.category,
+            base64: processed.dataUrl,
+            name: processed.name,
+          })
+        } catch (imgErr) {
+          console.error('[BESIGTIGELSE-CLIENT] image processing failed', imgErr, {
+            fileName: img.file.name,
+            fileType: img.file.type,
+            fileSize: img.file.size,
+            category: img.category,
+          })
+          if (imgErr instanceof ImageDecodeError) {
+            toast.error('Billedet kunne ikke behandles', 'Brug JPG eller PNG.')
+          } else if (imgErr instanceof ImageTooLargeError) {
+            toast.error('Billedet er for stort', 'Prøv et mindre billede.')
+          } else {
+            toast.error('Billedet kunne ikke behandles', 'Ukendt billedfejl — se browser console.')
+          }
+          return
+        }
       }
 
       const result = await saveBesigtigelsesnotat({
