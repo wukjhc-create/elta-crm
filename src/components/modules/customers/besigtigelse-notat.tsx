@@ -98,9 +98,15 @@ const EMPTY_FORM: BesigtigelseFormData = {
  *     → bruger ser "Billedet er for stort. Proev et mindre billede."
  */
 
-const MAX_IMAGE_DIMENSION = 1600
-const IMAGE_QUALITY = 0.76
-const MAX_COMPRESSED_BYTES = 5 * 1024 * 1024 // 5 MB post-komprimering
+// Sprint 9G — hardere klientside-komprimering. Forrige indstillinger
+// (1600/0.76) producerede stadig 200-400KB per foto. 4-5 mobilbilleder
+// kunne tilsammen overstige Next.js server action body-limit. Vi
+// stramme nu til 1024/0.62 — visuelt fint i besigtigelses-PDF, men
+// payload faldt fra ~300KB til ~80-120KB per foto.
+const MAX_IMAGE_DIMENSION = 1024
+const IMAGE_QUALITY = 0.62
+const MAX_COMPRESSED_BYTES = 1.5 * 1024 * 1024 // 1.5 MB per billede
+const MAX_TOTAL_IMAGE_PAYLOAD_BYTES = 5 * 1024 * 1024 // 5 MB samlet
 
 class ImageDecodeError extends Error {
   constructor(message: string) {
@@ -433,8 +439,10 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
       // og PDF-render-budget holdes nede. Hvis et billede ikke kan decodes
       // (fx HEIC) eller stadig er for stort efter komprimering, vises en
       // specifik bruger-toast og handleSave afbrydes (finally-blok resetter
-      // saving/sending state).
+      // saving/sending state). Samlet payload kontrolleres efter loopet
+      // for at undgaa server action body-limit-overflow.
       const imageData: { category: string; base64: string; name: string }[] = []
+      let totalCompressedBytes = 0
       for (const img of images) {
         try {
           const processed = await processImageForBesigtigelse(img.file)
@@ -443,6 +451,7 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
             base64: processed.dataUrl,
             name: processed.name,
           })
+          totalCompressedBytes += processed.compressedSize
         } catch (imgErr) {
           console.error('[BESIGTIGELSE-CLIENT] image processing failed', imgErr, {
             fileName: img.file.name,
@@ -453,12 +462,29 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
           if (imgErr instanceof ImageDecodeError) {
             toast.error('Billedet kunne ikke behandles', 'Brug JPG eller PNG.')
           } else if (imgErr instanceof ImageTooLargeError) {
-            toast.error('Billedet er for stort', 'Prøv et mindre billede.')
+            toast.error('Et billede er for stort', 'Prøv at tage billedet igen eller vælg et mindre billede.')
           } else {
             toast.error('Billedet kunne ikke behandles', 'Ukendt billedfejl — se browser console.')
           }
           return
         }
+      }
+
+      if (totalCompressedBytes > MAX_TOTAL_IMAGE_PAYLOAD_BYTES) {
+        console.error('[BESIGTIGELSE-CLIENT] total image payload too large', {
+          imageCount: imageData.length,
+          totalBytes: totalCompressedBytes,
+          maxBytes: MAX_TOTAL_IMAGE_PAYLOAD_BYTES,
+          perImage: imageData.map((d) => ({
+            name: d.name,
+            size: Math.floor(((d.base64.split(',')[1] || '').length * 3) / 4),
+          })),
+        })
+        toast.error(
+          'Billederne fylder for meget',
+          'Prøv færre billeder eller tag billederne i lavere opløsning.'
+        )
+        return
       }
 
       const result = await saveBesigtigelsesnotat({
@@ -481,11 +507,29 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
         toast.error('Kunne ikke gemme', result.error)
       }
     } catch (err) {
-      // Sprint 9G diagnostik — log raw fejl i browser console saa fremtidige
-      // klientfejl kan diagnosticeres uden ekstra deploy. Bruger-toast
-      // forbliver uaendret.
+      // Sprint 9G — log raw fejl i browser console + map til specifik toast
+      // hvis fejlen ligner body-limit/payload-overflow saa bruger ved at de
+      // skal proeve faerre/mindre billeder.
       console.error('[BESIGTIGELSE-CLIENT] handleSave catch', err)
-      toast.error('Der opstod en fejl')
+      const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
+      const looksLikePayloadOverflow =
+        msg.includes('body size') ||
+        msg.includes('body exceeded') ||
+        msg.includes('payload') ||
+        msg.includes('request entity') ||
+        msg.includes('413') ||
+        msg.includes('too large')
+      if (looksLikePayloadOverflow) {
+        toast.error(
+          'Billederne fylder for meget',
+          'Prøv færre billeder eller tag billederne i lavere opløsning.'
+        )
+      } else {
+        toast.error(
+          'Der opstod en fejl',
+          'Prøv at gemme igen. Hvis fejlen fortsætter, fjern billederne og prøv igen.'
+        )
+      }
     } finally {
       setIsSaving(false)
       setIsSending(false)

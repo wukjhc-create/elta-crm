@@ -24,6 +24,10 @@ const nextConfig = {
           ? [process.env.NEXT_PUBLIC_APP_URL.replace(/^https?:\/\//, '')]
           : []),
       ].filter(Boolean),
+      // Sprint 9G — haevet fra default 1mb for besigtigelsesbilleder.
+      // Klient komprimerer til max 1.5MB per billede + max 5MB total
+      // payload-budget, saa 10mb giver god margin uden at risikere DOS.
+      bodySizeLimit: '10mb',
     },
   },
   // Empty turbopack config to silence Next.js 16 warning
