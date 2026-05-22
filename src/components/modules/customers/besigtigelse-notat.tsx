@@ -74,6 +74,33 @@ const EMPTY_FORM: BesigtigelseFormData = {
   saerligeAftaler: '', signatureData: null, signerName: '',
 }
 
+/**
+ * Sprint 9G — robust base64-konvertering af billeder.
+ *
+ * Tidligere brugte koden `btoa(String.fromCharCode(...new Uint8Array(buf)))`,
+ * som spreader hele billede-bufferen som funktions-argumenter. V8 har en
+ * grænse omkring 65k argumenter, saa billeder over ~64KB (alle moderne
+ * telefon-kameraer) udloeste `RangeError: Maximum call stack size exceeded`.
+ * Fejlen ramte klientens handleSave-catch og endte som generisk
+ * "Der opstod en fejl"-toast — server action blev aldrig kaldt.
+ *
+ * FileReader.readAsDataURL haandterer vilkaarlig fil-stoerrelse uden at
+ * stresse JS call-stack. Returnerer samme `data:<mime>;base64,<data>`-format
+ * som server action og PDF-renderen forventer — payload-format uaendret.
+ */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result === 'string') resolve(result)
+      else reject(new Error('FileReader returned non-string result'))
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
 // =====================================================
 // Form-controller context (Sprint 9G besigtigelse fokus-fix)
 //
@@ -297,14 +324,14 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
         signatureData = canvasRef.current.toDataURL('image/png')
       }
 
-      // Convert images to base64
+      // Convert images to base64 (Sprint 9G fix — bruger FileReader saa
+      // store telefon-billeder ikke crasher klienten).
       const imageData: { category: string; base64: string; name: string }[] = []
       for (const img of images) {
-        const buf = await img.file.arrayBuffer()
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)))
+        const dataUrl = await fileToDataUrl(img.file)
         imageData.push({
           category: img.category,
-          base64: `data:${img.file.type};base64,${b64}`,
+          base64: dataUrl,
           name: img.file.name,
         })
       }
@@ -328,7 +355,11 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
       } else {
         toast.error('Kunne ikke gemme', result.error)
       }
-    } catch {
+    } catch (err) {
+      // Sprint 9G diagnostik — log raw fejl i browser console saa fremtidige
+      // klientfejl kan diagnosticeres uden ekstra deploy. Bruger-toast
+      // forbliver uaendret.
+      console.error('[BESIGTIGELSE-CLIENT] handleSave catch', err)
       toast.error('Der opstod en fejl')
     } finally {
       setIsSaving(false)
