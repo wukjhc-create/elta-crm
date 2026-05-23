@@ -141,6 +141,25 @@ export async function GET(request: Request) {
               senderName,
             })
 
+            // Sprint 12A Trin 4 — Phase 6a shadow-log for reminders.
+            // Genbruger samme preview-pattern som sendOfferEmail.
+            let shadowMeta: Record<string, unknown> | null = null
+            try {
+              const {
+                isShadowLogEnabled,
+                getOfferRoutePreview,
+                buildShadowLogMeta,
+              } = await import('@/lib/actions/service-case-route-preview')
+              if (await isShadowLogEnabled()) {
+                const preview = await getOfferRoutePreview(offer.id, route)
+                if (preview) {
+                  shadowMeta = (await buildShadowLogMeta(preview)) as unknown as Record<string, unknown>
+                }
+              }
+            } catch {
+              // non-fatal — fortsaet uden shadow-meta
+            }
+
             if (result.success) {
               await supabase.from('offers').update({
                 last_reminder_sent: new Date().toISOString(),
@@ -151,11 +170,13 @@ export async function GET(request: Request) {
                 offer_id: offer.id,
                 reminderCount,
                 messageId: result.messageId,
+                ...(shadowMeta || {}),
               })
             } else {
               await logMailRoute(route, 'failed', {
                 offer_id: offer.id,
                 error: result.error,
+                ...(shadowMeta || {}),
               })
             }
           } catch (err) {

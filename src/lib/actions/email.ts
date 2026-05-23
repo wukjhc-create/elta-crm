@@ -19,6 +19,34 @@ import { getCompanySettings } from '@/lib/actions/settings'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createPortalToken } from '@/lib/actions/portal'
 import { logger } from '@/lib/utils/logger'
+import type { MailRoute } from '@/lib/services/mail-routing'
+
+/**
+ * Sprint 12A Trin 4 — shadow-log wrapper for offers (Phase 6a-pattern).
+ *
+ * Read-only. Aldrig blokerende. Returnerer null hvis flag er off eller
+ * preview fejler. Match besigtigelse-pattern fra Sprint 9F.
+ */
+async function maybeBuildOfferShadowMeta(
+  offerId: string,
+  actualRoute: MailRoute,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const { isShadowLogEnabled, getOfferRoutePreview, buildShadowLogMeta } =
+      await import('@/lib/actions/service-case-route-preview')
+    if (!(await isShadowLogEnabled())) return null
+
+    const preview = await getOfferRoutePreview(offerId, actualRoute)
+    if (!preview) return null
+    return buildShadowLogMeta(preview) as unknown as Record<string, unknown>
+  } catch (err) {
+    logger.warn('Offer shadow-log preview failed (non-fatal)', {
+      error: err,
+      entityId: offerId,
+    })
+    return null
+  }
+}
 import { validateUUID } from '@/lib/validations/common'
 import { APP_URL } from '@/lib/constants'
 import { formatCurrency, formatDateLongDK } from '@/lib/utils/format'
@@ -836,9 +864,13 @@ export async function sendOfferEmail(
       })
       .eq('id', message.id)
 
+    // Sprint 12A Trin 4 — Phase 6a shadow-log for offers
+    const shadowMeta = await maybeBuildOfferShadowMeta(input.offer_id, route)
+
     await logMailRoute(route, 'sent', {
       offer_id: input.offer_id,
       message_id: emailResult.messageId,
+      ...(shadowMeta || {}),
     })
 
     // Update offer status if it was draft

@@ -466,6 +466,210 @@ export async function buildShadowLogMeta(
 }
 
 // =====================================================
+// Sprint 12A Trin 4 — Offer route preview
+// =====================================================
+
+/**
+ * Beregn route-preview for et tilbud. Bruger samme billing_mode-switch
+ * som resolveOfferMailRoute for at finde "anbefalet" route, og
+ * sammenligner med faktisk routet (currentRoute).
+ *
+ * Efter migration 00118 + backfill har alle 19 prod-offers
+ * orderer = end_customer = payer = customer_id og billing_mode =
+ * 'same_as_customer'. For disse vil current og recommended altid
+ * vaere identiske (divergence: 'none'). Hvis nogen ud-of-band aendrer
+ * offers DB-rows til at have afvigende parti-roller, vil shadow-log
+ * fange det.
+ *
+ * Naar UI (Trin 5) tillader divergerende parti-roller, vil shadow-log
+ * blive en aktiv audit-trail.
+ */
+async function recommendForOffer(
+  offer: {
+    customer_id: string | null
+    orderer_customer_id: string | null
+    end_customer_id: string | null
+    payer_customer_id: string | null
+    billing_mode: string | null
+  },
+  customerLookup: Map<string, CustomerLike>,
+  contactLookup: Map<string, ContactLike>,
+): Promise<RecommendedRoute> {
+  const billingMode = offer.billing_mode || 'same_as_customer'
+
+  let activeCustomerId: string | null = null
+  switch (billingMode) {
+    case 'end_customer_pays':
+      activeCustomerId = offer.end_customer_id || offer.customer_id
+      break
+    case 'third_party_pays':
+      activeCustomerId = offer.payer_customer_id || offer.customer_id
+      break
+    case 'orderer_pays':
+    case 'same_as_customer':
+    case 'unknown':
+    default:
+      activeCustomerId = offer.orderer_customer_id || offer.customer_id
+      break
+  }
+
+  if (!activeCustomerId) {
+    return {
+      toEmail: null,
+      recipientRole: 'unresolved',
+      intent: 'offer',
+      reason: 'Phase 6a recommend (offer): tilbud uden customer_id',
+      unresolved: true,
+      errorCode: 'NO_CUSTOMER',
+    }
+  }
+
+  const activeCustomer = customerLookup.get(activeCustomerId) || null
+  const billingContact = contactLookup.get(activeCustomerId) || null
+
+  // 1. Billing contact (foretrukket)
+  const billingEmail = pickExternalEmail(billingContact)
+  if (billingEmail) {
+    return {
+      toEmail: billingEmail,
+      toName: billingContact?.name || null,
+      recipientRole: 'billing_contact',
+      intent: 'offer',
+      reason: `Phase 6a recommend (offer): billing_mode=${billingMode} -> billing-contact paa active party`,
+      resolvedFromCustomerId: activeCustomerId,
+      resolvedFromContactId: billingContact?.id || null,
+    }
+  }
+
+  // 2. Customer.email paa active party
+  const customerEmail = pickExternalEmail(activeCustomer)
+  if (customerEmail) {
+    return {
+      toEmail: customerEmail,
+      toName: activeCustomer?.company_name || null,
+      recipientRole: 'paying_customer',
+      intent: 'offer',
+      reason: `Phase 6a recommend (offer): billing_mode=${billingMode} -> active party customer.email`,
+      resolvedFromCustomerId: activeCustomerId,
+    }
+  }
+
+  return {
+    toEmail: null,
+    recipientRole: 'unresolved',
+    intent: 'offer',
+    reason: `Phase 6a recommend (offer): billing_mode=${billingMode} -> ingen email paa active party`,
+    unresolved: true,
+    errorCode: 'NO_PARTY_EMAIL',
+  }
+}
+
+/**
+ * Public preview-helper for offers. Henter offer-row + alle relevante
+ * customer/contact-rows via admin-client (read-only) og sammenligner
+ * med currentRoute returneret af resolveOfferMailRoute.
+ */
+export async function getOfferRoutePreview(
+  offerId: string,
+  currentRoute: MailRoute,
+): Promise<RoutePreview | null> {
+  try {
+    validateUUID(offerId, 'offerId')
+  } catch {
+    return null
+  }
+
+  const supabase = createAdminClient()
+
+  const { data: offer } = await supabase
+    .from('offers')
+    .select(
+      'id, offer_number, customer_id, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode'
+    )
+    .eq('id', offerId)
+    .maybeSingle()
+
+  if (!offer) return null
+
+  // Collect distinct customer_ids vi skal slaa op
+  const customerIds = new Set<string>()
+  for (const id of [
+    offer.customer_id,
+    offer.orderer_customer_id,
+    offer.end_customer_id,
+    offer.payer_customer_id,
+  ]) {
+    if (id) customerIds.add(id as string)
+  }
+
+  const customerLookup = new Map<string, CustomerLike>()
+  const contactLookup = new Map<string, ContactLike>()
+
+  if (customerIds.size > 0) {
+    const ids = Array.from(customerIds)
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, company_name, email')
+      .in('id', ids)
+    for (const c of customers || []) {
+      customerLookup.set(c.id as string, c as CustomerLike)
+    }
+
+    // Hent billing-contact for HVER active party-kandidat
+    const { data: contacts } = await supabase
+      .from('customer_contacts')
+      .select('id, name, email, customer_id')
+      .in('customer_id', ids)
+      .eq('role', 'billing')
+      .not('email', 'is', null)
+    for (const ct of contacts || []) {
+      // Brug foerste billing-contact pr. customer
+      const cid = ct.customer_id as string
+      if (!contactLookup.has(cid)) {
+        contactLookup.set(cid, ct as ContactLike)
+      }
+    }
+  }
+
+  const partyRoles: PartyRolesSnapshot = {
+    customerId: offer.customer_id as string | null,
+    ordererCustomerId: offer.orderer_customer_id as string | null,
+    endCustomerId: offer.end_customer_id as string | null,
+    payerCustomerId: offer.payer_customer_id as string | null,
+    siteCustomerId: null,
+    siteContactId: null,
+    purchasedFromCustomerId: null,
+    billingMode: offer.billing_mode as string | null,
+  }
+
+  const recommended = await recommendForOffer(
+    {
+      customer_id: offer.customer_id as string | null,
+      orderer_customer_id: offer.orderer_customer_id as string | null,
+      end_customer_id: offer.end_customer_id as string | null,
+      payer_customer_id: offer.payer_customer_id as string | null,
+      billing_mode: offer.billing_mode as string | null,
+    },
+    customerLookup,
+    contactLookup,
+  )
+
+  const { divergence, reason } = compareRoutes(currentRoute, recommended)
+
+  return {
+    current: {
+      toEmail: currentRoute.toEmail,
+      recipientRole: currentRoute.recipientRole,
+      reason: currentRoute.reason,
+    },
+    recommended,
+    divergence,
+    divergenceReason: reason,
+    partyRoles,
+  }
+}
+
+// =====================================================
 // Future scope (NOT implemented in Phase 6a)
 // =====================================================
 //

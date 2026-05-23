@@ -347,11 +347,14 @@ export async function resolveOfferMailRoute(
   }
 
   const supabase = await createClient()
+  // Sprint 12A Trin 4 — laes parti-roller + billing_mode for at vaelge
+  // active party. Backfilled offers har alle parti-roller = customer_id,
+  // saa adfaerden er bit-identisk med foer migrationen for gamle tilbud.
   const { data: offer } = await supabase
     .from('offers')
     .select(`
       id, offer_number, customer_id,
-      customers ( id, company_name, email )
+      orderer_customer_id, end_customer_id, payer_customer_id, billing_mode
     `)
     .eq('id', offerId)
     .maybeSingle()
@@ -367,11 +370,9 @@ export async function resolveOfferMailRoute(
     }
   }
 
-  const customerJoin = (offer as { customers?: { id?: string; company_name?: string; email?: string } | null }).customers
-  const payerName = customerJoin?.company_name || null
   const fromMailbox = defaultFromMailbox()
 
-  // 1. Override (manual)
+  // 1. Override (manual) — top-prioritet, foer parti-rolle-logik
   if (ctx?.recipientOverride && ctx.recipientOverride.trim()) {
     try {
       assertValidRecipient(ctx.recipientOverride)
@@ -387,11 +388,10 @@ export async function resolveOfferMailRoute(
       toName: null,
       recipientRole: 'manual',
       intent: 'offer',
-      customerId: offer.customer_id,
+      customerId: offer.customer_id as string,
       serviceCaseId: null,
       customerContactId: ctx.customerContactIdOverride || null,
       reason: buildRouteReason('offer', 'manual', {
-        payerName,
         manualNote: `Tilbud ${offer.offer_number}`,
       }),
       isInternalAllowed: false,
@@ -399,37 +399,70 @@ export async function resolveOfferMailRoute(
     return toResult(route)
   }
 
-  // 2. Billing contact under betaler
+  // 2. Sprint 12A Trin 4 — vaelg active party customer via billing_mode-switch.
+  //    Hvis valgt rolle mangler, fald tilbage til customer_id (matcher
+  //    backfill-paterns og bevarer no-regression for gamle tilbud).
+  const billingMode = (offer.billing_mode as string | null) || 'same_as_customer'
+  let activePartyCustomerId: string
+  switch (billingMode) {
+    case 'end_customer_pays':
+      activePartyCustomerId =
+        (offer.end_customer_id as string | null) || (offer.customer_id as string)
+      break
+    case 'third_party_pays':
+      activePartyCustomerId =
+        (offer.payer_customer_id as string | null) || (offer.customer_id as string)
+      break
+    case 'orderer_pays':
+    case 'same_as_customer':
+    case 'unknown':
+    default:
+      activePartyCustomerId =
+        (offer.orderer_customer_id as string | null) || (offer.customer_id as string)
+      break
+  }
+
+  // 3. Hent active-party customer + dens billing-contact
+  const { data: activeCustomer } = await supabase
+    .from('customers')
+    .select('id, company_name, email')
+    .eq('id', activePartyCustomerId)
+    .maybeSingle()
+
+  const payerName = (activeCustomer?.company_name as string | undefined) || null
+
+  // 4. Billing contact under active party
   const { data: billingContact } = await supabase
     .from('customer_contacts')
     .select('id, name, email')
-    .eq('customer_id', offer.customer_id)
+    .eq('customer_id', activePartyCustomerId)
     .eq('role', 'billing')
     .not('email', 'is', null)
     .limit(1)
     .maybeSingle()
 
-  if (billingContact?.email && !normalizeEmail(billingContact.email).includes('@eltasolar.dk')) {
+  if (billingContact?.email && !normalizeEmail(billingContact.email as string).includes('@eltasolar.dk')) {
     const route: MailRoute = {
       fromMailbox,
-      toEmail: normalizeEmail(billingContact.email),
-      toName: billingContact.name || null,
+      toEmail: normalizeEmail(billingContact.email as string),
+      toName: (billingContact.name as string | null) || null,
       recipientRole: 'billing_contact',
       intent: 'offer',
-      customerId: offer.customer_id,
+      customerId: activePartyCustomerId,
       serviceCaseId: null,
       customerContactId: billingContact.id as string,
       reason: buildRouteReason('offer', 'billing_contact', {
         payerName,
-        contactName: billingContact.name,
+        contactName: (billingContact.name as string | null) || null,
+        manualNote: `billing_mode=${billingMode}`,
       }),
       isInternalAllowed: false,
     }
     return toResult(route)
   }
 
-  // 3. Fallback: customer.email
-  if (!customerJoin?.email) {
+  // 5. Fallback: customer.email paa active party
+  if (!activeCustomer?.email) {
     return {
       ok: false,
       error: 'Kunden mangler en email — sæt customer.email eller billing-kontakt',
@@ -439,14 +472,20 @@ export async function resolveOfferMailRoute(
 
   const route: MailRoute = {
     fromMailbox,
-    toEmail: normalizeEmail(customerJoin.email),
-    toName: customerJoin.company_name || null,
+    toEmail: normalizeEmail(activeCustomer.email as string),
+    toName: (activeCustomer.company_name as string | null) || null,
+    // Sprint 12A — per audit-beslutning: brug paying_customer for alle
+    // active-party-valg for backward-compat med eksisterende log-data.
+    // Faktisk valgt parti-rolle er logget i shadow-meta (Phase 6a).
     recipientRole: 'paying_customer',
     intent: 'offer',
-    customerId: offer.customer_id,
+    customerId: activePartyCustomerId,
     serviceCaseId: null,
     customerContactId: null,
-    reason: buildRouteReason('offer', 'paying_customer', { payerName }),
+    reason: buildRouteReason('offer', 'paying_customer', {
+      payerName,
+      manualNote: `billing_mode=${billingMode}`,
+    }),
     isInternalAllowed: false,
   }
   return toResult(route)
