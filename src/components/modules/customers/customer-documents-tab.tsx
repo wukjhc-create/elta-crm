@@ -26,6 +26,7 @@ import {
 } from '@/lib/actions/customer-documents'
 import type { CustomerDocument, CustomerImage } from '@/lib/actions/customer-documents'
 import { useToast } from '@/components/ui/toast'
+import { SendBesigtigelsesreportDialog } from '@/components/modules/customers/send-besigtigelsesreport-dialog'
 
 interface CustomerDocumentsTabProps {
   customerId: string
@@ -64,9 +65,15 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
 
   useEffect(() => { load() }, [customerId])
 
+  // Sprint 9H Phase A — accepterer baade nye dokumenter med document_type='besigtigelse'
+  // og legacy 'other'+title-prefix-match.
   const besigtigelseReports = documents.filter(
-    (d) => d.document_type === 'other' && d.title.includes('Besigtigelse')
+    (d) =>
+      d.document_type === 'besigtigelse' ||
+      (d.document_type === 'other' && d.title.includes('Besigtigelse'))
   )
+  // Sprint 9H Phase A — Send-dialog state
+  const [sendDialogDoc, setSendDialogDoc] = useState<CustomerDocument | null>(null)
   const fuldmagter = documents.filter((d) => {
     try {
       const desc = JSON.parse(d.description || '{}')
@@ -278,16 +285,38 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                     </p>
                   </div>
                 </div>
-                {doc.file_url && (
-                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform">
-                    <Download className="w-3.5 h-3.5" /> PDF
-                  </a>
-                )}
+                <div className="shrink-0 flex items-center gap-1.5">
+                  {doc.file_url && (
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform">
+                      <Download className="w-3.5 h-3.5" /> PDF
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setSendDialogDoc(doc)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95 transition-transform"
+                  >
+                    <Mail className="w-3.5 h-3.5" /> Send
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* Sprint 9H Phase A — Send-dialog (mounted naar bruger har valgt et dokument) */}
+      {sendDialogDoc && (
+        <SendBesigtigelsesreportDialog
+          isOpen={true}
+          onClose={() => setSendDialogDoc(null)}
+          onSent={() => load()}
+          documentId={sendDialogDoc.id}
+          documentTitle={sendDialogDoc.title}
+          documentFileName={sendDialogDoc.file_name}
+          documentCustomerId={sendDialogDoc.customer_id}
+          documentServiceCaseId={sendDialogDoc.service_case_id || null}
+        />
       )}
 
       {/* Billeder fra besigtigelse */}
