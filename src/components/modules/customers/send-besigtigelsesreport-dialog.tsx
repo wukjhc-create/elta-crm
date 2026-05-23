@@ -99,7 +99,12 @@ export function SendBesigtigelsesreportDialog({
     return () => {
       cancelled = true
     }
-  }, [isOpen, documentId, selectedCaseId, toast])
+    // Sprint 11B hotfix — `toast` er bevidst udeladt fra deps. useToast()
+    // returnerer hele context-value som ikke er useMemo'iseret i
+    // ToastProvider, saa ny identity hver render trigger en refetch-loop.
+    // toast.error() inde i load() bruger den aktuelle context-vaerdi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, documentId, selectedCaseId])
 
   // Load customer's cases for dropdown when no scope-case is set.
   useEffect(() => {
