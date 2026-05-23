@@ -696,6 +696,13 @@ export async function createOfferFromCalculation(
         title: input.title,
         description: input.description,
         customer_id: input.customerId,
+        // Sprint 12A — default-fyld parti-roller til customer_id.
+        // Kalkulation-genererede tilbud antager privatkunde-flow uden
+        // adskilte parter; brugeren kan justere via offer-form senere.
+        orderer_customer_id: input.customerId,
+        end_customer_id: input.customerId,
+        payer_customer_id: input.customerId,
+        billing_mode: 'same_as_customer',
         status: 'draft',
         total_amount: totalAmount,
         discount_percentage: discountPercentage,

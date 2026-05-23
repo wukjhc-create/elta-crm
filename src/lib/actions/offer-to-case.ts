@@ -108,7 +108,10 @@ export async function createServiceCaseFromOffer(
     // 2. Load the offer.
     const { data: offer, error: offerErr } = await supabase
       .from('offers')
-      .select('id, offer_number, title, description, scope, status, customer_id, final_amount')
+      .select(
+        // Sprint 12A — laes parti-roller saa de kan kopieres til sagen.
+        'id, offer_number, title, description, scope, status, customer_id, final_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode'
+      )
       .eq('id', offerId)
       .maybeSingle()
     if (offerErr || !offer) {
@@ -121,9 +124,19 @@ export async function createServiceCaseFromOffer(
       (typeof offer.scope === 'string' && offer.scope.trim()) ||
       null
 
+    const customerId = (offer.customer_id as string | null) ?? null
+
     const insertPayload = {
       source_offer_id: offer.id as string,
-      customer_id: (offer.customer_id as string | null) ?? null,
+      customer_id: customerId,
+      // Sprint 12A — kopiér parti-roller fra offer til service_case.
+      // Fallback til customer_id hvis offer-row endnu ikke har felterne
+      // udfyldt (post-migration backfill sikrer at de altid er sat for
+      // offers oprettet via 12A-trin-3-actions).
+      orderer_customer_id: (offer.orderer_customer_id as string | null) ?? customerId,
+      end_customer_id: (offer.end_customer_id as string | null) ?? customerId,
+      payer_customer_id: (offer.payer_customer_id as string | null) ?? customerId,
+      billing_mode: (offer.billing_mode as string | null) ?? 'same_as_customer',
       title: (offer.title as string) || 'Sag fra tilbud',
       project_name: (offer.title as string) || null,
       contract_sum: (offer.final_amount as number | null) ?? null,

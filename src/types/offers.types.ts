@@ -10,6 +10,25 @@ export const OFFER_STATUSES = [
 
 export type OfferStatus = (typeof OFFER_STATUSES)[number]
 
+// Sprint 12A — sagspartner-billing-mode (matcher service_cases.billing_mode)
+export const OFFER_BILLING_MODES = [
+  'same_as_customer',
+  'orderer_pays',
+  'end_customer_pays',
+  'third_party_pays',
+  'unknown',
+] as const
+
+export type OfferBillingMode = (typeof OFFER_BILLING_MODES)[number]
+
+export const OFFER_BILLING_MODE_LABELS: Record<OfferBillingMode, string> = {
+  same_as_customer: 'Samme som kunde',
+  orderer_pays: 'Bestiller betaler',
+  end_customer_pays: 'Slutkunde betaler',
+  third_party_pays: 'Tredjepart betaler',
+  unknown: 'Ukendt',
+}
+
 // Status labels in Danish
 export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
   draft: 'Kladde',
@@ -106,6 +125,13 @@ export interface Offer {
   status: OfferStatus
   customer_id: string | null
   lead_id: string | null
+  // Sprint 12A — sagspartner-roller. Backfilled til customer_id paa
+  // eksisterende rows. Nullable for kompatibilitet med tilbud uden
+  // primaer kunde (sjaeldent).
+  orderer_customer_id: string | null
+  end_customer_id: string | null
+  payer_customer_id: string | null
+  billing_mode: OfferBillingMode | null
   total_amount: number
   discount_percentage: number
   discount_amount: number
@@ -163,6 +189,12 @@ export interface CreateOfferInput {
   scope?: string | null
   customer_id?: string | null
   lead_id?: string | null
+  // Sprint 12A — sagspartner-roller (optional; default-fyldes af action
+  // til customer_id hvis ikke leveret).
+  orderer_customer_id?: string | null
+  end_customer_id?: string | null
+  payer_customer_id?: string | null
+  billing_mode?: OfferBillingMode | null
   discount_percentage?: number
   tax_percentage?: number
   valid_until?: string | null

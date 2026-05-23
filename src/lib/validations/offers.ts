@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { OFFER_STATUSES } from '@/types/offers.types'
+import { OFFER_STATUSES, OFFER_BILLING_MODES } from '@/types/offers.types'
 
 // Helper to convert empty strings to null (for optional UUID fields from HTML forms)
 const emptyStringToNull = (val: unknown) => (val === '' ? null : val)
@@ -22,6 +22,16 @@ export const createOfferSchema = z.object({
     .optional(),
   customer_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
   lead_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
+  // Sprint 12A — sagspartner-roller (optional). Action-laget default-fylder
+  // til customer_id hvis ikke sat. billing_mode defaultes til
+  // 'same_as_customer' hvis ikke sat.
+  orderer_customer_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
+  end_customer_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
+  payer_customer_id: z.preprocess(emptyStringToNull, z.string().uuid().nullable().optional()),
+  billing_mode: z.preprocess(
+    emptyStringToNull,
+    z.enum(OFFER_BILLING_MODES).nullable().optional(),
+  ),
   discount_percentage: z
     .number()
     .min(0, 'Rabat skal være mindst 0%')

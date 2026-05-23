@@ -221,6 +221,12 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       scope: formData.get('scope') as string || null,
       customer_id: customerId,
       lead_id: leadId,
+      // Sprint 12A — sagspartner-roller fra form. Action-laget default-
+      // fylder til customer_id hvis tomme.
+      orderer_customer_id: (formData.get('orderer_customer_id') as string) || null,
+      end_customer_id: (formData.get('end_customer_id') as string) || null,
+      payer_customer_id: (formData.get('payer_customer_id') as string) || null,
+      billing_mode: (formData.get('billing_mode') as string) || null,
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
@@ -249,6 +255,17 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
         insertData[key] = value
       }
     }
+
+    // Sprint 12A — default-fyld parti-roller til customer_id hvis form
+    // ikke har leveret dem. Saadan matcher nye offers backfill-mønstret
+    // fra 00118 og mail-routing kan altid stole paa at parti-roller er
+    // sat naar customer_id er sat.
+    if (validated.data.customer_id) {
+      if (!insertData.orderer_customer_id) insertData.orderer_customer_id = validated.data.customer_id
+      if (!insertData.end_customer_id) insertData.end_customer_id = validated.data.customer_id
+      if (!insertData.payer_customer_id) insertData.payer_customer_id = validated.data.customer_id
+    }
+    if (!insertData.billing_mode) insertData.billing_mode = 'same_as_customer'
 
     const { data, error } = await supabase
       .from('offers')
@@ -376,6 +393,12 @@ export async function quickCreateCustomerAndOffer(
       offer_number: offerNumber,
       title: input.offerTitle,
       customer_id: customerId,
+      // Sprint 12A — default-fyld parti-roller til customerId.
+      // Quick-create antager altid same_as_customer (privatkunde-flow).
+      orderer_customer_id: customerId,
+      end_customer_id: customerId,
+      payer_customer_id: customerId,
+      billing_mode: 'same_as_customer',
       status: 'draft',
       tax_percentage: 25,
       discount_percentage: 0,
@@ -461,6 +484,13 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       scope: formData.get('scope') as string || null,
       customer_id: customerId,
       lead_id: leadId,
+      // Sprint 12A — accept parti-roller fra form. Hvis tomme,
+      // forblives null saa "strip null/undefined"-pattern nedenfor
+      // udelukker dem fra UPDATE — eksisterende vaerdier i DB bevares.
+      orderer_customer_id: (formData.get('orderer_customer_id') as string) || null,
+      end_customer_id: (formData.get('end_customer_id') as string) || null,
+      payer_customer_id: (formData.get('payer_customer_id') as string) || null,
+      billing_mode: (formData.get('billing_mode') as string) || null,
       discount_percentage: formData.get('discount_percentage')
         ? Number(formData.get('discount_percentage'))
         : 0,
