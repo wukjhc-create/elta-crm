@@ -350,20 +350,58 @@ Men også brugt i flere actions hvor det måske ikke er nødvendigt.
 
 ---
 
+## R17 — `attachments`-bucket er `public=true` i production (Sprint 11C-fund)
+
+**Berørte:** Supabase Storage `attachments`-bucket + 8 kode-flows
+
+**Beskrivelse:** Production-state for `attachments`-bucket er `public=true`, hvilket betyder at filer kan tilgås via direkte URL `https://<ref>.supabase.co/storage/v1/object/public/attachments/<path>` **uden authentication**. Migration 00113 i repo siger `public=false` men har `ON CONFLICT (id) DO NOTHING` saa bucket-config aldrig blev opdateret. Denne afvigelse blev opdaget i Sprint 11C-audit.
+
+**Berørte filer i prod:**
+- `profiles.avatar_url` (alle brugere)
+- `company_settings.company_logo_url`
+- `sent_quotes.pdf_url` (kunde-emails med tilbud)
+- `customer_documents.file_url` (besigtigelser, outbound-attachments, manuelle uploads)
+- `incoming_emails.attachment_urls` (JSONB-array)
+- `files.url` (generic file system)
+- `besigtigelse-images/`, `email-attachments/`, `fuldmagt/`, `lead-attachments/`
+
+**Konsekvens:**
+- Filer er teknisk offentligt tilgængelige hvis URL'en kendes
+- Path indeholder customer-UUID (122 bits entropi — svært at gætte, men ikke umuligt hvis URL leakes)
+- GDPR-bekymring for PDF'er med kunde-data (besigtigelses-rapporter inkl. signatur, adresse, billeder)
+- En signed-URL der lækker i en email-screenshot kan stadig hentes selv efter dens "udløb", hvis bucket er public
+
+**Anbefalet handling:**
+Dedikeret sprint kan ikke addresseres som lille fix.
+
+Se **Sprint 11F — Storage Security Hardening** (planlagt næste storage-sikkerhedssprint):
+1. Refaktorér 8 `getPublicUrl()`-kald (i `settings.ts`, `quote-generator.ts`, `email-attachment-storage.ts`, `files.ts`, `outbound-attachments.ts`, `incoming-emails.ts`) til `createSignedUrl()` med passende TTL
+2. Avatar/logo-proxy-endpoint (`/api/avatars/[userId]`, `/api/company-logo`) der streamer fra storage med fresh signed URL
+3. Backfill eller lazy-regenerering af eksisterende DB-rows der indeholder public URLs
+4. Skriv `00118_secure_attachments_bucket.sql` der sætter `public=false`
+5. Smoke-test: avatar, logo, quote-PDF-mail-links, email-attachments, customer-documents, besigtigelse, fuldmagt
+
+**Hvorfor ikke i Sprint 11C:** Audit (11C Trin 2) viste 8 distinkte flows der ville brække ved umiddelbar `public=false`-ændring. Avatars/logo/quote-PDF-links er kritiske user-facing flows.
+
+**Prioritet:** Høj (sikkerhed) men kompleks. Planlagt til Sprint 11F.
+
+---
+
 ## Risiko-resumé
 
-| ID | Område | Prioritet |
-|---|---|---|
-| R1 | customer_id-only flows (Mikma-scenariet) | Kritisk |
-| R2 | `customer_contacts.role` skema-drift | Kritisk |
-| R3 | 00111 site-felter mangler i repo | Kritisk |
-| R4 | 00114 customer_documents.service_case_id ikke kørt | Høj |
-| R7 | RLS = "authenticated USING(true)" | Høj |
-| R9 | Bred service-role brug | Høj |
-| R11 | Mail-cron schedule-inkonsistens | Høj |
-| R5 | customer_tasks uden service_case_id | Medium |
-| R6 | Inbound/outbound mail-fragmentering | Medium |
-| R8 | TS/DB permissions drift | Medium |
-| R10 | Migrations-drift (huller, dubletter) | Medium |
-| R13 | Parallelle datamodeller | Medium |
-| R12 | profiles uden FK til auth.users | Lav |
+| ID | Område | Prioritet | Status |
+|---|---|---|---|
+| R1 | customer_id-only flows (Mikma-scenariet) | Kritisk | Åben |
+| R2 | `customer_contacts.role` skema-drift | Kritisk | ✅ Lukket (Sprint 10B: 00116) |
+| R3 | 00111 site-felter mangler i repo | Kritisk | ✅ Lukket (Sprint 10B: 00115) |
+| R4 | 00114 customer_documents.service_case_id ikke kørt | Høj | ✅ Lukket (Sprint 10B: 00117) |
+| **R17** | **`attachments`-bucket public=true (storage-sikkerhed)** | **Høj** | **Åben → Sprint 11F** |
+| R7 | RLS = "authenticated USING(true)" | Høj | Åben |
+| R9 | Bred service-role brug | Høj | Åben |
+| R11 | Mail-cron schedule-inkonsistens | Høj | Åben |
+| R5 | customer_tasks uden service_case_id | Medium | Åben |
+| R6 | Inbound/outbound mail-fragmentering | Medium | Åben |
+| R8 | TS/DB permissions drift | Medium | Åben |
+| R10 | Migrations-drift (huller, dubletter) | Medium | Delvist (Sprint 11C arkiverede FULL_MIGRATION) |
+| R13 | Parallelle datamodeller | Medium | Åben |
+| R12 | profiles uden FK til auth.users | Lav | Åben |

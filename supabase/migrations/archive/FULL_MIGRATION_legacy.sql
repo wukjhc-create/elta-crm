@@ -1,5 +1,21 @@
 -- =====================================================
--- COMPLETE DATABASE MIGRATION FOR ELTA CRM
+-- LEGACY / ARCHIVE — Sprint 11C oprydning
+--
+-- Denne fil er en monolitisk initial migration brugt til engangs-
+-- bootstrap af nye Supabase-projekter (sandsynligvis tidligt i
+-- projektets liv). Den ER IKKE en del af den sekventielle
+-- migrationskæde — filnavnet mangler nummer-prefix, saa Supabase
+-- migration-runneren springer den over.
+--
+-- Den dækker indholdet af de tidligste migrations (00000-00009)
+-- i samlet form med DO $$ BEGIN / EXCEPTION-pattern for idempotens.
+--
+-- ARKIVERET i Sprint 11C — beholdes som historisk reference, men
+-- bør IKKE bruges til at saette nye projekter op. Brug den
+-- sekventielle migrationskaede i stedet.
+--
+-- =====================================================
+-- COMPLETE DATABASE MIGRATION FOR ELTA CRM (ORIGINAL)
 -- Run this entire file in Supabase SQL Editor
 -- =====================================================
 

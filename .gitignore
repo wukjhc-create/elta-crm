@@ -48,6 +48,10 @@ next-env.d.ts
 supabase/.temp
 supabase/.branches
 
+# Local operational scripts (test-data setup, one-shot utilities)
+# Sprint 11C — beholdes lokalt men ikke i repo
+scripts/dev/
+
 # Docker
 docker-compose.override.yml
 
