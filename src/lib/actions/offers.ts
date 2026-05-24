@@ -1069,8 +1069,10 @@ export async function createLineItem(
     // Calculate total (will also be done by trigger, but good to have client-side)
     const total = calculateLineTotal(validated.data.quantity, validated.data.unit_price, validated.data.discount_percentage || 0)
 
-    // Extract supplier tracking fields if present
-    const costPrice = formData.get('cost_price') ? Number(formData.get('cost_price')) : null
+    // Extract supplier tracking fields if present.
+    // cost_price er NOT NULL DEFAULT 0 i offer_line_items — manuelle linjer
+    // uden leverandoer-data skal default til 0 (ikke NULL) for at undgaa 23502.
+    const costPrice = formData.get('cost_price') ? Number(formData.get('cost_price')) : 0
     const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
     const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
     const supplierNameAtCreation = formData.get('supplier_name_at_creation') as string || null
@@ -1150,8 +1152,12 @@ export async function updateLineItem(
     // Calculate total
     const total = calculateLineTotal(updateData.quantity || 1, updateData.unit_price || 0, updateData.discount_percentage || 0)
 
-    // Extract cost/margin tracking fields
-    const costPrice = formData.get('cost_price') ? Number(formData.get('cost_price')) : null
+    // Extract cost/margin tracking fields.
+    // cost_price er NOT NULL DEFAULT 0 — undlad at sende feltet hvis det ikke
+    // er i payloaden, saa eksisterende vaerdi bevares (i stedet for at saette
+    // det til 0 paa update af ikke-leverandoer-linjer).
+    const costPriceRaw = formData.get('cost_price')
+    const costPrice = costPriceRaw ? Number(costPriceRaw) : undefined
     const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
     const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
     const imageUrl = formData.get('image_url') as string || undefined
@@ -1161,7 +1167,7 @@ export async function updateLineItem(
       .update({
         ...updateData,
         total,
-        cost_price: costPrice,
+        ...(costPrice !== undefined ? { cost_price: costPrice } : {}),
         supplier_margin_applied: supplierMargin,
         supplier_cost_price_at_creation: supplierCostAtCreation,
         ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
