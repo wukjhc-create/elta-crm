@@ -525,7 +525,7 @@ export async function generateEmailPreview(
       .from('offers')
       .select(`
         *,
-        customer:customers(*)
+        customer:customers!offers_customer_id_fkey(*)
       `)
       .eq('id', input.offer_id)
       .maybeSingle()
@@ -661,7 +661,7 @@ export async function sendOfferEmail(
       .from('offers')
       .select(`
         *,
-        customer:customers(*)
+        customer:customers!offers_customer_id_fkey(*)
       `)
       .eq('id', input.offer_id)
       .maybeSingle()
@@ -711,7 +711,7 @@ export async function sendOfferEmail(
           // Fetch full offer with line items for PDF
           const { data: fullOffer } = await supabase
             .from('offers')
-            .select(`*, line_items:offer_line_items(*), customer:customers(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)`)
+            .select(`*, line_items:offer_line_items(*), customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)`)
             .eq('id', input.offer_id)
             .single()
 
