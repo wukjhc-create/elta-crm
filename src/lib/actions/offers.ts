@@ -73,7 +73,7 @@ export async function getOffers(filters?: {
       .from('offers')
       .select(`
         *,
-        customer:customers(id, customer_number, company_name, contact_person, email),
+        customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email),
         lead:leads(id, company_name, contact_person, email)
       `)
 
@@ -148,7 +148,7 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
       .select(`
         *,
         line_items:offer_line_items(*),
-        customer:customers(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country),
+        customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country),
         lead:leads(id, company_name, contact_person, email)
       `)
       .eq('id', id)
@@ -810,7 +810,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
       .select(`
         *,
         line_items:offer_line_items(*),
-        customer:customers(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
+        customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
       `)
       .eq('id', offerId)
       .maybeSingle()
