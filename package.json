@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "check:offers-embeds": "node scripts/check-offers-customer-embeds.mjs",
     "supabase:verify": "tsx scripts/verify-supabase.ts",
     "supabase:types": "supabase gen types typescript --linked > src/types/database.types.ts",
     "db:migrate": "echo 'Run migrations manually in Supabase Dashboard SQL Editor' && echo 'Or use: supabase db push'",

@@ -37,6 +37,9 @@ jobs:
       - name: Run type check
         run: npm run type-check
 
+      - name: Check offers→customers FK disambiguation
+        run: npm run check:offers-embeds
+
       - name: Build application
         run: npm run build
         env:
