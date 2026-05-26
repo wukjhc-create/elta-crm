@@ -41,6 +41,7 @@ import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { OfferPartiesCard } from '@/components/modules/offers/offer-parties-card'
+import { EditOfferPartiesDialog } from '@/components/modules/offers/edit-offer-parties-dialog'
 import { OfferToCaseCard } from './offer-to-case-card'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
@@ -84,6 +85,7 @@ import { computeOfferDB, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_T
 import { LineItemsTable, type LineItemSaveData } from '@/components/shared/line-items-table'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { canSeeFinancials } from '@/lib/auth/roles'
+import { hasPermission } from '@/lib/auth/permissions'
 
 interface OfferDetailClientProps {
   offer: OfferWithRelations
@@ -100,6 +102,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const showFinancials = canSeeFinancials(role)
   const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
+  const [showEditPartiesDialog, setShowEditPartiesDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingLineItemId, setDeletingLineItemId] = useState<string | null>(null)
   const [showPdfPreview, setShowPdfPreview] = useState(false)
@@ -1137,7 +1140,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               )}
             </div>
 
-            {/* Sagspartnere (Sprint 12A Trin 5A — read-only) */}
+            {/* Sagspartnere (Sprint 12A Trin 5A read-only + Trin 5B edit) */}
             {parties && offer.customer && (
               <OfferPartiesCard
                 parties={parties}
@@ -1146,6 +1149,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                   company_name: offer.customer.company_name,
                   contact_person: offer.customer.contact_person,
                 }}
+                canEdit={
+                  hasPermission(role, 'offers.edit') &&
+                  (offer.status === 'draft' || offer.status === 'sent' || offer.status === 'viewed')
+                }
+                onEdit={() => setShowEditPartiesDialog(true)}
               />
             )}
 
@@ -1453,6 +1461,34 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
         </div>
       )}
       {ConfirmDialog}
+
+      {/* Edit Offer Parties Dialog (Sprint 12A Trin 5B) */}
+      {showEditPartiesDialog && parties && offer.customer && (
+        <EditOfferPartiesDialog
+          offerId={offer.id}
+          primaryCustomer={{
+            id: offer.customer.id,
+            company_name: offer.customer.company_name,
+          }}
+          initial={{
+            orderer: parties.orderer
+              ? { id: parties.orderer.id, company_name: parties.orderer.company_name || '' }
+              : null,
+            end_customer: parties.end_customer
+              ? { id: parties.end_customer.id, company_name: parties.end_customer.company_name || '' }
+              : null,
+            payer: parties.payer
+              ? { id: parties.payer.id, company_name: parties.payer.company_name || '' }
+              : null,
+            billing_mode: parties.billing_mode,
+          }}
+          onClose={() => setShowEditPartiesDialog(false)}
+          onSaved={() => {
+            toast.success('Sagspartnere opdateret')
+            router.refresh()
+          }}
+        />
+      )}
     </>
   )
 }

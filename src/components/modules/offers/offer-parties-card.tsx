@@ -11,7 +11,7 @@
  */
 
 import Link from 'next/link'
-import { Users, Building, User, Wallet, CreditCard } from 'lucide-react'
+import { Users, Building, User, Wallet, CreditCard, Pencil } from 'lucide-react'
 import { OFFER_BILLING_MODE_LABELS, type OfferBillingMode } from '@/types/offers.types'
 import type { OfferParties, OfferPartyCustomer } from '@/lib/actions/offer-parties'
 
@@ -22,6 +22,9 @@ interface OfferPartiesCardProps {
     company_name: string | null
     contact_person: string | null
   } | null
+  /** Show the "Redigér" button. Caller decides based on permission + status. */
+  canEdit?: boolean
+  onEdit?: () => void
 }
 
 function billingModeLabel(mode: OfferBillingMode | null): string {
@@ -78,13 +81,34 @@ function PartyRow({
   )
 }
 
-export function OfferPartiesCard({ parties, primaryCustomer }: OfferPartiesCardProps) {
+function EditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="ml-auto inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
+    >
+      <Pencil className="w-3.5 h-3.5" />
+      Redigér
+    </button>
+  )
+}
+
+export function OfferPartiesCard({
+  parties,
+  primaryCustomer,
+  canEdit,
+  onEdit,
+}: OfferPartiesCardProps) {
+  const showEdit = !!canEdit && !!onEdit
+
   if (parties.isAllSameAsCustomer) {
     return (
       <div className="bg-white rounded-lg border p-6">
         <div className="flex items-center gap-2 mb-2">
           <Users className="w-5 h-5 text-gray-500" />
           <h2 className="text-lg font-semibold">Sagspartnere</h2>
+          {showEdit && <EditButton onClick={onEdit!} />}
         </div>
         <p className="text-sm text-gray-600">Standard kundeopsætning</p>
         <p className="text-sm text-gray-500 mt-1">
@@ -100,6 +124,7 @@ export function OfferPartiesCard({ parties, primaryCustomer }: OfferPartiesCardP
       <div className="flex items-center gap-2 mb-4">
         <Users className="w-5 h-5 text-gray-500" />
         <h2 className="text-lg font-semibold">Sagspartnere</h2>
+        {showEdit && <EditButton onClick={onEdit!} />}
       </div>
       <div className="space-y-4">
         <PartyRow

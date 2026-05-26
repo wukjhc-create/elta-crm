@@ -2,21 +2,22 @@
 
 /**
  * Sprint 12A Trin 5A — Offer parties read-only loader.
+ * Sprint 12A Trin 5B — updateOfferParties (mutation, status-guarded).
  *
- * Loads the related customer rows for orderer / end / payer roles on
- * an offer, plus the billing_mode. Returns null for any role that is
- * identical to the offer's primary customer_id (so the UI can collapse
- * the common "same as customer" case).
- *
- * Read-only. No mutation, no mail-routing impact. Edit dialog comes
- * in Trin 5B.
+ * No mail-routing change. Mail-router (resolveOfferMailRoute) already
+ * reads these fields and was deployed in Trin 4.
  */
 
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { revalidatePath } from 'next/cache'
+import {
+  getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
+  formatError,
+} from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
-import type { OfferBillingMode } from '@/types/offers.types'
+import { OFFER_BILLING_MODES, type OfferBillingMode } from '@/types/offers.types'
 
 export interface OfferPartyCustomer {
   id: string
@@ -116,5 +117,134 @@ export async function getOfferParties(
     }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente sagspartner-roller') }
+  }
+}
+
+// =====================================================
+// Trin 5B — updateOfferParties (mutation)
+// =====================================================
+
+const EDITABLE_STATUSES = new Set(['draft', 'sent', 'viewed'])
+
+export interface UpdateOfferPartiesInput {
+  /** null = same as primary customer_id. */
+  orderer_customer_id: string | null
+  /** null = same as primary customer_id. */
+  end_customer_id: string | null
+  /** null = same as primary customer_id. */
+  payer_customer_id: string | null
+  billing_mode: OfferBillingMode
+}
+
+export async function updateOfferParties(
+  offerId: string,
+  input: UpdateOfferPartiesInput
+): Promise<ActionResult<{ offer_id: string }>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
+    validateUUID(offerId, 'tilbud ID')
+
+    if (!OFFER_BILLING_MODES.includes(input.billing_mode)) {
+      return { success: false, error: 'Ugyldig billing_mode' }
+    }
+
+    // Load offer for status + customer_id guard
+    const { data: offer, error: offerErr } = await supabase
+      .from('offers')
+      .select('id, status, customer_id')
+      .eq('id', offerId)
+      .maybeSingle()
+
+    if (offerErr || !offer) {
+      return { success: false, error: 'Tilbuddet blev ikke fundet' }
+    }
+
+    const primaryId = (offer.customer_id as string | null) || null
+    if (!primaryId) {
+      return {
+        success: false,
+        error: 'Tilbuddet mangler primær kunde — vælg en kunde først',
+      }
+    }
+
+    const status = (offer.status as string) || ''
+    if (!EDITABLE_STATUSES.has(status)) {
+      return {
+        success: false,
+        error: `Sagspartnere kan kun redigeres på tilbud i status kladde, sendt eller set (nuværende status: ${status})`,
+      }
+    }
+
+    // Normalize roles. same_as_customer forces all to primary; otherwise
+    // null roles fall back to primary.
+    const sameAsCustomer = input.billing_mode === 'same_as_customer'
+    const ordererId = sameAsCustomer ? primaryId : input.orderer_customer_id || primaryId
+    const endId = sameAsCustomer ? primaryId : input.end_customer_id || primaryId
+    const payerId = sameAsCustomer ? primaryId : input.payer_customer_id || primaryId
+
+    // Validate UUIDs syntactically (cheap fail-fast before DB roundtrip)
+    for (const [name, id] of [
+      ['orderer_customer_id', ordererId],
+      ['end_customer_id', endId],
+      ['payer_customer_id', payerId],
+    ] as const) {
+      try {
+        validateUUID(id, name)
+      } catch {
+        return { success: false, error: `Ugyldig ${name}` }
+      }
+    }
+
+    // Validate FK targets exist (skip primary — we already loaded the offer
+    // with this customer_id so we know it's valid via FK constraint).
+    const extraIds = new Set<string>()
+    if (ordererId !== primaryId) extraIds.add(ordererId)
+    if (endId !== primaryId) extraIds.add(endId)
+    if (payerId !== primaryId) extraIds.add(payerId)
+
+    if (extraIds.size > 0) {
+      const { data: existing, error: existErr } = await supabase
+        .from('customers')
+        .select('id')
+        .in('id', Array.from(extraIds))
+
+      if (existErr) {
+        logger.error('Could not validate party customers', { error: existErr, entityId: offerId })
+        return { success: false, error: 'Kunne ikke validere valgte kunder' }
+      }
+
+      const foundIds = new Set((existing || []).map((c) => c.id as string))
+      for (const id of extraIds) {
+        if (!foundIds.has(id)) {
+          return { success: false, error: `Valgt kunde findes ikke (id ${id})` }
+        }
+      }
+    }
+
+    // Persist
+    const { error: updErr } = await supabase
+      .from('offers')
+      .update({
+        orderer_customer_id: ordererId,
+        end_customer_id: endId,
+        payer_customer_id: payerId,
+        billing_mode: input.billing_mode,
+      })
+      .eq('id', offerId)
+
+    if (updErr) {
+      logger.error('Could not update offer parties', { error: updErr, entityId: offerId })
+      return { success: false, error: 'Kunne ikke gemme sagspartnere' }
+    }
+
+    revalidatePath(`/dashboard/offers/${offerId}`)
+    revalidatePath('/dashboard/offers')
+
+    return { success: true, data: { offer_id: offerId } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke gemme sagspartnere') }
   }
 }
