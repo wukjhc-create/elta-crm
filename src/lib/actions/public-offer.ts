@@ -58,7 +58,7 @@ export async function getPublicOffer(offerId: string): Promise<PublicOffer | nul
       total_amount, discount_percentage, discount_amount,
       tax_percentage, tax_amount, final_amount, currency,
       valid_until, terms_and_conditions, notes, created_at,
-      customer:customers(company_name, contact_person, email),
+      customer:customers!offers_customer_id_fkey(company_name, contact_person, email),
       line_items:offer_line_items(id, position, description, quantity, unit, unit_price, discount_percentage, total, section)
     `)
     .eq('id', offerId)
@@ -158,7 +158,7 @@ export async function acceptPublicOffer(offerId: string, accepterName: string): 
 
   const { data: offer } = await supabase
     .from('offers')
-    .select('id, status, offer_number, title, final_amount, currency, created_by, customer:customers(company_name, contact_person, email)')
+    .select('id, status, offer_number, title, final_amount, currency, created_by, customer:customers!offers_customer_id_fkey(company_name, contact_person, email)')
     .eq('id', offerId)
     .single()
 
@@ -244,7 +244,7 @@ export async function rejectPublicOffer(
 
   const { data: offer } = await supabase
     .from('offers')
-    .select('id, status, offer_number, title, final_amount, currency, created_by, customer:customers(company_name, contact_person, email)')
+    .select('id, status, offer_number, title, final_amount, currency, created_by, customer:customers!offers_customer_id_fkey(company_name, contact_person, email)')
     .eq('id', offerId)
     .single()
 

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         line_items:offer_line_items(*),
-        customer:customers(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
+        customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
       `)
       .eq('id', offerId)
       .eq('customer_id', tokenData.customer_id)
