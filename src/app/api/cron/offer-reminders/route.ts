@@ -69,7 +69,7 @@ export async function GET(request: Request) {
         .select(`
           id, offer_number, title, final_amount, currency, valid_until,
           sent_at, last_reminder_sent, reminder_count, created_by, customer_id,
-          customer:customers(company_name, contact_person, email)
+          customer:customers!offers_customer_id_fkey(company_name, contact_person, email)
         `)
         .in('status', ['sent', 'viewed'])
         .lt('reminder_count', maxCount)

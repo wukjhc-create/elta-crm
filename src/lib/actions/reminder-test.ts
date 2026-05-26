@@ -33,7 +33,7 @@ export async function sendTestReminder(): Promise<{ success: boolean; error?: st
     // Try to find a real offer to link to (most recent sent/viewed offer)
     const { data: realOffer } = await supabase
       .from('offers')
-      .select('id, offer_number, title, final_amount, currency, valid_until, customer_id, customer:customers(company_name, contact_person)')
+      .select('id, offer_number, title, final_amount, currency, valid_until, customer_id, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
       .in('status', ['sent', 'viewed', 'draft'])
       .order('created_at', { ascending: false })
       .limit(1)
