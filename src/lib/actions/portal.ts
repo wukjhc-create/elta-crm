@@ -11,6 +11,7 @@ import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integra
 import { sendEmail } from '@/lib/email/email-service'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
+import { isInternalEmail } from '@/lib/services/mail-routing'
 import { MAX_FILE_SIZE, APP_URL } from '@/lib/constants'
 import type {
   PortalAccessToken,
@@ -900,6 +901,159 @@ export async function sendEmployeeMessage(
     if (error) {
       logger.error('Error sending employee message', { error: error })
       return { success: false, error: 'Kunne ikke sende besked' }
+    }
+
+    // R3 — Notify customer by email that there is a new portal message.
+    // Non-critical: never block message creation. Mail body intentionally
+    // does NOT include the message text — customer must log in to read.
+    try {
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('company_name, contact_person, email')
+        .eq('id', customerId)
+        .maybeSingle()
+
+      const recipientEmail = customer?.email?.trim() || null
+
+      if (!recipientEmail) {
+        logger.info('Portal message notification skipped: customer has no email', {
+          action: 'portal_message_email_notification',
+          entity: 'customers',
+          entityId: customerId,
+          metadata: { outcome: 'skipped', reason: 'no_customer_email' },
+        })
+      } else if (isInternalEmail(recipientEmail)) {
+        logger.info('Portal message notification skipped: internal recipient', {
+          action: 'portal_message_email_notification',
+          entity: 'customers',
+          entityId: customerId,
+          metadata: { outcome: 'skipped', reason: 'internal_email', to: recipientEmail },
+        })
+      } else {
+        // Find newest active, non-expired portal_access_token for deep-link.
+        const nowIso = new Date().toISOString()
+        const { data: tokenRow } = await supabase
+          .from('portal_access_tokens')
+          .select('token, expires_at')
+          .eq('customer_id', customerId)
+          .eq('is_active', true)
+          .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (!tokenRow?.token) {
+          logger.info('Portal message notification skipped: no active portal token', {
+            action: 'portal_message_email_notification',
+            entity: 'customers',
+            entityId: customerId,
+            metadata: { outcome: 'skipped', reason: 'no_active_token' },
+          })
+        } else {
+          const portalUrl = offerId
+            ? `${APP_URL}/portal/${tokenRow.token}/offers/${offerId}`
+            : `${APP_URL}/portal/${tokenRow.token}`
+
+          const greetingName =
+            customer?.contact_person?.trim() ||
+            customer?.company_name?.trim() ||
+            'Kunde'
+
+          const subject = 'Ny besked fra Elta Solar'
+
+          const html = `
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: #2D8A2D; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+                <h1 style="color: white; margin: 0; font-size: 20px;">Ny besked fra Elta Solar</h1>
+              </div>
+              <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+                <p style="font-size: 16px; color: #111827;">Kære ${greetingName},</p>
+                <p style="color: #374151;">Du har en ny besked fra Elta Solar i kundeportalen.</p>
+                <p style="color: #374151;">Klik på knappen herunder for at åbne portalen og læse beskeden.</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
+                  <tr>
+                    <td align="center">
+                      <a href="${portalUrl}" target="_blank" style="display:inline-block;padding:14px 32px;background-color:#2D8A2D;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;border-radius:8px;">
+                        Åbn kundeportalen
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="color: #374151; margin-top: 24px;">Med venlig hilsen,<br/><strong>Elta Solar</strong></p>
+                <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
+                <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af Elta Solar. Selve beskeden vises kun i kundeportalen.</p>
+              </div>
+            </div>
+          `
+          const text = `Kære ${greetingName},\n\nDu har en ny besked fra Elta Solar i kundeportalen.\n\nÅbn portalen her: ${portalUrl}\n\nMed venlig hilsen,\nElta Solar`
+
+          let mailOk = false
+          let mailError: string | undefined
+
+          if (isGraphConfigured()) {
+            const sendResult = await sendEmailViaGraph({
+              to: recipientEmail,
+              subject,
+              html,
+              text,
+            })
+            mailOk = sendResult.success
+            mailError = sendResult.error
+          } else {
+            const smtpResult = await getSmtpSettings()
+            const smtpConfig = smtpResult.success && smtpResult.data
+              ? {
+                  host: smtpResult.data.host || undefined,
+                  port: smtpResult.data.port || undefined,
+                  user: smtpResult.data.user || undefined,
+                  password: smtpResult.data.password || undefined,
+                  fromEmail: smtpResult.data.fromEmail || undefined,
+                  fromName: smtpResult.data.fromName || undefined,
+                }
+              : undefined
+            const sendResult = await sendEmail(
+              { to: recipientEmail, subject, html, text },
+              smtpConfig
+            )
+            mailOk = sendResult.success
+            mailError = sendResult.error
+          }
+
+          if (mailOk) {
+            logger.info('Portal message notification sent', {
+              action: 'portal_message_email_notification',
+              entity: 'customers',
+              entityId: customerId,
+              metadata: {
+                outcome: 'sent',
+                to: recipientEmail,
+                via: isGraphConfigured() ? 'graph' : 'smtp',
+                has_offer_link: !!offerId,
+              },
+            })
+          } else {
+            logger.error('Portal message notification failed', {
+              action: 'portal_message_email_notification',
+              entity: 'customers',
+              entityId: customerId,
+              metadata: {
+                outcome: 'failed',
+                to: recipientEmail,
+                via: isGraphConfigured() ? 'graph' : 'smtp',
+                error: mailError,
+              },
+            })
+          }
+        }
+      }
+    } catch (notifyError) {
+      logger.error('Portal message notification threw', {
+        action: 'portal_message_email_notification',
+        entity: 'customers',
+        entityId: customerId,
+        error: notifyError,
+      })
+      // Non-critical — message is saved, mail is best-effort.
     }
 
     revalidatePath('/customers')
