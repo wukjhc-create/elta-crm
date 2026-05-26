@@ -40,6 +40,7 @@ import {
 import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
 import { OfferForm } from '@/components/modules/offers/offer-form'
+import { OfferPartiesCard } from '@/components/modules/offers/offer-parties-card'
 import { OfferToCaseCard } from './offer-to-case-card'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
@@ -89,9 +90,10 @@ interface OfferDetailClientProps {
   companySettings: CompanySettings | null
   dbThresholds?: DBThresholds
   linkedCase?: { case_id: string; case_number: string } | null
+  parties?: import('@/lib/actions/offer-parties').OfferParties | null
 }
 
-export function OfferDetailClient({ offer, companySettings, dbThresholds, linkedCase }: OfferDetailClientProps) {
+export function OfferDetailClient({ offer, companySettings, dbThresholds, linkedCase, parties }: OfferDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { role } = useUserRole()
@@ -1134,6 +1136,18 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 <p className="text-gray-500">Ingen modtager valgt</p>
               )}
             </div>
+
+            {/* Sagspartnere (Sprint 12A Trin 5A — read-only) */}
+            {parties && offer.customer && (
+              <OfferPartiesCard
+                parties={parties}
+                primaryCustomer={{
+                  id: offer.customer.id,
+                  company_name: offer.customer.company_name,
+                  contact_person: offer.customer.contact_person,
+                }}
+              />
+            )}
 
             {/* Validity */}
             <div className="bg-white rounded-lg border p-6">
