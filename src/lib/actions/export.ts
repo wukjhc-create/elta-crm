@@ -190,7 +190,7 @@ export async function exportOffers(filters?: {
 
     let query = supabase
       .from('offers')
-      .select('offer_number, title, customer:customers(company_name, customer_number), status, total_amount, discount_amount, final_amount, valid_until, notes, created_at')
+      .select('offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, final_amount, valid_until, notes, created_at')
       .order('created_at', { ascending: false })
       .limit(MAX_EXPORT_ROWS)
 

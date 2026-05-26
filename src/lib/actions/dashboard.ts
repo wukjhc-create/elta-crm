@@ -386,7 +386,7 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
       total_amount,
       status,
       created_at,
-      customer:customers(company_name)
+      customer:customers!offers_customer_id_fkey(company_name)
     `
     )
     .in('status', ['sent', 'viewed'])

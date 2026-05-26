@@ -245,7 +245,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             .from('offers')
             .select(`
               id, offer_number, title, status, created_at,
-              customer:customers(company_name)
+              customer:customers!offers_customer_id_fkey(company_name)
             `)
             .in('status', ['sent', 'viewed'])
             .lt('created_at', cutoff)

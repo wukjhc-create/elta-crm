@@ -659,7 +659,7 @@ export async function buildOfferWebhookPayload(
     .from('offers')
     .select(`
       *,
-      customer:customers(id, company_name, contact_person, email),
+      customer:customers!offers_customer_id_fkey(id, company_name, contact_person, email),
       line_items:offer_line_items(description, quantity, unit, unit_price, total)
     `)
     .eq('id', offerId)

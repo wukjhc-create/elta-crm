@@ -94,7 +94,7 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       supabase.from('offers').select('final_amount').not('status', 'eq', 'draft'),
       supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'active'),
       supabase.from('time_entries').select('hours, billable').gte('date', monthStart.toISOString()),
-      supabase.from('offers').select('customer_id, final_amount, customer:customers(company_name)').eq('status', 'accepted'),
+      supabase.from('offers').select('customer_id, final_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted'),
     ])
 
     // Calculate revenue
@@ -252,7 +252,7 @@ export async function getRevenueByCustomer(
 
     const { data: offers } = await supabase
       .from('offers')
-      .select('customer_id, status, final_amount, customer:customers(company_name)')
+      .select('customer_id, status, final_amount, customer:customers!offers_customer_id_fkey(company_name)')
       .not('customer_id', 'is', null)
 
     if (!offers || offers.length === 0) {
