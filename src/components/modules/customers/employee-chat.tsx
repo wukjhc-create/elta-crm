@@ -68,9 +68,10 @@ export function EmployeeChat({
   const [error, setError] = useState<string | null>(null)
   const [pendingAttachments, setPendingAttachments] = useState<PortalAttachment[]>([])
 
-  // Load messages
-  const loadMessages = async () => {
-    setIsLoadingMessages(true)
+  // Load messages. `silent` skips the spinner/error UI — used by polling
+  // so the chat doesn't flash "Indlæser…" every 15 seconds.
+  const loadMessages = async (silent = false) => {
+    if (!silent) setIsLoadingMessages(true)
     try {
       const result = await getCustomerPortalMessages(customerId, offerId)
       if (result.success && result.data) {
@@ -84,25 +85,39 @@ export function EmployeeChat({
         if (unreadIds.length > 0) {
           await markCustomerMessagesAsRead(unreadIds)
         }
-      } else {
+      } else if (!silent) {
         console.error('Failed to load messages:', result.error)
         setError(result.error || 'Kunne ikke hente beskeder')
       }
     } catch (err) {
-      console.error('Error loading messages:', err)
-      setError('Kunne ikke hente beskeder fra serveren')
+      if (!silent) {
+        console.error('Error loading messages:', err)
+        setError('Kunne ikke hente beskeder fra serveren')
+      }
     } finally {
-      setIsLoadingMessages(false)
+      if (!silent) setIsLoadingMessages(false)
     }
   }
 
+  // Initial load + 15s polling. Polling mirrors portal-chat.tsx so the
+  // CRM side stays in sync without the operator having to hit refresh.
   useEffect(() => {
     loadMessages()
+    const interval = setInterval(() => loadMessages(true), 15000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, offerId])
 
-  // Scroll to bottom on mount and when messages change
+  // Scroll to bottom only when the message list actually grows. Avoids
+  // jumpy auto-scroll on every poll-driven re-render when nothing
+  // changed, and uses 'auto' (instant) so polling-driven arrivals do
+  // not visually yank the page.
+  const prevMessagesLengthRef = useRef(0)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messages.length > prevMessagesLengthRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+    }
+    prevMessagesLengthRef.current = messages.length
   }, [messages])
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -240,7 +255,7 @@ export function EmployeeChat({
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={loadMessages}
+            onClick={() => loadMessages()}
             disabled={isLoadingMessages}
             className="p-2 hover:bg-gray-100 rounded-lg"
             title="Opdater beskeder"
@@ -274,7 +289,7 @@ export function EmployeeChat({
                 <div className="text-red-500 text-sm mb-2 p-3 bg-red-50 rounded-lg w-full">
                   {error}
                 </div>
-                <button onClick={loadMessages} className="text-sm text-primary hover:underline">
+                <button onClick={() => loadMessages()} className="text-sm text-primary hover:underline">
                   Prøv igen
                 </button>
               </>

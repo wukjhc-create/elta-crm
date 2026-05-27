@@ -199,7 +199,10 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   useEffect(() => {
     if (!offer.customer_id) return
     async function loadUnread() {
-      const result = await getUnreadPortalMessageCount(offer.customer_id ?? undefined)
+      const result = await getUnreadPortalMessageCount(
+        offer.customer_id ?? undefined,
+        offer.id,
+      )
       if (result.success && result.data !== undefined) {
         setUnreadChatCount(result.data)
       }
@@ -207,7 +210,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     loadUnread()
     const interval = setInterval(loadUnread, 30000) // poll every 30s
     return () => clearInterval(interval)
-  }, [offer.customer_id])
+  }, [offer.customer_id, offer.id])
 
   // Load existing Ordrestyring reference
   useEffect(() => {

@@ -1099,7 +1099,8 @@ export async function markPortalMessagesAsRead(
 
 // Get unread message count for employee view
 export async function getUnreadPortalMessageCount(
-  customerId?: string
+  customerId?: string,
+  offerId?: string
 ): Promise<ActionResult<number>> {
   try {
     const { supabase, userId } = await getAuthenticatedClient()
@@ -1112,6 +1113,14 @@ export async function getUnreadPortalMessageCount(
 
     if (customerId) {
       query = query.eq('customer_id', customerId)
+    }
+
+    // Sprint 12C hotfix — when offerId is set, restrict to messages for
+    // this offer OR with no offer link (kunde skrev fra portal-home).
+    // Matches getCustomerPortalMessages so badge cannot show messages
+    // that the chat content excludes.
+    if (offerId) {
+      query = query.or(`offer_id.eq.${offerId},offer_id.is.null`)
     }
 
     const { count, error } = await query
@@ -1142,8 +1151,11 @@ export async function getCustomerPortalMessages(
       .eq('customer_id', customerId)
       .order('created_at', { ascending: true })
 
+    // Sprint 12C hotfix — match getUnreadPortalMessageCount: when offerId
+    // is set, include messages for this offer OR with no offer link
+    // (kunde skrev fra portal-home). Mirrors getPublicOfferMessages.
     if (offerId) {
-      query = query.eq('offer_id', offerId)
+      query = query.or(`offer_id.eq.${offerId},offer_id.is.null`)
     }
 
     const { data, error } = await query
