@@ -40,7 +40,10 @@ function sameIdSet(a: { id: string }[], b: { id: string }[]): boolean {
 export function TaskReminderOverlay() {
   const [reminders, setReminders] = useState<CustomerTaskWithRelations[]>([])
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([])
-  const [isMinimized, setIsMinimizedState] = useState(false)
+  // Default minimized. Overlay shows as the small orange pill on every
+  // session-start. The full list only opens when the user explicitly
+  // clicks the pill (which then writes sessionStorage='0').
+  const [isMinimized, setIsMinimizedState] = useState(true)
 
   // Refs hold the latest state so loadReminders can compare without
   // capturing stale closure values.
@@ -49,13 +52,17 @@ export function TaskReminderOverlay() {
 
   // sessionStorage-backed minimized state — survives navigation
   // within the same session, resets on full reload.
+  // Semantics:
+  //   null  → no explicit choice → stay minimized (default)
+  //   '1'   → user previously minimized → stay minimized
+  //   '0'   → user explicitly opened the list → expand
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       const stored = window.sessionStorage.getItem(MINIMIZED_STORAGE_KEY)
-      if (stored === '1') setIsMinimizedState(true)
+      if (stored === '0') setIsMinimizedState(false)
     } catch {
-      // sessionStorage unavailable — default to expanded
+      // sessionStorage unavailable — stay minimized
     }
   }, [])
 
