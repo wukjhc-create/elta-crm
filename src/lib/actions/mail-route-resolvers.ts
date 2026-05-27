@@ -517,7 +517,7 @@ export async function resolveInvoiceMailRoute(
     .from('invoices')
     .select(`
       id, invoice_number, customer_id,
-      customers ( id, company_name, email )
+      customers!invoices_customer_id_fkey ( id, company_name, email )
     `)
     .eq('id', invoiceId)
     .maybeSingle()

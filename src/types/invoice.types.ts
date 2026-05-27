@@ -1,11 +1,37 @@
 export type InvoiceStatus = 'draft' | 'sent' | 'paid'
 export type InvoicePaymentStatus = 'pending' | 'partial' | 'paid'
 
+// Sprint 13A — sagspartner-billing-mode (matcher offers.billing_mode +
+// service_cases.billing_mode). Identiske enum-værdier.
+export const INVOICE_BILLING_MODES = [
+  'same_as_customer',
+  'orderer_pays',
+  'end_customer_pays',
+  'third_party_pays',
+  'unknown',
+] as const
+
+export type InvoiceBillingMode = (typeof INVOICE_BILLING_MODES)[number]
+
+export const INVOICE_BILLING_MODE_LABELS: Record<InvoiceBillingMode, string> = {
+  same_as_customer: 'Samme som kunde',
+  orderer_pays: 'Bestiller betaler',
+  end_customer_pays: 'Slutkunde betaler',
+  third_party_pays: 'Tredjepart betaler',
+  unknown: 'Ukendt',
+}
+
 export interface InvoiceRow {
   id: string
   invoice_number: string
   customer_id: string | null
   offer_id: string | null
+  // Sprint 13A — sagspartner-roller. Default-fyldt til customer_id i
+  // migration 00119. billing_mode er NOT NULL efter backfill.
+  orderer_customer_id: string | null
+  end_customer_id: string | null
+  payer_customer_id: string | null
+  billing_mode: InvoiceBillingMode
   /** Phase 7.1 — invoice from work_order */
   work_order_id?: string | null
   /** Sprint 6B-1 (mig 00104) — direct sag-link */
