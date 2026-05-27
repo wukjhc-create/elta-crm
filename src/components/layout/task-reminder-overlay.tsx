@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bell,
@@ -26,11 +26,48 @@ import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 
 const POLL_INTERVAL = 60_000 // 60 seconds
+const MINIMIZED_STORAGE_KEY = 'taskReminderOverlay.isMinimized'
+
+function sameIdSet(a: { id: string }[], b: { id: string }[]): boolean {
+  if (a.length !== b.length) return false
+  const ids = new Set(a.map((x) => x.id))
+  for (const x of b) {
+    if (!ids.has(x.id)) return false
+  }
+  return true
+}
 
 export function TaskReminderOverlay() {
   const [reminders, setReminders] = useState<CustomerTaskWithRelations[]>([])
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([])
-  const [isMinimized, setIsMinimized] = useState(false)
+  const [isMinimized, setIsMinimizedState] = useState(false)
+
+  // Refs hold the latest state so loadReminders can compare without
+  // capturing stale closure values.
+  const remindersRef = useRef<CustomerTaskWithRelations[]>([])
+  const priceAlertsRef = useRef<PriceAlert[]>([])
+
+  // sessionStorage-backed minimized state — survives navigation
+  // within the same session, resets on full reload.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const stored = window.sessionStorage.getItem(MINIMIZED_STORAGE_KEY)
+      if (stored === '1') setIsMinimizedState(true)
+    } catch {
+      // sessionStorage unavailable — default to expanded
+    }
+  }, [])
+
+  const setIsMinimized = useCallback((next: boolean) => {
+    setIsMinimizedState(next)
+    if (typeof window === 'undefined') return
+    try {
+      window.sessionStorage.setItem(MINIMIZED_STORAGE_KEY, next ? '1' : '0')
+    } catch {
+      // ignore
+    }
+  }, [])
 
   const loadReminders = useCallback(async () => {
     try {
@@ -38,8 +75,17 @@ export function TaskReminderOverlay() {
         getMyPendingReminders(),
         getUnreadPriceAlerts(),
       ])
-      setReminders(taskData)
-      setPriceAlerts(alertData)
+      // Skip setState when the ID set is identical to current state —
+      // avoids unnecessary re-renders + framer-motion layout-shift
+      // animations on every poll cycle.
+      if (!sameIdSet(remindersRef.current, taskData)) {
+        remindersRef.current = taskData
+        setReminders(taskData)
+      }
+      if (!sameIdSet(priceAlertsRef.current, alertData)) {
+        priceAlertsRef.current = alertData
+        setPriceAlerts(alertData)
+      }
     } catch {
       // Silently fail — non-critical
     }
@@ -53,25 +99,41 @@ export function TaskReminderOverlay() {
 
   const handleComplete = async (taskId: string) => {
     await completeCustomerTask(taskId)
-    setReminders((prev) => prev.filter((r) => r.id !== taskId))
+    setReminders((prev) => {
+      const next = prev.filter((r) => r.id !== taskId)
+      remindersRef.current = next
+      return next
+    })
   }
 
   const handleSnooze = async (taskId: string, minutes: number) => {
     const until = new Date(Date.now() + minutes * 60_000).toISOString()
     await snoozeTask(taskId, until)
-    setReminders((prev) => prev.filter((r) => r.id !== taskId))
+    setReminders((prev) => {
+      const next = prev.filter((r) => r.id !== taskId)
+      remindersRef.current = next
+      return next
+    })
   }
 
   const handleDismiss = async (id: string) => {
     // Snooze 7 days to persistently dismiss without completing
     const until = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
     await snoozeTask(id, until)
-    setReminders((prev) => prev.filter((r) => r.id !== id))
+    setReminders((prev) => {
+      const next = prev.filter((r) => r.id !== id)
+      remindersRef.current = next
+      return next
+    })
   }
 
   const handleDismissAlert = async (alertId: string) => {
     await dismissPriceAlert(alertId)
-    setPriceAlerts((prev) => prev.filter((a) => a.id !== alertId))
+    setPriceAlerts((prev) => {
+      const next = prev.filter((a) => a.id !== alertId)
+      priceAlertsRef.current = next
+      return next
+    })
   }
 
   const totalVisible = reminders.length + priceAlerts.length
@@ -157,7 +219,6 @@ function PriceAlertCard({
 
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, x: 100, scale: 0.95 }}
@@ -234,7 +295,6 @@ function ReminderCard({
 
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, x: 100, scale: 0.95 }}
