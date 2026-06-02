@@ -25,6 +25,7 @@ import { PortalBesigtigelseSection } from './portal-besigtigelse'
 import { PortalFuldmagtSection } from './portal-fuldmagt'
 import { formatDate as formatDateUtil } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils/format'
+import { getSafeDocumentDescription } from '@/lib/documents/display-description'
 
 interface PortalDashboardProps {
   token: string
@@ -298,7 +299,9 @@ export function PortalDashboard({
             <h2 className="text-lg font-semibold">Dokumenter</h2>
           </div>
           <div className="divide-y">
-            {documents.map((doc) => (
+            {documents.map((doc) => {
+              const safeDesc = getSafeDocumentDescription(doc)
+              return (
               <a
                 key={doc.id}
                 href={doc.file_url}
@@ -312,8 +315,8 @@ export function PortalDashboard({
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">{doc.title}</p>
-                    {doc.description && (
-                      <p className="text-sm text-gray-500">{doc.description}</p>
+                    {safeDesc && (
+                      <p className="text-sm text-gray-500">{safeDesc}</p>
                     )}
                   </div>
                 </div>
@@ -324,7 +327,8 @@ export function PortalDashboard({
                   <Download className="w-4 h-4 text-gray-400" />
                 </div>
               </a>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

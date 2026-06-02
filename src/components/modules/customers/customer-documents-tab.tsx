@@ -27,6 +27,7 @@ import {
 import type { CustomerDocument, CustomerImage } from '@/lib/actions/customer-documents'
 import { useToast } from '@/components/ui/toast'
 import { SendBesigtigelsesreportDialog } from '@/components/modules/customers/send-besigtigelsesreport-dialog'
+import { isLikelyJsonDescription, getSafeDocumentDescription } from '@/lib/documents/display-description'
 
 interface CustomerDocumentsTabProps {
   customerId: string
@@ -410,7 +411,10 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
             <h3 className="font-semibold text-sm">Andre dokumenter</h3>
           </div>
           <div className="divide-y">
-            {otherDocs.map((doc) => (
+            {otherDocs.map((doc) => {
+              const displayDesc = getSafeDocumentDescription(doc)
+              const hasHiddenJsonMetadata = !displayDesc && isLikelyJsonDescription(doc.description)
+              return (
               <div key={doc.id} className="p-3 sm:p-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 shrink-0 bg-gray-100 rounded-lg flex items-center justify-center">
@@ -418,7 +422,16 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{doc.title}</p>
-                    <p className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString('da-DK')}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(doc.created_at).toLocaleDateString('da-DK')}
+                      {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
+                    </p>
+                    {displayDesc && (
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{displayDesc}</p>
+                    )}
+                    {hasHiddenJsonMetadata && (
+                      <p className="text-xs text-gray-400 italic mt-0.5">Dokumentmetadata</p>
+                    )}
                   </div>
                 </div>
                 {doc.file_url && (
@@ -428,7 +441,8 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
                   </a>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
