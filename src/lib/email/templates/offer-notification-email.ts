@@ -12,6 +12,21 @@ interface OfferNotificationParams {
   finalAmount: string
   accepterName?: string
   offerUrl: string
+  // Phase 12A — vises kun naar action='rejected'. Backwards-compatible:
+  // gamle kaldere uden disse felter faar uaendret HTML.
+  rejectionReasonLabel?: string
+  rejectionNote?: string
+  rejectedByName?: string
+  rejectedByEmail?: string
+}
+
+function escapeHtmlMinimal(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 export function generateOfferNotificationHtml({
@@ -23,6 +38,10 @@ export function generateOfferNotificationHtml({
   finalAmount,
   accepterName,
   offerUrl,
+  rejectionReasonLabel,
+  rejectionNote,
+  rejectedByName,
+  rejectedByEmail,
 }: OfferNotificationParams): string {
   const isAccepted = action === 'accepted'
   const statusColor = isAccepted ? BRAND_GREEN : '#dc2626'
@@ -31,6 +50,23 @@ export function generateOfferNotificationHtml({
   const message = isAccepted
     ? `<strong>${accepterName || customerName}</strong> fra ${companyName} har accepteret tilbuddet.`
     : `${customerName} fra ${companyName} har afvist tilbuddet.`
+
+  // Phase 12A — afvisnings-detaljer renderes kun for rejected + hvis felter er sat.
+  const rejectionDetailRows = !isAccepted
+    ? [
+        rejectionReasonLabel
+          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;width:100px;">Årsag:</td><td style="padding:4px 0;color:#333;font-size:13px;font-weight:bold;">${escapeHtmlMinimal(rejectionReasonLabel)}</td></tr>`
+          : '',
+        rejectionNote
+          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;vertical-align:top;">Bemærkning:</td><td style="padding:4px 0;color:#333;font-size:13px;white-space:pre-wrap;">${escapeHtmlMinimal(rejectionNote)}</td></tr>`
+          : '',
+        (rejectedByName || rejectedByEmail)
+          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;">Afvist af:</td><td style="padding:4px 0;color:#333;font-size:13px;">${escapeHtmlMinimal(
+              [rejectedByName, rejectedByEmail].filter(Boolean).join(' — ')
+            )}</td></tr>`
+          : '',
+      ].filter(Boolean).join('')
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="da">
@@ -60,6 +96,7 @@ export function generateOfferNotificationHtml({
         <tr><td style="padding:4px 0;color:#888;font-size:13px;">Nummer:</td><td style="padding:4px 0;color:#333;font-size:13px;">${offerNumber}</td></tr>
         <tr><td style="padding:4px 0;color:#888;font-size:13px;">Kunde:</td><td style="padding:4px 0;color:#333;font-size:13px;">${companyName}</td></tr>
         <tr><td style="padding:4px 0;color:#888;font-size:13px;">Beløb:</td><td style="padding:4px 0;color:${BRAND_GREEN};font-size:16px;font-weight:bold;">${finalAmount}</td></tr>
+        ${rejectionDetailRows}
       </table>
     </td></tr>
   </table>

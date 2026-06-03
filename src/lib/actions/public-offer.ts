@@ -3,6 +3,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
+import {
+  REJECTION_REASON_LABELS,
+  type OfferRejectionInput,
+} from '@/types/offers.types'
 
 export interface PublicOffer {
   id: string
@@ -238,13 +242,36 @@ export async function acceptPublicOffer(offerId: string, accepterName: string): 
 
 export async function rejectPublicOffer(
   offerId: string,
-  reason?: string
+  input?: OfferRejectionInput | string
 ): Promise<{ success: boolean; error?: string }> {
+  // Normalisér input (validerer reason hvis struktureret)
+  const { normalizeRejectionInput, captureRejectionMeta } = await import(
+    '@/lib/services/offer-rejection'
+  )
+  let normalized
+  try {
+    normalized = normalizeRejectionInput(input)
+  } catch (err) {
+    logger.error('Invalid rejection input', { error: err, entityId: offerId })
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Ugyldig afvisningsårsag',
+    }
+  }
+
+  // Capture IP/UA (best effort)
+  let meta = { ip: 'unknown', userAgent: 'unknown' }
+  try {
+    meta = await captureRejectionMeta()
+  } catch (metaErr) {
+    logger.error('Failed to capture rejection meta', { error: metaErr })
+  }
+
   const supabase = await createClient()
 
   const { data: offer } = await supabase
     .from('offers')
-    .select('id, status, offer_number, title, final_amount, currency, created_by, customer:customers!offers_customer_id_fkey(company_name, contact_person, email)')
+    .select('id, status, offer_number, title, final_amount, currency, created_by, customer_id, customer:customers!offers_customer_id_fkey(company_name, contact_person, email)')
     .eq('id', offerId)
     .single()
 
@@ -253,24 +280,55 @@ export async function rejectPublicOffer(
   if (offer.status === 'accepted') return { success: false, error: 'Tilbuddet er allerede accepteret' }
   if (!['sent', 'viewed'].includes(offer.status)) return { success: false, error: 'Tilbuddet kan ikke afvises i denne status' }
 
-  const updateData: Record<string, unknown> = {
-    status: 'rejected',
-    rejected_at: new Date().toISOString(),
-  }
-  if (reason) {
-    updateData.notes = `Afvist via portal: ${reason}`
-  }
-
+  // Update med 6 nye strukturerede felter. INGEN notes-prefix længere
+  // (offers.notes forbliver rent intern-note-felt).
   const { error } = await supabase
     .from('offers')
-    .update(updateData)
+    .update({
+      status: 'rejected',
+      rejected_at: new Date().toISOString(),
+      rejection_reason: normalized.reason,
+      rejection_note: normalized.note,
+      rejected_by_name: normalized.signerName,
+      rejected_by_email: normalized.signerEmail,
+      rejected_by_ip: meta.ip,
+      rejected_by_user_agent: meta.userAgent,
+    })
     .eq('id', offerId)
 
   if (error) return { success: false, error: error.message }
 
-  // Send notification to employee
+  const reasonLabel = REJECTION_REASON_LABELS[normalized.reason]
+
+  // Phase 12A — legacy-flow logger nu ogsaa til offer_activities
+  // (matcher portal-flow). performed_by=null fordi public/anon.
   try {
-    await sendOfferStatusNotification(offer, 'rejected')
+    await supabase.from('offer_activities').insert({
+      offer_id: offerId,
+      activity_type: 'rejected',
+      description: `Tilbud afvist: ${reasonLabel}${normalized.note ? ` — ${normalized.note}` : ''}`,
+      performed_by: null,
+      metadata: {
+        reason: normalized.reason,
+        reason_label: reasonLabel,
+        note: normalized.note,
+        signer_name: normalized.signerName,
+        signer_email: normalized.signerEmail,
+      },
+    })
+  } catch (activityErr) {
+    // Non-critical — afvis-rowen er allerede gemt
+    logger.error('Failed to log rejection activity', { error: activityErr, entityId: offerId })
+  }
+
+  // Send notification to employee (med struktureret reason/note)
+  try {
+    await sendOfferStatusNotification(offer, 'rejected', undefined, {
+      reasonLabel,
+      note: normalized.note,
+      signerName: normalized.signerName,
+      signerEmail: normalized.signerEmail,
+    })
   } catch (err) {
     logger.error('Failed to send rejection notification', { error: err, entityId: offerId })
   }
@@ -283,7 +341,13 @@ async function sendOfferStatusNotification(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   offer: any,
   action: 'accepted' | 'rejected',
-  accepterName?: string
+  accepterName?: string,
+  rejectionDetails?: {
+    reasonLabel: string
+    note: string | null
+    signerName: string | null
+    signerEmail: string | null
+  },
 ) {
   const { isGraphConfigured, getMailbox, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
   const { generateOfferNotificationHtml } = await import('@/lib/email/templates/offer-notification-email')
@@ -331,6 +395,10 @@ async function sendOfferStatusNotification(
     finalAmount,
     accepterName,
     offerUrl,
+    rejectionReasonLabel: rejectionDetails?.reasonLabel,
+    rejectionNote: rejectionDetails?.note || undefined,
+    rejectedByName: rejectionDetails?.signerName || undefined,
+    rejectedByEmail: rejectionDetails?.signerEmail || undefined,
   })
 
   // Sprint 8H Phase 3: central mail-router (internal_notification).

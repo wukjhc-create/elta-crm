@@ -63,6 +63,50 @@ export function isValidOfferTransition(from: OfferStatus, to: OfferStatus): bool
   return OFFER_STATUS_TRANSITIONS[from]?.includes(to) ?? false
 }
 
+// =====================================================
+// Phase 12A — strukturerede afvisnings-felter
+// =====================================================
+
+export const REJECTION_REASON_CODES = [
+  'price_too_high',
+  'chose_competitor',
+  'paused',
+  'doesnt_match',
+  'other',
+] as const
+
+export type RejectionReasonCode = (typeof REJECTION_REASON_CODES)[number]
+
+export const REJECTION_REASON_LABELS: Record<RejectionReasonCode, string> = {
+  price_too_high: 'Prisen er for høj',
+  chose_competitor: 'Vi har valgt en anden leverandør',
+  paused: 'Projektet er sat på pause',
+  doesnt_match: 'Tilbuddet matcher ikke behovet',
+  other: 'Andet',
+}
+
+export function isRejectionReasonCode(v: unknown): v is RejectionReasonCode {
+  return typeof v === 'string'
+    && (REJECTION_REASON_CODES as readonly string[]).includes(v)
+}
+
+/** Maks. laengde for kunde-bemaerkning ved afvis. Haandhaeves i app-laget. */
+export const REJECTION_NOTE_MAX_LENGTH = 2000
+
+/**
+ * Struktureret input til reject-server-actions (portal + legacy).
+ * Bagudkompatibel: server actions accepterer ogsaa `string | undefined`
+ * og normaliserer via offer-rejection-service.
+ */
+export interface OfferRejectionInput {
+  reason: RejectionReasonCode
+  note?: string | null
+  /** Valgfrit — kunden kan vaere anonym. */
+  signerName?: string | null
+  /** Valgfrit — kunden kan vaere anonym. */
+  signerEmail?: string | null
+}
+
 // Common units
 export const OFFER_UNITS = [
   { value: 'stk', label: 'Stk.' },
@@ -146,6 +190,14 @@ export interface Offer {
   viewed_at: string | null
   accepted_at: string | null
   rejected_at: string | null
+  // Phase 12A (migration 00121) — strukturerede afvisnings-felter.
+  // Alle nullable; gamle pre-00121 rejected offers har NULL paa alle 6.
+  rejection_reason: RejectionReasonCode | null
+  rejection_note: string | null
+  rejected_by_name: string | null
+  rejected_by_email: string | null
+  rejected_by_ip: string | null
+  rejected_by_user_agent: string | null
   created_by: string
   created_at: string
   updated_at: string

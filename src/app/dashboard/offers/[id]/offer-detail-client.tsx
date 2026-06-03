@@ -44,6 +44,7 @@ import { OfferPartiesCard } from '@/components/modules/offers/offer-parties-card
 import { EditOfferPartiesDialog } from '@/components/modules/offers/edit-offer-parties-dialog'
 import { OfferToCaseCard } from './offer-to-case-card'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
+import { REJECTION_REASON_LABELS, type RejectionReasonCode } from '@/types/offers.types'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
 import { OfferTaskForm } from '@/components/modules/offers/offer-task-form'
@@ -1235,6 +1236,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               </div>
             </div>
 
+            {/* Phase 12A — Afvisningsdetaljer (kun naar status='rejected') */}
+            {offer.status === 'rejected' && (
+              <OfferRejectionDetailsCard offer={offer} />
+            )}
+
             {/* Price Explanation */}
             {offer.line_items && offer.line_items.length > 0 && (
               <PriceExplanationCard
@@ -1686,5 +1692,109 @@ function OfferPdfView({
         </div>
       </div>
     </>
+  )
+}
+
+/**
+ * Phase 12A — viser strukturerede afvisnings-felter naar status='rejected'.
+ * Falder gracefuldt tilbage til "Årsag ikke angivet" for historiske rejects
+ * fra foer migration 00121.
+ */
+function OfferRejectionDetailsCard({
+  offer,
+}: {
+  offer: {
+    status: string
+    rejection_reason: string | null
+    rejection_note: string | null
+    rejected_by_name: string | null
+    rejected_by_email: string | null
+    rejected_by_ip: string | null
+    rejected_by_user_agent: string | null
+    notes: string | null
+  }
+}) {
+  const reasonLabel =
+    offer.rejection_reason &&
+    Object.prototype.hasOwnProperty.call(REJECTION_REASON_LABELS, offer.rejection_reason)
+      ? REJECTION_REASON_LABELS[offer.rejection_reason as RejectionReasonCode]
+      : null
+
+  const signerLine = [offer.rejected_by_name, offer.rejected_by_email]
+    .filter(Boolean)
+    .join(' — ')
+
+  // Historisk note: pre-migration prefix-strings i offers.notes
+  const historicalNote = !reasonLabel && offer.notes && /^Afvist (via portal|med begrundelse):/i.test(offer.notes)
+    ? offer.notes
+    : null
+
+  return (
+    <div className="bg-white rounded-lg border border-red-100 p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <XCircle className="w-5 h-5 text-red-600" />
+        <h2 className="text-lg font-semibold text-gray-900">Afvisningsdetaljer</h2>
+      </div>
+
+      <dl className="space-y-3 text-sm">
+        <div>
+          <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+            Årsag
+          </dt>
+          <dd className="text-gray-900">
+            {reasonLabel ?? (
+              <span className="text-gray-500 italic">Årsag ikke angivet</span>
+            )}
+          </dd>
+        </div>
+
+        {offer.rejection_note && (
+          <div>
+            <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+              Bemærkning
+            </dt>
+            <dd className="text-gray-700 whitespace-pre-wrap">{offer.rejection_note}</dd>
+          </div>
+        )}
+
+        {historicalNote && (
+          <div>
+            <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+              Historisk note
+            </dt>
+            <dd className="text-gray-500 italic whitespace-pre-wrap">{historicalNote}</dd>
+          </div>
+        )}
+
+        {signerLine && (
+          <div>
+            <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+              Afvist af
+            </dt>
+            <dd className="text-gray-900">{signerLine}</dd>
+          </div>
+        )}
+
+        {(offer.rejected_by_ip || offer.rejected_by_user_agent) && (
+          <details className="pt-2 border-t border-gray-100">
+            <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700 select-none">
+              Tekniske detaljer
+            </summary>
+            <div className="mt-2 space-y-1 text-xs text-gray-500 font-mono">
+              {offer.rejected_by_ip && (
+                <div>
+                  <span className="text-gray-400">IP:</span> {offer.rejected_by_ip}
+                </div>
+              )}
+              {offer.rejected_by_user_agent && (
+                <div className="break-all">
+                  <span className="text-gray-400">User-Agent:</span> {offer.rejected_by_user_agent}
+                </div>
+              )}
+            </div>
+          </details>
+        )}
+      </dl>
+    </div>
   )
 }

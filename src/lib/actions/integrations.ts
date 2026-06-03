@@ -667,6 +667,15 @@ export async function buildOfferWebhookPayload(
 
   if (error || !offer) return null
 
+  // Phase 12A — udvid additivt med strukturerede rejection-felter. Null
+  // paa ikke-rejected events (accept/sent/viewed). Eksisterende consumere
+  // der ignorerer ukendte felter er upaavirket.
+  const { REJECTION_REASON_LABELS } = await import('@/types/offers.types')
+  const rejectionReason = (offer.rejection_reason ?? null) as string | null
+  const rejectionReasonLabel = rejectionReason && rejectionReason in REJECTION_REASON_LABELS
+    ? REJECTION_REASON_LABELS[rejectionReason as keyof typeof REJECTION_REASON_LABELS]
+    : null
+
   const payload: WebhookPayload = {
     event: eventType,
     timestamp: new Date().toISOString(),
@@ -684,6 +693,11 @@ export async function buildOfferWebhookPayload(
       created_at: offer.created_at,
       accepted_at: offer.accepted_at,
       rejected_at: offer.rejected_at,
+      rejection_reason: rejectionReason,
+      rejection_reason_label: rejectionReasonLabel,
+      rejection_note: offer.rejection_note ?? null,
+      rejected_by_name: offer.rejected_by_name ?? null,
+      rejected_by_email: offer.rejected_by_email ?? null,
     },
   }
 

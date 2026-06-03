@@ -33,6 +33,8 @@ import {
   type PublicOfferMessage,
 } from '@/lib/actions/public-offer'
 import { BRAND } from '@/lib/brand'
+import { RejectOfferForm } from '@/components/shared/reject-offer-form'
+import type { OfferRejectionInput } from '@/types/offers.types'
 
 interface OfferViewClientProps {
   offer: PublicOffer
@@ -44,7 +46,7 @@ export function OfferViewClient({ offer }: OfferViewClientProps) {
   const [accepted, setAccepted] = useState(offer.status === 'accepted')
   const [rejected, setRejected] = useState(offer.status === 'rejected')
   const [rejecting, setRejecting] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
+  const [rejectError, setRejectError] = useState<string | null>(null)
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showTerms, setShowTerms] = useState(false)
@@ -91,16 +93,21 @@ export function OfferViewClient({ offer }: OfferViewClientProps) {
     }
   }
 
-  const handleReject = async () => {
+  const handleReject = async (input: OfferRejectionInput) => {
     setRejecting(true)
-    setError(null)
-    const result = await rejectPublicOffer(offer.id, rejectReason || undefined)
-    setRejecting(false)
-    if (result.success) {
-      setRejected(true)
-      setShowRejectForm(false)
-    } else {
-      setError(result.error || 'Kunne ikke afvise tilbuddet')
+    setRejectError(null)
+    try {
+      const result = await rejectPublicOffer(offer.id, input)
+      if (result.success) {
+        setRejected(true)
+        setShowRejectForm(false)
+      } else {
+        setRejectError(result.error || 'Kunne ikke afvise tilbuddet')
+      }
+    } catch {
+      setRejectError('Der opstod en uventet fejl')
+    } finally {
+      setRejecting(false)
     }
   }
 
@@ -544,41 +551,29 @@ export function OfferViewClient({ offer }: OfferViewClientProps) {
                   Ved at klikke &ldquo;Accept&eacute;r&rdquo; bekr&aelig;fter du tilbuddet og dets betingelser.
                 </p>
 
-                {/* Reject option */}
+                {/* Reject option — Phase 12A: shared RejectOfferForm */}
                 <div className="pt-4 border-t border-gray-200">
                   {!showRejectForm ? (
                     <button
-                      onClick={() => setShowRejectForm(true)}
+                      onClick={() => {
+                        setShowRejectForm(true)
+                        setRejectError(null)
+                      }}
                       className="w-full py-3 text-gray-500 text-sm rounded-xl border border-gray-200 hover:bg-gray-50 hover:text-gray-700 transition-colors flex items-center justify-center gap-2"
                     >
                       <XCircle className="w-4 h-4" /> Jeg &oslash;nsker ikke at acceptere
                     </button>
                   ) : (
-                    <div className="space-y-3">
-                      <textarea
-                        value={rejectReason}
-                        onChange={(e) => setRejectReason(e.target.value)}
-                        placeholder="Valgfrit: Fort&aelig;l os gerne hvorfor (hj&aelig;lper os med at forbedre fremtidige tilbud)"
-                        rows={3}
-                        className="w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
-                      />
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => setShowRejectForm(false)}
-                          className="flex-1 py-2.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
-                        >
-                          Annuller
-                        </button>
-                        <button
-                          onClick={handleReject}
-                          disabled={rejecting}
-                          className="flex-1 py-2.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                          {rejecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                          Afvis tilbud
-                        </button>
-                      </div>
-                    </div>
+                    <RejectOfferForm
+                      onSubmit={handleReject}
+                      onCancel={() => {
+                        setShowRejectForm(false)
+                        setRejectError(null)
+                      }}
+                      isSubmitting={rejecting}
+                      error={rejectError}
+                      variant="inline"
+                    />
                   )}
                 </div>
               </div>

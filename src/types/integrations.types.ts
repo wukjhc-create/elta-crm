@@ -332,6 +332,13 @@ export interface WebhookOfferData {
   created_at: string
   accepted_at?: string
   rejected_at?: string
+  // Phase 12A — strukturerede rejection-felter (kun sat paa offer.rejected,
+  // null paa andre events). Bagudkompatibel — gamle konsumere ignorerer.
+  rejection_reason?: string | null
+  rejection_reason_label?: string | null
+  rejection_note?: string | null
+  rejected_by_name?: string | null
+  rejected_by_email?: string | null
 }
 
 export interface WebhookProjectData {

@@ -29,6 +29,21 @@ import type {
 } from '@/types/portal.types'
 import type { ActionResult } from '@/types/common.types'
 import { logger } from '@/lib/utils/logger'
+import {
+  REJECTION_REASON_LABELS,
+  type OfferRejectionInput,
+} from '@/types/offers.types'
+
+// Lokal HTML-escape til inline mail-skabeloner i denne fil. Holder
+// user-input ude af attribut/element-contexts.
+function escapeHtmlLocal(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 // =====================================================
 // Portal Token Management (for employees)
@@ -606,20 +621,40 @@ export async function acceptOffer(
   }
 }
 
-// Reject offer
+// Reject offer (Phase 12A — struktureret reason + audit-felter)
 export async function rejectOffer(
   token: string,
   offerId: string,
-  reason?: string
+  input?: OfferRejectionInput | string
 ): Promise<ActionResult> {
   try {
-    // Validate and limit reason length
-    const safeReason = reason?.slice(0, 2000) || undefined
+    // Normalisér input (validerer reason hvis struktureret)
+    const { normalizeRejectionInput, captureRejectionMeta } = await import(
+      '@/lib/services/offer-rejection'
+    )
+    let normalized
+    try {
+      normalized = normalizeRejectionInput(input)
+    } catch (err) {
+      logger.error('Invalid rejection input', { error: err, entityId: offerId })
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Ugyldig afvisningsårsag',
+      }
+    }
 
     // Validate token first
     const sessionResult = await validatePortalToken(token)
     if (!sessionResult.success || !sessionResult.data) {
       return { success: false, error: sessionResult.error }
+    }
+
+    // Capture IP/UA (best effort)
+    let meta = { ip: 'unknown', userAgent: 'unknown' }
+    try {
+      meta = await captureRejectionMeta()
+    } catch (metaErr) {
+      logger.error('Failed to capture rejection meta', { error: metaErr })
     }
 
     const supabase = createAnonClient()
@@ -637,17 +672,30 @@ export async function rejectOffer(
       return { success: false, error: 'Tilbud ikke fundet' }
     }
 
+    // Status-transition-guard — kun sent/viewed maa afvises
     if (offer.status === 'accepted') {
       return { success: false, error: 'Tilbuddet er allerede accepteret' }
     }
+    if (offer.status === 'rejected') {
+      return { success: false, error: 'Tilbuddet er allerede afvist' }
+    }
+    if (!['sent', 'viewed'].includes(offer.status)) {
+      return { success: false, error: 'Tilbuddet kan ikke afvises i denne status' }
+    }
 
-    // Update offer status
+    // Update med 6 nye strukturerede felter. INGEN notes-prefix længere
+    // (offers.notes forbliver rent intern-note-felt).
     const { error: updateError } = await supabase
       .from('offers')
       .update({
         status: 'rejected',
         rejected_at: new Date().toISOString(),
-        notes: safeReason ? `Afvist med begrundelse: ${safeReason}` : undefined,
+        rejection_reason: normalized.reason,
+        rejection_note: normalized.note,
+        rejected_by_name: normalized.signerName,
+        rejected_by_email: normalized.signerEmail,
+        rejected_by_ip: meta.ip,
+        rejected_by_user_agent: meta.userAgent,
       })
       .eq('id', offerId)
 
@@ -656,36 +704,55 @@ export async function rejectOffer(
       return { success: false, error: 'Kunne ikke afvise tilbud' }
     }
 
-    // Log rejection activity — use anon client directly
+    const reasonLabel = REJECTION_REASON_LABELS[normalized.reason]
+
+    // Log rejection activity — struktureret metadata
     await supabase.from('offer_activities').insert({
       offer_id: offerId,
       activity_type: 'rejected',
-      description: safeReason ? `Tilbud afvist: ${safeReason}` : 'Tilbud afvist',
+      description: `Tilbud afvist: ${reasonLabel}${normalized.note ? ` — ${normalized.note}` : ''}`,
       performed_by: null,
-      metadata: { reason: safeReason || null },
+      metadata: {
+        reason: normalized.reason,
+        reason_label: reasonLabel,
+        note: normalized.note,
+        signer_name: normalized.signerName,
+        signer_email: normalized.signerEmail,
+      },
     })
 
-    // Trigger webhooks for offer.rejected
-    const payload = await buildOfferWebhookPayload(offerId, 'offer.rejected')
-    if (payload) {
-      triggerWebhooks('offer.rejected', payload).catch(err => {
-        logger.error('Error triggering webhooks', { error: err })
-      })
+    // Trigger webhooks for offer.rejected (best effort)
+    try {
+      const payload = await buildOfferWebhookPayload(offerId, 'offer.rejected')
+      if (payload) {
+        triggerWebhooks('offer.rejected', payload).catch(err => {
+          logger.error('Error triggering webhooks', { error: err })
+        })
+      }
+    } catch (webhookErr) {
+      logger.error('Error building webhook payload', { error: webhookErr })
     }
 
     // Send email notification to CRM mailbox (non-critical)
     try {
       const crmMailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
       const subject = `Tilbud afvist: ${offer.title || offer.id}`
+      const signerLine = (normalized.signerName || normalized.signerEmail)
+        ? `<p><strong>Afvist af:</strong> ${escapeHtmlLocal(
+            [normalized.signerName, normalized.signerEmail].filter(Boolean).join(' — ')
+          )}</p>`
+        : ''
       const html = `
         <h2>Tilbud afvist</h2>
         <p>Kunden har afvist et tilbud via kundeportalen.</p>
-        ${safeReason ? `<p><strong>Begrundelse:</strong> ${safeReason}</p>` : '<p>Ingen begrundelse angivet.</p>'}
+        <p><strong>Årsag:</strong> ${escapeHtmlLocal(reasonLabel)}</p>
+        ${normalized.note ? `<p><strong>Bemærkning:</strong> ${escapeHtmlLocal(normalized.note)}</p>` : ''}
+        ${signerLine}
         <p>Se tilbuddet i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/offers">Gå til Tilbud</a></p>
         <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
         <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ELTA Drift.</p>
       `
-      const text = `Tilbud afvist\n\n${safeReason ? `Begrundelse: ${safeReason}` : 'Ingen begrundelse.'}\n\nSe tilbuddet i ELTA Drift.`
+      const text = `Tilbud afvist\n\nÅrsag: ${reasonLabel}${normalized.note ? `\nBemærkning: ${normalized.note}` : ''}\n\nSe tilbuddet i ELTA Drift.`
 
       if (isGraphConfigured()) {
         // Sprint 8H Phase 3: central mail-router (internal_notification).
