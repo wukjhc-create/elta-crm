@@ -27,6 +27,7 @@ import {
 import type { CustomerDocument, CustomerImage } from '@/lib/actions/customer-documents'
 import { useToast } from '@/components/ui/toast'
 import { SendBesigtigelsesreportDialog } from '@/components/modules/customers/send-besigtigelsesreport-dialog'
+import { DocumentConfirmationStatus } from '@/components/modules/customers/document-confirmation-status'
 import { isLikelyJsonDescription, getSafeDocumentDescription } from '@/lib/documents/display-description'
 
 interface CustomerDocumentsTabProps {
@@ -75,6 +76,8 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
   )
   // Sprint 9H Phase A — Send-dialog state
   const [sendDialogDoc, setSendDialogDoc] = useState<CustomerDocument | null>(null)
+  // Phase B1 — bumpes ved send-success saa DocumentConfirmationStatus refetcher
+  const [confirmationRefreshKey, setConfirmationRefreshKey] = useState(0)
   const fuldmagter = documents.filter((d) => {
     try {
       const desc = JSON.parse(d.description || '{}')
@@ -273,32 +276,38 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
           </div>
           <div className="divide-y">
             {besigtigelseReports.map((doc) => (
-              <div key={doc.id} className="p-3 sm:p-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 shrink-0 bg-green-100 rounded-lg flex items-center justify-center">
-                    <FileText className="w-4 h-4 text-green-600" />
+              <div key={doc.id} className="p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-9 h-9 shrink-0 bg-green-100 rounded-lg flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{doc.title}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(doc.created_at).toLocaleDateString('da-DK')}
+                        {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.title}</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(doc.created_at).toLocaleDateString('da-DK')}
-                      {doc.file_size ? ` — ${Math.round(doc.file_size / 1024)} KB` : ''}
-                    </p>
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    {doc.file_url && (
+                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform">
+                        <Download className="w-3.5 h-3.5" /> PDF
+                      </a>
+                    )}
+                    <button
+                      onClick={() => setSendDialogDoc(doc)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95 transition-transform"
+                    >
+                      <Mail className="w-3.5 h-3.5" /> Send
+                    </button>
                   </div>
                 </div>
-                <div className="shrink-0 flex items-center gap-1.5">
-                  {doc.file_url && (
-                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:scale-95 transition-transform">
-                      <Download className="w-3.5 h-3.5" /> PDF
-                    </a>
-                  )}
-                  <button
-                    onClick={() => setSendDialogDoc(doc)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95 transition-transform"
-                  >
-                    <Mail className="w-3.5 h-3.5" /> Send
-                  </button>
+                {/* Phase B1 — confirmation status (defensiv: viser intet hvis ingen confirmations eller fetch fejler) */}
+                <div className="mt-2 ml-12">
+                  <DocumentConfirmationStatus documentId={doc.id} refreshKey={confirmationRefreshKey} />
                 </div>
               </div>
             ))}
@@ -311,7 +320,10 @@ export function CustomerDocumentsTab({ customerId }: CustomerDocumentsTabProps) 
         <SendBesigtigelsesreportDialog
           isOpen={true}
           onClose={() => setSendDialogDoc(null)}
-          onSent={() => load()}
+          onSent={() => {
+            load()
+            setConfirmationRefreshKey((k) => k + 1)
+          }}
           documentId={sendDialogDoc.id}
           documentTitle={sendDialogDoc.title}
           documentFileName={sendDialogDoc.file_name}

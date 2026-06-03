@@ -71,6 +71,8 @@ export function SendBesigtigelsesreportDialog({
   const [customEmail, setCustomEmail] = useState('')
   const [customEmailSelected, setCustomEmailSelected] = useState(false)
   const [message, setMessage] = useState('')
+  // Phase B1: gated bekraeftelses-flow. Default false = uaendret Phase A.
+  const [requireConfirmation, setRequireConfirmation] = useState(false)
 
   // Load recipient options when dialog opens or scope-case changes.
   useEffect(() => {
@@ -145,6 +147,7 @@ export function SendBesigtigelsesreportDialog({
         documentId,
         serviceCaseIdOverride: selectedCaseId,
         message: message.trim() || null,
+        requireConfirmation,
         recipients: [
           ...chosenParties.map((p) => ({
             type: p.contactId ? ('contact' as const) : ('customer' as const),
@@ -347,6 +350,29 @@ export function SendBesigtigelsesreportDialog({
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
           </div>
+
+          {/* Phase B1 — Kraev bekraeftelse */}
+          <label
+            className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+              requireConfirmation
+                ? 'border-green-500 bg-green-50'
+                : 'border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={requireConfirmation}
+              onChange={(e) => setRequireConfirmation(e.target.checked)}
+              disabled={isSending}
+              className="mt-0.5"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-gray-900">Kræv bekræftelse fra modtagerne</p>
+              <p className="text-xs text-gray-600 mt-0.5">
+                Modtagerne får et personligt link til at bekræfte, at rapporten er gennemgået og godkendt.
+              </p>
+            </div>
+          </label>
         </div>
 
         {/* Footer */}

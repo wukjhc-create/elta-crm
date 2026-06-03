@@ -8,6 +8,7 @@ import type { ActionResult } from '@/types/common.types'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { BRAND } from '@/lib/brand'
+import type { ConfirmationRecipientRole } from '@/types/document-confirmations.types'
 
 /**
  * Sprint 9F Phase 6a — shadow-preview wrapper for besigtigelse.
@@ -692,6 +693,13 @@ export interface SendExistingBesigtigelseInput {
   recipients: SendBesigtigelseRecipientInput[]
   serviceCaseIdOverride?: string | null
   message?: string | null
+  /**
+   * Phase B1: hvis true, oprettes én document_confirmations-row pr.
+   * resolved modtager FOER mail-loopet, og mail-HTML udvides med et
+   * bekraeftelseslink. Default false — eksisterende Phase A-flow er
+   * uaendret naar flaget er udeladt eller false.
+   */
+  requireConfirmation?: boolean
 }
 
 const RECIPIENT_ROLE_MAP: Record<BesigtigelseCaseParty['role'] | 'manual', { role: 'paying_customer' | 'site_customer' | 'site_contact' | 'ordering_contact' | 'manual'; intro: string }> = {
@@ -866,81 +874,159 @@ export async function sendExistingBesigtigelsesreport(
       isValidEmail,
       isInternalEmail,
       buildRouteReason,
+      assertExternalRecipient,
     } = await import('@/lib/services/mail-routing')
     const { logMailRoute } = await import('@/lib/actions/mail-route-resolvers')
     const fromMailbox = defaultFromMailbox()
 
-    let sent = 0
-    let failed = 0
-    const errors: string[] = []
+    // =====================================================
+    // PASS 1 — resolve hver input.recipient til en konkret modtager.
+    // Resolution-fejl gemmes i preErrors og taeller med i samlet failed.
+    // =====================================================
+    interface ResolvedRecipient {
+      inputType: SendRecipientType
+      toEmail: string
+      toName: string | null
+      roleLabel: BesigtigelseCaseParty['role'] | 'manual'
+      resolvedCustomerId: string | null
+      resolvedContactId: string | null
+    }
+    const resolvedItems: ResolvedRecipient[] = []
+    const preErrors: string[] = []
 
     for (const r of input.recipients) {
+      const roleLabel: BesigtigelseCaseParty['role'] | 'manual' =
+        r.roleLabel || (r.type === 'manual' ? 'manual' : 'document_customer')
+
+      if (r.type === 'customer') {
+        if (!r.customerId || !allowedCustomerIds.has(r.customerId)) {
+          preErrors.push(`Modtager afvist (ikke i tilladt set): customer ${r.customerId || '(tom)'}`)
+          continue
+        }
+        const c = customerLookup.get(r.customerId)
+        if (!c || !c.email) {
+          preErrors.push(`${ROLE_LABEL[roleLabel === 'manual' ? 'document_customer' : roleLabel]} mangler email`)
+          continue
+        }
+        resolvedItems.push({
+          inputType: 'customer',
+          toEmail: normalizeEmail(c.email),
+          toName: c.company_name,
+          roleLabel,
+          resolvedCustomerId: c.id,
+          resolvedContactId: null,
+        })
+      } else if (r.type === 'contact') {
+        if (!r.contactId || !allowedContactIds.has(r.contactId)) {
+          preErrors.push(`Kontakt afvist (ikke i tilladt set): ${r.contactId || '(tom)'}`)
+          continue
+        }
+        const ct = contactLookup.get(r.contactId)
+        if (!ct || !ct.email) {
+          preErrors.push('Kontakt mangler email')
+          continue
+        }
+        resolvedItems.push({
+          inputType: 'contact',
+          toEmail: normalizeEmail(ct.email),
+          toName: ct.name,
+          roleLabel,
+          resolvedCustomerId: ct.customer_id,
+          resolvedContactId: ct.id,
+        })
+      } else if (r.type === 'manual') {
+        if (!r.email) { preErrors.push('Manuel email mangler'); continue }
+        if (!isValidEmail(r.email)) { preErrors.push(`Ugyldig manuel email: ${r.email}`); continue }
+        if (isInternalEmail(r.email)) { preErrors.push(`Manuel email afvist — intern domæne: ${r.email}`); continue }
+        resolvedItems.push({
+          inputType: 'manual',
+          toEmail: normalizeEmail(r.email),
+          toName: null,
+          roleLabel,
+          resolvedCustomerId: null,
+          resolvedContactId: null,
+        })
+      } else {
+        preErrors.push('Ukendt modtager-type')
+      }
+    }
+
+    // =====================================================
+    // Phase B1 — opret document_confirmations FOER mail-send.
+    // Gated bag requireConfirmation; default false betyder ZERO aendring
+    // til eksisterende Phase A-output (ingen rows, ingen link i mail).
+    //
+    // Token-matchet sker pr. (email, role) — IKKE pr. email alene. Det er
+    // vigtigt i sagspartner-flowet hvor samme part (fx Mikma) kan optraede
+    // i flere roller (orderer + payer) og skal have separate tokens med
+    // rolle-specifik kontekst.
+    // =====================================================
+    const buildRecipientKey = (email: string, role: BesigtigelseCaseParty['role'] | 'manual'): string =>
+      `${email.toLowerCase()}::${role}`
+
+    const confirmationByRecipientKey = new Map<string, { id: string; token: string; expiresAt: string }>()
+
+    if (input.requireConfirmation && resolvedItems.length > 0) {
+      // Krav 6: samme (email, role) maa IKKE optraede to gange — det
+      // vil dublere tokens og forvirre status-tracking. Vi giver en klar
+      // fejl frem for stille dedupe.
+      const seenKeys = new Set<string>()
+      for (const it of resolvedItems) {
+        const k = buildRecipientKey(it.toEmail, it.roleLabel)
+        if (seenKeys.has(k)) {
+          return {
+            success: false,
+            error: `Modtageren ${it.toEmail} er valgt to gange i samme rolle (${it.roleLabel}). Fjern dubletten og prøv igen.`,
+          }
+        }
+        seenKeys.add(k)
+      }
+
+      const { createConfirmationRequests } = await import('@/lib/actions/document-confirmations')
+      const created = await createConfirmationRequests({
+        documentId: input.documentId,
+        recipients: resolvedItems.map((it) => ({
+          recipientType: it.inputType,
+          customerId: it.resolvedCustomerId,
+          contactId: it.resolvedContactId,
+          email: it.toEmail,
+          name: it.toName,
+          role: it.roleLabel as ConfirmationRecipientRole,
+        })),
+        expiresInDays: 30,
+      })
+      if (!created.success || !created.data) {
+        // Krav 9: returnér fejl FOER mail-send hvis bruger har kraevet
+        // bekraeftelse — vi sender ikke mail uden link i sa fald.
+        return {
+          success: false,
+          error: `Kunne ikke oprette bekræftelses-anmodninger: ${created.error || 'ukendt fejl'}`,
+        }
+      }
+      for (const c of created.data) {
+        confirmationByRecipientKey.set(buildRecipientKey(c.recipientEmail, c.recipientRole), {
+          id: c.confirmationId,
+          token: c.token,
+          expiresAt: c.expiresAt,
+        })
+      }
+    }
+
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+
+    // =====================================================
+    // PASS 2 — send mail pr. resolved modtager.
+    // =====================================================
+    let sent = 0
+    let failed = preErrors.length
+    const errors: string[] = [...preErrors]
+
+    for (const item of resolvedItems) {
+      const { toEmail, toName, roleLabel, resolvedCustomerId, resolvedContactId, inputType } = item
+      const confirmation = confirmationByRecipientKey.get(buildRecipientKey(toEmail, roleLabel))
       try {
-        let toEmail: string | null = null
-        let toName: string | null = null
-        let resolvedCustomerId: string | null = null
-        let resolvedContactId: string | null = null
-        const roleLabel: BesigtigelseCaseParty['role'] | 'manual' = r.roleLabel || (r.type === 'manual' ? 'manual' : 'document_customer')
-
-        if (r.type === 'customer') {
-          if (!r.customerId || !allowedCustomerIds.has(r.customerId)) {
-            failed++
-            errors.push(`Modtager afvist (ikke i tilladt set): customer ${r.customerId || '(tom)'}`)
-            continue
-          }
-          const c = customerLookup.get(r.customerId)
-          if (!c || !c.email) {
-            failed++
-            errors.push(`${ROLE_LABEL[roleLabel === 'manual' ? 'document_customer' : roleLabel]} mangler email`)
-            continue
-          }
-          toEmail = normalizeEmail(c.email)
-          toName = c.company_name
-          resolvedCustomerId = c.id
-        } else if (r.type === 'contact') {
-          if (!r.contactId || !allowedContactIds.has(r.contactId)) {
-            failed++
-            errors.push(`Kontakt afvist (ikke i tilladt set): ${r.contactId || '(tom)'}`)
-            continue
-          }
-          const ct = contactLookup.get(r.contactId)
-          if (!ct || !ct.email) {
-            failed++
-            errors.push('Kontakt mangler email')
-            continue
-          }
-          toEmail = normalizeEmail(ct.email)
-          toName = ct.name
-          resolvedContactId = ct.id
-          resolvedCustomerId = ct.customer_id
-        } else if (r.type === 'manual') {
-          if (!r.email) {
-            failed++
-            errors.push('Manuel email mangler')
-            continue
-          }
-          if (!isValidEmail(r.email)) {
-            failed++
-            errors.push(`Ugyldig manuel email: ${r.email}`)
-            continue
-          }
-          if (isInternalEmail(r.email)) {
-            failed++
-            errors.push(`Manuel email afvist — intern domæne: ${r.email}`)
-            continue
-          }
-          toEmail = normalizeEmail(r.email)
-        } else {
-          failed++
-          errors.push('Ukendt modtager-type')
-          continue
-        }
-
-        if (!toEmail) {
-          failed++
-          continue
-        }
-
         const mapping = RECIPIENT_ROLE_MAP[roleLabel] || RECIPIENT_ROLE_MAP.document_customer
         const route: MailRoute = {
           fromMailbox,
@@ -960,8 +1046,6 @@ export async function sendExistingBesigtigelsesreport(
           isInternalAllowed: false,
         }
 
-        // Final intern-guard (kaster paa intern recipient)
-        const { assertExternalRecipient } = await import('@/lib/services/mail-routing')
         assertExternalRecipient(route)
 
         const greeting = toName || docCustomer.contact_person || docCustomer.company_name || 'kunde'
@@ -969,6 +1053,26 @@ export async function sendExistingBesigtigelsesreport(
         const customMessageBlock = input.message
           ? `<p style="color: #374151; padding: 12px 16px; background: #fefce8; border-left: 3px solid #facc15; border-radius: 4px; margin-top: 16px;">${escapeHtml(input.message)}</p>`
           : ''
+
+        let confirmationBlock = ''
+        if (confirmation) {
+          const confirmUrl = `${appUrl.replace(/\/$/, '')}/portal/confirm-besigtigelse/${confirmation.token}`
+          const expiresLabel = new Date(confirmation.expiresAt).toLocaleDateString('da-DK', {
+            year: 'numeric', month: 'long', day: 'numeric',
+          })
+          confirmationBlock = `
+            <div style="margin-top: 24px; padding: 20px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;">
+              <p style="margin: 0 0 12px 0; color: #166534; font-weight: 600;">Bekræft din godkendelse</p>
+              <p style="margin: 0 0 16px 0; color: #166534;">Rapporten er vedhæftet. Brug linket nedenfor til at bekræfte, at du har gennemgået og godkendt rapporten.</p>
+              <p style="margin: 0 0 16px 0;">
+                <a href="${confirmUrl}" style="display: inline-block; padding: 12px 24px; background: ${BRAND.green}; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Bekræft rapport</a>
+              </p>
+              <p style="margin: 0; color: #166534; font-size: 13px;">Hvis knappen ikke virker, kan du kopiere linket direkte:<br/><span style="color: #15803d; word-break: break-all;">${confirmUrl}</span></p>
+              <p style="margin: 12px 0 0 0; color: #15803d; font-size: 12px;">Linket er personligt og udløber den ${expiresLabel}.</p>
+            </div>
+          `
+        }
+
         const html = `
           <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: ${BRAND.green}; padding: 24px 32px; border-radius: 8px 8px 0 0;">
@@ -979,6 +1083,7 @@ export async function sendExistingBesigtigelsesreport(
               <p style="color: #374151;">${escapeHtml(introLine)}</p>
               <p style="color: #374151;">Vedhæftet finder du besigtigelsesrapporten med de tekniske noter, billeder og aftaler, vi gennemgik under besigtigelsen.</p>
               ${customMessageBlock}
+              ${confirmationBlock}
               <p style="color: #374151;">Har du spørgsmål, er du velkommen til at kontakte os.</p>
               <p style="color: #374151; margin-top: 24px;">Med venlig hilsen,<br/><strong>${BRAND.companyName}</strong><br/>
               <span style="color: #6b7280; font-size: 13px;">${BRAND.email} &bull; ${BRAND.website}</span></p>
@@ -991,13 +1096,11 @@ export async function sendExistingBesigtigelsesreport(
           to: route.toEmail,
           subject,
           html,
-          attachments: [
-            {
-              filename: doc.file_name,
-              content: pdfBuffer,
-              contentType: 'application/pdf',
-            },
-          ],
+          attachments: [{
+            filename: doc.file_name,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+          }],
         })
 
         const shadowMeta = await maybeBuildBesigtigelseShadowMeta(
@@ -1009,10 +1112,22 @@ export async function sendExistingBesigtigelsesreport(
         await logMailRoute(route, sendResult.success ? 'sent' : 'failed', {
           document_id: input.documentId,
           role_label: roleLabel,
-          recipient_type: r.type,
+          recipient_type: inputType,
           error: sendResult.error,
+          confirmation_id: confirmation?.id,
           ...(shadowMeta || {}),
         })
+
+        // Phase B1: opdater confirmation-status efter mail-outcome
+        if (confirmation) {
+          const { markConfirmationMailSent, markConfirmationMailFailed } =
+            await import('@/lib/actions/document-confirmations')
+          if (sendResult.success) {
+            await markConfirmationMailSent(confirmation.id)
+          } else {
+            await markConfirmationMailFailed(confirmation.id, sendResult.error || 'mail-send fejlede')
+          }
+        }
 
         if (sendResult.success) {
           sent++
@@ -1027,6 +1142,17 @@ export async function sendExistingBesigtigelsesreport(
           error: perRecipientErr,
           entityId: input.documentId,
         })
+        // Markér confirmation som failed hvis den blev oprettet — bruger
+        // outer-scoped `confirmation` fra try-blokkens for-loop-body.
+        if (confirmation) {
+          try {
+            const { markConfirmationMailFailed } = await import('@/lib/actions/document-confirmations')
+            await markConfirmationMailFailed(
+              confirmation.id,
+              perRecipientErr instanceof Error ? perRecipientErr.message : 'ukendt fejl',
+            )
+          } catch { /* swallow — undgå at skygge oprindelig fejl */ }
+        }
       }
     }
 
