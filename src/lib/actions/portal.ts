@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, createAnonClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
@@ -793,20 +794,22 @@ export async function getPortalMessages(
   offerId?: string
 ): Promise<ActionResult<PortalMessageWithRelations[]>> {
   try {
-    // Validate token first
+    // Validate token first (eksisterende anon-flow indtil Phase alpha.2)
     const sessionResult = await validatePortalToken(token)
     if (!sessionResult.success || !sessionResult.data) {
       return { success: false, error: sessionResult.error }
     }
 
-    const supabase = createAnonClient()
+    // Phase alpha.1: portal_messages anon-policies droppet. Brug
+    // service-role server-side til at hente beskeder, scoped til
+    // session.customer_id fra valideret token.
+    const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
-    // Note: Portal context uses anon role — do NOT join profiles (no anon access).
-    // sender_name is stored directly on portal_messages so we don't need the join.
-    let query = supabase
+    // sender_name er gemt direkte paa portal_messages — ingen profiles-join.
+    let query = admin
       .from('portal_messages')
-      .select('*')
+      .select('id, customer_id, offer_id, sender_type, sender_name, message, attachments, read_at, created_at')
       .eq('customer_id', customerId)
       .order('created_at', { ascending: true })
 
@@ -821,7 +824,7 @@ export async function getPortalMessages(
       return { success: false, error: 'Kunne ikke hente beskeder' }
     }
 
-    return { success: true, data: data as PortalMessageWithRelations[] }
+    return { success: true, data: (data || []) as PortalMessageWithRelations[] }
   } catch (error) {
     logger.error('Error in getPortalMessages', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -834,22 +837,27 @@ export async function sendPortalMessage(
   data: SendPortalMessageData
 ): Promise<ActionResult<PortalMessage>> {
   try {
-    // Validate token first
+    // Validate token first (eksisterende anon-flow indtil Phase alpha.2)
     const sessionResult = await validatePortalToken(token)
     if (!sessionResult.success || !sessionResult.data) {
       return { success: false, error: sessionResult.error }
     }
 
-    const supabase = createAnonClient()
     const customerId = sessionResult.data.customer_id
 
-    // Verify customer_id matches token
+    // App-lag-guard: customer_id i payload SKAL matche session — beskytter
+    // mod cross-customer-injection selvom service-role bypasser RLS.
     if (data.customer_id !== customerId) {
       return { success: false, error: 'Ugyldig kunde' }
     }
 
+    // Phase alpha.1: portal_messages anon-INSERT-policy droppet. Brug
+    // service-role server-side. customer_id-match haandhaeves i app-lag
+    // (linje ovenfor) — service-role har INGEN RLS-guard, saa app er
+    // single source of truth for scope.
+    const admin = createAdminClient()
     const senderName = data.sender_name || sessionResult.data.customer.contact_person
-    const { data: message, error } = await supabase
+    const { data: message, error } = await admin
       .from('portal_messages')
       .insert({
         customer_id: customerId,
@@ -1473,10 +1481,12 @@ export async function getPortalDocuments(
       return { success: false, error: sessionResult.error }
     }
 
-    const supabase = createAnonClient()
+    // Phase alpha.1: customer_documents anon-SELECT-policy droppet.
+    // Brug service-role server-side, scoped til session.customer_id.
+    const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from('customer_documents')
       .select('id, title, description, document_type, file_url, file_name, mime_type, created_at')
       .eq('customer_id', customerId)
@@ -1487,7 +1497,15 @@ export async function getPortalDocuments(
       return { success: false, error: 'Kunne ikke hente dokumenter' }
     }
 
-    return { success: true, data: data as PortalDocument[] }
+    // Phase 9I: aldrig laek raw description-JSON til portal-klient. Sanitize
+    // her ogsaa selvom UI ogsaa filtrerer — defense in depth.
+    const { getSafeDocumentDescription } = await import('@/lib/documents/display-description')
+    const curated = (data || []).map((d) => ({
+      ...d,
+      description: getSafeDocumentDescription(d),
+    }))
+
+    return { success: true, data: curated as PortalDocument[] }
   } catch (error) {
     logger.error('Error in getPortalDocuments', { error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -1524,14 +1542,18 @@ export async function portalBookBesigtigelse(
     }
 
     const session = sessionResult.data
-    const supabase = createAnonClient()
+
+    // Phase alpha.1: customer_tasks anon FOR ALL-policy droppet. Brug
+    // service-role server-side til baade customer-lookup og task-insert,
+    // scoped til session.customer_id fra valideret token.
+    const admin = createAdminClient()
 
     const formattedDate = new Date(date).toLocaleDateString('da-DK', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     })
 
     // Fetch customer address for ICS location
-    const { data: customer } = await supabase
+    const { data: customer } = await admin
       .from('customers')
       .select('billing_address, billing_city, billing_postal_code, shipping_address, shipping_city, shipping_postal_code')
       .eq('id', session.customer_id)
@@ -1552,8 +1574,8 @@ export async function portalBookBesigtigelse(
       notes ? `Kundens besked: ${notes}` : null,
     ].filter(Boolean).join('\n')
 
-    // Create task in CRM
-    const { data: task, error: taskError } = await supabase
+    // Create task in CRM (service-role; scope haandhaeves i app-lag via session.customer_id)
+    const { data: task, error: taskError } = await admin
       .from('customer_tasks')
       .insert({
         customer_id: session.customer_id,
