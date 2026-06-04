@@ -13,6 +13,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_GREEN } from '@/lib/brand'
+import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
 
 export type AlertSeverity = 'warning' | 'error'
 
@@ -272,23 +273,17 @@ async function markAttempted(
 
 function renderAlertEmail(input: AdminAlertInput): string {
   const tone = input.severity === 'error' ? '#b91c1c' : '#b45309'
-  const safeBody = input.body
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br/>')
+  const safeBody = escapeHtmlWithLineBreaks(input.body)
   return `
 <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:620px;margin:0 auto;color:#111827">
   <div style="background:${BRAND_GREEN};padding:20px 28px;border-radius:8px 8px 0 0">
-    <h1 style="color:#fff;margin:0;font-size:18px">${escape(BRAND_COMPANY_NAME)} — System advarsel</h1>
+    <h1 style="color:#fff;margin:0;font-size:18px">${escapeHtml(BRAND_COMPANY_NAME)} — System advarsel</h1>
   </div>
   <div style="padding:24px 28px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
-    <p style="font-size:14px;color:${tone};margin:0 0 12px"><strong>${escape(input.severity.toUpperCase())}</strong> · ${escape(input.key)}</p>
-    <h2 style="margin:0 0 12px;font-size:16px">${escape(input.subject)}</h2>
+    <p style="font-size:14px;color:${tone};margin:0 0 12px"><strong>${escapeHtml(input.severity.toUpperCase())}</strong> · ${escapeHtml(input.key)}</p>
+    <h2 style="margin:0 0 12px;font-size:16px">${escapeHtml(input.subject)}</h2>
     <div style="font-size:13px;color:#374151;line-height:1.5">${safeBody}</div>
     <p style="margin-top:24px;font-size:12px;color:#6b7280">Auto-genereret af ELTA Drift monitoring.</p>
   </div>
 </div>`.trim()
-}
-
-function escape(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

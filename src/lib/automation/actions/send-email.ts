@@ -1,6 +1,7 @@
 import type { ActionContext, ActionResult } from '@/types/automation.types'
 import { BRAND_COMPANY_NAME } from '@/lib/brand'
 import { isValidEmail, isInternalEmail, normalizeEmail } from '@/lib/services/mail-routing'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 /**
  * Sprint 8H Phase 5 — generic automation send-email.
@@ -48,7 +49,7 @@ export async function runSendEmail(ctx: ActionContext): Promise<ActionResult> {
   }
 
   const subject = cfg.subject || `Notifikation fra ${BRAND_COMPANY_NAME}`
-  const html = cfg.body_html || `<p>${escape(subject)}</p>`
+  const html = cfg.body_html || `<p>${escapeHtml(subject)}</p>`
 
   if (ctx.event.globalDryRun || ctx.rule.dry_run) {
     return { ok: true, message: 'dry_run', data: { to: toNormalized, subject } }
@@ -76,6 +77,3 @@ function readPath(obj: unknown, path: string): unknown {
   return cur
 }
 
-function escape(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}

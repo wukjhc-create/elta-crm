@@ -33,17 +33,7 @@ import {
   REJECTION_REASON_LABELS,
   type OfferRejectionInput,
 } from '@/types/offers.types'
-
-// Lokal HTML-escape til inline mail-skabeloner i denne fil. Holder
-// user-input ude af attribut/element-contexts.
-function escapeHtmlLocal(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 // =====================================================
 // Portal Token Management (for employees)
@@ -738,15 +728,15 @@ export async function rejectOffer(
       const crmMailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
       const subject = `Tilbud afvist: ${offer.title || offer.id}`
       const signerLine = (normalized.signerName || normalized.signerEmail)
-        ? `<p><strong>Afvist af:</strong> ${escapeHtmlLocal(
+        ? `<p><strong>Afvist af:</strong> ${escapeHtml(
             [normalized.signerName, normalized.signerEmail].filter(Boolean).join(' — ')
           )}</p>`
         : ''
       const html = `
         <h2>Tilbud afvist</h2>
         <p>Kunden har afvist et tilbud via kundeportalen.</p>
-        <p><strong>Årsag:</strong> ${escapeHtmlLocal(reasonLabel)}</p>
-        ${normalized.note ? `<p><strong>Bemærkning:</strong> ${escapeHtmlLocal(normalized.note)}</p>` : ''}
+        <p><strong>Årsag:</strong> ${escapeHtml(reasonLabel)}</p>
+        ${normalized.note ? `<p><strong>Bemærkning:</strong> ${escapeHtml(normalized.note)}</p>` : ''}
         ${signerLine}
         <p>Se tilbuddet i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/offers">Gå til Tilbud</a></p>
         <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />

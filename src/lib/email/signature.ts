@@ -15,6 +15,7 @@ import {
   type CompanyBranding,
 } from '@/lib/branding/company-branding'
 import { logger } from '@/lib/utils/logger'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 export interface SignatureUserInput {
   /** Brugerens navn — aldrig tomt (mindst en fallback) */
@@ -31,15 +32,6 @@ export interface SignatureRenderInput extends SignatureUserInput {
 export interface RenderedSignature {
   html: string
   text: string
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 /**

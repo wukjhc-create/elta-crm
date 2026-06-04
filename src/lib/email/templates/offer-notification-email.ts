@@ -2,6 +2,7 @@
  * Internal notification email — sent to employee when customer accepts/rejects an offer
  */
 import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE } from '@/lib/brand'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 interface OfferNotificationParams {
   action: 'accepted' | 'rejected'
@@ -18,15 +19,6 @@ interface OfferNotificationParams {
   rejectionNote?: string
   rejectedByName?: string
   rejectedByEmail?: string
-}
-
-function escapeHtmlMinimal(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 export function generateOfferNotificationHtml({
@@ -55,13 +47,13 @@ export function generateOfferNotificationHtml({
   const rejectionDetailRows = !isAccepted
     ? [
         rejectionReasonLabel
-          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;width:100px;">Årsag:</td><td style="padding:4px 0;color:#333;font-size:13px;font-weight:bold;">${escapeHtmlMinimal(rejectionReasonLabel)}</td></tr>`
+          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;width:100px;">Årsag:</td><td style="padding:4px 0;color:#333;font-size:13px;font-weight:bold;">${escapeHtml(rejectionReasonLabel)}</td></tr>`
           : '',
         rejectionNote
-          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;vertical-align:top;">Bemærkning:</td><td style="padding:4px 0;color:#333;font-size:13px;white-space:pre-wrap;">${escapeHtmlMinimal(rejectionNote)}</td></tr>`
+          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;vertical-align:top;">Bemærkning:</td><td style="padding:4px 0;color:#333;font-size:13px;white-space:pre-wrap;">${escapeHtml(rejectionNote)}</td></tr>`
           : '',
         (rejectedByName || rejectedByEmail)
-          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;">Afvist af:</td><td style="padding:4px 0;color:#333;font-size:13px;">${escapeHtmlMinimal(
+          ? `<tr><td style="padding:4px 0;color:#888;font-size:13px;">Afvist af:</td><td style="padding:4px 0;color:#333;font-size:13px;">${escapeHtml(
               [rejectedByName, rejectedByEmail].filter(Boolean).join(' — ')
             )}</td></tr>`
           : '',

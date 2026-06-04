@@ -9,6 +9,7 @@ import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { BRAND } from '@/lib/brand'
 import type { ConfirmationRecipientRole } from '@/types/document-confirmations.types'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 /**
  * Sprint 9F Phase 6a — shadow-preview wrapper for besigtigelse.
@@ -1163,11 +1164,3 @@ export async function sendExistingBesigtigelsesreport(
   }
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}

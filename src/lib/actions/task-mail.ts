@@ -29,6 +29,7 @@ import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { resolveAndBuildSignature } from '@/lib/email/signature'
 import { getCompanyBranding } from '@/lib/branding/company-branding'
+import { escapeHtml } from '@/lib/utils/html-escape'
 import crypto from 'crypto'
 
 export interface SendTaskEmailInput {
@@ -56,14 +57,6 @@ function generateTrackingId(): string {
   return crypto.randomBytes(16).toString('hex')
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
 
 /**
  * Sprint 8C-2: bygger HTML body med dynamisk signatur fra branding-helper.
