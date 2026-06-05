@@ -25,7 +25,9 @@ export default async function PortalOfferPage({ params }: OfferPageProps) {
   // Fetch offer and messages (anon-safe)
   const [offerResult, messagesResult] = await Promise.all([
     getPortalOffer(token, id),
-    getPortalMessages(token, id),
+    // Sprint 12B: hent ALLE kundens beskeder (én samlet chat pr. customer_id),
+    // ikke kun beskeder tagget med dette tilbud.
+    getPortalMessages(token),
   ])
 
   // Fetch company settings with anon client (no auth required)

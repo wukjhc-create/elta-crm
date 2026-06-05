@@ -791,6 +791,11 @@ export async function rejectOffer(
 // Get messages for portal (customer view)
 export async function getPortalMessages(
   token: string,
+  // Sprint 12B: offerId-param er bevaret for backward-compat men bruges
+  // ikke laengere til at filtrere chat-feedet. Kunden ser nu altid én
+  // samlet chat pr. customer_id paa tvaers af tilbudssider og dashboard.
+  // offer_id paa hver besked bevares som metadata (UI-label).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   offerId?: string
 ): Promise<ActionResult<PortalMessageWithRelations[]>> {
   try {
@@ -807,24 +812,45 @@ export async function getPortalMessages(
     const customerId = sessionResult.data.customer_id
 
     // sender_name er gemt direkte paa portal_messages — ingen profiles-join.
-    let query = admin
+    const { data, error } = await admin
       .from('portal_messages')
       .select('id, customer_id, offer_id, sender_type, sender_name, message, attachments, read_at, created_at')
       .eq('customer_id', customerId)
       .order('created_at', { ascending: true })
-
-    if (offerId) {
-      query = query.eq('offer_id', offerId)
-    }
-
-    const { data, error } = await query
 
     if (error) {
       logger.error('Error fetching portal messages', { error: error })
       return { success: false, error: 'Kunne ikke hente beskeder' }
     }
 
-    return { success: true, data: (data || []) as PortalMessageWithRelations[] }
+    // App-side join: hent offer_number/title for unique offer_id'er.
+    // Bruger offer-relationen paa PortalMessageWithRelations som UI
+    // (portal-chat.tsx) kan render som "Vedr. tilbud <offer_number>".
+    // App-side join undgaar PGRST201 FK-ambiguity paa offers→customers.
+    const offerIds = Array.from(
+      new Set((data || []).map((m) => m.offer_id).filter((id): id is string => !!id)),
+    )
+    const offerMap = new Map<string, { id: string; offer_number: string; title: string }>()
+    if (offerIds.length > 0) {
+      const { data: offers } = await admin
+        .from('offers')
+        .select('id, offer_number, title')
+        .in('id', offerIds)
+      for (const o of offers || []) {
+        offerMap.set(o.id as string, {
+          id: o.id as string,
+          offer_number: (o.offer_number as string) || '',
+          title: (o.title as string) || '',
+        })
+      }
+    }
+
+    const enriched = (data || []).map((m) => ({
+      ...m,
+      offer: m.offer_id ? offerMap.get(m.offer_id) || null : null,
+    }))
+
+    return { success: true, data: enriched as PortalMessageWithRelations[] }
   } catch (error) {
     logger.error('Error in getPortalMessages', { error: error })
     return { success: false, error: 'Der opstod en fejl' }

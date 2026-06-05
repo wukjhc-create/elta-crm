@@ -56,10 +56,12 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
   const [error, setError] = useState<string | null>(null)
   const [pendingAttachments, setPendingAttachments] = useState<PortalAttachment[]>([])
 
-  // Fetch messages from server
+  // Fetch messages from server. Sprint 12B — chat-feed er ALTID samlet
+  // pr. customer_id; vi sender ikke offerId til read-action laengere
+  // (den bruges kun til at tagge nye beskeder ved send).
   const loadMessages = useCallback(async () => {
     try {
-      const result = await getPortalMessages(token, offerId)
+      const result = await getPortalMessages(token)
       if (result.success && result.data) {
         setMessages(result.data)
 
@@ -76,7 +78,7 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
     } finally {
       setIsLoadingMessages(false)
     }
-  }, [token, offerId])
+  }, [token])
 
   // Load messages on mount and poll every 15 seconds
   useEffect(() => {
@@ -254,6 +256,17 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
                   </span>
                   <span className="text-xs opacity-50">{formatTime(message.created_at)}</span>
                 </div>
+                {message.offer && (
+                  <span
+                    className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mb-1 ${
+                      message.sender_type === 'customer'
+                        ? 'bg-white/20 text-white/90'
+                        : 'bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    Vedr. tilbud {message.offer.offer_number}
+                  </span>
+                )}
                 <p className="whitespace-pre-wrap break-words">{message.message}</p>
 
                 {message.attachments && message.attachments.length > 0 && (
