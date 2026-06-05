@@ -94,11 +94,17 @@ export function PortalDashboard({
     <div className="space-y-8">
       {/* Welcome Section */}
       <div className="bg-white rounded-xl border p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-900">
+        <p className="text-xs font-medium uppercase tracking-wide text-primary">
+          Din kundeportal
+        </p>
+        <h1 className="text-2xl font-bold text-gray-900 mt-1">
           Velkommen, {session.customer.contact_person}
         </h1>
         <p className="text-gray-600 mt-1">
           {session.customer.company_name} ({session.customer.customer_number})
+        </p>
+        <p className="text-sm text-gray-500 mt-3">
+          Her finder du dine tilbud, dokumenter, sager og beskeder samlet ét sted.
         </p>
       </div>
 
@@ -175,7 +181,12 @@ export function PortalDashboard({
       {/* Offers List */}
       <div className="bg-white rounded-xl border shadow-sm">
         <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Dine tilbud</h2>
+          <h2 className="text-lg font-semibold">Dine tilbud ({offers.length})</h2>
+          {offers.length > 1 && (
+            <p className="text-sm text-gray-500 mt-1">
+              Du har flere tilbud samlet her. Åbn det enkelte tilbud for at se detaljer, acceptere eller afvise.
+            </p>
+          )}
         </div>
 
         {offers.length === 0 ? (
@@ -237,15 +248,21 @@ export function PortalDashboard({
       </div>
 
       {/* Service Cases */}
-      {serviceCases.length > 0 && (
-        <div className="bg-white rounded-xl border shadow-sm">
-          <div className="p-6 border-b">
-            <div className="flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold">Serviceopgaver</h2>
+      <div className="bg-white rounded-xl border shadow-sm">
+        <div className="p-6 border-b">
+          <div className="flex items-center gap-2">
+            <Wrench className="w-5 h-5 text-purple-600" />
+            <h2 className="text-lg font-semibold">Sager</h2>
+            {serviceCases.length > 0 && (
               <span className="text-sm text-gray-500">({serviceCases.length})</span>
-            </div>
+            )}
           </div>
+        </div>
+        {serviceCases.length === 0 ? (
+          <div className="p-6 text-sm text-gray-500">
+            Der er endnu ingen aktive sager.
+          </div>
+        ) : (
           <div className="divide-y">
             {serviceCases.map((sc) => {
               const statusColor =
@@ -289,15 +306,19 @@ export function PortalDashboard({
               )
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Documents */}
-      {documents.length > 0 && (
-        <div className="bg-white rounded-xl border shadow-sm">
-          <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold">Dokumenter</h2>
+      <div className="bg-white rounded-xl border shadow-sm">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold">Dokumenter</h2>
+        </div>
+        {documents.length === 0 ? (
+          <div className="p-6 text-sm text-gray-500">
+            Der er endnu ingen dokumenter tilgængelige.
           </div>
+        ) : (
           <div className="divide-y">
             {documents.map((doc) => {
               const safeDesc = getSafeDocumentDescription(doc)
@@ -330,8 +351,8 @@ export function PortalDashboard({
               )
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Chat Modal */}
       {showChat && (
