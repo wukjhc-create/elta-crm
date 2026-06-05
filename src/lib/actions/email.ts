@@ -811,7 +811,12 @@ export async function sendOfferEmail(
     const { resolveOfferMailRoute, logMailRoute } = await import(
       '@/lib/actions/mail-route-resolvers'
     )
-    const routeResult = await resolveOfferMailRoute(input.offer_id)
+    // Phase 12B: hvis bruger valgte manuel modtager i send-dialog, sendes
+    // den som recipientOverride til resolveren (rammer override-gren paa
+    // linje 376-400 i resolver, før billing-contact-default-logik).
+    const routeResult = await resolveOfferMailRoute(input.offer_id, {
+      recipientOverride: input.recipient_override?.trim() || undefined,
+    })
     if (!routeResult.ok || !routeResult.route) {
       // Marker message-rowen som failed FØR retur
       await supabase

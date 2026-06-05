@@ -32,6 +32,10 @@ import {
   getEmailTemplates,
   sendOfferEmail,
 } from '@/lib/actions/email'
+import {
+  getOfferRecipientCandidates,
+  type OfferRecipientCandidate,
+} from '@/lib/actions/offer-parties'
 import type { EmailTemplate, EmailPreview } from '@/types/email.types'
 import {
   Send,
@@ -77,6 +81,14 @@ export function SendEmailModal({
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Phase 12B — recipient picker
+  const [candidates, setCandidates] = useState<OfferRecipientCandidate[]>([])
+  const [defaultRecipientEmail, setDefaultRecipientEmail] = useState<string | null>(null)
+  const [primaryCustomerEmail, setPrimaryCustomerEmail] = useState<string | null>(null)
+  /** "" = brug default (ingen override); ellers en kandidat-email eller 'manual' */
+  const [recipientChoice, setRecipientChoice] = useState<string>('')
+  const [manualRecipientEmail, setManualRecipientEmail] = useState<string>('')
+
   // Load current user name for sender field
   useEffect(() => {
     if (open && !senderName) {
@@ -109,6 +121,27 @@ export function SendEmailModal({
       loadPreview()
     }
   }, [open, selectedTemplate, offerId])
+
+  // Phase 12B — load recipient candidates when dialog opens
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    ;(async () => {
+      const result = await getOfferRecipientCandidates(offerId)
+      if (cancelled) return
+      if (result.success && result.data) {
+        setCandidates(result.data.candidates)
+        setDefaultRecipientEmail(result.data.defaultRecipientEmail)
+        setPrimaryCustomerEmail(result.data.primaryCustomerEmail)
+        // Reset choice to default each time dialog opens
+        setRecipientChoice('')
+        setManualRecipientEmail('')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, offerId])
 
   const loadTemplates = async () => {
     setIsLoadingTemplates(true)
@@ -150,9 +183,29 @@ export function SendEmailModal({
     }
   }
 
+  // Resolve final recipient override based on choice
+  const resolveRecipientOverride = (): string | undefined => {
+    if (recipientChoice === '') return undefined           // brug default fra resolver
+    if (recipientChoice === 'manual') {
+      const trimmed = manualRecipientEmail.trim()
+      return trimmed.length > 0 ? trimmed : undefined
+    }
+    return recipientChoice                                  // valgt kandidat-email
+  }
+
   const handleSend = async () => {
     setIsSending(true)
     setError(null)
+
+    // Validér manuel email klient-side (server validerer også)
+    if (recipientChoice === 'manual') {
+      const manual = manualRecipientEmail.trim()
+      if (!manual || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual)) {
+        setError('Indtast en gyldig e-mail-adresse')
+        setIsSending(false)
+        return
+      }
+    }
 
     try {
       const result = await sendOfferEmail({
@@ -162,6 +215,7 @@ export function SendEmailModal({
         body_html: isEditing ? bodyHtml : undefined,
         sender_name: senderName || undefined,
         include_pdf: includePdf,
+        recipient_override: resolveRecipientOverride(),
       })
 
       if (result.success) {
@@ -245,7 +299,7 @@ export function SendEmailModal({
           ) : preview ? (
             <>
               {/* Sender / recipient info */}
-              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
                 <div>
                   <Label className="text-xs text-muted-foreground">Fra</Label>
                   <p className="text-sm">
@@ -260,7 +314,57 @@ export function SendEmailModal({
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">Til</Label>
-                  <p className="text-sm">{preview.to_name} &lt;{preview.to_email}&gt;</p>
+                  <Select value={recipientChoice} onValueChange={setRecipientChoice}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Vælg modtager" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">
+                        {defaultRecipientEmail
+                          ? `Standard (${defaultRecipientEmail})`
+                          : 'Standard (resolveOfferMailRoute)'}
+                      </SelectItem>
+                      {candidates.map((c) => (
+                        <SelectItem key={`${c.role}-${c.email}`} value={c.email}>
+                          {c.label} — {c.email}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="manual">Anden e-mail (manuel)…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {recipientChoice === 'manual' && (
+                    <Input
+                      type="email"
+                      placeholder="navn@firma.dk"
+                      value={manualRecipientEmail}
+                      onChange={(e) => setManualRecipientEmail(e.target.value)}
+                      className="mt-2"
+                      autoComplete="email"
+                    />
+                  )}
+                  {(() => {
+                    const actualEmail =
+                      recipientChoice === ''
+                        ? defaultRecipientEmail
+                        : recipientChoice === 'manual'
+                          ? manualRecipientEmail.trim()
+                          : recipientChoice
+                    if (
+                      actualEmail &&
+                      primaryCustomerEmail &&
+                      actualEmail.toLowerCase() !== primaryCustomerEmail.toLowerCase()
+                    ) {
+                      return (
+                        <p className="text-xs text-amber-600 mt-1.5 flex items-start gap-1">
+                          <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                          <span>
+                            Sendes ikke til kundens primære e-mail ({primaryCustomerEmail}).
+                          </span>
+                        </p>
+                      )
+                    }
+                    return null
+                  })()}
                 </div>
               </div>
 

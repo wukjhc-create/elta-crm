@@ -121,6 +121,237 @@ export async function getOfferParties(
 }
 
 // =====================================================
+// Send-offer-dialog — recipient candidates
+// =====================================================
+
+export type OfferRecipientRole =
+  | 'primary_customer'
+  | 'billing_contact'
+  | 'orderer'
+  | 'payer'
+  | 'end_customer'
+  | 'contact'
+  | 'manual'
+
+export interface OfferRecipientCandidate {
+  email: string
+  label: string            // fx "Kundens primaere e-mail (Test Lars 45)"
+  role: OfferRecipientRole
+  customerId: string | null
+  contactId: string | null
+  isPrimary: boolean       // true for primary customer.email
+  isDefault: boolean       // true for det resolveOfferMailRoute ville vaelge uden override
+}
+
+export interface OfferRecipientCandidatesResult {
+  candidates: OfferRecipientCandidate[]
+  defaultRecipientEmail: string | null
+  defaultRoleLabel: string | null
+  primaryCustomerEmail: string | null   // til UI-advarsel hvis valgt != primaer
+}
+
+const ROLE_LABEL_MAP: Record<Exclude<OfferRecipientRole, 'manual'>, string> = {
+  primary_customer: 'Kundens primære e-mail',
+  billing_contact: 'Billing-kontakt',
+  orderer: 'Ordregiver',
+  payer: 'Betaler',
+  end_customer: 'Slutkunde / anlægsejer',
+  contact: 'Kontaktperson',
+}
+
+/**
+ * Returnér alle relevante modtager-kandidater til send-offer-dialog.
+ * Default-modtager matcher resolveOfferMailRoute (billing-contact foer
+ * customers.email paa active-party). Dedupes paa email (case-insensitive).
+ */
+export async function getOfferRecipientCandidates(
+  offerId: string
+): Promise<ActionResult<OfferRecipientCandidatesResult>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+    validateUUID(offerId, 'tilbud ID')
+
+    const { data: offer, error: offerErr } = await supabase
+      .from('offers')
+      .select(
+        'customer_id, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode'
+      )
+      .eq('id', offerId)
+      .maybeSingle()
+
+    if (offerErr || !offer) {
+      return { success: false, error: 'Tilbuddet blev ikke fundet' }
+    }
+
+    const primaryId = (offer.customer_id as string | null) || null
+    const ordererId = (offer.orderer_customer_id as string | null) || null
+    const endId = (offer.end_customer_id as string | null) || null
+    const payerId = (offer.payer_customer_id as string | null) || null
+    const billingMode = (offer.billing_mode as string | null) || 'same_as_customer'
+
+    if (!primaryId) {
+      return { success: false, error: 'Tilbud har ingen tilknyttet kunde' }
+    }
+
+    // Active-party via samme switch som resolveOfferMailRoute
+    let activeId: string
+    switch (billingMode) {
+      case 'end_customer_pays':
+        activeId = endId || primaryId
+        break
+      case 'third_party_pays':
+        activeId = payerId || primaryId
+        break
+      default: // orderer_pays / same_as_customer / unknown
+        activeId = ordererId || primaryId
+        break
+    }
+
+    // Hent alle relevante customers paa én gang
+    const uniqueIds = Array.from(
+      new Set([primaryId, ordererId, endId, payerId, activeId].filter((id): id is string => !!id))
+    )
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, company_name, contact_person, email')
+      .in('id', uniqueIds)
+
+    const customerMap = new Map<string, { id: string; name: string; email: string | null }>()
+    for (const c of customers || []) {
+      customerMap.set(c.id as string, {
+        id: c.id as string,
+        name: (c.company_name as string | null) || (c.contact_person as string | null) || 'Ukendt',
+        email: (c.email as string | null) || null,
+      })
+    }
+
+    // Hent billing-contact paa active-party
+    const { data: billingContact } = await supabase
+      .from('customer_contacts')
+      .select('id, name, email')
+      .eq('customer_id', activeId)
+      .eq('role', 'billing')
+      .not('email', 'is', null)
+      .limit(1)
+      .maybeSingle()
+
+    // Hent oevrige kontakter paa primaer kunde (for bredere kandidat-liste)
+    const { data: otherContacts } = await supabase
+      .from('customer_contacts')
+      .select('id, name, email, role')
+      .eq('customer_id', primaryId)
+      .not('email', 'is', null)
+      .limit(10)
+
+    // Byg kandidat-liste i prioritets-rækkefølge
+    const candidates: OfferRecipientCandidate[] = []
+    const seenEmails = new Set<string>()
+
+    const addCandidate = (c: Omit<OfferRecipientCandidate, 'isDefault'>) => {
+      if (!c.email) return
+      const key = c.email.toLowerCase().trim()
+      if (!key || seenEmails.has(key)) return
+      seenEmails.add(key)
+      candidates.push({ ...c, isDefault: false })
+    }
+
+    // Bestem default-email (matcher resolveOfferMailRoute)
+    const billingEmail = (billingContact?.email as string | null) || null
+    const activeCustomerEmail = customerMap.get(activeId)?.email || null
+    const defaultEmail = billingEmail
+      ? billingEmail.toLowerCase().trim()
+      : (activeCustomerEmail ? activeCustomerEmail.toLowerCase().trim() : null)
+
+    // 1) Billing-kontakt (hvis findes paa active-party)
+    if (billingContact?.email && billingContact.id) {
+      const activeName = customerMap.get(activeId)?.name || ''
+      addCandidate({
+        email: billingContact.email as string,
+        label: `${ROLE_LABEL_MAP.billing_contact}${activeName ? ` (${activeName})` : ''}${billingContact.name ? ` — ${billingContact.name as string}` : ''}`,
+        role: 'billing_contact',
+        customerId: activeId,
+        contactId: billingContact.id as string,
+        isPrimary: false,
+      })
+    }
+
+    // 2) Primaer kunde
+    const primaryCust = customerMap.get(primaryId)
+    if (primaryCust?.email) {
+      addCandidate({
+        email: primaryCust.email,
+        label: `${ROLE_LABEL_MAP.primary_customer} (${primaryCust.name})`,
+        role: 'primary_customer',
+        customerId: primaryId,
+        contactId: null,
+        isPrimary: true,
+      })
+    }
+
+    // 3) Ordregiver/betaler/slutkunde — kun hvis forskellig fra primaer
+    const addPartyIfDifferent = (
+      id: string | null,
+      role: 'orderer' | 'payer' | 'end_customer'
+    ) => {
+      if (!id || id === primaryId) return
+      const cust = customerMap.get(id)
+      if (!cust?.email) return
+      addCandidate({
+        email: cust.email,
+        label: `${ROLE_LABEL_MAP[role]} (${cust.name})`,
+        role,
+        customerId: id,
+        contactId: null,
+        isPrimary: false,
+      })
+    }
+    addPartyIfDifferent(ordererId, 'orderer')
+    addPartyIfDifferent(payerId, 'payer')
+    addPartyIfDifferent(endId, 'end_customer')
+
+    // 4) Oevrige kontakter paa primaer kunde
+    for (const ct of otherContacts || []) {
+      if (billingContact?.id && ct.id === billingContact.id) continue
+      addCandidate({
+        email: ct.email as string,
+        label: `${ROLE_LABEL_MAP.contact} — ${(ct.name as string | null) || 'Kontakt'}${ct.role ? ` (${ct.role as string})` : ''}`,
+        role: 'contact',
+        customerId: primaryId,
+        contactId: ct.id as string,
+        isPrimary: false,
+      })
+    }
+
+    // Marker default-kandidat
+    if (defaultEmail) {
+      const defaultIdx = candidates.findIndex(
+        (c) => c.email.toLowerCase().trim() === defaultEmail
+      )
+      if (defaultIdx >= 0) {
+        candidates[defaultIdx].isDefault = true
+      }
+    }
+
+    const defaultCandidate = candidates.find((c) => c.isDefault) || null
+    const defaultRoleLabel = defaultCandidate
+      ? ROLE_LABEL_MAP[defaultCandidate.role as Exclude<OfferRecipientRole, 'manual'>] || null
+      : null
+
+    return {
+      success: true,
+      data: {
+        candidates,
+        defaultRecipientEmail: defaultCandidate?.email || null,
+        defaultRoleLabel,
+        primaryCustomerEmail: primaryCust?.email || null,
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente modtager-kandidater') }
+  }
+}
+
+// =====================================================
 // Trin 5B — updateOfferParties (mutation)
 // =====================================================
 

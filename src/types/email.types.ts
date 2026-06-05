@@ -252,6 +252,14 @@ export interface SendOfferEmailInput {
   bcc?: string[]
   attachments?: EmailAttachment[]
   include_pdf?: boolean // Attach offer PDF
+  /**
+   * Manuel modtager-override fra send-dialog. Hvis sat, sendes mail til
+   * denne email i stedet for resolveOfferMailRoute's default (billing-
+   * contact først, derefter customer.email). Brugeren kan vælge fra
+   * kandidat-dropdown ELLER skrive manuel email. Intern-domæne-guard
+   * gælder stadig (assertExternalRecipient via resolver).
+   */
+  recipient_override?: string
 }
 
 export interface SendOfferEmailResult {
