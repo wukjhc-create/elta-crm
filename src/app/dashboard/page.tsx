@@ -10,6 +10,8 @@ import {
   TrendingUp,
   Clock,
   DollarSign,
+  XCircle,
+  TrendingDown,
 } from 'lucide-react'
 import {
   getDashboardStats,
@@ -18,8 +20,12 @@ import {
   getPendingOffers,
 } from '@/lib/actions/dashboard'
 import { getDashboardOverview } from '@/lib/actions/dashboard-overview'
+import { getRejectionStats, getRecentRejections } from '@/lib/actions/reports'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { formatCurrency } from '@/lib/utils/format'
+import Link from 'next/link'
+import { format } from 'date-fns'
+import { da } from 'date-fns/locale'
 import {
   StatCard,
   RecentActivity,
@@ -58,16 +64,33 @@ export default async function DashboardPage() {
   }
 
   // Fetch all dashboard data in parallel
-  const [stats, activities, tasks, offers, settingsResult, overview] = await Promise.all([
+  const [
+    stats,
+    activities,
+    tasks,
+    offers,
+    settingsResult,
+    overview,
+    rejectionStatsResult,
+    recentRejectionsResult,
+  ] = await Promise.all([
     getDashboardStats(),
     getRecentActivity(8),
     getUpcomingTasks(5),
     getPendingOffers(5),
     getCompanySettings(),
     getDashboardOverview(),
+    getRejectionStats(),
+    getRecentRejections(5),
   ])
 
   const companySettings = settingsResult.success && settingsResult.data ? settingsResult.data : null
+  const rejectionStats = rejectionStatsResult.success && rejectionStatsResult.data
+    ? rejectionStatsResult.data
+    : null
+  const recentRejections = recentRejectionsResult.success && recentRejectionsResult.data
+    ? recentRejectionsResult.data
+    : []
 
   return (
     <div className="space-y-6">
@@ -156,6 +179,42 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* Phase 12A Rejection Analytics — afviste tilbud + tabt omsætning (seneste 90 dage) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <StatCard
+          title="Afviste tilbud"
+          value={rejectionStats?.totalRejected ?? 0}
+          subtitle={
+            rejectionStats && rejectionStats.totalRejected > 0
+              ? `${rejectionStats.rejectionRate.toFixed(1)}% afvisningsrate (90 dage)`
+              : 'Ingen afviste tilbud i scope'
+          }
+          icon={XCircle}
+          iconColor="text-red-600"
+          iconBgColor="bg-red-100"
+          href="/dashboard/offers?status=rejected"
+          trend={
+            rejectionStats && rejectionStats.trend.prev30Days > 0
+              ? {
+                  value: Math.abs(rejectionStats.trend.deltaPercent),
+                  label: 'vs. forrige 30 dage',
+                  // Faerre afviste = positivt (isPositive=true). Flere afviste = negativt
+                  isPositive: rejectionStats.trend.deltaPercent <= 0,
+                }
+              : undefined
+          }
+        />
+        <StatCard
+          title="Tabt omsætning"
+          value={formatCurrency(rejectionStats?.lostRevenue ?? 0)}
+          subtitle="Fra afviste tilbud (90 dage)"
+          icon={TrendingDown}
+          iconColor="text-amber-600"
+          iconBgColor="bg-amber-100"
+          href="/dashboard/offers?status=rejected"
+        />
+      </div>
+
       {/* Economic Dashboard — Monthly Offer Stats */}
       <div className="bg-white p-6 rounded-lg border">
         <MonthlyOfferChart />
@@ -218,6 +277,58 @@ export default async function DashboardPage() {
           <div className="bg-white p-6 rounded-lg border">
             <h2 className="text-lg font-semibold mb-4">Afventende tilbud</h2>
             <PendingOffers offers={offers} />
+          </div>
+
+          {/* Phase 12A — Seneste afviste tilbud */}
+          <div className="bg-white p-6 rounded-lg border">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Seneste afviste tilbud</h2>
+              {recentRejections.length > 0 && (
+                <Link
+                  href="/dashboard/offers?status=rejected"
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Se alle →
+                </Link>
+              )}
+            </div>
+            {recentRejections.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">Ingen afviste tilbud endnu.</p>
+            ) : (
+              <ul className="divide-y">
+                {recentRejections.map((r) => (
+                  <li key={r.id} className="py-2.5">
+                    <Link
+                      href={`/dashboard/offers/${r.id}`}
+                      className="block hover:bg-gray-50 -mx-2 px-2 py-1 rounded"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {r.offer_number}
+                            {r.title ? ` — ${r.title}` : ''}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {r.customer_name || 'Ukendt kunde'}
+                          </p>
+                          <p className="text-xs text-red-600 mt-0.5 truncate">
+                            {r.reason_label}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-medium text-gray-700">
+                            {formatCurrency(r.final_amount)}
+                          </p>
+                          <p className="text-[10px] text-gray-400">
+                            {format(new Date(r.rejected_at), 'd. MMM', { locale: da })}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>

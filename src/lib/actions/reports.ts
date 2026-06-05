@@ -9,6 +9,10 @@
 
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import {
+  REJECTION_REASON_LABELS,
+  type RejectionReasonCode,
+} from '@/types/offers.types'
 
 // =====================================================
 // Types
@@ -50,6 +54,50 @@ export interface TeamProductivity {
   billable_hours: number
   billable_percentage: number
   projects_count: number
+}
+
+// =====================================================
+// Phase 12A — Rejection Analytics
+// =====================================================
+
+/**
+ * Bucket-key for rejected offers uden kategorisk rejection_reason
+ * (historiske pre-00121). Kan ikke eksporteres som value fra denne
+ * 'use server'-fil — Next.js tillader kun async functions.
+ */
+export type RejectionReasonBucketKey = RejectionReasonCode | 'unknown'
+
+export interface RejectionReasonStat {
+  reason: RejectionReasonBucketKey
+  label: string                  // dansk label ("Prisen er for høj" / "Ikke angivet")
+  count: number
+  lostRevenue: number
+  percentage: number             // % af total afviste i scope
+}
+
+export interface RejectionStats {
+  scopeDays: number              // hvor mange dage scope-vinduet daekker (90)
+  totalRejected: number          // antal i scope (seneste 90 dage)
+  rejectionRate: number          // % af alle decided offers (accepted + rejected) i scope
+  lostRevenue: number            // sum(final_amount) for rejected i scope
+  byReason: RejectionReasonStat[]
+  trend: {
+    last30Days: number
+    prev30Days: number            // 60-30 dage tilbage
+    deltaPercent: number          // (last30 - prev30) / prev30 * 100. + = flere afviste (vaerre)
+  }
+}
+
+export interface RecentRejection {
+  id: string
+  offer_number: string
+  title: string
+  customer_name: string | null   // company_name eller contact_person fallback
+  reason_code: RejectionReasonBucketKey
+  reason_label: string
+  rejected_at: string
+  final_amount: number
+  currency: string
 }
 
 export interface ReportsSummary {
@@ -425,5 +473,179 @@ export async function getTeamProductivity(
     return { success: true, data: result }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente teamdata') }
+  }
+}
+
+// =====================================================
+// Rejection Analytics (Phase 12A payoff)
+// =====================================================
+
+const REJECTION_SCOPE_DAYS = 90
+const TREND_WINDOW_DAYS = 30
+const UNKNOWN_LABEL = 'Ikke angivet'
+
+/**
+ * Aggregeret rejection-data til CRM dashboard + reports-side.
+ *
+ * Scope: seneste 90 dage. Trend sammenligner seneste 30 dage med 30-60
+ * dage tilbage. byReason inkluderer en "unknown"-bucket for historiske
+ * rejects fra foer Phase 12A (00121) der har rejection_reason = NULL.
+ *
+ * Bruger authenticated client — kun medarbejdere kan se aggregeringen.
+ */
+export async function getRejectionStats(): Promise<ActionResult<RejectionStats>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    const now = Date.now()
+    const scopeStart = new Date(now - REJECTION_SCOPE_DAYS * 86_400_000)
+    const last30Start = new Date(now - TREND_WINDOW_DAYS * 86_400_000)
+    const prev30Start = new Date(now - 2 * TREND_WINDOW_DAYS * 86_400_000)
+
+    // 1 query for rejected i scope + 1 count-only for decided-rate
+    const [rejectedResult, acceptedCountResult] = await Promise.all([
+      supabase
+        .from('offers')
+        .select('id, rejection_reason, rejected_at, final_amount')
+        .eq('status', 'rejected')
+        .gte('rejected_at', scopeStart.toISOString()),
+      supabase
+        .from('offers')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'accepted')
+        .gte('accepted_at', scopeStart.toISOString()),
+    ])
+
+    const rejected = rejectedResult.data || []
+    const totalRejected = rejected.length
+    const acceptedCount = acceptedCountResult.count || 0
+
+    const decided = totalRejected + acceptedCount
+    const rejectionRate = decided > 0 ? (totalRejected / decided) * 100 : 0
+
+    const lostRevenue = rejected.reduce((sum, r) => sum + (r.final_amount || 0), 0)
+
+    // Trend: count rejected i sidste 30 vs forrige 30
+    let last30Count = 0
+    let prev30Count = 0
+    for (const r of rejected) {
+      if (!r.rejected_at) continue
+      const ts = new Date(r.rejected_at).getTime()
+      if (ts >= last30Start.getTime()) {
+        last30Count++
+      } else if (ts >= prev30Start.getTime()) {
+        prev30Count++
+      }
+    }
+    const deltaPercent = prev30Count > 0
+      ? ((last30Count - prev30Count) / prev30Count) * 100
+      : (last30Count > 0 ? 100 : 0)
+
+    // Aggregér pr. reason-bucket
+    const bucketMap = new Map<RejectionReasonBucketKey, { count: number; lostRevenue: number }>()
+    for (const r of rejected) {
+      const code = (r.rejection_reason ?? 'unknown' as const) as RejectionReasonBucketKey
+      const existing = bucketMap.get(code) || { count: 0, lostRevenue: 0 }
+      existing.count++
+      existing.lostRevenue += r.final_amount || 0
+      bucketMap.set(code, existing)
+    }
+
+    const byReason: RejectionReasonStat[] = Array.from(bucketMap.entries())
+      .map(([code, data]) => ({
+        reason: code,
+        label: code === 'unknown' as const
+          ? UNKNOWN_LABEL
+          : REJECTION_REASON_LABELS[code as RejectionReasonCode],
+        count: data.count,
+        lostRevenue: data.lostRevenue,
+        percentage: totalRejected > 0 ? (data.count / totalRejected) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+
+    return {
+      success: true,
+      data: {
+        scopeDays: REJECTION_SCOPE_DAYS,
+        totalRejected,
+        rejectionRate,
+        lostRevenue,
+        byReason,
+        trend: {
+          last30Days: last30Count,
+          prev30Days: prev30Count,
+          deltaPercent,
+        },
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente afvisningsstatistik') }
+  }
+}
+
+/**
+ * Top N nyeste afviste tilbud — bruges som widget paa /dashboard.
+ *
+ * Henter offer-row + customer separat for at undgaa PGRST201 FK-ambiguity
+ * (offers har 4 FKs til customers: customer_id, orderer_customer_id,
+ * end_customer_id, payer_customer_id). Customer-data joines i app-laget.
+ */
+export async function getRecentRejections(
+  limit: number = 5,
+): Promise<ActionResult<RecentRejection[]>> {
+  try {
+    const { supabase } = await getAuthenticatedClient()
+
+    const { data: offers, error } = await supabase
+      .from('offers')
+      .select('id, offer_number, title, customer_id, rejection_reason, rejected_at, final_amount, currency')
+      .eq('status', 'rejected')
+      .not('rejected_at', 'is', null)
+      .order('rejected_at', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      return { success: false, error: 'Kunne ikke hente afviste tilbud' }
+    }
+    if (!offers || offers.length === 0) {
+      return { success: true, data: [] }
+    }
+
+    // Hent customer-data separat (undgaa PGRST201 FK-ambiguity)
+    const customerIds = Array.from(
+      new Set(offers.map((o) => o.customer_id).filter((id): id is string => !!id)),
+    )
+    const customerMap = new Map<string, string>()
+    if (customerIds.length > 0) {
+      const { data: customers } = await supabase
+        .from('customers')
+        .select('id, company_name, contact_person')
+        .in('id', customerIds)
+      for (const c of customers || []) {
+        customerMap.set(c.id, c.company_name || c.contact_person || 'Ukendt')
+      }
+    }
+
+    const result: RecentRejection[] = offers.map((o) => {
+      const code = (o.rejection_reason ?? 'unknown' as const) as RejectionReasonBucketKey
+      const label = code === 'unknown' as const
+        ? UNKNOWN_LABEL
+        : REJECTION_REASON_LABELS[code as RejectionReasonCode]
+      return {
+        id: o.id,
+        offer_number: o.offer_number || '',
+        title: o.title || '',
+        customer_name: o.customer_id ? customerMap.get(o.customer_id) || null : null,
+        reason_code: code,
+        reason_label: label,
+        rejected_at: o.rejected_at!,
+        final_amount: o.final_amount || 0,
+        currency: o.currency || 'DKK',
+      }
+    })
+
+    return { success: true, data: result }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente afviste tilbud') }
   }
 }

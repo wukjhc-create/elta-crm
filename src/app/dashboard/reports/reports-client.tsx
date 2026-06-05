@@ -12,6 +12,8 @@ import {
   Target,
   Briefcase,
   Download,
+  XCircle,
+  TrendingDown,
 } from 'lucide-react'
 import { ExportButton } from '@/components/shared/export-button'
 import {
@@ -20,11 +22,13 @@ import {
   getRevenueByCustomer,
   getProjectProfitability,
   getTeamProductivity,
+  getRejectionStats,
   type ReportsSummary,
   type RevenueByPeriod,
   type RevenueByCustomer,
   type ProjectProfitability,
   type TeamProductivity,
+  type RejectionStats,
 } from '@/lib/actions/reports'
 
 // =====================================================
@@ -283,6 +287,96 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
 }
 
 // =====================================================
+// Phase 12A — Rejection Analytics Section
+// =====================================================
+
+function RejectionAnalyticsSection({ stats }: { stats: RejectionStats | null }) {
+  if (!stats || stats.totalRejected === 0) {
+    return (
+      <div className="bg-white rounded-lg border p-6">
+        <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <XCircle className="w-5 h-5 text-gray-400" />
+          Afvisningsårsager
+        </h3>
+        <p className="text-sm text-gray-400 italic py-8 text-center">
+          Når kunder afviser tilbud, vises årsagerne her.
+        </p>
+      </div>
+    )
+  }
+
+  const topReason = stats.byReason[0]
+  const maxCount = Math.max(...stats.byReason.map((r) => r.count), 1)
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <KpiCard
+          label="Total afviste (90 dage)"
+          value={stats.totalRejected.toString()}
+          sublabel={`${stats.rejectionRate.toFixed(1)}% afvisningsrate`}
+          icon={XCircle}
+          color="bg-red-100 text-red-600"
+        />
+        <KpiCard
+          label="Tabt omsætning"
+          value={formatCurrency(stats.lostRevenue)}
+          sublabel="Fra afviste tilbud"
+          icon={TrendingDown}
+          color="bg-amber-100 text-amber-600"
+        />
+        <KpiCard
+          label="Top årsag"
+          value={topReason?.label || '—'}
+          sublabel={topReason ? `${topReason.count} tilbud (${topReason.percentage.toFixed(0)}%)` : ''}
+          icon={Target}
+          color="bg-orange-100 text-orange-600"
+        />
+      </div>
+
+      <div className="bg-white rounded-lg border p-6">
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-gray-400" />
+          Afvisningsårsager (seneste 90 dage)
+        </h3>
+        <ul className="space-y-3">
+          {stats.byReason.map((r) => {
+            const widthPct = maxCount > 0 ? (r.count / maxCount) * 100 : 0
+            const isUnknown = r.reason === 'unknown'
+            return (
+              <li key={r.reason} className="space-y-1">
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className={`font-medium ${isUnknown ? 'text-gray-500 italic' : 'text-gray-900'}`}>
+                    {r.label}
+                  </span>
+                  <span className="text-gray-600 font-mono text-xs shrink-0">
+                    {r.count} · {r.percentage.toFixed(0)}% · {formatCurrency(r.lostRevenue)}
+                  </span>
+                </div>
+                <div className="relative h-6 bg-gray-100 rounded overflow-hidden">
+                  <div
+                    className={`absolute inset-y-0 left-0 rounded transition-all ${
+                      isUnknown ? 'bg-gray-300' : 'bg-red-400/70'
+                    }`}
+                    style={{ width: `${Math.max(widthPct, 2)}%` }}
+                  />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+        {stats.trend.prev30Days > 0 && (
+          <p className="text-xs text-gray-500 mt-4 pt-3 border-t">
+            Seneste 30 dage: {stats.trend.last30Days} afviste vs. {stats.trend.prev30Days} i forrige 30 dage
+            {' '}({stats.trend.deltaPercent >= 0 ? '+' : ''}{stats.trend.deltaPercent.toFixed(0)}%)
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// =====================================================
 // Main
 // =====================================================
 
@@ -292,18 +386,20 @@ export default function ReportsClient() {
   const [customers, setCustomers] = useState<RevenueByCustomer[]>([])
   const [projects, setProjects] = useState<ProjectProfitability[]>([])
   const [team, setTeam] = useState<TeamProductivity[]>([])
+  const [rejections, setRejections] = useState<RejectionStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       setIsLoading(true)
-      const [summaryRes, revenueRes, customersRes, projectsRes, teamRes] =
+      const [summaryRes, revenueRes, customersRes, projectsRes, teamRes, rejectionsRes] =
         await Promise.allSettled([
           getReportsSummary(),
           getRevenueByPeriod(6),
           getRevenueByCustomer(10),
           getProjectProfitability(),
           getTeamProductivity(1),
+          getRejectionStats(),
         ])
 
       if (summaryRes.status === 'fulfilled' && summaryRes.value.success) {
@@ -320,6 +416,9 @@ export default function ReportsClient() {
       }
       if (teamRes.status === 'fulfilled' && teamRes.value.success) {
         setTeam(teamRes.value.data || [])
+      }
+      if (rejectionsRes.status === 'fulfilled' && rejectionsRes.value.success) {
+        setRejections(rejectionsRes.value.data || null)
       }
       setIsLoading(false)
     }
@@ -390,6 +489,9 @@ export default function ReportsClient() {
         <RevenueChart data={revenue} />
         <TopCustomersTable data={customers} />
       </div>
+
+      {/* Phase 12A — Afvisningsårsager */}
+      <RejectionAnalyticsSection stats={rejections} />
 
       {/* Project Profitability */}
       <ProjectTable data={projects} />
