@@ -216,7 +216,7 @@ export function assertExternalRecipient(route: MailRoute): void {
   if (!route.isInternalAllowed && isInternalEmail(to)) {
     throw new MailRouteError(
       'INTERNAL_RECIPIENT_BLOCKED',
-      `Kan ikke sende reply: modtager (${to}) ser ud til at være en intern mailbox`
+      `Kan ikke sende til intern e-mail-adresse (${to}). Vælg en ekstern modtager.`
     )
   }
   if (from && to === from.toLowerCase()) {

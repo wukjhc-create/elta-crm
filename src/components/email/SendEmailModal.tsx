@@ -86,7 +86,7 @@ export function SendEmailModal({
   const [defaultRecipientEmail, setDefaultRecipientEmail] = useState<string | null>(null)
   const [primaryCustomerEmail, setPrimaryCustomerEmail] = useState<string | null>(null)
   /** "" = brug default (ingen override); ellers en kandidat-email eller 'manual' */
-  const [recipientChoice, setRecipientChoice] = useState<string>('')
+  const [recipientChoice, setRecipientChoice] = useState<string>('__default__')
   const [manualRecipientEmail, setManualRecipientEmail] = useState<string>('')
 
   // Load current user name for sender field
@@ -134,7 +134,7 @@ export function SendEmailModal({
         setDefaultRecipientEmail(result.data.defaultRecipientEmail)
         setPrimaryCustomerEmail(result.data.primaryCustomerEmail)
         // Reset choice to default each time dialog opens
-        setRecipientChoice('')
+        setRecipientChoice('__default__')
         setManualRecipientEmail('')
       }
     })()
@@ -185,13 +185,22 @@ export function SendEmailModal({
 
   // Resolve final recipient override based on choice
   const resolveRecipientOverride = (): string | undefined => {
-    if (recipientChoice === '') return undefined           // brug default fra resolver
+    if (recipientChoice === '__default__') return undefined           // brug default fra resolver
     if (recipientChoice === 'manual') {
       const trimmed = manualRecipientEmail.trim()
       return trimmed.length > 0 ? trimmed : undefined
     }
     return recipientChoice                                  // valgt kandidat-email
   }
+
+  // Hvad den faktiske modtager-email vil vaere (til klient-validering + visning)
+  const actualRecipientEmail =
+    recipientChoice === '__default__'
+      ? (defaultRecipientEmail || '')
+      : recipientChoice === 'manual'
+        ? manualRecipientEmail.trim()
+        : recipientChoice
+  const isInternalRecipient = /@eltasolar\.dk$/i.test(actualRecipientEmail)
 
   const handleSend = async () => {
     setIsSending(true)
@@ -319,10 +328,10 @@ export function SendEmailModal({
                       <SelectValue placeholder="Vælg modtager" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">
+                      <SelectItem value="__default__">
                         {defaultRecipientEmail
                           ? `Standard (${defaultRecipientEmail})`
-                          : 'Standard (resolveOfferMailRoute)'}
+                          : 'Standard (ingen email fundet)'}
                       </SelectItem>
                       {candidates.map((c) => (
                         <SelectItem key={`${c.role}-${c.email}`} value={c.email}>
@@ -344,26 +353,40 @@ export function SendEmailModal({
                   )}
                   {(() => {
                     const actualEmail =
-                      recipientChoice === ''
-                        ? defaultRecipientEmail
+                      recipientChoice === '__default__'
+                        ? (defaultRecipientEmail || '')
                         : recipientChoice === 'manual'
                           ? manualRecipientEmail.trim()
                           : recipientChoice
-                    if (
-                      actualEmail &&
-                      primaryCustomerEmail &&
-                      actualEmail.toLowerCase() !== primaryCustomerEmail.toLowerCase()
-                    ) {
-                      return (
-                        <p className="text-xs text-amber-600 mt-1.5 flex items-start gap-1">
-                          <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                          <span>
-                            Sendes ikke til kundens primære e-mail ({primaryCustomerEmail}).
-                          </span>
-                        </p>
-                      )
-                    }
-                    return null
+                    const isInternal = /@eltasolar\.dk$/i.test(actualEmail)
+                    return (
+                      <>
+                        {actualEmail && (
+                          <p className="text-xs text-gray-600 mt-1.5">
+                            Sender til: <span className="font-medium">{actualEmail}</span>
+                          </p>
+                        )}
+                        {isInternal && (
+                          <p className="text-xs text-red-700 mt-1.5 flex items-start gap-1 bg-red-50 border border-red-200 rounded p-2">
+                            <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                            <span>
+                              Interne @eltasolar.dk-adresser kan ikke modtage tilbudsmail. Vælg en ekstern modtager.
+                            </span>
+                          </p>
+                        )}
+                        {!isInternal &&
+                          actualEmail &&
+                          primaryCustomerEmail &&
+                          actualEmail.toLowerCase() !== primaryCustomerEmail.toLowerCase() && (
+                            <p className="text-xs text-amber-600 mt-1.5 flex items-start gap-1">
+                              <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                              <span>
+                                Sendes ikke til kundens primære e-mail ({primaryCustomerEmail}).
+                              </span>
+                            </p>
+                          )}
+                      </>
+                    )
                   })()}
                 </div>
               </div>
@@ -473,7 +496,7 @@ export function SendEmailModal({
           </Button>
           <Button
             onClick={handleSend}
-            disabled={isSending || isLoadingPreview || !preview}
+            disabled={isSending || isLoadingPreview || !preview || isInternalRecipient}
           >
             {isSending ? (
               <>
