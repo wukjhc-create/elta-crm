@@ -683,13 +683,24 @@ async function processEmailIntelligenceUnsafe(
       })
       .eq('id', emailId)
 
+    // Feature flag: auto-oprettelse af cases/tilbud/tasks er som default
+    // SLÅET FRA. Sættes AUTO_CREATE_CASES_ENABLED='true' i miljøet for at
+    // genaktivere flowet. Mail-analyse + customer-link kører altid; kun
+    // record-creation gates'es. Indført som nødstop efter 2026-06-05-audit.
+    const autoCreateEnabled = process.env.AUTO_CREATE_CASES_ENABLED === 'true'
+    if (!autoCreateEnabled) {
+      console.log('AUTO-CREATE DISABLED: skipping case/offer/tasks creation (AUTO_CREATE_CASES_ENABLED != true)')
+    }
+
     // Auto-case creation — strict relevance guard.
     // Required:
     //   1. classification ∈ {'customer','supplier'}
     //   2. score >= 2
     //   3. extracted.phone OR extracted.address present
     let caseSkipReason: string | null = null
-    if (type !== 'customer' && type !== 'supplier') {
+    if (!autoCreateEnabled) {
+      caseSkipReason = 'AUTO_CREATE_CASES_ENABLED feature flag disabled'
+    } else if (type !== 'customer' && type !== 'supplier') {
       caseSkipReason = `classification=${type} (must be customer or supplier)`
     } else if (score < 2) {
       caseSkipReason = `score=${score} (below 2)`
