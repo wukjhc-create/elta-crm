@@ -477,6 +477,32 @@ CREATE INDEX IF NOT EXISTS idx_incoming_emails_mailbox_source
   WHERE mailbox_source IS NOT NULL;
     `.trim(),
   },
+  {
+    name: '00123_is_proposal_flag',
+    check_table: 'offers',
+    check_column: 'is_proposal',
+    sql: `
+ALTER TABLE service_cases
+  ADD COLUMN IF NOT EXISTS is_proposal BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE offers
+  ADD COLUMN IF NOT EXISTS is_proposal BOOLEAN NOT NULL DEFAULT false;
+
+CREATE INDEX IF NOT EXISTS idx_service_cases_proposals
+  ON service_cases(created_at DESC)
+  WHERE is_proposal = true;
+
+CREATE INDEX IF NOT EXISTS idx_offers_proposals
+  ON offers(created_at DESC)
+  WHERE is_proposal = true;
+
+COMMENT ON COLUMN service_cases.is_proposal IS
+  'Staging-model B (00123): true = AI/auto-genereret forslag.';
+
+COMMENT ON COLUMN offers.is_proposal IS
+  'Staging-model B (00123): true = AI/auto-genereret tilbudsforslag.';
+    `.trim(),
+  },
 ]
 
 function getProjectRef(): string | null {
