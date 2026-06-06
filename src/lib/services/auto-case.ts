@@ -120,6 +120,7 @@ export async function createCaseFromEmail(
       source_email_id: email.id,
       address: address ?? null,
       created_by: adminProfile?.id ?? null,
+      is_proposal: true,
     })
     .select('id')
     .single()

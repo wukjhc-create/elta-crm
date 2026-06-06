@@ -131,6 +131,7 @@ export async function createOfferDraftFromCase(input: AutoOfferInput): Promise<s
           notes,
           source_email_id: input.emailId,
           created_by: adminProfile.id,
+          is_proposal: true,
         })
         .select('id, offer_number')
         .single()
