@@ -80,7 +80,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // Customers stats
     supabase.from('customers').select('is_active, created_at'),
     // Offers stats
-    supabase.from('offers').select('status, total_amount'),
+    supabase.from('offers').select('status, total_amount').eq('is_proposal', false),
     // Projects stats
     supabase.from('projects').select('status'),
     // Time entries for project hours
@@ -238,6 +238,7 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
       supabase
         .from('offers')
         .select('id, offer_number, title, status, created_at')
+        .eq('is_proposal', false)
         .order('created_at', { ascending: false })
         .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
       supabase
@@ -390,6 +391,7 @@ export async function getPendingOffers(limit: number = DASHBOARD_LIMITS.PENDING_
     `
     )
     .in('status', ['sent', 'viewed'])
+    .eq('is_proposal', false)
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -423,6 +425,7 @@ export async function getMonthlyOfferStats(): Promise<{
   const { data } = await supabase
     .from('offers')
     .select('status, total_amount')
+    .eq('is_proposal', false)
     .gte('created_at', firstDayOfMonth)
     .in('status', ['sent', 'viewed', 'accepted'])
 

@@ -105,9 +105,11 @@ export async function GET() {
         .gte('created_at', since24h)),
       safe(supabase.from('service_cases').select('id', { count: 'exact', head: true })
         .neq('status', 'closed')
-        .neq('status', 'completed')),
+        .neq('status', 'completed')
+        .eq('is_proposal', false)),
       safe(supabase.from('offers').select('id', { count: 'exact', head: true })
-        .eq('status', 'draft')),
+        .eq('status', 'draft')
+        .eq('is_proposal', false)),
       safe(supabase.from('invoices').select('id', { count: 'exact', head: true })
         .eq('status', 'sent')),
       safe(supabase.from('invoices').select('id', { count: 'exact', head: true })

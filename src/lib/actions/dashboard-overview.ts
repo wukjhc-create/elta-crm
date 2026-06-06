@@ -216,10 +216,10 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     (async () => {
       try {
         const [newRes, progressRes, pendingRes, totalRes] = await Promise.all([
-          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'new'),
-          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'in_progress'),
-          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabase.from('service_cases').select('id', { count: 'exact', head: true }).not('status', 'in', '("closed","converted")'),
+          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'new').eq('is_proposal', false),
+          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'in_progress').eq('is_proposal', false),
+          supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('is_proposal', false),
+          supabase.from('service_cases').select('id', { count: 'exact', head: true }).not('status', 'in', '("closed","converted")').eq('is_proposal', false),
         ])
         overview.cases.new = newRes.count || 0
         overview.cases.in_progress = progressRes.count || 0
@@ -240,6 +240,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             .from('offers')
             .select('id', { count: 'exact', head: true })
             .in('status', ['sent', 'viewed'])
+            .eq('is_proposal', false)
             .lt('created_at', cutoff),
           supabase
             .from('offers')
@@ -248,6 +249,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
               customer:customers!offers_customer_id_fkey(company_name)
             `)
             .in('status', ['sent', 'viewed'])
+            .eq('is_proposal', false)
             .lt('created_at', cutoff)
             .order('created_at', { ascending: true })
             .limit(TOP_N),

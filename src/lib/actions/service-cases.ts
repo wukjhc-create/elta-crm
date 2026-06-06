@@ -38,6 +38,8 @@ export async function getServiceCases(filters?: {
   priority?: ServiceCasePriority
   page?: number
   pageSize?: number
+  /** Staging-model B: vis kun is_proposal=true. Default vises kun is_proposal=false. */
+  proposalsOnly?: boolean
 }): Promise<ActionResult<PaginatedResponse<ServiceCaseWithRelations>>> {
   try {
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
@@ -67,6 +69,7 @@ export async function getServiceCases(filters?: {
         customer:customers!service_cases_customer_id_fkey(id, company_name, contact_person, email, phone),
         assignee:profiles!service_cases_assigned_to_fkey(id, full_name)
       `, { count: 'exact' })
+      .eq('is_proposal', filters?.proposalsOnly === true)
       .order('created_at', { ascending: false })
       .range(offset, offset + pageSize - 1)
 

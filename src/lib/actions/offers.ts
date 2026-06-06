@@ -48,6 +48,8 @@ export async function getOffers(filters?: {
   sortOrder?: 'asc' | 'desc'
   page?: number
   pageSize?: number
+  /** Staging-model B: vis kun is_proposal=true. Default vises kun is_proposal=false. */
+  proposalsOnly?: boolean
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -67,6 +69,7 @@ export async function getOffers(filters?: {
     let countQuery = supabase
       .from('offers')
       .select('*', { count: 'exact', head: true })
+      .eq('is_proposal', filters?.proposalsOnly === true)
 
     // Build data query
     let dataQuery = supabase
@@ -76,6 +79,7 @@ export async function getOffers(filters?: {
         customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email),
         lead:leads(id, company_name, contact_person, email)
       `)
+      .eq('is_proposal', filters?.proposalsOnly === true)
 
     // Apply filters to both queries with sanitized search
     if (filters?.search) {

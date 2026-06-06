@@ -135,14 +135,14 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       monthEntriesResult,
       topCustomerResult,
     ] = await Promise.all([
-      supabase.from('offers').select('final_amount').eq('status', 'accepted'),
-      supabase.from('offers').select('final_amount').in('status', ['sent', 'viewed']),
-      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'accepted'),
-      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
-      supabase.from('offers').select('final_amount').not('status', 'eq', 'draft'),
+      supabase.from('offers').select('final_amount').eq('status', 'accepted').eq('is_proposal', false),
+      supabase.from('offers').select('final_amount').in('status', ['sent', 'viewed']).eq('is_proposal', false),
+      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'accepted').eq('is_proposal', false),
+      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'rejected').eq('is_proposal', false),
+      supabase.from('offers').select('final_amount').not('status', 'eq', 'draft').eq('is_proposal', false),
       supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'active'),
       supabase.from('time_entries').select('hours, billable').gte('date', monthStart.toISOString()),
-      supabase.from('offers').select('customer_id, final_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted'),
+      supabase.from('offers').select('customer_id, final_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted').eq('is_proposal', false),
     ])
 
     // Calculate revenue
@@ -230,11 +230,13 @@ export async function getRevenueByPeriod(
         .from('offers')
         .select('final_amount, accepted_at')
         .eq('status', 'accepted')
+        .eq('is_proposal', false)
         .gte('accepted_at', rangeStart.toISOString()),
       supabase
         .from('offers')
         .select('final_amount, created_at')
         .in('status', ['sent', 'viewed'])
+        .eq('is_proposal', false)
         .gte('created_at', rangeStart.toISOString()),
     ])
 
@@ -301,6 +303,7 @@ export async function getRevenueByCustomer(
     const { data: offers } = await supabase
       .from('offers')
       .select('customer_id, status, final_amount, customer:customers!offers_customer_id_fkey(company_name)')
+      .eq('is_proposal', false)
       .not('customer_id', 'is', null)
 
     if (!offers || offers.length === 0) {
@@ -508,11 +511,13 @@ export async function getRejectionStats(): Promise<ActionResult<RejectionStats>>
         .from('offers')
         .select('id, rejection_reason, rejected_at, final_amount')
         .eq('status', 'rejected')
+        .eq('is_proposal', false)
         .gte('rejected_at', scopeStart.toISOString()),
       supabase
         .from('offers')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'accepted')
+        .eq('is_proposal', false)
         .gte('accepted_at', scopeStart.toISOString()),
     ])
 
@@ -600,6 +605,7 @@ export async function getRecentRejections(
       .from('offers')
       .select('id, offer_number, title, customer_id, rejection_reason, rejected_at, final_amount, currency')
       .eq('status', 'rejected')
+      .eq('is_proposal', false)
       .not('rejected_at', 'is', null)
       .order('rejected_at', { ascending: false })
       .limit(limit)
