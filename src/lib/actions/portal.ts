@@ -133,12 +133,30 @@ export async function deactivatePortalToken(
 // Portal Access (for customers via token)
 // =====================================================
 
-// Validate portal token and get session
+// Validate portal token and get session.
+//
+// Phase α.2 trin 1: bruger createAdminClient (service-role) saa anon-client
+// ikke laengere skal have SELECT/UPDATE-adgang til portal_access_tokens.
+// Anon-policy paa tabellen forbliver indtil trin 3-migration; denne
+// refactor er forudsaetningen for at fjerne policy'en sikkert.
+//
+// Defense-in-depth:
+//   - Token-format-validering foer DB-kald (64-char hex)
+//   - expires_at-tjek baade i SQL og i JS
+//   - is_active-tjek bevaret
 export async function validatePortalToken(
   token: string
 ): Promise<ActionResult<PortalSession>> {
   try {
-    const supabase = createAnonClient()
+    // Hurtig input-validering: portal-tokens er 64-char lowercase hex
+    // (32 bytes via crypto.getRandomValues). Afvis aabenlyst ugyldige
+    // foer vi rammer DB.
+    if (!token || typeof token !== 'string' || !/^[a-f0-9]{32,128}$/i.test(token)) {
+      return { success: false, error: 'Ugyldig eller udløbet adgang' }
+    }
+
+    const supabase = createAdminClient()
+    const nowIso = new Date().toISOString()
 
     const { data: tokenData, error } = await supabase
       .from('portal_access_tokens')
@@ -154,21 +172,22 @@ export async function validatePortalToken(
       `)
       .eq('token', token)
       .eq('is_active', true)
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
       .maybeSingle()
 
     if (error || !tokenData) {
       return { success: false, error: 'Ugyldig eller udløbet adgang' }
     }
 
-    // Check if token is expired
+    // JS-niveau expiry-tjek (ekstra forsvar mod clock drift / SQL-edge cases)
     if (tokenData.expires_at && new Date(tokenData.expires_at) < new Date()) {
       return { success: false, error: 'Adgangen er udløbet' }
     }
 
-    // Update last accessed timestamp
+    // Update last accessed timestamp — best-effort, ingen retur-fejl hvis det fejler
     await supabase
       .from('portal_access_tokens')
-      .update({ last_accessed_at: new Date().toISOString() })
+      .update({ last_accessed_at: nowIso })
       .eq('id', tokenData.id)
 
     const session: PortalSession = {
