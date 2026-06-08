@@ -8,6 +8,7 @@ import {
 } from '@/lib/actions/action-helpers'
 import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
 import { createAnonClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
@@ -401,7 +402,11 @@ export async function getPortalServiceCases(
   customerId: string
 ): Promise<ActionResult<ServiceCase[]>> {
   try {
-    const supabase = createAnonClient()
+    // Phase α.2 trin 4: service_cases anon-policy via portal_access_tokens
+    // er droppet i 00127. Vi bruger nu createAdminClient + customer_id-scope
+    // fra caller (typisk session.customer_id efter validatePortalToken).
+    // Samme moenster som getPortalDocuments / getPortalMessages.
+    const supabase = createAdminClient()
 
     const { data, error } = await supabase
       .from('service_cases')
