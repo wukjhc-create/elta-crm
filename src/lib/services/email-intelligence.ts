@@ -83,10 +83,17 @@ const IGNORE_SENDER_SUBSTRINGS = [
   'alerts@',
   'submissions@',
   'newsletter@',
-  'marketing@',
   'newsletters@',
-  'instagram.com',
-  'facebookmail.com',
+  'marketing@',
+  'marketing-',
+  'kampagne-',
+  'nyhedsbrev@',
+  'nyhedsbrev-',
+  'broadcast@',
+  'email-broadcast',
+  'unsubscribe-',
+  'reply.facebookmail.com',
+  'reply.linkedin.com',
 ]
 
 const IGNORE_SUBJECT_KEYWORDS = [
@@ -112,25 +119,102 @@ const IGNORE_SUBJECT_KEYWORDS = [
   'out of office',
   'fraværende',
   'fravær',
+  'nyhedsbrev',
+  'kampagne',
+  'marketing',
+  'follow us on',
+  'følg os på',
 ]
 
-const IGNORE_DOMAINS = new Set([
-  'formsubmit.co',
+// Hver entry matches som suffix paa hele afsenderdomaenet, saa
+// `mail.instagram.com`, `t.email.instagram.com` osv. ogsaa rammes.
+const IGNORE_DOMAIN_SUFFIXES = [
+  // Social media + meta
   'instagram.com',
   'facebook.com',
+  'facebookmail.com',
+  'meta.com',
   'linkedin.com',
   'twitter.com',
   'x.com',
   'tiktok.com',
+  'snapchat.com',
+  'pinterest.com',
+  'reddit.com',
+  // Webform/embed services
+  'formsubmit.co',
+  // Email marketing platforms
   'mailchimp.com',
+  'mailchimpapp.com',
   'sendgrid.net',
   'mailerlite.com',
   'klaviyo.com',
+  'klaviyo-mail.com',
+  'convertkit.com',
+  'substack.com',
+  'mailerlite-mail.com',
+  'mailgun.org',
+  // Dev/SaaS notifications
   'github.com',
   'notion.so',
   'slack.com',
   'zoom.us',
-])
+  'atlassian.com',
+  'asana.com',
+  'trello.com',
+  'monday.com',
+  // Generic newsletter senders
+  'tldr.tech',
+  'beehiiv.com',
+  'buttondown.email',
+]
+
+/**
+ * True hvis afsenderdomaenet (efter @) er en noise-kilde — exact match
+ * eller subdomain af et entry i IGNORE_DOMAIN_SUFFIXES.
+ * Eksempler:
+ *   `instagram.com`              → true (exact)
+ *   `mail.instagram.com`         → true (suffix)
+ *   `t.email.instagram.com`      → true (suffix)
+ *   `instagrammodelle.com`       → false (ikke suffix-grænse)
+ */
+function isIgnoredDomain(domain: string): boolean {
+  if (!domain) return false
+  const d = domain.toLowerCase().trim()
+  for (const suffix of IGNORE_DOMAIN_SUFFIXES) {
+    if (d === suffix) return true
+    if (d.endsWith('.' + suffix)) return true
+  }
+  return false
+}
+
+/**
+ * Priority allowlist — laeses fra env-var `MAIL_PRIORITY_DOMAINS`
+ * (comma-separated). Mails fra disse domaener (suffix-match) overspringer
+ * noise-filteret. AI-classify kan stadig markere dem som newsletter.
+ *
+ * Eksempel: `MAIL_PRIORITY_DOMAINS=eltasolar.dk,vigtigkunde.dk`
+ *   → mail fra `hc@eltasolar.dk`, `ordre@eltasolar.dk` skip'er IGNORE_*-check
+ */
+function getPriorityDomains(): string[] {
+  const raw = (process.env.MAIL_PRIORITY_DOMAINS || '').trim()
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0)
+}
+
+export function isPrioritySender(senderEmail: string | null | undefined): boolean {
+  if (!senderEmail) return false
+  const domain = senderEmail.toLowerCase().split('@')[1] || ''
+  if (!domain) return false
+  for (const allow of getPriorityDomains()) {
+    if (domain === allow) return true
+    if (domain.endsWith('.' + allow)) return true
+  }
+  return false
+}
 
 // Priority subject keywords (Danish CRM intent)
 const PRIORITY_SUBJECT_KEYWORDS = [
@@ -173,6 +257,7 @@ export function scoreEmail(email: EmailInput): number {
   const senderDomain = senderEmailLower.split('@')[1] || ''
   const subject = (email.subject || '').toLowerCase()
   const body = email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || ''
+  const isPriority = isPrioritySender(senderEmailLower)
 
   let score = 0
 
@@ -184,15 +269,20 @@ export function scoreEmail(email: EmailInput): number {
   // +1 per CRM-intent subject keyword
   if (PRIORITY_SUBJECT_KEYWORDS.some((kw) => subject.includes(kw))) score += 1
 
-  // -2 if sender matches ignore rules
+  // Priority sendere foraerges +3 saa de aldrig falder under threshold
+  if (isPriority) score += 3
+
+  // -2 if sender matches ignore rules — men aldrig hvis priority sender
   if (
-    IGNORE_DOMAINS.has(senderDomain) ||
-    IGNORE_SENDER_SUBSTRINGS.some((s) => senderEmailLower.includes(s))
+    !isPriority &&
+    (isIgnoredDomain(senderDomain) ||
+      IGNORE_SENDER_SUBSTRINGS.some((s) => senderEmailLower.includes(s)))
   ) {
     score -= 2
   }
 
-  // -1 if subject matches ignore keywords
+  // -1 if subject matches ignore keywords (gaelder ogsaa priority sendere,
+  // saa fx en marketing-mail FRA en intern adresse fortsat scores ned)
   if (IGNORE_SUBJECT_KEYWORDS.some((kw) => subject.includes(kw))) score -= 1
 
   return score
@@ -240,10 +330,16 @@ export async function classifyEmail(email: EmailInput): Promise<EmailType> {
   const text = (email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || '').toLowerCase()
   const subject = (email.subject || '').toLowerCase()
 
+  const isPriority = isPrioritySender(senderEmailLower)
+
   // -------- HARD ignore filters (no AI) --------
-  if (IGNORE_DOMAINS.has(senderDomain)) return 'ignored'
-  if (IGNORE_SENDER_SUBSTRINGS.some((s) => senderEmailLower.includes(s))) return 'ignored'
-  if (IGNORE_SUBJECT_KEYWORDS.some((kw) => subject.includes(kw))) return 'ignored'
+  // Priority sendere undgaar alle hard ignore-tjek (kan stadig blive
+  // klassificeret som newsletter af AI hvis indholdet er marketing).
+  if (!isPriority) {
+    if (isIgnoredDomain(senderDomain)) return 'ignored'
+    if (IGNORE_SENDER_SUBSTRINGS.some((s) => senderEmailLower.includes(s))) return 'ignored'
+    if (IGNORE_SUBJECT_KEYWORDS.some((kw) => subject.includes(kw))) return 'ignored'
+  }
 
   if (SUPPLIER_DOMAINS.has(senderDomain)) return 'supplier'
 
