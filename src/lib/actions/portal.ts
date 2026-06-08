@@ -1195,13 +1195,27 @@ export async function markPortalMessagesAsRead(
       return { success: false, error: sessionResult.error }
     }
 
-    const supabase = createAnonClient()
+    if (!Array.isArray(messageIds) || messageIds.length === 0) {
+      return { success: true }
+    }
 
-    const { error } = await supabase
+    // Phase α.3 trin 3: anon-UPDATE-policy paa portal_messages droppet
+    // i 00130. Bruger nu admin-client + eksplicit customer_id-scope, saa
+    // kunde A aldrig kan markere kunde B's beskeder som laest.
+    //
+    // Den gamle anon-policy havde KUN sender_type='employee'-tjek, ikke
+    // customer_id-tjek — en kunde kunne med vilkaarlige message-IDs
+    // markere andres beskeder. Service-role har ingen RLS-guard, saa
+    // app-laget er nu single source of truth for scope.
+    const admin = createAdminClient()
+    const customerId = sessionResult.data.customer_id
+
+    const { error } = await admin
       .from('portal_messages')
       .update({ read_at: new Date().toISOString() })
       .in('id', messageIds)
       .eq('sender_type', 'employee')
+      .eq('customer_id', customerId)
 
     if (error) {
       logger.error('Error marking messages as read', { error: error })
