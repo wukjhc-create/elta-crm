@@ -347,19 +347,32 @@ export async function classifyEmail(email: EmailInput): Promise<EmailType> {
   if (hasNewsletterMarker) return 'newsletter'
 
   const ai = await callOpenAI(
-    `Du klassificerer indgående emails til et dansk el/solcelle-firma. Returnér ÉN af tre værdier: "customer", "supplier", "newsletter".
+    `Du klassificerer indgaaende emails til et dansk el/solcelle-firma (Elta Solar ApS). Returner EN af tre vaerdier: "customer", "supplier", "newsletter".
 
 Definitioner:
-- "newsletter": marketing-mail, automatiske kampagner, "afmeld nyhedsbrev", "% rabat", "tilbud kun i dag", masse-udsendelser.
-- "supplier": grossister/leverandører som AO, Lemvigh-Müller, Solar A/S, Mikma — ordrebekræftelser, fakturaer, leveringer, prislister.
-- "customer": private eller virksomheder der spørger om tilbud, opfølgning, sag, projekt, installation, fejl, eller anden sagsbehandling.
+- "newsletter": marketing-mail, automatiske kampagner, social media-notifikationer, system-mails, masse-udsendelser. Inkluderer:
+  * Social media: Instagram, Facebook, LinkedIn, TikTok, Snapchat, Pinterest, Twitter/X-notifikationer ("see X and Y in your feed", "you have a new follower", "your post got likes")
+  * Marketing: "% rabat", "spar X kr", "tilbud kun i dag/i denne uge", "Black Friday", "Cyber Monday", "udsalg", "kampagne", "vind", "konkurrence", emoji-tunge subjekter (🔥💥🎉) der annoncerer salg
+  * Nyhedsbreve: "afmeld nyhedsbrev", "view in browser"/"se i browser", "vi har sendt dette til...", "List-Unsubscribe", "tilmeld dig"
+  * Systemmails: "bekraeft din konto", "aktiver", "verify your email", "password reset", "welcome to ...", lukket bot-konversation
+  * Bot-/script-genererede notifikationer: GitHub, Slack, Notion, Zoom, Jira/Atlassian, Asana, Trello, Monday.com aktivitets-notifikationer
+  * Pure no-reply bekraeftelser uden personlig henvendelse
+- "supplier": grossister/leverandoerer (AO, Lemvigh-Mueller, Solar A/S, Mikma, Eltagrossisten) — ordrebekraeftelser, fakturaer, leveringer, prislister, restordrer.
+- "customer": private eller virksomheder der personligt henvender sig om tilbud, opfoelgning, sag, projekt, installation, fejl, reklamation, eller anden sagsbehandling. Forventer typisk personligt svar.
+
+VIGTIGE REGLER (i prioritet):
+1. Hvis afsender er en social media-platform (Instagram, Facebook, LinkedIn, TikTok, osv.) — uanset emne — er det ALTID newsletter.
+2. Hvis subject indeholder rabat-procent (%, kr off) PLUS emoji eller marketing-sprog — det er newsletter.
+3. Hvis body ender med "afmeld" / "unsubscribe" / "manage preferences" / "view in browser" — det er newsletter.
+4. Hvis det er en transaktions-bekraeftelse fra et automatiseret system (booking, tilmelding, password) uden personligt indhold — det er newsletter.
+5. Tvivl mellem customer og newsletter? Naar mailen ikke direkte henvender sig til Elta Solar med en konkret sag, vaelg newsletter.
 
 Emne: ${email.subject || '(intet)'}
 Afsender: ${email.senderName || ''} <${email.senderEmail}>
-Body (første 1500 tegn):
+Body (foerste 1500 tegn):
 ${(email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || '').substring(0, 1500)}
 
-Svar KUN med rå JSON: {"type":"customer"} eller {"type":"supplier"} eller {"type":"newsletter"}.`,
+Svar KUN med raa JSON: {"type":"customer"} eller {"type":"supplier"} eller {"type":"newsletter"}.`,
     { type: 'json_object' }
   )
 
