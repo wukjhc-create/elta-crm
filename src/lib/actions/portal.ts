@@ -317,6 +317,10 @@ export async function getPortalOffer(
     }
 
     const supabase = createAnonClient()
+    // Phase α.2 trin 2: offer_activities INSERT'es nu via admin-client efter
+    // app-layer customer_id-tjek (sker via .eq('customer_id', ...) på offers
+    // nedenfor). Anon-policy paa offer_activities droppes i migration 00124.
+    const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
     const { data: offer, error } = await supabase
@@ -341,8 +345,8 @@ export async function getPortalOffer(
         })
         .eq('id', offerId)
 
-      // Log view activity — use anon client directly
-      await supabase.from('offer_activities').insert({
+      // Log view activity — admin-client (anon-INSERT droppet i 00124)
+      await admin.from('offer_activities').insert({
         offer_id: offerId,
         activity_type: 'viewed',
         description: 'Tilbud åbnet i kundeportalen',
@@ -422,6 +426,8 @@ export async function acceptOffer(
     }
 
     const supabase = createAnonClient()
+    // Phase α.2 trin 2: offer_activities INSERT via admin (efter customer_id-tjek)
+    const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
     // Verify offer belongs to customer and get details for project creation
@@ -480,8 +486,8 @@ export async function acceptOffer(
       return { success: false, error: 'Kunne ikke opdatere tilbud' }
     }
 
-    // Log acceptance activity — use anon client directly (not logOfferActivity which uses cookie-based client)
-    await supabase.from('offer_activities').insert({
+    // Log acceptance activity — admin-client (anon-INSERT droppet i 00124)
+    await admin.from('offer_activities').insert({
       offer_id: data.offer_id,
       activity_type: 'accepted',
       description: `Tilbud accepteret af ${data.signer_name} (${data.signer_email})`,
@@ -499,7 +505,7 @@ export async function acceptOffer(
       )
 
       if (projectResult.success && projectResult.data) {
-        await supabase.from('offer_activities').insert({
+        await admin.from('offer_activities').insert({
           offer_id: data.offer_id,
           activity_type: 'project_created',
           description: `Projekt ${projectResult.data.project_number} oprettet automatisk`,
@@ -522,7 +528,7 @@ export async function acceptOffer(
     try {
       const sagResult = await createServiceCaseFromOffer(data.offer_id)
       if (sagResult.success && sagResult.data) {
-        await supabase.from('offer_activities').insert({
+        await admin.from('offer_activities').insert({
           offer_id: data.offer_id,
           activity_type: 'service_case_created',
           description: sagResult.data.created
@@ -668,6 +674,8 @@ export async function rejectOffer(
     }
 
     const supabase = createAnonClient()
+    // Phase α.2 trin 2: offer_activities INSERT via admin (efter customer_id-tjek)
+    const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
     // Verify offer belongs to customer
@@ -716,8 +724,8 @@ export async function rejectOffer(
 
     const reasonLabel = REJECTION_REASON_LABELS[normalized.reason]
 
-    // Log rejection activity — struktureret metadata
-    await supabase.from('offer_activities').insert({
+    // Log rejection activity — admin-client (anon-INSERT droppet i 00124)
+    await admin.from('offer_activities').insert({
       offer_id: offerId,
       activity_type: 'rejected',
       description: `Tilbud afvist: ${reasonLabel}${normalized.note ? ` — ${normalized.note}` : ''}`,
