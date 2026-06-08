@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_EMAIL, BRAND_WEBSITE, BRAND_GREEN } from '@/lib/brand'
 
@@ -35,7 +35,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = await createClient()
+    // Phase α.3 trin 2: cron-route bruger nu service-role for at undgaa
+    // afhaengighed af anon-policies/grants paa company_settings,
+    // customer_documents, offers. CRON_SECRET-tjek ovenfor garanterer
+    // at endpointet kun kaldes af Vercel scheduler.
+    const supabase = createAdminClient()
 
     // Get settings
     const { data: settings } = await supabase
