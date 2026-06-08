@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { validatePortalToken, getPortalOffers, getPortalMessages, getPortalDocuments } from '@/lib/actions/portal'
 import { getPortalFuldmagter } from '@/lib/actions/fuldmagt'
 import { getPortalServiceCases } from '@/lib/actions/service-cases'
-import { createAnonClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { PortalDashboard } from '@/components/modules/portal/portal-dashboard'
 import type { CompanySettings } from '@/types/company-settings.types'
 
@@ -33,10 +33,12 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
     getPortalFuldmagter(token),
   ])
 
-  // Fetch company settings with anon client (no auth required)
+  // Phase α.3 trin 1: company_settings hentes nu via admin-client efter
+  // valideret token. Singleton-row uden kundespecifik PII; intet scope-
+  // tjek nødvendigt. Anon-policy droppet i migration 00128.
   let companySettings: CompanySettings | null = null
   try {
-    const supabase = createAnonClient()
+    const supabase = createAdminClient()
     const { data } = await supabase.from('company_settings').select('*').maybeSingle()
     companySettings = data as CompanySettings | null
   } catch {

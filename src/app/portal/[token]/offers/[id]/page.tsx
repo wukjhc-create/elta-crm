@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { validatePortalToken, getPortalOffer, getPortalMessages } from '@/lib/actions/portal'
-import { createAnonClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { OfferDetail } from '@/components/modules/portal/offer-detail'
 import type { CompanySettings } from '@/types/company-settings.types'
 
@@ -30,10 +30,10 @@ export default async function PortalOfferPage({ params }: OfferPageProps) {
     getPortalMessages(token),
   ])
 
-  // Fetch company settings with anon client (no auth required)
+  // Phase α.3 trin 1: company_settings via admin (singleton, ingen PII).
   let companySettings: CompanySettings | null = null
   try {
-    const supabase = createAnonClient()
+    const supabase = createAdminClient()
     const { data } = await supabase.from('company_settings').select('*').maybeSingle()
     companySettings = data as CompanySettings | null
   } catch {
