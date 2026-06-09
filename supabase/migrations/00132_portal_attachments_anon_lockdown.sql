@@ -48,8 +48,9 @@ DROP POLICY IF EXISTS "portal_customers_read_attachments" ON storage.objects;
 REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON storage.objects FROM anon;
 
-COMMENT ON TABLE storage.objects IS
-  'Phase beta.1 (00132): anon-policies + grants fjernet paa storage.objects. Portal-flow (uploadPortalAttachment, getAttachmentUrl) bruger admin-client efter validatePortalToken + eksplicit customer_id-scope i path. Authenticated employee + service_role policies uberoert.';
+-- Note: COMMENT ON TABLE storage.objects requires ownership of the
+-- storage.objects table (owned by supabase_storage_admin). Skipped
+-- here; effect is purely cosmetic.
 
 NOTIFY pgrst, 'reload schema';
 
