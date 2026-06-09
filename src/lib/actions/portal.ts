@@ -1392,9 +1392,14 @@ export async function uploadPortalAttachment(
       return { success: false, error: 'Filtypen er ikke tilladt' }
     }
 
-    const supabase = createAnonClient()
+    // Phase β.1: portal-attachments anon-policies droppes i migration 00132.
+    // Path konstrueres server-side ud fra session.customer_id (kunden kan
+    // ikke styre folder via input). Bruger admin-client til upload +
+    // signed-URL — service-role har INGEN RLS-guard, saa app er single
+    // source of truth for scope.
+    const supabase = createAdminClient()
 
-    // Generate unique filename
+    // Generate unique filename (path er kunde-scoped via session.customer_id)
     const timestamp = Date.now()
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
     const path = `${customerId}/${timestamp}-${sanitizedName}`
@@ -1513,13 +1518,34 @@ export async function uploadEmployeeAttachment(
 }
 
 /**
- * Get a fresh signed URL for an attachment
+ * Get a fresh signed URL for a portal attachment.
+ *
+ * Phase β.1: signaturen kraever nu `token` saa vi kan validere session,
+ * og pathen skal starte med `${session.customer_id}/` — saa kunde A
+ * aldrig kan anmode om signed URL til kunde B's fil. Service-role
+ * bruges til selve signedUrl-kaldet (admin-client).
  */
 export async function getAttachmentUrl(
+  token: string,
   path: string
 ): Promise<ActionResult<string>> {
   try {
-    const supabase = createAnonClient()
+    const sessionResult = await validatePortalToken(token)
+    if (!sessionResult.success || !sessionResult.data) {
+      return { success: false, error: sessionResult.error }
+    }
+
+    const customerId = sessionResult.data.customer_id
+
+    // Path skal vaere kunde-scoped: ${customerId}/...
+    // Vi tjekker for praefikset eksakt — accepterer kun forward slash
+    // som separator (Supabase storage bruger '/') og afviser path-
+    // traversal-forsoeg.
+    if (typeof path !== 'string' || !path.startsWith(`${customerId}/`) || path.includes('..')) {
+      return { success: false, error: 'Ugyldig fil-sti' }
+    }
+
+    const supabase = createAdminClient()
 
     const { data, error } = await supabase.storage
       .from('portal-attachments')
