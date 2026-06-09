@@ -215,7 +215,12 @@ export async function getPortalOffers(
       return { success: false, error: sessionResult.error }
     }
 
-    const supabase = createAnonClient()
+    // Phase α.3 trin 4+5: offers/offer_line_items/offer_signatures
+    // anon-policies droppet i 00131. Bruger admin-client + customer_id-
+    // scope paa offers, derefter offer_id-scope paa de afledte queries
+    // (offer_ids stammer fra den filtrerede offer-liste, saa de er per
+    // definition kunde-ejede).
+    const supabase = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
     const { data: offers, error } = await supabase
@@ -238,7 +243,9 @@ export async function getPortalOffers(
     // Get all offer IDs for batch queries
     const offerIds = offers.map((o) => o.id)
 
-    // Batch fetch all line items and signatures (avoids N+1 queries)
+    // Batch fetch all line items and signatures (avoids N+1 queries).
+    // Scope-sikkerhed: offerIds er filtreret paa customer_id ovenfor,
+    // saa .in('offer_id', offerIds) er per definition kunde-scoped.
     const [lineItemsResult, signaturesResult] = await Promise.all([
       supabase
         .from('offer_line_items')
@@ -316,14 +323,13 @@ export async function getPortalOffer(
       return { success: false, error: sessionResult.error }
     }
 
-    const supabase = createAnonClient()
-    // Phase α.2 trin 2: offer_activities INSERT'es nu via admin-client efter
-    // app-layer customer_id-tjek (sker via .eq('customer_id', ...) på offers
-    // nedenfor). Anon-policy paa offer_activities droppes i migration 00124.
+    // Phase α.3 trin 4+5: alle offer-related anon-policies droppet i 00131.
+    // En enkelt admin-client haandterer SELECT/UPDATE; customer_id-scope
+    // sikres app-side via .eq() paa hver query.
     const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
-    const { data: offer, error } = await supabase
+    const { data: offer, error } = await admin
       .from('offers')
       .select('*')
       .eq('id', offerId)
@@ -335,17 +341,19 @@ export async function getPortalOffer(
       return { success: false, error: 'Tilbud ikke fundet' }
     }
 
-    // Mark as viewed if first time
+    // Mark as viewed if first time. Eksplicit customer_id-scope paa UPDATE
+    // for defense-in-depth — selv om offer.customer_id er verificeret ovenfor.
     if (!offer.viewed_at && offer.status === 'sent') {
-      await supabase
+      await admin
         .from('offers')
         .update({
           viewed_at: new Date().toISOString(),
           status: 'viewed',
         })
         .eq('id', offerId)
+        .eq('customer_id', customerId)
 
-      // Log view activity — admin-client (anon-INSERT droppet i 00124)
+      // Log view activity (anon-INSERT droppet i 00124)
       await admin.from('offer_activities').insert({
         offer_id: offerId,
         activity_type: 'viewed',
@@ -363,15 +371,15 @@ export async function getPortalOffer(
       }
     }
 
-    // Get line items
-    const { data: lineItems } = await supabase
+    // Get line items — offer_id er allerede customer-scoped via offer-SELECT
+    const { data: lineItems } = await admin
       .from('offer_line_items')
       .select('*')
       .eq('offer_id', offerId)
       .order('position')
 
     // Get signature if exists
-    const { data: signature } = await supabase
+    const { data: signature } = await admin
       .from('offer_signatures')
       .select('*')
       .eq('offer_id', offerId)
@@ -425,13 +433,17 @@ export async function acceptOffer(
       return { success: false, error: sessionResult.error }
     }
 
-    const supabase = createAnonClient()
-    // Phase α.2 trin 2: offer_activities INSERT via admin (efter customer_id-tjek)
+    // Phase α.3 trin 4+5: alle offer-related anon-policies droppet i 00131.
+    // Bruger admin-client gennem hele accept-flowet. Kritisk operation,
+    // saa hvert step har eksplicit customer_id-scope:
+    //   1. SELECT offer m. customer_id-match (afvist hvis offer ikke ejes)
+    //   2. INSERT signature paa det verificerede offer_id
+    //   3. UPDATE offer status=accepted m. customer_id-scope (defense-in-depth)
     const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
     // Verify offer belongs to customer and get details for project creation
-    const { data: offer, error: offerError } = await supabase
+    const { data: offer, error: offerError } = await admin
       .from('offers')
       .select('id, status, customer_id, title, final_amount')
       .eq('id', data.offer_id)
@@ -456,8 +468,8 @@ export async function acceptOffer(
                      headersList.get('x-real-ip') ||
                      'unknown'
 
-    // Create signature
-    const { error: signatureError } = await supabase
+    // Create signature — offer_id er verificeret kunde-ejet ovenfor
+    const { error: signatureError } = await admin
       .from('offer_signatures')
       .insert({
         offer_id: data.offer_id,
@@ -472,14 +484,15 @@ export async function acceptOffer(
       return { success: false, error: 'Kunne ikke gemme underskrift' }
     }
 
-    // Update offer status
-    const { error: updateError } = await supabase
+    // Update offer status — eksplicit customer_id-scope for defense-in-depth
+    const { error: updateError } = await admin
       .from('offers')
       .update({
         status: 'accepted',
         accepted_at: new Date().toISOString(),
       })
       .eq('id', data.offer_id)
+      .eq('customer_id', customerId)
 
     if (updateError) {
       logger.error('Error updating offer', { error: updateError })
@@ -673,13 +686,13 @@ export async function rejectOffer(
       logger.error('Failed to capture rejection meta', { error: metaErr })
     }
 
-    const supabase = createAnonClient()
-    // Phase α.2 trin 2: offer_activities INSERT via admin (efter customer_id-tjek)
+    // Phase α.3 trin 4+5: alle offer-related anon-policies droppet i 00131.
+    // Admin-client + eksplicit customer_id-scope paa baade SELECT og UPDATE.
     const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
     // Verify offer belongs to customer
-    const { data: offer, error: offerError } = await supabase
+    const { data: offer, error: offerError } = await admin
       .from('offers')
       .select('id, status, customer_id, title')
       .eq('id', offerId)
@@ -701,9 +714,9 @@ export async function rejectOffer(
       return { success: false, error: 'Tilbuddet kan ikke afvises i denne status' }
     }
 
-    // Update med 6 nye strukturerede felter. INGEN notes-prefix længere
-    // (offers.notes forbliver rent intern-note-felt).
-    const { error: updateError } = await supabase
+    // Update med 6 nye strukturerede felter — eksplicit customer_id-scope
+    // for defense-in-depth.
+    const { error: updateError } = await admin
       .from('offers')
       .update({
         status: 'rejected',
@@ -716,6 +729,7 @@ export async function rejectOffer(
         rejected_by_user_agent: meta.userAgent,
       })
       .eq('id', offerId)
+      .eq('customer_id', customerId)
 
     if (updateError) {
       logger.error('Error rejecting offer', { error: updateError })

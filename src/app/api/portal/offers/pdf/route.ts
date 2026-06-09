@@ -2,7 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
-import { createAnonClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { validatePortalToken } from '@/lib/actions/portal'
 import { OfferPdfDocument } from '@/lib/pdf/offer-pdf-template'
 import type { OfferWithRelations } from '@/types/offers.types'
 import type { ReactElement, JSXElementConstructor } from 'react'
@@ -11,6 +12,11 @@ import { logger } from '@/lib/utils/logger'
 /**
  * Portal PDF download — token-based auth (no user session required).
  * GET /api/portal/offers/pdf?token=xxx&offerId=yyy
+ *
+ * Phase α.3 trin 4+5: refactoreret til validatePortalToken + admin.
+ * Den tidligere implementation brugte anon-client mod portal_access_tokens,
+ * customers og company_settings — alle nu lukket for anon (00126/127/128).
+ * Endpointet var silent-broken siden α.2 trin 3.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -22,25 +28,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Manglende parametre' }, { status: 400 })
     }
 
-    const supabase = createAnonClient()
-
-    // Validate portal token
-    const { data: tokenData, error: tokenError } = await supabase
-      .from('portal_access_tokens')
-      .select('id, customer_id, expires_at, is_active')
-      .eq('token', token)
-      .eq('is_active', true)
-      .maybeSingle()
-
-    if (tokenError || !tokenData) {
+    // Validér token (admin-baseret siden α.2 trin 1)
+    const sessionResult = await validatePortalToken(token)
+    if (!sessionResult.success || !sessionResult.data) {
       return NextResponse.json({ error: 'Ugyldig adgang' }, { status: 401 })
     }
+    const customerId = sessionResult.data.customer_id
+    const supabase = createAdminClient()
 
-    if (tokenData.expires_at && new Date(tokenData.expires_at) < new Date()) {
-      return NextResponse.json({ error: 'Adgangen er udløbet' }, { status: 401 })
-    }
-
-    // Get offer — must belong to the customer
+    // Hent tilbud med embedded line_items + customer; customer_id-scope
+    // garanterer at en gaettet offer-UUID fra anden kunde ikke kan leakes.
     const { data: offer, error: offerError } = await supabase
       .from('offers')
       .select(`
@@ -49,7 +46,7 @@ export async function GET(request: NextRequest) {
         customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
       `)
       .eq('id', offerId)
-      .eq('customer_id', tokenData.customer_id)
+      .eq('customer_id', customerId)
       .single()
 
     if (offerError || !offer) {
@@ -63,7 +60,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Company settings — query directly (portal runs in anon context, no auth session)
+    // Company settings (singleton — fetched via admin)
     const { data: companySettings, error: settingsError } = await supabase
       .from('company_settings')
       .select('*')
@@ -89,11 +86,10 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': pdfBuffer.length.toString(),
       },
     })
   } catch (error) {
-    logger.error('Portal PDF generation error', { error })
-    return NextResponse.json({ error: 'PDF-fejl' }, { status: 500 })
+    logger.error('PDF generation failed', { error })
+    return NextResponse.json({ error: 'Fejl ved PDF-generering' }, { status: 500 })
   }
 }
