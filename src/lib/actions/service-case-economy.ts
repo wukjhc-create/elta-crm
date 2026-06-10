@@ -178,12 +178,15 @@ export async function getServiceCaseEconomy(
         .from('case_other_costs')
         .select('total_cost, total_sales_price, unit_sales_price')
         .eq('case_id', caseId),
-      woIds.length === 0
-        ? Promise.resolve({ data: [] as Array<{ total_amount: number | null; amount_paid: number | null }> })
-        : supabase
-            .from('invoices')
-            .select('total_amount, amount_paid')
-            .in('work_order_id', woIds),
+      // Sprint 1B driftsfix: Migration 00104 tilfoejede invoices.case_id som
+      // direkte FK til sagen. Alle nye invoices bruger case_id (work_order_id
+      // er null). Den gamle work_order_id-baserede join returnerede derfor
+      // altid 0 invoices paa enhver sag → Fakturering-panelet viste 0 kr
+      // selv om der laa faktureret beloeb. Fix: join paa case_id direkte.
+      supabase
+        .from('invoices')
+        .select('total_amount, amount_paid')
+        .eq('case_id', caseId),
       supabase
         .from('incoming_invoices')
         .select(`
