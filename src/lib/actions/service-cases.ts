@@ -10,7 +10,7 @@ import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
 import { createAnonClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
-import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
+import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
 import { createAuditLog } from '@/lib/actions/audit'
@@ -660,7 +660,22 @@ export async function getServiceCaseAttachments(
       .order('created_at', { ascending: false })
 
     if (error) return { success: false, error: 'Kunne ikke hente vedhæftninger' }
-    return { success: true, data: (data || []) as ServiceCaseAttachment[] }
+
+    // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver row
+    // der har storage_path. DB-lagrede URLs (mix af legacy public + ny signed)
+    // erstattes af friske signed URLs ved hvert fetch, saa de virker baade
+    // foer og efter service-case-files bucket-privatisering (β.2.5).
+    const rows = (data || []) as ServiceCaseAttachment[]
+    const paths = rows.map((r) => r.storage_path ?? '')
+    const fresh = await getStorageSignedUrls('service-case-files', paths.filter((p) => p), SIGNED_URL_TTL.SHORT)
+    const freshByIdx: Record<number, string | null> = {}
+    let fIdx = 0
+    for (let i = 0; i < paths.length; i++) {
+      if (paths[i]) { freshByIdx[i] = fresh[fIdx]; fIdx++ }
+    }
+    const refreshed = rows.map((r, idx) => ({ ...r, file_url: freshByIdx[idx] ?? r.file_url ?? '' }))
+
+    return { success: true, data: refreshed }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -1028,7 +1043,18 @@ export async function getDocumentsForCase(
       return []
     }
 
-    return (data || []) as CaseDocument[]
+    // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver row
+    // der har storage_path. Sikrer at "Dokumenter"-tab paa orders/[id] virker
+    // baade foer og efter attachments bucket-privatisering (β.2.5).
+    const rows = (data || []) as CaseDocument[]
+    const paths = rows.map((r) => r.storage_path ?? '')
+    const fresh = await getStorageSignedUrls('attachments', paths.filter((p) => p), SIGNED_URL_TTL.SHORT)
+    const freshByIdx: Record<number, string | null> = {}
+    let fIdx = 0
+    for (let i = 0; i < paths.length; i++) {
+      if (paths[i]) { freshByIdx[i] = fresh[fIdx]; fIdx++ }
+    }
+    return rows.map((r, idx) => ({ ...r, file_url: freshByIdx[idx] ?? r.file_url ?? '' }))
   } catch {
     return []
   }
