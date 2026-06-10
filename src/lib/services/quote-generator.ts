@@ -17,6 +17,7 @@ import { getCompanySettings } from '@/lib/actions/settings'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { generateQuoteEmailHtml } from '@/lib/email/templates/quote-email'
 import { logger } from '@/lib/utils/logger'
+import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 
 // Service role client for storage + DB operations
 function getServiceClient() {
@@ -181,10 +182,9 @@ export async function generateAndSendQuote(
       return { success: false, pdfUrl: '', quoteReference, error: 'Kunne ikke uploade PDF' }
     }
 
-    const { data: urlData } = supabase.storage
-      .from('attachments')
-      .getPublicUrl(storagePath)
-    const pdfPublicUrl = urlData.publicUrl
+    // Phase β.2.2: signed URL (1 år) i stedet for public. PDF-link
+    // i mail-template forbliver gyldigt i lang tid.
+    const pdfPublicUrl = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.YEAR) ?? ''
 
     // 7. Send email with PDF via Microsoft Graph API (no SMTP needed)
     const templateLabel = input.templateType === 'sales' ? 'Salgstilbud' : 'Monteringstilbud'

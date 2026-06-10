@@ -10,6 +10,7 @@ import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
 import { createAnonClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
 import { createAuditLog } from '@/lib/actions/audit'
@@ -692,16 +693,17 @@ export async function uploadServiceCaseAttachment(
       return { success: false, error: 'Upload fejlede' }
     }
 
-    const { data: urlData } = supabase.storage
-      .from('service-case-files')
-      .getPublicUrl(storagePath)
+    // Phase β.2.2: signed URL (1 år) i stedet for public — forberedelse
+    // til service-case-files bucket-privatisering. storage_path bevares
+    // saa consumer kan refreshe URL via helper.
+    const signedUrl = await getStorageSignedUrlOrNull('service-case-files', storagePath, SIGNED_URL_TTL.YEAR)
 
     const { data, error } = await supabase
       .from('service_case_attachments')
       .insert({
         service_case_id: serviceCaseId,
         file_name: file.name,
-        file_url: urlData.publicUrl,
+        file_url: signedUrl ?? '',
         storage_path: storagePath,
         mime_type: file.type,
         file_size: file.size,

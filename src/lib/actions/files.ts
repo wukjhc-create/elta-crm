@@ -6,6 +6,7 @@ import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES, FILE_SIGNED_URL_EXPIRY_SECONDS } fro
 import type { ActionResult } from '@/types/common.types'
 import type { UploadedFile } from '@/types/files.types'
 import { logger } from '@/lib/utils/logger'
+import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 
 // Validate file before upload
 function validateFile(file: File): { valid: boolean; error?: string } {
@@ -77,10 +78,10 @@ export async function uploadFile(
       return { success: false, error: 'Kunne ikke uploade filen' }
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('attachments')
-      .getPublicUrl(filePath)
+    // Phase β.2.2: signed URL i stedet for public — forberedelse til
+    // bucket-privatisering. TTL = 1 år (file_url gemmes i DB; consumer
+    // bør refreshe via helper hvis URL'en udloeber).
+    const signedUrl = await getStorageSignedUrlOrNull('attachments', filePath, SIGNED_URL_TTL.YEAR)
 
     // Create file record in database
     const { data: fileRecord, error: dbError } = await supabase
@@ -91,7 +92,7 @@ export async function uploadFile(
         size: file.size,
         mime_type: file.type,
         path: uploadData.path,
-        url: urlData.publicUrl,
+        url: signedUrl ?? '',
         bucket: 'attachments',
         entity_type: entityType,
         entity_id: entityId,

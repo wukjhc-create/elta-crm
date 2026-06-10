@@ -11,6 +11,7 @@ import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
+import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import type {
   IncomingEmailWithCustomer,
   EmailLinkStatus,
@@ -634,8 +635,11 @@ async function copyAttachmentsToLead(
         })
 
       if (!ulError) {
-        const publicUrl = `${url}/storage/v1/object/public/attachments/${destPath}`
-        results.push({ filename: att.filename, url: publicUrl, storagePath: destPath })
+        // Phase β.2.2: signed URL (1 år) i stedet for manuelt konstrueret
+        // /object/public/ URL. Sidstnaevnte virker IKKE efter bucket-
+        // privatisering. storagePath bevares saa consumer kan refreshe.
+        const signedUrl = await getStorageSignedUrlOrNull('attachments', destPath, SIGNED_URL_TTL.YEAR) ?? ''
+        results.push({ filename: att.filename, url: signedUrl, storagePath: destPath })
 
         logger.info('Attachment copied to lead folder', {
           entity: 'leads',

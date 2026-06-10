@@ -12,6 +12,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 
 // =====================================================
 // Constants
@@ -221,7 +222,10 @@ export async function uploadOutboundAttachment(
     throw new Error(`Upload fejlede: ${uploadErr.message}`)
   }
 
-  const fileUrl = `${supabaseUrl}/storage/v1/object/public/${BUCKET}/${storagePath}`
+  // Phase β.2.2: signed URL (1 år) i stedet for manuelt konstrueret
+  // /object/public/ URL. Sidstnaevnte virker IKKE efter bucket-
+  // privatisering. storage_path bevares i row saa consumer kan refreshe.
+  const fileUrl = await getStorageSignedUrlOrNull(BUCKET, storagePath, SIGNED_URL_TTL.YEAR) ?? ''
 
   // 2. Opret customer_documents row
   const description = JSON.stringify({

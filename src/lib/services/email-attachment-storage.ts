@@ -13,6 +13,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { fetchAttachmentContent } from '@/lib/services/microsoft-graph'
 import { logger } from '@/lib/utils/logger'
+import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 
 // =====================================================
 // Service role client for storage operations
@@ -102,12 +103,10 @@ export async function downloadAndStoreAttachment(
       return null
     }
 
-    // 5. Get public URL
-    const { data: urlData } = supabase.storage
-      .from('attachments')
-      .getPublicUrl(storagePath)
-
-    const publicUrl = urlData.publicUrl
+    // 5. Phase β.2.2: signed URL (1 år) i stedet for public URL.
+    //    Mail-vedhaeftninger gemmes i incoming_emails.attachment_urls
+    //    og bruges af UI; storagePath bevares saa consumer kan refreshe.
+    const publicUrl = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.YEAR) ?? ''
 
     logger.info('Attachment stored', {
       entity: 'incoming_emails',
@@ -190,15 +189,14 @@ export async function processEmailAttachments(
         continue
       }
 
-      const { data: urlData } = supabase.storage
-        .from('attachments')
-        .getPublicUrl(storagePath)
+      // Phase β.2.2: signed URL (1 år) i stedet for public.
+      const signedUrl = await getStorageSignedUrlOrNull('attachments', storagePath, SIGNED_URL_TTL.YEAR) ?? ''
 
       stored.push({
         filename: att.name,
         contentType: att.contentType || 'application/octet-stream',
         size: att.size,
-        url: urlData.publicUrl,
+        url: signedUrl,
         storagePath,
       })
 

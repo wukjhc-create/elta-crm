@@ -15,6 +15,7 @@ import type { ActionResult } from '@/types/common.types'
 import { MAX_IMAGE_SIZE } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 import { logger } from '@/lib/utils/logger'
+import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
@@ -242,13 +243,13 @@ export async function uploadProfileAvatar(
       return { success: false, error: formatError(uploadError, 'Kunne ikke uploade billede') }
     }
 
-    const { data: urlData } = supabase.storage
-      .from('attachments')
-      .getPublicUrl(filePath)
+    // Phase β.2.2: signed URL (1 år) i stedet for public. Consumer
+    // bør refreshe via helper hvis URL'en udloeber.
+    const signedUrl = await getStorageSignedUrlOrNull('attachments', filePath, SIGNED_URL_TTL.YEAR)
 
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ avatar_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+      .update({ avatar_url: signedUrl ?? '', updated_at: new Date().toISOString() })
       .eq('id', userId)
 
     if (updateError) {
@@ -256,7 +257,7 @@ export async function uploadProfileAvatar(
     }
 
     revalidatePath('/dashboard/settings/profile')
-    return { success: true, data: { url: urlData.publicUrl } }
+    return { success: true, data: { url: signedUrl ?? '' } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Upload af profilbillede fejlede') }
   }
@@ -337,12 +338,9 @@ export async function uploadCompanyLogo(
       return { success: false, error: formatError(uploadError, 'Kunne ikke uploade logo') }
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('attachments')
-      .getPublicUrl(filePath)
-
-    const publicUrl = urlData.publicUrl
+    // Phase β.2.2: signed URL (1 år) i stedet for public.
+    const signedUrl = await getStorageSignedUrlOrNull('attachments', filePath, SIGNED_URL_TTL.YEAR)
+    const logoUrl = signedUrl ?? ''
 
     // Update company_settings
     const { data: existing } = await supabase
@@ -364,7 +362,7 @@ export async function uploadCompanyLogo(
 
     const { error: updateError } = await supabase
       .from('company_settings')
-      .update({ company_logo_url: publicUrl })
+      .update({ company_logo_url: logoUrl })
       .eq('id', existing.id)
 
     if (updateError) {
@@ -372,7 +370,7 @@ export async function uploadCompanyLogo(
     }
 
     revalidatePath('/dashboard/settings')
-    return { success: true, data: { url: publicUrl } }
+    return { success: true, data: { url: logoUrl } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Logo upload fejlede') }
   }
