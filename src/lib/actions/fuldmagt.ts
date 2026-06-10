@@ -125,33 +125,49 @@ export async function getPortalFuldmagter(
     }
 
     // Filter to fuldmagt documents that are pending
-    const fuldmagter: FuldmagtData[] = (docs || [])
-      .filter((doc) => {
-        try {
-          const desc = JSON.parse(doc.description || '{}')
-          return desc.type === 'fuldmagt'
-        } catch { return false }
-      })
-      .map((doc) => {
+    const fuldmagtDocs = (docs || []).filter((doc) => {
+      try {
         const desc = JSON.parse(doc.description || '{}')
-        return {
-          id: doc.id,
-          customer_id: doc.customer_id,
-          customer_name: desc.customer_name || '',
-          customer_address: desc.customer_address || '',
-          customer_postal_city: desc.customer_postal_city || '',
-          order_number: desc.order_number || '',
-          foedselsdato_cvr: desc.foedselsdato_cvr || null,
-          marketing_samtykke: desc.marketing_samtykke ?? null,
-          signature_data: desc.signature_data || null,
-          signer_name: desc.signer_name || null,
-          signed_at: desc.signed_at || null,
-          pdf_storage_path: doc.storage_path || null,
-          pdf_url: doc.file_url || null,
-          status: desc.status || 'pending',
-          created_at: doc.created_at,
-        }
-      })
+        return desc.type === 'fuldmagt'
+      } catch { return false }
+    })
+
+    // Phase β.2.3: lazy-refresh pdf_url via signed-URL helper for hver
+    // fuldmagt-row der har storage_path. Sikrer at portalen viser fri-
+    // ske signed URLs efter bucket-privatisering (β.2.5).
+    const { getStorageSignedUrls, SIGNED_URL_TTL: TTL } = await import('@/lib/storage/signed-url')
+    const fmPaths = fuldmagtDocs.map((d) => (d.storage_path as string | null) ?? '')
+    const fresh = await getStorageSignedUrls(
+      'attachments',
+      fmPaths.filter((p) => p),
+      TTL.SHORT,
+    )
+    const freshByIdx: Record<number, string | null> = {}
+    let fIdx = 0
+    for (let i = 0; i < fmPaths.length; i++) {
+      if (fmPaths[i]) { freshByIdx[i] = fresh[fIdx]; fIdx++ }
+    }
+
+    const fuldmagter: FuldmagtData[] = fuldmagtDocs.map((doc, idx) => {
+      const desc = JSON.parse(doc.description || '{}')
+      return {
+        id: doc.id,
+        customer_id: doc.customer_id,
+        customer_name: desc.customer_name || '',
+        customer_address: desc.customer_address || '',
+        customer_postal_city: desc.customer_postal_city || '',
+        order_number: desc.order_number || '',
+        foedselsdato_cvr: desc.foedselsdato_cvr || null,
+        marketing_samtykke: desc.marketing_samtykke ?? null,
+        signature_data: desc.signature_data || null,
+        signer_name: desc.signer_name || null,
+        signed_at: desc.signed_at || null,
+        pdf_storage_path: doc.storage_path || null,
+        pdf_url: freshByIdx[idx] ?? doc.file_url ?? null,
+        status: desc.status || 'pending',
+        created_at: doc.created_at,
+      }
+    })
 
     return { success: true, data: fuldmagter }
   } catch (error) {

@@ -11,6 +11,7 @@ import type {
   QuoteLineItem,
 } from '@/types/quote-templates.types'
 import { logger } from '@/lib/utils/logger'
+import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 
 // =====================================================
 // Auto-fill helpers
@@ -189,6 +190,13 @@ export async function shareQuoteToPortal(
       return { success: true, data: { documentId: existing.id } }
     }
 
+    // Phase β.2.3: generér fresh signed URL fra storage_path i stedet for
+    // at kopiere stored pdf_public_url. Sikrer at delt dokument virker
+    // ogsaa efter bucket-privatisering (β.2.5).
+    const freshUrl = quote.pdf_storage_path
+      ? await getStorageSignedUrlOrNull('attachments', quote.pdf_storage_path, SIGNED_URL_TTL.YEAR)
+      : null
+
     // Insert document
     const { data: doc, error: insertError } = await supabase
       .from('customer_documents')
@@ -197,7 +205,7 @@ export async function shareQuoteToPortal(
         title: quote.title,
         description: `Tilbud ${quote.quote_reference}`,
         document_type: 'quote',
-        file_url: quote.pdf_public_url,
+        file_url: freshUrl ?? quote.pdf_public_url,
         storage_path: quote.pdf_storage_path,
         file_name: `${quote.quote_reference}.pdf`,
         mime_type: 'application/pdf',

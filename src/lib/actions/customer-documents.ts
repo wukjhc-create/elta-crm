@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import type { ActionResult } from '@/types/common.types'
 
 export interface CustomerDocument {
@@ -61,7 +62,23 @@ export async function getCustomerDocuments(
       return { success: false, error: 'Kunne ikke hente dokumenter' }
     }
 
-    const documents: CustomerDocument[] = (docs || []).map((doc) => {
+    // Phase β.2.3: refresh file_url via signed-URL helper hvis storage_path
+    // findes. DB-lagrede URLs (mix af legacy public + ny signed) erstattes
+    // af friske signed URLs ved hver fetch, saa de virker baade foer og
+    // efter bucket-privatisering (beta.2.5).
+    const paths = (docs ?? []).map((d) => (d.storage_path as string | null) ?? '')
+    const freshUrls = await getStorageSignedUrls('attachments', paths.filter((p) => p), SIGNED_URL_TTL.SHORT)
+    // Build idx-map for paths-with-storage to fresh-URL
+    const urlByIdx: Record<number, string | null> = {}
+    let freshIdx = 0
+    for (let i = 0; i < paths.length; i++) {
+      if (paths[i]) {
+        urlByIdx[i] = freshUrls[freshIdx]
+        freshIdx++
+      }
+    }
+
+    const documents: CustomerDocument[] = (docs || []).map((doc, idx) => {
       let fuldmagt_status: 'pending' | 'signed' | undefined
       let fuldmagt_signed_at: string | null | undefined
       try {
@@ -76,13 +93,17 @@ export async function getCustomerDocuments(
       const sagJoinRaw = (doc as Record<string, unknown>).service_case
       const sagJoin = Array.isArray(sagJoinRaw) ? sagJoinRaw[0] : sagJoinRaw
 
+      // Brug lazy-refreshet URL hvis storage_path findes, ellers fald
+      // tilbage paa lagret file_url (legacy/fallback).
+      const fileUrl = urlByIdx[idx] ?? doc.file_url ?? ''
+
       return {
         id: doc.id,
         customer_id: doc.customer_id,
         title: doc.title,
         description: doc.description,
         document_type: doc.document_type,
-        file_url: doc.file_url,
+        file_url: fileUrl,
         storage_path: doc.storage_path,
         file_name: doc.file_name,
         mime_type: doc.mime_type || 'application/pdf',

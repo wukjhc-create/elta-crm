@@ -1595,7 +1595,7 @@ export async function getPortalDocuments(
 
     const { data, error } = await admin
       .from('customer_documents')
-      .select('id, title, description, document_type, file_url, file_name, mime_type, created_at')
+      .select('id, title, description, document_type, file_url, storage_path, file_name, mime_type, created_at')
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
 
@@ -1604,11 +1604,29 @@ export async function getPortalDocuments(
       return { success: false, error: 'Kunne ikke hente dokumenter' }
     }
 
+    // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver
+    // row der har storage_path. Sikrer at portalen virker baade foer og
+    // efter bucket-privatisering (β.2.5). TTL=SHORT (1t) — portal-siden
+    // re-loader ofte og kort levetid er mest sikkert.
+    const paths = (data ?? []).map((d) => (d.storage_path as string | null) ?? '')
+    const { getStorageSignedUrls, SIGNED_URL_TTL: TTL } = await import('@/lib/storage/signed-url')
+    const fresh = await getStorageSignedUrls(
+      'attachments',
+      paths.filter((p) => p),
+      TTL.SHORT,
+    )
+    const freshByIdx: Record<number, string | null> = {}
+    let fIdx = 0
+    for (let i = 0; i < paths.length; i++) {
+      if (paths[i]) { freshByIdx[i] = fresh[fIdx]; fIdx++ }
+    }
+
     // Phase 9I: aldrig laek raw description-JSON til portal-klient. Sanitize
     // her ogsaa selvom UI ogsaa filtrerer — defense in depth.
     const { getSafeDocumentDescription } = await import('@/lib/documents/display-description')
-    const curated = (data || []).map((d) => ({
+    const curated = (data || []).map((d, idx) => ({
       ...d,
+      file_url: freshByIdx[idx] ?? d.file_url ?? '',
       description: getSafeDocumentDescription(d),
     }))
 

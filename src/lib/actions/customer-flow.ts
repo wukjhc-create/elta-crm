@@ -52,7 +52,7 @@ export async function getCustomerFlow(
         .limit(5),
       supabase
         .from('customer_documents')
-        .select('id, title, description, document_type, file_url, created_at')
+        .select('id, title, description, document_type, file_url, storage_path, created_at')
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false }),
       supabase
@@ -189,10 +189,13 @@ function computeBesigtigelseStep(
 }
 
 function computeRapportStep(
-  reports: { id: string; file_url: string | null; created_at: string }[],
+  reports: { id: string; file_url: string | null; storage_path?: string | null; created_at: string }[],
   tasks: { id: string; status: string }[]
 ): FlowStep {
-  if (reports.length > 0 && reports[0].file_url) {
+  // Phase β.2.3: tjek storage_path i stedet for file_url. storage_path
+  // er den uforanderlige reference; file_url kan vaere expired signed URL.
+  // Falder tilbage paa file_url for legacy-rows uden storage_path.
+  if (reports.length > 0 && (reports[0].storage_path || reports[0].file_url)) {
     return {
       key: 'rapport', label: 'Rapport', status: 'done',
       detail: 'Rapport klar', date: reports[0].created_at, linkTab: 'dokumenter',
