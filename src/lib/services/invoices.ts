@@ -25,6 +25,38 @@ export interface CreateInvoiceOptions {
 }
 
 /**
+ * Sprint 2E.2A: resolver betalingsfrist (dage) til due_date-beregning.
+ * Kæde: customer.payment_terms_days → company_settings.default_payment_terms_days → 14.
+ * Bruges kun når caller ikke har angivet options.dueDays (eksplicit override).
+ */
+async function resolvePaymentTermsDays(
+  supabase: ReturnType<typeof createAdminClient>,
+  customerId: string | null,
+): Promise<number> {
+  const FALLBACK = 14
+  try {
+    if (customerId) {
+      const { data: c } = await supabase
+        .from('customers')
+        .select('payment_terms_days')
+        .eq('id', customerId)
+        .maybeSingle()
+      const v = Number(c?.payment_terms_days)
+      if (Number.isFinite(v) && v > 0) return v
+    }
+    const { data: cs } = await supabase
+      .from('company_settings')
+      .select('default_payment_terms_days')
+      .maybeSingle()
+    const d = Number(cs?.default_payment_terms_days)
+    if (Number.isFinite(d) && d > 0) return d
+    return FALLBACK
+  } catch {
+    return FALLBACK
+  }
+}
+
+/**
  * Create an invoice from an accepted offer.
  *
  *   - Idempotent: if an invoice already exists for the offer, returns its id.
@@ -38,9 +70,21 @@ export async function createInvoiceFromOffer(
 ): Promise<string> {
   const supabase = createAdminClient()
 
+  // Sprint 2E.2A: resolver betalingsfrist (customer → company → 14) når
+  // caller ikke har angivet en eksplicit override.
+  let dueDays = options.dueDays
+  if (dueDays === undefined) {
+    const { data: offer } = await supabase
+      .from('offers')
+      .select('customer_id')
+      .eq('id', offerId)
+      .maybeSingle()
+    dueDays = await resolvePaymentTermsDays(supabase, offer?.customer_id ?? null)
+  }
+
   const { data, error } = await supabase.rpc('create_invoice_from_offer', {
     p_offer_id: offerId,
-    p_due_days: options.dueDays ?? 14,
+    p_due_days: dueDays,
   })
 
   if (error) {
@@ -1077,9 +1121,21 @@ export async function createInvoiceFromWorkOrder(
   // via options.defaultHourlyRate vinder stadig.
   const p_default_hourly_rate = options.defaultHourlyRate ?? (await getStandardSaleRate())
 
+  // Sprint 2E.2A: resolver betalingsfrist (customer → company → 14) når
+  // caller ikke har angivet en eksplicit override.
+  let dueDays = options.dueDays
+  if (dueDays === undefined) {
+    const { data: wo } = await supabase
+      .from('work_orders')
+      .select('customer_id')
+      .eq('id', workOrderId)
+      .maybeSingle()
+    dueDays = await resolvePaymentTermsDays(supabase, wo?.customer_id ?? null)
+  }
+
   const { data, error } = await supabase.rpc('create_invoice_from_work_order', {
     p_work_order_id: workOrderId,
-    p_due_days: options.dueDays ?? 14,
+    p_due_days: dueDays,
     p_default_hourly_rate,
   })
 
