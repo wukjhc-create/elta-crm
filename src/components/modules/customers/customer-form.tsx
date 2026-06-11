@@ -53,6 +53,7 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
           shipping_postal_code: customer.shipping_postal_code,
           shipping_country: customer.shipping_country || 'Danmark',
           notes: customer.notes,
+          payment_terms_days: customer.payment_terms_days,
           tags: customer.tags,
           is_active: customer.is_active,
         }
@@ -280,6 +281,29 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isLoading}
                 />
+              </div>
+              {/* Sprint 2E.2A: betalingsfrist-override pr. kunde. Tom = firmaets standard. */}
+              <div className="space-y-1">
+                <label htmlFor="payment_terms_days" className="text-sm font-medium">
+                  Betalingsfrist (dage)
+                </label>
+                <input
+                  {...register('payment_terms_days', {
+                    setValueAs: (v) =>
+                      v === '' || v === null || v === undefined ? null : Number(v),
+                  })}
+                  id="payment_terms_days"
+                  type="number"
+                  min={1}
+                  max={120}
+                  placeholder="Standard"
+                  className={inputClass(!!errors.payment_terms_days)}
+                  disabled={isLoading}
+                />
+                <p className="text-xs text-gray-500">Tomt felt bruger firmaets standard</p>
+                {errors.payment_terms_days && (
+                  <p className="text-xs text-red-600">{errors.payment_terms_days.message}</p>
+                )}
               </div>
             </div>
           </div>
