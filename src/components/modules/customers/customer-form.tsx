@@ -282,25 +282,30 @@ export function CustomerForm({ customer, onClose, onSuccess }: CustomerFormProps
                   disabled={isLoading}
                 />
               </div>
-              {/* Sprint 2E.2A: betalingsfrist-override pr. kunde. Tom = firmaets standard. */}
+              {/* Sprint 2E.2A: betalingsfrist-override pr. kunde (dropdown med faste
+                  betingelser). "" = NULL = arv firmaets standard; 0 = omgående. */}
               <div className="space-y-1">
                 <label htmlFor="payment_terms_days" className="text-sm font-medium">
-                  Betalingsfrist (dage)
+                  Betalingsfrist
                 </label>
-                <input
+                <select
                   {...register('payment_terms_days', {
                     setValueAs: (v) =>
                       v === '' || v === null || v === undefined ? null : Number(v),
                   })}
                   id="payment_terms_days"
-                  type="number"
-                  min={1}
-                  max={120}
-                  placeholder="Standard"
                   className={inputClass(!!errors.payment_terms_days)}
                   disabled={isLoading}
-                />
-                <p className="text-xs text-gray-500">Tomt felt bruger firmaets standard</p>
+                >
+                  <option value="">Brug firmaets standard</option>
+                  <option value="0">Omgående betaling</option>
+                  <option value="8">Netto 8 dage</option>
+                  <option value="14">Netto 14 dage</option>
+                  <option value="30">Netto 30 dage</option>
+                </select>
+                <p className="text-xs text-gray-500">
+                  &quot;Brug firmaets standard&quot; følger firmaets default betalingsfrist.
+                </p>
                 {errors.payment_terms_days && (
                   <p className="text-xs text-red-600">{errors.payment_terms_days.message}</p>
                 )}

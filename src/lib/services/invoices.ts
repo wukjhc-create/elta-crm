@@ -41,15 +41,18 @@ async function resolvePaymentTermsDays(
         .select('payment_terms_days')
         .eq('id', customerId)
         .maybeSingle()
-      const v = Number(c?.payment_terms_days)
-      if (Number.isFinite(v) && v > 0) return v
+      // 0 = omgående betaling (gyldig) → returneres. NULL/undefined = arv
+      // company-default → springes over. typeof-check (ikke Number(), da
+      // Number(null) === 0 fejlagtigt ville give omgående for NULL-kunder).
+      const v = c?.payment_terms_days
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v
     }
     const { data: cs } = await supabase
       .from('company_settings')
       .select('default_payment_terms_days')
       .maybeSingle()
-    const d = Number(cs?.default_payment_terms_days)
-    if (Number.isFinite(d) && d > 0) return d
+    const d = cs?.default_payment_terms_days
+    if (typeof d === 'number' && Number.isFinite(d) && d >= 0) return d
     return FALLBACK
   } catch {
     return FALLBACK

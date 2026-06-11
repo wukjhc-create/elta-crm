@@ -80,11 +80,11 @@ export const createCustomerSchema = z.object({
     .nullable()
     .optional(),
   // Sprint 2E.2A: betalingsfrist-override pr. kunde. NULL = arv
-  // company_settings.default_payment_terms_days.
+  // company_settings.default_payment_terms_days. 0 = omgående betaling (gyldig).
   payment_terms_days: z
     .number({ invalid_type_error: 'Betalingsfrist skal være et tal' })
     .int('Betalingsfrist skal være et helt antal dage')
-    .min(1, 'Betalingsfrist skal være mindst 1 dag')
+    .min(0, 'Betalingsfrist kan ikke være negativ')
     .max(120, 'Betalingsfrist må højst være 120 dage')
     .nullable()
     .optional(),
