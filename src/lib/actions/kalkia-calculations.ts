@@ -26,7 +26,8 @@ import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { KalkiaCalculationEngine, createDefaultContext } from '@/lib/services/kalkia-engine'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
-import { DEFAULT_TAX_RATE, CALC_DEFAULTS } from '@/lib/constants'
+import { DEFAULT_TAX_RATE } from '@/lib/constants'
+import { getStandardSaleRate, FALLBACK_SALE_RATE } from '@/lib/services/rates'
 import { calculateSalePrice } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
 
@@ -162,12 +163,17 @@ export async function createKalkiaCalculation(
   try {
     const { supabase, userId } = await getAuthenticatedClient()
 
+    // Sprint 2D.5: fallback-timepris fra central accessor (master =
+    // calculation_settings) i stedet for direkte CALC_DEFAULTS. Form-input
+    // 'hourly_rate' vinder stadig som eksplicit override.
+    const fallbackHourlyRate = await getStandardSaleRate()
+
     const rawData = {
       name: formData.get('name') as string,
       description: formData.get('description') as string || null,
       customer_id: formData.get('customer_id') as string || null,
       building_profile_id: formData.get('building_profile_id') as string || null,
-      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
+      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : fallbackHourlyRate,
       margin_percentage: formData.get('margin_percentage') ? Number(formData.get('margin_percentage')) : 0,
       discount_percentage: formData.get('discount_percentage') ? Number(formData.get('discount_percentage')) : 0,
       vat_percentage: formData.get('vat_percentage') ? Number(formData.get('vat_percentage')) : DEFAULT_TAX_RATE,
@@ -215,13 +221,17 @@ export async function updateKalkiaCalculation(
     }
     validateUUID(id, 'kalkulation ID')
 
+    // Sprint 2D.5: fallback-timepris fra central accessor (master). Form-input
+    // 'hourly_rate' vinder stadig som eksplicit override.
+    const fallbackHourlyRate = await getStandardSaleRate()
+
     const rawData = {
       id,
       name: formData.get('name') as string,
       description: formData.get('description') as string || null,
       customer_id: formData.get('customer_id') as string || null,
       building_profile_id: formData.get('building_profile_id') as string || null,
-      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
+      hourly_rate: formData.get('hourly_rate') ? Number(formData.get('hourly_rate')) : fallbackHourlyRate,
       margin_percentage: formData.get('margin_percentage') ? Number(formData.get('margin_percentage')) : 0,
       discount_percentage: formData.get('discount_percentage') ? Number(formData.get('discount_percentage')) : 0,
       vat_percentage: formData.get('vat_percentage') ? Number(formData.get('vat_percentage')) : DEFAULT_TAX_RATE,
@@ -494,7 +504,7 @@ export async function cloneCalculationAsTemplate(
 export async function calculateFromNodes(
   items: KalkiaCalculationItemInput[],
   buildingProfileId: string | null,
-  hourlyRate: number = CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
+  hourlyRate: number = FALLBACK_SALE_RATE,
   marginPercentage: number = 0,
   discountPercentage: number = 0,
   vatPercentage: number = DEFAULT_TAX_RATE,

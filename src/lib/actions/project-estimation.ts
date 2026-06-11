@@ -25,6 +25,7 @@ import { analyzeMargins, CUSTOMER_TIERS, type CustomerTier } from '@/lib/service
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { CALC_DEFAULTS } from '@/lib/constants'
+import { getStandardSaleRate } from '@/lib/services/rates'
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -72,7 +73,9 @@ export async function createProjectEstimation(
     const roomTemplates = roomTemplatesRes.data || []
     const componentTimeData = componentTimeRes.data || []
 
-    const hourlyRate = input.pricing?.hourly_rate ?? CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN
+    // Sprint 2D.5: fallback-timepris fra central accessor (master =
+    // calculation_settings). input.pricing.hourly_rate vinder stadig.
+    const hourlyRate = input.pricing?.hourly_rate ?? (await getStandardSaleRate())
 
     // Step 1: Calculate project with room-based engine
     const engine = new CalculationIntelligenceEngine(
