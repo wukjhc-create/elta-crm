@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { DEFAULT_TAX_RATE, CALC_DEFAULTS } from '@/lib/constants'
+import { getStandardSaleRate } from '@/lib/services/rates'
 import {
   createCalculationSchema,
   updateCalculationSchema,
@@ -356,6 +357,11 @@ export async function duplicateCalculation(
       return { success: false, error: 'Kalkulationen blev ikke fundet' }
     }
 
+    // Sprint 2D: fallback-timepris fra central accessor (master =
+    // calculation_settings) i stedet for direkte CALC_DEFAULTS-bypass.
+    // original.default_hourly_rate bevares som override når den findes.
+    const fallbackHourlyRate = await getStandardSaleRate()
+
     // Create new calculation
     const { data: newCalc, error: createError } = await supabase
       .from('calculations')
@@ -372,7 +378,7 @@ export async function duplicateCalculation(
         created_by: userId,
         // Enhanced fields
         calculation_mode: original.calculation_mode || 'standard',
-        default_hourly_rate: original.default_hourly_rate || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN,
+        default_hourly_rate: original.default_hourly_rate || fallbackHourlyRate,
         materials_markup_percentage: original.materials_markup_percentage || CALC_DEFAULTS.MARGINS.MATERIALS,
         show_cost_breakdown: original.show_cost_breakdown || false,
         group_by_section: original.group_by_section ?? true,
