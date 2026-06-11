@@ -21,12 +21,14 @@ import type {
   AutoCalculation,
   ComplexityFactor,
 } from '@/types/auto-project.types'
+import { FALLBACK_SALE_RATE } from '@/lib/services/rates'
 
 // =====================================================
 // Configuration
 // =====================================================
 
-const DEFAULT_HOURLY_RATE = 450 // DKK per hour
+// Sprint 2D: timepris-fallback er konsolideret til FALLBACK_SALE_RATE (495)
+// i rates.ts. options.hourly_rate vinder stadig som override.
 const DEFAULT_MARGIN_PERCENTAGE = 25
 const DEFAULT_RISK_BUFFER_PERCENTAGE = 5
 
@@ -191,7 +193,7 @@ export function calculatePrice(
     risk_buffer_percentage?: number
   }
 ): PriceCalculation {
-  const hourly_rate = options?.hourly_rate || DEFAULT_HOURLY_RATE
+  const hourly_rate = options?.hourly_rate || FALLBACK_SALE_RATE
   const margin_percentage = options?.margin_percentage || DEFAULT_MARGIN_PERCENTAGE
   const risk_buffer_percentage = options?.risk_buffer_percentage || DEFAULT_RISK_BUFFER_PERCENTAGE
 
