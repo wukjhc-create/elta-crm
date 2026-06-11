@@ -32,6 +32,7 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
     default_tax_percentage: settings.default_tax_percentage || 25,
     default_currency: settings.default_currency || 'DKK',
     default_offer_validity_days: settings.default_offer_validity_days || 30,
+    default_payment_terms_days: settings.default_payment_terms_days || 14,
     default_terms_and_conditions: settings.default_terms_and_conditions || '',
   })
 
@@ -106,6 +107,10 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
         default_tax_percentage: Number(formData.default_tax_percentage),
         default_currency: formData.default_currency,
         default_offer_validity_days: Number(formData.default_offer_validity_days),
+        default_payment_terms_days: Math.min(
+          120,
+          Math.max(1, Number(formData.default_payment_terms_days) || 14)
+        ),
         default_terms_and_conditions: formData.default_terms_and_conditions || null,
       })
 
@@ -420,6 +425,26 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
               max="365"
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
             />
+          </div>
+
+          {/* Sprint 2E.2B: firmaets standard betalingsfrist (bruges når kunde mangler egen) */}
+          <div>
+            <label htmlFor="default_payment_terms_days" className="block text-sm font-medium text-gray-700 mb-1">
+              Standard betalingsfrist (dage)
+            </label>
+            <input
+              type="number"
+              id="default_payment_terms_days"
+              name="default_payment_terms_days"
+              value={formData.default_payment_terms_days}
+              onChange={handleChange}
+              min="1"
+              max="120"
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Bruges når kunden ikke har sin egen betalingsfrist.
+            </p>
           </div>
         </div>
       </div>

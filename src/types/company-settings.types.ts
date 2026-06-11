@@ -25,6 +25,7 @@ export interface CompanySettings {
   default_tax_percentage: number
   default_currency: string
   default_offer_validity_days: number
+  default_payment_terms_days: number
   default_terms_and_conditions: string | null
 
   // Reminder settings
@@ -64,5 +65,6 @@ export interface UpdateCompanySettingsInput {
   default_tax_percentage?: number
   default_currency?: string
   default_offer_validity_days?: number
+  default_payment_terms_days?: number
   default_terms_and_conditions?: string | null
 }
