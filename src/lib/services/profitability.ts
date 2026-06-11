@@ -10,6 +10,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { getEmployeeCostRate, FALLBACK_SALE_RATE } from '@/lib/services/rates'
 import type {
   EmployeeProductivity,
   ProfitSnapshotSource,
@@ -129,12 +130,14 @@ export async function getEmployeeProductivity(
 
   const { data: emp } = await supabase
     .from('employees')
-    .select('id, hourly_rate, cost_rate')
+    .select('id, hourly_rate')
     .eq('id', employeeId)
     .maybeSingle()
 
-  const fallbackHourly = Number(process.env.DEFAULT_HOURLY_RATE ?? 650)
-  const fallbackCost = 400
+  // Sprint 2D: kostpris via central accessor (master = employees.cost_rate,
+  // fallback = FALLBACK_COST_RATE). Salgs-fallback = FALLBACK_SALE_RATE (495)
+  // i stedet for tidligere env DEFAULT_HOURLY_RATE / 650.
+  const costRate = await getEmployeeCostRate(employeeId)
 
   const { data: logs } = await supabase
     .from('time_logs')
@@ -150,9 +153,10 @@ export async function getEmployeeProductivity(
   for (const l of logs ?? []) {
     const h = Number(l.hours) || 0
     hours += h
-    cost += Number(l.cost_amount ?? h * (Number(emp?.cost_rate) || fallbackCost)) || 0
+    // cost_amount-snapshot foretrækkes når sat; ellers beregn fra costRate.
+    cost += Number(l.cost_amount ?? h * costRate) || 0
     if (l.billable) {
-      revenue += h * (Number(emp?.hourly_rate) || fallbackHourly)
+      revenue += h * (Number(emp?.hourly_rate) || FALLBACK_SALE_RATE)
     }
   }
   hours = round2(hours)
