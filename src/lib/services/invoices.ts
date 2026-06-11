@@ -10,6 +10,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { getStandardSaleRate } from '@/lib/services/rates'
 import type {
   InvoiceLineRow,
   InvoicePaymentStatus,
@@ -1045,7 +1046,8 @@ export async function createAndSendInvoiceFromOffer(
 export interface CreateInvoiceFromWorkOrderOptions {
   /** Days from creation until due_date. Default 14. */
   dueDays?: number
-  /** Fallback hourly rate when employees.hourly_rate is null. Default 650. */
+  /** Fallback hourly rate when employees.hourly_rate is null. Default:
+   *  getStandardSaleRate() (calculation_settings master, ellers FALLBACK_SALE_RATE). */
   defaultHourlyRate?: number
 }
 
@@ -1069,10 +1071,16 @@ export async function createInvoiceFromWorkOrder(
 ): Promise<string> {
   const supabase = createAdminClient()
 
+  // Sprint 2D: fallback-sats (kun brugt når employees.hourly_rate er null)
+  // hentes fra central accessor (master = calculation_settings.hourly_rates),
+  // i stedet for env DEFAULT_HOURLY_RATE / 650. Eksplicit caller-override
+  // via options.defaultHourlyRate vinder stadig.
+  const p_default_hourly_rate = options.defaultHourlyRate ?? (await getStandardSaleRate())
+
   const { data, error } = await supabase.rpc('create_invoice_from_work_order', {
     p_work_order_id: workOrderId,
     p_due_days: options.dueDays ?? 14,
-    p_default_hourly_rate: options.defaultHourlyRate ?? Number(process.env.DEFAULT_HOURLY_RATE ?? 650),
+    p_default_hourly_rate,
   })
 
   if (error) {
