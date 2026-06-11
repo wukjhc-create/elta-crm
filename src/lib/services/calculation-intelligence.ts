@@ -24,12 +24,14 @@ import type {
 } from '@/types/calculation-intelligence.types'
 import type { ElectricalProjectResult, LoadEntry, ElectricalRoomInput } from '@/types/electrical.types'
 import { calculateElectricalProject } from '@/lib/services/electrical-engine'
+import { FALLBACK_SALE_RATE } from '@/lib/services/rates'
 
 // =====================================================
 // Constants
 // =====================================================
 
-const DEFAULT_HOURLY_RATE = 495
+// Sprint 2D: lokal DEFAULT_HOURLY_RATE=495 erstattet af canonical
+// FALLBACK_SALE_RATE (rates.ts). Konstruktørens hourlyRate-arg vinder stadig.
 const DEFAULT_OVERHEAD_PERCENTAGE = 12
 const DEFAULT_RISK_PERCENTAGE = 3
 const DEFAULT_MARGIN_PERCENTAGE = 25
@@ -77,7 +79,7 @@ export class CalculationIntelligenceEngine {
     componentTimeData: ComponentTimeIntelligence[],
     installationTypes: InstallationType[],
     roomTemplates: RoomTemplate[],
-    hourlyRate: number = DEFAULT_HOURLY_RATE
+    hourlyRate: number = FALLBACK_SALE_RATE
   ) {
     this.componentTimeData = new Map()
     for (const ctd of componentTimeData) {

@@ -20,12 +20,14 @@ import type { CableSizingResult } from '@/types/electrical.types'
 import { calculateCableSize } from '@/lib/services/electrical-engine'
 import { calculateSalePrice } from '@/lib/logic/pricing'
 import { CALC_DEFAULTS } from '@/lib/constants'
+import { FALLBACK_SALE_RATE } from '@/lib/services/rates'
 
 // =====================================================
 // Default Values
 // =====================================================
 
-const DEFAULT_HOURLY_RATE = 495
+// Sprint 2D: lokal DEFAULT_HOURLY_RATE=495 erstattet af canonical
+// FALLBACK_SALE_RATE (rates.ts). context.hourlyRate / arg vinder stadig.
 const DEFAULT_INDIRECT_TIME_FACTOR = 0.15 // 15%
 const DEFAULT_PERSONAL_TIME_FACTOR = 0.08 // 8%
 const DEFAULT_OVERHEAD_FACTOR = 0.12 // 12%
@@ -167,7 +169,7 @@ export class KalkiaCalculationEngine {
    * Get the effective hourly rate
    */
   get hourlyRate(): number {
-    return this.context.hourlyRate || DEFAULT_HOURLY_RATE
+    return this.context.hourlyRate || FALLBACK_SALE_RATE
   }
 
   /**
@@ -622,7 +624,7 @@ export function calculateDBMetrics(
  * Create a default calculation context
  */
 export function createDefaultContext(
-  hourlyRate: number = DEFAULT_HOURLY_RATE,
+  hourlyRate: number = FALLBACK_SALE_RATE,
   buildingProfile: KalkiaBuildingProfile | null = null,
   globalFactors: KalkiaGlobalFactor[] = []
 ): CalculationContext {
