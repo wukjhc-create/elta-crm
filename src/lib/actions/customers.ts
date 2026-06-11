@@ -202,6 +202,9 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
       shipping_postal_code: formData.get('shipping_postal_code') as string || null,
       shipping_country: formData.get('shipping_country') as string || 'Danmark',
       notes: formData.get('notes') as string || null,
+      payment_terms_days: formData.get('payment_terms_days')
+        ? Number(formData.get('payment_terms_days'))
+        : null,
       tags: [],
       is_active: true,
     }
@@ -454,6 +457,9 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
       shipping_postal_code: formData.get('shipping_postal_code') as string || null,
       shipping_country: formData.get('shipping_country') as string || null,
       notes: formData.get('notes') as string || null,
+      payment_terms_days: formData.get('payment_terms_days')
+        ? Number(formData.get('payment_terms_days'))
+        : null,
       is_active: formData.get('is_active') === 'true',
     }
 

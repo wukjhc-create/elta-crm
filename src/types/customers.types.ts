@@ -18,6 +18,7 @@ export interface Customer {
   shipping_postal_code: string | null
   shipping_country: string | null
   notes: string | null
+  payment_terms_days: number | null
   tags: string[]
   custom_fields: Record<string, unknown>
   is_active: boolean
