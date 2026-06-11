@@ -16,6 +16,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAiSuggestion } from '@/lib/ai/suggestion-log'
 import { getSuggestedMargin } from '@/lib/services/offer-pricing'
+import { getStandardSaleRate } from '@/lib/services/rates'
 import type { PricingInput, PricingSuggestion } from '@/types/ai-insights.types'
 
 const MIN_HISTORICAL_SAMPLES = 3
@@ -23,7 +24,10 @@ const ABSOLUTE_FLOOR_MARGIN = 15
 
 export async function suggestOptimalPrice(input: PricingInput): Promise<PricingSuggestion> {
   const supabase = createAdminClient()
-  const defaultRate = Number(process.env.DEFAULT_HOURLY_RATE ?? 650)
+  // Sprint 2D: labor-rate fra central accessor (master =
+  // calculation_settings.hourly_rates, fallback = FALLBACK_SALE_RATE),
+  // i stedet for env DEFAULT_HOURLY_RATE / 650.
+  const defaultRate = await getStandardSaleRate()
   const laborRevenue = Math.max(0, input.laborHours) * defaultRate
 
   // Pull recent profitable snapshots whose total resembles this job's
