@@ -8,6 +8,7 @@ import {
   type EmployeeWithCompensation,
 } from '@/types/employees.types'
 import { setEmployeeActiveAction } from '@/lib/actions/employees'
+import { EmployeeLoginPanel } from '@/components/modules/employees/employee-login-panel'
 
 const fmtAmount = (n: number | null | undefined) =>
   n == null
@@ -41,6 +42,7 @@ export function EmployeeDetailClient({
   canSeePayroll = false,
   canEditPayroll = false,
   canEditEmployee = false,
+  canManageLogin = false,
 }: {
   employee: EmployeeWithCompensation
   /** Sprint 7D — gate til lon-felter (intern kost, salgspris, pension,
@@ -48,6 +50,8 @@ export function EmployeeDetailClient({
   canSeePayroll?: boolean
   canEditPayroll?: boolean
   canEditEmployee?: boolean
+  /** Sprint Ø2.2 — gate til login/adgang-styring (users.edit) */
+  canManageLogin?: boolean
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -184,6 +188,11 @@ export function EmployeeDetailClient({
           )}
         </div>
       </div>
+
+      {/* Login & adgang — Sprint Ø2.2 (kun users.edit) */}
+      {canManageLogin && (
+        <EmployeeLoginPanel employeeId={employee.id} employeeEmail={employee.email} />
+      )}
 
       {/* Two-column main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

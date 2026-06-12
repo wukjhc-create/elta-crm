@@ -54,6 +54,19 @@ export function LoginForm() {
       }
 
       if (authData.user) {
+        // Sprint Ø2.2 login-gate: deaktiverede konti må ikke ind. (Banned
+        // brugere afvises allerede af auth ovenfor; dette fanger DB-only
+        // deaktivering og giver en venlig besked.)
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('is_active')
+          .eq('id', authData.user.id)
+          .maybeSingle()
+        if (prof && prof.is_active === false) {
+          await supabase.auth.signOut()
+          setError('Din konto er deaktiveret. Kontakt en administrator.')
+          return
+        }
         router.push('/dashboard')
         router.refresh()
       }

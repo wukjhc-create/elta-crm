@@ -26,6 +26,7 @@ export default async function EmployeeDetailPage({
   const canSeePayroll = ctx.has('employees.payroll.view')
   const canEditPayroll = ctx.has('employees.payroll.edit')
   const canEditEmployee = ctx.has('employees.edit')
+  const canManageLogin = ctx.has('users.edit')
 
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
@@ -39,6 +40,7 @@ export default async function EmployeeDetailPage({
       canSeePayroll={canSeePayroll}
       canEditPayroll={canEditPayroll}
       canEditEmployee={canEditEmployee}
+      canManageLogin={canManageLogin}
     />
   )
 }

@@ -16,6 +16,7 @@ import { MAX_IMAGE_SIZE } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 import { logger } from '@/lib/utils/logger'
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
+import { setProfileLoginActive } from '@/lib/auth/login-access'
 
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
@@ -509,10 +510,24 @@ export async function updateTeamMember(
       return { success: false, error: 'Manglende tilladelse: users.edit' }
     }
 
+    // Sprint Ø2.2: is_active håndhæves via central helper (sætter flag OG
+    // auth-ban) — ikke som et løst profil-felt. Resten (role/department)
+    // opdateres normalt.
+    if (input.is_active !== undefined) {
+      const res = await setProfileLoginActive(memberId, input.is_active)
+      if (!res.ok) {
+        return { success: false, error: res.error ?? 'Kunne ikke ændre login-adgang' }
+      }
+    }
+
+    const rest: { role?: string; department?: string } = {}
+    if (input.role !== undefined) rest.role = input.role
+    if (input.department !== undefined) rest.department = input.department
+
     const { data, error } = await supabase
       .from('profiles')
       .update({
-        ...input,
+        ...rest,
         updated_at: new Date().toISOString(),
       })
       .eq('id', memberId)
