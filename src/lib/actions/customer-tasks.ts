@@ -167,6 +167,60 @@ export async function getAllTasks(options?: {
   return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
 }
 
+/**
+ * Lightweight task counters for the sidebar badge.
+ *
+ * Sprint Performance 1: replaces the sidebar's getAllTasks() call, which
+ * fetched the ENTIRE customer_tasks table (with customer + offer joins)
+ * every 60 s just to count rows client-side. This uses two HEAD count
+ * queries (count: 'exact', head: true) — no row payload is transferred at
+ * all — while preserving the same role scoping (montør sees only own tasks)
+ * and the same definitions (active = not done, overdue = active + past due).
+ */
+export async function getTaskCounts(): Promise<{ active: number; overdue: number }> {
+  let role: string = 'montør'
+  let userId: string | null = null
+  let supabase: Awaited<ReturnType<typeof createClient>>
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    role = ctx.role
+    userId = ctx.userId
+    supabase = ctx.supabase
+  } catch {
+    return { active: 0, overdue: 0 }
+  }
+
+  const nowIso = new Date().toISOString()
+
+  let activeQuery = supabase
+    .from('customer_tasks')
+    .select('*', { count: 'exact', head: true })
+    .neq('status', 'done')
+
+  let overdueQuery = supabase
+    .from('customer_tasks')
+    .select('*', { count: 'exact', head: true })
+    .neq('status', 'done')
+    .not('due_date', 'is', null)
+    .lt('due_date', nowIso)
+
+  // Sprint 7E — montør scope: only tasks assigned to the current user.
+  if (role === 'montør') {
+    if (!userId) return { active: 0, overdue: 0 }
+    activeQuery = activeQuery.eq('assigned_to', userId)
+    overdueQuery = overdueQuery.eq('assigned_to', userId)
+  }
+
+  const [activeRes, overdueRes] = await Promise.all([activeQuery, overdueQuery])
+
+  if (activeRes.error || overdueRes.error) {
+    logger.error('Failed to fetch task counts', { error: activeRes.error || overdueRes.error })
+    return { active: 0, overdue: 0 }
+  }
+
+  return { active: activeRes.count ?? 0, overdue: overdueRes.count ?? 0 }
+}
+
 export async function getMyPendingReminders(): Promise<CustomerTaskWithRelations[]> {
   const supabase = await createClient()
 

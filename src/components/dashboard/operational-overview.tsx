@@ -3,14 +3,16 @@
 /**
  * Operational overview (Phase 6.1).
  *
- * - Polls /api/dashboard/stats every 30 s.
+ * - Polls /api/dashboard/stats every 5 min, paused while the tab is hidden
+ *   (Sprint Performance 1 — was every 30 s, always-on).
  * - Renders 8 stat cards, three list views, and a system health panel.
  * - Never blocks: any fetch failure shows "no data" / "—" rather than
  *   throwing or hiding the page.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useVisiblePolling } from '@/lib/hooks/use-visible-polling'
 import {
   Mail,
   Users,
@@ -22,7 +24,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 
-const REFRESH_MS = 30_000
+const REFRESH_MS = 300_000 // 5 min (Sprint Performance 1)
 
 type Status = 'ok' | 'warning' | 'error'
 
@@ -90,7 +92,6 @@ export function OperationalOverview() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastFetched, setLastFetched] = useState<Date | null>(null)
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -107,11 +108,7 @@ export function OperationalOverview() {
     }
   }, [])
 
-  useEffect(() => {
-    load()
-    timer.current = setInterval(load, REFRESH_MS)
-    return () => { if (timer.current) clearInterval(timer.current) }
-  }, [load])
+  useVisiblePolling(load, REFRESH_MS)
 
   return (
     <div className="space-y-6">
@@ -119,7 +116,7 @@ export function OperationalOverview() {
         <div>
           <h2 className="text-xl font-semibold">Operationelt overblik</h2>
           <p className="text-xs text-gray-500">
-            Auto-refresh hvert 30 sek
+            Auto-refresh hvert 5 min · pauser når fanen er skjult
             {lastFetched && ` · sidst opdateret ${fmtRelative(lastFetched.toISOString())} siden`}
             {error && <span className="text-red-600 ml-2">· kunne ikke hente data</span>}
           </p>

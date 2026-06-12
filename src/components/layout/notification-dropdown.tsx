@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, Check, X, AlertTriangle, Info, AlertCircle, FileSignature, ClipboardCheck, Mail } from 'lucide-react'
-import { getSystemAlerts, markAlertRead, dismissAlert } from '@/lib/actions/calculation-intelligence'
+import { markAlertRead, dismissAlert } from '@/lib/actions/calculation-intelligence'
+import { useNotifications } from './notifications-provider'
 import type { SystemAlert, AlertSeverity, AlertType } from '@/types/calculation-intelligence.types'
 import { formatTimeAgo } from '@/lib/utils/format'
 
@@ -20,34 +21,16 @@ const CRM_EVENT_CONFIG: Partial<Record<AlertType, { icon: typeof Info; bgClass: 
   customer_email_received: { icon: Mail, bgClass: 'bg-indigo-50', textClass: 'text-indigo-600' },
 }
 
-const POLL_INTERVAL_MS = 60000 // 1 minute
-
 export function NotificationDropdown() {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
-  const [alerts, setAlerts] = useState<SystemAlert[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
+  // System alerts come from the shared NotificationsProvider (single 60 s
+  // poll for the whole dashboard) — no per-component fetch loop here.
+  const { systemAlerts: alerts, setSystemAlerts: setAlerts } = useNotifications()
   const [isLoading, setIsLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const loadAlerts = useCallback(async () => {
-    try {
-      const result = await getSystemAlerts({ limit: 20 })
-      if (result.success && result.data) {
-        setAlerts(result.data)
-        setUnreadCount(result.data.filter((a) => !a.is_read).length)
-      }
-    } catch {
-      // Silent fail — alerts are not critical
-    }
-  }, [])
-
-  // Initial load + polling
-  useEffect(() => {
-    loadAlerts()
-    const interval = setInterval(loadAlerts, POLL_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [loadAlerts])
+  const unreadCount = alerts.filter((a) => !a.is_read).length
 
   // Close on outside click
   useEffect(() => {
@@ -77,7 +60,6 @@ export function NotificationDropdown() {
     const result = await markAlertRead(id)
     if (result.success) {
       setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_read: true, read_at: new Date().toISOString() } : a)))
-      setUnreadCount((prev) => Math.max(0, prev - 1))
     }
   }
 
@@ -85,10 +67,6 @@ export function NotificationDropdown() {
     const result = await dismissAlert(id)
     if (result.success) {
       setAlerts((prev) => prev.filter((a) => a.id !== id))
-      setUnreadCount((prev) => {
-        const alert = alerts.find((a) => a.id === id)
-        return alert && !alert.is_read ? Math.max(0, prev - 1) : prev
-      })
     }
   }
 
@@ -97,7 +75,6 @@ export function NotificationDropdown() {
     const unread = alerts.filter((a) => !a.is_read)
     await Promise.allSettled(unread.map((a) => markAlertRead(a.id)))
     setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true, read_at: new Date().toISOString() })))
-    setUnreadCount(0)
     setIsLoading(false)
   }
 

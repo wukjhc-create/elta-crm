@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Bell,
@@ -13,42 +13,28 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import {
-  getMyPendingReminders,
   completeCustomerTask,
   snoozeTask,
-  getUnreadPriceAlerts,
   dismissPriceAlert,
 } from '@/lib/actions/customer-tasks'
 import type { PriceAlert } from '@/lib/actions/customer-tasks'
+import { useNotifications } from './notifications-provider'
 import { TASK_PRIORITY_CONFIG } from '@/types/customer-tasks.types'
 import type { CustomerTaskWithRelations } from '@/types/customer-tasks.types'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 
-const POLL_INTERVAL = 60_000 // 60 seconds
 const MINIMIZED_STORAGE_KEY = 'taskReminderOverlay.isMinimized'
 
-function sameIdSet(a: { id: string }[], b: { id: string }[]): boolean {
-  if (a.length !== b.length) return false
-  const ids = new Set(a.map((x) => x.id))
-  for (const x of b) {
-    if (!ids.has(x.id)) return false
-  }
-  return true
-}
-
 export function TaskReminderOverlay() {
-  const [reminders, setReminders] = useState<CustomerTaskWithRelations[]>([])
-  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([])
+  // Data comes from the shared NotificationsProvider (single 60 s poll for
+  // the whole dashboard) instead of a per-component poll loop.
+  const { reminders, priceAlerts, setReminders, setPriceAlerts } = useNotifications()
+
   // Default minimized. Overlay shows as the small orange pill on every
   // session-start. The full list only opens when the user explicitly
   // clicks the pill (which then writes sessionStorage='0').
   const [isMinimized, setIsMinimizedState] = useState(true)
-
-  // Refs hold the latest state so loadReminders can compare without
-  // capturing stale closure values.
-  const remindersRef = useRef<CustomerTaskWithRelations[]>([])
-  const priceAlertsRef = useRef<PriceAlert[]>([])
 
   // sessionStorage-backed minimized state — survives navigation
   // within the same session, resets on full reload.
@@ -76,71 +62,27 @@ export function TaskReminderOverlay() {
     }
   }, [])
 
-  const loadReminders = useCallback(async () => {
-    try {
-      const [taskData, alertData] = await Promise.all([
-        getMyPendingReminders(),
-        getUnreadPriceAlerts(),
-      ])
-      // Skip setState when the ID set is identical to current state —
-      // avoids unnecessary re-renders + framer-motion layout-shift
-      // animations on every poll cycle.
-      if (!sameIdSet(remindersRef.current, taskData)) {
-        remindersRef.current = taskData
-        setReminders(taskData)
-      }
-      if (!sameIdSet(priceAlertsRef.current, alertData)) {
-        priceAlertsRef.current = alertData
-        setPriceAlerts(alertData)
-      }
-    } catch {
-      // Silently fail — non-critical
-    }
-  }, [])
-
-  useEffect(() => {
-    loadReminders()
-    const interval = setInterval(loadReminders, POLL_INTERVAL)
-    return () => clearInterval(interval)
-  }, [loadReminders])
-
   const handleComplete = async (taskId: string) => {
     await completeCustomerTask(taskId)
-    setReminders((prev) => {
-      const next = prev.filter((r) => r.id !== taskId)
-      remindersRef.current = next
-      return next
-    })
+    setReminders((prev) => prev.filter((r) => r.id !== taskId))
   }
 
   const handleSnooze = async (taskId: string, minutes: number) => {
     const until = new Date(Date.now() + minutes * 60_000).toISOString()
     await snoozeTask(taskId, until)
-    setReminders((prev) => {
-      const next = prev.filter((r) => r.id !== taskId)
-      remindersRef.current = next
-      return next
-    })
+    setReminders((prev) => prev.filter((r) => r.id !== taskId))
   }
 
   const handleDismiss = async (id: string) => {
     // Snooze 7 days to persistently dismiss without completing
     const until = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString()
     await snoozeTask(id, until)
-    setReminders((prev) => {
-      const next = prev.filter((r) => r.id !== id)
-      remindersRef.current = next
-      return next
-    })
+    setReminders((prev) => prev.filter((r) => r.id !== id))
   }
 
   const handleDismissAlert = async (alertId: string) => {
     await dismissPriceAlert(alertId)
-    setPriceAlerts((prev) => {
-      const next = prev.filter((a) => a.id !== alertId)
-      priceAlertsRef.current = next
-      return next
-    })
+    setPriceAlerts((prev) => prev.filter((a) => a.id !== alertId))
   }
 
   const totalVisible = reminders.length + priceAlerts.length

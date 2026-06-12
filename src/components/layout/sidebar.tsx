@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { APP_NAME } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission, type Permission } from '@/lib/auth/permissions'
+import { useVisiblePolling } from '@/lib/hooks/use-visible-polling'
+import { getTaskCounts } from '@/lib/actions/customer-tasks'
 
 interface NavItem {
   name: string
@@ -365,26 +367,20 @@ export function Sidebar() {
   const [taskCount, setTaskCount] = useState(0)
   const [overdueCount, setOverdueCount] = useState(0)
 
-  useEffect(() => {
-    let mounted = true
-    async function fetchCount() {
-      try {
-        const { getAllTasks } = await import('@/lib/actions/customer-tasks')
-        const tasks = await getAllTasks()
-        const now = new Date()
-        const active = tasks.filter((t) => t.status !== 'done')
-        if (mounted) {
-          setTaskCount(active.length)
-          setOverdueCount(active.filter((t) => t.due_date && new Date(t.due_date) < now).length)
-        }
-      } catch {
-        // ignore
-      }
+  // Sprint Performance 1: was getAllTasks() (entire customer_tasks table +
+  // joins, every 60 s) just to count rows client-side. Now two HEAD count
+  // queries via getTaskCounts(), polled only while the tab is visible.
+  const fetchCounts = useCallback(async () => {
+    try {
+      const { active, overdue } = await getTaskCounts()
+      setTaskCount(active)
+      setOverdueCount(overdue)
+    } catch {
+      // ignore — badge is non-critical
     }
-    fetchCount()
-    const interval = setInterval(() => { fetchCount() }, 60_000)
-    return () => { mounted = false; clearInterval(interval) }
   }, [])
+
+  useVisiblePolling(fetchCounts, 60_000)
 
   // Filter nav items by role permissions
   const filteredSections = navSections.map((section) => ({
