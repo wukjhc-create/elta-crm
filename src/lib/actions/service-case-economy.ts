@@ -165,10 +165,10 @@ export async function getServiceCaseEconomy(
       supplierInvoicesRes,
     ] = await Promise.all([
       woIds.length === 0
-        ? Promise.resolve({ data: [] as Array<{ hours: number | null; end_time: string | null; cost_amount: number | null; employee: { hourly_rate: number | null } | null }> })
+        ? Promise.resolve({ data: [] as Array<{ hours: number | null; end_time: string | null; cost_amount: number | null; sale_amount: number | null; employee: { hourly_rate: number | null } | null }> })
         : supabase
             .from('time_logs')
-            .select('hours, end_time, cost_amount, employee:employees(hourly_rate)')
+            .select('hours, end_time, cost_amount, sale_amount, employee:employees(hourly_rate)')
             .in('work_order_id', woIds),
       supabase
         .from('case_materials')
@@ -210,6 +210,7 @@ export async function getServiceCaseEconomy(
       hours: number | string | null
       end_time: string | null
       cost_amount: number | string | null
+      sale_amount: number | string | null
       employee: { hourly_rate: number | string | null } | Array<{ hourly_rate: number | string | null }> | null
     }>
     let total_hours = 0
@@ -232,7 +233,15 @@ export async function getServiceCaseEconomy(
       }
       total_hours += Number.isFinite(hours) ? hours : 0
       total_labor_cost += Number.isFinite(cost) ? cost : 0
-      total_labor_sale += Number.isFinite(hours) && rate != null ? hours * rate : 0
+      // Salgs-side: brug frosset sale_amount (00136/00137 snapshot) når den
+      // findes; historiske raekker uden snapshot falder tilbage til den gamle
+      // live-beregning hours * employees.hourly_rate (uaendret adfaerd).
+      const saleSnapshot = tl.sale_amount == null ? null : Number(tl.sale_amount)
+      if (saleSnapshot != null && Number.isFinite(saleSnapshot)) {
+        total_labor_sale += saleSnapshot
+      } else {
+        total_labor_sale += Number.isFinite(hours) && rate != null ? hours * rate : 0
+      }
     }
 
     // ---- Materials rollup ----
