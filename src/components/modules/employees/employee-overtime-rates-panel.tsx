@@ -195,6 +195,26 @@ export function EmployeeOvertimeRatesPanel({
       cost !== (rate.cost_rate == null ? '' : String(rate.cost_rate)) ||
       sale !== (rate.sale_rate == null ? '' : String(rate.sale_rate))
 
+    // Ø2.14 — inline-validering ved Gem (samme regler som opret-formen).
+    const saveRow = () => {
+      const m = parseFloat(mult.replace(',', '.'))
+      if (!Number.isFinite(m) || m < 0 || m > 10) {
+        window.alert('Multiplikator skal være mellem 0 og 10')
+        return
+      }
+      const c = cost ? parseFloat(cost.replace(',', '.')) : null
+      const s = sale ? parseFloat(sale.replace(',', '.')) : null
+      if ((c != null && (!Number.isFinite(c) || c < 0)) || (s != null && (!Number.isFinite(s) || s < 0))) {
+        window.alert('Satser kan ikke være negative')
+        return
+      }
+      if (((c ?? 0) > 5000 || (s ?? 0) > 5000) &&
+          !window.confirm('Kost-/salgssats over 5000 kr/t er usædvanligt højt. Gem alligevel?')) {
+        return
+      }
+      onRun(() => updateOvertimeRate(rate.id, { multiplier: m, cost_rate: c, sale_rate: s }))
+    }
+
     if (!canEdit) {
       return (
         <tr className={rate.is_active ? '' : 'opacity-50'}>
@@ -233,15 +253,7 @@ export function EmployeeOvertimeRatesPanel({
         </td>
         <td className="py-1.5 pl-2 text-right">
           <button
-            onClick={() =>
-              onRun(() =>
-                updateOvertimeRate(rate.id, {
-                  multiplier: parseFloat(mult.replace(',', '.')),
-                  cost_rate: cost ? parseFloat(cost.replace(',', '.')) : null,
-                  sale_rate: sale ? parseFloat(sale.replace(',', '.')) : null,
-                })
-              )
-            }
+            onClick={saveRow}
             disabled={pending || !dirty}
             className="text-xs px-2 py-0.5 rounded bg-gray-900 text-white disabled:opacity-30"
           >
