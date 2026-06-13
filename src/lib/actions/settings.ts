@@ -17,6 +17,10 @@ import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferenc
 import { logger } from '@/lib/utils/logger'
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
+import {
+  parseInvoiceEmailConfig,
+  type InvoiceEmailConfig,
+} from '@/lib/email/invoice-email-config'
 
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
@@ -108,6 +112,88 @@ export async function updateCompanySettings(
     return { success: true, data: data as CompanySettings }
   } catch (error) {
     logger.error('Error in updateCompanySettings', { error: error })
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// =====================================================
+// Sprint Ø3.7 — Redigerbare faktura-/rykkertekster + afsender
+// =====================================================
+
+export async function getInvoiceEmailConfig(): Promise<ActionResult<InvoiceEmailConfig>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.view')) {
+      return { success: false, error: 'Manglende tilladelse: settings.view' }
+    }
+    const { data, error } = await supabase
+      .from('company_settings')
+      .select('invoice_email_config')
+      .maybeSingle()
+    if (error) {
+      logger.error('getInvoiceEmailConfig failed', { error })
+      return { success: false, error: 'Kunne ikke hente faktura-mailindstillinger' }
+    }
+    return { success: true, data: parseInvoiceEmailConfig(data?.invoice_email_config) }
+  } catch (error) {
+    logger.error('Error in getInvoiceEmailConfig', { error })
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function updateInvoiceEmailConfig(
+  input: InvoiceEmailConfig
+): Promise<ActionResult<InvoiceEmailConfig>> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.manage')) {
+      return { success: false, error: 'Manglende tilladelse: settings.manage' }
+    }
+    const { data: existing } = await supabase
+      .from('company_settings')
+      .select('id')
+      .maybeSingle()
+    if (!existing) {
+      return { success: false, error: 'Kunne ikke finde virksomhedsindstillinger' }
+    }
+
+    // Saml til en ren config (kun kendte felter) før vi gemmer.
+    const clean = parseInvoiceEmailConfig(input)
+    const { error } = await supabase
+      .from('company_settings')
+      .update({ invoice_email_config: clean })
+      .eq('id', existing.id)
+    if (error) {
+      logger.error('updateInvoiceEmailConfig failed', { error })
+      return { success: false, error: 'Kunne ikke gemme faktura-mailindstillinger' }
+    }
+
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        entity_type: 'company_settings',
+        entity_id: existing.id,
+        entity_name: 'Faktura-/rykkertekster',
+        action: 'invoice_email_config_updated',
+        action_description: 'Faktura- og rykkertekster / afsenderidentitet opdateret',
+        changes: {
+          sender_name_set: !!clean.sender_name,
+          reply_to_set: !!clean.reply_to,
+          invoice_override: !!(clean.invoice?.subject || clean.invoice?.body),
+          reminder1_override: !!(clean.reminder1?.subject || clean.reminder1?.body),
+          reminder2_override: !!(clean.reminder2?.subject || clean.reminder2?.body),
+          reminder3_override: !!(clean.reminder3?.subject || clean.reminder3?.body),
+        },
+        metadata: { note: 'Tomme felter falder tilbage til kodestandard-template.' },
+      })
+    } catch (e) {
+      logger.error('audit invoice_email_config failed', { error: e })
+    }
+
+    revalidatePath('/dashboard/settings/invoice-email')
+    return { success: true, data: clean }
+  } catch (error) {
+    logger.error('Error in updateInvoiceEmailConfig', { error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

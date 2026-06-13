@@ -801,6 +801,24 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     .eq('id', invoice.customer_id)
     .maybeSingle()
 
+  // Sprint Ø3.7 — firmainfo + redigerbar rykker-template (direkte via admin-
+  // client, så cron uden bruger ikke fejler på permission). NULL → fallback.
+  const { parseInvoiceEmailConfig } = await import('@/lib/email/invoice-email-config')
+  const { data: companyRow } = await supabase
+    .from('company_settings')
+    .select('company_name, company_email, company_phone, invoice_email_config')
+    .maybeSingle()
+  const emailCfg = parseInvoiceEmailConfig(companyRow?.invoice_email_config)
+  let reminderCaseNumber: string | null = null
+  if (invoice.case_id) {
+    const { data: sc } = await supabase
+      .from('service_cases')
+      .select('case_number')
+      .eq('id', invoice.case_id)
+      .maybeSingle()
+    reminderCaseNumber = (sc?.case_number as string | null) ?? null
+  }
+
   const { isGraphConfigured, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
   if (!isGraphConfigured()) {
     await logReminder(invoiceId, level, 'failed', recipient, null, 'Graph not configured')
@@ -821,13 +839,19 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     daysOverdue: days,
     paymentReference: invoice.payment_reference,
     level,
+    companyName: companyRow?.company_name ?? null,
+    companyEmail: companyRow?.company_email ?? null,
+    companyPhone: companyRow?.company_phone ?? null,
+    caseNumber: reminderCaseNumber,
   } as const
 
   const result = await sendEmailViaGraph({
     to: recipient,
-    subject: buildInvoiceReminderSubject(params),
-    html: buildInvoiceReminderHtml(params),
+    subject: buildInvoiceReminderSubject(params, emailCfg),
+    html: buildInvoiceReminderHtml(params, emailCfg),
     fromMailbox: REMINDER_FROM_MAILBOX,
+    senderName: emailCfg.sender_name?.trim() || undefined,
+    replyTo: emailCfg.reply_to?.trim() || undefined,
   })
 
   if (!result.success) {
@@ -965,6 +989,25 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     .eq('id', invoice.customer_id)
     .maybeSingle()
 
+  // Sprint Ø3.7 — firmainfo + redigerbar template-config (direkte via admin-
+  // client, IKKE getCompanySettings-action, så cron uden bruger ikke fejler
+  // på settings.view-permission). NULL config → fallback til kodestandard.
+  const { parseInvoiceEmailConfig } = await import('@/lib/email/invoice-email-config')
+  const { data: companyRow } = await supabase
+    .from('company_settings')
+    .select('company_name, company_email, company_phone, invoice_email_config')
+    .maybeSingle()
+  const emailCfg = parseInvoiceEmailConfig(companyRow?.invoice_email_config)
+  let caseNumber: string | null = null
+  if (invoice.case_id) {
+    const { data: sc } = await supabase
+      .from('service_cases')
+      .select('case_number')
+      .eq('id', invoice.case_id)
+      .maybeSingle()
+    caseNumber = (sc?.case_number as string | null) ?? null
+  }
+
   const { isGraphConfigured, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
   if (!isGraphConfigured()) {
     return { invoiceId, status: 'failed', error: 'Graph not configured' }
@@ -1008,6 +1051,10 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     bankAccount: process.env.INVOICE_BANK_ACCOUNT || null,
     isCreditNote,
     creditOfInvoiceNumber,
+    companyName: companyRow?.company_name ?? null,
+    companyEmail: companyRow?.company_email ?? null,
+    companyPhone: companyRow?.company_phone ?? null,
+    caseNumber,
   } as const
 
   // Sprint 6C — render the invoice PDF and attach it. Best-effort:
@@ -1040,9 +1087,11 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
 
   const result = await sendEmailViaGraph({
     to: recipient,
-    subject: buildInvoiceEmailSubject(params),
-    html: buildInvoiceEmailHtml(params),
+    subject: buildInvoiceEmailSubject(params, emailCfg),
+    html: buildInvoiceEmailHtml(params, emailCfg),
     fromMailbox: INVOICE_FROM_MAILBOX,
+    senderName: emailCfg.sender_name?.trim() || undefined,
+    replyTo: emailCfg.reply_to?.trim() || undefined,
     attachments: pdfAttachment ? [pdfAttachment] : undefined,
   })
 

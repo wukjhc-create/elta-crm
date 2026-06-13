@@ -12,6 +12,11 @@ import {
   BRAND_CVR,
 } from '@/lib/brand'
 import { escapeHtml } from '@/lib/utils/html-escape'
+import {
+  resolveTemplate,
+  type InvoiceEmailConfig,
+  type TemplateVars,
+} from '@/lib/email/invoice-email-config'
 
 export interface InvoiceEmailParams {
   customerName: string
@@ -21,6 +26,11 @@ export interface InvoiceEmailParams {
   paymentReference: string
   bankRegNo?: string | null
   bankAccount?: string | null
+  /** Sprint Ø3.7 — firmainfo + sag til template-variabler (fallback BRAND_*). */
+  companyName?: string | null
+  companyEmail?: string | null
+  companyPhone?: string | null
+  caseNumber?: string | null
   /** Sprint 6F-4 — sat når invoice_type='credit'. Skifter subject + body
    *  til kreditnota-tekst, så kunden ikke bliver bedt om at betale. */
   isCreditNote?: boolean
@@ -29,14 +39,46 @@ export interface InvoiceEmailParams {
   creditOfInvoiceNumber?: string | null
 }
 
-export function buildInvoiceEmailSubject(p: InvoiceEmailParams): string {
-  if (p.isCreditNote) {
-    return `Kreditnota ${p.invoiceNumber} fra ${BRAND_COMPANY_NAME}`
+/** Sprint Ø3.7 — sikre template-variabler fra params (kundevendt). */
+function invoiceVars(p: InvoiceEmailParams): TemplateVars {
+  return {
+    customer_name: p.customerName,
+    invoice_number: p.invoiceNumber,
+    amount: p.finalAmountFormatted,
+    due_date: p.dueDateFormatted,
+    payment_reference: p.paymentReference,
+    case_number: p.caseNumber ?? '',
+    company_name: p.companyName || BRAND_COMPANY_NAME,
+    company_email: p.companyEmail || BRAND_EMAIL,
+    company_phone: p.companyPhone ?? '',
   }
-  return `Faktura ${p.invoiceNumber} fra ${BRAND_COMPANY_NAME}`
 }
 
-export function buildInvoiceEmailHtml(p: InvoiceEmailParams): string {
+/** Sprint Ø3.7 — redigerbar brødtekst → sikre HTML-afsnit (escaped). */
+export function bodyToHtml(body: string): string {
+  return body
+    .split(/\n{2,}/)
+    .map(
+      (para) =>
+        `<p style="color:#374151;margin:0 0 16px">${escapeHtml(para.trim()).replace(/\n/g, '<br/>')}</p>`
+    )
+    .join('\n    ')
+}
+
+export function buildInvoiceEmailSubject(
+  p: InvoiceEmailParams,
+  cfg?: InvoiceEmailConfig | null
+): string {
+  if (p.isCreditNote) {
+    return `Kreditnota ${p.invoiceNumber} fra ${p.companyName || BRAND_COMPANY_NAME}`
+  }
+  return resolveTemplate(cfg, 'invoice', invoiceVars(p)).subject
+}
+
+export function buildInvoiceEmailHtml(
+  p: InvoiceEmailParams,
+  cfg?: InvoiceEmailConfig | null
+): string {
   if (p.isCreditNote) {
     return buildCreditNoteEmailHtml(p)
   }
@@ -46,6 +88,8 @@ export function buildInvoiceEmailHtml(p: InvoiceEmailParams): string {
       ? `<tr><td style="padding:6px 0;color:#6b7280">Bankoverførsel</td><td style="padding:6px 0;color:#111827">Reg. ${escapeHtml(p.bankRegNo)} · Konto ${escapeHtml(p.bankAccount)}</td></tr>`
       : ''
 
+  const { body } = resolveTemplate(cfg, 'invoice', invoiceVars(p))
+
   return `
 <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:620px;margin:0 auto;color:#111827">
   <div style="background:${BRAND_GREEN};padding:24px 32px;border-radius:8px 8px 0 0">
@@ -54,9 +98,7 @@ export function buildInvoiceEmailHtml(p: InvoiceEmailParams): string {
   </div>
   <div style="padding:32px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
     <p style="font-size:16px;margin:0 0 12px">Kære ${escapeHtml(p.customerName)},</p>
-    <p style="color:#374151;margin:0 0 16px">
-      Vedhæftet finder du faktura for det udførte arbejde. Detaljer:
-    </p>
+    ${bodyToHtml(body)}
 
     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
       <tr><td style="padding:6px 0;color:#6b7280">Fakturanummer</td><td style="padding:6px 0;color:#111827"><strong>${escapeHtml(p.invoiceNumber)}</strong></td></tr>
@@ -66,13 +108,10 @@ export function buildInvoiceEmailHtml(p: InvoiceEmailParams): string {
       ${bankBlock}
     </table>
 
-    <p style="color:#374151;margin:16px 0 0">
-      Anvend venligst betalingsreferencen, så vi automatisk kan registrere indbetalingen.
-    </p>
     <p style="color:#374151;margin:24px 0 0">
       Med venlig hilsen,<br/>
-      <strong>${escapeHtml(BRAND_COMPANY_NAME)}</strong><br/>
-      <span style="color:#6b7280;font-size:13px">CVR ${escapeHtml(BRAND_CVR)} &bull; ${escapeHtml(BRAND_EMAIL)} &bull; ${escapeHtml(BRAND_WEBSITE)}</span>
+      <strong>${escapeHtml(p.companyName || BRAND_COMPANY_NAME)}</strong><br/>
+      <span style="color:#6b7280;font-size:13px">CVR ${escapeHtml(BRAND_CVR)} &bull; ${escapeHtml(p.companyEmail || BRAND_EMAIL)}${p.companyPhone ? ` &bull; ${escapeHtml(p.companyPhone)}` : ''} &bull; ${escapeHtml(BRAND_WEBSITE)}</span>
     </p>
   </div>
 </div>`.trim()

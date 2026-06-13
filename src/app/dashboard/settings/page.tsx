@@ -58,6 +58,22 @@ const settingsCards = [
     ),
   },
   {
+    href: '/dashboard/settings/invoice-email',
+    title: 'Faktura- og rykkertekster',
+    subtitle: 'Kundevendt fakturakommunikation',
+    description: 'Redigér faktura-mail, betalingspåmindelser (niveau 1-3) og afsendernavn med preview',
+    iconBg: 'bg-amber-100',
+    iconColor: 'text-amber-600',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+      />
+    ),
+  },
+  {
     href: '/dashboard/settings/notifications',
     title: 'Notifikationer',
     subtitle: 'E-mail og push',
