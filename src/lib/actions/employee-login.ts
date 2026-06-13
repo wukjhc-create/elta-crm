@@ -15,6 +15,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
+import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
@@ -26,6 +27,8 @@ export interface EmployeeLoginStatus {
   is_active: boolean | null
   auth_role: UserRole | null
   email: string | null
+  last_sign_in_at: string | null
+  created_at: string | null
 }
 
 export interface LinkableProfile {
@@ -54,7 +57,7 @@ export async function getEmployeeLoginStatus(
     if (!emp.profile_id) {
       return {
         success: true,
-        data: { has_login: false, profile_id: null, is_active: null, auth_role: null, email: emp.email ?? null },
+        data: { has_login: false, profile_id: null, is_active: null, auth_role: null, email: emp.email ?? null, last_sign_in_at: null, created_at: null },
       }
     }
 
@@ -64,6 +67,15 @@ export async function getEmployeeLoginStatus(
       .eq('id', emp.profile_id)
       .maybeSingle()
 
+    // Auth-metadata (seneste login, oprettet) fra auth.users.
+    let lastSignIn: string | null = null
+    let createdAt: string | null = null
+    try {
+      const { data: au } = await admin.auth.admin.getUserById(emp.profile_id as string)
+      lastSignIn = au?.user?.last_sign_in_at ?? null
+      createdAt = au?.user?.created_at ?? null
+    } catch { /* ikke-kritisk */ }
+
     return {
       success: true,
       data: {
@@ -72,6 +84,8 @@ export async function getEmployeeLoginStatus(
         is_active: prof?.is_active ?? true,
         auth_role: (prof?.role as UserRole) ?? null,
         email: prof?.email ?? emp.email ?? null,
+        last_sign_in_at: lastSignIn,
+        created_at: createdAt,
       },
     }
   } catch (e) {
@@ -212,6 +226,12 @@ export async function setEmployeeLoginActive(
     const res = await setProfileLoginActive(emp.profile_id as string, active)
     if (!res.ok) return { success: false, error: res.error ?? 'Kunne ikke ændre login-adgang' }
 
+    await logEmployeeEvent({
+      employeeId,
+      eventType: active ? 'login_activated' : 'login_deactivated',
+      title: active ? 'Login aktiveret' : 'Login deaktiveret',
+      createdBy: ctx.userId,
+    })
     revalidatePath(`/dashboard/employees/${employeeId}`)
     return { success: true }
   } catch (e) {
@@ -238,6 +258,12 @@ export async function setEmployeeAuthRole(
       .eq('id', emp.profile_id as string)
     if (error) return { success: false, error: 'Kunne ikke ændre adgangsrolle' }
 
+    await logEmployeeEvent({
+      employeeId,
+      eventType: 'role_changed',
+      title: `Adgangsrolle ændret til ${role}`,
+      createdBy: ctx.userId,
+    })
     revalidatePath(`/dashboard/employees/${employeeId}`)
     return { success: true }
   } catch (e) {

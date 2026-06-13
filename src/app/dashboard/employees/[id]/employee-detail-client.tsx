@@ -1,269 +1,144 @@
 'use client'
 
+/**
+ * Sprint Ø2 ERP — medarbejderkort (READ-ONLY).
+ *
+ * Forsiden viser KUN overblik. Ingen inline-redigering: alle ændringer
+ * (stamdata, login, satser, udstyr, certifikater) sker på Rediger
+ * medarbejder-siden. Læse-sektioner er selv-hentende komponenter.
+ */
+
 import Link from 'next/link'
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   EMPLOYEE_ROLE_OPTIONS,
   EMPLOYMENT_TYPE_LABEL,
   type EmployeeWithCompensation,
 } from '@/types/employees.types'
-import { setEmployeeActiveAction } from '@/lib/actions/employees'
-import { EmployeeLoginPanel } from '@/components/modules/employees/employee-login-panel'
-import { EmployeeOvertimeRatesPanel } from '@/components/modules/employees/employee-overtime-rates-panel'
+import {
+  EmployeeProfileBadges,
+  EmployeeLoginSummary,
+  EmployeeOvertimeRatesView,
+  EmployeeEquipmentView,
+  EmployeeCertificatesView,
+  EmployeeHistoryView,
+} from '@/components/modules/employees/employee-profile-sections'
 
 const fmtAmount = (n: number | null | undefined) =>
-  n == null
-    ? '—'
-    : new Intl.NumberFormat('da-DK', {
-        style: 'currency',
-        currency: 'DKK',
-        maximumFractionDigits: 2,
-      }).format(Number(n))
-
+  n == null ? '—' : new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2 }).format(Number(n))
 const fmtPct = (n: number | null | undefined) =>
   n == null ? '—' : `${Number(n).toLocaleString('da-DK', { maximumFractionDigits: 2 })} %`
-
 const fmtDate = (s: string | null | undefined) => (s ? s.slice(0, 10) : '—')
-
 const fmtDateLong = (s: string | null | undefined) => {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleString('da-DK', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-  })
+  return d.toLocaleString('da-DK', { year: 'numeric', month: 'short', day: '2-digit' })
 }
 
 const ROLE_LABEL = new Map(EMPLOYEE_ROLE_OPTIONS.map((r) => [r.value, r.label]))
 
+function initials(name: string, email: string) {
+  const src = (name || email || '?').trim()
+  const parts = src.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return src.slice(0, 2).toUpperCase()
+}
+
 export function EmployeeDetailClient({
   employee,
   canSeePayroll = false,
-  canEditPayroll = false,
   canEditEmployee = false,
   canManageLogin = false,
 }: {
   employee: EmployeeWithCompensation
-  /** Sprint 7D — gate til lon-felter (intern kost, salgspris, pension,
-   *  fritvalg, AM-bidrag, sociale omkostninger osv.) */
   canSeePayroll?: boolean
   canEditPayroll?: boolean
   canEditEmployee?: boolean
-  /** Sprint Ø2.2 — gate til login/adgang-styring (users.edit) */
   canManageLogin?: boolean
 }) {
-  const router = useRouter()
-  const [, startTransition] = useTransition()
-  const [isWorking, setIsWorking] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
-
-  const onToggleActive = async () => {
-    const next = !employee.active
-    if (
-      !next &&
-      !window.confirm(
-        'Deaktivér medarbejderen? Eksisterende sager og work_orders påvirkes ikke, men medarbejderen kan ikke længere planlægges på nye opgaver.'
-      )
-    )
-      return
-
-    setError(null)
-    setInfo(null)
-    setIsWorking(true)
-    const res = await setEmployeeActiveAction(employee.id, next)
-    setIsWorking(false)
-    if (!res.ok) {
-      setError(res.message)
-      return
-    }
-    setInfo(res.message)
-    startTransition(() => router.refresh())
-  }
-
-  const fullAddress = [employee.address, employee.postal_code, employee.city]
-    .filter(Boolean)
-    .join(', ')
-
   const roleLabel = ROLE_LABEL.get(employee.role as any) ?? employee.role
   const comp = employee.compensation
+  const fullAddress = [employee.address, employee.postal_code, employee.city].filter(Boolean).join(', ')
 
   return (
     <div className="p-6 space-y-4 max-w-[1400px]">
       <nav className="text-sm text-gray-500 flex items-center gap-2">
-        <Link href="/dashboard" className="hover:text-gray-700">
-          Dashboard
-        </Link>
+        <Link href="/dashboard" className="hover:text-gray-700">Dashboard</Link>
         <span>/</span>
-        <Link href="/dashboard/employees" className="hover:text-gray-700">
-          Medarbejdere
-        </Link>
+        <Link href="/dashboard/employees" className="hover:text-gray-700">Medarbejdere</Link>
         <span>/</span>
         <span className="text-gray-900">{employee.name || employee.email}</span>
       </nav>
 
-      {error && (
-        <div className="rounded-md bg-red-50 ring-1 ring-red-200 px-3 py-2 text-sm text-red-900">
-          {error}
-        </div>
-      )}
-      {info && (
-        <div className="rounded-md bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2 text-sm text-emerald-900">
-          {info}
-        </div>
-      )}
-
-      {/* Header */}
+      {/* Header (read-only) */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 p-5 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1 min-w-0">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              {employee.employee_number && (
-                <span className="font-mono">{employee.employee_number}</span>
-              )}
-              <span>·</span>
-              <span>{roleLabel}</span>
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="h-14 w-14 shrink-0 rounded-full bg-gray-900 text-white flex items-center justify-center text-lg font-semibold">
+              {initials(employee.name, employee.email)}
             </div>
-            <h1 className="text-2xl font-semibold leading-tight">
-              {employee.name || '—'}
-            </h1>
-            <p className="text-sm text-gray-500">
-              {employee.email && (
-                <a href={`mailto:${employee.email}`} className="text-emerald-700 hover:underline">
-                  {employee.email}
-                </a>
-              )}
-              {employee.email && employee.phone && ' · '}
-              {employee.phone && (
-                <a href={`tel:${employee.phone}`} className="text-emerald-700 hover:underline">
-                  {employee.phone}
-                </a>
-              )}
-            </p>
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                {employee.employee_number && <span className="font-mono">{employee.employee_number}</span>}
+                <span>·</span>
+                <span>{roleLabel}</span>
+                {employee.employment_type && <><span>·</span><span>{EMPLOYMENT_TYPE_LABEL.get(employee.employment_type) ?? employee.employment_type}</span></>}
+              </div>
+              <h1 className="text-2xl font-semibold leading-tight">{employee.name || '—'}</h1>
+              <p className="text-sm text-gray-500">
+                {employee.email && <a href={`mailto:${employee.email}`} className="text-emerald-700 hover:underline">{employee.email}</a>}
+                {employee.email && employee.phone && ' · '}
+                {employee.phone && <a href={`tel:${employee.phone}`} className="text-emerald-700 hover:underline">{employee.phone}</a>}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {employee.active ? (
-              <span className="inline-block px-3 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                Aktiv
-              </span>
+              <span className="inline-block px-3 py-1 rounded text-xs font-medium bg-green-100 text-green-800">Aktiv</span>
             ) : (
-              <span className="inline-block px-3 py-1 rounded text-xs font-medium bg-gray-200 text-gray-700">
-                Inaktiv
-              </span>
-            )}
-            {canEditEmployee && (
-              <button
-                type="button"
-                onClick={onToggleActive}
-                disabled={isWorking}
-                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border rounded hover:bg-gray-50 disabled:opacity-50"
-              >
-                {isWorking ? 'Gemmer…' : employee.active ? 'Deaktivér' : 'Aktivér'}
-              </button>
+              <span className="inline-block px-3 py-1 rounded text-xs font-medium bg-gray-200 text-gray-700">Inaktiv</span>
             )}
             {canEditEmployee && (
               <Link
                 href={`/dashboard/employees/${employee.id}/edit`}
-                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-gray-900 text-white rounded hover:bg-gray-800"
               >
-                Rediger
+                Rediger medarbejder
               </Link>
             )}
           </div>
         </div>
 
-        {/* Quick info row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t text-sm">
-          <Stat label="Ansat" value={fmtDateLong(employee.hire_date)} />
-          <Stat
-            label="Fratrådt"
-            value={employee.termination_date ? fmtDateLong(employee.termination_date) : '—'}
-          />
-          {canSeePayroll && (
-            <>
-              <Stat label="Intern kost / time" value={fmtAmount(employee.cost_rate)} />
-              <Stat label="Salgspris / time" value={fmtAmount(employee.hourly_rate)} />
-            </>
-          )}
-        </div>
+        <EmployeeProfileBadges employeeId={employee.id} employeeActive={employee.active} />
       </div>
 
-      {/* Login & adgang — Sprint Ø2.2 (kun users.edit) */}
-      {canManageLogin && (
-        <EmployeeLoginPanel employeeId={employee.id} employeeEmail={employee.email} />
-      )}
-
-      {/* Overtidssatser — Sprint Ø2.6 (kun payroll.view) */}
-      {canSeePayroll && (
-        <EmployeeOvertimeRatesPanel employeeId={employee.id} canEdit={canEditPayroll} />
-      )}
-
-      {/* Two-column main grid */}
+      {/* Overblik + Kontakt */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Stamdata */}
-        <Panel title="Stamdata">
+        <Panel title="Overblik">
           <Row label="Fornavn" value={employee.first_name ?? '—'} />
           <Row label="Efternavn" value={employee.last_name ?? '—'} />
           <Row label="Medarbejdernr." value={employee.employee_number ?? '—'} />
           <Row label="Rolle" value={roleLabel} />
-          <Row
-            label="Ansættelsestype"
-            value={employee.employment_type ? (EMPLOYMENT_TYPE_LABEL.get(employee.employment_type) ?? employee.employment_type) : '—'}
-          />
-          <Row
-            label="Status"
-            value={
-              employee.active ? (
-                <span className="text-green-700">Aktiv</span>
-              ) : (
-                <span className="text-gray-500">Inaktiv</span>
-              )
-            }
-          />
+          <Row label="Ansættelsestype" value={employee.employment_type ? (EMPLOYMENT_TYPE_LABEL.get(employee.employment_type) ?? employee.employment_type) : '—'} />
+          <Row label="Status" value={employee.active ? <span className="text-green-700">Aktiv</span> : <span className="text-gray-500">Inaktiv</span>} />
         </Panel>
 
-        {/* Kontakt */}
         <Panel title="Kontakt og adresse">
-          <Row
-            label="E-mail"
-            value={
-              employee.email ? (
-                <a href={`mailto:${employee.email}`} className="text-emerald-700 hover:underline">
-                  {employee.email}
-                </a>
-              ) : (
-                '—'
-              )
-            }
-          />
-          <Row
-            label="Telefon"
-            value={
-              employee.phone ? (
-                <a href={`tel:${employee.phone}`} className="text-emerald-700 hover:underline">
-                  {employee.phone}
-                </a>
-              ) : (
-                '—'
-              )
-            }
-          />
+          <Row label="E-mail" value={employee.email ? <a href={`mailto:${employee.email}`} className="text-emerald-700 hover:underline">{employee.email}</a> : '—'} />
+          <Row label="Telefon" value={employee.phone ? <a href={`tel:${employee.phone}`} className="text-emerald-700 hover:underline">{employee.phone}</a> : '—'} />
           <Row label="Adresse" value={fullAddress || '—'} />
-        </Panel>
-
-        {/* Ansættelse */}
-        <Panel title="Ansættelse">
-          <Row label="Ansættelsesdato" value={fmtDate(employee.hire_date)} />
-          <Row label="Fratrædelsesdato" value={fmtDate(employee.termination_date)} />
+          <Row label="Ansat" value={fmtDate(employee.hire_date)} />
+          <Row label="Fratrådt" value={fmtDate(employee.termination_date)} />
           <Row label="Oprettet" value={fmtDateLong(employee.created_at)} />
-          <Row label="Sidst opdateret" value={fmtDateLong(employee.updated_at)} />
         </Panel>
+      </div>
 
-        {/* Satser/økonomi — Sprint 7D: skjult uden employees.payroll.view */}
-        {canSeePayroll && (
+      {/* Login/adgang (read-only) */}
+      {canManageLogin && <EmployeeLoginSummary employeeId={employee.id} />}
+
+      {/* Økonomi/satser (read-only, payroll-gated) */}
+      {canSeePayroll && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <Panel title="Satser og økonomi">
             {comp ? (
               <>
@@ -276,123 +151,50 @@ export function EmployeeDetailClient({
                 <Row label="SH" value={fmtPct(comp.sh_pct)} />
                 <Row label="Overhead" value={fmtPct(comp.overhead_pct)} />
                 <Row label="Sociale omkostninger" value={fmtAmount(comp.social_costs)} />
-                <Row label="Overtidssats" value={fmtAmount(comp.overtime_rate)} />
                 <Row label="Kørselssats / km" value={fmtAmount(comp.mileage_rate)} />
-                <Row
-                  label="Reel timekost (beregnet)"
-                  value={
-                    <strong className="text-gray-900">
-                      {fmtAmount(comp.real_hourly_cost)}
-                    </strong>
-                  }
-                />
+                <Row label="Reel timekost (beregnet)" value={<strong className="text-gray-900">{fmtAmount(comp.real_hourly_cost)}</strong>} />
               </>
             ) : (
-              <p className="text-sm text-gray-500 py-2">
-                Ingen satser registreret endnu. Brug "Rediger" for at sætte timeløn,
-                intern kostpris og salgspris — så kan medarbejderen indgå i sagøkonomi.
-              </p>
+              <p className="text-sm text-gray-500 py-2">Ingen satser registreret. Sættes på Rediger medarbejder-siden.</p>
             )}
           </Panel>
-        )}
-        {!canSeePayroll && (
-          <Panel title="Satser og økonomi">
-            <p className="text-sm text-gray-500 py-2 italic">
-              Løn og satser er kun synlige for administrator-rollen.
-            </p>
-          </Panel>
-        )}
-
-        {/* Noter */}
-        {employee.notes && (
-          <Panel title="Noter" full>
-            <p className="text-sm whitespace-pre-wrap text-gray-800">{employee.notes}</p>
-          </Panel>
-        )}
-
-        {/* Future placeholders */}
-        <Panel title="Planlagt arbejde" full>
-          <FutureNote
-            label="Planlagte work_orders"
-            sprint="Sprint 4D"
-            body="Liste over kommende arbejdsordrer hvor denne medarbejder er tildelt — sorteret efter scheduled_date. Linker til den enkelte sag."
-          />
+          <EmployeeOvertimeRatesView employeeId={employee.id} />
+        </div>
+      )}
+      {!canSeePayroll && (
+        <Panel title="Satser og økonomi">
+          <p className="text-sm text-gray-500 py-2 italic">Løn og satser er kun synlige for administrator-rollen.</p>
         </Panel>
+      )}
 
-        <Panel title="Timer og sager">
-          <FutureNote
-            label="Registrerede timer"
-            sprint="Sprint 4C"
-            body="Liste over time_logs grupperet pr. sag og uge — med total timer og kost. Inklusive aktiv timer hvis nogen."
-          />
-        </Panel>
+      {/* Udstyr / Certifikater / Historik (read-only) */}
+      <EmployeeEquipmentView employeeId={employee.id} />
+      <EmployeeCertificatesView employeeId={employee.id} />
+      <EmployeeHistoryView employeeId={employee.id} />
 
-        <Panel title="Fravær">
-          <FutureNote
-            label="Ferie og sygdom"
-            sprint="Sprint 4F"
-            body="Registrerede fraværsdage — kobles senere til løn/payroll-eksport."
-          />
+      {employee.notes && (
+        <Panel title="Noter">
+          <p className="text-sm whitespace-pre-wrap text-gray-800">{employee.notes}</p>
         </Panel>
-      </div>
+      )}
     </div>
   )
 }
 
-function Panel({
-  title,
-  children,
-  full,
-}: {
-  title: string
-  children: React.ReactNode
-  full?: boolean
-}) {
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className={`bg-gray-50 rounded ring-1 ring-gray-200 p-4 ${full ? 'lg:col-span-2' : ''}`}>
-      <h3 className="text-sm font-semibold mb-3">{title}</h3>
-      <div className="space-y-1">{children}</div>
+    <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4">
+      <h3 className="text-sm font-semibold mb-2">{title}</h3>
+      <div>{children}</div>
     </div>
   )
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-3 py-1 text-sm border-b border-gray-100 last:border-b-0">
-      <span className="text-gray-500 shrink-0">{label}</span>
-      <span
-        className="text-right text-gray-900 max-w-[65%] truncate"
-        title={typeof value === 'string' ? value : undefined}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="space-y-0.5">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-sm font-medium text-gray-900 truncate">{value}</div>
-    </div>
-  )
-}
-
-function FutureNote({
-  label,
-  sprint,
-  body,
-}: {
-  label: string
-  sprint: string
-  body: string
-}) {
-  return (
-    <div className="text-center py-6">
-      <h4 className="text-sm font-medium text-gray-700">{label}</h4>
-      <p className="text-xs text-gray-500 mt-2 max-w-md mx-auto">{body}</p>
-      <p className="text-[10px] text-gray-400 mt-2 uppercase tracking-wide">{sprint}</p>
+    <div className="flex justify-between gap-3 py-1.5 text-sm border-b last:border-b-0">
+      <span className="text-gray-500">{label}</span>
+      <span className="text-gray-900 text-right">{value}</span>
     </div>
   )
 }

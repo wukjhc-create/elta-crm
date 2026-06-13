@@ -10,6 +10,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
+import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import {
   getAuthenticatedClient,
   getAuthenticatedClientWithRole,
@@ -289,6 +290,12 @@ export async function setEmployeeActiveAction(
     .update({ active, termination_date: active ? null : new Date().toISOString().slice(0, 10) })
     .eq('id', id)
   if (error) return { ok: false, message: error.message }
+  await logEmployeeEvent({
+    employeeId: id,
+    eventType: active ? 'employee_activated' : 'employee_deactivated',
+    title: active ? 'Medarbejder aktiveret' : 'Medarbejder deaktiveret',
+    createdBy: ctx.userId,
+  })
   revalidatePath('/dashboard/employees')
   revalidatePath(`/dashboard/employees/${id}`)
   return { ok: true, message: active ? 'Medarbejder aktiveret.' : 'Medarbejder deaktiveret.' }
@@ -345,6 +352,15 @@ export async function setEmployeeCompensationAction(
     effective_from: new Date().toISOString(),
     changed_by: ctx.userId,
     change_reason: input.change_reason ?? null,
+  })
+
+  await logEmployeeEvent({
+    employeeId,
+    eventType: 'compensation_changed',
+    title: 'Satser/økonomi ændret',
+    description: input.change_reason ?? null,
+    createdBy: ctx.userId,
+    metadata: { real_hourly_cost: upserted.real_hourly_cost },
   })
 
   revalidatePath(`/dashboard/employees/${employeeId}`)

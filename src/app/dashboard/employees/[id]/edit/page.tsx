@@ -5,6 +5,12 @@ import { getEmployeeAction } from '@/lib/actions/employees'
 import { EditEmployeeForm } from './edit-employee-form'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
+import { EmployeeLoginPanel } from '@/components/modules/employees/employee-login-panel'
+import { EmployeeOvertimeRatesPanel } from '@/components/modules/employees/employee-overtime-rates-panel'
+import {
+  EmployeeEquipmentEditor,
+  EmployeeCertificatesEditor,
+} from '@/components/modules/employees/employee-equipment-certificates-editor'
 
 export const metadata: Metadata = {
   title: 'Rediger medarbejder',
@@ -23,6 +29,8 @@ export default async function EditEmployeePage({
   if (!(await pageHasPermission('employees.edit'))) {
     return <NoAccess permission="employees.edit" />
   }
+  const canManageLogin = await pageHasPermission('users.edit')
+  const canEditPayroll = await pageHasPermission('employees.payroll.edit')
 
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
@@ -60,6 +68,17 @@ export default async function EditEmployeePage({
       </header>
 
       <EditEmployeeForm employee={employee} />
+
+      {canManageLogin && <EmployeeLoginPanel employeeId={employee.id} employeeEmail={employee.email} />}
+
+      {canEditPayroll && (
+        <section className="bg-white rounded-lg border p-4 sm:p-6">
+          <EmployeeOvertimeRatesPanel employeeId={employee.id} canEdit={canEditPayroll} />
+        </section>
+      )}
+
+      <EmployeeEquipmentEditor employeeId={employee.id} />
+      <EmployeeCertificatesEditor employeeId={employee.id} />
     </div>
   )
 }
