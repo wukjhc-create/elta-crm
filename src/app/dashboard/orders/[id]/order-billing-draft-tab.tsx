@@ -15,8 +15,9 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  AlertCircle, Clock, FileText, Info, Loader2, Package, Receipt,
-  TrendingUp, Percent, FileCheck2, ListChecks, Wallet, ExternalLink,
+  AlertCircle, AlertTriangle, CheckCircle2, Clock, FileText, Info, Loader2,
+  Lock, Package, Receipt, TrendingUp, Percent, FileCheck2, ListChecks,
+  Wallet, ExternalLink,
 } from 'lucide-react'
 import {
   createFinalInvoiceAction,
@@ -26,6 +27,10 @@ import {
   listUnbilledForCaseAction,
   type UnbilledForCase,
 } from '@/lib/actions/invoices'
+import {
+  getServiceCaseBillingStatus,
+  type CaseBillingStatus,
+} from '@/lib/actions/service-case-economy'
 import {
   CASE_OTHER_COST_CATEGORY_COLORS,
   CASE_OTHER_COST_CATEGORY_LABELS,
@@ -48,6 +53,18 @@ function fmtPct(n: number, decimals = 1): string {
   }).format(n)} %`
 }
 
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  draft: 'Kladde',
+  sent: 'Sendt',
+  paid: 'Betalt',
+  overdue: 'Forfalden',
+  cancelled: 'Annulleret',
+  credited: 'Krediteret',
+}
+function invoiceStatusLabel(s: string): string {
+  return INVOICE_STATUS_LABELS[s] ?? s
+}
+
 function fmtDate(s: string | null): string {
   if (!s) return '—'
   return new Intl.DateTimeFormat('da-DK', {
@@ -63,12 +80,46 @@ function fmtDate(s: string | null): string {
 
 type BillingMode = 'standard' | 'deposit' | 'progress' | 'final'
 
-export function OrderBillingDraftTab({ caseId }: { caseId: string }) {
+export function OrderBillingDraftTab({
+  caseId,
+  canCreate = false,
+}: {
+  caseId: string
+  /** Sprint Ø3.4 — invoices.create: styrer om opret-knapper er aktive. */
+  canCreate?: boolean
+}) {
   const [mode, setMode] = useState<BillingMode>('standard')
   const [stageReloadKey, setStageReloadKey] = useState(0)
 
+  // Sprint Ø3.4 — kost-fri faktureringsstatus øverst i fanen, så kontoret
+  // straks kan se om sagen er klar, har åben timer, og hvad der mangler.
+  const [billing, setBilling] = useState<CaseBillingStatus | null>(null)
+  const [billingLoading, setBillingLoading] = useState(true)
+  useEffect(() => {
+    let cancelled = false
+    setBillingLoading(true)
+    getServiceCaseBillingStatus(caseId).then((r) => {
+      if (cancelled) return
+      setBilling(r.success ? r.data ?? null : null)
+      setBillingLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [caseId, stageReloadKey])
+
+  const hasOpenTimer = billing?.has_open_timer ?? false
+  const bumpReload = () => setStageReloadKey((k) => k + 1)
+
   return (
     <div className="space-y-4">
+      {/* Sprint Ø3.4 — tydelig topstatus */}
+      <BillingDraftTopStatus
+        status={billing}
+        loading={billingLoading}
+        canCreate={canCreate}
+      />
+
       {/* Type-vælger */}
       <BillingModeSelector mode={mode} onChange={setMode} />
 
@@ -76,23 +127,154 @@ export function OrderBillingDraftTab({ caseId }: { caseId: string }) {
       <StageInvoicesOverview caseId={caseId} reloadKey={stageReloadKey} />
 
       {/* Mode-specifikt UI */}
-      {mode === 'standard' && <BillingStandardMode caseId={caseId} />}
+      {mode === 'standard' && (
+        <BillingStandardMode
+          caseId={caseId}
+          canCreate={canCreate}
+          hasOpenTimer={hasOpenTimer}
+        />
+      )}
       {(mode === 'deposit' || mode === 'progress') && (
         <BillingPercentMode
           caseId={caseId}
           mode={mode}
-          onCreated={() => setStageReloadKey((k) => k + 1)}
+          canCreate={canCreate}
+          onCreated={bumpReload}
         />
       )}
       {mode === 'final' && (
         <BillingFinalMode
           caseId={caseId}
-          onCreated={() => setStageReloadKey((k) => k + 1)}
+          canCreate={canCreate}
+          hasOpenTimer={hasOpenTimer}
+          onCreated={bumpReload}
         />
       )}
 
       {/* Sprint Ø3.3 — cost-free fakturahistorik (oprettet/slettet/krediteret) */}
       <CaseInvoiceHistory caseId={caseId} />
+    </div>
+  )
+}
+
+// =====================================================
+// Sprint Ø3.4 — Topstatus (kost-fri): klar / åben timer / intet /
+// delvist / fuldt faktureret. Forklarer sagen i ét blik for kontoret.
+// =====================================================
+
+function BillingDraftTopStatus({
+  status,
+  loading,
+  canCreate,
+}: {
+  status: CaseBillingStatus | null
+  loading: boolean
+  canCreate: boolean
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-lg ring-1 ring-gray-200 bg-white px-4 py-3 flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+        Henter faktureringsstatus…
+      </div>
+    )
+  }
+  if (!status) {
+    return (
+      <div className="rounded-lg ring-1 ring-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+        Faktureringsstatus er ikke tilgængelig for denne sag.
+      </div>
+    )
+  }
+
+  const parts: string[] = []
+  if (status.unbilled_time_logs > 0)
+    parts.push(`${status.unbilled_time_logs} timerække${status.unbilled_time_logs === 1 ? '' : 'r'}`)
+  if (status.unbilled_materials > 0)
+    parts.push(`${status.unbilled_materials} materialelinje${status.unbilled_materials === 1 ? '' : 'r'}`)
+  if (status.unbilled_other > 0)
+    parts.push(`${status.unbilled_other} øvrig${status.unbilled_other === 1 ? ' omkostning' : 'e omkostninger'}`)
+  const partsTxt = parts.join(', ')
+
+  // Visuel skal: farve + ikon + overskrift pr. status.
+  const skin = {
+    ready_to_bill: {
+      ring: 'ring-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-900',
+      icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, head: 'Klar til fakturering',
+    },
+    partially_billed: {
+      ring: 'ring-blue-300', bg: 'bg-blue-50', text: 'text-blue-900',
+      icon: <Receipt className="w-5 h-5 text-blue-600" />, head: 'Delvist faktureret',
+    },
+    fully_billed: {
+      ring: 'ring-gray-300', bg: 'bg-gray-50', text: 'text-gray-800',
+      icon: <CheckCircle2 className="w-5 h-5 text-gray-500" />, head: 'Fuldt faktureret',
+    },
+    no_work: {
+      ring: 'ring-gray-200', bg: 'bg-gray-50', text: 'text-gray-700',
+      icon: <Info className="w-5 h-5 text-gray-400" />, head: 'Intet at fakturere',
+    },
+  }[status.status]
+
+  const body = (() => {
+    switch (status.status) {
+      case 'ready_to_bill':
+        return `Denne sag har ${fmtKr(status.unbilled_sale_total)} klar til fakturering${partsTxt ? ` fordelt på ${partsTxt}` : ''}.`
+      case 'partially_billed':
+        return `Sagen er delvist faktureret. Der er stadig ${fmtKr(status.unbilled_sale_total)} ikke faktureret${partsTxt ? ` (${partsTxt})` : ''}.`
+      case 'fully_billed':
+        return 'Alle fakturerbare linjer på sagen er faktureret. Der er intet tilbage at fakturere.'
+      default:
+        return 'Der er ingen ikke-fakturerede linjer på sagen.'
+    }
+  })()
+
+  return (
+    <div className={`rounded-lg ring-1 ${skin.ring} ${skin.bg} px-4 py-3`}>
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 shrink-0">{skin.icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className={`text-sm font-semibold ${skin.text}`}>{skin.head}</div>
+          <p className={`text-sm mt-0.5 ${skin.text}`}>{body}</p>
+
+          {/* Nøgletal */}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+            {status.unbilled_count > 0 && (
+              <span>
+                <strong className="text-gray-900">{status.unbilled_count}</strong> linje
+                {status.unbilled_count === 1 ? '' : 'r'} kan faktureres
+              </span>
+            )}
+            {status.billed_line_count > 0 && (
+              <span>
+                <strong className="text-gray-900">{status.billed_line_count}</strong> linje
+                {status.billed_line_count === 1 ? '' : 'r'} allerede faktureret
+              </span>
+            )}
+            {status.invoiced_total > 0 && (
+              <span>
+                Faktureret i alt: <strong className="text-gray-900">{fmtKr(status.invoiced_total)}</strong>
+              </span>
+            )}
+          </div>
+
+          {/* Åben timer — driftsadvarsel */}
+          {status.has_open_timer && (
+            <div className="mt-2 flex items-center gap-2 rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>Der findes en åben timer. Luk timeren før du opretter faktura.</span>
+            </div>
+          )}
+
+          {/* Manglende adgang */}
+          {!canCreate && status.unbilled_count > 0 && (
+            <div className="mt-2 flex items-center gap-2 rounded ring-1 ring-gray-300 bg-white px-3 py-1.5 text-xs text-gray-600">
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span>Du kan se grundlaget, men mangler adgang til at oprette faktura.</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -113,31 +295,31 @@ function BillingModeSelector({
   }> = [
     {
       key: 'standard',
-      label: 'Almindelig',
+      label: 'Del-faktura',
       icon: <ListChecks className="w-4 h-4" />,
       color: 'emerald',
-      desc: 'Vælg ufakturerede timer/materialer/øvrige',
+      desc: 'Fakturér valgte linjer nu. Resten kan faktureres senere.',
     },
     {
       key: 'deposit',
       label: 'Forskud',
       icon: <Wallet className="w-4 h-4" />,
       color: 'blue',
-      desc: 'Procent af kontraktsum, før forbrug',
+      desc: 'Forudbetaling som modregnes på slutfakturaen.',
     },
     {
       key: 'progress',
-      label: 'Rate',
+      label: 'A conto / rate',
       icon: <Percent className="w-4 h-4" />,
       color: 'purple',
-      desc: 'Procent under forbrug (a conto)',
+      desc: 'Fakturér en procentdel undervejs i forløbet.',
     },
     {
       key: 'final',
       label: 'Slutfaktura',
       icon: <FileCheck2 className="w-4 h-4" />,
       color: 'orange',
-      desc: 'Resterende minus tidligere forskud/rater',
+      desc: 'Fakturér de sidste linjer og afslut sagen.',
     },
   ]
   return (
@@ -298,7 +480,7 @@ function StageInvoicesOverview({
                         : 'bg-emerald-100 text-emerald-800'
                     }`}
                   >
-                    {r.status}
+                    {invoiceStatusLabel(r.status)}
                   </span>
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
@@ -335,10 +517,12 @@ function StageInvoicesOverview({
 function BillingPercentMode({
   caseId,
   mode,
+  canCreate = false,
   onCreated,
 }: {
   caseId: string
   mode: 'deposit' | 'progress'
+  canCreate?: boolean
   onCreated: () => void
 }) {
   const router = useRouter()
@@ -681,16 +865,23 @@ function BillingPercentMode({
           </div>
         )}
 
-        <div className="flex justify-end border-t pt-3">
+        <div className="flex items-center justify-end gap-2 flex-wrap border-t pt-3">
+          {!canCreate && (
+            <span className="text-xs text-gray-500 inline-flex items-center gap-1">
+              <Lock className="w-3.5 h-3.5" />
+              Du mangler adgang til at oprette faktura
+            </span>
+          )}
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitting || noBasis || !live.ok || (overBudget && !allowOver)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+            disabled={!canCreate || submitting || noBasis || !live.ok || (overBudget && !allowOver)}
+            title={!canCreate ? 'Du mangler adgang til at oprette faktura' : undefined}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             <FileText className="w-3.5 h-3.5" />
-            Opret {mode === 'deposit' ? 'forskudsfaktura' : 'ratefaktura'}
+            Opret {mode === 'deposit' ? 'forskudsfaktura' : 'a conto-faktura'}
           </button>
         </div>
       </div>
@@ -704,9 +895,13 @@ function BillingPercentMode({
 
 function BillingFinalMode({
   caseId,
+  canCreate = false,
+  hasOpenTimer = false,
   onCreated,
 }: {
   caseId: string
+  canCreate?: boolean
+  hasOpenTimer?: boolean
   onCreated: () => void
 }) {
   const router = useRouter()
@@ -982,24 +1177,58 @@ function BillingFinalMode({
           </div>
         )}
 
-        <div className="flex justify-end border-t pt-3">
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting || !!existingFinal || noLines}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-60"
-          >
-            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            <FileCheck2 className="w-3.5 h-3.5" />
-            Opret slutfaktura
-          </button>
-        </div>
+        {(() => {
+          const reason = !canCreate
+            ? 'Du mangler adgang til at oprette faktura'
+            : hasOpenTimer
+              ? 'Der findes en åben timer — luk den først'
+              : existingFinal
+                ? 'Sagen er allerede afsluttet med en slutfaktura'
+                : noLines
+                  ? 'Ingen linjer at fakturere'
+                  : null
+          return (
+            <div className="flex items-center justify-end gap-2 flex-wrap border-t pt-3">
+              {reason && !submitting && (
+                <span className="text-xs text-gray-500 inline-flex items-center gap-1">
+                  {!canCreate ? (
+                    <Lock className="w-3.5 h-3.5" />
+                  ) : hasOpenTimer ? (
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  ) : (
+                    <Info className="w-3.5 h-3.5" />
+                  )}
+                  {reason}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || reason !== null}
+                title={reason ?? undefined}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <FileCheck2 className="w-3.5 h-3.5" />
+                Opret slutfaktura
+              </button>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
 }
 
-export function BillingStandardMode({ caseId }: { caseId: string }) {
+export function BillingStandardMode({
+  caseId,
+  canCreate = false,
+  hasOpenTimer = false,
+}: {
+  caseId: string
+  canCreate?: boolean
+  hasOpenTimer?: boolean
+}) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -1469,22 +1698,49 @@ export function BillingStandardMode({ caseId }: { caseId: string }) {
           />
         </div>
 
-        <div className="flex items-center justify-between flex-wrap gap-2 border-t pt-3">
-          <div className="text-xs text-gray-500 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" />
-            {totals.count} linje{totals.count === 1 ? '' : 'r'} valgt
-          </div>
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={submitting || totals.count === 0}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            <FileText className="w-3.5 h-3.5" />
-            Opret fakturakladde
-          </button>
-        </div>
+        {(() => {
+          const reason = !canCreate
+            ? 'Du mangler adgang til at oprette faktura'
+            : hasOpenTimer
+              ? 'Der findes en åben timer — luk den først'
+              : totals.count === 0
+                ? 'Ingen linjer valgt'
+                : null
+          const blocked = submitting || reason !== null
+          return (
+            <div className="flex items-center justify-between flex-wrap gap-2 border-t pt-3">
+              <div className="text-xs text-gray-500 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5" />
+                {totals.count} linje{totals.count === 1 ? '' : 'r'} valgt
+              </div>
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {reason && !submitting && (
+                  <span className="text-xs text-gray-500 inline-flex items-center gap-1">
+                    {!canCreate ? (
+                      <Lock className="w-3.5 h-3.5" />
+                    ) : hasOpenTimer ? (
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                    ) : (
+                      <Info className="w-3.5 h-3.5" />
+                    )}
+                    {reason}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={blocked}
+                  title={reason ?? undefined}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <FileText className="w-3.5 h-3.5" />
+                  Opret del-faktura
+                </button>
+              </div>
+            </div>
+          )
+        })()}
 
         {submitError && (
           <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
@@ -1508,8 +1764,9 @@ export function BillingStandardMode({ caseId }: { caseId: string }) {
         <div className="text-[11px] text-gray-500 flex items-start gap-1 pt-1">
           <Info className="w-3 h-3 mt-0.5 shrink-0" />
           <span>
-            Fakturaen oprettes som <strong>kladde</strong> (status=draft). PDF + send-mail
-            + e-conomic kommer i 6C/6E. Ingen rigtig bogføring sker her.
+            Fakturaen oprettes som <strong>kladde</strong>, så du kan tjekke den igennem
+            før den sendes. De valgte linjer låses til fakturaen, så de ikke kan
+            faktureres dobbelt. Sletter du kladden igen, frigives linjerne automatisk.
           </span>
         </div>
       </div>

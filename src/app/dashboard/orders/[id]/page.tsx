@@ -93,6 +93,9 @@ export default async function OrderDetailPage({
   const canSeeCost = await pageHasPermission('economy.cost_prices')
   // Sprint Ø3.1 — kost-fri faktureringsstatus + fakturakladde-adgang (bred).
   const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
+  // Sprint Ø3.4 — må brugeren faktisk oprette faktura? Styrer UX-disabled-state
+  // i Fakturakladde-fanen (serveren håndhæver alligevel via actions).
+  const canCreateInvoice = await pageHasPermission('invoices.create')
 
   return (
     <OrderDetailClient
@@ -102,6 +105,7 @@ export default async function OrderDetailPage({
       plannedWorkOrderCount={plannedCount}
       canSeeCost={canSeeCost}
       canSeeBilling={canSeeBilling}
+      canCreateInvoice={canCreateInvoice}
     />
   )
 }

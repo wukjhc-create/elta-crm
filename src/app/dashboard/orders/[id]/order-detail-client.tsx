@@ -66,6 +66,7 @@ export function OrderDetailClient({
   plannedWorkOrderCount = 0,
   canSeeCost = false,
   canSeeBilling = false,
+  canCreateInvoice = false,
 }: {
   sag: ServiceCaseWithRelations
   formand: { id: string; name: string } | null
@@ -75,6 +76,8 @@ export function OrderDetailClient({
   canSeeCost?: boolean
   /** Sprint Ø3.1 — invoices.view.own_cases: kost-fri faktureringsstatus + fakturakladde. */
   canSeeBilling?: boolean
+  /** Sprint Ø3.4 — invoices.create: styrer om opret-knapper er aktive. */
+  canCreateInvoice?: boolean
 }) {
   const [active, setActive] = useState<TabId>('overblik')
 
@@ -227,7 +230,9 @@ export function OrderDetailClient({
               onSwitchTab={(t) => setActive(t)}
             />
           )}
-          {active === 'fakturakladde' && <OrderBillingDraftTab caseId={sag.id} />}
+          {active === 'fakturakladde' && (
+            <OrderBillingDraftTab caseId={sag.id} canCreate={canCreateInvoice} />
+          )}
           {active === 'handlinger' && <OrderActionsTab sag={sag} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
           {active !== 'overblik' &&
