@@ -124,8 +124,8 @@ const settingsCards = [
   {
     href: '/dashboard/settings/calculation',
     title: 'Kalkulation',
-    subtitle: 'Timepriser og avancer',
-    description: 'Konfigurer timepriser, avancer, arbejdstider og standardindstillinger for kalkulationer',
+    subtitle: 'Timepriser, avancer og kostbasis',
+    description: 'Konfigurer timepriser, avancer, arbejdstider, standardindstillinger samt timeøkonomi/kostbasis for kalkulationer',
     iconBg: 'bg-orange-100',
     iconColor: 'text-orange-600',
     icon: (

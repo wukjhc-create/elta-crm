@@ -81,6 +81,17 @@ export function EmployeeOvertimeRatesPanel({
       setError('Udfyld satsnavn og en gyldig multiplikator')
       return
     }
+    if (mult < 0 || mult > 10) {
+      setError('Multiplikator skal være mellem 0 og 10')
+      return
+    }
+    // Ø2.12B — bekræft usædvanligt høje kost-/salgssatser (taste-fejl).
+    const cN = newCost ? parseFloat(newCost.replace(',', '.')) : null
+    const sN = newSale ? parseFloat(newSale.replace(',', '.')) : null
+    if (((cN ?? 0) > 5000 || (sN ?? 0) > 5000) &&
+        !window.confirm('Kost-/salgssats over 5000 kr/t er usædvanligt højt. Gem alligevel?')) {
+      return
+    }
     run(async () => {
       const res = await createOvertimeRate(employeeId, {
         name: newName.trim(),
@@ -112,8 +123,9 @@ export function EmployeeOvertimeRatesPanel({
           </button>
         )}
       </div>
-      <p className="text-[11px] text-amber-700 bg-amber-50 ring-1 ring-amber-200 rounded px-2 py-1 mb-3">
-        Bemærk: satserne påvirker endnu ikke time_logs-beregningen automatisk (kommer i en senere sprint).
+      <p className="text-[11px] text-gray-600 bg-gray-50 ring-1 ring-gray-200 rounded px-2 py-1 mb-3">
+        Satserne bruges af timeøkonomien, når der oprettes eller ændres timeregistreringer.
+        Historiske timer ændres ikke automatisk.
       </p>
 
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 ring-1 ring-red-200 rounded p-2">{error}</div>}

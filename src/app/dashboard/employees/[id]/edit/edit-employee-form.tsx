@@ -230,7 +230,6 @@ function CompensationSection({ employee }: { employee: EmployeeWithCompensation 
       sh_pct: comp?.sh_pct ?? 0,
       social_costs: comp?.social_costs ?? 0,
       overhead_pct: comp?.overhead_pct ?? 0,
-      overtime_rate: comp?.overtime_rate ?? null,
       mileage_rate: comp?.mileage_rate ?? null,
       notes: comp?.notes ?? '',
       change_reason: '',
@@ -241,6 +240,22 @@ function CompensationSection({ employee }: { employee: EmployeeWithCompensation 
     setError(null)
     setInfo(null)
     setFieldErrors({})
+
+    // Sprint Ø2.12B — pragmatisk validering: bekræft usædvanligt høje satser
+    // før gem (fanger taste-fejl som 17785 kr/t).
+    const HIGH = 5000
+    const suspicious = [
+      ['Timeløn', data.hourly_wage],
+      ['Intern kostpris/time', data.internal_cost_rate],
+      ['Salgspris/time', data.sales_rate],
+    ].filter(([, v]) => v != null && Number(v) > HIGH) as [string, number][]
+    if (suspicious.length > 0) {
+      const list = suspicious.map(([k, v]) => `${k}: ${v} kr/t`).join('\n')
+      if (!window.confirm(`Følgende satser er usædvanligt høje:\n\n${list}\n\nGem alligevel?`)) {
+        return
+      }
+    }
+
     setIsSubmitting(true)
     try {
       const res = await setEmployeeCompensationAction(employee.id, data)
@@ -290,129 +305,52 @@ function CompensationSection({ employee }: { employee: EmployeeWithCompensation 
         og spejles ned i medarbejderens cost_rate (bruges af time_logs.cost_amount-trigger).
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Field label="Timeløn" error={fieldError('hourly_wage')}>
-          <input
-            {...register('hourly_wage')}
-            type="number"
-            step="0.01"
-            min="0"
-            disabled={isSubmitting}
-            className={input}
-          />
+      {/* A. Grundsatser */}
+      <h3 className="text-sm font-semibold text-gray-800 pt-1 border-t">Grundsatser</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Field label="Timeløn / time" error={fieldError('hourly_wage')}>
+          <input {...register('hourly_wage')} type="number" step="0.01" min="0" disabled={isSubmitting} className={input} />
         </Field>
         <Field label="Intern kostpris / time" error={fieldError('internal_cost_rate')}>
-          <input
-            {...register('internal_cost_rate')}
-            type="number"
-            step="0.01"
-            min="0"
-            disabled={isSubmitting}
-            className={input}
-          />
+          <input {...register('internal_cost_rate')} type="number" step="0.01" min="0" disabled={isSubmitting} className={input} />
         </Field>
         <Field label="Salgspris / time" error={fieldError('sales_rate')}>
-          <input
-            {...register('sales_rate')}
-            type="number"
-            step="0.01"
-            min="0"
-            disabled={isSubmitting}
-            className={input}
-          />
-        </Field>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <Field label="Pension %" error={fieldError('pension_pct')}>
-          <input
-            {...register('pension_pct')}
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            disabled={isSubmitting}
-            className={input}
-          />
-        </Field>
-        <Field label="Fritvalg %" error={fieldError('free_choice_pct')}>
-          <input
-            {...register('free_choice_pct')}
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            disabled={isSubmitting}
-            className={input}
-          />
-        </Field>
-        <Field label="Feriepenge %" error={fieldError('vacation_pct')}>
-          <input
-            {...register('vacation_pct')}
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            disabled={isSubmitting}
-            className={input}
-          />
-        </Field>
-        <Field label="SH %" error={fieldError('sh_pct')}>
-          <input
-            {...register('sh_pct')}
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            disabled={isSubmitting}
-            className={input}
-          />
-        </Field>
-        <Field label="Overhead %" error={fieldError('overhead_pct')}>
-          <input
-            {...register('overhead_pct')}
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            disabled={isSubmitting}
-            className={input}
-          />
-        </Field>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Field label="Sociale omkostninger / time" error={fieldError('social_costs')}>
-          <input
-            {...register('social_costs')}
-            type="number"
-            step="0.01"
-            min="0"
-            disabled={isSubmitting}
-            className={input}
-          />
-        </Field>
-        <Field label="Overtidssats / time" error={fieldError('overtime_rate')}>
-          <input
-            {...register('overtime_rate')}
-            type="number"
-            step="0.01"
-            min="0"
-            disabled={isSubmitting}
-            className={input}
-          />
+          <input {...register('sales_rate')} type="number" step="0.01" min="0" disabled={isSubmitting} className={input} />
         </Field>
         <Field label="Kørselssats / km" error={fieldError('mileage_rate')}>
-          <input
-            {...register('mileage_rate')}
-            type="number"
-            step="0.01"
-            min="0"
-            disabled={isSubmitting}
-            className={input}
-          />
+          <input {...register('mileage_rate')} type="number" step="0.01" min="0" disabled={isSubmitting} className={input} />
         </Field>
       </div>
+
+      {/* B. Løntillæg og beregning */}
+      <h3 className="text-sm font-semibold text-gray-800 pt-1 border-t">Løntillæg og beregning</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <Field label="Pension %" error={fieldError('pension_pct')}>
+          <input {...register('pension_pct')} type="number" step="0.01" min="0" max="100" disabled={isSubmitting} className={input} />
+        </Field>
+        <Field label="Fritvalg %" error={fieldError('free_choice_pct')}>
+          <input {...register('free_choice_pct')} type="number" step="0.01" min="0" max="100" disabled={isSubmitting} className={input} />
+        </Field>
+        <Field label="Feriepenge %" error={fieldError('vacation_pct')}>
+          <input {...register('vacation_pct')} type="number" step="0.01" min="0" max="100" disabled={isSubmitting} className={input} />
+        </Field>
+        <Field label="SH %" error={fieldError('sh_pct')}>
+          <input {...register('sh_pct')} type="number" step="0.01" min="0" max="100" disabled={isSubmitting} className={input} />
+        </Field>
+        <Field label="Overhead %" error={fieldError('overhead_pct')}>
+          <input {...register('overhead_pct')} type="number" step="0.01" min="0" max="100" disabled={isSubmitting} className={input} />
+        </Field>
+        <Field label="Sociale omk. / time" error={fieldError('social_costs')}>
+          <input {...register('social_costs')} type="number" step="0.01" min="0" disabled={isSubmitting} className={input} />
+        </Field>
+      </div>
+
+      {/* C. Overtid og tillæg styres i den dedikerede overtids-tabel nedenfor (Ø2.12B:
+          det gamle løse "Overtidssats / time"-felt er fjernet — al overtid ét sted). */}
+      <p className="text-xs text-gray-500 border-t pt-2">
+        <strong>Overtid og tillæg</strong> (Normal / Overtid 50 % / 100 % / Weekend / Helligdag /
+        Rådighed) styres i sektionen <em>Overtidssatser</em> længere nede på siden.
+      </p>
 
       <Field label="Noter (interne)" error={fieldError('notes')}>
         <textarea

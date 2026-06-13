@@ -408,7 +408,9 @@ function buildCompensationPayload(input: EmployeeCompensationInput) {
     sh_pct: input.sh_pct,
     social_costs: input.social_costs,
     overhead_pct: input.overhead_pct,
-    overtime_rate: input.overtime_rate,
+    // Ø2.12B: legacy employee_compensation.overtime_rate styres ikke længere
+    // fra UI (overtid = employee_overtime_rates-tabellen). Udelades fra upsert
+    // så eksisterende legacy-værdi bevares uændret i DB.
     mileage_rate: input.mileage_rate,
     notes: input.notes,
   }

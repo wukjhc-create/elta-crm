@@ -3,11 +3,10 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Building2, Mail, Globe, FileText, Upload, Trash2, ImageIcon, AlertTriangle } from 'lucide-react'
+import { Building2, Mail, Globe, FileText, Upload, Trash2, ImageIcon } from 'lucide-react'
 import { updateCompanySettings, uploadCompanyLogo, deleteCompanyLogo } from '@/lib/actions/settings'
 import { useToast } from '@/components/ui/toast'
-import type { CompanySettings, TimeCostBasis } from '@/types/company-settings.types'
-import { TIME_COST_BASIS_OPTIONS } from '@/types/company-settings.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 
 interface CompanySettingsClientProps {
   settings: CompanySettings
@@ -35,8 +34,6 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
     default_offer_validity_days: settings.default_offer_validity_days || 30,
     default_payment_terms_days: settings.default_payment_terms_days || 14,
     default_terms_and_conditions: settings.default_terms_and_conditions || '',
-    time_cost_basis: settings.time_cost_basis || 'real_hourly_cost',
-    time_cost_rate: settings.time_cost_rate == null ? '' : String(settings.time_cost_rate),
   })
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,9 +112,6 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
           Math.max(1, Number(formData.default_payment_terms_days) || 14)
         ),
         default_terms_and_conditions: formData.default_terms_and_conditions || null,
-        time_cost_basis: formData.time_cost_basis as TimeCostBasis,
-        time_cost_rate:
-          formData.time_cost_rate === '' ? null : Number(String(formData.time_cost_rate).replace(',', '.')),
       })
 
       if (result.success) {
@@ -455,65 +449,8 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
         </div>
       </div>
 
-      {/* Sprint Ø2.11 — Timeøkonomi (kostbasis for rate engine) */}
-      <div className="bg-white rounded-lg border p-6">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Timeøkonomi</h2>
-          <p className="text-sm text-gray-500">
-            Hvilken kostbasis bruges når en timeregistrering oprettes/ændres.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="time_cost_basis" className="block text-sm font-medium text-gray-700 mb-1">
-              Kostbasis
-            </label>
-            <select
-              id="time_cost_basis"
-              name="time_cost_basis"
-              value={formData.time_cost_basis}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-            >
-              {TIME_COST_BASIS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              {TIME_COST_BASIS_OPTIONS.find((o) => o.value === formData.time_cost_basis)?.help}
-            </p>
-          </div>
-
-          {formData.time_cost_basis === 'fixed_standard_rate' && (
-            <div>
-              <label htmlFor="time_cost_rate" className="block text-sm font-medium text-gray-700 mb-1">
-                Standard intern timekost (kr/t)
-              </label>
-              <input
-                type="number"
-                id="time_cost_rate"
-                name="time_cost_rate"
-                value={formData.time_cost_rate}
-                onChange={handleChange}
-                min="0"
-                step="0.01"
-                placeholder="fx 400"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <p className="text-xs text-gray-500 mt-1">Bruges for alle medarbejdere.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 flex items-start gap-2 bg-amber-50 ring-1 ring-amber-200 rounded-md p-3 text-sm text-amber-900">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
-          <span>
-            Ændring påvirker kun <strong>nye og redigerede</strong> timeregistreringer.
-            Historiske timer beholder deres frosne kost-snapshots og ændres ikke.
-          </span>
-        </div>
-      </div>
+      {/* Sprint Ø2.12B — Timeøkonomi/kostbasis er flyttet til
+          Indstillinger → Kalkulation → Timepriser (hører sammen med timepriser). */}
 
       {/* Terms and Conditions */}
       <div className="bg-white rounded-lg border p-6">

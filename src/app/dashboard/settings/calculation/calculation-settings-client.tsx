@@ -13,6 +13,7 @@ import {
   Truck,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
+import { TimeCostBasisSettings } from '@/components/modules/settings/time-cost-basis-settings'
 import type { CalculationSettings } from '@/types/calculation-settings.types'
 import { updateHourlyRate, updateMargin, updateSetting } from '@/lib/actions/calculation-settings'
 import { formatCurrency } from '@/lib/utils/format'
@@ -230,6 +231,7 @@ export default function CalculationSettingsClient({
         <div className="max-w-3xl">
           {/* Hourly Rates Tab */}
           {activeTab === 'hourly_rates' && (
+            <div className="space-y-6">
             <div className="bg-white rounded-lg border p-6 space-y-6">
               <div>
                 <h2 className="text-lg font-semibold mb-1">Timepriser</h2>
@@ -370,6 +372,8 @@ export default function CalculationSettingsClient({
                   i kalkulationer. Standard-typen er &quot;Elektriker&quot;.
                 </div>
               </div>
+            </div>
+            <TimeCostBasisSettings />
             </div>
           )}
 
