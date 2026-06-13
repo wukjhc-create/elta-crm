@@ -260,7 +260,7 @@ export async function updateCaseMaterial(
 ): Promise<ActionResult<CaseMaterialRow>> {
   try {
     validateUUID(id, 'id')
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('materials.edit')) {
       return { success: false, error: 'Manglende tilladelse: materials.edit' }
     }
@@ -268,7 +268,7 @@ export async function updateCaseMaterial(
     // Read current to enforce billed-lock and to know the case_id for revalidate
     const { data: cur, error: readErr } = await supabase
       .from('case_materials')
-      .select('id, case_id, invoice_line_id')
+      .select('id, case_id, invoice_line_id, description, quantity, unit_cost, unit_sales_price')
       .eq('id', id)
       .maybeSingle()
     if (readErr || !cur) {
@@ -334,6 +334,32 @@ export async function updateCaseMaterial(
     if (error || !data) {
       logger.error('updateCaseMaterial failed', { error, entityId: id })
       return { success: false, error: 'Kunne ikke opdatere materiale' }
+    }
+
+    // Sprint Ø2.12 — audit pris-/antal-ændringer på materialesnapshot (fra/til).
+    const econChanged =
+      (update.quantity !== undefined && Number(update.quantity) !== Number(cur.quantity)) ||
+      (update.unit_cost !== undefined && Number(update.unit_cost) !== Number(cur.unit_cost)) ||
+      (update.unit_sales_price !== undefined && Number(update.unit_sales_price) !== Number(cur.unit_sales_price))
+    if (econChanged) {
+      try {
+        await supabase.from('audit_logs').insert({
+          user_id: userId,
+          entity_type: 'case_material',
+          entity_id: id,
+          entity_name: cur.description as string,
+          action: 'material_snapshot_changed',
+          action_description: `Materialesnapshot ændret: "${cur.description}"`,
+          changes: {
+            quantity: { from: cur.quantity, to: update.quantity ?? cur.quantity },
+            unit_cost: { from: cur.unit_cost, to: update.unit_cost ?? cur.unit_cost },
+            unit_sales_price: { from: cur.unit_sales_price, to: update.unit_sales_price ?? cur.unit_sales_price },
+          },
+          metadata: { case_id: cur.case_id },
+        })
+      } catch (e) {
+        logger.error('audit material_snapshot_changed failed', { error: e })
+      }
     }
 
     revalidatePath(`/dashboard/orders/${cur.case_id}`)
