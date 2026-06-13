@@ -9,7 +9,7 @@ import {
   EmployeeIdentitySchema,
   type EmployeeIdentityInput,
 } from '@/lib/validations/employees'
-import { EMPLOYEE_ROLE_OPTIONS } from '@/types/employees.types'
+import { EMPLOYEE_ROLE_OPTIONS, EMPLOYMENT_TYPE_OPTIONS } from '@/types/employees.types'
 
 export function NewEmployeeForm() {
   const router = useRouter()
@@ -108,6 +108,21 @@ export function NewEmployeeForm() {
               {EMPLOYEE_ROLE_OPTIONS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Ansættelsestype" error={fieldError('employment_type')}>
+            <select
+              {...register('employment_type')}
+              disabled={isSubmitting}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+            >
+              <option value="">— Ikke angivet —</option>
+              {EMPLOYMENT_TYPE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
                 </option>
               ))}
             </select>

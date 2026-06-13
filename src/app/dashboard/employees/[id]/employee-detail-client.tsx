@@ -5,10 +5,12 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   EMPLOYEE_ROLE_OPTIONS,
+  EMPLOYMENT_TYPE_LABEL,
   type EmployeeWithCompensation,
 } from '@/types/employees.types'
 import { setEmployeeActiveAction } from '@/lib/actions/employees'
 import { EmployeeLoginPanel } from '@/components/modules/employees/employee-login-panel'
+import { EmployeeOvertimeRatesPanel } from '@/components/modules/employees/employee-overtime-rates-panel'
 
 const fmtAmount = (n: number | null | undefined) =>
   n == null
@@ -194,6 +196,11 @@ export function EmployeeDetailClient({
         <EmployeeLoginPanel employeeId={employee.id} employeeEmail={employee.email} />
       )}
 
+      {/* Overtidssatser — Sprint Ø2.6 (kun payroll.view) */}
+      {canSeePayroll && (
+        <EmployeeOvertimeRatesPanel employeeId={employee.id} canEdit={canEditPayroll} />
+      )}
+
       {/* Two-column main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Stamdata */}
@@ -202,6 +209,10 @@ export function EmployeeDetailClient({
           <Row label="Efternavn" value={employee.last_name ?? '—'} />
           <Row label="Medarbejdernr." value={employee.employee_number ?? '—'} />
           <Row label="Rolle" value={roleLabel} />
+          <Row
+            label="Ansættelsestype"
+            value={employee.employment_type ? (EMPLOYMENT_TYPE_LABEL.get(employee.employment_type) ?? employee.employment_type) : '—'}
+          />
           <Row
             label="Status"
             value={

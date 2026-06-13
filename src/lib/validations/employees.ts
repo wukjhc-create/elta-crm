@@ -71,6 +71,11 @@ export const EmployeeIdentitySchema = z.object({
     .min(3, 'E-mail er påkrævet')
     .email('Ugyldig e-mail-adresse'),
   role: z.enum(EMPLOYEE_ROLES, { message: 'Ugyldig rolle' }),
+  employment_type: z
+    .enum(['timelønnet', 'funktionær', 'lærling', 'ekstern'])
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v && v.length > 0 ? v : null)),
   active: z.boolean().default(true),
   employee_number: optionalString,
   phone: optionalString,

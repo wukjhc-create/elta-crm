@@ -16,6 +16,7 @@ import {
 } from '@/lib/validations/employees'
 import {
   EMPLOYEE_ROLE_OPTIONS,
+  EMPLOYMENT_TYPE_OPTIONS,
   type EmployeeWithCompensation,
 } from '@/types/employees.types'
 
@@ -54,6 +55,7 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
       last_name: employee.last_name ?? '',
       email: employee.email,
       role: (employee.role as any) ?? 'elektriker',
+      employment_type: (employee.employment_type as any) ?? '',
       active: employee.active,
       employee_number: employee.employee_number ?? '',
       phone: employee.phone ?? '',
@@ -124,6 +126,14 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
           <select {...register('role')} disabled={isSubmitting} className={`${input} bg-white`}>
             {EMPLOYEE_ROLE_OPTIONS.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Ansættelsestype" error={fieldError('employment_type')}>
+          <select {...register('employment_type')} disabled={isSubmitting} className={`${input} bg-white`}>
+            <option value="">— Ikke angivet —</option>
+            {EMPLOYMENT_TYPE_OPTIONS.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
         </Field>

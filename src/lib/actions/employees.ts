@@ -367,6 +367,7 @@ function buildEmployeePayload(input: EmployeeIdentityInput) {
     name: composedName,
     email: input.email,
     role: input.role,
+    employment_type: input.employment_type,
     active: input.active,
     employee_number: input.employee_number,
     phone: input.phone,
@@ -407,6 +408,7 @@ function normaliseEmployee(row: Record<string, unknown>): EmployeeRow {
     name: string | null
     email: string
     role: string
+    employment_type: import('@/types/employees.types').EmploymentType | null
     active: boolean
     address: string | null
     postal_code: string | null

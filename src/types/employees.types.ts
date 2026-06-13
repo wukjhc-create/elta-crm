@@ -18,6 +18,50 @@ export const EMPLOYEE_ROLE_OPTIONS: Array<{ value: EmployeeRole; label: string }
   { value: 'admin',        label: 'Admin' },
 ]
 
+// Sprint Ø2.4 — ansættelsestype (HR/økonomi; påvirker ikke autorisation)
+export type EmploymentType = 'timelønnet' | 'funktionær' | 'lærling' | 'ekstern'
+
+export const EMPLOYMENT_TYPE_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
+  { value: 'timelønnet', label: 'Timelønnet' },
+  { value: 'funktionær', label: 'Funktionær' },
+  { value: 'lærling',    label: 'Lærling/elev' },
+  { value: 'ekstern',    label: 'Ekstern/underleverandør' },
+]
+
+export const EMPLOYMENT_TYPE_LABEL = new Map(
+  EMPLOYMENT_TYPE_OPTIONS.map((o) => [o.value, o.label])
+)
+
+// Sprint Ø2.6 — overtidssatser pr. medarbejder
+export interface EmployeeOvertimeRate {
+  id: string
+  employee_id: string
+  name: string
+  code: string
+  multiplier: number
+  cost_rate: number | null
+  sale_rate: number | null
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+/** Standard-satser der seedes ved ny medarbejder / første åbning. */
+export const DEFAULT_OVERTIME_RATES: Array<{
+  code: string
+  name: string
+  multiplier: number
+  sort_order: number
+}> = [
+  { code: 'normal',  name: 'Normal',        multiplier: 1.0, sort_order: 1 },
+  { code: 'ot50',    name: 'Overtid 50%',   multiplier: 1.5, sort_order: 2 },
+  { code: 'ot100',   name: 'Overtid 100%',  multiplier: 2.0, sort_order: 3 },
+  { code: 'weekend', name: 'Weekend',       multiplier: 2.0, sort_order: 4 },
+  { code: 'holiday', name: 'Helligdag',     multiplier: 2.0, sort_order: 5 },
+  { code: 'standby', name: 'Rådighed/vagt', multiplier: 1.0, sort_order: 6 },
+]
+
 export interface EmployeeRow {
   id: string
   profile_id: string | null
@@ -27,6 +71,7 @@ export interface EmployeeRow {
   name: string                 // legacy "Full name" — derived from first/last when both present
   email: string
   role: EmployeeRole
+  employment_type: EmploymentType | null
   active: boolean
   address: string | null
   postal_code: string | null
