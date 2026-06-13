@@ -91,6 +91,8 @@ export default async function OrderDetailPage({
   }
 
   const canSeeCost = await pageHasPermission('economy.cost_prices')
+  // Sprint Ø3.1 — kost-fri faktureringsstatus + fakturakladde-adgang (bred).
+  const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
 
   return (
     <OrderDetailClient
@@ -99,6 +101,7 @@ export default async function OrderDetailPage({
       creator={creator}
       plannedWorkOrderCount={plannedCount}
       canSeeCost={canSeeCost}
+      canSeeBilling={canSeeBilling}
     />
   )
 }

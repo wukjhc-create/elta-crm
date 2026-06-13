@@ -25,6 +25,7 @@ import { OrderPlanningTab } from './order-planning-tab'
 import { OrderMaterialsTab } from './order-materials-tab'
 import { OrderOtherCostsTab } from './order-other-costs-tab'
 import { OrderEconomyTab } from './order-economy-tab'
+import { CaseBillingStatusCard } from '@/components/modules/orders/case-billing-status-card'
 import { OrderBillingDraftTab } from './order-billing-draft-tab'
 import { OrderMailsTab } from './order-mails-tab'
 import { OrderDocumentsTab } from './order-documents-tab'
@@ -64,6 +65,7 @@ export function OrderDetailClient({
   creator,
   plannedWorkOrderCount = 0,
   canSeeCost = false,
+  canSeeBilling = false,
 }: {
   sag: ServiceCaseWithRelations
   formand: { id: string; name: string } | null
@@ -71,6 +73,8 @@ export function OrderDetailClient({
   plannedWorkOrderCount?: number
   /** Sprint Ø2.10 — economy.cost_prices: gate til intern kost / DB. */
   canSeeCost?: boolean
+  /** Sprint Ø3.1 — invoices.view.own_cases: kost-fri faktureringsstatus + fakturakladde. */
+  canSeeBilling?: boolean
 }) {
   const [active, setActive] = useState<TabId>('overblik')
 
@@ -201,6 +205,8 @@ export function OrderDetailClient({
               fullAddress={fullAddress}
               formand={formand}
               creator={creator}
+              canSeeBilling={canSeeBilling}
+              onOpenFakturakladde={() => setActive('fakturakladde')}
             />
           )}
           {active === 'planlaegning' && (
@@ -255,12 +261,16 @@ function OverblikTab({
   fullAddress,
   formand,
   creator,
+  canSeeBilling = false,
+  onOpenFakturakladde,
 }: {
   sag: ServiceCaseWithRelations
   customerName: string
   fullAddress: string
   formand: { id: string; name: string } | null
   creator: { id: string; full_name: string | null } | null
+  canSeeBilling?: boolean
+  onOpenFakturakladde?: () => void
 }) {
   const router = useRouter()
   const [editingSite, setEditingSite] = useState(false)
@@ -268,6 +278,16 @@ function OverblikTab({
 
   return (
     <>
+    {/* Sprint Ø3.1 — kost-fri faktureringsstatus på overblik */}
+    {canSeeBilling && (
+      <div className="mb-5">
+        <CaseBillingStatusCard
+          caseId={sag.id}
+          canOpenFakturakladde={canSeeBilling}
+          onOpenFakturakladde={onOpenFakturakladde}
+        />
+      </div>
+    )}
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       {/* Sag side */}
       <Panel title="Sagsoplysninger">

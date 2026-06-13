@@ -31,7 +31,7 @@ import {
 } from '@/lib/actions/service-case-economy'
 import { formatCurrency } from '@/lib/utils/format'
 
-type SwitchTabFn = (tab: 'planlaegning' | 'materialer' | 'oevrige') => void
+type SwitchTabFn = (tab: 'planlaegning' | 'materialer' | 'oevrige' | 'fakturakladde') => void
 
 function fmtKr(n: number | null | undefined, decimals = 0): string {
   if (n == null) return '—'
@@ -161,8 +161,8 @@ export function OrderEconomyTab({
         </div>
       )}
 
-      {/* Sprint Ø3.0 — klar-til-fakturering-status */}
-      <BillingStatusBanner billing={data.billing} />
+      {/* Sprint Ø3.0/Ø3.1 — klar-til-fakturering-status (handlingsorienteret) */}
+      <BillingStatusBanner billing={data.billing} onSwitchTab={onSwitchTab} />
 
       {/* Hero row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -822,8 +822,8 @@ function QualityFlagsPanel({
   )
 }
 
-// Sprint Ø3.0 — klar-til-fakturering-status banner
-function BillingStatusBanner({ billing }: { billing: ServiceCaseEconomy['billing'] }) {
+// Sprint Ø3.0/Ø3.1 — klar-til-fakturering-status banner (handlingsorienteret)
+function BillingStatusBanner({ billing, onSwitchTab }: { billing: ServiceCaseEconomy['billing']; onSwitchTab: SwitchTabFn }) {
   const cfg: Record<ServiceCaseEconomy['billing']['status'], { label: string; cls: string }> = {
     no_work: { label: 'Intet at fakturere endnu', cls: 'bg-gray-50 ring-gray-200 text-gray-700' },
     ready_to_bill: { label: 'Klar til fakturering', cls: 'bg-emerald-50 ring-emerald-200 text-emerald-800' },
@@ -843,13 +843,24 @@ function BillingStatusBanner({ billing }: { billing: ServiceCaseEconomy['billing
           <span className="text-xs text-amber-700">· åben timer — luk før fakturering</span>
         )}
       </div>
-      <div className="text-xs">
-        {billing.unbilled_count > 0 ? (
-          <>Ikke-faktureret: {parts.join(' · ')} = <strong>{fmtKr(billing.unbilled_sale_total)}</strong>{' '}· se fanen <em>Fakturakladde</em></>
-        ) : billing.billed_line_count > 0 ? (
-          <>Alle {billing.billed_line_count} linjer er fakturerede</>
-        ) : (
-          <>Book timer/materialer for at kunne fakturere</>
+      <div className="flex items-center gap-3">
+        <div className="text-xs">
+          {billing.unbilled_count > 0 ? (
+            <>Ikke-faktureret: {parts.join(' · ')} = <strong>{fmtKr(billing.unbilled_sale_total)}</strong></>
+          ) : billing.billed_line_count > 0 ? (
+            <>Alle {billing.billed_line_count} linjer er fakturerede</>
+          ) : (
+            <>Book timer/materialer for at kunne fakturere</>
+          )}
+        </div>
+        {billing.unbilled_count > 0 && (
+          <button
+            type="button"
+            onClick={() => onSwitchTab('fakturakladde')}
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-gray-900 text-white hover:bg-gray-800"
+          >
+            Åbn fakturakladde
+          </button>
         )}
       </div>
     </div>

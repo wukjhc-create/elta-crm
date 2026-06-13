@@ -535,3 +535,103 @@ export async function getServiceCaseEconomy(
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
 }
+
+// =====================================================================
+// Sprint Ø3.1 — KOST-FRI faktureringsstatus (til kontor/salg uden
+// economy.cost_prices). Returnerer KUN salgs-/faktureringsdata — ingen
+// intern kost/DB. Gated af invoices.view.own_cases (bred adgang inkl. salg).
+// =====================================================================
+
+export interface CaseBillingStatus {
+  status: 'no_work' | 'ready_to_bill' | 'partially_billed' | 'fully_billed'
+  unbilled_time_logs: number
+  unbilled_materials: number
+  unbilled_other: number
+  unbilled_count: number
+  unbilled_sale_total: number
+  billed_line_count: number
+  has_open_timer: boolean
+  invoiced_total: number
+  remaining_to_invoice: number | null
+}
+
+export async function getServiceCaseBillingStatus(
+  caseId: string
+): Promise<ActionResult<CaseBillingStatus>> {
+  try {
+    validateUUID(caseId, 'case_id')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('invoices.view.own_cases')) {
+      return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
+    }
+
+    const { data: sag } = await supabase
+      .from('service_cases')
+      .select('id, contract_sum, revised_sum')
+      .eq('id', caseId)
+      .maybeSingle()
+    if (!sag) return { success: false, error: 'Sag ikke fundet' }
+
+    const { data: wos } = await supabase.from('work_orders').select('id').eq('case_id', caseId)
+    const woIds = (wos ?? []).map((w) => w.id as string)
+
+    const [tlRes, matRes, othRes, invRes] = await Promise.all([
+      woIds.length === 0
+        ? Promise.resolve({ data: [] as Array<{ end_time: string | null; sale_amount: number | string | null; billable: boolean | null; invoice_line_id: string | null }> })
+        : supabase.from('time_logs').select('end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds),
+      supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
+      supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
+      supabase.from('invoices').select('total_amount').eq('case_id', caseId),
+    ])
+
+    const tl = (tlRes.data ?? []) as Array<{ end_time: string | null; sale_amount: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
+    const mat = (matRes.data ?? []) as Array<{ total_sales_price: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
+    const oth = (othRes.data ?? []) as Array<{ total_sales_price: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
+
+    let ut = 0, um = 0, uo = 0, usale = 0, billed = 0, openTimer = false
+    for (const r of tl) {
+      if (r.end_time === null) { openTimer = true; continue }
+      if (r.invoice_line_id) billed += 1
+      else if (r.billable !== false) { ut += 1; usale += Number(r.sale_amount ?? 0) }
+    }
+    for (const r of mat) {
+      if (r.invoice_line_id) billed += 1
+      else if (r.billable !== false) { um += 1; usale += Number(r.total_sales_price ?? 0) }
+    }
+    for (const r of oth) {
+      if (r.invoice_line_id) billed += 1
+      else if (r.billable !== false) { uo += 1; usale += Number(r.total_sales_price ?? 0) }
+    }
+
+    const unbilled = ut + um + uo
+    const hasWork = tl.length > 0 || mat.length > 0 || oth.length > 0
+    let status: CaseBillingStatus['status']
+    if (!hasWork) status = 'no_work'
+    else if (unbilled > 0 && billed > 0) status = 'partially_billed'
+    else if (unbilled > 0) status = 'ready_to_bill'
+    else status = 'fully_billed'
+
+    const invoiced_total = ((invRes.data ?? []) as Array<{ total_amount: number | string | null }>)
+      .reduce((s, i) => s + Number(i.total_amount ?? 0), 0)
+    const refSum = sag.revised_sum != null ? Number(sag.revised_sum)
+      : sag.contract_sum != null ? Number(sag.contract_sum) : null
+
+    return {
+      success: true,
+      data: {
+        status,
+        unbilled_time_logs: ut,
+        unbilled_materials: um,
+        unbilled_other: uo,
+        unbilled_count: unbilled,
+        unbilled_sale_total: r2(usale),
+        billed_line_count: billed,
+        has_open_timer: openTimer,
+        invoiced_total: r2(invoiced_total),
+        remaining_to_invoice: refSum != null ? r2(refSum - invoiced_total) : null,
+      },
+    }
+  } catch (e) {
+    return { success: false, error: formatError(e, 'Kunne ikke hente faktureringsstatus') }
+  }
+}
