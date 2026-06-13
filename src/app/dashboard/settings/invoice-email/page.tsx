@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
-import { getInvoiceEmailConfig } from '@/lib/actions/settings'
+import { getInvoiceEmailConfig, getProfile } from '@/lib/actions/settings'
 import { InvoiceEmailSettingsClient } from './invoice-email-settings-client'
 
 export const metadata: Metadata = {
@@ -20,5 +20,14 @@ export default async function InvoiceEmailSettingsPage() {
   const res = await getInvoiceEmailConfig()
   const initial = res.success && res.data ? res.data : {}
 
-  return <InvoiceEmailSettingsClient initial={initial} canManage={canManage} />
+  const profileRes = await getProfile()
+  const userEmail = profileRes.success && profileRes.data ? profileRes.data.email : ''
+
+  return (
+    <InvoiceEmailSettingsClient
+      initial={initial}
+      canManage={canManage}
+      userEmail={userEmail}
+    />
+  )
 }

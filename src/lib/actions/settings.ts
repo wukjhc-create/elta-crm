@@ -198,6 +198,164 @@ export async function updateInvoiceEmailConfig(
   }
 }
 
+// =====================================================
+// Sprint Ø3.8 — Send testmail af faktura-/rykkertekst
+//
+// Renderer MED SAMME produktions-renderere (build*Subject/Html + cfg) og
+// sender til den indloggede bruger / testmodtager — ALDRIG kundens email.
+// Ingen faktura-/rykker-mutationer, intet invoice_reminder_log. Subject
+// markeres med [TEST]. Best-effort audit som test-event.
+// =====================================================
+
+export type InvoiceTestTemplate = 'invoice' | 'reminder1' | 'reminder2' | 'reminder3'
+
+export interface SendInvoiceTestResult {
+  ok: boolean
+  message: string
+}
+
+const TEST_TEMPLATE_NAMES: Record<InvoiceTestTemplate, string> = {
+  invoice: 'Faktura-mail',
+  reminder1: 'Betalingspåmindelse niveau 1',
+  reminder2: 'Betalingspåmindelse niveau 2',
+  reminder3: 'Betalingspåmindelse niveau 3',
+}
+
+export async function sendInvoiceEmailTestAction(input: {
+  template: InvoiceTestTemplate
+  recipient?: string | null
+}): Promise<SendInvoiceTestResult> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.manage')) {
+      return { ok: false, message: 'Manglende tilladelse: settings.manage' }
+    }
+    if (!TEST_TEMPLATE_NAMES[input.template]) {
+      return { ok: false, message: 'Ukendt template' }
+    }
+
+    // Modtager: eksplicit testmodtager ELLER den indloggede brugers email.
+    // ALDRIG kundens email.
+    let recipient = (input.recipient ?? '').trim()
+    if (!recipient) {
+      const { data: me } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', userId)
+        .maybeSingle()
+      recipient = ((me?.email as string | null) ?? '').trim()
+    }
+    if (!recipient || !recipient.includes('@')) {
+      return {
+        ok: false,
+        message: 'Angiv en gyldig modtager-email til testmailen (din egen email blev ikke fundet).',
+      }
+    }
+
+    // Firmainfo + redigerbar config (samme kilde som produktion).
+    const { data: companyRow } = await supabase
+      .from('company_settings')
+      .select('id, company_name, company_email, company_phone, invoice_email_config')
+      .maybeSingle()
+    const cfg = parseInvoiceEmailConfig(companyRow?.invoice_email_config)
+
+    // Realistiske eksempeldata — kræver INGEN rigtig faktura.
+    const company = {
+      companyName: (companyRow?.company_name as string | null) ?? null,
+      companyEmail: (companyRow?.company_email as string | null) ?? null,
+      companyPhone: (companyRow?.company_phone as string | null) ?? null,
+    }
+    const base = {
+      customerName: 'Jens Hansen',
+      invoiceNumber: 'FAK-2026-0042',
+      finalAmountFormatted: '24.500,00 kr.',
+      dueDateFormatted: '27. juni 2026',
+      paymentReference: '0042',
+      caseNumber: 'SAG-1043',
+      ...company,
+    }
+
+    // Render MED produktions-renderere.
+    const {
+      buildInvoiceEmailSubject,
+      buildInvoiceEmailHtml,
+    } = await import('@/lib/email/templates/invoice-email')
+    const {
+      buildInvoiceReminderSubject,
+      buildInvoiceReminderHtml,
+    } = await import('@/lib/email/templates/invoice-reminder-email')
+
+    let subject: string
+    let html: string
+    if (input.template === 'invoice') {
+      subject = buildInvoiceEmailSubject(base, cfg)
+      html = buildInvoiceEmailHtml(base, cfg)
+    } else {
+      const level = (input.template === 'reminder1' ? 1 : input.template === 'reminder2' ? 2 : 3) as 1 | 2 | 3
+      const rp = { ...base, daysOverdue: 8, level }
+      subject = buildInvoiceReminderSubject(rp, cfg)
+      html = buildInvoiceReminderHtml(rp, cfg)
+    }
+    const testSubject = `[TEST] ${subject}`
+
+    const { isGraphConfigured, sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
+    if (!isGraphConfigured()) {
+      return { ok: false, message: 'Mailafsendelse er ikke opsat korrekt endnu.' }
+    }
+
+    const senderName = cfg.sender_name?.trim() || undefined
+    const replyTo = cfg.reply_to?.trim() || undefined
+    const result = await sendEmailViaGraph({
+      to: recipient,
+      subject: testSubject,
+      html,
+      senderName,
+      replyTo,
+    })
+
+    if (!result.success) {
+      const raw = result.error ?? ''
+      const human = raw.includes('modtager')
+        ? 'Ugyldig modtager-email — tjek adressen og prøv igen.'
+        : raw
+          ? `Kunne ikke sende testmail: ${raw}`
+          : 'Kunne ikke sende testmail. Tjek mailopsætningen og prøv igen.'
+      return { ok: false, message: human }
+    }
+
+    // Best-effort audit som TEST-event (ingen faktura-mutationer).
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        entity_type: 'company_settings',
+        entity_id: (companyRow?.id as string | null) ?? null,
+        entity_name: TEST_TEMPLATE_NAMES[input.template],
+        action: input.template === 'invoice' ? 'invoice_email_test_sent' : 'invoice_reminder_test_sent',
+        action_description: `Testmail (${TEST_TEMPLATE_NAMES[input.template]}) sendt til ${recipient}`,
+        changes: {},
+        metadata: {
+          template: input.template,
+          recipient,
+          subject: testSubject,
+          sender_name: senderName ?? null,
+          reply_to: replyTo ?? null,
+          is_test: true,
+        },
+      })
+    } catch (e) {
+      logger.error('audit invoice email test failed', { error: e })
+    }
+
+    return {
+      ok: true,
+      message: `Testmail sendt til ${recipient}. Tjek indbakken og spamfilteret.`,
+    }
+  } catch (error) {
+    logger.error('Error in sendInvoiceEmailTestAction', { error })
+    return { ok: false, message: 'Der opstod en uventet fejl ved afsendelse af testmail.' }
+  }
+}
+
 // Get SMTP settings (for internal use only)
 export async function getSmtpSettings(): Promise<ActionResult<{
   host: string | null

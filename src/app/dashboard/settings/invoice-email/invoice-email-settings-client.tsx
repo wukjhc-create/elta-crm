@@ -11,7 +11,7 @@
  */
 
 import { useMemo, useState, useTransition } from 'react'
-import { AlertCircle, Eye, Info, Loader2, Mail, Save, User } from 'lucide-react'
+import { AlertCircle, Eye, Info, Loader2, Mail, Save, Send, User } from 'lucide-react'
 import {
   DEFAULT_INVOICE_EMAIL_CONFIG,
   TEMPLATE_HEADLINES,
@@ -22,22 +22,46 @@ import {
   type InvoiceEmailConfig,
   type InvoiceTemplateKey,
 } from '@/lib/email/invoice-email-config'
-import { updateInvoiceEmailConfig } from '@/lib/actions/settings'
+import {
+  updateInvoiceEmailConfig,
+  sendInvoiceEmailTestAction,
+} from '@/lib/actions/settings'
 
 const TEMPLATE_KEYS: InvoiceTemplateKey[] = ['invoice', 'reminder1', 'reminder2', 'reminder3']
 
 export function InvoiceEmailSettingsClient({
   initial,
   canManage,
+  userEmail = '',
 }: {
   initial: InvoiceEmailConfig
   canManage: boolean
+  userEmail?: string
 }) {
   const [cfg, setCfg] = useState<InvoiceEmailConfig>(initial)
   const [pending, startTransition] = useTransition()
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null)
 
+  // Sprint Ø3.8 — testmail-modtager (default = egen email). ALDRIG kunde.
+  const [testRecipient, setTestRecipient] = useState(userEmail)
+  const [testingKey, setTestingKey] = useState<InvoiceTemplateKey | null>(null)
+  const [testPending, startTestTransition] = useTransition()
+
   const sampleVars = useMemo(() => buildSampleVars(), [])
+
+  const handleSendTest = (key: InvoiceTemplateKey) => {
+    if (!canManage) return
+    setTestingKey(key)
+    startTestTransition(async () => {
+      const res = await sendInvoiceEmailTestAction({
+        template: key,
+        recipient: testRecipient.trim() || null,
+      })
+      setTestingKey(null)
+      setFlash({ ok: res.ok, text: res.message })
+      setTimeout(() => setFlash(null), 8000)
+    })
+  }
 
   const setField = (key: InvoiceTemplateKey, field: 'subject' | 'body', value: string) => {
     setCfg((prev) => ({ ...prev, [key]: { ...prev[key], [field]: value } }))
@@ -144,6 +168,36 @@ export function InvoiceEmailSettingsClient({
         </div>
       </section>
 
+      {/* Testmail-modtager */}
+      <section className="rounded-lg ring-1 ring-blue-200 bg-blue-50/50 p-4 space-y-2">
+        <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+          <Send className="w-4 h-4 text-blue-600" />
+          Send testmail
+        </h2>
+        <p className="text-xs text-gray-600">
+          Send en testmail af hver tekst til dig selv og se den i en rigtig indbakke,
+          før den bruges til kunder. Testmailen bruger <strong>eksempeldata</strong>,
+          markeres med <strong>[TEST]</strong> i emnet, og påvirker{' '}
+          <strong>ingen rigtige fakturaer</strong> — ingen kunde modtager den.
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Testmail sendes til</label>
+            <input
+              type="email"
+              value={testRecipient}
+              onChange={(e) => setTestRecipient(e.target.value)}
+              disabled={!canManage}
+              placeholder="din@email.dk"
+              className="border rounded px-2 py-1.5 text-sm w-72 bg-white"
+            />
+          </div>
+          <p className="text-[11px] text-gray-500 pb-1.5">
+            Standard = din egen email. Brug knappen ved hver tekst nedenfor.
+          </p>
+        </div>
+      </section>
+
       {/* Templates */}
       {TEMPLATE_KEYS.map((key) => (
         <TemplateEditor
@@ -154,6 +208,9 @@ export function InvoiceEmailSettingsClient({
           onChange={(field, value) => setField(key, field, value)}
           canManage={canManage}
           sampleVars={sampleVars}
+          onSendTest={() => handleSendTest(key)}
+          testing={testPending && testingKey === key}
+          testRecipient={testRecipient.trim() || userEmail}
         />
       ))}
 
@@ -180,6 +237,9 @@ function TemplateEditor({
   onChange,
   canManage,
   sampleVars,
+  onSendTest,
+  testing,
+  testRecipient,
 }: {
   tKey: InvoiceTemplateKey
   subject: string
@@ -187,6 +247,9 @@ function TemplateEditor({
   onChange: (field: 'subject' | 'body', value: string) => void
   canManage: boolean
   sampleVars: ReturnType<typeof buildSampleVars>
+  onSendTest: () => void
+  testing: boolean
+  testRecipient: string
 }) {
   const def = DEFAULT_INVOICE_EMAIL_CONFIG[tKey]
   // Preview = det der faktisk sendes: override hvis udfyldt, ellers standard.
@@ -198,16 +261,32 @@ function TemplateEditor({
 
   return (
     <section className="rounded-lg ring-1 ring-gray-200 bg-white overflow-hidden">
-      <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between">
+      <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
           <Mail className="w-4 h-4 text-gray-500" />
           {TEMPLATE_LABELS[tKey]}
         </h2>
-        {usingDefault && (
-          <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-            Bruger standardtekst
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {usingDefault && (
+            <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+              Bruger standardtekst
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onSendTest}
+            disabled={!canManage || testing}
+            title={
+              canManage
+                ? `Sender [TEST]-mail af "${TEMPLATE_LABELS[tKey]}" til ${testRecipient || 'din email'} — ingen kunde rammes`
+                : 'Kræver settings.manage'
+            }
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded ring-1 ring-blue-300 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-60"
+          >
+            {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            Send testmail
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
