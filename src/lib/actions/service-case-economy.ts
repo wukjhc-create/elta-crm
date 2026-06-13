@@ -71,6 +71,21 @@ export interface ServiceCaseEconomy {
     remaining_to_invoice: number | null
   }
 
+  /** Sprint Ø3.0 — klar-til-fakturering-status (beregnet ud fra invoice_line_id). */
+  billing: {
+    status: 'no_work' | 'ready_to_bill' | 'partially_billed' | 'fully_billed'
+    unbilled_time_logs: number
+    unbilled_materials: number
+    unbilled_other: number
+    /** Antal ikke-fakturerede, fakturerbare linjer i alt. */
+    unbilled_count: number
+    /** Salgsværdi af ikke-fakturerede linjer (snapshot). */
+    unbilled_sale_total: number
+    /** Antal linjer der allerede er fakturalåst (invoice_line_id sat). */
+    billed_line_count: number
+    has_open_timer: boolean
+  }
+
   supplier_invoices: {
     /** total incoming_invoices linked to this sag (any status) */
     count: number
@@ -170,18 +185,18 @@ export async function getServiceCaseEconomy(
       supplierInvoicesRes,
     ] = await Promise.all([
       woIds.length === 0
-        ? Promise.resolve({ data: [] as Array<{ hours: number | null; end_time: string | null; cost_amount: number | null; sale_amount: number | null; employee: { hourly_rate: number | null } | null }> })
+        ? Promise.resolve({ data: [] as Array<{ hours: number | null; end_time: string | null; cost_amount: number | null; sale_amount: number | null; billable: boolean | null; invoice_line_id: string | null; employee: { hourly_rate: number | null } | null }> })
         : supabase
             .from('time_logs')
-            .select('hours, end_time, cost_amount, sale_amount, employee:employees(hourly_rate)')
+            .select('hours, end_time, cost_amount, sale_amount, billable, invoice_line_id, employee:employees(hourly_rate)')
             .in('work_order_id', woIds),
       supabase
         .from('case_materials')
-        .select('total_cost, total_sales_price, unit_cost, unit_sales_price')
+        .select('total_cost, total_sales_price, unit_cost, unit_sales_price, billable, invoice_line_id')
         .eq('case_id', caseId),
       supabase
         .from('case_other_costs')
-        .select('total_cost, total_sales_price, unit_sales_price')
+        .select('total_cost, total_sales_price, unit_sales_price, billable, invoice_line_id')
         .eq('case_id', caseId),
       // Sprint 1B driftsfix: Migration 00104 tilfoejede invoices.case_id som
       // direkte FK til sagen. Alle nye invoices bruger case_id (work_order_id
@@ -216,6 +231,8 @@ export async function getServiceCaseEconomy(
       end_time: string | null
       cost_amount: number | string | null
       sale_amount: number | string | null
+      billable: boolean | null
+      invoice_line_id: string | null
       employee: { hourly_rate: number | string | null } | Array<{ hourly_rate: number | string | null }> | null
     }>
     let total_hours = 0
@@ -223,6 +240,10 @@ export async function getServiceCaseEconomy(
     let total_labor_sale = 0
     let open_timer_count = 0
     let employees_without_rate_count = 0
+    // Sprint Ø3.0 — klar-til-fakturering: tæl ikke-fakturerede vs. fakturerede.
+    let unbilled_time_logs = 0
+    let unbilled_time_sale = 0
+    let billed_line_count = 0
     for (const tl of timeRows) {
       if (tl.end_time === null) {
         open_timer_count += 1
@@ -242,11 +263,13 @@ export async function getServiceCaseEconomy(
       // findes; historiske raekker uden snapshot falder tilbage til den gamle
       // live-beregning hours * employees.hourly_rate (uaendret adfaerd).
       const saleSnapshot = tl.sale_amount == null ? null : Number(tl.sale_amount)
-      if (saleSnapshot != null && Number.isFinite(saleSnapshot)) {
-        total_labor_sale += saleSnapshot
-      } else {
-        total_labor_sale += Number.isFinite(hours) && rate != null ? hours * rate : 0
-      }
+      const lineSale = saleSnapshot != null && Number.isFinite(saleSnapshot)
+        ? saleSnapshot
+        : (Number.isFinite(hours) && rate != null ? hours * rate : 0)
+      total_labor_sale += lineSale
+      // Klar-til-fakturering: fakturalåst vs. fakturerbar & ikke-faktureret.
+      if (tl.invoice_line_id) billed_line_count += 1
+      else if (tl.billable !== false) { unbilled_time_logs += 1; unbilled_time_sale += lineSale }
     }
 
     // ---- Materials rollup ----
@@ -255,16 +278,23 @@ export async function getServiceCaseEconomy(
       total_sales_price: number | string | null
       unit_cost: number | string | null
       unit_sales_price: number | string | null
+      billable: boolean | null
+      invoice_line_id: string | null
     }>
     let mat_cost = 0
     let mat_sale = 0
     let mat_without_cost = 0
     let mat_without_sale = 0
+    let unbilled_materials = 0
+    let unbilled_mat_sale = 0
     for (const m of matRows) {
       mat_cost += Number(m.total_cost ?? 0)
-      mat_sale += Number(m.total_sales_price ?? 0)
+      const matSale = Number(m.total_sales_price ?? 0)
+      mat_sale += matSale
       if (Number(m.unit_cost ?? 0) === 0) mat_without_cost += 1
       if (Number(m.unit_sales_price ?? 0) === 0) mat_without_sale += 1
+      if (m.invoice_line_id) billed_line_count += 1
+      else if (m.billable !== false) { unbilled_materials += 1; unbilled_mat_sale += matSale }
     }
 
     // ---- Other costs rollup ----
@@ -272,14 +302,21 @@ export async function getServiceCaseEconomy(
       total_cost: number | string | null
       total_sales_price: number | string | null
       unit_sales_price: number | string | null
+      billable: boolean | null
+      invoice_line_id: string | null
     }>
     let oth_cost = 0
     let oth_sale = 0
     let oth_without_sale = 0
+    let unbilled_other = 0
+    let unbilled_oth_sale = 0
     for (const o of otherRows) {
       oth_cost += Number(o.total_cost ?? 0)
-      oth_sale += Number(o.total_sales_price ?? 0)
+      const othSale = Number(o.total_sales_price ?? 0)
+      oth_sale += othSale
       if (Number(o.unit_sales_price ?? 0) === 0) oth_without_sale += 1
+      if (o.invoice_line_id) billed_line_count += 1
+      else if (o.billable !== false) { unbilled_other += 1; unbilled_oth_sale += othSale }
     }
 
     // ---- Invoices rollup ----
@@ -398,6 +435,16 @@ export async function getServiceCaseEconomy(
     const remaining_to_invoice =
       referenceSum != null ? r2(referenceSum - invoiced_total) : null
 
+    // ---- Klar-til-fakturering-status (Sprint Ø3.0) ----
+    const unbilled_count = unbilled_time_logs + unbilled_materials + unbilled_other
+    const unbilled_sale_total = r2(unbilled_time_sale + unbilled_mat_sale + unbilled_oth_sale)
+    const has_work = timeRows.length > 0 || matRows.length > 0 || otherRows.length > 0
+    let billing_status: ServiceCaseEconomy['billing']['status']
+    if (!has_work) billing_status = 'no_work'
+    else if (unbilled_count > 0 && billed_line_count > 0) billing_status = 'partially_billed'
+    else if (unbilled_count > 0) billing_status = 'ready_to_bill'
+    else billing_status = 'fully_billed'
+
     // ---- Quality flags ----
     const flags = {
       no_labor: timeRows.length === 0,
@@ -455,6 +502,16 @@ export async function getServiceCaseEconomy(
         invoiced_total: r2(invoiced_total),
         invoiced_paid: r2(invoiced_paid),
         remaining_to_invoice,
+      },
+      billing: {
+        status: billing_status,
+        unbilled_time_logs,
+        unbilled_materials,
+        unbilled_other,
+        unbilled_count,
+        unbilled_sale_total,
+        billed_line_count,
+        has_open_timer: open_timer_count > 0,
       },
       supplier_invoices: {
         count: si_count,

@@ -161,6 +161,9 @@ export function OrderEconomyTab({
         </div>
       )}
 
+      {/* Sprint Ø3.0 — klar-til-fakturering-status */}
+      <BillingStatusBanner billing={data.billing} />
+
       {/* Hero row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <HeroCard
@@ -815,6 +818,40 @@ function QualityFlagsPanel({
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+// Sprint Ø3.0 — klar-til-fakturering-status banner
+function BillingStatusBanner({ billing }: { billing: ServiceCaseEconomy['billing'] }) {
+  const cfg: Record<ServiceCaseEconomy['billing']['status'], { label: string; cls: string }> = {
+    no_work: { label: 'Intet at fakturere endnu', cls: 'bg-gray-50 ring-gray-200 text-gray-700' },
+    ready_to_bill: { label: 'Klar til fakturering', cls: 'bg-emerald-50 ring-emerald-200 text-emerald-800' },
+    partially_billed: { label: 'Delvist faktureret', cls: 'bg-amber-50 ring-amber-200 text-amber-900' },
+    fully_billed: { label: 'Fuldt faktureret', cls: 'bg-green-50 ring-green-200 text-green-800' },
+  }
+  const c = cfg[billing.status]
+  const parts: string[] = []
+  if (billing.unbilled_time_logs > 0) parts.push(`${billing.unbilled_time_logs} timer`)
+  if (billing.unbilled_materials > 0) parts.push(`${billing.unbilled_materials} materialer`)
+  if (billing.unbilled_other > 0) parts.push(`${billing.unbilled_other} øvrige`)
+  return (
+    <div className={`rounded-md ring-1 px-3 py-2 text-sm flex flex-wrap items-center justify-between gap-2 ${c.cls}`}>
+      <div className="flex items-center gap-2">
+        <span className="font-semibold">{c.label}</span>
+        {billing.has_open_timer && (
+          <span className="text-xs text-amber-700">· åben timer — luk før fakturering</span>
+        )}
+      </div>
+      <div className="text-xs">
+        {billing.unbilled_count > 0 ? (
+          <>Ikke-faktureret: {parts.join(' · ')} = <strong>{fmtKr(billing.unbilled_sale_total)}</strong>{' '}· se fanen <em>Fakturakladde</em></>
+        ) : billing.billed_line_count > 0 ? (
+          <>Alle {billing.billed_line_count} linjer er fakturerede</>
+        ) : (
+          <>Book timer/materialer for at kunne fakturere</>
+        )}
+      </div>
     </div>
   )
 }
