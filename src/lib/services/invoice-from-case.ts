@@ -551,11 +551,28 @@ export async function createInvoiceDraftFromCase(
     // Do NOT roll back — the lines exist; operator can edit totals or contact admin.
   }
 
-  // Note: there is no project-wide "audit log" table for outgoing invoices in
-  // current schema (Phase 5 didn't add one — only Phase 15 has audit for
-  // incoming). System-health events are emitted by the legacy create_invoice_*
-  // RPCs but not by this service. We log to the application logger; if a
-  // dedicated invoice_audit_log is added in 6D we'll wire it then.
+  // Sprint Ø3.2 — persistent audit i audit_logs (faktura oprettet fra sag +
+  // antal låste linjer + total + bruger). Må aldrig vælte fakturaoprettelsen.
+  try {
+    await supabase.from('audit_logs').insert({
+      user_id: approverId,
+      entity_type: 'invoice',
+      entity_id: header.id,
+      entity_name: header.invoice_number,
+      action: 'invoice_created_from_case',
+      action_description:
+        `Faktura ${header.invoice_number} oprettet fra sag med ${created.length} linje${created.length === 1 ? '' : 'r'} — total ${final} kr (inkl. moms)`,
+      changes: { line_count: created.length, skipped_count: skipped.length },
+      metadata: {
+        case_id: sag.id,
+        case_number: (sag as { case_number?: string }).case_number,
+        subtotal, vat, final,
+      },
+    })
+  } catch (e) {
+    logger.error('audit invoice_created_from_case failed', { error: e, entityId: header.id })
+  }
+
   logger.info('invoice draft created from case', {
     entity: 'invoices',
     entityId: header.id,

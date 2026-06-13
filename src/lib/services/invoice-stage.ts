@@ -230,6 +230,23 @@ export async function createStageInvoiceForCase(
     }
   }
 
+  // Sprint Ø3.2 — persistent audit
+  try {
+    await supabase.from('audit_logs').insert({
+      user_id: approverId,
+      entity_type: 'invoice',
+      entity_id: header.id,
+      entity_name: header.invoice_number,
+      action: 'stage_invoice_created_from_case',
+      action_description:
+        `${input.invoice_type === 'deposit' ? 'Forskudsfaktura' : 'Ratefaktura'} ${header.invoice_number} oprettet fra sag (${pct} % af ${basisLabel}) — total ${final} kr`,
+      changes: { invoice_type: input.invoice_type, billing_percentage: pct },
+      metadata: { case_id: sag.id, amount_basis_value: basisValue, subtotal, tax, final },
+    })
+  } catch (e) {
+    logger.error('audit stage_invoice_created failed', { error: e, entityId: header.id })
+  }
+
   logger.info('stage invoice created', {
     entity: 'invoices',
     entityId: header.id,
@@ -628,6 +645,23 @@ export async function createFinalInvoiceForCase(
         error: predErr,
       })
     }
+  }
+
+  // Sprint Ø3.2 — persistent audit
+  try {
+    await supabase.from('audit_logs').insert({
+      user_id: approverId,
+      entity_type: 'invoice',
+      entity_id: header.id,
+      entity_name: header.invoice_number,
+      action: 'final_invoice_created_from_case',
+      action_description:
+        `Slutfaktura ${header.invoice_number} oprettet fra sag med ${unbilledLinesCount} linje${unbilledLinesCount === 1 ? '' : 'r'} og ${predRows.length} fradrag (fradrag i alt ${r2(deductionTotal)} kr)`,
+      changes: { unbilled_lines_count: unbilledLinesCount, predecessor_count: predRows.length },
+      metadata: { case_id: sag.id, deduction_total: r2(deductionTotal) },
+    })
+  } catch (e) {
+    logger.error('audit final_invoice_created failed', { error: e, entityId: header.id })
   }
 
   logger.info('final invoice created', {
