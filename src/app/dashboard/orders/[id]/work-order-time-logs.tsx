@@ -22,6 +22,7 @@ import {
   type TimeLogWithEmployee,
 } from '@/lib/actions/time-logs'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
+import { PAY_RATE_TYPE_OPTIONS, PAY_RATE_TYPE_LABEL, type PayRateType } from '@/types/workforce.types'
 
 const fmtAmount = (n: number | null | undefined) =>
   n == null
@@ -83,6 +84,7 @@ export function WorkOrderTimeLogs({
   const [hoursStr, setHoursStr] = useState('')
   const [description, setDescription] = useState('')
   const [billable, setBillable] = useState(true)
+  const [payRateType, setPayRateType] = useState<PayRateType>('normal')
 
   const reload = async () => {
     const [logsRes, empRes] = await Promise.all([
@@ -107,6 +109,7 @@ export function WorkOrderTimeLogs({
     setHoursStr('')
     setDescription('')
     setBillable(true)
+    setPayRateType('normal')
   }
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -136,6 +139,7 @@ export function WorkOrderTimeLogs({
       hours: hoursParsed,
       description,
       billable,
+      pay_rate_type: payRateType,
     })
     setIsWorking(false)
 
@@ -156,10 +160,13 @@ export function WorkOrderTimeLogs({
 
   const totalHours = logs.reduce((s, l) => s + (l.hours ?? 0), 0)
   const totalCost = logs.reduce((s, l) => s + (l.cost_amount ?? 0), 0)
+  // Sprint Ø2.9 — sum frosset sale_amount (overtid korrekt); fallback live.
   const totalSale = logs.reduce(
     (s, l) =>
       s +
-      (l.hours != null && l.employee?.hourly_rate != null
+      (l.sale_amount != null
+        ? Number(l.sale_amount)
+        : l.hours != null && l.employee?.hourly_rate != null
         ? Number(l.hours) * Number(l.employee.hourly_rate)
         : 0),
     0
@@ -170,8 +177,12 @@ export function WorkOrderTimeLogs({
     (l) => l.hours != null && (l.employee?.hourly_rate == null)
   )
 
+  // Sprint Ø2.9 — foretræk frosset sale_amount-snapshot (korrekt ved overtid);
+  // fald tilbage til live hours × hourly_rate for ældre rækker uden snapshot.
   const saleFor = (l: TimeLogWithEmployee): number | null =>
-    l.hours != null && l.employee?.hourly_rate != null
+    l.sale_amount != null
+      ? Number(l.sale_amount)
+      : l.hours != null && l.employee?.hourly_rate != null
       ? Number(l.hours) * Number(l.employee.hourly_rate)
       : null
 
@@ -292,16 +303,30 @@ export function WorkOrderTimeLogs({
             </Field>
           </div>
 
-          <Field label="Beskrivelse (valgfri)">
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={isWorking}
-              placeholder="Hvad blev der lavet?"
-              className="w-full px-2 py-1 border rounded text-sm"
-            />
-          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Field label="Satstype">
+              <select
+                value={payRateType}
+                onChange={(e) => setPayRateType(e.target.value as PayRateType)}
+                disabled={isWorking}
+                className="w-full px-2 py-1 border rounded text-sm bg-white"
+              >
+                {PAY_RATE_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Beskrivelse (valgfri)">
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={isWorking}
+                placeholder="Hvad blev der lavet?"
+                className="w-full px-2 py-1 border rounded text-sm"
+              />
+            </Field>
+          </div>
 
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-1 text-xs">
@@ -353,6 +378,7 @@ export function WorkOrderTimeLogs({
                 <th className="py-1 pr-2">Medarbejder</th>
                 <th className="py-1 pr-2">Periode</th>
                 <th className="py-1 pr-2 text-right">Timer</th>
+                <th className="py-1 pr-2">Sats</th>
                 <th className="py-1 pr-2 text-right">Intern kost</th>
                 <th className="py-1 pr-2 text-right">Salgspris</th>
                 <th className="py-1 pr-2 text-right">DB</th>
@@ -378,6 +404,15 @@ export function WorkOrderTimeLogs({
                       )}
                     </td>
                     <td className="py-1 pr-2 text-right tabular-nums">{fmtHours(l.hours)}</td>
+                    <td className="py-1 pr-2 whitespace-nowrap">
+                      {l.pay_rate_type && l.pay_rate_type !== 'normal' ? (
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-medium">
+                          {PAY_RATE_TYPE_LABEL.get(l.pay_rate_type) ?? l.pay_rate_type}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-[10px]">Normal</span>
+                      )}
+                    </td>
                     <td className="py-1 pr-2 text-right tabular-nums">
                       {l.cost_amount == null && l.hours != null ? (
                         <span className="text-amber-600" title="Medarbejder mangler kostpris">—</span>
@@ -429,6 +464,7 @@ export function WorkOrderTimeLogs({
                   Total:
                 </td>
                 <td className="pt-1 pr-2 text-right tabular-nums">{fmtHours(totalHours)}</td>
+                <td></td>
                 <td className="pt-1 pr-2 text-right tabular-nums">{fmtAmount(totalCost)}</td>
                 <td className="pt-1 pr-2 text-right tabular-nums">
                   {totalSale > 0 ? fmtAmount(totalSale) : '—'}

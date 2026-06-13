@@ -29,8 +29,9 @@ import {
 } from '@/lib/actions/action-helpers'
 import { getWorkOrderScope } from '@/lib/auth/case-scope'
 import { logger } from '@/lib/utils/logger'
+import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import type { ActionResult } from '@/types/common.types'
-import type { TimeLogRow } from '@/types/workforce.types'
+import { type TimeLogRow, type PayRateType, PAY_RATE_TYPE_LABEL } from '@/types/workforce.types'
 
 export interface TimeLogWithEmployee extends TimeLogRow {
   employee?: {
@@ -72,7 +73,8 @@ export async function listTimeLogsForWorkOrder(
       .from('time_logs')
       .select(`
         id, employee_id, work_order_id, start_time, end_time, hours,
-        cost_amount, description, billable, invoice_line_id, created_at
+        cost_amount, pay_rate_type, employee_rate_id, cost_rate_snapshot,
+        sale_rate_snapshot, sale_amount, description, billable, invoice_line_id, created_at
       `)
       .eq('work_order_id', workOrderId)
       .order('start_time', { ascending: false })
@@ -129,7 +131,8 @@ export async function listTimeLogsForCase(
       .from('time_logs')
       .select(`
         id, employee_id, work_order_id, start_time, end_time, hours,
-        cost_amount, description, billable, invoice_line_id, created_at
+        cost_amount, pay_rate_type, employee_rate_id, cost_rate_snapshot,
+        sale_rate_snapshot, sale_amount, description, billable, invoice_line_id, created_at
       `)
       .in('work_order_id', woIds)
       .order('start_time', { ascending: false })
@@ -162,6 +165,10 @@ export interface CreateTimeLogInput {
   end_clock?: string | null
   description?: string | null
   billable?: boolean
+  /** Sprint Ø2.9 — satstype (default normal). Driver overtidsberegning. */
+  pay_rate_type?: PayRateType
+  /** Valgfri eksplicit overtidssats-række. */
+  employee_rate_id?: string | null
 }
 
 export async function createTimeLog(
@@ -254,6 +261,8 @@ export async function createTimeLog(
         employee_id: input.employee_id,
         start_time: startTimeIso,
         end_time: endTimeIso,
+        pay_rate_type: input.pay_rate_type ?? 'normal',
+        employee_rate_id: input.employee_rate_id ?? null,
         description: input.description?.trim() || null,
         billable: input.billable !== false,
       })
@@ -283,6 +292,9 @@ export interface UpdateTimeLogInput {
   hours?: number | null
   description?: string | null
   billable?: boolean
+  /** Sprint Ø2.9 — skift satstype (genberegner snapshots via trigger). */
+  pay_rate_type?: PayRateType
+  employee_rate_id?: string | null
 }
 
 export async function updateTimeLog(
@@ -299,7 +311,7 @@ export async function updateTimeLog(
     // Read current row + check invoice lock.
     const { data: cur, error: readErr } = await supabase
       .from('time_logs')
-      .select('id, work_order_id, employee_id, start_time, end_time, invoice_line_id')
+      .select('id, work_order_id, employee_id, start_time, end_time, invoice_line_id, pay_rate_type')
       .eq('id', timeLogId)
       .maybeSingle()
     if (readErr || !cur) return { success: false, error: 'Timeregistrering ikke fundet' }
@@ -380,6 +392,12 @@ export async function updateTimeLog(
     if (input.billable !== undefined) {
       patch.billable = !!input.billable
     }
+    if (input.pay_rate_type !== undefined) {
+      patch.pay_rate_type = input.pay_rate_type
+    }
+    if (input.employee_rate_id !== undefined) {
+      patch.employee_rate_id = input.employee_rate_id
+    }
 
     if (Object.keys(patch).length === 0) {
       return { success: false, error: 'Ingen ændringer' }
@@ -395,6 +413,17 @@ export async function updateTimeLog(
     if (error || !data) {
       logger.error('updateTimeLog failed', { error })
       return { success: false, error: 'Kunne ikke opdatere timeregistrering' }
+    }
+
+    // Sprint Ø2.9 — log satstype-skift i medarbejderhistorik (ikke ved backfill).
+    if (input.pay_rate_type !== undefined && input.pay_rate_type !== cur.pay_rate_type) {
+      await logEmployeeEvent({
+        employeeId: cur.employee_id as string,
+        eventType: 'time_log_rate_type_changed',
+        title: `Timeregistrering ændret til ${PAY_RATE_TYPE_LABEL.get(input.pay_rate_type) ?? input.pay_rate_type}`,
+        createdBy: userId,
+        metadata: { time_log_id: timeLogId, from: cur.pay_rate_type, to: input.pay_rate_type },
+      })
     }
 
     // Resolve case_id for revalidate.

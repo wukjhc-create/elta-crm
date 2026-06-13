@@ -35,6 +35,21 @@ export interface WorkOrderRow {
   updated_at: string
 }
 
+// Sprint Ø2.9 — satstype for en timeregistrering (matcher time_logs CHECK)
+export type PayRateType = 'normal' | 'ot1' | 'ot2' | 'weekend' | 'holiday' | 'standby' | 'other'
+
+export const PAY_RATE_TYPE_OPTIONS: Array<{ value: PayRateType; label: string }> = [
+  { value: 'normal', label: 'Normal tid' },
+  { value: 'ot1', label: 'Overtid 50%' },
+  { value: 'ot2', label: 'Overtid 100%' },
+  { value: 'weekend', label: 'Weekend' },
+  { value: 'holiday', label: 'Helligdag' },
+  { value: 'standby', label: 'Vagt/rådighed' },
+  { value: 'other', label: 'Andet' },
+]
+
+export const PAY_RATE_TYPE_LABEL = new Map(PAY_RATE_TYPE_OPTIONS.map((o) => [o.value, o.label]))
+
 export interface TimeLogRow {
   id: string
   employee_id: string
@@ -43,6 +58,12 @@ export interface TimeLogRow {
   end_time: string | null
   hours: number | null
   cost_amount: number | null       // added migration 00088 (trigger-computed)
+  // Sprint Ø1.1/Ø2.9 — frosne snapshots + satstype (trigger-computed)
+  pay_rate_type: PayRateType
+  employee_rate_id: string | null
+  cost_rate_snapshot: number | null
+  sale_rate_snapshot: number | null
+  sale_amount: number | null
   description: string | null
   billable: boolean
   invoice_line_id: string | null
