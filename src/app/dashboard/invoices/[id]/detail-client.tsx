@@ -429,7 +429,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
             </div>
           ) : inv.work_order_id ? (
             <p className="text-xs text-gray-600">
-              Linket til arbejdsordre — sag kan udledes via WO i Sprint 6D.
+              Linket til arbejdsordre. Sagen vises når arbejdsordren er koblet til en sag.
             </p>
           ) : (
             <p className="text-xs text-gray-500">Ingen sag tilknyttet.</p>
@@ -622,7 +622,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
         {isLocked && (
           <div className="rounded ring-1 ring-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 flex items-center gap-2">
             <Lock className="w-3.5 h-3.5" />
-            Fakturaen er betalt og låst. Yderligere ændringer skal håndteres som kreditnota (kommer i Sprint 6D).
+            Fakturaen er betalt og låst. Yderligere ændringer skal håndteres som kreditnota.
           </div>
         )}
 
@@ -631,8 +631,8 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
             <div className="text-xs text-gray-600 flex items-start gap-1">
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span>
-                Kladde-fase. "Send faktura på mail" sender PDF til kundens email
-                og flipper status til 'sendt'. e-conomic-push kommer i Sprint 6E.
+                Kladde-fase. "Send faktura på mail" vedhæfter fakturaens PDF, sender
+                den til kundens email og sætter status til "sendt".
               </span>
             </div>
             <div className="flex flex-wrap gap-2">

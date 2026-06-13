@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   FilePlus2, Trash2, Undo2, History, Loader2, AlertCircle, RefreshCw,
+  Send, BadgeCheck,
 } from 'lucide-react'
 import {
   getCaseInvoiceHistoryAction,
@@ -36,6 +37,22 @@ function actionVisual(e: CaseInvoiceHistoryEntry): {
   bg: string
   text: string
 } {
+  if (e.is_paid) {
+    return {
+      icon: <BadgeCheck className="w-4 h-4" />,
+      ring: 'ring-emerald-200',
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+    }
+  }
+  if (e.is_sent) {
+    return {
+      icon: <Send className="w-4 h-4" />,
+      ring: 'ring-blue-200',
+      bg: 'bg-blue-50',
+      text: 'text-blue-700',
+    }
+  }
   if (e.is_credit) {
     return {
       icon: <Undo2 className="w-4 h-4" />,

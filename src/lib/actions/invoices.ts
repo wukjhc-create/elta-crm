@@ -445,6 +445,64 @@ export async function getInvoiceDetailAction(
   }
 }
 
+/**
+ * Sprint Ø3.5 — fælles audit for fakturaens livscyklus (sendt/betalt).
+ * Skriver til audit_logs med metadata.case_id, så hændelsen dukker op i
+ * sagens fakturahistorik (getCaseInvoiceHistoryAction). Best-effort:
+ * en audit-fejl må aldrig vælte selve handlingen.
+ */
+async function auditInvoiceLifecycle(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+  params: {
+    userId: string
+    invoiceId: string
+    action: string
+    verb: string
+    suffix?: string | null
+    changes?: Record<string, unknown>
+    extraMeta?: Record<string, unknown>
+  }
+): Promise<void> {
+  try {
+    const { data: inv } = await supabase
+      .from('invoices')
+      .select('invoice_number, invoice_type, case_id, final_amount')
+      .eq('id', params.invoiceId)
+      .maybeSingle()
+    let caseNumber: string | null = null
+    if (inv?.case_id) {
+      const { data: c } = await supabase
+        .from('service_cases')
+        .select('case_number')
+        .eq('id', inv.case_id)
+        .maybeSingle()
+      caseNumber = (c?.case_number as string | null) ?? null
+    }
+    const number = (inv?.invoice_number as string | null) ?? params.invoiceId
+    await supabase.from('audit_logs').insert({
+      user_id: params.userId,
+      entity_type: 'invoice',
+      entity_id: params.invoiceId,
+      entity_name: (inv?.invoice_number as string | null) ?? null,
+      action: params.action,
+      action_description: `Faktura ${number} ${params.verb}${params.suffix ? ` — ${params.suffix}` : ''}`,
+      changes: params.changes ?? {},
+      metadata: {
+        case_id: (inv?.case_id as string | null) ?? null,
+        case_number: caseNumber,
+        invoice_type: (inv?.invoice_type as string | null) ?? null,
+        final_amount: Number(inv?.final_amount ?? 0),
+        ...(params.extraMeta ?? {}),
+      },
+    })
+  } catch (auditErr) {
+    logger.error('auditInvoiceLifecycle: insert failed', {
+      entityId: params.invoiceId,
+      error: auditErr,
+    })
+  }
+}
+
 export async function markInvoiceSentAction(
   invoiceId: string
 ): Promise<InvoiceActionOutcome> {
@@ -453,7 +511,7 @@ export async function markInvoiceSentAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  const { hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.send')) {
     return { ok: false, message: 'Manglende tilladelse: invoices.send' }
   }
@@ -462,9 +520,15 @@ export async function markInvoiceSentAction(
   } catch (err) {
     return { ok: false, message: formatError(err, 'Kunne ikke markere som sendt') }
   }
+  await auditInvoiceLifecycle(supabase, {
+    userId,
+    invoiceId,
+    action: 'invoice_marked_sent',
+    verb: 'markeret som sendt (uden mail)',
+  })
   revalidatePath('/dashboard/invoices')
   revalidatePath(`/dashboard/invoices/${invoiceId}`)
-  return { ok: true, message: 'Markeret som sendt (ingen mail/PDF — kommer i Sprint 6C)' }
+  return { ok: true, message: 'Markeret som sendt' }
 }
 
 export async function markInvoicePaidAction(
@@ -476,7 +540,7 @@ export async function markInvoicePaidAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  const { hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.mark_paid')) {
     return { ok: false, message: 'Manglende tilladelse: invoices.mark_paid' }
   }
@@ -485,6 +549,14 @@ export async function markInvoicePaidAction(
   } catch (err) {
     return { ok: false, message: formatError(err, 'Kunne ikke markere som betalt') }
   }
+  await auditInvoiceLifecycle(supabase, {
+    userId,
+    invoiceId,
+    action: 'invoice_marked_paid',
+    verb: 'markeret som betalt',
+    suffix: paymentReference ? `ref: ${paymentReference}` : null,
+    changes: { payment_reference: paymentReference ?? null },
+  })
   revalidatePath('/dashboard/invoices')
   revalidatePath(`/dashboard/invoices/${invoiceId}`)
   return { ok: true, message: 'Markeret som betalt' }
@@ -498,7 +570,7 @@ export async function sendInvoiceEmailAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  const { hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.send')) {
     return { ok: false, message: 'Manglende tilladelse: invoices.send' }
   }
@@ -506,6 +578,14 @@ export async function sendInvoiceEmailAction(
   revalidatePath('/dashboard/invoices')
   revalidatePath(`/dashboard/invoices/${invoiceId}`)
   if (r.status === 'sent') {
+    await auditInvoiceLifecycle(supabase, {
+      userId,
+      invoiceId,
+      action: 'invoice_sent',
+      verb: 'sendt på mail',
+      suffix: r.recipient ? `til ${r.recipient}` : null,
+      changes: { recipient: r.recipient ?? null },
+    })
     return { ok: true, message: `Faktura sendt til ${r.recipient}` }
   }
   if (r.status === 'already_sent') {
@@ -911,6 +991,9 @@ export type CaseInvoiceHistoryAction =
   | 'invoice_created_from_case'
   | 'stage_invoice_created_from_case'
   | 'final_invoice_created_from_case'
+  | 'invoice_marked_sent'
+  | 'invoice_sent'
+  | 'invoice_marked_paid'
   | 'invoice_draft_deleted'
   | 'credit_draft_deleted'
   | 'invoice_credited'
@@ -928,6 +1011,8 @@ export interface CaseInvoiceHistoryEntry {
   amount_incl_vat: number | null
   is_unlock: boolean
   is_credit: boolean
+  is_sent: boolean
+  is_paid: boolean
 }
 
 export interface CaseInvoiceHistoryResult {
@@ -940,6 +1025,9 @@ const CASE_INVOICE_HISTORY_LABELS: Record<string, string> = {
   invoice_created_from_case: 'Faktura oprettet',
   stage_invoice_created_from_case: 'Rate-/forskudsfaktura oprettet',
   final_invoice_created_from_case: 'Slutfaktura oprettet',
+  invoice_marked_sent: 'Faktura markeret som sendt',
+  invoice_sent: 'Faktura sendt til kunde',
+  invoice_marked_paid: 'Faktura markeret som betalt',
   invoice_draft_deleted: 'Fakturakladde slettet',
   credit_draft_deleted: 'Kreditnota-kladde slettet',
   invoice_credited: 'Kreditnota oprettet',
@@ -1037,8 +1125,114 @@ export async function getCaseInvoiceHistoryAction(
       amount_incl_vat: amount,
       is_unlock: metadata.unlocked === true,
       is_credit: action === 'invoice_credited' || action === 'credit_draft_deleted',
+      is_sent: action === 'invoice_sent' || action === 'invoice_marked_sent',
+      is_paid: action === 'invoice_marked_paid',
     }
   })
 
   return { ok: true, entries }
+}
+
+// =====================================================
+// Sprint Ø3.5 — Cost-free liste over ALLE fakturaer på sagen
+//
+// Viser kladder, sendte, betalte, kreditnotaer mv. med status + beløb +
+// dato + modtager. KUN salgs/faktura-data — ingen kost/margin/DB.
+// Gated på invoices.view.own_cases. Mutationer (send/betal/kreditér/slet)
+// bor på faktura-detaljesiden — denne liste linker dertil for ikke at
+// bygge et dobbelt handlings-UI.
+// =====================================================
+
+export interface CaseInvoiceListItem {
+  id: string
+  invoice_number: string | null
+  invoice_type: string | null
+  status: string
+  payment_status: string | null
+  final_amount: number
+  currency: string | null
+  created_at: string
+  sent_at: string | null
+  paid_at: string | null
+  due_date: string | null
+  voided_at: string | null
+  is_credit_note: boolean
+  customer_name: string | null
+}
+
+export interface CaseInvoiceListResult {
+  ok: boolean
+  message?: string
+  items: CaseInvoiceListItem[]
+}
+
+export async function listCaseInvoicesAction(
+  caseId: string
+): Promise<CaseInvoiceListResult> {
+  try {
+    validateUUID(caseId, 'case_id')
+  } catch (err) {
+    return {
+      ok: false,
+      items: [],
+      message: err instanceof Error ? err.message : 'Ugyldigt case_id',
+    }
+  }
+
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.own_cases')) {
+    return { ok: false, items: [], message: 'Manglende tilladelse: invoices.view.own_cases' }
+  }
+
+  const { data: rows, error } = await supabase
+    .from('invoices')
+    .select(
+      'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, customer_id'
+    )
+    .eq('case_id', caseId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    logger.error('listCaseInvoicesAction: query failed', { entityId: caseId, error })
+    return { ok: false, items: [], message: 'Kunne ikke hente fakturaer på sagen' }
+  }
+
+  const list = rows ?? []
+
+  // Berig kundenavn via separat opslag (cost-free).
+  const customerIds = Array.from(
+    new Set(list.map((r) => r.customer_id as string | null).filter(Boolean) as string[])
+  )
+  const customerById = new Map<string, string>()
+  if (customerIds.length > 0) {
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, company_name, contact_person')
+      .in('id', customerIds)
+    for (const c of customers ?? []) {
+      customerById.set(
+        c.id as string,
+        (c.company_name as string | null) || (c.contact_person as string | null) || '—'
+      )
+    }
+  }
+
+  const items: CaseInvoiceListItem[] = list.map((r) => ({
+    id: r.id as string,
+    invoice_number: (r.invoice_number as string | null) ?? null,
+    invoice_type: (r.invoice_type as string | null) ?? null,
+    status: (r.status as string) ?? 'draft',
+    payment_status: (r.payment_status as string | null) ?? null,
+    final_amount: Number(r.final_amount ?? 0),
+    currency: (r.currency as string | null) ?? 'DKK',
+    created_at: r.created_at as string,
+    sent_at: (r.sent_at as string | null) ?? null,
+    paid_at: (r.paid_at as string | null) ?? null,
+    due_date: (r.due_date as string | null) ?? null,
+    voided_at: (r.voided_at as string | null) ?? null,
+    is_credit_note: r.invoice_type === 'credit',
+    customer_name: r.customer_id ? customerById.get(r.customer_id as string) ?? null : null,
+  }))
+
+  return { ok: true, items }
 }

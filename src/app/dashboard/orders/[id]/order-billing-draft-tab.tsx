@@ -39,6 +39,7 @@ import {
 import { formatCurrency } from '@/lib/utils/format'
 import type { StageInvoiceSummary } from '@/lib/services/invoice-stage'
 import { CaseInvoiceHistory } from '@/components/modules/orders/case-invoice-history'
+import { CaseInvoicesList } from '@/components/modules/orders/case-invoices-list'
 
 const VAT_RATE = 0.25
 
@@ -151,7 +152,10 @@ export function OrderBillingDraftTab({
         />
       )}
 
-      {/* Sprint Ø3.3 — cost-free fakturahistorik (oprettet/slettet/krediteret) */}
+      {/* Sprint Ø3.5 — cost-free liste over ALLE fakturaer på sagen m. status */}
+      <CaseInvoicesList key={stageReloadKey} caseId={caseId} />
+
+      {/* Sprint Ø3.3/Ø3.5 — cost-free fakturahistorik (oprettet/sendt/betalt/krediteret/slettet) */}
       <CaseInvoiceHistory caseId={caseId} />
     </div>
   )
