@@ -209,6 +209,8 @@ export async function createInvoiceDraftFromCase(
       end_time: string | null
       billable: boolean
       invoice_line_id: string | null
+      sale_amount: number | string | null
+      sale_rate_snapshot: number | string | null
       work_order:
         | { case_id: string | null }
         | { case_id: string | null }[]
@@ -222,6 +224,7 @@ export async function createInvoiceDraftFromCase(
       .from('time_logs')
       .select(
         'id, work_order_id, employee_id, hours, end_time, billable, invoice_line_id, ' +
+          'sale_amount, sale_rate_snapshot, ' +
           'work_order:work_orders(case_id), employee:employees(name, hourly_rate)'
       )
       .in('id', timeLogIds)
@@ -259,22 +262,37 @@ export async function createInvoiceDraftFromCase(
 
       const hours = Number(tl.hours ?? 0)
       const emp = Array.isArray(tl.employee) ? tl.employee[0] ?? null : tl.employee
-      const rateRaw = emp?.hourly_rate ?? null
-      let rate = rateRaw == null ? null : Number(rateRaw)
-      if (rate == null || !Number.isFinite(rate) || rate <= 0) {
-        // Fallback to default rate but report as warning so operator sees it.
-        rate = defaultHourlyRate
-        skipped.push({
-          kind: 'time_log',
-          source_id: id,
-          reason: 'missing_employee_rate',
-          detail: `Bruger fallback ${defaultHourlyRate} kr/t — ${emp?.name ?? 'ukendt medarbejder'} mangler hourly_rate`,
-        })
-        // Note: we still create the line below — the skipped entry is informational here.
-        // To strictly skip, change this to `continue`.
+
+      // Sprint Ø2.11 — fakturagrundlag bruger FROSSET salgssnapshot (sale_amount/
+      // sale_rate_snapshot fra rate engine), så historiske timer ikke fakturere
+      // med nye/live medarbejdersatser. Fallback til live hourly_rate kun for
+      // ældre rækker uden snapshot.
+      const saleSnap = tl.sale_amount == null ? null : Number(tl.sale_amount)
+      const rateSnap = tl.sale_rate_snapshot == null ? null : Number(tl.sale_rate_snapshot)
+      const useSnapshot = saleSnap != null && Number.isFinite(saleSnap)
+
+      let rate: number
+      if (useSnapshot && rateSnap != null && Number.isFinite(rateSnap)) {
+        rate = rateSnap
+      } else {
+        const rateRaw = emp?.hourly_rate ?? null
+        const liveRate = rateRaw == null ? null : Number(rateRaw)
+        if (liveRate == null || !Number.isFinite(liveRate) || liveRate <= 0) {
+          rate = defaultHourlyRate
+          if (!useSnapshot) {
+            skipped.push({
+              kind: 'time_log',
+              source_id: id,
+              reason: 'missing_employee_rate',
+              detail: `Bruger fallback ${defaultHourlyRate} kr/t — ${emp?.name ?? 'ukendt medarbejder'} mangler hourly_rate`,
+            })
+          }
+        } else {
+          rate = liveRate
+        }
       }
 
-      const totalPrice = r2(hours * rate)
+      const totalPrice = useSnapshot ? r2(saleSnap as number) : r2(hours * rate)
       position += 1
       const empName = emp?.name ?? 'Medarbejder'
       const description = `Timer (${hours.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t) — ${empName}`

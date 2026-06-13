@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import { getEmployeeEconomyAction } from '@/lib/actions/employee-economy'
 import { EmployeeEconomyClient } from '@/components/modules/economy/employee-economy-client'
+import { pageHasPermission } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const metadata: Metadata = {
   title: 'Medarbejderøkonomi',
@@ -17,6 +19,10 @@ export const dynamic = 'force-dynamic'
  * skrivning, ingen charts/eksport endnu.
  */
 export default async function EmployeeEconomyPage() {
+  // Sprint Ø2.11 — viser intern løn-kost/DB → kræver economy.cost_prices.
+  if (!(await pageHasPermission('economy.cost_prices'))) {
+    return <NoAccess permission="economy.cost_prices" />
+  }
   const result = await getEmployeeEconomyAction({})
   return <EmployeeEconomyClient result={result} />
 }

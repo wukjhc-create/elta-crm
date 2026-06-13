@@ -168,7 +168,7 @@ export function OrderDetailClient({
       {/* Tabs nav */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
         <div className="flex border-b min-w-max">
-          {TABS.map((t) => (
+          {TABS.filter((t) => t.id !== 'oekonomi' || canSeeCost).map((t) => (
             <button
               key={t.id}
               onClick={() => setActive(t.id)}
@@ -215,7 +215,7 @@ export function OrderDetailClient({
           {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} />}
           {active === 'mails' && <OrderMailsTab caseId={sag.id} />}
           {active === 'dokumenter' && <OrderDocumentsTab caseId={sag.id} />}
-          {active === 'oekonomi' && (
+          {active === 'oekonomi' && canSeeCost && (
             <OrderEconomyTab
               caseId={sag.id}
               onSwitchTab={(t) => setActive(t)}

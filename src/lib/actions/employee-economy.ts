@@ -13,7 +13,7 @@
  * Ingen UI, ingen migration, ingen DB-skrivning.
  */
 
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import {
@@ -48,8 +48,11 @@ export async function getEmployeeEconomyAction(
       return { success: false, error: 'Ugyldig periode: "fra" er efter "til".' }
     }
 
-    // --- Auth-gate: kun autentificerede brugere må hente økonomidata ---
-    await getAuthenticatedClient()
+    // --- Auth + permission-gate: intern løn-kost kræver economy.cost_prices ---
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('economy.cost_prices')) {
+      return { success: false, error: 'Manglende tilladelse: economy.cost_prices' }
+    }
 
     // --- Delegér til read-only service (RLS gælder) ---
     const data = await getEmployeeEconomy({ from, to, employeeId })

@@ -1,4 +1,14 @@
 // Company settings database type
+
+// Sprint Ø2.11 — kostbasis for timeøkonomi (rate engine)
+export type TimeCostBasis = 'real_hourly_cost' | 'internal_cost_rate' | 'fixed_standard_rate'
+
+export const TIME_COST_BASIS_OPTIONS: Array<{ value: TimeCostBasis; label: string; help: string }> = [
+  { value: 'real_hourly_cost', label: 'Reel timekost (fuldt belastet)', help: 'Løn + pension/ferie/SH/social/overhead. Mest korrekte kost.' },
+  { value: 'internal_cost_rate', label: 'Intern kostpris/time', help: 'Manuelt sat intern kostpris pr. medarbejder.' },
+  { value: 'fixed_standard_rate', label: 'Fast firma-standard', help: 'Samme standardkost for alle medarbejdere.' },
+]
+
 export interface CompanySettings {
   id: string
   // Company info
@@ -34,6 +44,10 @@ export interface CompanySettings {
   reminder_max_count: number
   reminder_email_subject: string | null
 
+  // Sprint Ø2.11 — timeøkonomi-kostbasis
+  time_cost_basis: TimeCostBasis
+  time_cost_rate: number | null
+
   // Timestamps
   created_at: string
   updated_at: string
@@ -67,4 +81,8 @@ export interface UpdateCompanySettingsInput {
   default_offer_validity_days?: number
   default_payment_terms_days?: number
   default_terms_and_conditions?: string | null
+
+  // Sprint Ø2.11 — timeøkonomi-kostbasis
+  time_cost_basis?: TimeCostBasis
+  time_cost_rate?: number | null
 }

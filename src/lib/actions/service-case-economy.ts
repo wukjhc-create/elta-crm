@@ -15,7 +15,7 @@
  * rows so the UI can show a "kommer i Sprint 6" placeholder.
  */
 
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
@@ -129,7 +129,12 @@ export async function getServiceCaseEconomy(
 ): Promise<ActionResult<ServiceCaseEconomy>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase } = await getAuthenticatedClient()
+    // Sprint Ø2.11 — sagøkonomi afslører intern kost/DB → kræver
+    // economy.cost_prices (defense in depth, ikke kun UI-gating).
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('economy.cost_prices')) {
+      return { success: false, error: 'Manglende tilladelse: economy.cost_prices' }
+    }
 
     // 1. Sag header
     const { data: sag, error: sagErr } = await supabase

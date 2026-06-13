@@ -52,15 +52,15 @@ export async function updateCompanySettings(
   input: UpdateCompanySettingsInput
 ): Promise<ActionResult<CompanySettings>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('settings.manage')) {
       return { success: false, error: 'Manglende tilladelse: settings.manage' }
     }
 
-    // Get existing settings ID
+    // Get existing settings ID (+ nuværende kostbasis til audit).
     const { data: existing } = await supabase
       .from('company_settings')
-      .select('id')
+      .select('id, time_cost_basis, time_cost_rate')
       .maybeSingle()
 
     if (!existing) {
@@ -77,6 +77,31 @@ export async function updateCompanySettings(
     if (error) {
       logger.error('Error updating company settings', { error: error })
       return { success: false, error: 'Kunne ikke opdatere virksomhedsindstillinger' }
+    }
+
+    // Sprint Ø2.11 — audit kostbasis-ændring (påvirker kun nye/ændrede timer).
+    const basisChanged =
+      input.time_cost_basis !== undefined && input.time_cost_basis !== existing.time_cost_basis
+    const rateChanged =
+      input.time_cost_rate !== undefined && Number(input.time_cost_rate) !== Number(existing.time_cost_rate)
+    if (basisChanged || rateChanged) {
+      try {
+        await supabase.from('audit_logs').insert({
+          user_id: userId,
+          entity_type: 'company_settings',
+          entity_id: existing.id,
+          entity_name: 'Timeøkonomi',
+          action: 'time_cost_basis_changed',
+          action_description: `Kostbasis ændret: ${existing.time_cost_basis ?? '—'} → ${input.time_cost_basis ?? existing.time_cost_basis}${rateChanged ? ` (standardkost ${existing.time_cost_rate ?? '—'} → ${input.time_cost_rate ?? '—'})` : ''}`,
+          changes: {
+            time_cost_basis: { from: existing.time_cost_basis, to: input.time_cost_basis ?? existing.time_cost_basis },
+            time_cost_rate: { from: existing.time_cost_rate, to: input.time_cost_rate ?? existing.time_cost_rate },
+          },
+          metadata: { note: 'Påvirker kun nye/ændrede time_logs — ikke historiske snapshots.' },
+        })
+      } catch (e) {
+        logger.error('audit time_cost_basis failed', { error: e })
+      }
     }
 
     revalidatePath('/dashboard/settings')
