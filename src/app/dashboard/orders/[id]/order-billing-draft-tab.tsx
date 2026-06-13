@@ -33,6 +33,7 @@ import {
 } from '@/types/case-other-costs.types'
 import { formatCurrency } from '@/lib/utils/format'
 import type { StageInvoiceSummary } from '@/lib/services/invoice-stage'
+import { CaseInvoiceHistory } from '@/components/modules/orders/case-invoice-history'
 
 const VAT_RATE = 0.25
 
@@ -89,6 +90,9 @@ export function OrderBillingDraftTab({ caseId }: { caseId: string }) {
           onCreated={() => setStageReloadKey((k) => k + 1)}
         />
       )}
+
+      {/* Sprint Ø3.3 — cost-free fakturahistorik (oprettet/slettet/krediteret) */}
+      <CaseInvoiceHistory caseId={caseId} />
     </div>
   )
 }

@@ -40,6 +40,7 @@ import {
 } from '@/lib/services/invoice-credit'
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // 6B-3 — listUnbilledForCase
@@ -524,7 +525,7 @@ export async function deleteInvoiceDraftAction(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
   }
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.delete_draft')) {
     return { ok: false, message: 'Manglende tilladelse: invoices.delete_draft' }
   }
@@ -548,10 +549,45 @@ export async function deleteInvoiceDraftAction(
     caseNumber = (caseRow?.case_number as string | null) ?? null
   }
 
+  let summary: Awaited<ReturnType<typeof deleteInvoiceDraft>>
   try {
-    await deleteInvoiceDraft(invoiceId)
+    summary = await deleteInvoiceDraft(invoiceId)
   } catch (err) {
     return { ok: false, message: formatError(err, 'Kunne ikke slette kladden') }
+  }
+
+  // Sprint Ø3.3 — persistent audit i audit_logs (kladde slettet + kilderækker
+  // låst op). Best-effort: en audit-fejl må aldrig vælte sletningen.
+  try {
+    const unlockedTotal =
+      summary.unlocked_time_logs + summary.unlocked_materials + summary.unlocked_other
+    const isCredit = summary.invoice_type === 'credit'
+    await supabase.from('audit_logs').insert({
+      user_id: userId,
+      entity_type: 'invoice',
+      entity_id: invoiceId,
+      entity_name: summary.invoice_number,
+      action: isCredit ? 'credit_draft_deleted' : 'invoice_draft_deleted',
+      action_description: `${isCredit ? 'Kreditnota-kladde' : 'Fakturakladde'} ${summary.invoice_number} slettet — ${unlockedTotal} kilderække(r) låst op (${summary.unlocked_time_logs} timer, ${summary.unlocked_materials} materialer, ${summary.unlocked_other} øvrige)`,
+      changes: {
+        unlocked_time_logs: summary.unlocked_time_logs,
+        unlocked_materials: summary.unlocked_materials,
+        unlocked_other: summary.unlocked_other,
+        line_count: unlockedTotal,
+      },
+      metadata: {
+        case_id: summary.case_id,
+        case_number: caseNumber,
+        invoice_type: summary.invoice_type,
+        final_amount: summary.final_amount,
+        unlocked: true,
+      },
+    })
+  } catch (auditErr) {
+    logger.error('deleteDraftInvoiceAction: audit insert failed', {
+      entityId: invoiceId,
+      error: auditErr,
+    })
   }
 
   revalidatePath('/dashboard/invoices')
@@ -638,20 +674,52 @@ export async function createCreditNoteForInvoiceAction(
     revalidatePath('/dashboard/invoices')
     revalidatePath(`/dashboard/invoices/${input.invoice_id}`)
     revalidatePath(`/dashboard/invoices/${result.credit_invoice_id}`)
-    // Resolve sagens case_number for orders revalidate
+    // Resolve sagens case_id + case_number for orders revalidate + audit
     const { data: orig } = await supabase
       .from('invoices')
-      .select('case_id')
+      .select('case_id, invoice_number')
       .eq('id', input.invoice_id)
       .maybeSingle()
+    let creditCaseNumber: string | null = null
     if (orig?.case_id) {
       const { data: c } = await supabase
         .from('service_cases')
         .select('case_number')
         .eq('id', orig.case_id)
         .maybeSingle()
-      if (c?.case_number) revalidatePath(`/dashboard/orders/${c.case_number}`)
+      creditCaseNumber = (c?.case_number as string | null) ?? null
+      if (creditCaseNumber) revalidatePath(`/dashboard/orders/${creditCaseNumber}`)
       revalidatePath(`/dashboard/orders/${orig.case_id}`)
+    }
+
+    // Sprint Ø3.3 — persistent audit i audit_logs (kreditnota oprettet).
+    // Best-effort: audit-fejl må aldrig vælte krediteringen.
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        entity_type: 'invoice',
+        entity_id: result.credit_invoice_id,
+        entity_name: result.credit_invoice_number,
+        action: 'invoice_credited',
+        action_description: `Kreditnota ${result.credit_invoice_number ?? ''} oprettet for faktura ${(orig?.invoice_number as string | null) ?? input.invoice_id} — ${(result.credited_incl_vat ?? 0).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr (inkl. moms)${result.voided_original ? ' — original markeret som krediteret' : ''}`,
+        changes: {
+          credited_incl_vat: result.credited_incl_vat ?? 0,
+          voided_original: result.voided_original ?? false,
+        },
+        metadata: {
+          case_id: (orig?.case_id as string | null) ?? null,
+          case_number: creditCaseNumber,
+          invoice_type: 'credit',
+          original_invoice_id: input.invoice_id,
+          original_invoice_number: (orig?.invoice_number as string | null) ?? null,
+          final_amount: result.credited_incl_vat ?? 0,
+        },
+      })
+    } catch (auditErr) {
+      logger.error('createCreditNoteForInvoiceAction: audit insert failed', {
+        entityId: result.credit_invoice_id,
+        error: auditErr,
+      })
     }
   }
   return result
@@ -827,4 +895,150 @@ export async function createInvoiceDraftFromCaseAction(
   }
 
   return result
+}
+
+// =====================================================
+// Sprint Ø3.3 — Cost-free fakturahistorik på sagen
+//
+// Læser persistente audit_logs (entity_type='invoice') hvor
+// metadata.case_id matcher sagen, og returnerer en omkostningsfri
+// tidslinje: dato/tid, handling, bruger, fakturanr, antal linjer,
+// beløb (salg inkl. moms — ALDRIG kost), type. Gated på
+// invoices.view.own_cases (IKKE economy.cost_prices).
+// =====================================================
+
+export type CaseInvoiceHistoryAction =
+  | 'invoice_created_from_case'
+  | 'stage_invoice_created_from_case'
+  | 'final_invoice_created_from_case'
+  | 'invoice_draft_deleted'
+  | 'credit_draft_deleted'
+  | 'invoice_credited'
+
+export interface CaseInvoiceHistoryEntry {
+  id: string
+  created_at: string
+  action: string
+  action_label: string
+  action_description: string | null
+  user_name: string
+  invoice_number: string | null
+  invoice_type: string | null
+  line_count: number | null
+  amount_incl_vat: number | null
+  is_unlock: boolean
+  is_credit: boolean
+}
+
+export interface CaseInvoiceHistoryResult {
+  ok: boolean
+  message?: string
+  entries: CaseInvoiceHistoryEntry[]
+}
+
+const CASE_INVOICE_HISTORY_LABELS: Record<string, string> = {
+  invoice_created_from_case: 'Faktura oprettet',
+  stage_invoice_created_from_case: 'Rate-/forskudsfaktura oprettet',
+  final_invoice_created_from_case: 'Slutfaktura oprettet',
+  invoice_draft_deleted: 'Fakturakladde slettet',
+  credit_draft_deleted: 'Kreditnota-kladde slettet',
+  invoice_credited: 'Kreditnota oprettet',
+}
+
+const CASE_INVOICE_HISTORY_ACTIONS = Object.keys(CASE_INVOICE_HISTORY_LABELS)
+
+export async function getCaseInvoiceHistoryAction(
+  caseId: string
+): Promise<CaseInvoiceHistoryResult> {
+  try {
+    validateUUID(caseId, 'case_id')
+  } catch (err) {
+    return {
+      ok: false,
+      entries: [],
+      message: err instanceof Error ? err.message : 'Ugyldigt case_id',
+    }
+  }
+
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.own_cases')) {
+    return { ok: false, entries: [], message: 'Manglende tilladelse: invoices.view.own_cases' }
+  }
+
+  // entity_type='invoice' + metadata @> { case_id } — jsonb containment.
+  const { data: rows, error } = await supabase
+    .from('audit_logs')
+    .select(
+      'id, created_at, action, action_description, entity_name, user_id, user_name, user_email, changes, metadata'
+    )
+    .eq('entity_type', 'invoice')
+    .in('action', CASE_INVOICE_HISTORY_ACTIONS)
+    .contains('metadata', { case_id: caseId })
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    logger.error('getCaseInvoiceHistoryAction: query failed', { entityId: caseId, error })
+    return { ok: false, entries: [], message: 'Kunne ikke hente fakturahistorik' }
+  }
+
+  const list = rows ?? []
+
+  // Berig brugernavne via separat profiles-opslag (profiles har ingen FK
+  // til auth.users — derfor ikke PostgREST-join). Falder tilbage til
+  // audit-rækkens egne user_name/user_email, ellers "Ukendt bruger".
+  const userIds = Array.from(
+    new Set(list.map((r) => r.user_id as string | null).filter(Boolean) as string[])
+  )
+  const profileById = new Map<string, { full_name: string | null; email: string | null }>()
+  if (userIds.length > 0) {
+    const { data: profs } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', userIds)
+    for (const p of profs ?? []) {
+      profileById.set(p.id as string, {
+        full_name: (p.full_name as string | null) ?? null,
+        email: (p.email as string | null) ?? null,
+      })
+    }
+  }
+
+  const entries: CaseInvoiceHistoryEntry[] = list.map((r) => {
+    const changes = (r.changes ?? {}) as Record<string, unknown>
+    const metadata = (r.metadata ?? {}) as Record<string, unknown>
+    const prof = r.user_id ? profileById.get(r.user_id as string) : undefined
+    const userName =
+      prof?.full_name ||
+      prof?.email ||
+      (r.user_name as string | null) ||
+      (r.user_email as string | null) ||
+      'Ukendt bruger'
+
+    const lineCount =
+      typeof changes.line_count === 'number' ? (changes.line_count as number) : null
+    const amount =
+      typeof metadata.final_amount === 'number'
+        ? (metadata.final_amount as number)
+        : typeof metadata.final === 'number'
+          ? (metadata.final as number)
+          : null
+    const action = r.action as string
+
+    return {
+      id: r.id as string,
+      created_at: r.created_at as string,
+      action,
+      action_label: CASE_INVOICE_HISTORY_LABELS[action] ?? action,
+      action_description: (r.action_description as string | null) ?? null,
+      user_name: userName,
+      invoice_number: (r.entity_name as string | null) ?? null,
+      invoice_type: (metadata.invoice_type as string | null) ?? null,
+      line_count: lineCount,
+      amount_incl_vat: amount,
+      is_unlock: metadata.unlocked === true,
+      is_credit: action === 'invoice_credited' || action === 'credit_draft_deleted',
+    }
+  })
+
+  return { ok: true, entries }
 }

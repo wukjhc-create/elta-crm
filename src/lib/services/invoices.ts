@@ -281,12 +281,31 @@ export async function setInvoiceStatus(
  * 3-5 stay NULL — they're orphaned forwards but the invoice still
  * exists with broken provenance. We catch and rethrow with detail.
  */
-export async function deleteInvoiceDraft(invoiceId: string): Promise<void> {
+/**
+ * Sprint Ø3.3 — summary returned to the caller so the action-layer can
+ * write a persistent audit_logs entry (with the authenticated user) for
+ * the delete + the source-row unlock counts. Cost-free: sale total only.
+ */
+export type DeleteInvoiceDraftSummary = {
+  invoice_number: string
+  invoice_type: string | null
+  case_id: string | null
+  final_amount: number
+  unlocked_time_logs: number
+  unlocked_materials: number
+  unlocked_other: number
+}
+
+export async function deleteInvoiceDraft(
+  invoiceId: string
+): Promise<DeleteInvoiceDraftSummary> {
   const supabase = createAdminClient()
 
   const { data: inv, error: readErr } = await supabase
     .from('invoices')
-    .select('id, status, invoice_number, invoice_type, credit_of_invoice_id')
+    .select(
+      'id, status, invoice_number, invoice_type, credit_of_invoice_id, case_id, final_amount'
+    )
     .eq('id', invoiceId)
     .maybeSingle()
   if (readErr || !inv) {
@@ -311,20 +330,32 @@ export async function deleteInvoiceDraft(invoiceId: string): Promise<void> {
     .eq('invoice_id', invoiceId)
   const lineIds = (lines ?? []).map((l) => l.id as string)
 
+  // Sprint Ø3.3 — count released source-rows per kind for the audit trail.
+  let unlockedTimeLogs = 0
+  let unlockedMaterials = 0
+  let unlockedOther = 0
+
   if (lineIds.length > 0) {
-    // Release forward-link locks on every source kind
-    await supabase
+    // Release forward-link locks on every source kind. `.select('id')`
+    // returns the affected rows so we can record how many were unlocked.
+    const { data: relTime } = await supabase
       .from('time_logs')
       .update({ invoice_line_id: null })
       .in('invoice_line_id', lineIds)
-    await supabase
+      .select('id')
+    unlockedTimeLogs = (relTime ?? []).length
+    const { data: relMat } = await supabase
       .from('case_materials')
       .update({ invoice_line_id: null })
       .in('invoice_line_id', lineIds)
-    await supabase
+      .select('id')
+    unlockedMaterials = (relMat ?? []).length
+    const { data: relOther } = await supabase
       .from('case_other_costs')
       .update({ invoice_line_id: null })
       .in('invoice_line_id', lineIds)
+      .select('id')
+    unlockedOther = (relOther ?? []).length
 
     const { error: lineDelErr } = await supabase
       .from('invoice_lines')
@@ -367,6 +398,16 @@ export async function deleteInvoiceDraft(invoiceId: string): Promise<void> {
   // it.
   if (creditOriginalId) {
     await recomputeOriginalVoidStatus(creditOriginalId, null)
+  }
+
+  return {
+    invoice_number: inv.invoice_number as string,
+    invoice_type: (inv.invoice_type as string | null) ?? null,
+    case_id: (inv.case_id as string | null) ?? null,
+    final_amount: Number(inv.final_amount ?? 0),
+    unlocked_time_logs: unlockedTimeLogs,
+    unlocked_materials: unlockedMaterials,
+    unlocked_other: unlockedOther,
   }
 }
 
