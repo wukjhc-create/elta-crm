@@ -268,14 +268,14 @@ export async function updateCaseOtherCost(
 ): Promise<ActionResult<CaseOtherCostRow>> {
   try {
     validateUUID(id, 'id')
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('other_costs.edit')) {
       return { success: false, error: 'Manglende tilladelse: other_costs.edit' }
     }
 
     const { data: cur, error: readErr } = await supabase
       .from('case_other_costs')
-      .select('id, case_id, invoice_line_id')
+      .select('id, case_id, invoice_line_id, description, quantity, unit_cost, unit_sales_price')
       .eq('id', id)
       .maybeSingle()
     if (readErr || !cur) {
@@ -353,6 +353,32 @@ export async function updateCaseOtherCost(
     if (error || !data) {
       logger.error('updateCaseOtherCost failed', { error, entityId: id })
       return { success: false, error: 'Kunne ikke opdatere omkostning' }
+    }
+
+    // Sprint Ø2.13 — audit pris-/antal-ændringer på øvrig-omkostning-snapshot.
+    const econChanged =
+      (update.quantity !== undefined && Number(update.quantity) !== Number(cur.quantity)) ||
+      (update.unit_cost !== undefined && Number(update.unit_cost) !== Number(cur.unit_cost)) ||
+      (update.unit_sales_price !== undefined && Number(update.unit_sales_price) !== Number(cur.unit_sales_price))
+    if (econChanged) {
+      try {
+        await supabase.from('audit_logs').insert({
+          user_id: userId,
+          entity_type: 'case_other_cost',
+          entity_id: id,
+          entity_name: cur.description as string,
+          action: 'other_cost_snapshot_changed',
+          action_description: `Øvrig omkostning ændret: "${cur.description}"`,
+          changes: {
+            quantity: { from: cur.quantity, to: update.quantity ?? cur.quantity },
+            unit_cost: { from: cur.unit_cost, to: update.unit_cost ?? cur.unit_cost },
+            unit_sales_price: { from: cur.unit_sales_price, to: update.unit_sales_price ?? cur.unit_sales_price },
+          },
+          metadata: { case_id: cur.case_id },
+        })
+      } catch (e) {
+        logger.error('audit other_cost_snapshot_changed failed', { error: e })
+      }
     }
 
     revalidatePath(`/dashboard/orders/${cur.case_id}`)

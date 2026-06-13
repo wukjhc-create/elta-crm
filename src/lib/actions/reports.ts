@@ -8,7 +8,7 @@
  */
 
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import {
   REJECTION_REASON_LABELS,
   type RejectionReasonCode,
@@ -118,7 +118,10 @@ export interface ReportsSummary {
 
 export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('economy.view')) {
+      return { success: false, error: 'Manglende tilladelse: economy.view' }
+    }
 
     const monthStart = new Date()
     monthStart.setDate(1)
@@ -219,7 +222,10 @@ export async function getRevenueByPeriod(
   months: number = 6,
 ): Promise<ActionResult<RevenueByPeriod[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('economy.view')) {
+      return { success: false, error: 'Manglende tilladelse: economy.view' }
+    }
 
     const now = new Date()
     const rangeStart = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
@@ -298,7 +304,10 @@ export async function getRevenueByCustomer(
   limit: number = 10,
 ): Promise<ActionResult<RevenueByCustomer[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('economy.view')) {
+      return { success: false, error: 'Manglende tilladelse: economy.view' }
+    }
 
     const { data: offers } = await supabase
       .from('offers')
@@ -357,7 +366,10 @@ export async function getRevenueByCustomer(
 
 export async function getProjectProfitability(): Promise<ActionResult<ProjectProfitability[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('economy.view')) {
+      return { success: false, error: 'Manglende tilladelse: economy.view' }
+    }
 
     const { data: projects } = await supabase
       .from('projects')
@@ -418,7 +430,10 @@ export async function getTeamProductivity(
   months: number = 1,
 ): Promise<ActionResult<TeamProductivity[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('economy.view')) {
+      return { success: false, error: 'Manglende tilladelse: economy.view' }
+    }
 
     const since = new Date()
     since.setMonth(since.getMonth() - months)
@@ -498,7 +513,10 @@ const UNKNOWN_LABEL = 'Ikke angivet'
  */
 export async function getRejectionStats(): Promise<ActionResult<RejectionStats>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // Sprint Ø2.13: bevidst IKKE economy.view-gated — bruges af alle på
+    // hoved-dashboardet (afvisningsrate/tabt-omsætning-KPI), degraderer
+    // gracefully. Afslører ikke intern kost/DB.
+    const { supabase } = await getAuthenticatedClientWithRole()
 
     const now = Date.now()
     const scopeStart = new Date(now - REJECTION_SCOPE_DAYS * 86_400_000)
@@ -599,7 +617,8 @@ export async function getRecentRejections(
   limit: number = 5,
 ): Promise<ActionResult<RecentRejection[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // Sprint Ø2.13: bevidst IKKE gated — dashboard-delt (se getRejectionStats).
+    const { supabase } = await getAuthenticatedClientWithRole()
 
     const { data: offers, error } = await supabase
       .from('offers')
