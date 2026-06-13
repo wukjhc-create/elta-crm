@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { Suspense } from 'react'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
 import { listInvoicesOverviewAction } from '@/lib/actions/invoices'
@@ -31,5 +32,9 @@ export default async function InvoicesPage() {
     )
   }
 
-  return <InvoicesOverviewClient rows={res.rows} canSend={canSend} />
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-gray-500">Henter fakturaoverblik…</div>}>
+      <InvoicesOverviewClient rows={res.rows} canSend={canSend} />
+    </Suspense>
+  )
 }

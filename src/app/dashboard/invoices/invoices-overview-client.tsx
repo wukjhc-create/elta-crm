@@ -12,7 +12,8 @@
  */
 
 import Link from 'next/link'
-import { useMemo, useState, useTransition } from 'react'
+import { useCallback, useMemo, useState, useTransition } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertTriangle, BadgeCheck, Ban, Bell, Eye, FileDown, FileText, Loader2,
   Receipt, Search, Send,
@@ -22,17 +23,13 @@ import {
   type InvoiceOverviewRow,
 } from '@/lib/actions/invoices'
 import { formatCurrency } from '@/lib/utils/format'
-
-type FilterKey = 'all' | 'draft' | 'sent' | 'overdue' | 'paid' | 'credited'
-
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
-  { key: 'all', label: 'Alle' },
-  { key: 'draft', label: 'Kladder' },
-  { key: 'sent', label: 'Sendte' },
-  { key: 'overdue', label: 'Forfaldne' },
-  { key: 'paid', label: 'Betalte' },
-  { key: 'credited', label: 'Krediterede / annullerede' },
-]
+import {
+  FILTERS,
+  FILTER_TO_URL,
+  EMPTY_TEXT,
+  parseFilter,
+  type FilterKey,
+} from './invoice-filter-url'
 
 const TYPE_PILL: Record<string, { label: string; cls: string }> = {
   deposit: { label: 'Forskud', cls: 'bg-blue-100 text-blue-800' },
@@ -85,9 +82,29 @@ export function InvoicesOverviewClient({
   rows: InvoiceOverviewRow[]
   canSend: boolean
 }) {
-  const [filter, setFilter] = useState<FilterKey>('all')
-  const [search, setSearch] = useState('')
-  const [onlyOutstanding, setOnlyOutstanding] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  // Sprint Ø4.1 — filter + outstanding er URL-drevet (deep-link + back/forward
+  // virker, fordi de udledes direkte af search params ved hver render).
+  const filter = parseFilter(searchParams.get('filter'))
+  const onlyOutstanding = searchParams.get('outstanding') === '1'
+  const [search, setSearch] = useState(searchParams.get('q') ?? '')
+
+  const updateParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString())
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null || v === '') params.delete(k)
+        else params.set(k, v)
+      }
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [router, pathname, searchParams]
+  )
+
   const [pending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null)
@@ -205,7 +222,7 @@ export function InvoicesOverviewClient({
             <button
               key={f.key}
               type="button"
-              onClick={() => setFilter(f.key)}
+              onClick={() => updateParams({ filter: f.key === 'all' ? null : FILTER_TO_URL[f.key] })}
               className={`px-3 py-1.5 text-xs rounded-lg ring-1 transition ${
                 filter === f.key
                   ? 'bg-emerald-600 text-white ring-emerald-600'
@@ -224,7 +241,7 @@ export function InvoicesOverviewClient({
             <input
               type="checkbox"
               checked={onlyOutstanding}
-              onChange={(e) => setOnlyOutstanding(e.target.checked)}
+              onChange={(e) => updateParams({ outstanding: e.target.checked ? '1' : null })}
             />
             Kun udestående
           </label>
@@ -233,7 +250,10 @@ export function InvoicesOverviewClient({
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                updateParams({ q: e.target.value || null })
+              }}
               placeholder="Søg fakturanr / kunde / sag"
               className="pl-7 pr-2 py-1.5 text-xs border rounded-lg w-56"
             />
@@ -260,7 +280,13 @@ export function InvoicesOverviewClient({
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-3 py-8 text-center text-gray-400 text-xs">
-                    Ingen fakturaer matcher filteret.
+                    {search.trim()
+                      ? `Ingen fakturaer matcher søgningen "${search.trim()}".`
+                      : onlyOutstanding && filter === 'sent'
+                        ? 'Der er ingen sendte udestående fakturaer lige nu.'
+                        : onlyOutstanding
+                          ? 'Der er ingen udestående fakturaer lige nu.'
+                          : EMPTY_TEXT[filter]}
                   </td>
                 </tr>
               ) : (

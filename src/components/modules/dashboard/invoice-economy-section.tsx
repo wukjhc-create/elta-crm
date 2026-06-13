@@ -136,20 +136,21 @@ export function InvoiceEconomySection() {
             <span><strong>Dagens fokus:</strong> {focusText(data)}</span>
           </div>
 
-          {/* Nøgletal */}
+          {/* Nøgletal — klikbare deep-links til fakturaoverblik */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <EconCard label="Udestående i alt" value={kr(data.outstanding_total)} tone="amber" icon={<Receipt className="w-4 h-4" />} />
+            <EconCard label="Udestående i alt" value={kr(data.outstanding_total)} tone="amber" icon={<Receipt className="w-4 h-4" />} href="/dashboard/invoices?filter=sent&outstanding=1" />
             <EconCard
               label="Forfaldne"
               value={`${data.overdue_count} · ${kr(data.overdue_total)}`}
               tone="rose"
               icon={<AlertTriangle className="w-4 h-4" />}
+              href="/dashboard/invoices?filter=overdue"
             />
-            <EconCard label="Fakturakladder" value={String(data.draft_count)} tone="gray" icon={<FileText className="w-4 h-4" />} />
-            <EconCard label="Betalt denne måned" value={kr(data.paid_this_month)} tone="emerald" icon={<BadgeCheck className="w-4 h-4" />} />
+            <EconCard label="Fakturakladder" value={String(data.draft_count)} tone="gray" icon={<FileText className="w-4 h-4" />} href="/dashboard/invoices?filter=draft" />
+            <EconCard label="Betalt denne måned" value={kr(data.paid_this_month)} tone="emerald" icon={<BadgeCheck className="w-4 h-4" />} href="/dashboard/invoices?filter=paid" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 -mt-1">
-            <EconCard label="Sendt — ikke betalt" value={kr(data.sent_unpaid_total)} tone="blue" icon={<Send className="w-4 h-4" />} />
+            <EconCard label="Sendt — ikke betalt" value={kr(data.sent_unpaid_total)} tone="blue" icon={<Send className="w-4 h-4" />} href="/dashboard/invoices?filter=sent&outstanding=1" />
             <EconCard label="Påmindelser (30 dage)" value={String(data.reminders_30d)} tone="amber" icon={<Bell className="w-4 h-4" />} />
           </div>
 
@@ -161,7 +162,7 @@ export function InvoiceEconomySection() {
                   <AlertTriangle className="w-4 h-4 text-rose-500" /> Forfaldne fakturaer
                 </h3>
                 {data.overdue_count > 0 && (
-                  <Link href="/dashboard/invoices" className="text-[11px] text-gray-500 hover:text-gray-700">
+                  <Link href="/dashboard/invoices?filter=overdue" className="text-[11px] text-gray-500 hover:text-gray-700">
                     Se alle →
                   </Link>
                 )}
@@ -251,11 +252,13 @@ function EconCard({
   value,
   tone,
   icon,
+  href,
 }: {
   label: string
   value: string
   tone: 'gray' | 'blue' | 'rose' | 'emerald' | 'amber'
   icon: React.ReactNode
+  href?: string
 }) {
   const toneCls = {
     gray: 'ring-gray-200 text-gray-700',
@@ -264,13 +267,21 @@ function EconCard({
     emerald: 'ring-emerald-200 text-emerald-700',
     amber: 'ring-amber-200 text-amber-700',
   }[tone]
-  return (
-    <div className={`rounded-lg ring-1 bg-white px-3 py-2.5 ${toneCls}`}>
+  const inner = (
+    <>
       <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
         {icon}
         {label}
       </div>
       <div className="mt-1 text-lg font-bold tabular-nums text-gray-900">{value}</div>
-    </div>
+    </>
   )
+  if (href) {
+    return (
+      <Link href={href} className={`block rounded-lg ring-1 bg-white px-3 py-2.5 transition hover:bg-gray-50 ${toneCls}`}>
+        {inner}
+      </Link>
+    )
+  }
+  return <div className={`rounded-lg ring-1 bg-white px-3 py-2.5 ${toneCls}`}>{inner}</div>
 }
