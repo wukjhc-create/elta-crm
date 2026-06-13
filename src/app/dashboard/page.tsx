@@ -37,7 +37,9 @@ import {
   PriceAlertsWidget,
   MonthlyOfferChart,
   EmailIntelligenceCard,
+  InvoiceEconomySection,
 } from '@/components/modules/dashboard'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
 import { OperationalOverview } from '@/components/dashboard/operational-overview'
 import { StyringsCockpit } from '@/components/dashboard/styrings-cockpit'
@@ -92,6 +94,9 @@ export default async function DashboardPage() {
     ? recentRejectionsResult.data
     : []
 
+  // Sprint Ø4.0 — cost-free fakturaøkonomi kun for invoices.view.all.
+  const canViewInvoices = await pageHasPermission('invoices.view.all')
+
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
@@ -106,6 +111,9 @@ export default async function DashboardPage() {
 
       {/* Sprint 9A — Styringscockpit (kraever handling) */}
       <StyringsCockpit overview={overview} />
+
+      {/* Sprint Ø4.0 — Driftsdashboard: cost-free fakturaøkonomi (få pengene hjem) */}
+      {canViewInvoices && <InvoiceEconomySection />}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />
