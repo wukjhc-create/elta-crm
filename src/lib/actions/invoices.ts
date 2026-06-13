@@ -20,6 +20,7 @@ import {
   markInvoicePaid as markInvoicePaidService,
   markInvoiceSent as markInvoiceSentService,
   sendInvoiceEmail as sendInvoiceEmailService,
+  sendInvoiceReminder as sendInvoiceReminderService,
 } from '@/lib/services/invoices'
 import {
   createFinalInvoiceForCase,
@@ -993,6 +994,7 @@ export type CaseInvoiceHistoryAction =
   | 'final_invoice_created_from_case'
   | 'invoice_marked_sent'
   | 'invoice_sent'
+  | 'invoice_reminder_sent'
   | 'invoice_marked_paid'
   | 'invoice_draft_deleted'
   | 'credit_draft_deleted'
@@ -1013,6 +1015,7 @@ export interface CaseInvoiceHistoryEntry {
   is_credit: boolean
   is_sent: boolean
   is_paid: boolean
+  is_reminder: boolean
 }
 
 export interface CaseInvoiceHistoryResult {
@@ -1027,6 +1030,7 @@ const CASE_INVOICE_HISTORY_LABELS: Record<string, string> = {
   final_invoice_created_from_case: 'Slutfaktura oprettet',
   invoice_marked_sent: 'Faktura markeret som sendt',
   invoice_sent: 'Faktura sendt til kunde',
+  invoice_reminder_sent: 'Betalingspåmindelse sendt',
   invoice_marked_paid: 'Faktura markeret som betalt',
   invoice_draft_deleted: 'Fakturakladde slettet',
   credit_draft_deleted: 'Kreditnota-kladde slettet',
@@ -1127,6 +1131,7 @@ export async function getCaseInvoiceHistoryAction(
       is_credit: action === 'invoice_credited' || action === 'credit_draft_deleted',
       is_sent: action === 'invoice_sent' || action === 'invoice_marked_sent',
       is_paid: action === 'invoice_marked_paid',
+      is_reminder: action === 'invoice_reminder_sent',
     }
   })
 
@@ -1235,4 +1240,213 @@ export async function listCaseInvoicesAction(
   }))
 
   return { ok: true, items }
+}
+
+// =====================================================
+// Sprint Ø3.6 — Manuel betalingspåmindelse (rykker)
+//
+// Wrapper om den eksisterende sendInvoiceReminder-motor (med vagter:
+// status='sent', ≥3 dage forfald, 5-dages cooldown, skip kredit/voided).
+// Auditerer 'invoice_reminder_sent' i sagens historik ved succes.
+// Gated på invoices.send. Cron-flowet er uændret — dette er den manuelle
+// "Send påmindelse"-knap til kontoret.
+// =====================================================
+
+export async function sendInvoiceReminderAction(
+  invoiceId: string
+): Promise<InvoiceActionOutcome> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.send')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.send' }
+  }
+
+  let result: Awaited<ReturnType<typeof sendInvoiceReminderService>>
+  try {
+    result = await sendInvoiceReminderService(invoiceId)
+  } catch (err) {
+    return { ok: false, message: formatError(err, 'Kunne ikke sende betalingspåmindelse') }
+  }
+
+  revalidatePath('/dashboard/invoices')
+  revalidatePath(`/dashboard/invoices/${invoiceId}`)
+
+  if (result.status === 'sent') {
+    await auditInvoiceLifecycle(supabase, {
+      userId,
+      invoiceId,
+      action: 'invoice_reminder_sent',
+      verb: 'betalingspåmindelse sendt',
+      suffix: result.level ? `niveau ${result.level}` : null,
+      changes: { reminder_level: result.level },
+    })
+    return { ok: true, message: 'Betalingspåmindelse sendt til kunden' }
+  }
+  if (result.status === 'manual_review') {
+    return {
+      ok: false,
+      message: 'Fakturaen er langt over forfald og kræver manuel opfølgning (niveau 3) — ingen automatisk mail sendt.',
+    }
+  }
+  if (result.status === 'skipped') {
+    return { ok: false, message: `Påmindelse ikke sendt: ${reminderSkipReason(result.reason)}` }
+  }
+  return { ok: false, message: `Påmindelse fejlede: ${result.error ?? 'ukendt fejl'}` }
+}
+
+/** Oversæt rå reminder-skip-grunde til menneskeligt dansk. */
+function reminderSkipReason(reason?: string): string {
+  if (!reason) return 'fakturaen opfylder ikke betingelserne for rykker'
+  if (reason.includes('no due_date')) return 'fakturaen har ingen forfaldsdato'
+  if (reason.startsWith('status=')) return 'fakturaen er ikke i status "sendt"'
+  if (reason === 'voided') return 'fakturaen er annulleret'
+  if (reason === 'credit_note') return 'kreditnotaer modtager ikke rykkere'
+  if (reason.startsWith('cooldown')) return 'der er sendt en påmindelse for nyligt — vent et par dage'
+  if (reason.startsWith('not yet due')) return 'fakturaen er endnu ikke nok over forfald (kræver ≥3 dage)'
+  if (reason.includes('no customer')) return 'fakturaen mangler en kunde med email'
+  return reason
+}
+
+// =====================================================
+// Sprint Ø3.6 — Cost-free fakturaoverblik på tværs af sager
+//
+// Samlet liste med kunde, sag, status, beløb, forfald + dage-over-forfald.
+// KUN salgs/faktura-data — ingen kost/margin/DB. Gated invoices.view.all.
+// =====================================================
+
+export interface InvoiceOverviewRow {
+  id: string
+  invoice_number: string | null
+  invoice_type: string | null
+  status: string
+  payment_status: string | null
+  final_amount: number
+  currency: string | null
+  created_at: string
+  sent_at: string | null
+  paid_at: string | null
+  due_date: string | null
+  voided_at: string | null
+  reminder_count: number
+  last_reminder_at: string | null
+  is_credit_note: boolean
+  is_overdue: boolean
+  days_overdue: number | null
+  customer_id: string | null
+  customer_name: string | null
+  customer_email: string | null
+  case_id: string | null
+  case_number: string | null
+}
+
+export interface InvoiceOverviewResult {
+  ok: boolean
+  message?: string
+  rows: InvoiceOverviewRow[]
+}
+
+export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResult> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.all')) {
+    return { ok: false, rows: [], message: 'Manglende tilladelse: invoices.view.all' }
+  }
+
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(
+      'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, reminder_count, last_reminder_at, customer_id, case_id'
+    )
+    .order('created_at', { ascending: false })
+    .limit(500)
+
+  if (error) {
+    logger.error('listInvoicesOverviewAction: query failed', { error })
+    return { ok: false, rows: [], message: 'Kunne ikke hente fakturaer' }
+  }
+
+  const list = data ?? []
+
+  // Berig kunde + sag via batch-opslag (cost-free).
+  const customerIds = Array.from(
+    new Set(list.map((r) => r.customer_id as string | null).filter(Boolean) as string[])
+  )
+  const caseIds = Array.from(
+    new Set(list.map((r) => r.case_id as string | null).filter(Boolean) as string[])
+  )
+  const custById = new Map<string, { name: string | null; email: string | null }>()
+  const caseById = new Map<string, string | null>()
+  await Promise.all([
+    customerIds.length === 0
+      ? Promise.resolve()
+      : supabase
+          .from('customers')
+          .select('id, company_name, contact_person, email')
+          .in('id', customerIds)
+          .then(({ data: cs }) => {
+            for (const c of cs ?? [])
+              custById.set(c.id as string, {
+                name: (c.company_name as string | null) || (c.contact_person as string | null) || null,
+                email: (c.email as string | null) ?? null,
+              })
+          }),
+    caseIds.length === 0
+      ? Promise.resolve()
+      : supabase
+          .from('service_cases')
+          .select('id, case_number')
+          .in('id', caseIds)
+          .then(({ data: cs }) => {
+            for (const c of cs ?? []) caseById.set(c.id as string, (c.case_number as string | null) ?? null)
+          }),
+  ])
+
+  // Forfald beregnes server-side: status='sent', ikke betalt, ikke annulleret,
+  // ikke kreditnota, due_date < i dag.
+  const todayMs = Date.now()
+  const DAY = 1000 * 60 * 60 * 24
+
+  const rows: InvoiceOverviewRow[] = list.map((r) => {
+    const cust = r.customer_id ? custById.get(r.customer_id as string) : undefined
+    const isCredit = r.invoice_type === 'credit'
+    const dueIso = r.due_date as string | null
+    let isOverdue = false
+    let daysOverdue: number | null = null
+    if (dueIso && r.status === 'sent' && !r.voided_at && !isCredit) {
+      const diff = Math.floor((todayMs - new Date(dueIso + 'T00:00:00').getTime()) / DAY)
+      if (diff > 0) {
+        isOverdue = true
+        daysOverdue = diff
+      }
+    }
+    return {
+      id: r.id as string,
+      invoice_number: (r.invoice_number as string | null) ?? null,
+      invoice_type: (r.invoice_type as string | null) ?? null,
+      status: (r.status as string) ?? 'draft',
+      payment_status: (r.payment_status as string | null) ?? null,
+      final_amount: Number(r.final_amount ?? 0),
+      currency: (r.currency as string | null) ?? 'DKK',
+      created_at: r.created_at as string,
+      sent_at: (r.sent_at as string | null) ?? null,
+      paid_at: (r.paid_at as string | null) ?? null,
+      due_date: dueIso,
+      voided_at: (r.voided_at as string | null) ?? null,
+      reminder_count: Number(r.reminder_count ?? 0),
+      last_reminder_at: (r.last_reminder_at as string | null) ?? null,
+      is_credit_note: isCredit,
+      is_overdue: isOverdue,
+      days_overdue: daysOverdue,
+      customer_id: (r.customer_id as string | null) ?? null,
+      customer_name: cust?.name ?? null,
+      customer_email: cust?.email ?? null,
+      case_id: (r.case_id as string | null) ?? null,
+      case_number: r.case_id ? caseById.get(r.case_id as string) ?? null : null,
+    }
+  })
+
+  return { ok: true, rows }
 }

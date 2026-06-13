@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   FilePlus2, Trash2, Undo2, History, Loader2, AlertCircle, RefreshCw,
-  Send, BadgeCheck,
+  Send, BadgeCheck, Bell,
 } from 'lucide-react'
 import {
   getCaseInvoiceHistoryAction,
@@ -43,6 +43,14 @@ function actionVisual(e: CaseInvoiceHistoryEntry): {
       ring: 'ring-emerald-200',
       bg: 'bg-emerald-50',
       text: 'text-emerald-700',
+    }
+  }
+  if (e.is_reminder) {
+    return {
+      icon: <Bell className="w-4 h-4" />,
+      ring: 'ring-amber-200',
+      bg: 'bg-amber-50',
+      text: 'text-amber-700',
     }
   }
   if (e.is_sent) {
