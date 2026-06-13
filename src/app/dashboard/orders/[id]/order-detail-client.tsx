@@ -63,11 +63,14 @@ export function OrderDetailClient({
   formand,
   creator,
   plannedWorkOrderCount = 0,
+  canSeeCost = false,
 }: {
   sag: ServiceCaseWithRelations
   formand: { id: string; name: string } | null
   creator: { id: string; full_name: string | null } | null
   plannedWorkOrderCount?: number
+  /** Sprint Ø2.10 — economy.cost_prices: gate til intern kost / DB. */
+  canSeeCost?: boolean
 }) {
   const [active, setActive] = useState<TabId>('overblik')
 
@@ -205,6 +208,7 @@ export function OrderDetailClient({
               caseId={sag.id}
               caseTitle={sag.title}
               caseDefaultEmployeeId={sag.formand_id ?? null}
+              canSeeCost={canSeeCost}
             />
           )}
           {active === 'materialer' && <OrderMaterialsTab caseId={sag.id} />}

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getServiceCase } from '@/lib/actions/service-cases'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 import { OrderDetailClient } from './order-detail-client'
 
 export const metadata: Metadata = {
@@ -89,12 +90,15 @@ export default async function OrderDetailPage({
     /* enrichment is best-effort */
   }
 
+  const canSeeCost = await pageHasPermission('economy.cost_prices')
+
   return (
     <OrderDetailClient
       sag={sag}
       formand={formand}
       creator={creator}
       plannedWorkOrderCount={plannedCount}
+      canSeeCost={canSeeCost}
     />
   )
 }

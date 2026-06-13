@@ -42,10 +42,13 @@ export function OrderPlanningTab({
   caseId,
   caseTitle,
   caseDefaultEmployeeId,
+  canSeeCost = false,
 }: {
   caseId: string
   caseTitle: string
   caseDefaultEmployeeId?: string | null
+  /** Sprint Ø2.10 — gate til intern kost / DB (economy.cost_prices). */
+  canSeeCost?: boolean
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -301,7 +304,7 @@ export function OrderPlanningTab({
               <span>
                 {caseTotals.hours.toLocaleString('da-DK', { maximumFractionDigits: 2 })} t
               </span>
-              {caseTotals.cost > 0 && (
+              {canSeeCost && caseTotals.cost > 0 && (
                 <>
                   <span className="text-gray-400">·</span>
                   <span>
@@ -331,7 +334,7 @@ export function OrderPlanningTab({
                   </span>
                 </>
               )}
-              {caseTotals.sale > 0 && caseTotals.cost > 0 && (
+              {canSeeCost && caseTotals.sale > 0 && caseTotals.cost > 0 && (
                 <>
                   <span className="text-gray-400">·</span>
                   <span>
@@ -360,6 +363,7 @@ export function OrderPlanningTab({
               <WorkOrderRow
                 key={wo.id}
                 wo={wo}
+                canSeeCost={canSeeCost}
                 onChangeStatus={onChangeStatus}
                 onDelete={onDelete}
                 disabled={isWorking}
@@ -401,12 +405,14 @@ function WorkOrderRow({
   onDelete,
   disabled,
   onLogsChange,
+  canSeeCost = false,
 }: {
   wo: WorkOrderWithEmployee
   onChangeStatus: (woId: string, next: WorkOrderStatus) => void
   onDelete: (woId: string) => void
   disabled?: boolean
   onLogsChange?: () => void
+  canSeeCost?: boolean
 }) {
   const transitions = NEXT_TRANSITIONS[wo.status]
 
@@ -493,6 +499,7 @@ function WorkOrderRow({
           workOrderId={wo.id}
           defaultEmployeeId={wo.assigned_employee_id ?? null}
           onChange={onLogsChange}
+          canSeeCost={canSeeCost}
         />
       )}
     </li>

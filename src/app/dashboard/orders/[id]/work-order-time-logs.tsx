@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import {
   listTimeLogsForWorkOrder,
   createTimeLog,
+  updateTimeLog,
   type TimeLogWithEmployee,
 } from '@/lib/actions/time-logs'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
@@ -61,11 +62,14 @@ export function WorkOrderTimeLogs({
   workOrderId,
   defaultEmployeeId,
   onChange,
+  canSeeCost = false,
 }: {
   workOrderId: string
   defaultEmployeeId?: string | null
   /** Called after a successful create so parent can refresh totals */
   onChange?: () => void
+  /** Sprint Ø2.10 — economy.cost_prices: gate til intern kost + DB. */
+  canSeeCost?: boolean
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -154,6 +158,22 @@ export function WorkOrderTimeLogs({
     startTransition(() => router.refresh())
   }
 
+  // Sprint Ø2.10 — skift satstype på eksisterende time_log. employee_rate_id
+  // nulstilles så rate-engine-triggeren genopslår korrekt sats via kode-mapping.
+  const onChangeRateType = async (logId: string, value: PayRateType) => {
+    setError(null)
+    setIsWorking(true)
+    const res = await updateTimeLog(logId, { pay_rate_type: value, employee_rate_id: null })
+    setIsWorking(false)
+    if (!res.success) {
+      setError(res.error || 'Kunne ikke ændre satstype')
+      return
+    }
+    await reload()
+    onChange?.()
+    startTransition(() => router.refresh())
+  }
+
   if (logs === null) {
     return <div className="text-xs text-gray-500 py-2">Henter timer…</div>
   }
@@ -200,9 +220,9 @@ export function WorkOrderTimeLogs({
           {logs.length > 0 && (
             <span className="ml-2 text-gray-500 font-normal">
               · {fmtHours(totalHours)}
-              {totalCost > 0 && ` · kost ${fmtAmount(totalCost)}`}
+              {canSeeCost && totalCost > 0 && ` · kost ${fmtAmount(totalCost)}`}
               {totalSale > 0 && ` · salg ${fmtAmount(totalSale)}`}
-              {totalSale > 0 && totalCost > 0 && (
+              {canSeeCost && totalSale > 0 && totalCost > 0 && (
                 <>
                   {' · '}
                   <span className={totalDB >= 0 ? 'text-emerald-700' : 'text-red-700'}>
@@ -379,9 +399,9 @@ export function WorkOrderTimeLogs({
                 <th className="py-1 pr-2">Periode</th>
                 <th className="py-1 pr-2 text-right">Timer</th>
                 <th className="py-1 pr-2">Sats</th>
-                <th className="py-1 pr-2 text-right">Intern kost</th>
+                {canSeeCost && <th className="py-1 pr-2 text-right">Intern kost</th>}
                 <th className="py-1 pr-2 text-right">Salgspris</th>
-                <th className="py-1 pr-2 text-right">DB</th>
+                {canSeeCost && <th className="py-1 pr-2 text-right">DB</th>}
                 <th className="py-1 pr-2">Beskrivelse</th>
                 <th className="py-1 pr-2">Fak.</th>
               </tr>
@@ -405,21 +425,37 @@ export function WorkOrderTimeLogs({
                     </td>
                     <td className="py-1 pr-2 text-right tabular-nums">{fmtHours(l.hours)}</td>
                     <td className="py-1 pr-2 whitespace-nowrap">
-                      {l.pay_rate_type && l.pay_rate_type !== 'normal' ? (
-                        <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-medium">
-                          {PAY_RATE_TYPE_LABEL.get(l.pay_rate_type) ?? l.pay_rate_type}
+                      {l.invoice_line_id ? (
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-medium"
+                          title="Fakturalåst — kan ikke ændres"
+                        >
+                          {PAY_RATE_TYPE_LABEL.get(l.pay_rate_type) ?? 'Normal'} 🔒
                         </span>
                       ) : (
-                        <span className="text-gray-400 text-[10px]">Normal</span>
+                        <select
+                          value={l.pay_rate_type ?? 'normal'}
+                          onChange={(e) => onChangeRateType(l.id, e.target.value as PayRateType)}
+                          disabled={isWorking}
+                          className={`text-[11px] border rounded px-1 py-0.5 bg-white ${
+                            l.pay_rate_type !== 'normal' ? 'text-amber-800 bg-amber-50' : 'text-gray-600'
+                          }`}
+                        >
+                          {PAY_RATE_TYPE_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
                       )}
                     </td>
-                    <td className="py-1 pr-2 text-right tabular-nums">
-                      {l.cost_amount == null && l.hours != null ? (
-                        <span className="text-amber-600" title="Medarbejder mangler kostpris">—</span>
-                      ) : (
-                        fmtAmount(l.cost_amount)
-                      )}
-                    </td>
+                    {canSeeCost && (
+                      <td className="py-1 pr-2 text-right tabular-nums">
+                        {l.cost_amount == null && l.hours != null ? (
+                          <span className="text-amber-600" title="Medarbejder mangler kostpris">—</span>
+                        ) : (
+                          fmtAmount(l.cost_amount)
+                        )}
+                      </td>
+                    )}
                     <td className="py-1 pr-2 text-right tabular-nums">
                       {sale == null && l.hours != null ? (
                         <span className="text-amber-600" title="Medarbejder mangler salgspris">—</span>
@@ -427,15 +463,17 @@ export function WorkOrderTimeLogs({
                         fmtAmount(sale)
                       )}
                     </td>
-                    <td className="py-1 pr-2 text-right tabular-nums">
-                      {db == null ? (
-                        <span className="text-gray-400">—</span>
-                      ) : (
-                        <span className={db >= 0 ? 'text-emerald-700' : 'text-red-700'}>
-                          {fmtAmount(db)}
-                        </span>
-                      )}
-                    </td>
+                    {canSeeCost && (
+                      <td className="py-1 pr-2 text-right tabular-nums">
+                        {db == null ? (
+                          <span className="text-gray-400">—</span>
+                        ) : (
+                          <span className={db >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                            {fmtAmount(db)}
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="py-1 pr-2 text-gray-600 max-w-[200px] truncate" title={l.description ?? ''}>
                       {l.description ?? ''}
                     </td>
@@ -465,10 +503,13 @@ export function WorkOrderTimeLogs({
                 </td>
                 <td className="pt-1 pr-2 text-right tabular-nums">{fmtHours(totalHours)}</td>
                 <td></td>
-                <td className="pt-1 pr-2 text-right tabular-nums">{fmtAmount(totalCost)}</td>
+                {canSeeCost && (
+                  <td className="pt-1 pr-2 text-right tabular-nums">{fmtAmount(totalCost)}</td>
+                )}
                 <td className="pt-1 pr-2 text-right tabular-nums">
                   {totalSale > 0 ? fmtAmount(totalSale) : '—'}
                 </td>
+                {canSeeCost && (
                 <td className="pt-1 pr-2 text-right tabular-nums">
                   {totalSale > 0 && totalCost > 0 ? (
                     <span className={totalDB >= 0 ? 'text-emerald-700' : 'text-red-700'}>
@@ -478,6 +519,7 @@ export function WorkOrderTimeLogs({
                     '—'
                   )}
                 </td>
+                )}
                 <td colSpan={2}></td>
               </tr>
             </tfoot>
@@ -485,12 +527,12 @@ export function WorkOrderTimeLogs({
         </div>
       )}
 
-      {(hasMissingCost || hasMissingSale) && (
+      {((canSeeCost && hasMissingCost) || hasMissingSale) && (
         <p className="text-[10px] text-amber-700">
           ⚠ Økonomiberegning ufuldstændig — én eller flere medarbejdere
-          mangler {hasMissingCost && hasMissingSale
+          mangler {canSeeCost && hasMissingCost && hasMissingSale
             ? 'kostpris og/eller salgspris'
-            : hasMissingCost
+            : canSeeCost && hasMissingCost
             ? 'kostpris'
             : 'salgspris'}.
           Sæt satser på medarbejderens detaljeside under "Rediger" → "Satser

@@ -86,7 +86,12 @@ export async function listTimeLogsForWorkOrder(
 
     const rows = (data || []) as TimeLogRow[]
     const enriched = await enrichWithEmployees(supabase, rows)
-    return { success: true, data: enriched }
+    // Sprint Ø2.10 — defense in depth: fjern interne kostfelter server-side
+    // for brugere uden economy.cost_prices (ikke bare skjul i UI).
+    const safe = hasPermission('economy.cost_prices')
+      ? enriched
+      : enriched.map((r) => ({ ...r, cost_amount: null, cost_rate_snapshot: null }))
+    return { success: true, data: safe }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
