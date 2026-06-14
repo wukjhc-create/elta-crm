@@ -37,6 +37,8 @@ interface CustomersTableProps {
   onClearFilters?: () => void
   /** Sprint Ø4.4 — cost-free betalings-badge pr. customer_id (batch). */
   paymentBadges?: Record<string, CustomerPaymentBadge>
+  /** Sprint Ø4.5 — specifik tom-tekst når et betalingsfilter giver nul. */
+  emptyText?: string
 }
 
 /** Sprint Ø4.4 — kompakt cost-free betalings-chip til kundelisten. */
@@ -71,7 +73,7 @@ function PaymentListChip({ badge }: { badge?: CustomerPaymentBadge }) {
   )
 }
 
-export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered, onClearFilters, paymentBadges }: CustomersTableProps) {
+export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered, onClearFilters, paymentBadges, emptyText }: CustomersTableProps) {
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -170,8 +172,14 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
     return (
       <EmptyState
         icon={Building}
-        title={filtered ? 'Ingen kunder fundet' : 'Ingen kunder endnu'}
-        description={filtered ? 'Prøv at ændre dine søgekriterier.' : 'Kom i gang ved at oprette din første kunde.'}
+        title={emptyText ? 'Ingen kunder i denne visning' : filtered ? 'Ingen kunder fundet' : 'Ingen kunder endnu'}
+        description={
+          emptyText
+            ? emptyText
+            : filtered
+              ? 'Prøv at ændre dine søgekriterier.'
+              : 'Kom i gang ved at oprette din første kunde.'
+        }
         filtered={filtered}
         onClearFilters={onClearFilters}
       />

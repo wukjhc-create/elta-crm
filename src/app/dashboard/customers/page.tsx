@@ -1,7 +1,12 @@
 import { Metadata } from 'next'
 import { getCustomers } from '@/lib/actions/customers'
-import { getCustomersPaymentBadgesAction, type CustomerPaymentBadge } from '@/lib/actions/invoices'
+import {
+  getCustomersPaymentBadgesAction,
+  getCustomerIdsByPaymentFilterAction,
+  type CustomerPaymentBadge,
+} from '@/lib/actions/invoices'
 import { pageHasPermission } from '@/lib/auth/page-guard'
+import { parsePaymentFilter, parsePaymentSort } from './customer-payment-filter'
 import { CustomersPageClient } from '@/components/modules/customers/customers-page-client'
 
 export const metadata: Metadata = {
@@ -19,6 +24,8 @@ interface PageProps {
     is_active?: string
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
+    payment?: string
+    paysort?: string
   }>
 }
 
@@ -31,6 +38,18 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
 
+  // Sprint Ø4.5 — betalingsfilter (GLOBALT) + betalingssortering (side-lokal).
+  const paymentFilter = parsePaymentFilter(params.payment)
+  const paymentSort = parsePaymentSort(params.paysort)
+  const canViewPayments = await pageHasPermission('invoices.view.own_cases')
+
+  // Global filtrering: beregn matchende customer_ids FØR paginering.
+  let customerIds: string[] | undefined
+  if (canViewPayments && paymentFilter !== 'all') {
+    const r = await getCustomerIdsByPaymentFilterAction(paymentFilter)
+    customerIds = r.ok ? r.ids : []
+  }
+
   const result = await getCustomers({
     page,
     pageSize,
@@ -38,6 +57,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     is_active,
     sortBy,
     sortOrder,
+    customerIds,
   })
 
   if (!result.success || !result.data) {
@@ -53,7 +73,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   // Sprint Ø4.4 — cost-free betalings-badges i ÉN batch-query for de
   // synlige kunder (max 25/side → ingen N+1). Kun for fakturaadgang.
   let paymentBadges: Record<string, CustomerPaymentBadge> = {}
-  if (await pageHasPermission('invoices.view.own_cases')) {
+  if (canViewPayments) {
     const ids = result.data.data.map((c) => c.id)
     const res = await getCustomersPaymentBadgesAction(ids)
     if (res.ok) paymentBadges = res.badges
@@ -71,6 +91,9 @@ export default async function CustomersPage({ searchParams }: PageProps) {
       filters={{ search, is_active }}
       sort={{ sortBy, sortOrder }}
       paymentBadges={paymentBadges}
+      canViewPayments={canViewPayments}
+      paymentFilter={paymentFilter}
+      paymentSort={paymentSort}
     />
   )
 }

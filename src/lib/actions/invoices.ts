@@ -2069,3 +2069,73 @@ export async function getCustomersPaymentBadgesAction(
   }
   return { ok: true, permitted: true, badges }
 }
+
+// =====================================================
+// Sprint Ø4.5 — Global betalingsfilter for kundelisten
+//
+// Beregner (via ÉN invoices-query + payment-health-helper) hvilke
+// customer_ids der matcher et betalingsfilter. Resultatet bruges som
+// whitelist i getCustomers FØR paginering → ærlig global filtrering.
+// Samme regler som badge (Ø4.4). Gated invoices.view.own_cases.
+// =====================================================
+
+export type PaymentFilter =
+  | 'overdue'
+  | 'outstanding'
+  | 'late_payer'
+  | 'on_time'
+  | 'no_data'
+
+export interface CustomerPaymentFilterResult {
+  ok: boolean
+  permitted: boolean
+  ids: string[]
+}
+
+export async function getCustomerIdsByPaymentFilterAction(
+  filter: PaymentFilter,
+  nowIso?: string
+): Promise<CustomerPaymentFilterResult> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.own_cases')) {
+    return { ok: false, permitted: false, ids: [] }
+  }
+
+  // ÉN query over alle fakturaer (cost-free kolonner) — ingen N+1.
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(`customer_id, ${HEALTH_SELECT}`)
+    .not('customer_id', 'is', null)
+    .limit(20000)
+  if (error) {
+    logger.error('getCustomerIdsByPaymentFilterAction: query failed', { error })
+    return { ok: false, permitted: true, ids: [] }
+  }
+
+  const byCustomer = new Map<string, HealthInvoice[]>()
+  for (const r of data ?? []) {
+    const cid = r.customer_id as string | null
+    if (!cid) continue
+    const arr = byCustomer.get(cid) ?? []
+    arr.push(r as unknown as HealthInvoice)
+    byCustomer.set(cid, arr)
+  }
+
+  const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
+  const ids: string[] = []
+  for (const [cid, rows] of byCustomer) {
+    const h = computePaymentHealth(rows, nowMs)
+    const match =
+      filter === 'overdue'
+        ? h.overdue_count > 0
+        : filter === 'outstanding'
+          ? h.outstanding_total > 0
+          : filter === 'late_payer'
+            ? h.status === 'late_payer'
+            : filter === 'on_time'
+              ? h.status === 'on_time'
+              : /* no_data */ h.status === 'no_data'
+    if (match) ids.push(cid)
+  }
+  return { ok: true, permitted: true, ids }
+}

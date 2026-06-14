@@ -32,6 +32,12 @@ export async function getCustomers(filters?: {
   sortOrder?: 'asc' | 'desc'
   page?: number
   pageSize?: number
+  /**
+   * Sprint Ø4.5 — valgfri global whitelist af customer_ids (fx kunder der
+   * matcher et betalingsfilter). Anvendes FØR paginering, så count + sider
+   * er korrekte for det filtrerede sæt. Tom liste = nul resultater.
+   */
+  customerIds?: string[]
 }): Promise<ActionResult<PaginatedResponse<CustomerWithRelations>>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -66,6 +72,12 @@ export async function getCustomers(filters?: {
     if (filters?.is_active !== undefined) {
       countQuery = countQuery.eq('is_active', filters.is_active)
       dataQuery = dataQuery.eq('is_active', filters.is_active)
+    }
+
+    // Sprint Ø4.5 — global whitelist (betalingsfilter). Tom liste → nul rækker.
+    if (filters?.customerIds !== undefined) {
+      countQuery = countQuery.in('id', filters.customerIds)
+      dataQuery = dataQuery.in('id', filters.customerIds)
     }
 
     // Apply sorting

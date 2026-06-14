@@ -6,6 +6,13 @@ import { Plus, Search, X } from 'lucide-react'
 import { CustomerCreateDialog } from './customer-create-dialog'
 import { CustomersTable } from './customers-table'
 import type { CustomerPaymentBadge } from '@/lib/actions/invoices'
+import {
+  PAYMENT_FILTERS,
+  PAYMENT_SORTS,
+  PAYMENT_EMPTY_TEXT,
+  type PaymentFilterKey,
+  type PaymentSortKey,
+} from '@/app/dashboard/customers/customer-payment-filter'
 import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
 import type { CustomerWithRelations } from '@/types/customers.types'
@@ -34,9 +41,22 @@ interface CustomersPageClientProps {
   sort?: SortData
   /** Sprint Ø4.4 — cost-free betalings-badges pr. customer_id (batch). */
   paymentBadges?: Record<string, CustomerPaymentBadge>
+  /** Sprint Ø4.5 — fakturaadgang styrer om betalingsfiltre vises. */
+  canViewPayments?: boolean
+  paymentFilter?: PaymentFilterKey
+  paymentSort?: PaymentSortKey
 }
 
-export function CustomersPageClient({ customers, pagination, filters, sort, paymentBadges }: CustomersPageClientProps) {
+export function CustomersPageClient({
+  customers,
+  pagination,
+  filters,
+  sort,
+  paymentBadges,
+  canViewPayments = false,
+  paymentFilter = 'all',
+  paymentSort = 'default',
+}: CustomersPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
@@ -91,6 +111,32 @@ export function CustomersPageClient({ customers, pagination, filters, sort, paym
     const newOrder = sort?.sortBy === column && sort?.sortOrder === 'asc' ? 'desc' : 'asc'
     updateURL({ sortBy: column, sortOrder: newOrder })
   }
+
+  // Sprint Ø4.5 — betalingsfilter (GLOBALT, via URL) + sortering (SIDE-LOKAL).
+  const handlePaymentFilter = (key: PaymentFilterKey) => {
+    updateURL({ payment: key === 'all' ? undefined : key, page: '1' })
+  }
+  const handlePaymentSort = (key: PaymentSortKey) => {
+    updateURL({ paysort: key === 'default' ? undefined : key })
+  }
+
+  // SIDE-LOKAL sortering på de viste kunder via deres betalings-badge.
+  const visibleCustomers =
+    paymentSort === 'default'
+      ? customers
+      : [...customers].sort((a, b) => {
+          const ba = paymentBadges?.[a.id]
+          const bb = paymentBadges?.[b.id]
+          if (paymentSort === 'outstanding_desc') {
+            return (bb?.outstanding_total ?? 0) - (ba?.outstanding_total ?? 0)
+          }
+          // overdue_desc — flest forfaldne, tiebreak på beløb
+          const d = (bb?.overdue_count ?? 0) - (ba?.overdue_count ?? 0)
+          return d !== 0 ? d : (bb?.overdue_total ?? 0) - (ba?.overdue_total ?? 0)
+        })
+
+  const paymentEmptyText =
+    paymentFilter !== 'all' ? PAYMENT_EMPTY_TEXT[paymentFilter] : undefined
 
   return (
     <>
@@ -159,6 +205,44 @@ export function CustomersPageClient({ customers, pagination, filters, sort, paym
             </select>
           </div>
 
+          {/* Sprint Ø4.5 — betalingsfiltre (globalt) + sortering (side-lokal) */}
+          {canViewPayments && (
+            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
+              <span className="text-xs text-gray-500">Betaling:</span>
+              {PAYMENT_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => handlePaymentFilter(f.key)}
+                  className={`px-2.5 py-1 text-xs rounded-lg ring-1 transition ${
+                    paymentFilter === f.key
+                      ? 'bg-emerald-600 text-white ring-emerald-600'
+                      : 'bg-white text-gray-700 ring-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+              <div className="ml-auto flex items-center gap-1.5">
+                <label className="text-xs text-gray-500">Sortér viste:</label>
+                <select
+                  value={paymentSort}
+                  onChange={(e) => handlePaymentSort(e.target.value as PaymentSortKey)}
+                  className="border rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {PAYMENT_SORTS.map((s) => (
+                    <option key={s.key} value={s.key}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              {paymentSort !== 'default' && (
+                <span className="basis-full text-[11px] text-gray-400">
+                  Sortering gælder kun de viste kunder på denne side (ikke globalt). Betalingsfilteret er globalt.
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Active filters display */}
           {(filters.search || filters.is_active !== undefined) && (
             <div className="flex items-center gap-2 mt-3 pt-3 border-t">
@@ -184,13 +268,14 @@ export function CustomersPageClient({ customers, pagination, filters, sort, paym
         </div>
 
         <CustomersTable
-          customers={customers}
+          customers={visibleCustomers}
           sortBy={sort?.sortBy}
           sortOrder={sort?.sortOrder}
           onSort={handleSort}
-          filtered={!!(filters.search || filters.is_active !== undefined)}
+          filtered={!!(filters.search || filters.is_active !== undefined || paymentFilter !== 'all')}
           onClearFilters={() => { setSearchInput(''); router.push('/dashboard/customers') }}
           paymentBadges={paymentBadges}
+          emptyText={paymentEmptyText}
         />
 
         {/* Pagination */}
