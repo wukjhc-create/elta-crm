@@ -2013,75 +2013,12 @@ export interface CustomerPaymentBadge {
   human_label: string
 }
 
-export interface CustomersPaymentBadgesResult {
-  ok: boolean
-  permitted: boolean
-  badges: Record<string, CustomerPaymentBadge>
-}
-
-/**
- * Batch — ÉN query for alle synlige customer_ids (ingen N+1). Bruges til
- * kompakt badge i kundelisten. Kundelisten viser 25/side, så dette er
- * en enkelt billig forespørgsel.
- */
-export async function getCustomersPaymentBadgesAction(
-  customerIds: string[],
-  nowIso?: string
-): Promise<CustomersPaymentBadgesResult> {
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-  if (!hasPermission('invoices.view.own_cases')) {
-    return { ok: false, permitted: false, badges: {} }
-  }
-  const ids = Array.from(new Set(customerIds.filter(Boolean))).slice(0, 200)
-  if (ids.length === 0) return { ok: true, permitted: true, badges: {} }
-
-  const { data, error } = await supabase
-    .from('invoices')
-    .select(`customer_id, ${HEALTH_SELECT}`)
-    .in('customer_id', ids)
-    .limit(5000)
-  if (error) {
-    logger.error('getCustomersPaymentBadgesAction: query failed', { error })
-    return { ok: false, permitted: true, badges: {} }
-  }
-
-  // Grupér pr. kunde og beregn health med samme regler.
-  const byCustomer = new Map<string, HealthInvoice[]>()
-  for (const r of data ?? []) {
-    const cid = r.customer_id as string | null
-    if (!cid) continue
-    const arr = byCustomer.get(cid) ?? []
-    arr.push(r as unknown as HealthInvoice)
-    byCustomer.set(cid, arr)
-  }
-  const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
-  const badges: Record<string, CustomerPaymentBadge> = {}
-  for (const cid of ids) {
-    const rows = byCustomer.get(cid) ?? []
-    const h = computePaymentHealth(rows, nowMs)
-    badges[cid] = {
-      outstanding_total: h.outstanding_total,
-      overdue_count: h.overdue_count,
-      overdue_total: h.overdue_total,
-      status: h.status,
-      human_label: h.human_label,
-    }
-  }
-  return { ok: true, permitted: true, badges }
-}
-
 // =====================================================
-// Sprint Ø4.5/Ø4.6 — Global betalings-listestate for kundelisten
-//
-// ÉN invoices-query → payment-health pr. kunde (genbrug af helper).
-// Returnerer: counts pr. betalingsfilter + customer_ids matchende det
-// AKTIVE filter, GLOBALT sorteret efter den valgte sortering (før
-// paginering). Bruges som whitelist/rækkefølge i getCustomers.
-// Cost-free. Gated invoices.view.own_cases. Ingen N+1.
-//
-// Performance: ÉN aggregat-query med limit 20000 fakturarækker. Ved
-// markant større fakturamængde bør et DB-view/materialiseret aggregat
-// overvejes — men byg ikke for tidligt.
+// Sprint Ø4.5–Ø4.9 — Betalingsfilter-typer (delt). Ø4.9 flyttede selve
+// list-aggregatet til SQL-viewet v_customers_with_payment_summary
+// (getCustomersWithPaymentState i customers.ts) — derfor er de tidligere
+// JS-aggregat-actions (limit 20000) fjernet. PaymentFilter bruges fortsat
+// af CSV-eksporten nedenfor.
 // =====================================================
 
 export type PaymentFilter =
@@ -2091,123 +2028,6 @@ export type PaymentFilter =
   | 'late_payer'
   | 'on_time'
   | 'no_data'
-
-export type PaymentListSort =
-  | 'default'
-  | 'outstanding_desc'
-  | 'overdue_desc'
-  | 'latest_invoice_desc'
-  | 'payment_health'
-
-export interface CustomerPaymentListState {
-  ok: boolean
-  permitted: boolean
-  counts: Record<'overdue' | 'outstanding' | 'late_payer' | 'on_time' | 'no_data', number>
-  ids: string[]
-  /** true når ids er globalt sorteret (sort != default) → preserveOrder i UI. */
-  sorted: boolean
-}
-
-const HEALTH_RANK: Record<PaymentHealthStatus, number> = {
-  requires_attention: 3,
-  late_payer: 2,
-  on_time: 1,
-  no_data: 0,
-}
-
-export async function getCustomerPaymentListStateAction(
-  filter: PaymentFilter,
-  sort: PaymentListSort,
-  nowIso?: string
-): Promise<CustomerPaymentListState> {
-  const empty: CustomerPaymentListState = {
-    ok: false,
-    permitted: false,
-    counts: { overdue: 0, outstanding: 0, late_payer: 0, on_time: 0, no_data: 0 },
-    ids: [],
-    sorted: false,
-  }
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-  if (!hasPermission('invoices.view.own_cases')) return empty
-
-  // ÉN query over alle fakturaer (cost-free kolonner) — ingen N+1.
-  const { data, error } = await supabase
-    .from('invoices')
-    .select(`customer_id, ${HEALTH_SELECT}`)
-    .not('customer_id', 'is', null)
-    .limit(20000)
-  if (error) {
-    logger.error('getCustomerPaymentListStateAction: query failed', { error })
-    return { ...empty, permitted: true }
-  }
-
-  const byCustomer = new Map<string, HealthInvoice[]>()
-  for (const r of data ?? []) {
-    const cid = r.customer_id as string | null
-    if (!cid) continue
-    const arr = byCustomer.get(cid) ?? []
-    arr.push(r as unknown as HealthInvoice)
-    byCustomer.set(cid, arr)
-  }
-
-  const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
-  const counts = { overdue: 0, outstanding: 0, late_payer: 0, on_time: 0, no_data: 0 }
-  type Row = { id: string; outstanding: number; overdueCount: number; overdueTotal: number; lastInvoice: string | null; status: PaymentHealthStatus }
-  const rows: Row[] = []
-
-  for (const [cid, invs] of byCustomer) {
-    const h = computePaymentHealth(invs, nowMs)
-    if (h.overdue_count > 0) counts.overdue += 1
-    if (h.outstanding_total > 0) counts.outstanding += 1
-    if (h.status === 'late_payer') counts.late_payer += 1
-    if (h.status === 'on_time') counts.on_time += 1
-    if (h.status === 'no_data') counts.no_data += 1
-    rows.push({
-      id: cid,
-      outstanding: h.outstanding_total,
-      overdueCount: h.overdue_count,
-      overdueTotal: h.overdue_total,
-      lastInvoice: h.last_invoice_at,
-      status: h.status,
-    })
-  }
-
-  // Filtrér efter aktivt filter.
-  const matched = rows.filter((r) =>
-    filter === 'all'
-      ? true
-      : filter === 'overdue'
-        ? r.overdueCount > 0
-        : filter === 'outstanding'
-          ? r.outstanding > 0
-          : filter === 'late_payer'
-            ? r.status === 'late_payer'
-            : filter === 'on_time'
-              ? r.status === 'on_time'
-              : r.status === 'no_data'
-  )
-
-  // GLOBAL sortering før paginering.
-  const sorted = sort !== 'default'
-  if (sorted) {
-    matched.sort((a, b) => {
-      switch (sort) {
-        case 'outstanding_desc':
-          return b.outstanding - a.outstanding
-        case 'overdue_desc':
-          return b.overdueCount - a.overdueCount || b.overdueTotal - a.overdueTotal
-        case 'latest_invoice_desc':
-          return (b.lastInvoice ?? '').localeCompare(a.lastInvoice ?? '')
-        case 'payment_health':
-          return HEALTH_RANK[b.status] - HEALTH_RANK[a.status] || b.outstanding - a.outstanding
-        default:
-          return 0
-      }
-    })
-  }
-
-  return { ok: true, permitted: true, counts, ids: matched.map((r) => r.id), sorted }
-}
 
 // =====================================================
 // Sprint Ø4.8 — Cost-free CSV-eksport: betalingsopfølgningsliste
@@ -2247,92 +2067,71 @@ export interface PaymentExportResult {
   rows: PaymentExportRow[]
 }
 
+const EXPORT_LABEL: Record<string, string> = {
+  late_payer: 'Ofte forsinket',
+  on_time: 'Betaler til tiden',
+  no_data: 'Ingen betalingshistorik',
+}
+
 export async function exportPaymentFollowupAction(
-  filter: PaymentFilter,
-  nowIso?: string
+  filter: PaymentFilter
 ): Promise<PaymentExportResult> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.view.own_cases')) {
     return { ok: false, permitted: false, filter, rows: [], message: 'Ingen adgang til betalingsdata' }
   }
 
-  // ÉN invoices-query (cost-free) — ingen N+1.
-  const { data, error } = await supabase
-    .from('invoices')
-    .select(`customer_id, ${HEALTH_SELECT}`)
-    .not('customer_id', 'is', null)
-    .limit(20000)
+  // Sprint Ø4.9 — ÉN query mod SQL-viewet (forud-aggregeret, cost-free).
+  // Ingen limit 20000, ingen N+1 — viewet joiner allerede customers.
+  let q = supabase
+    .from('v_customers_with_payment_summary')
+    .select(
+      'id, company_name, contact_person, email, phone, is_active, outstanding_total, overdue_total, overdue_count, payment_status, average_days_late, latest_invoice_at, latest_paid_at'
+    )
+    .order('outstanding_total', { ascending: false })
+    .limit(50000)
+  // Eksport-regel: all → udestående (inkl. forfaldne), IKKE alle kunder.
+  if (filter === 'overdue') q = q.gt('overdue_count', 0)
+  else if (filter === 'outstanding' || filter === 'all') q = q.gt('outstanding_total', 0)
+  else if (filter === 'late_payer') q = q.eq('payment_status', 'late_payer')
+  else if (filter === 'on_time') q = q.eq('payment_status', 'on_time')
+  else if (filter === 'no_data') q = q.eq('payment_status', 'no_data')
+
+  const { data, error } = await q
   if (error) {
-    logger.error('exportPaymentFollowupAction: invoice query failed', { error })
+    logger.error('exportPaymentFollowupAction: view query failed', { error })
     return { ok: false, permitted: true, filter, rows: [], message: 'Kunne ikke hente betalingsdata' }
   }
 
-  const byCustomer = new Map<string, HealthInvoice[]>()
-  for (const r of data ?? []) {
-    const cid = r.customer_id as string | null
-    if (!cid) continue
-    const arr = byCustomer.get(cid) ?? []
-    arr.push(r as unknown as HealthInvoice)
-    byCustomer.set(cid, arr)
-  }
-
-  const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
-  const healthById = new Map<string, PaymentHealth>()
-  for (const [cid, invs] of byCustomer) {
-    const h = computePaymentHealth(invs, nowMs)
-    const match =
-      filter === 'all'
-        ? h.outstanding_total > 0 // betalingsrelevant standard (udestående inkl. forfaldne)
-        : filter === 'overdue'
-          ? h.overdue_count > 0
-          : filter === 'outstanding'
-            ? h.outstanding_total > 0
-            : filter === 'late_payer'
-              ? h.status === 'late_payer'
-              : filter === 'on_time'
-                ? h.status === 'on_time'
-                : h.status === 'no_data'
-    if (match) healthById.set(cid, h)
-  }
-
-  const ids = Array.from(healthById.keys())
-  if (ids.length === 0) {
+  if ((data ?? []).length === 0) {
     return { ok: true, permitted: true, filter, rows: [] }
   }
 
-  // ÉN customers-query (kontaktinfo, cost-free).
-  const { data: custs, error: custErr } = await supabase
-    .from('customers')
-    .select('id, company_name, contact_person, email, phone, is_active')
-    .in('id', ids)
-  if (custErr) {
-    logger.error('exportPaymentFollowupAction: customer query failed', { error: custErr })
-    return { ok: false, permitted: true, filter, rows: [], message: 'Kunne ikke hente kunder' }
-  }
-
-  const rows: PaymentExportRow[] = (custs ?? []).map((c) => {
-    const h = healthById.get(c.id as string)!
+  const rows: PaymentExportRow[] = (data ?? []).map((c) => {
     const name = (c.company_name as string | null) || (c.contact_person as string | null) || '—'
+    const status = (c.payment_status as string | null) ?? 'no_data'
+    const overdueCount = Number(c.overdue_count ?? 0)
+    const label =
+      status === 'requires_attention'
+        ? `${overdueCount} forfalden${overdueCount === 1 ? '' : 'e'} faktura${overdueCount === 1 ? '' : 'er'}`
+        : EXPORT_LABEL[status] ?? 'Ingen betalingshistorik'
     return {
       customer_name: name,
       contact_person: (c.contact_person as string | null) ?? null,
       email: (c.email as string | null) ?? null,
       phone: (c.phone as string | null) ?? null,
       active: (c.is_active as boolean | null) ?? null,
-      outstanding_total: h.outstanding_total,
-      overdue_total: h.overdue_total,
-      overdue_count: h.overdue_count,
-      payment_label: h.human_label,
-      average_days_late: h.average_days_late,
-      last_invoice_at: h.last_invoice_at,
-      last_payment_at: h.last_paid_at,
+      outstanding_total: Number(c.outstanding_total ?? 0),
+      overdue_total: Number(c.overdue_total ?? 0),
+      overdue_count: overdueCount,
+      payment_label: label,
+      average_days_late: c.average_days_late === null || c.average_days_late === undefined ? null : Number(c.average_days_late),
+      last_invoice_at: (c.latest_invoice_at as string | null) ?? null,
+      last_payment_at: (c.latest_paid_at as string | null) ?? null,
       customer_url: `/dashboard/customers/${c.id}`,
       invoices_url: `/dashboard/invoices?q=${encodeURIComponent(name)}`,
     }
   })
-
-  // Størst udestående først (mest opfølgningsrelevant).
-  rows.sort((a, b) => b.outstanding_total - a.outstanding_total)
 
   // Best-effort audit — vælter aldrig eksporten. Ingen kost i metadata.
   try {

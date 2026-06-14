@@ -23,6 +23,8 @@ import {
 } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
+import type { PaymentFilterKey, PaymentSortKey, PaymentCounts } from '@/app/dashboard/customers/customer-payment-filter'
+import type { CustomerPaymentBadge } from '@/lib/actions/invoices'
 
 // Get all customers with optional filtering and pagination
 export async function getCustomers(filters?: {
@@ -150,6 +152,155 @@ export async function getCustomers(filters?: {
     return { success: false, error: formatError(err, 'Kunne ikke hente kunder') }
   }
 }
+
+// =====================================================
+// Sprint Ø4.9 — Kundeliste med betalingsstatus via SQL-view
+//
+// Bruger v_customers_with_payment_summary (customers JOIN cost-free
+// betalingsaggregat). Søgning + betalingsfilter + global betalingssortering
+// + paginering sker ALT i SQL → globalt korrekt, ingen limit 20000, ingen
+// N+1. Tællere via 5 lette COUNT-queries (respekterer søgning).
+// Gated customers.view + invoices.view.own_cases.
+// =====================================================
+
+interface PaymentListInput {
+  search?: string
+  is_active?: boolean
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  page?: number
+  pageSize?: number
+  payment?: PaymentFilterKey
+  paysort?: PaymentSortKey
+}
+
+export interface CustomersWithPaymentState {
+  data: CustomerWithRelations[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+  badges: Record<string, CustomerPaymentBadge>
+  counts: PaymentCounts
+}
+
+const PAYMENT_BADGE_LABEL: Record<string, string> = {
+  requires_attention: 'Forfaldne',
+  late_payer: 'Ofte forsinket',
+  on_time: 'Betaler til tiden',
+  no_data: 'Ingen betalingshistorik',
+}
+
+export async function getCustomersWithPaymentState(
+  input?: PaymentListInput
+): Promise<ActionResult<CustomersWithPaymentState>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) {
+      return { success: false, error: 'Manglende tilladelse: customers.view' }
+    }
+    if (!hasPermission('invoices.view.own_cases')) {
+      return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
+    }
+
+    const page = input?.page || 1
+    const pageSize = input?.pageSize || DEFAULT_PAGE_SIZE
+    const offset = (page - 1) * pageSize
+    const payment = input?.payment ?? 'all'
+    const paysort = input?.paysort ?? 'default'
+    const VIEW = 'v_customers_with_payment_summary'
+
+    // Fælles WHERE-bygger (søgning + kundestatus + valgfrit betalingsfilter).
+    const searchFilter = input?.search
+      ? (() => {
+          const s = sanitizeSearchTerm(input.search!)
+          return `company_name.ilike.%${s}%,contact_person.ilike.%${s}%,email.ilike.%${s}%,customer_number.ilike.%${s}%`
+        })()
+      : null
+
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const applyFilters = (q: any, withPaymentFilter: boolean): any => {
+      let out = q
+      if (searchFilter) out = out.or(searchFilter)
+      if (input?.is_active !== undefined) out = out.eq('is_active', input.is_active)
+      if (withPaymentFilter) {
+        if (payment === 'overdue') out = out.gt('overdue_count', 0)
+        else if (payment === 'outstanding') out = out.gt('outstanding_total', 0)
+        else if (payment === 'late_payer') out = out.eq('payment_status', 'late_payer')
+        else if (payment === 'on_time') out = out.eq('payment_status', 'on_time')
+        else if (payment === 'no_data') out = out.eq('payment_status', 'no_data')
+      }
+      return out
+    }
+
+    // Hoved-query: rækker + total (count) for det filtrerede sæt.
+    let dataQuery = applyFilters(
+      supabase.from(VIEW).select('*, contacts:customer_contacts(*)', { count: 'exact' }),
+      true
+    )
+
+    // Sortering — global betalingssortering har forrang; ellers kunde-sort.
+    if (paysort === 'outstanding_desc') dataQuery = dataQuery.order('outstanding_total', { ascending: false })
+    else if (paysort === 'overdue_desc')
+      dataQuery = dataQuery.order('overdue_count', { ascending: false }).order('overdue_total', { ascending: false })
+    else if (paysort === 'latest_invoice_desc')
+      dataQuery = dataQuery.order('latest_invoice_at', { ascending: false, nullsFirst: false })
+    else if (paysort === 'payment_health') dataQuery = dataQuery.order('health_rank', { ascending: false })
+    else dataQuery = dataQuery.order(input?.sortBy || 'created_at', { ascending: (input?.sortOrder || 'desc') === 'asc' })
+    dataQuery = dataQuery.order('id', { ascending: true }) // stabil paginering
+    dataQuery = dataQuery.range(offset, offset + pageSize - 1)
+
+    // Tællere — 5 lette COUNT-queries (head), respekterer søgning + kundestatus.
+    const countQ = (predicate: (q: any) => any) =>
+      predicate(applyFilters(supabase.from(VIEW).select('id', { count: 'exact', head: true }), false))
+
+    const [dataRes, cOverdue, cOutstanding, cLate, cOnTime, cNoData] = await Promise.all([
+      dataQuery,
+      countQ((q) => q.gt('overdue_count', 0)),
+      countQ((q) => q.gt('outstanding_total', 0)),
+      countQ((q) => q.eq('payment_status', 'late_payer')),
+      countQ((q) => q.eq('payment_status', 'on_time')),
+      countQ((q) => q.eq('payment_status', 'no_data')),
+    ])
+
+    if (dataRes.error) {
+      logger.error('getCustomersWithPaymentState: query failed', { error: dataRes.error })
+      throw new Error('DATABASE_ERROR')
+    }
+
+    const rows = (dataRes.data ?? []) as Array<Record<string, unknown>>
+    const total = dataRes.count || 0
+    const data = rows as unknown as CustomerWithRelations[]
+
+    const badges: Record<string, CustomerPaymentBadge> = {}
+    for (const r of rows) {
+      const status = (r.payment_status as string) ?? 'no_data'
+      badges[r.id as string] = {
+        outstanding_total: Number(r.outstanding_total ?? 0),
+        overdue_count: Number(r.overdue_count ?? 0),
+        overdue_total: Number(r.overdue_total ?? 0),
+        status: status as CustomerPaymentBadge['status'],
+        human_label: PAYMENT_BADGE_LABEL[status] ?? 'Ingen betalingshistorik',
+      }
+    }
+
+    const counts: PaymentCounts = {
+      overdue: cOverdue.count || 0,
+      outstanding: cOutstanding.count || 0,
+      late_payer: cLate.count || 0,
+      on_time: cOnTime.count || 0,
+      no_data: cNoData.count || 0,
+    }
+
+    return {
+      success: true,
+      data: { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize), badges, counts },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente kunder med betalingsstatus') }
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // Get single customer by ID
 export async function getCustomer(id: string): Promise<ActionResult<CustomerWithRelations>> {

@@ -1,10 +1,7 @@
 import { Metadata } from 'next'
-import { getCustomers } from '@/lib/actions/customers'
-import {
-  getCustomersPaymentBadgesAction,
-  getCustomerPaymentListStateAction,
-  type CustomerPaymentBadge,
-} from '@/lib/actions/invoices'
+import { getCustomers, getCustomersWithPaymentState } from '@/lib/actions/customers'
+import type { CustomerPaymentBadge } from '@/lib/actions/invoices'
+import type { CustomerWithRelations } from '@/types/customers.types'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { parsePaymentFilter, parsePaymentSort, type PaymentCounts } from './customer-payment-filter'
 import { CustomersPageClient } from '@/components/modules/customers/customers-page-client'
@@ -38,88 +35,63 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
 
-  // Sprint Ø4.5/Ø4.6 — betalingsfilter + GLOBAL betalingssortering + tællere.
+  // Sprint Ø4.9 — betalingsfilter + GLOBAL sortering + tællere via SQL-view.
   const paymentFilter = parsePaymentFilter(params.payment)
   const paymentSort = parsePaymentSort(params.paysort)
   const canViewPayments = await pageHasPermission('invoices.view.own_cases')
 
-  // Ét aggregat (ÉN invoices-query) → counts + globalt filtreret/sorteret ids.
-  // Køres KUN for brugere med fakturaadgang.
+  let customers: CustomerWithRelations[] = []
+  let total = 0
+  let resPage = page
+  let resPageSize = pageSize
+  let totalPages = 0
+  let paymentBadges: Record<string, CustomerPaymentBadge> = {}
   let paymentCounts: PaymentCounts | undefined
-  let aggregateIds: string[] | undefined
-  let aggregateSorted = false
-  if (canViewPayments && (paymentFilter !== 'all' || paymentSort !== 'default')) {
-    const state = await getCustomerPaymentListStateAction(paymentFilter, paymentSort)
-    if (state.ok) {
-      paymentCounts = state.counts
-      aggregateIds = state.ids
-      aggregateSorted = state.sorted
+  let error: string | null = null
+
+  if (canViewPayments) {
+    // Søgning + betalingsfilter + global betalingssortering + paginering — alt
+    // i SQL via v_customers_with_payment_summary. Ingen limit 20000, ingen N+1.
+    const res = await getCustomersWithPaymentState({
+      page, pageSize, search, is_active, sortBy, sortOrder, payment: paymentFilter, paysort: paymentSort,
+    })
+    if (res.success && res.data) {
+      customers = res.data.data
+      total = res.data.total
+      resPage = res.data.page
+      resPageSize = res.data.pageSize
+      totalPages = res.data.totalPages
+      paymentBadges = res.data.badges
+      paymentCounts = res.data.counts
     } else {
-      aggregateIds = []
+      error = res.error ?? 'Kunne ikke hente kunder'
     }
-  } else if (canViewPayments) {
-    // Kun tællere (filter=all, sort=default).
-    const state = await getCustomerPaymentListStateAction('all', 'default')
-    if (state.ok) paymentCounts = state.counts
-  }
-
-  // GLOBAL sortering vinder over fritekst-søgning (kan ikke kombineres her).
-  const useGlobalSort = aggregateSorted && !search
-
-  let result
-  if (useGlobalSort && aggregateIds) {
-    // Paginér den globalt sorterede id-liste selv; bevar rækkefølge.
-    const offset = (page - 1) * pageSize
-    const pageIds = aggregateIds.slice(offset, offset + pageSize)
-    result = await getCustomers({
-      page,
-      pageSize,
-      is_active,
-      preserveOrderIds: pageIds,
-      totalOverride: aggregateIds.length,
-    })
   } else {
-    // Filter-whitelist-sti (global filtrering, getCustomers paginerer/sorterer).
-    const customerIds = paymentFilter !== 'all' && canViewPayments ? aggregateIds ?? [] : undefined
-    result = await getCustomers({
-      page,
-      pageSize,
-      search,
-      is_active,
-      sortBy,
-      sortOrder,
-      customerIds,
-    })
+    // Uden fakturaadgang: kundelisten fungerer som før (ingen betalingsdata).
+    const res = await getCustomers({ page, pageSize, search, is_active, sortBy, sortOrder })
+    if (res.success && res.data) {
+      customers = res.data.data
+      total = res.data.total
+      resPage = res.data.page
+      resPageSize = res.data.pageSize
+      totalPages = res.data.totalPages
+    } else {
+      error = res.error ?? 'Kunne ikke hente kunder'
+    }
   }
 
-  if (!result.success || !result.data) {
+  if (error) {
     return (
       <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-600">
-          {result.error || 'Kunne ikke hente kunder'}
-        </div>
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-600">{error}</div>
       </div>
     )
   }
 
-  // Sprint Ø4.4 — cost-free betalings-badges i ÉN batch-query for de
-  // synlige kunder (max 25/side → ingen N+1). Kun for fakturaadgang.
-  let paymentBadges: Record<string, CustomerPaymentBadge> = {}
-  if (canViewPayments) {
-    const ids = result.data.data.map((c) => c.id)
-    const res = await getCustomersPaymentBadgesAction(ids)
-    if (res.ok) paymentBadges = res.badges
-  }
-
   return (
     <CustomersPageClient
-      customers={result.data.data}
-      pagination={{
-        currentPage: result.data.page,
-        totalPages: result.data.totalPages,
-        totalItems: result.data.total,
-        pageSize: result.data.pageSize,
-      }}
+      customers={customers}
+      pagination={{ currentPage: resPage, totalPages, totalItems: total, pageSize: resPageSize }}
       filters={{ search, is_active }}
       sort={{ sortBy, sortOrder }}
       paymentBadges={paymentBadges}
@@ -127,7 +99,6 @@ export default async function CustomersPage({ searchParams }: PageProps) {
       paymentFilter={paymentFilter}
       paymentSort={paymentSort}
       paymentCounts={paymentCounts}
-      globalSortActive={useGlobalSort}
     />
   )
 }

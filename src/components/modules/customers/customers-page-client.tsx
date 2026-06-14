@@ -47,9 +47,8 @@ interface CustomersPageClientProps {
   canViewPayments?: boolean
   paymentFilter?: PaymentFilterKey
   paymentSort?: PaymentSortKey
-  /** Sprint Ø4.6 — tællere pr. betalingsfilter + global-sort-flag. */
+  /** Sprint Ø4.6/Ø4.9 — tællere pr. betalingsfilter. */
   paymentCounts?: PaymentCounts
-  globalSortActive?: boolean
 }
 
 export function CustomersPageClient({
@@ -62,7 +61,6 @@ export function CustomersPageClient({
   paymentFilter = 'all',
   paymentSort = 'default',
   paymentCounts,
-  globalSortActive = false,
 }: CustomersPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -242,11 +240,6 @@ export function CustomersPageClient({
                 {/* Sprint Ø4.8 — eksportér betalingsopfølgningsliste (respekterer filter) */}
                 <PaymentExportButton paymentFilter={paymentFilter} />
               </div>
-              {paymentSort !== 'default' && !globalSortActive && (
-                <span className="basis-full text-[11px] text-amber-600">
-                  Global sortering kan ikke kombineres med fritekst-søgning — ryd søgningen for at sortere på tværs af alle sider.
-                </span>
-              )}
             </div>
           )}
 
