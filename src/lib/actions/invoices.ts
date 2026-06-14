@@ -2208,3 +2208,147 @@ export async function getCustomerPaymentListStateAction(
 
   return { ok: true, permitted: true, counts, ids: matched.map((r) => r.id), sorted }
 }
+
+// =====================================================
+// Sprint Ø4.8 — Cost-free CSV-eksport: betalingsopfølgningsliste
+//
+// Genbruger Ø4.6-aggregatet: ÉN invoices-query → payment-health pr. kunde
+// + ÉN customers-query for de matchende kunder → JS-merge (ingen N+1).
+// Eksport-regel pr. filter (dokumenteret):
+//   overdue/outstanding/late_payer/on_time/no_data → matchende kunder
+//   all → udestående kunder (outstanding>0, inkl. forfaldne) — IKKE alle
+//   kunder uden betalingsrelevans.
+// KUN salgs/faktura-data + kontaktinfo — ingen kost/margin/DB.
+// Gated invoices.view.own_cases. Best-effort audit.
+// =====================================================
+
+export interface PaymentExportRow {
+  customer_name: string
+  contact_person: string | null
+  email: string | null
+  phone: string | null
+  active: boolean | null
+  outstanding_total: number
+  overdue_total: number
+  overdue_count: number
+  payment_label: string
+  average_days_late: number | null
+  last_invoice_at: string | null
+  last_payment_at: string | null
+  customer_url: string
+  invoices_url: string
+}
+
+export interface PaymentExportResult {
+  ok: boolean
+  permitted: boolean
+  message?: string
+  filter: PaymentFilter
+  rows: PaymentExportRow[]
+}
+
+export async function exportPaymentFollowupAction(
+  filter: PaymentFilter,
+  nowIso?: string
+): Promise<PaymentExportResult> {
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.own_cases')) {
+    return { ok: false, permitted: false, filter, rows: [], message: 'Ingen adgang til betalingsdata' }
+  }
+
+  // ÉN invoices-query (cost-free) — ingen N+1.
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(`customer_id, ${HEALTH_SELECT}`)
+    .not('customer_id', 'is', null)
+    .limit(20000)
+  if (error) {
+    logger.error('exportPaymentFollowupAction: invoice query failed', { error })
+    return { ok: false, permitted: true, filter, rows: [], message: 'Kunne ikke hente betalingsdata' }
+  }
+
+  const byCustomer = new Map<string, HealthInvoice[]>()
+  for (const r of data ?? []) {
+    const cid = r.customer_id as string | null
+    if (!cid) continue
+    const arr = byCustomer.get(cid) ?? []
+    arr.push(r as unknown as HealthInvoice)
+    byCustomer.set(cid, arr)
+  }
+
+  const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
+  const healthById = new Map<string, PaymentHealth>()
+  for (const [cid, invs] of byCustomer) {
+    const h = computePaymentHealth(invs, nowMs)
+    const match =
+      filter === 'all'
+        ? h.outstanding_total > 0 // betalingsrelevant standard (udestående inkl. forfaldne)
+        : filter === 'overdue'
+          ? h.overdue_count > 0
+          : filter === 'outstanding'
+            ? h.outstanding_total > 0
+            : filter === 'late_payer'
+              ? h.status === 'late_payer'
+              : filter === 'on_time'
+                ? h.status === 'on_time'
+                : h.status === 'no_data'
+    if (match) healthById.set(cid, h)
+  }
+
+  const ids = Array.from(healthById.keys())
+  if (ids.length === 0) {
+    return { ok: true, permitted: true, filter, rows: [] }
+  }
+
+  // ÉN customers-query (kontaktinfo, cost-free).
+  const { data: custs, error: custErr } = await supabase
+    .from('customers')
+    .select('id, company_name, contact_person, email, phone, is_active')
+    .in('id', ids)
+  if (custErr) {
+    logger.error('exportPaymentFollowupAction: customer query failed', { error: custErr })
+    return { ok: false, permitted: true, filter, rows: [], message: 'Kunne ikke hente kunder' }
+  }
+
+  const rows: PaymentExportRow[] = (custs ?? []).map((c) => {
+    const h = healthById.get(c.id as string)!
+    const name = (c.company_name as string | null) || (c.contact_person as string | null) || '—'
+    return {
+      customer_name: name,
+      contact_person: (c.contact_person as string | null) ?? null,
+      email: (c.email as string | null) ?? null,
+      phone: (c.phone as string | null) ?? null,
+      active: (c.is_active as boolean | null) ?? null,
+      outstanding_total: h.outstanding_total,
+      overdue_total: h.overdue_total,
+      overdue_count: h.overdue_count,
+      payment_label: h.human_label,
+      average_days_late: h.average_days_late,
+      last_invoice_at: h.last_invoice_at,
+      last_payment_at: h.last_paid_at,
+      customer_url: `/dashboard/customers/${c.id}`,
+      invoices_url: `/dashboard/invoices?q=${encodeURIComponent(name)}`,
+    }
+  })
+
+  // Størst udestående først (mest opfølgningsrelevant).
+  rows.sort((a, b) => b.outstanding_total - a.outstanding_total)
+
+  // Best-effort audit — vælter aldrig eksporten. Ingen kost i metadata.
+  try {
+    await supabase.from('audit_logs').insert({
+      user_id: userId,
+      entity_type: 'export',
+      entity_id: null,
+      entity_name: 'Betalingsopfølgningsliste',
+      action: 'payment_followup_exported',
+      action_description: `Betalingsliste eksporteret (filter: ${filter}) — ${rows.length} kunde(r)`,
+      changes: {},
+      metadata: { filter, row_count: rows.length, format: 'csv' },
+    })
+  } catch (e) {
+    logger.error('exportPaymentFollowupAction: audit failed', { error: e })
+  }
+
+  return { ok: true, permitted: true, filter, rows }
+}

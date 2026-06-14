@@ -14,6 +14,7 @@ import {
   type PaymentSortKey,
   type PaymentCounts,
 } from '@/app/dashboard/customers/customer-payment-filter'
+import { PaymentExportButton } from './payment-export-button'
 import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
 import type { CustomerWithRelations } from '@/types/customers.types'
@@ -238,6 +239,8 @@ export function CustomersPageClient({
                     <option key={s.key} value={s.key}>{s.label}</option>
                   ))}
                 </select>
+                {/* Sprint Ø4.8 — eksportér betalingsopfølgningsliste (respekterer filter) */}
+                <PaymentExportButton paymentFilter={paymentFilter} />
               </div>
               {paymentSort !== 'default' && !globalSortActive && (
                 <span className="basis-full text-[11px] text-amber-600">
