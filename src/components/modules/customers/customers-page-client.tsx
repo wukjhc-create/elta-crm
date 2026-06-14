@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Search, X } from 'lucide-react'
 import { CustomerCreateDialog } from './customer-create-dialog'
 import { CustomersTable } from './customers-table'
+import type { CustomerPaymentBadge } from '@/lib/actions/invoices'
 import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
 import type { CustomerWithRelations } from '@/types/customers.types'
@@ -31,9 +32,11 @@ interface CustomersPageClientProps {
   pagination: PaginationData
   filters: Filters
   sort?: SortData
+  /** Sprint Ø4.4 — cost-free betalings-badges pr. customer_id (batch). */
+  paymentBadges?: Record<string, CustomerPaymentBadge>
 }
 
-export function CustomersPageClient({ customers, pagination, filters, sort }: CustomersPageClientProps) {
+export function CustomersPageClient({ customers, pagination, filters, sort, paymentBadges }: CustomersPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
@@ -187,6 +190,7 @@ export function CustomersPageClient({ customers, pagination, filters, sort }: Cu
           onSort={handleSort}
           filtered={!!(filters.search || filters.is_active !== undefined)}
           onClearFilters={() => { setSearchInput(''); router.push('/dashboard/customers') }}
+          paymentBadges={paymentBadges}
         />
 
         {/* Pagination */}

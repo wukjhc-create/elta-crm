@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
 import { getCustomers } from '@/lib/actions/customers'
+import { getCustomersPaymentBadgesAction, type CustomerPaymentBadge } from '@/lib/actions/invoices'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 import { CustomersPageClient } from '@/components/modules/customers/customers-page-client'
 
 export const metadata: Metadata = {
@@ -48,6 +50,15 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     )
   }
 
+  // Sprint Ø4.4 — cost-free betalings-badges i ÉN batch-query for de
+  // synlige kunder (max 25/side → ingen N+1). Kun for fakturaadgang.
+  let paymentBadges: Record<string, CustomerPaymentBadge> = {}
+  if (await pageHasPermission('invoices.view.own_cases')) {
+    const ids = result.data.data.map((c) => c.id)
+    const res = await getCustomersPaymentBadgesAction(ids)
+    if (res.ok) paymentBadges = res.badges
+  }
+
   return (
     <CustomersPageClient
       customers={result.data.data}
@@ -59,6 +70,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
       }}
       filters={{ search, is_active }}
       sort={{ sortBy, sortOrder }}
+      paymentBadges={paymentBadges}
     />
   )
 }

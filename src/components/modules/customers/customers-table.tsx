@@ -25,6 +25,8 @@ import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteCustomer, toggleCustomerActive } from '@/lib/actions/customers'
 import { useToast } from '@/components/ui/toast'
 import type { CustomerWithRelations } from '@/types/customers.types'
+import type { CustomerPaymentBadge } from '@/lib/actions/invoices'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface CustomersTableProps {
   customers: CustomerWithRelations[]
@@ -33,9 +35,43 @@ interface CustomersTableProps {
   onSort?: (column: string) => void
   filtered?: boolean
   onClearFilters?: () => void
+  /** Sprint Ø4.4 — cost-free betalings-badge pr. customer_id (batch). */
+  paymentBadges?: Record<string, CustomerPaymentBadge>
 }
 
-export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered, onClearFilters }: CustomersTableProps) {
+/** Sprint Ø4.4 — kompakt cost-free betalings-chip til kundelisten. */
+function PaymentListChip({ badge }: { badge?: CustomerPaymentBadge }) {
+  if (!badge) return null
+  if (badge.overdue_count > 0) {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-100 text-rose-800">
+        {badge.overdue_count} forfalden{badge.overdue_count === 1 ? '' : 'e'}
+      </span>
+    )
+  }
+  if (badge.outstanding_total > 0) {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">
+        Udestående {formatCurrency(badge.outstanding_total, 'DKK', 0)}
+      </span>
+    )
+  }
+  if (badge.status === 'late_payer') {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700">
+        Ofte forsinket
+      </span>
+    )
+  }
+  if (badge.status === 'no_data') return null
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">
+      Ingen udestående
+    </span>
+  )
+}
+
+export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered, onClearFilters, paymentBadges }: CustomersTableProps) {
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -192,13 +228,14 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
           >
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-gray-900 truncate">{customer.company_name}</p>
                   {customer.is_active ? (
                     <span className="shrink-0 w-2 h-2 bg-green-500 rounded-full" />
                   ) : (
                     <span className="shrink-0 w-2 h-2 bg-gray-300 rounded-full" />
                   )}
+                  <PaymentListChip badge={paymentBadges?.[customer.id]} />
                 </div>
                 <p className="text-sm text-gray-500 mt-0.5 truncate">{customer.contact_person || customer.email}</p>
               </div>
@@ -274,12 +311,15 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                   </td>
                   <td className="px-6 py-4">
                     <div>
-                      <Link
-                        href={`/dashboard/customers/${customer.id}`}
-                        className="font-medium text-gray-900 hover:text-primary"
-                      >
-                        {customer.company_name}
-                      </Link>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link
+                          href={`/dashboard/customers/${customer.id}`}
+                          className="font-medium text-gray-900 hover:text-primary"
+                        >
+                          {customer.company_name}
+                        </Link>
+                        <PaymentListChip badge={paymentBadges?.[customer.id]} />
+                      </div>
                       {customer.vat_number && (
                         <div className="text-sm text-gray-500">
                           CVR: {customer.vat_number}

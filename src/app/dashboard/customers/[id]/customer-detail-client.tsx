@@ -44,6 +44,7 @@ import { BesigtigelsesNotat } from '@/components/modules/customers/besigtigelse-
 import { CustomerDocumentsTab } from '@/components/modules/customers/customer-documents-tab'
 import { CustomerCasesTab } from '@/components/modules/customers/customer-cases-tab'
 import { CustomerInvoiceOverview } from '@/components/modules/customers/customer-invoice-overview'
+import { CustomerPaymentBadge } from '@/components/modules/customers/customer-payment-badge'
 import { CustomerStatusFlow } from '@/components/modules/customers/customer-status-flow'
 import {
   deleteCustomer,
@@ -191,6 +192,11 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
                   Inaktiv
                 </span>
               )}
+              {/* Sprint Ø4.4 — betalingsstatus-badge (cost-free) */}
+              <CustomerPaymentBadge
+                customerId={customer.id}
+                onOpenInvoices={() => setActiveTab('fakturaer')}
+              />
             </div>
             <p className="text-gray-600 mt-1 inline-flex items-center gap-1 text-sm">
               Kundenr. {customer.customer_number}

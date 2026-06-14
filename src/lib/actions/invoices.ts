@@ -42,6 +42,12 @@ import {
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import {
+  computePaymentHealth,
+  type HealthInvoice,
+  type PaymentHealth,
+  type PaymentHealthStatus,
+} from '@/lib/invoices/payment-health'
 
 // =====================================================
 // 6B-3 — listUnbilledForCase
@@ -1953,4 +1959,113 @@ export async function getCustomerInvoiceOverviewAction(
     invoices,
     recent_events,
   }
+}
+
+// =====================================================
+// Sprint Ø4.4 — Kundens betalingsadfærd (cost-free)
+//
+// Til badge på kundekort-header (enkelt-kunde) + kundeliste (batch).
+// Genbruger computePaymentHealth-reglerne. Gated invoices.view.own_cases
+// — economy.cost_prices IKKE krævet. KUN salgs/faktura-data.
+// =====================================================
+
+const HEALTH_SELECT = 'status, invoice_type, final_amount, due_date, voided_at, paid_at, sent_at'
+
+export interface CustomerPaymentHealthResult {
+  ok: boolean
+  permitted: boolean
+  message?: string
+  health?: PaymentHealth
+}
+
+export async function getCustomerPaymentHealthAction(
+  customerId: string,
+  nowIso?: string
+): Promise<CustomerPaymentHealthResult> {
+  try {
+    validateUUID(customerId, 'customer_id')
+  } catch (err) {
+    return { ok: false, permitted: true, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.own_cases')) {
+    return { ok: false, permitted: false, message: 'Ingen adgang til fakturastatus' }
+  }
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(HEALTH_SELECT)
+    .eq('customer_id', customerId)
+    .limit(500)
+  if (error) {
+    logger.error('getCustomerPaymentHealthAction: query failed', { entityId: customerId, error })
+    return { ok: false, permitted: true, message: 'Kunne ikke hente betalingsstatus' }
+  }
+  const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
+  const health = computePaymentHealth((data ?? []) as HealthInvoice[], nowMs)
+  return { ok: true, permitted: true, health }
+}
+
+export interface CustomerPaymentBadge {
+  outstanding_total: number
+  overdue_count: number
+  overdue_total: number
+  status: PaymentHealthStatus
+  human_label: string
+}
+
+export interface CustomersPaymentBadgesResult {
+  ok: boolean
+  permitted: boolean
+  badges: Record<string, CustomerPaymentBadge>
+}
+
+/**
+ * Batch — ÉN query for alle synlige customer_ids (ingen N+1). Bruges til
+ * kompakt badge i kundelisten. Kundelisten viser 25/side, så dette er
+ * en enkelt billig forespørgsel.
+ */
+export async function getCustomersPaymentBadgesAction(
+  customerIds: string[],
+  nowIso?: string
+): Promise<CustomersPaymentBadgesResult> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.own_cases')) {
+    return { ok: false, permitted: false, badges: {} }
+  }
+  const ids = Array.from(new Set(customerIds.filter(Boolean))).slice(0, 200)
+  if (ids.length === 0) return { ok: true, permitted: true, badges: {} }
+
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(`customer_id, ${HEALTH_SELECT}`)
+    .in('customer_id', ids)
+    .limit(5000)
+  if (error) {
+    logger.error('getCustomersPaymentBadgesAction: query failed', { error })
+    return { ok: false, permitted: true, badges: {} }
+  }
+
+  // Grupér pr. kunde og beregn health med samme regler.
+  const byCustomer = new Map<string, HealthInvoice[]>()
+  for (const r of data ?? []) {
+    const cid = r.customer_id as string | null
+    if (!cid) continue
+    const arr = byCustomer.get(cid) ?? []
+    arr.push(r as unknown as HealthInvoice)
+    byCustomer.set(cid, arr)
+  }
+  const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
+  const badges: Record<string, CustomerPaymentBadge> = {}
+  for (const cid of ids) {
+    const rows = byCustomer.get(cid) ?? []
+    const h = computePaymentHealth(rows, nowMs)
+    badges[cid] = {
+      outstanding_total: h.outstanding_total,
+      overdue_count: h.overdue_count,
+      overdue_total: h.overdue_total,
+      status: h.status,
+      human_label: h.human_label,
+    }
+  }
+  return { ok: true, permitted: true, badges }
 }
