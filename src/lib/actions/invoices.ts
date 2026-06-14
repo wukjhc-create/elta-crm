@@ -1749,3 +1749,208 @@ export async function getInvoiceLiquidityChartAction(
 
   return { ok: true, currency: 'DKK', months, has_data: hasData }
 }
+
+// =====================================================
+// Sprint Ø4.3 — Cost-free kunde-fakturaoverblik (til kundekortet)
+//
+// Kundens fakturaer + nøgletal + seneste events, så kontor/salg straks
+// kan se om kunden skylder penge. Samme forfald-regel som Ø3.6/Ø4.0.
+// KUN salgs/faktura-data — ingen kost/margin/DB.
+// Gated invoices.view.own_cases (inkl. salg) — economy.cost_prices IKKE krævet.
+// =====================================================
+
+export interface CustomerInvoiceRow {
+  id: string
+  invoice_number: string | null
+  invoice_type: string | null
+  status: string
+  payment_status: string | null
+  final_amount: number
+  currency: string | null
+  created_at: string
+  sent_at: string | null
+  paid_at: string | null
+  due_date: string | null
+  voided_at: string | null
+  is_credit_note: boolean
+  is_overdue: boolean
+  days_overdue: number | null
+  case_id: string | null
+  case_number: string | null
+}
+
+export interface CustomerInvoiceSummary {
+  outstanding_total: number
+  overdue_count: number
+  overdue_total: number
+  draft_count: number
+  paid_total: number
+  invoice_count: number
+  latest_invoice_at: string | null
+  latest_payment_at: string | null
+  last_reminder_at: string | null
+}
+
+export interface CustomerInvoiceOverviewResult {
+  ok: boolean
+  message?: string
+  permitted: boolean
+  customer_name?: string | null
+  summary?: CustomerInvoiceSummary
+  invoices?: CustomerInvoiceRow[]
+  recent_events?: DashboardInvoiceEvent[]
+}
+
+export async function getCustomerInvoiceOverviewAction(
+  customerId: string,
+  nowIso?: string
+): Promise<CustomerInvoiceOverviewResult> {
+  try {
+    validateUUID(customerId, 'customer_id')
+  } catch (err) {
+    return { ok: false, permitted: true, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.own_cases')) {
+    return {
+      ok: false,
+      permitted: false,
+      message: 'Du har ikke adgang til fakturaoplysninger på kunden.',
+    }
+  }
+
+  const { data: rows, error } = await supabase
+    .from('invoices')
+    .select(
+      'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, last_reminder_at, case_id'
+    )
+    .eq('customer_id', customerId)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (error) {
+    logger.error('getCustomerInvoiceOverviewAction: query failed', { entityId: customerId, error })
+    return { ok: false, permitted: true, message: 'Kunne ikke hente kundens fakturaer' }
+  }
+
+  const list = rows ?? []
+  const todayMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
+  const DAY = 1000 * 60 * 60 * 24
+
+  let outstanding = 0
+  let overdueCount = 0
+  let overdueTotal = 0
+  let draftCount = 0
+  let paidTotal = 0
+  let latestInvoiceAt: string | null = null
+  let latestPaymentAt: string | null = null
+  let lastReminderAt: string | null = null
+
+  const invoices: CustomerInvoiceRow[] = list.map((r) => {
+    const isCredit = r.invoice_type === 'credit'
+    const active = !r.voided_at && !isCredit
+    const amount = Number(r.final_amount ?? 0)
+    if (r.status === 'draft' && !r.voided_at) draftCount += 1
+    if (active && r.status === 'sent') outstanding += amount
+    if (active && r.status === 'paid') paidTotal += amount
+    const createdAt = r.created_at as string
+    if (!latestInvoiceAt || createdAt > latestInvoiceAt) latestInvoiceAt = createdAt
+    if (r.paid_at && (!latestPaymentAt || String(r.paid_at) > latestPaymentAt)) latestPaymentAt = r.paid_at as string
+    if (r.last_reminder_at && (!lastReminderAt || String(r.last_reminder_at) > lastReminderAt)) lastReminderAt = r.last_reminder_at as string
+
+    let isOverdue = false
+    let daysOverdue: number | null = null
+    if (r.due_date && r.status === 'sent' && active) {
+      const days = Math.floor((todayMs - new Date(String(r.due_date) + 'T00:00:00').getTime()) / DAY)
+      if (days > 0) {
+        isOverdue = true
+        daysOverdue = days
+        overdueCount += 1
+        overdueTotal += amount
+      }
+    }
+    return {
+      id: r.id as string,
+      invoice_number: (r.invoice_number as string | null) ?? null,
+      invoice_type: (r.invoice_type as string | null) ?? null,
+      status: (r.status as string) ?? 'draft',
+      payment_status: (r.payment_status as string | null) ?? null,
+      final_amount: amount,
+      currency: (r.currency as string | null) ?? 'DKK',
+      created_at: createdAt,
+      sent_at: (r.sent_at as string | null) ?? null,
+      paid_at: (r.paid_at as string | null) ?? null,
+      due_date: (r.due_date as string | null) ?? null,
+      voided_at: (r.voided_at as string | null) ?? null,
+      is_credit_note: isCredit,
+      is_overdue: isOverdue,
+      days_overdue: daysOverdue,
+      case_id: (r.case_id as string | null) ?? null,
+      case_number: null,
+    }
+  })
+
+  // Berig sagsnummer (cost-free).
+  const caseIds = Array.from(new Set(invoices.map((r) => r.case_id).filter(Boolean) as string[]))
+  if (caseIds.length > 0) {
+    const { data: cases } = await supabase.from('service_cases').select('id, case_number').in('id', caseIds)
+    const byId = new Map((cases ?? []).map((c) => [c.id as string, (c.case_number as string | null) ?? null]))
+    for (const inv of invoices) if (inv.case_id) inv.case_number = byId.get(inv.case_id) ?? null
+  }
+
+  // Seneste events scoped til kundens fakturaer (sikkert via entity_id IN).
+  let recent_events: DashboardInvoiceEvent[] = []
+  const invoiceIds = invoices.map((r) => r.id)
+  if (invoiceIds.length > 0) {
+    const { data: ev } = await supabase
+      .from('audit_logs')
+      .select('id, created_at, action, entity_name, metadata')
+      .eq('entity_type', 'invoice')
+      .in('entity_id', invoiceIds.slice(0, 100))
+      .in('action', CASE_INVOICE_HISTORY_ACTIONS)
+      .order('created_at', { ascending: false })
+      .limit(8)
+    recent_events = (ev ?? []).map((e) => {
+      const metadata = (e.metadata ?? {}) as Record<string, unknown>
+      const action = e.action as string
+      const amount =
+        typeof metadata.final_amount === 'number'
+          ? (metadata.final_amount as number)
+          : typeof metadata.final === 'number'
+            ? (metadata.final as number)
+            : null
+      return {
+        id: e.id as string,
+        created_at: e.created_at as string,
+        action,
+        action_label: CASE_INVOICE_HISTORY_LABELS[action] ?? action,
+        invoice_number: (e.entity_name as string | null) ?? null,
+        amount_incl_vat: amount,
+        is_credit: action === 'invoice_credited' || action === 'credit_draft_deleted',
+        is_sent: action === 'invoice_sent' || action === 'invoice_marked_sent',
+        is_paid: action === 'invoice_marked_paid',
+        is_reminder: action === 'invoice_reminder_sent',
+      }
+    })
+  }
+
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  return {
+    ok: true,
+    permitted: true,
+    summary: {
+      outstanding_total: r2(outstanding),
+      overdue_count: overdueCount,
+      overdue_total: r2(overdueTotal),
+      draft_count: draftCount,
+      paid_total: r2(paidTotal),
+      invoice_count: invoices.length,
+      latest_invoice_at: latestInvoiceAt,
+      latest_payment_at: latestPaymentAt,
+      last_reminder_at: lastReminderAt,
+    },
+    invoices,
+    recent_events,
+  }
+}

@@ -29,6 +29,7 @@ import {
   FolderOpen,
   GitBranch,
   Briefcase,
+  Receipt,
 } from 'lucide-react'
 import { BookBesigtigelseModal } from '@/components/modules/customers/book-besigtigelse-modal'
 import { CustomerForm } from '@/components/modules/customers/customer-form'
@@ -42,6 +43,7 @@ import { CustomerEmailTimeline } from '@/components/modules/customers/customer-e
 import { BesigtigelsesNotat } from '@/components/modules/customers/besigtigelse-notat'
 import { CustomerDocumentsTab } from '@/components/modules/customers/customer-documents-tab'
 import { CustomerCasesTab } from '@/components/modules/customers/customer-cases-tab'
+import { CustomerInvoiceOverview } from '@/components/modules/customers/customer-invoice-overview'
 import { CustomerStatusFlow } from '@/components/modules/customers/customer-status-flow'
 import {
   deleteCustomer,
@@ -73,7 +75,7 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
   const [showChat, setShowChat] = useState(false)
   const [showBesigtigelse, setShowBesigtigelse] = useState(false)
-  const [activeTab, setActiveTab] = useState<'oversigt' | 'sager' | 'besigtigelse' | 'dokumenter' | 'status'>('oversigt')
+  const [activeTab, setActiveTab] = useState<'oversigt' | 'sager' | 'fakturaer' | 'besigtigelse' | 'dokumenter' | 'status'>('oversigt')
   const [showFuldmagtModal, setShowFuldmagtModal] = useState(false)
   const [fuldmagtOrderNr, setFuldmagtOrderNr] = useState('')
   const [isSendingFuldmagt, setIsSendingFuldmagt] = useState(false)
@@ -261,6 +263,18 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
             <Briefcase className="w-4 h-4" />
             Sager
           </button>
+          {/* Sprint Ø4.3: Fakturaer-tab (cost-free) */}
+          <button
+            onClick={() => setActiveTab('fakturaer')}
+            className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
+              activeTab === 'fakturaer'
+                ? 'border-green-600 text-green-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Receipt className="w-4 h-4" />
+            Fakturaer
+          </button>
           <button
             onClick={() => setActiveTab('besigtigelse')}
             className={`shrink-0 inline-flex items-center gap-1.5 px-4 py-3 sm:py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-manipulation ${
@@ -299,6 +313,14 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
         {/* Sprint 8D-1: Tab: Sager */}
         {activeTab === 'sager' && (
           <CustomerCasesTab customerId={customer.id} />
+        )}
+
+        {/* Sprint Ø4.3: Tab: Fakturaer (cost-free) */}
+        {activeTab === 'fakturaer' && (
+          <CustomerInvoiceOverview
+            customerId={customer.id}
+            customerName={customer.company_name}
+          />
         )}
 
         {/* Tab: Besigtigelse */}
