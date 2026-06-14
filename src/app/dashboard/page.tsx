@@ -38,6 +38,7 @@ import {
   MonthlyOfferChart,
   EmailIntelligenceCard,
   InvoiceEconomySection,
+  InvoiceLiquidityChart,
 } from '@/components/modules/dashboard'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
@@ -114,6 +115,9 @@ export default async function DashboardPage() {
 
       {/* Sprint Ø4.0 — Driftsdashboard: cost-free fakturaøkonomi (få pengene hjem) */}
       {canViewInvoices && <InvoiceEconomySection />}
+
+      {/* Sprint Ø4.2 — Likviditetsgraf: faktureret vs. betalt 6 mdr. */}
+      {canViewInvoices && <InvoiceLiquidityChart />}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />

@@ -1644,3 +1644,108 @@ export async function getInvoiceDashboardAction(
     },
   }
 }
+
+// =====================================================
+// Sprint Ø4.2 — Cost-free likviditetsgraf (6 måneder)
+//
+// Datadefinition (CTO-prioritet, dokumenteret):
+//  - Faktureret pr. måned = fakturaer med status sendt/betalt, IKKE
+//    annulleret, IKKE kreditnota, grupperet på sent_at's måned.
+//  - Betalt pr. måned     = fakturaer med paid_at i måneden, IKKE
+//    annulleret, IKKE kreditnota.
+//  - Kladder (draft_total)= status draft, IKKE annulleret, på created_at
+//    (vises separat — tæller IKKE som faktureret).
+//  - Kreditnotaer + annullerede tæller hverken som faktureret eller
+//    betalt (ingen modregning — vi pynter ikke tallene).
+// KUN salgs/faktura-beløb — ingen kost/margin/DB. Gated invoices.view.all.
+// =====================================================
+
+export interface LiquidityMonth {
+  month: string
+  month_label: string
+  invoiced_total: number
+  paid_total: number
+  draft_total: number
+}
+
+export interface InvoiceLiquidityResult {
+  ok: boolean
+  message?: string
+  currency?: string
+  months?: LiquidityMonth[]
+  has_data?: boolean
+}
+
+export async function getInvoiceLiquidityChartAction(
+  nowIso?: string
+): Promise<InvoiceLiquidityResult> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.all')) {
+    return { ok: false, message: 'Manglende tilladelse: invoices.view.all' }
+  }
+
+  const now = nowIso ? new Date(nowIso) : new Date()
+  const base = new Date(now.getFullYear(), now.getMonth(), 1)
+  const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+
+  // Indeværende måned + 5 foregående (ældst → nyest).
+  const buckets = new Map<string, LiquidityMonth>()
+  const order: string[] = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const label = cap(d.toLocaleDateString('da-DK', { month: 'short' }).replace('.', ''))
+    buckets.set(key, { month: key, month_label: label, invoiced_total: 0, paid_total: 0, draft_total: 0 })
+    order.push(key)
+  }
+  const earliest = order[0] // 'YYYY-MM' — kun rækker fra denne måned og frem er relevante
+
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('status, invoice_type, final_amount, voided_at, sent_at, paid_at, created_at')
+    .gte('created_at', earliest + '-01T00:00:00')
+    .limit(5000)
+
+  if (error) {
+    logger.error('getInvoiceLiquidityChartAction: query failed', { error })
+    return { ok: false, message: 'Kunne ikke hente likviditetsdata' }
+  }
+
+  const ym = (s: unknown): string | null => (s ? String(s).slice(0, 7) : null)
+  let hasData = false
+
+  for (const r of data ?? []) {
+    const isCredit = r.invoice_type === 'credit'
+    const active = !r.voided_at && !isCredit
+    const amount = Number(r.final_amount ?? 0)
+
+    // Faktureret — status sendt/betalt, grupperet på sent_at
+    if (active && (r.status === 'sent' || r.status === 'paid')) {
+      const m = buckets.get(ym(r.sent_at) ?? '')
+      if (m) { m.invoiced_total += amount; hasData = true }
+    }
+    // Betalt — paid_at i måneden
+    if (active && r.status === 'paid' && r.paid_at) {
+      const m = buckets.get(ym(r.paid_at) ?? '')
+      if (m) { m.paid_total += amount; hasData = true }
+    }
+    // Kladder — created_at i måneden (vises separat)
+    if (r.status === 'draft' && !r.voided_at) {
+      const m = buckets.get(ym(r.created_at) ?? '')
+      if (m) { m.draft_total += amount; hasData = true }
+    }
+  }
+
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  const months = order.map((k) => {
+    const m = buckets.get(k)!
+    return {
+      ...m,
+      invoiced_total: r2(m.invoiced_total),
+      paid_total: r2(m.paid_total),
+      draft_total: r2(m.draft_total),
+    }
+  })
+
+  return { ok: true, currency: 'DKK', months, has_data: hasData }
+}
