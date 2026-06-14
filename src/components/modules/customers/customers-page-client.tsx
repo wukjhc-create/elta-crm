@@ -12,6 +12,7 @@ import {
   PAYMENT_EMPTY_TEXT,
   type PaymentFilterKey,
   type PaymentSortKey,
+  type PaymentCounts,
 } from '@/app/dashboard/customers/customer-payment-filter'
 import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
@@ -45,6 +46,9 @@ interface CustomersPageClientProps {
   canViewPayments?: boolean
   paymentFilter?: PaymentFilterKey
   paymentSort?: PaymentSortKey
+  /** Sprint Ø4.6 — tællere pr. betalingsfilter + global-sort-flag. */
+  paymentCounts?: PaymentCounts
+  globalSortActive?: boolean
 }
 
 export function CustomersPageClient({
@@ -56,6 +60,8 @@ export function CustomersPageClient({
   canViewPayments = false,
   paymentFilter = 'all',
   paymentSort = 'default',
+  paymentCounts,
+  globalSortActive = false,
 }: CustomersPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -120,20 +126,10 @@ export function CustomersPageClient({
     updateURL({ paysort: key === 'default' ? undefined : key })
   }
 
-  // SIDE-LOKAL sortering på de viste kunder via deres betalings-badge.
-  const visibleCustomers =
-    paymentSort === 'default'
-      ? customers
-      : [...customers].sort((a, b) => {
-          const ba = paymentBadges?.[a.id]
-          const bb = paymentBadges?.[b.id]
-          if (paymentSort === 'outstanding_desc') {
-            return (bb?.outstanding_total ?? 0) - (ba?.outstanding_total ?? 0)
-          }
-          // overdue_desc — flest forfaldne, tiebreak på beløb
-          const d = (bb?.overdue_count ?? 0) - (ba?.overdue_count ?? 0)
-          return d !== 0 ? d : (bb?.overdue_total ?? 0) - (ba?.overdue_total ?? 0)
-        })
+  // Ø4.6 — sortering er nu GLOBAL (server-leveret rækkefølge); ingen
+  // side-lokal re-sort. Kunderne vises i den modtagne orden.
+  const countFor = (key: PaymentFilterKey): number | undefined =>
+    key === 'all' || !paymentCounts ? undefined : paymentCounts[key]
 
   const paymentEmptyText =
     paymentFilter !== 'all' ? PAYMENT_EMPTY_TEXT[paymentFilter] : undefined
@@ -209,22 +205,30 @@ export function CustomersPageClient({
           {canViewPayments && (
             <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
               <span className="text-xs text-gray-500">Betaling:</span>
-              {PAYMENT_FILTERS.map((f) => (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => handlePaymentFilter(f.key)}
-                  className={`px-2.5 py-1 text-xs rounded-lg ring-1 transition ${
-                    paymentFilter === f.key
-                      ? 'bg-emerald-600 text-white ring-emerald-600'
-                      : 'bg-white text-gray-700 ring-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
+              {PAYMENT_FILTERS.map((f) => {
+                const c = countFor(f.key)
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => handlePaymentFilter(f.key)}
+                    className={`px-2.5 py-1 text-xs rounded-lg ring-1 transition ${
+                      paymentFilter === f.key
+                        ? 'bg-emerald-600 text-white ring-emerald-600'
+                        : 'bg-white text-gray-700 ring-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    {f.label}
+                    {c !== undefined && (
+                      <span className={`ml-1.5 ${paymentFilter === f.key ? 'text-emerald-100' : 'text-gray-400'}`}>
+                        {c}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
               <div className="ml-auto flex items-center gap-1.5">
-                <label className="text-xs text-gray-500">Sortér viste:</label>
+                <label className="text-xs text-gray-500">Sortér:</label>
                 <select
                   value={paymentSort}
                   onChange={(e) => handlePaymentSort(e.target.value as PaymentSortKey)}
@@ -235,9 +239,9 @@ export function CustomersPageClient({
                   ))}
                 </select>
               </div>
-              {paymentSort !== 'default' && (
-                <span className="basis-full text-[11px] text-gray-400">
-                  Sortering gælder kun de viste kunder på denne side (ikke globalt). Betalingsfilteret er globalt.
+              {paymentSort !== 'default' && !globalSortActive && (
+                <span className="basis-full text-[11px] text-amber-600">
+                  Global sortering kan ikke kombineres med fritekst-søgning — ryd søgningen for at sortere på tværs af alle sider.
                 </span>
               )}
             </div>
@@ -268,7 +272,7 @@ export function CustomersPageClient({
         </div>
 
         <CustomersTable
-          customers={visibleCustomers}
+          customers={customers}
           sortBy={sort?.sortBy}
           sortOrder={sort?.sortOrder}
           onSort={handleSort}

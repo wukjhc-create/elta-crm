@@ -39,13 +39,20 @@ export const PAYMENT_EMPTY_TEXT: Record<PaymentFilterKey, string> = {
   no_data: 'Der er ingen kunder uden betalingsdata.',
 }
 
-// ---- Sortering (SIDE-LOKAL på de viste kunder) ----
-export type PaymentSortKey = 'default' | 'outstanding_desc' | 'overdue_desc'
+// ---- Sortering (Ø4.6 — GLOBAL på tværs af alle kunder, før paginering) ----
+export type PaymentSortKey =
+  | 'default'
+  | 'outstanding_desc'
+  | 'overdue_desc'
+  | 'latest_invoice_desc'
+  | 'payment_health'
 
 export const PAYMENT_SORTS: Array<{ key: PaymentSortKey; label: string }> = [
   { key: 'default', label: 'Standard' },
   { key: 'outstanding_desc', label: 'Størst udestående' },
   { key: 'overdue_desc', label: 'Flest forfaldne' },
+  { key: 'latest_invoice_desc', label: 'Seneste faktura' },
+  { key: 'payment_health', label: 'Betalingsadfærd (værst først)' },
 ]
 
 const VALID_SORTS = new Set<PaymentSortKey>(PAYMENT_SORTS.map((s) => s.key))
@@ -53,3 +60,9 @@ const VALID_SORTS = new Set<PaymentSortKey>(PAYMENT_SORTS.map((s) => s.key))
 export function parsePaymentSort(raw: string | null | undefined): PaymentSortKey {
   return raw && VALID_SORTS.has(raw as PaymentSortKey) ? (raw as PaymentSortKey) : 'default'
 }
+
+/** Tællere pr. betalingsfilter (fra samme aggregat som sortering). */
+export type PaymentCounts = Record<
+  'overdue' | 'outstanding' | 'late_payer' | 'on_time' | 'no_data',
+  number
+>

@@ -2,11 +2,11 @@ import { Metadata } from 'next'
 import { getCustomers } from '@/lib/actions/customers'
 import {
   getCustomersPaymentBadgesAction,
-  getCustomerIdsByPaymentFilterAction,
+  getCustomerPaymentListStateAction,
   type CustomerPaymentBadge,
 } from '@/lib/actions/invoices'
 import { pageHasPermission } from '@/lib/auth/page-guard'
-import { parsePaymentFilter, parsePaymentSort } from './customer-payment-filter'
+import { parsePaymentFilter, parsePaymentSort, type PaymentCounts } from './customer-payment-filter'
 import { CustomersPageClient } from '@/components/modules/customers/customers-page-client'
 
 export const metadata: Metadata = {
@@ -38,27 +38,59 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
 
-  // Sprint Ø4.5 — betalingsfilter (GLOBALT) + betalingssortering (side-lokal).
+  // Sprint Ø4.5/Ø4.6 — betalingsfilter + GLOBAL betalingssortering + tællere.
   const paymentFilter = parsePaymentFilter(params.payment)
   const paymentSort = parsePaymentSort(params.paysort)
   const canViewPayments = await pageHasPermission('invoices.view.own_cases')
 
-  // Global filtrering: beregn matchende customer_ids FØR paginering.
-  let customerIds: string[] | undefined
-  if (canViewPayments && paymentFilter !== 'all') {
-    const r = await getCustomerIdsByPaymentFilterAction(paymentFilter)
-    customerIds = r.ok ? r.ids : []
+  // Ét aggregat (ÉN invoices-query) → counts + globalt filtreret/sorteret ids.
+  // Køres KUN for brugere med fakturaadgang.
+  let paymentCounts: PaymentCounts | undefined
+  let aggregateIds: string[] | undefined
+  let aggregateSorted = false
+  if (canViewPayments && (paymentFilter !== 'all' || paymentSort !== 'default')) {
+    const state = await getCustomerPaymentListStateAction(paymentFilter, paymentSort)
+    if (state.ok) {
+      paymentCounts = state.counts
+      aggregateIds = state.ids
+      aggregateSorted = state.sorted
+    } else {
+      aggregateIds = []
+    }
+  } else if (canViewPayments) {
+    // Kun tællere (filter=all, sort=default).
+    const state = await getCustomerPaymentListStateAction('all', 'default')
+    if (state.ok) paymentCounts = state.counts
   }
 
-  const result = await getCustomers({
-    page,
-    pageSize,
-    search,
-    is_active,
-    sortBy,
-    sortOrder,
-    customerIds,
-  })
+  // GLOBAL sortering vinder over fritekst-søgning (kan ikke kombineres her).
+  const useGlobalSort = aggregateSorted && !search
+
+  let result
+  if (useGlobalSort && aggregateIds) {
+    // Paginér den globalt sorterede id-liste selv; bevar rækkefølge.
+    const offset = (page - 1) * pageSize
+    const pageIds = aggregateIds.slice(offset, offset + pageSize)
+    result = await getCustomers({
+      page,
+      pageSize,
+      is_active,
+      preserveOrderIds: pageIds,
+      totalOverride: aggregateIds.length,
+    })
+  } else {
+    // Filter-whitelist-sti (global filtrering, getCustomers paginerer/sorterer).
+    const customerIds = paymentFilter !== 'all' && canViewPayments ? aggregateIds ?? [] : undefined
+    result = await getCustomers({
+      page,
+      pageSize,
+      search,
+      is_active,
+      sortBy,
+      sortOrder,
+      customerIds,
+    })
+  }
 
   if (!result.success || !result.data) {
     return (
@@ -94,6 +126,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
       canViewPayments={canViewPayments}
       paymentFilter={paymentFilter}
       paymentSort={paymentSort}
+      paymentCounts={paymentCounts}
+      globalSortActive={useGlobalSort}
     />
   )
 }

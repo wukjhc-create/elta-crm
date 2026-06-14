@@ -2071,35 +2071,64 @@ export async function getCustomersPaymentBadgesAction(
 }
 
 // =====================================================
-// Sprint Ø4.5 — Global betalingsfilter for kundelisten
+// Sprint Ø4.5/Ø4.6 — Global betalings-listestate for kundelisten
 //
-// Beregner (via ÉN invoices-query + payment-health-helper) hvilke
-// customer_ids der matcher et betalingsfilter. Resultatet bruges som
-// whitelist i getCustomers FØR paginering → ærlig global filtrering.
-// Samme regler som badge (Ø4.4). Gated invoices.view.own_cases.
+// ÉN invoices-query → payment-health pr. kunde (genbrug af helper).
+// Returnerer: counts pr. betalingsfilter + customer_ids matchende det
+// AKTIVE filter, GLOBALT sorteret efter den valgte sortering (før
+// paginering). Bruges som whitelist/rækkefølge i getCustomers.
+// Cost-free. Gated invoices.view.own_cases. Ingen N+1.
+//
+// Performance: ÉN aggregat-query med limit 20000 fakturarækker. Ved
+// markant større fakturamængde bør et DB-view/materialiseret aggregat
+// overvejes — men byg ikke for tidligt.
 // =====================================================
 
 export type PaymentFilter =
+  | 'all'
   | 'overdue'
   | 'outstanding'
   | 'late_payer'
   | 'on_time'
   | 'no_data'
 
-export interface CustomerPaymentFilterResult {
+export type PaymentListSort =
+  | 'default'
+  | 'outstanding_desc'
+  | 'overdue_desc'
+  | 'latest_invoice_desc'
+  | 'payment_health'
+
+export interface CustomerPaymentListState {
   ok: boolean
   permitted: boolean
+  counts: Record<'overdue' | 'outstanding' | 'late_payer' | 'on_time' | 'no_data', number>
   ids: string[]
+  /** true når ids er globalt sorteret (sort != default) → preserveOrder i UI. */
+  sorted: boolean
 }
 
-export async function getCustomerIdsByPaymentFilterAction(
+const HEALTH_RANK: Record<PaymentHealthStatus, number> = {
+  requires_attention: 3,
+  late_payer: 2,
+  on_time: 1,
+  no_data: 0,
+}
+
+export async function getCustomerPaymentListStateAction(
   filter: PaymentFilter,
+  sort: PaymentListSort,
   nowIso?: string
-): Promise<CustomerPaymentFilterResult> {
-  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-  if (!hasPermission('invoices.view.own_cases')) {
-    return { ok: false, permitted: false, ids: [] }
+): Promise<CustomerPaymentListState> {
+  const empty: CustomerPaymentListState = {
+    ok: false,
+    permitted: false,
+    counts: { overdue: 0, outstanding: 0, late_payer: 0, on_time: 0, no_data: 0 },
+    ids: [],
+    sorted: false,
   }
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.own_cases')) return empty
 
   // ÉN query over alle fakturaer (cost-free kolonner) — ingen N+1.
   const { data, error } = await supabase
@@ -2108,8 +2137,8 @@ export async function getCustomerIdsByPaymentFilterAction(
     .not('customer_id', 'is', null)
     .limit(20000)
   if (error) {
-    logger.error('getCustomerIdsByPaymentFilterAction: query failed', { error })
-    return { ok: false, permitted: true, ids: [] }
+    logger.error('getCustomerPaymentListStateAction: query failed', { error })
+    return { ...empty, permitted: true }
   }
 
   const byCustomer = new Map<string, HealthInvoice[]>()
@@ -2122,20 +2151,60 @@ export async function getCustomerIdsByPaymentFilterAction(
   }
 
   const nowMs = (nowIso ? new Date(nowIso) : new Date()).getTime()
-  const ids: string[] = []
-  for (const [cid, rows] of byCustomer) {
-    const h = computePaymentHealth(rows, nowMs)
-    const match =
-      filter === 'overdue'
-        ? h.overdue_count > 0
-        : filter === 'outstanding'
-          ? h.outstanding_total > 0
-          : filter === 'late_payer'
-            ? h.status === 'late_payer'
-            : filter === 'on_time'
-              ? h.status === 'on_time'
-              : /* no_data */ h.status === 'no_data'
-    if (match) ids.push(cid)
+  const counts = { overdue: 0, outstanding: 0, late_payer: 0, on_time: 0, no_data: 0 }
+  type Row = { id: string; outstanding: number; overdueCount: number; overdueTotal: number; lastInvoice: string | null; status: PaymentHealthStatus }
+  const rows: Row[] = []
+
+  for (const [cid, invs] of byCustomer) {
+    const h = computePaymentHealth(invs, nowMs)
+    if (h.overdue_count > 0) counts.overdue += 1
+    if (h.outstanding_total > 0) counts.outstanding += 1
+    if (h.status === 'late_payer') counts.late_payer += 1
+    if (h.status === 'on_time') counts.on_time += 1
+    if (h.status === 'no_data') counts.no_data += 1
+    rows.push({
+      id: cid,
+      outstanding: h.outstanding_total,
+      overdueCount: h.overdue_count,
+      overdueTotal: h.overdue_total,
+      lastInvoice: h.last_invoice_at,
+      status: h.status,
+    })
   }
-  return { ok: true, permitted: true, ids }
+
+  // Filtrér efter aktivt filter.
+  const matched = rows.filter((r) =>
+    filter === 'all'
+      ? true
+      : filter === 'overdue'
+        ? r.overdueCount > 0
+        : filter === 'outstanding'
+          ? r.outstanding > 0
+          : filter === 'late_payer'
+            ? r.status === 'late_payer'
+            : filter === 'on_time'
+              ? r.status === 'on_time'
+              : r.status === 'no_data'
+  )
+
+  // GLOBAL sortering før paginering.
+  const sorted = sort !== 'default'
+  if (sorted) {
+    matched.sort((a, b) => {
+      switch (sort) {
+        case 'outstanding_desc':
+          return b.outstanding - a.outstanding
+        case 'overdue_desc':
+          return b.overdueCount - a.overdueCount || b.overdueTotal - a.overdueTotal
+        case 'latest_invoice_desc':
+          return (b.lastInvoice ?? '').localeCompare(a.lastInvoice ?? '')
+        case 'payment_health':
+          return HEALTH_RANK[b.status] - HEALTH_RANK[a.status] || b.outstanding - a.outstanding
+        default:
+          return 0
+      }
+    })
+  }
+
+  return { ok: true, permitted: true, counts, ids: matched.map((r) => r.id), sorted }
 }

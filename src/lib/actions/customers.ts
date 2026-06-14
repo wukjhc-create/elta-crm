@@ -38,6 +38,14 @@ export async function getCustomers(filters?: {
    * er korrekte for det filtrerede sæt. Tom liste = nul resultater.
    */
   customerIds?: string[]
+  /**
+   * Sprint Ø4.6 — forud-pagineret, globalt sorteret id-liste (kun den
+   * aktuelle side). Henter netop disse kunder og BEVARER rækkefølgen
+   * (ingen DB-sort/range/søgning). `totalOverride` = det fulde filtrerede
+   * antal til korrekt pagination.
+   */
+  preserveOrderIds?: string[]
+  totalOverride?: number
 }): Promise<ActionResult<PaginatedResponse<CustomerWithRelations>>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -47,6 +55,30 @@ export async function getCustomers(filters?: {
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
+
+    // Sprint Ø4.6 — global betalingssortering: hent netop side-slicen og
+    // bevar rækkefølgen fra den globalt sorterede id-liste.
+    if (filters?.preserveOrderIds !== undefined) {
+      const ids = filters.preserveOrderIds
+      const total = filters.totalOverride ?? ids.length
+      if (ids.length === 0) {
+        return { success: true, data: { data: [], total, page, pageSize, totalPages: Math.ceil(total / pageSize) } }
+      }
+      let q = supabase.from('customers').select(`*, contacts:customer_contacts(*)`).in('id', ids)
+      if (filters?.is_active !== undefined) q = q.eq('is_active', filters.is_active)
+      const { data, error } = await q
+      if (error) {
+        logger.error('Database error fetching ordered customers', { error })
+        throw new Error('DATABASE_ERROR')
+      }
+      // Reorder i JS efter den globalt sorterede id-liste (.in bevarer ikke orden).
+      const byId = new Map((data ?? []).map((c) => [c.id as string, c]))
+      const ordered = ids.map((id) => byId.get(id)).filter(Boolean) as CustomerWithRelations[]
+      return {
+        success: true,
+        data: { data: ordered, total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
+      }
+    }
 
     // Build count query
     let countQuery = supabase
