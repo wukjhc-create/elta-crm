@@ -74,6 +74,22 @@ const settingsCards = [
     ),
   },
   {
+    href: '/dashboard/settings/economic',
+    title: 'Regnskab (e-conomic)',
+    subtitle: 'Status for regnskabsintegration',
+    description: 'Se om e-conomic er opsat, og eksportér fakturaer til bogføring fra fakturasiden',
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
+    ),
+  },
+  {
     href: '/dashboard/settings/notifications',
     title: 'Notifikationer',
     subtitle: 'E-mail og push',

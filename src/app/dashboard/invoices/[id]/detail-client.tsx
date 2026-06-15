@@ -27,6 +27,7 @@ import {
 } from '@/lib/actions/invoices'
 import type { CreditSummary } from '@/lib/services/invoice-credit'
 import { CreditNoteDialog } from './credit-note-dialog'
+import { InvoiceAccountingPanel } from '@/components/modules/invoices/invoice-accounting-panel'
 import { formatCurrency } from '@/lib/utils/format'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
@@ -771,6 +772,9 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
             </div>
           )}
       </Panel>
+
+      {/* Sprint Ø6.0 — regnskabsstatus + manuel e-conomic-eksport */}
+      <InvoiceAccountingPanel invoiceId={inv.id} />
 
       {/* Sprint 6F-3 — credit dialog */}
       {creditSummary && !isCreditNote && (
