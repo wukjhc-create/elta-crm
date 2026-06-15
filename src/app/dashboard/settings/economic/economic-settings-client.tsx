@@ -10,7 +10,8 @@
  */
 
 import { useState, useTransition } from 'react'
-import { CheckCircle2, XCircle, BookCheck, KeyRound, PlugZap, Trash2, ShieldAlert, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { CheckCircle2, XCircle, BookCheck, KeyRound, PlugZap, Trash2, ShieldAlert, Loader2, ListChecks } from 'lucide-react'
 import {
   updateEconomicCredentialsAction,
   testEconomicConnectionAction,
@@ -173,6 +174,12 @@ export function EconomicSettingsClient({
           <div className="flex justify-between py-1.5">
             <span className="text-gray-500">Senest synkroniseret</span>
             <span className="font-medium text-gray-900">{dkDateTime(status.last_sync_at)}</span>
+          </div>
+          <div className="flex justify-between py-1.5 items-center">
+            <span className="text-gray-500">Eksport-log</span>
+            <Link href="/dashboard/settings/economic/log" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline">
+              <ListChecks className="w-4 h-4" /> Se eksportforsøg
+            </Link>
           </div>
           <div className="flex justify-between py-1.5">
             <span className="text-gray-500">Senest testet</span>

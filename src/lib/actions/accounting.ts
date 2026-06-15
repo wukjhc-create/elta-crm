@@ -15,6 +15,7 @@
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import type { AccountingAction, AccountingEntityType, AccountingStatus } from '@/types/accounting.types'
 
 export type InvoiceAccountingStatus = 'not_exported' | 'ready' | 'exported' | 'error'
 
@@ -619,4 +620,349 @@ export async function clearEconomicIntegrationAction(): Promise<ClearEconomicRes
   }
 
   return { ok: true, status: 'cleared', message: 'Integrationen er ryddet og deaktiveret.' }
+}
+
+// =====================================================
+// Ø6.3 — synklog + fejlhåndtering
+// =====================================================
+
+/**
+ * Oversæt en rå e-conomic-/system-fejl til menneskeligt dansk og fjern alt
+ * der kunne ligne en hemmelighed (tokens/headers). Bogholderiet skal kunne
+ * læse fejlen uden teknisk hjælp.
+ */
+function friendlyEconomicError(raw: string | null | undefined): string {
+  if (!raw) return 'Ukendt fejl.'
+  const r = raw.toLowerCase()
+  if (r.includes('not_configured')) return 'Integrationen er ikke opsat.'
+  if (r.includes('cashbook_or_bank')) return 'Kassekladde/bankkonto er ikke konfigureret.'
+  if (r.includes('no invoice lines') || r.includes('no lines')) return 'Fakturaen har ingen linjer.'
+  if (r.includes('customer not found')) return 'Kunden blev ikke fundet.'
+  if (r.includes('customer sync failed')) return 'Kunden kunne ikke synkroniseres til e-conomic.'
+  if (r.includes('invoice not found')) return 'Fakturaen blev ikke fundet.'
+  if (r.includes('invoice has no customer')) return 'Fakturaen mangler en kunde.'
+  if (r.includes('missing economic config')) return 'Manglende e-conomic-opsætning (layout, betalingsbetingelser eller momszone).'
+  if (r.includes('already linked')) return 'Allerede eksporteret.'
+  if (r.includes('booking failed') || r.includes('book')) return 'Kladde oprettet, men bogføring i e-conomic fejlede.'
+  if (r.includes('http 401') || r.includes('http 403') || r.includes('unauthorized') || r.includes('adgang nægtet'))
+    return 'Adgang nægtet — kontroller e-conomic-nøglerne.'
+  if (r.includes('http 0') || r.includes('network')) return 'Kunne ikke nå e-conomic (netværksfejl).'
+  if (r.startsWith('http ')) return `e-conomic svarede med en fejl (${raw.slice(0, 12)}).`
+  // Generisk: fjern token/header-lignende fragmenter + afkort.
+  const sanitized = raw
+    .replace(/x-(appsecret|agreementgrant)token[^\s]*/gi, '')
+    .replace(/token[=:]\s*\S+/gi, 'token: •••')
+    .slice(0, 160)
+  return sanitized.trim() || 'Ukendt fejl.'
+}
+
+export interface SyncLogEntry {
+  id: string
+  created_at: string
+  entity_type: AccountingEntityType
+  entity_id: string
+  action: AccountingAction
+  status: AccountingStatus
+  external_id: string | null
+  /** Menneskelig dansk fejlbesked (kun for fejl). Aldrig rå token/header. */
+  error: string | null
+  invoice_id: string | null
+  invoice_number: string | null
+  customer_name: string | null
+  case_number: string | null
+  /** Best-effort: hvem der startede eksporten (fra audit_logs). */
+  started_by: string | null
+  /** "Prøv igen" må vises (integration opsat + faktura relevant + ikke eksporteret). */
+  retry_eligible: boolean
+}
+
+export interface SyncLogResult {
+  ok: boolean
+  message?: string
+  integration_ready: boolean
+  entries: SyncLogEntry[]
+  counts: { all: number; success: number; failed: number; skipped: number }
+}
+
+export type SyncLogStatusFilter = 'all' | 'success' | 'failed' | 'skipped'
+
+const SYNC_LOG_LIMIT = 200
+
+/**
+ * Gated (settings.economic) oversigt over eksportforsøg fra accounting_sync_log.
+ * Cost-free: kun status/ekstern reference + kundevendte faktura-/kundenavne.
+ * Genbruger ikke nogen ny motor — læser kun eksisterende log.
+ */
+export async function listAccountingSyncLogAction(params?: {
+  status?: SyncLogStatusFilter
+  days?: 7 | 30 | null
+}): Promise<SyncLogResult> {
+  const empty: SyncLogResult = {
+    ok: false, integration_ready: false, entries: [],
+    counts: { all: 0, success: 0, failed: 0, skipped: 0 },
+  }
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ...empty, message: 'Manglende tilladelse: settings.economic' }
+  }
+
+  let integrationReady = false
+  try {
+    const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
+    integrationReady = isEconomicReady(await getEconomicSettings())
+  } catch (e) {
+    logger.error('listAccountingSyncLogAction: settings read failed', { error: e })
+  }
+
+  // Status-tællere (uafhængigt af valgt filter) — ét lille aggregat.
+  const counts = { all: 0, success: 0, failed: 0, skipped: 0 }
+  try {
+    const { data: allRows } = await supabase
+      .from('accounting_sync_log')
+      .select('status')
+      .in('entity_type', ['invoice', 'customer'])
+      .order('created_at', { ascending: false })
+      .limit(1000)
+    for (const row of allRows ?? []) {
+      counts.all++
+      const s = row.status as AccountingStatus
+      if (s === 'success') counts.success++
+      else if (s === 'failed') counts.failed++
+      else if (s === 'skipped') counts.skipped++
+    }
+  } catch {
+    /* tællere er best-effort */
+  }
+
+  let query = supabase
+    .from('accounting_sync_log')
+    .select('id, created_at, entity_type, entity_id, action, status, external_id, error_message')
+    .in('entity_type', ['invoice', 'customer'])
+    .order('created_at', { ascending: false })
+    .limit(SYNC_LOG_LIMIT)
+
+  const status = params?.status ?? 'all'
+  if (status !== 'all') query = query.eq('status', status)
+  if (params?.days) {
+    const since = new Date(Date.now() - params.days * 86400_000).toISOString()
+    query = query.gte('created_at', since)
+  }
+
+  const { data: logs, error } = await query
+  if (error) {
+    logger.error('listAccountingSyncLogAction: query failed', { error })
+    return { ...empty, ok: true, integration_ready: integrationReady, counts }
+  }
+
+  const rows = logs ?? []
+  const invoiceIds = Array.from(
+    new Set(rows.filter((r) => r.entity_type === 'invoice').map((r) => r.entity_id as string))
+  )
+
+  // Cost-free batch-hent af fakturaer (ingen kost-kolonner).
+  const invMap = new Map<string, {
+    invoice_number: string | null; customer_id: string | null; case_id: string | null
+    status: string | null; voided_at: string | null; invoice_type: string | null
+    external_invoice_id: string | null; external_provider: string | null
+  }>()
+  if (invoiceIds.length) {
+    const { data: invs } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, customer_id, case_id, status, voided_at, invoice_type, external_invoice_id, external_provider')
+      .in('id', invoiceIds)
+    for (const i of invs ?? []) {
+      invMap.set(i.id as string, {
+        invoice_number: (i.invoice_number as string | null) ?? null,
+        customer_id: (i.customer_id as string | null) ?? null,
+        case_id: (i.case_id as string | null) ?? null,
+        status: (i.status as string | null) ?? null,
+        voided_at: (i.voided_at as string | null) ?? null,
+        invoice_type: (i.invoice_type as string | null) ?? null,
+        external_invoice_id: (i.external_invoice_id as string | null) ?? null,
+        external_provider: (i.external_provider as string | null) ?? null,
+      })
+    }
+  }
+
+  const customerIds = Array.from(new Set(
+    [...invMap.values()].map((i) => i.customer_id).filter(Boolean) as string[]
+  ))
+  const custMap = new Map<string, string>()
+  if (customerIds.length) {
+    const { data: custs } = await supabase
+      .from('customers')
+      .select('id, company_name, contact_person')
+      .in('id', customerIds)
+    for (const c of custs ?? []) {
+      custMap.set(c.id as string, (c.company_name as string | null) ?? (c.contact_person as string | null) ?? '—')
+    }
+  }
+
+  const caseIds = Array.from(new Set(
+    [...invMap.values()].map((i) => i.case_id).filter(Boolean) as string[]
+  ))
+  const caseMap = new Map<string, string>()
+  if (caseIds.length) {
+    const { data: cases } = await supabase
+      .from('service_cases')
+      .select('id, case_number')
+      .in('id', caseIds)
+    for (const c of cases ?? []) caseMap.set(c.id as string, (c.case_number as string | null) ?? '')
+  }
+
+  // Best-effort "hvem": seneste eksport-bruger pr. faktura fra audit_logs.
+  const exporterByInvoice = new Map<string, string>()
+  try {
+    const { data: audits } = await supabase
+      .from('audit_logs')
+      .select('user_id, entity_id, action, metadata, created_at')
+      .in('action', ['invoice_accounting_exported', 'invoice_accounting_export_failed', 'invoices_accounting_bulk_exported', 'invoice_accounting_export_retried'])
+      .order('created_at', { ascending: false })
+      .limit(500)
+    const userIds = new Set<string>()
+    const pending: { invoiceId: string; userId: string }[] = []
+    for (const a of audits ?? []) {
+      const uid = a.user_id as string | null
+      if (!uid) continue
+      if (a.entity_id) {
+        pending.push({ invoiceId: a.entity_id as string, userId: uid })
+        userIds.add(uid)
+      }
+      const ids = (a.metadata as { invoice_ids?: string[] } | null)?.invoice_ids
+      if (Array.isArray(ids)) {
+        for (const id of ids) { pending.push({ invoiceId: id, userId: uid }); userIds.add(uid) }
+      }
+    }
+    const nameMap = new Map<string, string>()
+    if (userIds.size) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', Array.from(userIds))
+      for (const p of profs ?? []) {
+        nameMap.set(p.id as string, (p.full_name as string | null) || (p.email as string | null) || 'Ukendt')
+      }
+    }
+    // audits er nyeste-først → første sete pr. faktura vinder (seneste eksportør).
+    for (const { invoiceId, userId } of pending) {
+      if (!exporterByInvoice.has(invoiceId)) exporterByInvoice.set(invoiceId, nameMap.get(userId) ?? 'Ukendt')
+    }
+  } catch {
+    /* "hvem" er best-effort */
+  }
+
+  const entries: SyncLogEntry[] = rows.map((r) => {
+    const entityType = r.entity_type as AccountingEntityType
+    const isInvoice = entityType === 'invoice'
+    const inv = isInvoice ? invMap.get(r.entity_id as string) : undefined
+    const exported = !!inv?.external_invoice_id && inv?.external_provider === PROVIDER
+    const retryEligible =
+      integrationReady &&
+      isInvoice &&
+      (r.status as AccountingStatus) === 'failed' &&
+      !!inv &&
+      !exported &&
+      !inv.voided_at &&
+      inv.invoice_type !== 'credit' &&
+      (inv.status === 'sent' || inv.status === 'paid')
+
+    return {
+      id: r.id as string,
+      created_at: r.created_at as string,
+      entity_type: entityType,
+      entity_id: r.entity_id as string,
+      action: r.action as AccountingAction,
+      status: r.status as AccountingStatus,
+      external_id: (r.external_id as string | null) ?? null,
+      error: (r.status as AccountingStatus) === 'failed'
+        ? friendlyEconomicError(r.error_message as string | null)
+        : null,
+      invoice_id: isInvoice ? (r.entity_id as string) : null,
+      invoice_number: inv?.invoice_number ?? null,
+      customer_name: inv?.customer_id ? (custMap.get(inv.customer_id) ?? null) : null,
+      case_number: inv?.case_id ? (caseMap.get(inv.case_id) || null) : null,
+      started_by: isInvoice ? (exporterByInvoice.get(r.entity_id as string) ?? null) : null,
+      retry_eligible: retryEligible,
+    }
+  })
+
+  return { ok: true, integration_ready: integrationReady, entries, counts }
+}
+
+export interface RetryExportResult {
+  ok: boolean
+  status: 'exported' | 'not_configured' | 'already_exported' | 'not_eligible' | 'failed' | 'denied'
+  message: string
+  external_id?: string | null
+}
+
+/**
+ * "Prøv igen" for en fejlet faktura. Defensiv (samme regler som bulk) +
+ * genbruger den eksisterende eksport-action/klient (INGEN ny motor).
+ * Auditerer retry: hvem, invoice_id, tidligere fejl-log-id, resultat.
+ */
+export async function retryInvoiceExportAction(
+  invoiceId: string,
+  previousLogId?: string
+): Promise<RetryExportResult> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch (err) {
+    return { ok: false, status: 'failed', message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ok: false, status: 'denied', message: 'Manglende tilladelse: settings.economic' }
+  }
+
+  const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
+  if (!isEconomicReady(await getEconomicSettings())) {
+    return { ok: false, status: 'not_configured', message: 'e-conomic er ikke opsat endnu.' }
+  }
+
+  // Defensiv kontrol (cost-free select).
+  const { data: inv } = await supabase
+    .from('invoices')
+    .select('invoice_number, status, voided_at, invoice_type, external_invoice_id, external_provider')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (!inv) return { ok: false, status: 'not_eligible', message: 'Fakturaen blev ikke fundet.' }
+  if (inv.external_invoice_id && inv.external_provider === PROVIDER) {
+    return { ok: true, status: 'already_exported', message: 'Fakturaen er allerede eksporteret.', external_id: inv.external_invoice_id as string }
+  }
+  if (inv.voided_at) return { ok: false, status: 'not_eligible', message: 'Fakturaen er annulleret.' }
+  if (inv.invoice_type === 'credit') return { ok: false, status: 'not_eligible', message: 'Kreditnotaer eksporteres ikke automatisk.' }
+  if (inv.status !== 'sent' && inv.status !== 'paid') {
+    return { ok: false, status: 'not_eligible', message: 'Fakturaen er ikke klar (kun sendte/betalte).' }
+  }
+
+  const { createInvoiceInEconomic } = await import('@/lib/services/economic-client')
+  const result = await createInvoiceInEconomic(invoiceId)
+
+  const audit = async (ok: boolean, description: string, extra: Record<string, unknown>) => {
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        entity_type: 'invoice',
+        entity_id: invoiceId,
+        entity_name: (inv.invoice_number as string | null) ?? null,
+        action: 'invoice_accounting_export_retried',
+        action_description: description,
+        changes: { ok },
+        metadata: { provider: PROVIDER, previous_log_id: previousLogId ?? null, ...extra },
+      })
+    } catch (e) {
+      logger.error('retryInvoiceExportAction: audit failed', { error: e })
+    }
+  }
+
+  if (result.ok && result.status === 'success') {
+    await audit(true, `Genforsøg: faktura eksporteret til e-conomic (${result.externalId})`, { external_id: result.externalId ?? null })
+    return { ok: true, status: 'exported', message: 'Faktura eksporteret til e-conomic.', external_id: result.externalId ?? null }
+  }
+  if (result.status === 'skipped') {
+    return { ok: true, status: 'already_exported', message: 'Fakturaen er allerede eksporteret.', external_id: result.externalId ?? null }
+  }
+  await audit(false, `Genforsøg fejlede: ${friendlyEconomicError(result.error)}`, { error: friendlyEconomicError(result.error) })
+  return { ok: false, status: 'failed', message: `Eksport fejlede: ${friendlyEconomicError(result.error)}` }
 }
