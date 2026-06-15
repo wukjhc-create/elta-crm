@@ -23,6 +23,8 @@ import {
 } from '@/lib/email/invoice-email-config'
 import {
   parsePaymentReportConfig,
+  REPORT_EVENT_LABEL,
+  REPORT_SKIP_REASON_LABEL,
   type PaymentReportConfig,
 } from '@/lib/invoices/payment-report-config'
 
@@ -429,6 +431,84 @@ export async function updatePaymentReportConfig(
     return { success: true, data: clean }
   } catch (error) {
     logger.error('Error in updatePaymentReportConfig', { error })
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export interface PaymentReportHistoryEntry {
+  id: string
+  created_at: string
+  action: string
+  label: string
+  description: string | null
+  row_count: number | null
+  recipient_count: number | null
+  skip_reason_label: string | null
+}
+
+export interface PaymentReportHistory {
+  entries: PaymentReportHistoryEntry[]
+  last_sent_at: string | null
+  last_test_at: string | null
+  last_skip_at: string | null
+  last_skip_reason: string | null
+}
+
+const REPORT_HISTORY_ACTIONS = [
+  'payment_report_sent',
+  'payment_report_test_sent',
+  'payment_report_skipped',
+  'payment_report_config_updated',
+]
+
+export async function getPaymentReportHistoryAction(): Promise<ActionResult<PaymentReportHistory>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.view')) {
+      return { success: false, error: 'Manglende tilladelse: settings.view' }
+    }
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('id, created_at, action, action_description, metadata')
+      .in('action', REPORT_HISTORY_ACTIONS)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (error) {
+      logger.error('getPaymentReportHistoryAction failed', { error })
+      return { success: false, error: 'Kunne ikke hente rapporthistorik' }
+    }
+
+    const list = data ?? []
+    const entries: PaymentReportHistoryEntry[] = list.map((e) => {
+      const md = (e.metadata ?? {}) as Record<string, unknown>
+      const action = e.action as string
+      const reason = typeof md.reason === 'string' ? md.reason : null
+      return {
+        id: e.id as string,
+        created_at: e.created_at as string,
+        action,
+        label: REPORT_EVENT_LABEL[action] ?? action,
+        description: (e.action_description as string | null) ?? null,
+        row_count: typeof md.row_count === 'number' ? md.row_count : null,
+        recipient_count: typeof md.recipient_count === 'number' ? md.recipient_count : null,
+        skip_reason_label: reason ? REPORT_SKIP_REASON_LABEL[reason] ?? reason : null,
+      }
+    })
+
+    const findAt = (a: string) => entries.find((e) => e.action === a)?.created_at ?? null
+    const lastSkip = entries.find((e) => e.action === 'payment_report_skipped')
+    return {
+      success: true,
+      data: {
+        entries,
+        last_sent_at: findAt('payment_report_sent'),
+        last_test_at: findAt('payment_report_test_sent'),
+        last_skip_at: lastSkip?.created_at ?? null,
+        last_skip_reason: lastSkip?.skip_reason_label ?? null,
+      },
+    }
+  } catch (error) {
+    logger.error('Error in getPaymentReportHistoryAction', { error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }

@@ -74,7 +74,7 @@
     },
     {
       "path": "/api/cron/payment-report",
-      "schedule": "30 7 * * 1"
+      "schedule": "30 7 * * *"
     }
   ]
 }

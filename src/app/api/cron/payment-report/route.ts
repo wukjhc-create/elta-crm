@@ -1,11 +1,14 @@
 /**
  * Cron Job: Betalingsrapport-mail til bogholderiet (Sprint Ø5.0)
  *
- * Læser company_settings.payment_report_config. Hvis enabled, bygger den
- * betalingsopfølgningslisten fra SQL-viewet (Ø4.9), vedhæfter CSV (Ø4.8) og
- * sender via Graph-mail. Skip hvis 0 rækker (skip_if_empty) — ingen spam.
+ * Læser company_settings.payment_report_config. Sprint Ø5.1: cronen kører
+ * DAGLIGT og beslutter selv via shouldSendReportToday() ud fra frekvens
+ * (ugentlig / hver 14. dag / månedlig) + valgt ugedag — én robust route,
+ * ingen ekstra Vercel cron-entries. Hvis dagen matcher: bygger listen fra
+ * SQL-viewet (Ø4.9), vedhæfter CSV (Ø4.8) og sender via Graph-mail. Skip
+ * hvis 0 rækker (skip_if_empty) — ingen spam.
  *
- * Schedule: ugentligt mandag 07:30 Copenhagen — se vercel.json.
+ * Schedule: dagligt 07:30 Copenhagen — se vercel.json.
  * Auth: Bearer CRON_SECRET.
  */
 
@@ -31,7 +34,9 @@ export async function GET(request: Request) {
     }
 
     const { createAdminClient } = await import('@/lib/supabase/admin')
-    const { parsePaymentReportConfig } = await import('@/lib/invoices/payment-report-config')
+    const { parsePaymentReportConfig, shouldSendReportToday } = await import(
+      '@/lib/invoices/payment-report-config'
+    )
     const { sendPaymentReport } = await import('@/lib/services/payment-report')
 
     const supabase = createAdminClient()
@@ -43,6 +48,11 @@ export async function GET(request: Request) {
 
     if (!config.enabled) {
       return NextResponse.json({ ok: true, status: 'disabled' })
+    }
+
+    // Sprint Ø5.1 — cron kører dagligt; afgør ud fra frekvens/ugedag.
+    if (!shouldSendReportToday(config, new Date())) {
+      return NextResponse.json({ ok: true, status: 'not_scheduled_today' })
     }
 
     const result = await sendPaymentReport({
