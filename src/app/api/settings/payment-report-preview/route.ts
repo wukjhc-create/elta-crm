@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import type { ReactElement, JSXElementConstructor } from 'react'
+import { getUser } from '@/lib/supabase/server'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import {
   buildPaymentExportRows,
@@ -30,6 +31,10 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 })
+    }
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('settings.view')) {
       return NextResponse.json({ error: 'Manglende tilladelse: settings.view' }, { status: 403 })
