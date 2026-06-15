@@ -1347,34 +1347,60 @@ export interface InvoiceOverviewRow {
   customer_email: string | null
   case_id: string | null
   case_number: string | null
+  /** Sprint Ø6.1 — afledt regnskabsstatus (cost-free). */
+  accounting_status: 'not_exported' | 'ready' | 'exported' | 'error'
+  accounting_external_id: string | null
 }
 
 export interface InvoiceOverviewResult {
   ok: boolean
   message?: string
   rows: InvoiceOverviewRow[]
+  /** Sprint Ø6.1 — er e-conomic-integrationen opsat (styrer bulk-knap). */
+  accounting_ready: boolean
 }
 
 export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResult> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('invoices.view.all')) {
-    return { ok: false, rows: [], message: 'Manglende tilladelse: invoices.view.all' }
+    return { ok: false, rows: [], accounting_ready: false, message: 'Manglende tilladelse: invoices.view.all' }
   }
 
   const { data, error } = await supabase
     .from('invoices')
     .select(
-      'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, reminder_count, last_reminder_at, customer_id, case_id'
+      'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, created_at, sent_at, paid_at, due_date, voided_at, reminder_count, last_reminder_at, customer_id, case_id, external_invoice_id, external_provider'
     )
     .order('created_at', { ascending: false })
     .limit(500)
 
   if (error) {
     logger.error('listInvoicesOverviewAction: query failed', { error })
-    return { ok: false, rows: [], message: 'Kunne ikke hente fakturaer' }
+    return { ok: false, rows: [], accounting_ready: false, message: 'Kunne ikke hente fakturaer' }
   }
 
   const list = data ?? []
+
+  // Sprint Ø6.1 — regnskabsstatus: batch fejl-log for de viste fakturaer
+  // (ÉN query, ingen N+1) + integrations-parathed (uden hemmeligheder).
+  const invoiceIds = list.map((r) => r.id as string)
+  const failedSet = new Set<string>()
+  if (invoiceIds.length > 0) {
+    const { data: failed } = await supabase
+      .from('accounting_sync_log')
+      .select('entity_id')
+      .eq('entity_type', 'invoice')
+      .eq('status', 'failed')
+      .in('entity_id', invoiceIds)
+    for (const f of failed ?? []) failedSet.add(f.entity_id as string)
+  }
+  let accountingReady = false
+  try {
+    const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
+    accountingReady = isEconomicReady(await getEconomicSettings())
+  } catch (e) {
+    logger.error('listInvoicesOverviewAction: economic readiness failed', { error: e })
+  }
 
   // Berig kunde + sag via batch-opslag (cost-free).
   const customerIds = Array.from(
@@ -1451,10 +1477,18 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
       customer_email: cust?.email ?? null,
       case_id: (r.case_id as string | null) ?? null,
       case_number: r.case_id ? caseById.get(r.case_id as string) ?? null : null,
+      accounting_status: (() => {
+        const exported = !!r.external_invoice_id && r.external_provider === 'economic'
+        if (exported) return 'exported' as const
+        if (failedSet.has(r.id as string)) return 'error' as const
+        if ((r.status === 'sent' || r.status === 'paid') && !r.voided_at) return 'ready' as const
+        return 'not_exported' as const
+      })(),
+      accounting_external_id: (r.external_invoice_id as string | null) ?? null,
     }
   })
 
-  return { ok: true, rows }
+  return { ok: true, rows, accounting_ready: accountingReady }
 }
 
 // =====================================================

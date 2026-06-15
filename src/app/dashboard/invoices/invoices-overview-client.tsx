@@ -15,13 +15,14 @@ import Link from 'next/link'
 import { useCallback, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-  AlertTriangle, BadgeCheck, Ban, Bell, Eye, FileDown, FileText, Loader2,
-  Receipt, Search, Send,
+  AlertTriangle, BadgeCheck, Ban, Bell, BookCheck, CloudUpload, Eye, FileDown,
+  FileText, Loader2, Receipt, Search, Send,
 } from 'lucide-react'
 import {
   sendInvoiceReminderAction,
   type InvoiceOverviewRow,
 } from '@/lib/actions/invoices'
+import { bulkExportInvoicesToEconomicAction } from '@/lib/actions/accounting'
 import { formatCurrency } from '@/lib/utils/format'
 import {
   FILTERS,
@@ -30,6 +31,26 @@ import {
   parseFilter,
   type FilterKey,
 } from './invoice-filter-url'
+
+// Sprint Ø6.1 — regnskabsstatus-akse (separat ?acc=-param).
+type AccKey = 'all' | 'not_exported' | 'ready' | 'exported' | 'error'
+const ACC_FILTERS: Array<{ key: AccKey; label: string }> = [
+  { key: 'all', label: 'Alle' },
+  { key: 'not_exported', label: 'Ikke eksporteret' },
+  { key: 'ready', label: 'Klar til eksport' },
+  { key: 'exported', label: 'Eksporteret' },
+  { key: 'error', label: 'Fejlet' },
+]
+const ACC_VALID = new Set<AccKey>(ACC_FILTERS.map((f) => f.key))
+function parseAcc(raw: string | null): AccKey {
+  return raw && ACC_VALID.has(raw as AccKey) ? (raw as AccKey) : 'all'
+}
+const ACC_SKIN: Record<InvoiceOverviewRow['accounting_status'], { label: string; cls: string }> = {
+  not_exported: { label: 'Ikke eksporteret', cls: 'bg-gray-100 text-gray-700' },
+  ready: { label: 'Klar', cls: 'bg-blue-100 text-blue-800' },
+  exported: { label: 'Eksporteret', cls: 'bg-emerald-100 text-emerald-800' },
+  error: { label: 'Fejlet', cls: 'bg-red-100 text-red-800' },
+}
 
 const TYPE_PILL: Record<string, { label: string; cls: string }> = {
   deposit: { label: 'Forskud', cls: 'bg-blue-100 text-blue-800' },
@@ -78,9 +99,13 @@ function matchesFilter(r: InvoiceOverviewRow, f: FilterKey): boolean {
 export function InvoicesOverviewClient({
   rows,
   canSend,
+  canExportAccounting = false,
+  accountingReady = false,
 }: {
   rows: InvoiceOverviewRow[]
   canSend: boolean
+  canExportAccounting?: boolean
+  accountingReady?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -90,6 +115,7 @@ export function InvoicesOverviewClient({
   // virker, fordi de udledes direkte af search params ved hver render).
   const filter = parseFilter(searchParams.get('filter'))
   const onlyOutstanding = searchParams.get('outstanding') === '1'
+  const acc = parseAcc(searchParams.get('acc'))
   const [search, setSearch] = useState(searchParams.get('q') ?? '')
 
   const updateParams = useCallback(
@@ -109,6 +135,18 @@ export function InvoicesOverviewClient({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null)
   const [localRows, setLocalRows] = useState(rows)
+
+  // Sprint Ø6.1 — bulk-eksport: udvalg + resultat pr. faktura.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkPending, startBulk] = useTransition()
+  const [bulkResult, setBulkResult] = useState<{ exported: number; skipped: number; failed: number; items: Array<{ invoice_number: string | null; status: string; reason?: string }> } | null>(null)
+  const toggleSel = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   // ---- Summary (cost-free, kun salgsbeløb) ----
   const summary = useMemo(() => {
@@ -142,6 +180,7 @@ export function InvoicesOverviewClient({
     const q = search.trim().toLowerCase()
     return localRows.filter((r) => {
       if (!matchesFilter(r, filter)) return false
+      if (acc !== 'all' && r.accounting_status !== acc) return false
       if (onlyOutstanding && !(r.status === 'sent' && !r.voided_at && !r.is_credit_note)) return false
       if (!q) return true
       return (
@@ -150,7 +189,35 @@ export function InvoicesOverviewClient({
         (r.case_number ?? '').toLowerCase().includes(q)
       )
     })
-  }, [localRows, filter, search, onlyOutstanding])
+  }, [localRows, filter, acc, search, onlyOutstanding])
+
+  // Bulk-eksport gælder kun ikke-eksporterede valgte fakturaer (action er
+  // defensiv og springer ikke-egnede over).
+  const selectableIds = useMemo(
+    () => filtered.filter((r) => r.accounting_status !== 'exported').map((r) => r.id),
+    [filtered]
+  )
+  const selectedExportable = Array.from(selected).filter((id) => selectableIds.includes(id))
+
+  const handleBulkExport = () => {
+    if (!canExportAccounting || !accountingReady || selectedExportable.length === 0) return
+    if (!window.confirm(`Eksportér ${selectedExportable.length} valgt(e) faktura(er) til e-conomic?`)) return
+    startBulk(async () => {
+      const res = await bulkExportInvoicesToEconomicAction(selectedExportable)
+      if (res.status === 'not_configured') {
+        setFlash({ ok: false, text: 'e-conomic er ikke opsat endnu.' })
+        return
+      }
+      setBulkResult({ exported: res.exported, skipped: res.skipped, failed: res.failed, items: res.items })
+      setFlash({ ok: res.failed === 0, text: `Bulk-eksport: ${res.exported} eksporteret, ${res.skipped} sprunget over, ${res.failed} fejl.` })
+      // Opdatér status på de eksporterede rækker.
+      const exportedIds = new Set(res.items.filter((i) => i.status === 'exported').map((i) => i.invoice_id))
+      if (exportedIds.size > 0) {
+        setLocalRows((prev) => prev.map((x) => (exportedIds.has(x.id) ? { ...x, accounting_status: 'exported' as const } : x)))
+      }
+      setSelected(new Set())
+    })
+  }
 
   const handleReminder = (r: InvoiceOverviewRow) => {
     if (!canSend) return
@@ -261,16 +328,83 @@ export function InvoicesOverviewClient({
         </div>
       </div>
 
+      {/* Sprint Ø6.1 — regnskabsfilter (separat akse) + bulk-eksport */}
+      <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+        <span className="text-xs text-gray-500 inline-flex items-center gap-1">
+          <BookCheck className="w-3.5 h-3.5" /> Regnskab:
+        </span>
+        {ACC_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => updateParams({ acc: f.key === 'all' ? null : f.key })}
+            className={`px-2.5 py-1 text-xs rounded-lg ring-1 transition ${
+              acc === f.key ? 'bg-emerald-600 text-white ring-emerald-600' : 'bg-white text-gray-700 ring-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            {f.label}
+            <span className={`ml-1.5 ${acc === f.key ? 'text-emerald-100' : 'text-gray-400'}`}>
+              {localRows.filter((r) => r.accounting_status === f.key).length || (f.key === 'all' ? localRows.length : 0)}
+            </span>
+          </button>
+        ))}
+        {canExportAccounting && (
+          <div className="ml-auto flex items-center gap-2">
+            {!accountingReady ? (
+              <span className="text-[11px] text-amber-600 inline-flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5" /> e-conomic er ikke opsat endnu
+              </span>
+            ) : (
+              <span className="text-[11px] text-gray-500">{selectedExportable.length} valgt</span>
+            )}
+            <button
+              type="button"
+              onClick={handleBulkExport}
+              disabled={!accountingReady || selectedExportable.length === 0 || bulkPending}
+              title={!accountingReady ? 'e-conomic er ikke opsat endnu' : 'Eksportér valgte fakturaer til e-conomic'}
+              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {bulkPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+              Eksportér valgte til e-conomic
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Bulk-resultat pr. faktura */}
+      {bulkResult && (
+        <div className="rounded-lg ring-1 ring-gray-200 bg-white p-3 text-xs">
+          <div className="font-medium text-gray-800 mb-1">
+            Resultat: {bulkResult.exported} eksporteret · {bulkResult.skipped} sprunget over · {bulkResult.failed} fejl
+          </div>
+          <ul className="space-y-0.5 max-h-40 overflow-y-auto">
+            {bulkResult.items.map((it, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase ${
+                  it.status === 'exported' ? 'bg-emerald-100 text-emerald-800' : it.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {it.status === 'exported' ? 'Eksporteret' : it.status === 'failed' ? 'Fejl' : 'Sprunget over'}
+                </span>
+                <span className="font-mono text-gray-700">{it.invoice_number ?? '—'}</span>
+                {it.reason && <span className="text-gray-500">— {it.reason}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Tabel */}
       <div className="border rounded-lg overflow-hidden bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs text-gray-600">
               <tr>
+                {canExportAccounting && <th className="px-3 py-2 w-8" />}
                 <th className="px-3 py-2">Faktura</th>
                 <th className="px-3 py-2">Kunde</th>
                 <th className="px-3 py-2">Sag</th>
                 <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Regnskab</th>
                 <th className="px-3 py-2 text-right">Beløb inkl. moms</th>
                 <th className="px-3 py-2">Forfald</th>
                 <th className="px-3 py-2 text-right">Handlinger</th>
@@ -279,7 +413,7 @@ export function InvoicesOverviewClient({
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-gray-400 text-xs">
+                  <td colSpan={canExportAccounting ? 9 : 8} className="px-3 py-8 text-center text-gray-400 text-xs">
                     {search.trim()
                       ? `Ingen fakturaer matcher søgningen "${search.trim()}".`
                       : onlyOutstanding && filter === 'sent'
@@ -295,6 +429,18 @@ export function InvoicesOverviewClient({
                   const pill = r.invoice_type ? TYPE_PILL[r.invoice_type] : undefined
                   return (
                     <tr key={r.id} className={`align-top hover:bg-gray-50 ${r.is_overdue ? 'bg-rose-50/40' : ''}`}>
+                      {canExportAccounting && (
+                        <td className="px-3 py-2">
+                          {r.accounting_status !== 'exported' ? (
+                            <input
+                              type="checkbox"
+                              checked={selected.has(r.id)}
+                              onChange={() => toggleSel(r.id)}
+                              aria-label={`Vælg faktura ${r.invoice_number ?? ''}`}
+                            />
+                          ) : null}
+                        </td>
+                      )}
                       <td className="px-3 py-2">
                         <Link href={`/dashboard/invoices/${r.id}`} className="font-mono text-emerald-700 hover:underline">
                           {r.invoice_number ?? '—'}
@@ -327,6 +473,14 @@ export function InvoicesOverviewClient({
                           <span className="block mt-0.5 text-[10px] text-amber-700">
                             {r.reminder_count} påmindelse{r.reminder_count === 1 ? '' : 'r'} sendt
                           </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${ACC_SKIN[r.accounting_status].cls}`}>
+                          {ACC_SKIN[r.accounting_status].label}
+                        </span>
+                        {r.accounting_external_id && (
+                          <span className="block mt-0.5 text-[10px] text-gray-400 font-mono">{r.accounting_external_id}</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{kr(r.final_amount, r.currency)}</td>

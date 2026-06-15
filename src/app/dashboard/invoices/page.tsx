@@ -20,6 +20,8 @@ export default async function InvoicesPage() {
     return <NoAccess permission="invoices.view.all" />
   }
   const canSend = await pageHasPermission('invoices.send')
+  // Sprint Ø6.1 — settings.economic gater bulk-eksport til e-conomic.
+  const canExportAccounting = await pageHasPermission('settings.economic')
 
   const res = await listInvoicesOverviewAction()
   if (!res.ok) {
@@ -34,7 +36,12 @@ export default async function InvoicesPage() {
 
   return (
     <Suspense fallback={<div className="p-6 text-sm text-gray-500">Henter fakturaoverblik…</div>}>
-      <InvoicesOverviewClient rows={res.rows} canSend={canSend} />
+      <InvoicesOverviewClient
+        rows={res.rows}
+        canSend={canSend}
+        canExportAccounting={canExportAccounting}
+        accountingReady={res.accounting_ready}
+      />
     </Suspense>
   )
 }
