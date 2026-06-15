@@ -60,6 +60,7 @@ export async function GET(request: Request) {
       recipients: config.recipients,
       filter: config.filter,
       skipIfEmpty: config.skip_if_empty,
+      format: config.format,
     })
 
     return NextResponse.json({ ok: true, ...result })

@@ -15,6 +15,7 @@ import {
   reportFilterToExport,
   REPORT_FILTER_LABEL,
   type PaymentReportFilter,
+  type PaymentReportFormat,
 } from '@/lib/invoices/payment-report-config'
 import type { PaymentExportRow } from '@/lib/actions/invoices'
 
@@ -107,8 +108,10 @@ export async function sendPaymentReport(opts: {
   recipients: string[]
   filter: PaymentReportFilter
   skipIfEmpty: boolean
+  format?: PaymentReportFormat
   actorUserId?: string | null
 }): Promise<SendPaymentReportResult> {
+  const format: PaymentReportFormat = opts.format ?? 'csv'
   const supabase = createAdminClient()
   const recipients = Array.from(new Set(opts.recipients.map((r) => r.trim()).filter((r) => r.includes('@'))))
 
@@ -156,8 +159,6 @@ export async function sendPaymentReport(opts: {
     return { status: 'skipped', row_count: 0, recipients, reason: 'no_rows' }
   }
 
-  // CSV (semikolon, UTF-8 BOM, escaping) — genbrug af Ø4.8-helper.
-  const csv = generateCsv(rows, PAYMENT_EXPORT_COLUMNS)
   const today = new Date()
   const dateIso = today.toISOString().slice(0, 10)
   const dateDk = today.toLocaleDateString('da-DK', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -166,8 +167,83 @@ export async function sendPaymentReport(opts: {
   const totalOverdue = rows.reduce((s, r) => s + r.overdue_total, 0)
   const overdueCustomers = rows.filter((r) => r.overdue_count > 0).length
 
+  const wantCsv = format === 'csv' || format === 'both'
+  const wantPdf = format === 'pdf' || format === 'both'
+  const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = []
+
+  // CSV (semikolon, UTF-8 BOM, escaping) — genbrug af Ø4.8-helper.
+  if (wantCsv) {
+    const csv = generateCsv(rows, PAYMENT_EXPORT_COLUMNS)
+    attachments.push({
+      filename: `elta-drift-betalingsliste-${dateIso}.csv`,
+      content: Buffer.from(csv, 'utf-8'),
+      contentType: 'text/csv',
+    })
+  }
+
+  // PDF (ledelsesvenligt overblik) — samme cost-free data som CSV.
+  let pdfFailed = false
+  if (wantPdf) {
+    try {
+      const top = (key: 'overdue_total' | 'outstanding_total') =>
+        [...rows]
+          .filter((r) => (key === 'overdue_total' ? r.overdue_total > 0 : true))
+          .sort((a, b) => b[key] - a[key])
+          .slice(0, 10)
+          .map((r) => ({
+            name: r.customer_name,
+            outstanding: r.outstanding_total,
+            overdue: r.overdue_total,
+            overdue_count: r.overdue_count,
+            payment_label: r.payment_label,
+          }))
+      const { renderToBuffer } = await import('@react-pdf/renderer')
+      const { PaymentReportPdfDocument } = await import('@/lib/pdf/payment-report-pdf-template')
+      const buffer = await renderToBuffer(
+        PaymentReportPdfDocument({
+          payload: {
+            reportDate: dateDk,
+            filterLabel: REPORT_FILTER_LABEL[opts.filter],
+            customerCount: rows.length,
+            outstandingTotal: totalOutstanding,
+            overdueTotal: totalOverdue,
+            overdueCustomers,
+            topByOverdue: top('overdue_total'),
+            topByOutstanding: top('outstanding_total'),
+          },
+        }) as Parameters<typeof renderToBuffer>[0]
+      )
+      attachments.push({
+        filename: `elta-drift-betalingsoverblik-${dateIso}.pdf`,
+        content: buffer,
+        contentType: 'application/pdf',
+      })
+    } catch (e) {
+      pdfFailed = true
+      logger.error('sendPaymentReport: PDF render failed', { error: e })
+    }
+  }
+
+  // Format-fejlregler (dokumenteret):
+  //  - format=pdf og PDF fejler → send IKKE (ingen halv rapport), audit failed.
+  //  - format=both og PDF fejler → send CSV med warning (CSV er kildedata),
+  //    audit som sendt men med pdf_failed=true + degraderet format=csv.
+  if (wantPdf && pdfFailed && format === 'pdf') {
+    await audit('payment_report_skipped', 'Betalingsrapport ikke sendt — PDF kunne ikke genereres', {
+      reason: 'pdf_failed',
+      filter: opts.filter,
+      format,
+      row_count: rows.length,
+    })
+    return { status: 'failed', row_count: rows.length, recipients, reason: 'pdf_failed' }
+  }
+  const sentFormat: PaymentReportFormat = pdfFailed ? 'csv' : format
+  const degraded = wantPdf && pdfFailed && format === 'both'
+
   const subjectPrefix = opts.trigger === 'test' ? '[TEST] ' : ''
   const subject = `${subjectPrefix}Betalingsopfølgning — ELTA Drift (${dateDk})`
+  const attachLabel =
+    sentFormat === 'both' ? 'CSV + PDF' : sentFormat === 'pdf' ? 'PDF' : 'CSV'
 
   const html = `
 <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:620px;margin:0 auto;color:#111827">
@@ -178,8 +254,9 @@ export async function sendPaymentReport(opts: {
   <div style="padding:32px;background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
     <p style="font-size:16px;margin:0 0 12px">Hej bogholderi,</p>
     <p style="color:#374151;margin:0 0 16px">
-      Her er den aktuelle betalingsopfølgningsliste (${REPORT_FILTER_LABEL[opts.filter]}). Den fulde liste er vedhæftet som CSV.
+      Her er den aktuelle betalingsopfølgningsliste (${REPORT_FILTER_LABEL[opts.filter]}). Vedhæftet som ${attachLabel}.
     </p>
+    ${degraded ? '<p style="color:#b45309;margin:0 0 16px">Bemærk: PDF-overblikket kunne ikke genereres denne gang — kun CSV er vedhæftet.</p>' : ''}
     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
       <tr><td style="padding:6px 0;color:#6b7280">Kunder på listen</td><td style="padding:6px 0;color:#111827"><strong>${rows.length}</strong></td></tr>
       <tr><td style="padding:6px 0;color:#6b7280">Kunder med forfaldne fakturaer</td><td style="padding:6px 0;color:#111827"><strong>${overdueCustomers}</strong></td></tr>
@@ -198,6 +275,7 @@ export async function sendPaymentReport(opts: {
     await audit('payment_report_skipped', 'Betalingsrapport ikke sendt — mail er ikke opsat', {
       reason: 'graph_not_configured',
       filter: opts.filter,
+      format,
       row_count: rows.length,
     })
     return { status: 'failed', row_count: rows.length, recipients, reason: 'graph_not_configured' }
@@ -208,19 +286,14 @@ export async function sendPaymentReport(opts: {
     subject,
     html,
     fromMailbox: REPORT_FROM_MAILBOX,
-    attachments: [
-      {
-        filename: `elta-drift-betalingsliste-${dateIso}.csv`,
-        content: Buffer.from(csv, 'utf-8'),
-        contentType: 'text/csv',
-      },
-    ],
+    attachments,
   })
 
   if (!result.success) {
     await audit('payment_report_skipped', `Betalingsrapport-mail fejlede: ${result.error ?? 'ukendt'}`, {
       reason: 'send_failed',
       filter: opts.filter,
+      format: sentFormat,
       row_count: rows.length,
     })
     return { status: 'failed', row_count: rows.length, recipients, reason: result.error ?? 'send_failed' }
@@ -228,9 +301,11 @@ export async function sendPaymentReport(opts: {
 
   await audit(
     opts.trigger === 'test' ? 'payment_report_test_sent' : 'payment_report_sent',
-    `Betalingsrapport sendt til ${recipients.length} modtager(e) — ${rows.length} kunde(r)`,
+    `Betalingsrapport sendt til ${recipients.length} modtager(e) — ${rows.length} kunde(r) — format ${attachLabel}${degraded ? ' (PDF fejlede)' : ''}`,
     {
       filter: opts.filter,
+      format: sentFormat,
+      pdf_failed: pdfFailed,
       row_count: rows.length,
       recipient_count: recipients.length,
       total_outstanding: Math.round(totalOutstanding * 100) / 100,

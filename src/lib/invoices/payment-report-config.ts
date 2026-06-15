@@ -8,6 +8,7 @@
 
 export type PaymentReportFilter = 'overdue' | 'outstanding' | 'both'
 export type PaymentReportFrequency = 'weekly' | 'biweekly' | 'monthly'
+export type PaymentReportFormat = 'csv' | 'pdf' | 'both'
 
 export interface PaymentReportConfig {
   enabled: boolean
@@ -18,6 +19,8 @@ export interface PaymentReportConfig {
   frequency: PaymentReportFrequency
   /** ISO-ugedag 1=mandag … 7=søndag (gælder weekly/biweekly + "første X i måneden"). */
   weekday: number
+  /** Sprint Ø5.2 — rapportformat: CSV til Excel, PDF til overblik. */
+  format: PaymentReportFormat
 }
 
 export const DEFAULT_PAYMENT_REPORT_CONFIG: PaymentReportConfig = {
@@ -27,10 +30,12 @@ export const DEFAULT_PAYMENT_REPORT_CONFIG: PaymentReportConfig = {
   skip_if_empty: true,
   frequency: 'weekly',
   weekday: 1,
+  format: 'csv',
 }
 
 const VALID_FILTERS = new Set<PaymentReportFilter>(['overdue', 'outstanding', 'both'])
 const VALID_FREQ = new Set<PaymentReportFrequency>(['weekly', 'biweekly', 'monthly'])
+const VALID_FORMAT = new Set<PaymentReportFormat>(['csv', 'pdf', 'both'])
 
 /** Sikker parse af rå JSONB → config (ukendt input → standard slået fra). */
 export function parsePaymentReportConfig(raw: unknown): PaymentReportConfig {
@@ -47,6 +52,9 @@ export function parsePaymentReportConfig(raw: unknown): PaymentReportConfig {
     : 'weekly')
   const wd = Number(r.weekday)
   const weekday = Number.isInteger(wd) && wd >= 1 && wd <= 7 ? wd : 1
+  const format = (typeof r.format === 'string' && VALID_FORMAT.has(r.format as PaymentReportFormat)
+    ? (r.format as PaymentReportFormat)
+    : 'csv')
   return {
     enabled: r.enabled === true,
     recipients,
@@ -54,7 +62,14 @@ export function parsePaymentReportConfig(raw: unknown): PaymentReportConfig {
     skip_if_empty: r.skip_if_empty !== false, // default true
     frequency,
     weekday,
+    format,
   }
+}
+
+export const FORMAT_LABEL: Record<PaymentReportFormat, string> = {
+  csv: 'CSV (Excel)',
+  pdf: 'PDF (overblik)',
+  both: 'CSV + PDF',
 }
 
 export const WEEKDAY_LABEL: Record<number, string> = {

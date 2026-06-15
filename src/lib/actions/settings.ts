@@ -444,6 +444,7 @@ export interface PaymentReportHistoryEntry {
   row_count: number | null
   recipient_count: number | null
   skip_reason_label: string | null
+  format: string | null
 }
 
 export interface PaymentReportHistory {
@@ -492,6 +493,7 @@ export async function getPaymentReportHistoryAction(): Promise<ActionResult<Paym
         row_count: typeof md.row_count === 'number' ? md.row_count : null,
         recipient_count: typeof md.recipient_count === 'number' ? md.recipient_count : null,
         skip_reason_label: reason ? REPORT_SKIP_REASON_LABEL[reason] ?? reason : null,
+        format: typeof md.format === 'string' ? md.format : null,
       }
     })
 
@@ -534,6 +536,7 @@ export async function sendPaymentReportTestAction(): Promise<{ ok: boolean; mess
       recipients: config.recipients,
       filter: config.filter,
       skipIfEmpty: false,
+      format: config.format,
       actorUserId: userId,
     })
     if (res.status === 'sent') {

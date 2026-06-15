@@ -22,10 +22,12 @@ import {
   DEFAULT_PAYMENT_REPORT_CONFIG,
   FREQUENCY_LABEL,
   WEEKDAY_LABEL,
+  FORMAT_LABEL,
   nextScheduledRun,
   type PaymentReportConfig,
   type PaymentReportFilter,
   type PaymentReportFrequency,
+  type PaymentReportFormat,
 } from '@/lib/invoices/payment-report-config'
 
 const FILTER_OPTIONS: Array<{ key: PaymentReportFilter; label: string }> = [
@@ -34,6 +36,7 @@ const FILTER_OPTIONS: Array<{ key: PaymentReportFilter; label: string }> = [
   { key: 'both', label: 'Udestående (inkl. forfaldne)' },
 ]
 const FREQ_OPTIONS: PaymentReportFrequency[] = ['weekly', 'biweekly', 'monthly']
+const FORMAT_OPTIONS: PaymentReportFormat[] = ['csv', 'pdf', 'both']
 
 function fmtDateTime(s: string | null): string {
   if (!s) return '—'
@@ -191,6 +194,19 @@ export function PaymentReportSettings({ canManage }: { canManage: boolean }) {
             ))}
           </select>
         </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Format</label>
+          <select
+            value={cfg.format}
+            onChange={(e) => setCfg((p) => ({ ...p, format: e.target.value as PaymentReportFormat }))}
+            disabled={!canManage}
+            className="w-full border rounded px-2 py-1.5 text-sm"
+          >
+            {FORMAT_OPTIONS.map((f) => (
+              <option key={f} value={f}>{FORMAT_LABEL[f]}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex items-end">
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -261,6 +277,9 @@ export function PaymentReportSettings({ canManage }: { canManage: boolean }) {
                     {e.label}
                     {e.row_count != null && (
                       <span className="text-gray-500"> · {e.row_count} kunde{e.row_count === 1 ? '' : 'r'}</span>
+                    )}
+                    {e.format && (e.action === 'payment_report_sent' || e.action === 'payment_report_test_sent') && (
+                      <span className="text-gray-500"> · {FORMAT_LABEL[e.format as PaymentReportFormat] ?? e.format}</span>
                     )}
                     {e.skip_reason_label && <span className="text-amber-700"> · {e.skip_reason_label}</span>}
                   </div>
