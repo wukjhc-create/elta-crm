@@ -966,3 +966,139 @@ export async function retryInvoiceExportAction(
   await audit(false, `Genforsøg fejlede: ${friendlyEconomicError(result.error)}`, { error: friendlyEconomicError(result.error) })
   return { ok: false, status: 'failed', message: `Eksport fejlede: ${friendlyEconomicError(result.error)}` }
 }
+
+// =====================================================
+// Ø6.4 — regnskabs-dashboardwidget (sammenfatning)
+// =====================================================
+
+export interface AccountingHealthSummary {
+  ok: boolean
+  message?: string
+  integration_ready: boolean
+  /** Fejlede fakturaer der stadig kan handles på (ikke eksporteret endnu). */
+  failed_count: number
+  /** Sendte/betalte fakturaer der endnu ikke er eksporteret. */
+  not_exported_count: number
+  exported_7d: number
+  exported_30d: number
+  latest_error: {
+    invoice_id: string | null
+    invoice_number: string | null
+    message: string
+    at: string
+  } | null
+}
+
+/**
+ * Cost-free sammenfatning til regnskabs-widgeten på dashboardet. Genbruger
+ * eksisterende kilder (accounting_sync_log + invoices + isEconomicReady).
+ * Ingen kost/margin/DB; fejl saniteres via friendlyEconomicError.
+ */
+export async function getAccountingHealthSummaryAction(): Promise<AccountingHealthSummary> {
+  const empty: AccountingHealthSummary = {
+    ok: false, integration_ready: false, failed_count: 0, not_exported_count: 0,
+    exported_7d: 0, exported_30d: 0, latest_error: null,
+  }
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ...empty, message: 'Manglende tilladelse: settings.economic' }
+  }
+
+  let integrationReady = false
+  try {
+    const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
+    integrationReady = isEconomicReady(await getEconomicSettings())
+  } catch (e) {
+    logger.error('getAccountingHealthSummaryAction: settings read failed', { error: e })
+  }
+
+  const now = Date.now()
+  const since7 = new Date(now - 7 * 86400_000).toISOString()
+  const since30 = new Date(now - 30 * 86400_000).toISOString()
+
+  // Sendte/betalte fakturaer der ikke er eksporteret (cost-free, kun count).
+  let notExported = 0
+  try {
+    const { count } = await supabase
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['sent', 'paid'])
+      .is('voided_at', null)
+      .neq('invoice_type', 'credit')
+      .is('external_invoice_id', null)
+    notExported = count ?? 0
+  } catch (e) {
+    logger.error('getAccountingHealthSummaryAction: not_exported count failed', { error: e })
+  }
+
+  // Eksporteret (succesfulde create-forsøg) i 7/30 dage.
+  const exportedSince = async (sinceIso: string): Promise<number> => {
+    try {
+      const { count } = await supabase
+        .from('accounting_sync_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('entity_type', 'invoice')
+        .eq('action', 'create')
+        .eq('status', 'success')
+        .gte('created_at', sinceIso)
+      return count ?? 0
+    } catch {
+      return 0
+    }
+  }
+  const [exported7d, exported30d] = await Promise.all([exportedSince(since7), exportedSince(since30)])
+
+  // Fejlede eksporter der stadig kan handles på + seneste fejl.
+  let failedCount = 0
+  let latestError: AccountingHealthSummary['latest_error'] = null
+  try {
+    const { data: failedLogs } = await supabase
+      .from('accounting_sync_log')
+      .select('entity_id, error_message, created_at')
+      .eq('entity_type', 'invoice')
+      .eq('status', 'failed')
+      .order('created_at', { ascending: false })
+      .limit(300)
+    const failedRows = failedLogs ?? []
+    const failedInvoiceIds = Array.from(new Set(failedRows.map((r) => r.entity_id as string)))
+
+    // Hvilke af de fejlede fakturaer er stadig ikke eksporteret (handlebare)?
+    const stillOpen = new Set<string>()
+    const numberById = new Map<string, string | null>()
+    if (failedInvoiceIds.length) {
+      const { data: invs } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, external_invoice_id, external_provider, voided_at')
+        .in('id', failedInvoiceIds)
+      for (const i of invs ?? []) {
+        numberById.set(i.id as string, (i.invoice_number as string | null) ?? null)
+        const exported = !!i.external_invoice_id && i.external_provider === PROVIDER
+        if (!exported && !i.voided_at) stillOpen.add(i.id as string)
+      }
+    }
+    failedCount = stillOpen.size
+
+    // Seneste fejl der stadig er åben (ellers seneste fejl overhovedet).
+    const newestOpen = failedRows.find((r) => stillOpen.has(r.entity_id as string)) ?? failedRows[0]
+    if (newestOpen) {
+      latestError = {
+        invoice_id: (newestOpen.entity_id as string) ?? null,
+        invoice_number: numberById.get(newestOpen.entity_id as string) ?? null,
+        message: friendlyEconomicError(newestOpen.error_message as string | null),
+        at: newestOpen.created_at as string,
+      }
+    }
+  } catch (e) {
+    logger.error('getAccountingHealthSummaryAction: failed summary failed', { error: e })
+  }
+
+  return {
+    ok: true,
+    integration_ready: integrationReady,
+    failed_count: failedCount,
+    not_exported_count: notExported,
+    exported_7d: exported7d,
+    exported_30d: exported30d,
+    latest_error: latestError,
+  }
+}

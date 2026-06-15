@@ -39,6 +39,7 @@ import {
   EmailIntelligenceCard,
   InvoiceEconomySection,
   InvoiceLiquidityChart,
+  AccountingHealthWidget,
 } from '@/components/modules/dashboard'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
@@ -97,6 +98,8 @@ export default async function DashboardPage() {
 
   // Sprint Ø4.0 — cost-free fakturaøkonomi kun for invoices.view.all.
   const canViewInvoices = await pageHasPermission('invoices.view.all')
+  // Sprint Ø6.4 — regnskabs-widget kun for settings.economic (bogholderi/admin).
+  const canViewEconomic = await pageHasPermission('settings.economic')
 
   return (
     <div className="space-y-6">
@@ -118,6 +121,9 @@ export default async function DashboardPage() {
 
       {/* Sprint Ø4.2 — Likviditetsgraf: faktureret vs. betalt 6 mdr. */}
       {canViewInvoices && <InvoiceLiquidityChart />}
+
+      {/* Sprint Ø6.4 — Regnskabsstatus: e-conomic eksportfejl proaktivt */}
+      {canViewEconomic && <AccountingHealthWidget />}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />
