@@ -22,6 +22,7 @@ const styles = StyleSheet.create({
   },
   brand: { fontSize: 20, fontWeight: 'bold', color: BRAND },
   subtitle: { fontSize: 11, color: TEXT, marginTop: 2 },
+  brandContact: { fontSize: 8, color: MUTED, marginTop: 3 },
   metaRight: { textAlign: 'right' },
   metaLabel: { fontSize: 9, color: MUTED },
   metaValue: { fontSize: 11, fontWeight: 'bold' },
@@ -59,6 +60,11 @@ export interface PaymentReportPdfPayload {
   overdueCustomers: number
   topByOverdue: PaymentReportTopRow[]
   topByOutstanding: PaymentReportTopRow[]
+  /** Sprint Ø5.3 — firmabranding (tekst-header, sikker fallback). */
+  companyName?: string | null
+  companyEmail?: string | null
+  companyPhone?: string | null
+  companyVat?: string | null
 }
 
 function kr(n: number): string {
@@ -91,18 +97,22 @@ function TopTable({ rows, valueKey }: { rows: PaymentReportTopRow[]; valueKey: '
 }
 
 export function PaymentReportPdfDocument({ payload: p }: { payload: PaymentReportPdfPayload }) {
+  const companyName = p.companyName || 'ELTA Drift'
+  const contactLine = [p.companyEmail, p.companyPhone].filter(Boolean).join(' · ')
   return (
-    <Document title={`Betalingsopfølgning ${p.reportDate}`} author="ELTA Drift">
+    <Document title={`Betalingsopfølgning ${p.reportDate}`} author={companyName}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.brand}>ELTA Drift</Text>
+            <Text style={styles.brand}>{companyName}</Text>
             <Text style={styles.subtitle}>Betalingsopfølgning</Text>
+            {contactLine ? <Text style={styles.brandContact}>{contactLine}</Text> : null}
           </View>
           <View style={styles.metaRight}>
             <Text style={styles.metaLabel}>Rapportdato</Text>
             <Text style={styles.metaValue}>{p.reportDate}</Text>
             <Text style={[styles.metaLabel, { marginTop: 4 }]}>Udvalg: {p.filterLabel}</Text>
+            {p.companyVat ? <Text style={[styles.metaLabel, { marginTop: 4 }]}>CVR {p.companyVat}</Text> : null}
           </View>
         </View>
 
@@ -132,7 +142,7 @@ export function PaymentReportPdfDocument({ payload: p }: { payload: PaymentRepor
         <TopTable rows={p.topByOutstanding} valueKey="outstanding" />
 
         <Text style={styles.footer} fixed>
-          Automatisk betalingsrapport fra ELTA Drift · beløb er fakturabeløb inkl. moms · ingen interne tal
+          Automatisk betalingsrapport fra {companyName} · beløb er fakturabeløb inkl. moms · ingen interne tal
         </Text>
       </Page>
     </Document>

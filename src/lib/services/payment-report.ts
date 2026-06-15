@@ -18,6 +18,7 @@ import {
   type PaymentReportFormat,
 } from '@/lib/invoices/payment-report-config'
 import type { PaymentExportRow } from '@/lib/actions/invoices'
+import type { PaymentReportPdfPayload } from '@/lib/pdf/payment-report-pdf-template'
 
 const EXPORT_LABEL: Record<string, string> = {
   late_payer: 'Ofte forsinket',
@@ -82,6 +83,65 @@ export async function buildPaymentExportRows(
     }
   })
   return { rows, error: null }
+}
+
+export interface ReportBranding {
+  name: string | null
+  email: string | null
+  phone: string | null
+  vat: string | null
+}
+
+/** Firmabranding fra company_settings (tekst-header, sikker fallback). */
+export async function loadReportBranding(supabase: SupabaseClient): Promise<ReportBranding> {
+  const { data } = await supabase
+    .from('company_settings')
+    .select('company_name, company_email, company_phone, company_vat_number')
+    .maybeSingle()
+  return {
+    name: (data?.company_name as string | null) ?? null,
+    email: (data?.company_email as string | null) ?? null,
+    phone: (data?.company_phone as string | null) ?? null,
+    vat: (data?.company_vat_number as string | null) ?? null,
+  }
+}
+
+/**
+ * Delt PDF-payload-bygger (genbrugt af mail-afsendelse + eksempel-PDF).
+ * Top 10 efter forfalden/udestående total. Cost-free + firmabranding.
+ */
+export function buildReportPdfPayload(
+  rows: PaymentExportRow[],
+  filterLabel: string,
+  reportDate: string,
+  branding: ReportBranding
+): PaymentReportPdfPayload {
+  const top = (key: 'overdue_total' | 'outstanding_total') =>
+    [...rows]
+      .filter((r) => (key === 'overdue_total' ? r.overdue_total > 0 : true))
+      .sort((a, b) => b[key] - a[key])
+      .slice(0, 10)
+      .map((r) => ({
+        name: r.customer_name,
+        outstanding: r.outstanding_total,
+        overdue: r.overdue_total,
+        overdue_count: r.overdue_count,
+        payment_label: r.payment_label,
+      }))
+  return {
+    reportDate,
+    filterLabel,
+    customerCount: rows.length,
+    outstandingTotal: rows.reduce((s, r) => s + r.outstanding_total, 0),
+    overdueTotal: rows.reduce((s, r) => s + r.overdue_total, 0),
+    overdueCustomers: rows.filter((r) => r.overdue_count > 0).length,
+    topByOverdue: top('overdue_total'),
+    topByOutstanding: top('outstanding_total'),
+    companyName: branding.name,
+    companyEmail: branding.email,
+    companyPhone: branding.phone,
+    companyVat: branding.vat,
+  }
 }
 
 const REPORT_FROM_MAILBOX = 'kontakt@eltasolar.dk'
@@ -181,36 +241,16 @@ export async function sendPaymentReport(opts: {
     })
   }
 
-  // PDF (ledelsesvenligt overblik) — samme cost-free data som CSV.
+  // PDF (ledelsesvenligt overblik) — samme cost-free data som CSV + branding.
   let pdfFailed = false
   if (wantPdf) {
     try {
-      const top = (key: 'overdue_total' | 'outstanding_total') =>
-        [...rows]
-          .filter((r) => (key === 'overdue_total' ? r.overdue_total > 0 : true))
-          .sort((a, b) => b[key] - a[key])
-          .slice(0, 10)
-          .map((r) => ({
-            name: r.customer_name,
-            outstanding: r.outstanding_total,
-            overdue: r.overdue_total,
-            overdue_count: r.overdue_count,
-            payment_label: r.payment_label,
-          }))
+      const branding = await loadReportBranding(supabase)
       const { renderToBuffer } = await import('@react-pdf/renderer')
       const { PaymentReportPdfDocument } = await import('@/lib/pdf/payment-report-pdf-template')
       const buffer = await renderToBuffer(
         PaymentReportPdfDocument({
-          payload: {
-            reportDate: dateDk,
-            filterLabel: REPORT_FILTER_LABEL[opts.filter],
-            customerCount: rows.length,
-            outstandingTotal: totalOutstanding,
-            overdueTotal: totalOverdue,
-            overdueCustomers,
-            topByOverdue: top('overdue_total'),
-            topByOutstanding: top('outstanding_total'),
-          },
+          payload: buildReportPdfPayload(rows, REPORT_FILTER_LABEL[opts.filter], dateDk, branding),
         }) as Parameters<typeof renderToBuffer>[0]
       )
       attachments.push({

@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import {
-  AlertTriangle, BadgeCheck, CalendarClock, History, Info, Loader2, Save, Send, Settings2,
+  AlertTriangle, BadgeCheck, CalendarClock, Eye, FileDown, History, Info, Loader2, Save, Send, Settings2,
 } from 'lucide-react'
 import {
   getPaymentReportConfig,
@@ -236,6 +236,25 @@ export function PaymentReportSettings({ canManage }: { canManage: boolean }) {
           label="Sidst sprunget over"
           value={history?.last_skip_at ? `${fmtDateTime(history.last_skip_at)} (${history.last_skip_reason ?? '—'})` : '—'}
         />
+      </div>
+
+      {/* Sprint Ø5.3 — eksempel-PDF (live data, sender ingen mail) */}
+      <div className="flex flex-wrap items-center gap-3 border-t pt-3">
+        <span className="text-xs text-gray-500">Eksempel-PDF (live data, sender ikke):</span>
+        <a
+          href="/api/settings/payment-report-preview?view=1"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg ring-1 ring-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50"
+        >
+          <Eye className="w-3.5 h-3.5" /> Vis eksempel-PDF
+        </a>
+        <a
+          href="/api/settings/payment-report-preview?download=1"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg ring-1 ring-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+        >
+          <FileDown className="w-3.5 h-3.5" /> Download eksempel-PDF
+        </a>
       </div>
 
       <div className="flex items-center justify-end gap-2">
