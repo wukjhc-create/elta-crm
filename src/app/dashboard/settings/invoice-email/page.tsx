@@ -3,6 +3,7 @@ import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
 import { getInvoiceEmailConfig, getProfile } from '@/lib/actions/settings'
 import { InvoiceEmailSettingsClient } from './invoice-email-settings-client'
+import { PaymentReportSettings } from './payment-report-settings'
 
 export const metadata: Metadata = {
   title: 'Faktura- og rykkertekster',
@@ -24,10 +25,15 @@ export default async function InvoiceEmailSettingsPage() {
   const userEmail = profileRes.success && profileRes.data ? profileRes.data.email : ''
 
   return (
-    <InvoiceEmailSettingsClient
-      initial={initial}
-      canManage={canManage}
-      userEmail={userEmail}
-    />
+    <div className="space-y-5">
+      <InvoiceEmailSettingsClient
+        initial={initial}
+        canManage={canManage}
+        userEmail={userEmail}
+      />
+      <div className="p-6 pt-0 max-w-5xl">
+        <PaymentReportSettings canManage={canManage} />
+      </div>
+    </div>
   )
 }

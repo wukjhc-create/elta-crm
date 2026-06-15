@@ -21,6 +21,10 @@ import {
   parseInvoiceEmailConfig,
   type InvoiceEmailConfig,
 } from '@/lib/email/invoice-email-config'
+import {
+  parsePaymentReportConfig,
+  type PaymentReportConfig,
+} from '@/lib/invoices/payment-report-config'
 
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
@@ -353,6 +357,115 @@ export async function sendInvoiceEmailTestAction(input: {
   } catch (error) {
     logger.error('Error in sendInvoiceEmailTestAction', { error })
     return { ok: false, message: 'Der opstod en uventet fejl ved afsendelse af testmail.' }
+  }
+}
+
+// =====================================================
+// Sprint Ø5.0 — Planlagt betalingsrapport-mail (settings + testudsendelse)
+// =====================================================
+
+export async function getPaymentReportConfig(): Promise<ActionResult<PaymentReportConfig>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.view')) {
+      return { success: false, error: 'Manglende tilladelse: settings.view' }
+    }
+    const { data, error } = await supabase
+      .from('company_settings')
+      .select('payment_report_config')
+      .maybeSingle()
+    if (error) {
+      logger.error('getPaymentReportConfig failed', { error })
+      return { success: false, error: 'Kunne ikke hente rapportindstillinger' }
+    }
+    return { success: true, data: parsePaymentReportConfig(data?.payment_report_config) }
+  } catch (error) {
+    logger.error('Error in getPaymentReportConfig', { error })
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function updatePaymentReportConfig(
+  input: PaymentReportConfig
+): Promise<ActionResult<PaymentReportConfig>> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.manage')) {
+      return { success: false, error: 'Manglende tilladelse: settings.manage' }
+    }
+    const { data: existing } = await supabase.from('company_settings').select('id').maybeSingle()
+    if (!existing) {
+      return { success: false, error: 'Kunne ikke finde virksomhedsindstillinger' }
+    }
+    const clean = parsePaymentReportConfig(input)
+    const { error } = await supabase
+      .from('company_settings')
+      .update({ payment_report_config: clean })
+      .eq('id', existing.id)
+    if (error) {
+      logger.error('updatePaymentReportConfig failed', { error })
+      return { success: false, error: 'Kunne ikke gemme rapportindstillinger' }
+    }
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        entity_type: 'company_settings',
+        entity_id: existing.id,
+        entity_name: 'Betalingsrapport',
+        action: 'payment_report_config_updated',
+        action_description: `Betalingsrapport ${clean.enabled ? 'aktiveret' : 'deaktiveret'} (filter: ${clean.filter}, ${clean.recipients.length} modtager(e))`,
+        changes: {
+          enabled: clean.enabled,
+          filter: clean.filter,
+          recipient_count: clean.recipients.length,
+          skip_if_empty: clean.skip_if_empty,
+        },
+        metadata: { note: 'Cost-free — kun modtagere + filtervalg.' },
+      })
+    } catch (e) {
+      logger.error('audit payment_report_config failed', { error: e })
+    }
+    revalidatePath('/dashboard/settings/invoice-email')
+    return { success: true, data: clean }
+  } catch (error) {
+    logger.error('Error in updatePaymentReportConfig', { error })
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+export async function sendPaymentReportTestAction(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.manage')) {
+      return { ok: false, message: 'Manglende tilladelse: settings.manage' }
+    }
+    const { data } = await supabase
+      .from('company_settings')
+      .select('payment_report_config')
+      .maybeSingle()
+    const config = parsePaymentReportConfig(data?.payment_report_config)
+    if (config.recipients.length === 0) {
+      return { ok: false, message: 'Tilføj mindst én modtager-email før du sender en testrapport.' }
+    }
+    const { sendPaymentReport } = await import('@/lib/services/payment-report')
+    // Testrapport: send altid (skipIfEmpty=false) så opsætningen kan verificeres.
+    const res = await sendPaymentReport({
+      trigger: 'test',
+      recipients: config.recipients,
+      filter: config.filter,
+      skipIfEmpty: false,
+      actorUserId: userId,
+    })
+    if (res.status === 'sent') {
+      return { ok: true, message: `Testrapport sendt til ${res.recipients.join(', ')} (${res.row_count} kunde(r)).` }
+    }
+    if (res.status === 'failed' && res.reason === 'graph_not_configured') {
+      return { ok: false, message: 'Mailafsendelse er ikke opsat korrekt endnu.' }
+    }
+    return { ok: false, message: `Testrapport kunne ikke sendes: ${res.reason ?? res.status}` }
+  } catch (error) {
+    logger.error('Error in sendPaymentReportTestAction', { error })
+    return { ok: false, message: 'Der opstod en uventet fejl ved afsendelse af testrapport.' }
   }
 }
 

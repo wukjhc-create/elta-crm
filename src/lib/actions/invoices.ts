@@ -2067,12 +2067,6 @@ export interface PaymentExportResult {
   rows: PaymentExportRow[]
 }
 
-const EXPORT_LABEL: Record<string, string> = {
-  late_payer: 'Ofte forsinket',
-  on_time: 'Betaler til tiden',
-  no_data: 'Ingen betalingshistorik',
-}
-
 export async function exportPaymentFollowupAction(
   filter: PaymentFilter
 ): Promise<PaymentExportResult> {
@@ -2081,57 +2075,15 @@ export async function exportPaymentFollowupAction(
     return { ok: false, permitted: false, filter, rows: [], message: 'Ingen adgang til betalingsdata' }
   }
 
-  // Sprint Ø4.9 — ÉN query mod SQL-viewet (forud-aggregeret, cost-free).
-  // Ingen limit 20000, ingen N+1 — viewet joiner allerede customers.
-  let q = supabase
-    .from('v_customers_with_payment_summary')
-    .select(
-      'id, company_name, contact_person, email, phone, is_active, outstanding_total, overdue_total, overdue_count, payment_status, average_days_late, latest_invoice_at, latest_paid_at'
-    )
-    .order('outstanding_total', { ascending: false })
-    .limit(50000)
-  // Eksport-regel: all → udestående (inkl. forfaldne), IKKE alle kunder.
-  if (filter === 'overdue') q = q.gt('overdue_count', 0)
-  else if (filter === 'outstanding' || filter === 'all') q = q.gt('outstanding_total', 0)
-  else if (filter === 'late_payer') q = q.eq('payment_status', 'late_payer')
-  else if (filter === 'on_time') q = q.eq('payment_status', 'on_time')
-  else if (filter === 'no_data') q = q.eq('payment_status', 'no_data')
-
-  const { data, error } = await q
+  // Sprint Ø4.9/Ø5.0 — delt byggeklods mod SQL-viewet (cost-free, ingen N+1).
+  const { buildPaymentExportRows } = await import('@/lib/services/payment-report')
+  const { rows, error } = await buildPaymentExportRows(supabase, filter)
   if (error) {
-    logger.error('exportPaymentFollowupAction: view query failed', { error })
-    return { ok: false, permitted: true, filter, rows: [], message: 'Kunne ikke hente betalingsdata' }
+    return { ok: false, permitted: true, filter, rows: [], message: error }
   }
-
-  if ((data ?? []).length === 0) {
+  if (rows.length === 0) {
     return { ok: true, permitted: true, filter, rows: [] }
   }
-
-  const rows: PaymentExportRow[] = (data ?? []).map((c) => {
-    const name = (c.company_name as string | null) || (c.contact_person as string | null) || '—'
-    const status = (c.payment_status as string | null) ?? 'no_data'
-    const overdueCount = Number(c.overdue_count ?? 0)
-    const label =
-      status === 'requires_attention'
-        ? `${overdueCount} forfalden${overdueCount === 1 ? '' : 'e'} faktura${overdueCount === 1 ? '' : 'er'}`
-        : EXPORT_LABEL[status] ?? 'Ingen betalingshistorik'
-    return {
-      customer_name: name,
-      contact_person: (c.contact_person as string | null) ?? null,
-      email: (c.email as string | null) ?? null,
-      phone: (c.phone as string | null) ?? null,
-      active: (c.is_active as boolean | null) ?? null,
-      outstanding_total: Number(c.outstanding_total ?? 0),
-      overdue_total: Number(c.overdue_total ?? 0),
-      overdue_count: overdueCount,
-      payment_label: label,
-      average_days_late: c.average_days_late === null || c.average_days_late === undefined ? null : Number(c.average_days_late),
-      last_invoice_at: (c.latest_invoice_at as string | null) ?? null,
-      last_payment_at: (c.latest_paid_at as string | null) ?? null,
-      customer_url: `/dashboard/customers/${c.id}`,
-      invoices_url: `/dashboard/invoices?q=${encodeURIComponent(name)}`,
-    }
-  })
 
   // Best-effort audit — vælter aldrig eksporten. Ingen kost i metadata.
   try {

@@ -11,30 +11,11 @@
 
 import { useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
-import {
-  exportPaymentFollowupAction,
-  type PaymentExportRow,
-} from '@/lib/actions/invoices'
+import { exportPaymentFollowupAction } from '@/lib/actions/invoices'
 import type { PaymentFilterKey } from '@/app/dashboard/customers/customer-payment-filter'
-import { generateCsv, downloadCsv, csvCurrency, csvDate } from '@/lib/utils/csv-export'
+import { generateCsv, downloadCsv } from '@/lib/utils/csv-export'
+import { PAYMENT_EXPORT_COLUMNS } from '@/lib/invoices/payment-export-columns'
 import { useToast } from '@/components/ui/toast'
-
-const PAYMENT_COLUMNS: Array<{ header: string; accessor: (r: PaymentExportRow) => string | number | null }> = [
-  { header: 'Kundenavn', accessor: (r) => r.customer_name },
-  { header: 'Kontaktperson', accessor: (r) => r.contact_person },
-  { header: 'Email', accessor: (r) => r.email },
-  { header: 'Telefon', accessor: (r) => r.phone },
-  { header: 'Status', accessor: (r) => (r.active === null ? '' : r.active ? 'Aktiv' : 'Inaktiv') },
-  { header: 'Udestående i alt (DKK)', accessor: (r) => csvCurrency(r.outstanding_total) },
-  { header: 'Forfalden total (DKK)', accessor: (r) => csvCurrency(r.overdue_total) },
-  { header: 'Antal forfaldne fakturaer', accessor: (r) => r.overdue_count },
-  { header: 'Betalingsadfærd', accessor: (r) => r.payment_label },
-  { header: 'Gns. dage efter forfald', accessor: (r) => (r.average_days_late ?? '') },
-  { header: 'Seneste faktura', accessor: (r) => csvDate(r.last_invoice_at) },
-  { header: 'Seneste betaling', accessor: (r) => csvDate(r.last_payment_at) },
-  { header: 'Kunde-link', accessor: (r) => r.customer_url },
-  { header: 'Fakturaoverblik-link', accessor: (r) => r.invoices_url },
-]
 
 const FILE_LABEL: Record<PaymentFilterKey, string> = {
   all: 'betalingsliste',
@@ -70,7 +51,7 @@ export function PaymentExportButton({ paymentFilter }: { paymentFilter: PaymentF
         toast.error('Der er ingen kunder i denne betalingsvisning at eksportere.')
         return
       }
-      const csv = generateCsv(res.rows, PAYMENT_COLUMNS)
+      const csv = generateCsv(res.rows, PAYMENT_EXPORT_COLUMNS)
       const date = new Date().toISOString().slice(0, 10)
       downloadCsv(csv, `elta-drift-${FILE_LABEL[paymentFilter]}-${date}.csv`)
       toast.success(`${res.rows.length} kunde(r) eksporteret.`)
