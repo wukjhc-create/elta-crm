@@ -3,6 +3,7 @@ import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
 import { getEconomicIntegrationStatusAction } from '@/lib/actions/accounting'
 import { EconomicSettingsClient } from './economic-settings-client'
+import { ExportErrorNotificationSettings } from './export-error-notification-settings'
 
 export const metadata: Metadata = {
   title: 'Regnskab (e-conomic)',
@@ -19,5 +20,12 @@ export default async function EconomicSettingsPage() {
   }
   const status = await getEconomicIntegrationStatusAction()
 
-  return <EconomicSettingsClient initial={status} canEdit={true} />
+  return (
+    <div className="space-y-4">
+      <EconomicSettingsClient initial={status} canEdit={true} />
+      <div className="p-6 pt-0 max-w-2xl">
+        <ExportErrorNotificationSettings />
+      </div>
+    </div>
+  )
 }

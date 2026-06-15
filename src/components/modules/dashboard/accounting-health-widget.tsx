@@ -16,7 +16,8 @@ import { useEffect, useState } from 'react'
 import {
   BookCheck, AlertTriangle, Send, CheckCircle2, Loader2, ArrowRight, ListChecks, Settings,
 } from 'lucide-react'
-import { getAccountingHealthSummaryAction, type AccountingHealthSummary } from '@/lib/actions/accounting'
+import { getAccountingHealthSummaryAction } from '@/lib/actions/accounting'
+import type { AccountingHealthSummary } from '@/lib/services/accounting-health'
 
 const fmtDateTime = (s: string) =>
   new Intl.DateTimeFormat('da-DK', {

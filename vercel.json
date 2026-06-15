@@ -75,6 +75,10 @@
     {
       "path": "/api/cron/payment-report",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/export-error-notification",
+      "schedule": "15 8 * * *"
     }
   ]
 }

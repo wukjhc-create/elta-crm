@@ -27,6 +27,10 @@ import {
   REPORT_SKIP_REASON_LABEL,
   type PaymentReportConfig,
 } from '@/lib/invoices/payment-report-config'
+import {
+  parseExportErrorNotificationConfig,
+  type ExportErrorNotificationConfig,
+} from '@/lib/invoices/export-error-notification-config'
 
 // Get company settings (singleton)
 export async function getCompanySettings(): Promise<ActionResult<CompanySettings>> {
@@ -1228,5 +1232,115 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
     return { success: true, data: null }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke gensende invitation') }
+  }
+}
+
+// =====================================================
+// Sprint Ø6.5 — e-conomic eksportfejl-notifikation (gated settings.economic)
+// =====================================================
+
+export async function getExportErrorNotificationConfig(): Promise<ActionResult<ExportErrorNotificationConfig>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.economic')) {
+      return { success: false, error: 'Manglende tilladelse: settings.economic' }
+    }
+    const { data, error } = await supabase
+      .from('company_settings')
+      .select('export_error_notification_config')
+      .maybeSingle()
+    if (error) {
+      logger.error('getExportErrorNotificationConfig failed', { error })
+      return { success: false, error: 'Kunne ikke hente notifikationsindstillinger' }
+    }
+    return { success: true, data: parseExportErrorNotificationConfig(data?.export_error_notification_config) }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente notifikationsindstillinger') }
+  }
+}
+
+/** UI redigerer kun enabled/recipients/min_hours_between — dedup-state bevares. */
+export async function updateExportErrorNotificationConfig(input: {
+  enabled: boolean
+  recipients: string[]
+  min_hours_between: number
+}): Promise<ActionResult<ExportErrorNotificationConfig>> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.economic')) {
+      return { success: false, error: 'Manglende tilladelse: settings.economic' }
+    }
+    const { data: existing } = await supabase
+      .from('company_settings')
+      .select('id, export_error_notification_config')
+      .maybeSingle()
+    if (!existing) return { success: false, error: 'Kunne ikke finde virksomhedsindstillinger' }
+
+    // Bevar dedup-state fra eksisterende config.
+    const prev = parseExportErrorNotificationConfig(existing.export_error_notification_config)
+    const recipients = input.recipients.filter((e) => typeof e === 'string' && e.includes('@'))
+    const mh = Number(input.min_hours_between)
+    const min_hours_between = Number.isFinite(mh) && mh >= 1 && mh <= 168 ? Math.round(mh) : 20
+    const merged: ExportErrorNotificationConfig = {
+      enabled: input.enabled === true,
+      recipients,
+      min_hours_between,
+      last_notified_at: prev.last_notified_at,
+      last_notified_count: prev.last_notified_count,
+    }
+
+    const { error } = await supabase
+      .from('company_settings')
+      .update({ export_error_notification_config: merged })
+      .eq('id', existing.id)
+    if (error) {
+      logger.error('updateExportErrorNotificationConfig failed', { error })
+      return { success: false, error: 'Kunne ikke gemme notifikationsindstillinger' }
+    }
+
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id: userId,
+        entity_type: 'company_settings',
+        entity_id: existing.id,
+        entity_name: 'Eksportfejl-notifikation',
+        action: 'export_error_notification_config_updated',
+        action_description: `Eksportfejl-notifikation ${merged.enabled ? 'slået til' : 'slået fra'} — ${recipients.length} modtager(e)`,
+        changes: { enabled: merged.enabled, recipient_count: recipients.length, min_hours_between },
+        metadata: { provider: 'economic' },
+      })
+    } catch (e) {
+      logger.error('audit export_error_notification_config_updated failed', { error: e })
+    }
+
+    revalidatePath('/dashboard/settings/economic')
+    return { success: true, data: merged }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke gemme notifikationsindstillinger') }
+  }
+}
+
+/** Send en testnotifikation NU ([TEST]-emne, ændrer ikke dedup-state). */
+export async function sendExportErrorNotificationTestAction(): Promise<
+  ActionResult<{ status: string; failed_count: number; recipients: number }>
+> {
+  try {
+    const { hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('settings.economic')) {
+      return { success: false, error: 'Manglende tilladelse: settings.economic' }
+    }
+    const { sendExportErrorNotification } = await import('@/lib/services/export-error-notification')
+    const res = await sendExportErrorNotification({ trigger: 'test' })
+    if (res.status === 'failed') {
+      const reason = res.reason === 'no_recipients'
+        ? 'Tilføj mindst én modtager først.'
+        : res.reason === 'graph_not_configured'
+          ? 'Mail er ikke opsat (Graph).'
+          : `Kunne ikke sende: ${res.reason ?? 'ukendt'}`
+      return { success: false, error: reason }
+    }
+    return { success: true, data: { status: res.status, failed_count: res.failed_count, recipients: res.recipients } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke sende testnotifikation') }
   }
 }
