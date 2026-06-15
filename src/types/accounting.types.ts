@@ -29,6 +29,12 @@ export interface EconomicConfig {
   autoBookOnCreate?: boolean
   /** Default e-conomic customer-group number for new customers. */
   defaultCustomerGroupNumber?: number
+  /** Last connection-test result (Ø6.2). Non-secret — safe to read in UI. */
+  connectionTest?: {
+    at: string
+    ok: boolean
+    message: string
+  }
 }
 
 export type AccountingEntityType = 'customer' | 'invoice' | 'payment'

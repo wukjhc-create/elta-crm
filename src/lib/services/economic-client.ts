@@ -17,6 +17,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { encrypt, decrypt } from '@/lib/utils/encryption'
 import type {
   AccountingAction,
   AccountingEntityType,
@@ -30,9 +31,44 @@ const ECONOMIC_BASE = 'https://restapi.e-conomic.com'
 const PROVIDER = 'economic' as const
 
 // =====================================================
+// Secret-at-rest (Ø6.2)
+// =====================================================
+//
+// Tokens are stored AES-256-GCM-encrypted in the existing api_token /
+// agreement_grant_token columns, tagged with this sentinel prefix. Reads
+// decrypt transparently so the rest of this client (and isEconomicReady,
+// bulk-eksport) is unchanged. Values without the prefix are treated as
+// legacy plaintext (backward compatible — prod has no row yet).
+
+const ENC_PREFIX = 'enc:v1:'
+
+/** Encrypt a secret for storage (prefixed). Used by the settings action. */
+export async function encryptToken(plaintext: string): Promise<string> {
+  return ENC_PREFIX + (await encrypt(plaintext))
+}
+
+/** Decrypt a stored secret if it carries the sentinel; else return as-is. */
+async function maybeDecrypt(value: string | null): Promise<string | null> {
+  if (!value) return value
+  if (!value.startsWith(ENC_PREFIX)) return value // legacy plaintext
+  try {
+    return await decrypt(value.slice(ENC_PREFIX.length))
+  } catch (e) {
+    // Wrong/missing ENCRYPTION_KEY, or corrupt ciphertext. Never expose the
+    // raw value; treat as not-ready so the integration stays locked.
+    logger.error('economic: token decrypt failed', { error: e })
+    return null
+  }
+}
+
+// =====================================================
 // Settings + readiness
 // =====================================================
 
+/**
+ * Returns settings with tokens DECRYPTED in-memory (never persisted in
+ * plaintext). The database row only ever holds ciphertext.
+ */
 export async function getEconomicSettings(): Promise<AccountingSettings | null> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
@@ -41,7 +77,12 @@ export async function getEconomicSettings(): Promise<AccountingSettings | null> 
     .eq('provider', PROVIDER)
     .maybeSingle()
   if (error || !data) return null
-  return data as AccountingSettings
+  const row = data as AccountingSettings
+  return {
+    ...row,
+    api_token: await maybeDecrypt(row.api_token),
+    agreement_grant_token: await maybeDecrypt(row.agreement_grant_token),
+  }
 }
 
 export function isEconomicReady(s: AccountingSettings | null): s is AccountingSettings & {
@@ -584,6 +625,48 @@ export async function markInvoicePaidInEconomic(
   await touchLastSyncAt()
   console.log('ECONOMIC PAYMENT REGISTERED:', invoiceId, '→ voucher', voucherNumber)
   return { ok: true, status: 'success', externalId: inv.external_invoice_id, data: { voucherNumber } }
+}
+
+// =====================================================
+// Connection test (Ø6.2)
+// =====================================================
+
+export interface EconomicPingResult {
+  ok: boolean
+  /** Human-readable, never contains the secret. */
+  message: string
+  reason?: 'ECONOMIC_NOT_CONFIGURED' | 'unauthorized' | 'http_error' | 'network'
+  agreementName?: string
+}
+
+/**
+ * Validate the stored credentials against e-conomic's GET /self endpoint.
+ * Uses the decrypted, stored tokens — callers never pass secrets in.
+ * Returns a human message only; the token is never logged or returned.
+ */
+export async function pingEconomicConnection(): Promise<EconomicPingResult> {
+  const settings = await getEconomicSettings()
+  if (!isEconomicReady(settings)) {
+    return { ok: false, reason: 'ECONOMIC_NOT_CONFIGURED', message: 'e-conomic er ikke opsat endnu.' }
+  }
+  const ready = settings as AccountingSettings & { api_token: string; agreement_grant_token: string }
+
+  const res = await economicFetch<{ self?: { companyName?: string }; agreementNumber?: number; company?: { name?: string } }>(
+    ready,
+    '/self'
+  )
+
+  if (res.ok) {
+    const name = res.data?.company?.name || (res.data as { companyName?: string } | null)?.companyName || undefined
+    return { ok: true, message: name ? `Forbindelse OK — ${name}` : 'Forbindelse OK.', agreementName: name }
+  }
+  if (res.status === 401 || res.status === 403) {
+    return { ok: false, reason: 'unauthorized', message: 'Adgang nægtet — kontroller app-hemmelighed og aftale-token.' }
+  }
+  if (res.status === 0) {
+    return { ok: false, reason: 'network', message: 'Kunne ikke nå e-conomic (netværksfejl).' }
+  }
+  return { ok: false, reason: 'http_error', message: `e-conomic svarede med en fejl (HTTP ${res.status}).` }
 }
 
 // =====================================================

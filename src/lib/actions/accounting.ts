@@ -297,6 +297,15 @@ export interface EconomicIntegrationStatus {
   active: boolean
   provider: string
   last_sync_at: string | null
+  /** Krypteringsnøgle (ENCRYPTION_KEY) er sat — påkrævet for at gemme nøgler. */
+  encryption_ready: boolean
+  /** Maskerede nøgler — fx "••••abcd". Aldrig den rå værdi. */
+  api_token_masked: string | null
+  grant_token_masked: string | null
+  /** Sidste forbindelsestest (fra config.connectionTest — ingen secret). */
+  last_tested_at: string | null
+  last_test_ok: boolean | null
+  last_test_message: string | null
   /** Ikke-hemmelige konfig-numre (layout/betalingsbetingelser/momszone). */
   config_summary: {
     layoutNumber: number | null
@@ -306,6 +315,13 @@ export interface EconomicIntegrationStatus {
   }
 }
 
+/** Maskér en hemmelighed til visning: "••••" + sidste 4 tegn. Aldrig rå. */
+function maskToken(token: string | null | undefined): string | null {
+  if (!token) return null
+  const last4 = token.length >= 4 ? token.slice(-4) : token
+  return '••••' + last4
+}
+
 export async function getEconomicIntegrationStatusAction(): Promise<EconomicIntegrationStatus> {
   const fallback: EconomicIntegrationStatus = {
     ok: false,
@@ -313,6 +329,12 @@ export async function getEconomicIntegrationStatusAction(): Promise<EconomicInte
     active: false,
     provider: PROVIDER,
     last_sync_at: null,
+    encryption_ready: false,
+    api_token_masked: null,
+    grant_token_masked: null,
+    last_tested_at: null,
+    last_test_ok: null,
+    last_test_message: null,
     config_summary: { layoutNumber: null, paymentTermsNumber: null, vatZoneNumber: null, autoBookOnCreate: false },
   }
   const { hasPermission } = await getAuthenticatedClientWithRole()
@@ -321,14 +343,22 @@ export async function getEconomicIntegrationStatusAction(): Promise<EconomicInte
   }
   try {
     const { getEconomicSettings, isEconomicReady } = await import('@/lib/services/economic-client')
-    const s = await getEconomicSettings()
+    const { isEncryptionConfigured } = await import('@/lib/utils/encryption')
+    const s = await getEconomicSettings() // tokens er dekrypteret in-memory
     const cfg = s?.config ?? {}
+    const test = cfg.connectionTest ?? null
     return {
       ok: true,
       configured: isEconomicReady(s),
       active: !!s?.active,
       provider: PROVIDER,
       last_sync_at: s?.last_sync_at ?? null,
+      encryption_ready: isEncryptionConfigured(),
+      api_token_masked: maskToken(s?.api_token),
+      grant_token_masked: maskToken(s?.agreement_grant_token),
+      last_tested_at: test?.at ?? null,
+      last_test_ok: test ? !!test.ok : null,
+      last_test_message: test?.message ?? null,
       config_summary: {
         layoutNumber: cfg.layoutNumber ?? null,
         paymentTermsNumber: cfg.paymentTermsNumber ?? null,
@@ -340,4 +370,253 @@ export async function getEconomicIntegrationStatusAction(): Promise<EconomicInte
     logger.error('getEconomicIntegrationStatusAction failed', { error: e })
     return { ...fallback, ok: true } // ingen secrets; bare "ikke opsat"
   }
+}
+
+// =====================================================
+// Ø6.2 — sikker opsætning (gem/test/ryd)
+// =====================================================
+
+export interface SaveEconomicCredentialsInput {
+  /** Tom/utdefineret = bevar eksisterende nøgle. */
+  api_token?: string
+  agreement_grant_token?: string
+  active?: boolean
+  config?: {
+    layoutNumber?: number | null
+    paymentTermsNumber?: number | null
+    vatZoneNumber?: number | null
+    autoBookOnCreate?: boolean
+  }
+}
+
+export interface SaveEconomicResult {
+  ok: boolean
+  status: 'saved' | 'no_encryption' | 'missing_credentials' | 'denied' | 'error'
+  message: string
+  configured?: boolean
+}
+
+/**
+ * Gem e-conomic-credentials KRYPTERET (AES-256-GCM via encryptToken). Rå
+ * nøgler forlader aldrig denne funktion — hverken til DB (kun ciphertext),
+ * UI, logs eller audit (kun maskeret). Blanke nøglefelter bevarer den
+ * eksisterende krypterede værdi.
+ */
+export async function updateEconomicCredentialsAction(
+  input: SaveEconomicCredentialsInput
+): Promise<SaveEconomicResult> {
+  const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ok: false, status: 'denied', message: 'Manglende tilladelse: settings.economic' }
+  }
+
+  const { isEncryptionConfigured } = await import('@/lib/utils/encryption')
+  if (!isEncryptionConfigured()) {
+    return {
+      ok: false,
+      status: 'no_encryption',
+      message: 'Kryptering er ikke konfigureret (ENCRYPTION_KEY mangler). Nøgler kan ikke gemmes sikkert.',
+    }
+  }
+
+  const { encryptToken } = await import('@/lib/services/economic-client')
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+
+  // Hent eksisterende (rå ciphertext-kolonner) for at kunne bevare nøgler.
+  const { data: existing } = await admin
+    .from('accounting_integration_settings')
+    .select('id, api_token, agreement_grant_token, config, active')
+    .eq('provider', PROVIDER)
+    .maybeSingle()
+
+  const newApiInput = (input.api_token ?? '').trim()
+  const newGrantInput = (input.agreement_grant_token ?? '').trim()
+
+  // Krypter kun nye, ikke-blanke nøgler; ellers bevar eksisterende ciphertext.
+  const apiStored = newApiInput ? await encryptToken(newApiInput) : (existing?.api_token ?? null)
+  const grantStored = newGrantInput ? await encryptToken(newGrantInput) : (existing?.agreement_grant_token ?? null)
+
+  if (!apiStored || !grantStored) {
+    return {
+      ok: false,
+      status: 'missing_credentials',
+      message: 'Begge nøgler (app-hemmelighed og aftale-token) skal angives første gang.',
+    }
+  }
+
+  // Flet config — bevar eksisterende felter (inkl. connectionTest), opdater de angivne.
+  const prevConfig = (existing?.config ?? {}) as Record<string, unknown>
+  const mergedConfig: Record<string, unknown> = { ...prevConfig }
+  if (input.config) {
+    for (const k of ['layoutNumber', 'paymentTermsNumber', 'vatZoneNumber'] as const) {
+      const v = input.config[k]
+      if (v === null) delete mergedConfig[k]
+      else if (typeof v === 'number' && Number.isFinite(v)) mergedConfig[k] = v
+    }
+    if (typeof input.config.autoBookOnCreate === 'boolean') mergedConfig.autoBookOnCreate = input.config.autoBookOnCreate
+  }
+
+  const active = input.active ?? existing?.active ?? true
+
+  const { error } = await admin
+    .from('accounting_integration_settings')
+    .upsert(
+      {
+        provider: PROVIDER,
+        api_token: apiStored,
+        agreement_grant_token: grantStored,
+        active,
+        config: mergedConfig,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'provider' }
+    )
+  if (error) {
+    logger.error('updateEconomicCredentialsAction: upsert failed', { error })
+    return { ok: false, status: 'error', message: 'Kunne ikke gemme opsætningen.' }
+  }
+
+  // Audit — KUN maskeret, aldrig rå nøgle.
+  try {
+    await admin.from('audit_logs').insert({
+      user_id: userId,
+      entity_type: 'integration',
+      entity_id: null,
+      entity_name: 'e-conomic',
+      action: 'economic_settings_updated',
+      action_description: 'e-conomic-opsætning gemt',
+      changes: {
+        api_token_changed: !!newApiInput,
+        grant_token_changed: !!newGrantInput,
+        active,
+      },
+      metadata: {
+        provider: PROVIDER,
+        api_token_masked: maskToken(newApiInput || null),
+        grant_token_masked: maskToken(newGrantInput || null),
+      },
+    })
+  } catch (e) {
+    logger.error('updateEconomicCredentialsAction: audit failed', { error: e })
+  }
+
+  return { ok: true, status: 'saved', message: 'e-conomic-opsætning gemt sikkert.', configured: active && !!apiStored && !!grantStored }
+}
+
+export interface TestEconomicResult {
+  ok: boolean
+  status: 'ok' | 'failed' | 'not_configured' | 'denied'
+  message: string
+  tested_at?: string
+}
+
+/**
+ * Test forbindelsen med de GEMTE (krypterede) credentials. Kalder e-conomic
+ * GET /self via klienten. Logger aldrig token. Gemmer kun et menneskeligt
+ * resultat i config.connectionTest.
+ */
+export async function testEconomicConnectionAction(): Promise<TestEconomicResult> {
+  const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ok: false, status: 'denied', message: 'Manglende tilladelse: settings.economic' }
+  }
+
+  const { pingEconomicConnection } = await import('@/lib/services/economic-client')
+  const ping = await pingEconomicConnection()
+  const at = new Date().toISOString()
+
+  if (ping.reason === 'ECONOMIC_NOT_CONFIGURED') {
+    return { ok: false, status: 'not_configured', message: ping.message, tested_at: at }
+  }
+
+  // Persistér testresultat i config (ingen secret) + audit.
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { data: row } = await admin
+      .from('accounting_integration_settings')
+      .select('config')
+      .eq('provider', PROVIDER)
+      .maybeSingle()
+    const cfg = (row?.config ?? {}) as Record<string, unknown>
+    cfg.connectionTest = { at, ok: ping.ok, message: ping.message }
+    await admin
+      .from('accounting_integration_settings')
+      .update({ config: cfg, updated_at: at })
+      .eq('provider', PROVIDER)
+
+    await admin.from('audit_logs').insert({
+      user_id: userId,
+      entity_type: 'integration',
+      entity_id: null,
+      entity_name: 'e-conomic',
+      action: 'economic_connection_tested',
+      action_description: `Forbindelsestest: ${ping.ok ? 'OK' : 'fejlede'}`,
+      changes: { ok: ping.ok },
+      metadata: { provider: PROVIDER, message: ping.message },
+    })
+  } catch (e) {
+    logger.error('testEconomicConnectionAction: persist failed', { error: e })
+  }
+
+  return { ok: ping.ok, status: ping.ok ? 'ok' : 'failed', message: ping.message, tested_at: at }
+}
+
+export interface ClearEconomicResult {
+  ok: boolean
+  status: 'cleared' | 'denied' | 'error'
+  message: string
+}
+
+/**
+ * Ryd/deaktiver integrationen: nulstil krypterede nøgler + active=false, så
+ * isEconomicReady() bliver false og bulk-eksport låses igen. Behold config-
+ * numre. Audit economic_settings_cleared (ingen secret).
+ */
+export async function clearEconomicIntegrationAction(): Promise<ClearEconomicResult> {
+  const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ok: false, status: 'denied', message: 'Manglende tilladelse: settings.economic' }
+  }
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+
+  const { data: existing } = await admin
+    .from('accounting_integration_settings')
+    .select('id, config')
+    .eq('provider', PROVIDER)
+    .maybeSingle()
+  if (!existing) {
+    return { ok: true, status: 'cleared', message: 'Integrationen er allerede ryddet.' }
+  }
+
+  const cfg = (existing.config ?? {}) as Record<string, unknown>
+  delete cfg.connectionTest
+
+  const { error } = await admin
+    .from('accounting_integration_settings')
+    .update({ api_token: null, agreement_grant_token: null, active: false, config: cfg, updated_at: new Date().toISOString() })
+    .eq('provider', PROVIDER)
+  if (error) {
+    logger.error('clearEconomicIntegrationAction: update failed', { error })
+    return { ok: false, status: 'error', message: 'Kunne ikke rydde integrationen.' }
+  }
+
+  try {
+    await admin.from('audit_logs').insert({
+      user_id: userId,
+      entity_type: 'integration',
+      entity_id: null,
+      entity_name: 'e-conomic',
+      action: 'economic_settings_cleared',
+      action_description: 'e-conomic-integration ryddet/deaktiveret',
+      changes: { active: false },
+      metadata: { provider: PROVIDER },
+    })
+  } catch (e) {
+    logger.error('clearEconomicIntegrationAction: audit failed', { error: e })
+  }
+
+  return { ok: true, status: 'cleared', message: 'Integrationen er ryddet og deaktiveret.' }
 }
