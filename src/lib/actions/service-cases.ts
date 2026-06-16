@@ -1699,3 +1699,68 @@ export async function getServiceCaseActivity(
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
 }
+
+// =====================================================
+// Sprint Ø7.1 — Noter på sagen (read-only panel)
+// =====================================================
+
+export interface CaseNoteEntry {
+  id: string
+  content: string
+  kind: string | null
+  urgency: string | null
+  created_at: string
+  author_name: string | null
+}
+
+/**
+ * Hent sagens noter (case_notes) til read-only notes-panel. Intern — gated
+ * cases.view (all eller assigned), aldrig kundevendt portal. Beriger
+ * forfatternavn via profiles (separat batch — ingen FK-antagelse).
+ */
+export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNoteEntry[]>> {
+  try {
+    if (!caseId) return { success: false, error: 'caseId mangler' }
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
+      return { success: false, error: 'Manglende tilladelse: cases.view' }
+    }
+
+    const { data, error } = await supabase
+      .from('case_notes')
+      .select('id, content, kind, urgency, created_at, created_by')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    if (error) {
+      logger.warn('Could not fetch case notes', { error })
+      return { success: true, data: [] }
+    }
+
+    const rows = data || []
+    // Berig forfatternavn (batch — ét opslag, ingen N+1).
+    const authorIds = Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))) as string[]
+    const nameById = new Map<string, string>()
+    if (authorIds.length) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', authorIds)
+      for (const p of profs ?? []) nameById.set(p.id as string, (p.full_name as string | null) || '')
+    }
+
+    return {
+      success: true,
+      data: rows.map((r) => ({
+        id: r.id as string,
+        content: (r.content as string | null) ?? '',
+        kind: (r.kind as string | null) ?? null,
+        urgency: (r.urgency as string | null) ?? null,
+        created_at: r.created_at as string,
+        author_name: r.created_by ? (nameById.get(r.created_by as string) || null) : null,
+      })),
+    }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}

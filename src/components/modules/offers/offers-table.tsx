@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react'
 import { OfferStatusBadge } from './offer-status-badge'
+import { OfferConversionBadge } from './offer-conversion-badge'
 import { OfferForm } from './offer-form'
 import { OfferTaskForm } from './offer-task-form'
 import { SortableHeader } from '@/components/shared/sortable-header'
@@ -247,6 +248,13 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       <div className="text-sm text-gray-500 font-mono inline-flex items-center gap-1">
                         {offer.offer_number}
                         <CopyButton value={offer.offer_number} label="tilbudsnummer" />
+                      </div>
+                      <div className="mt-1">
+                        <OfferConversionBadge
+                          status={offer.status}
+                          convertedCaseId={offer.converted_case_id}
+                          convertedCase={offer.converted_case}
+                        />
                       </div>
                     </div>
                   </td>

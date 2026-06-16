@@ -29,6 +29,7 @@ import { CaseBillingStatusCard } from '@/components/modules/orders/case-billing-
 import { OrderBillingDraftTab } from './order-billing-draft-tab'
 import { OrderMailsTab } from './order-mails-tab'
 import { OrderDocumentsTab } from './order-documents-tab'
+import { OrderNotesTab } from './order-notes-tab'
 import { InlineStatusChanger } from './inline-status-changer'
 
 const TABS = [
@@ -40,6 +41,7 @@ const TABS = [
   { id: 'mails',        label: 'Mails',              ready: true },
   { id: 'dokumenter',   label: 'Dokumenter',         ready: true },
   { id: 'oekonomi',     label: 'Økonomi',            ready: true },
+  { id: 'noter',        label: 'Noter',              ready: true },
   { id: 'aktivitet',    label: 'Aktivitet',          ready: true },
   { id: 'dokumentation',label: 'Dokumentation',      ready: false },
   { id: 'fakturakladde',label: 'Fakturakladde',      ready: true },
@@ -234,6 +236,7 @@ export function OrderDetailClient({
             <OrderBillingDraftTab caseId={sag.id} canCreate={canCreateInvoice} />
           )}
           {active === 'handlinger' && <OrderActionsTab sag={sag} />}
+          {active === 'noter' && <OrderNotesTab caseId={sag.id} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
           {active !== 'overblik' &&
             active !== 'planlaegning' &&
@@ -244,6 +247,7 @@ export function OrderDetailClient({
             active !== 'oekonomi' &&
             active !== 'fakturakladde' &&
             active !== 'handlinger' &&
+            active !== 'noter' &&
             active !== 'aktivitet' && (
               <Placeholder
                 tabId={active}

@@ -201,6 +201,9 @@ export interface Offer {
   created_by: string
   created_at: string
   updated_at: string
+  // Sprint Ø7.0 — forward-link til sag oprettet fra tilbuddet.
+  converted_case_id: string | null
+  converted_at: string | null
 }
 
 import type { OfferActivityWithPerformer } from './offer-activities.types'
@@ -208,6 +211,8 @@ import type { OfferActivityWithPerformer } from './offer-activities.types'
 // Offer with relations
 export interface OfferWithRelations extends Offer {
   line_items?: OfferLineItem[]
+  // Sprint Ø7.1 — embedded sag (O(1) join via offers_converted_case_id_fkey).
+  converted_case?: { id: string; case_number: string } | null
   customer?: {
     id: string
     customer_number: string

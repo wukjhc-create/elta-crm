@@ -77,7 +77,8 @@ export async function getOffers(filters?: {
       .select(`
         *,
         customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email),
-        lead:leads(id, company_name, contact_person, email)
+        lead:leads(id, company_name, contact_person, email),
+        converted_case:service_cases!offers_converted_case_id_fkey(id, case_number)
       `)
       .eq('is_proposal', filters?.proposalsOnly === true)
 
