@@ -8,6 +8,7 @@ export const OFFER_ACTIVITY_TYPES = [
   'accepted',
   'rejected',
   'project_created',
+  'service_case_created',
   'pdf_generated',
   'email_sent',
 ] as const
@@ -24,6 +25,7 @@ export const OFFER_ACTIVITY_LABELS: Record<OfferActivityType, string> = {
   accepted: 'Accepteret',
   rejected: 'Afvist',
   project_created: 'Projekt oprettet',
+  service_case_created: 'Konverteret til sag',
   pdf_generated: 'PDF genereret',
   email_sent: 'Email sendt',
 }
@@ -38,6 +40,7 @@ export const OFFER_ACTIVITY_ICONS: Record<OfferActivityType, string> = {
   accepted: 'CheckCircle',
   rejected: 'XCircle',
   project_created: 'FolderPlus',
+  service_case_created: 'Briefcase',
   pdf_generated: 'FileText',
   email_sent: 'Mail',
 }
@@ -52,6 +55,7 @@ export const OFFER_ACTIVITY_COLORS: Record<OfferActivityType, string> = {
   accepted: 'bg-green-100 text-green-600',
   rejected: 'bg-red-100 text-red-600',
   project_created: 'bg-emerald-100 text-emerald-600',
+  service_case_created: 'bg-emerald-100 text-emerald-700',
   pdf_generated: 'bg-orange-100 text-orange-600',
   email_sent: 'bg-cyan-100 text-cyan-600',
 }

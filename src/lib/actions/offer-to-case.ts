@@ -364,6 +364,31 @@ export async function createServiceCaseFromOffer(
       logger.error('createServiceCaseFromOffer: offer forward-link failed', { error: e })
     }
 
+    // 6b. Konverteringsaktivitet på tilbuddets tidslinje (Ø7.4). Idempotent:
+    // denne blok nås kun ved NY sag (idempotency-guarden returnerer ellers
+    // tidligt), + defensiv eksistens-tjek mod dublet på tværs af kodestier.
+    try {
+      const { data: existingActivity } = await supabase
+        .from('offer_activities')
+        .select('id')
+        .eq('offer_id', offerId)
+        .eq('activity_type', 'service_case_created')
+        .limit(1)
+        .maybeSingle()
+      if (!existingActivity) {
+        const { logOfferActivity } = await import('@/lib/actions/offer-activities')
+        await logOfferActivity(
+          offerId,
+          'service_case_created',
+          `Konverteret til sag ${sag.case_number ?? caseId}`,
+          userId,
+          { case_id: caseId, case_number: sag.case_number ?? null }
+        )
+      }
+    } catch (e) {
+      logger.error('createServiceCaseFromOffer: offer activity failed', { error: e })
+    }
+
     // 7. Audit log (best-effort — never blocks). Beriget sporbarhed.
     try {
       await createAuditLog({

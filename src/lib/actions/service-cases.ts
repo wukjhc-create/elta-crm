@@ -1712,17 +1712,19 @@ export interface CaseNoteEntry {
   urgency: string | null
   created_at: string
   author_name: string | null
+  /** Sprint Ø7.4 — er noten skrevet af den aktuelle bruger? (styrer edit/delete-UI). */
+  is_mine: boolean
 }
 
 /**
- * Hent sagens noter (case_notes) til read-only notes-panel. Intern — gated
+ * Hent sagens noter (case_notes) til notes-panel. Intern — gated
  * cases.view (all eller assigned), aldrig kundevendt portal. Beriger
  * forfatternavn via profiles (separat batch — ingen FK-antagelse).
  */
 export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNoteEntry[]>> {
   try {
     if (!caseId) return { success: false, error: 'caseId mangler' }
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
       return { success: false, error: 'Manglende tilladelse: cases.view' }
     }
@@ -1759,6 +1761,7 @@ export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNot
         urgency: (r.urgency as string | null) ?? null,
         created_at: r.created_at as string,
         author_name: r.created_by ? (nameById.get(r.created_by as string) || null) : null,
+        is_mine: r.created_by === userId,
       })),
     }
   } catch (error) {
@@ -1767,6 +1770,23 @@ export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNot
 }
 
 const CASE_NOTE_MAX = 4000
+
+/**
+ * Fælles permission-gate for note-mutationer. Returnerer null hvis tilladt,
+ * ellers en fejlbesked. cases.edit → enhver note; cases.edit.own → kun egne
+ * noter på egne/tildelte sager (robust via created_by + case-scope).
+ */
+async function authorizeCaseNoteMutation(
+  ctx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>,
+  note: { case_id: string; created_by: string | null }
+): Promise<string | null> {
+  if (ctx.hasPermission('cases.edit')) return null
+  if (!ctx.hasPermission('cases.edit.own')) return 'Manglende tilladelse: cases.edit'
+  const ownsCase = await userCanViewCase(note.case_id, { role: ctx.role, userId: ctx.userId, supabase: ctx.supabase })
+  if (!ownsCase) return 'Du har kun adgang til noter på egne sager'
+  if (note.created_by !== ctx.userId) return 'Du kan kun redigere/slette dine egne noter'
+  return null
+}
 
 /**
  * Opret en intern note på sagen. Gated server-side: cases.edit (alle sager)
@@ -1847,8 +1867,143 @@ export async function createCaseNote(input: {
         urgency: (row.urgency as string | null) ?? null,
         created_at: row.created_at as string,
         author_name: authorName,
+        is_mine: true,
       },
     }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+/**
+ * Rediger en note (content/kind). Gated via authorizeCaseNoteMutation
+ * (cases.edit eller cases.edit.own+egen note). Audit uden fuld tekst.
+ */
+export async function updateCaseNote(input: {
+  noteId: string
+  content: string
+  kind?: CaseNoteKind
+}): Promise<ActionResult<CaseNoteEntry>> {
+  try {
+    if (!input.noteId) return { success: false, error: 'noteId mangler' }
+    const content = (input.content ?? '').trim()
+    if (!content) return { success: false, error: 'Noten må ikke være tom' }
+    const kind: CaseNoteKind = input.kind === 'warning' ? 'warning' : 'note'
+
+    const ctx = await getAuthenticatedClientWithRole()
+    const { supabase, userId } = ctx
+
+    const { data: existing } = await supabase
+      .from('case_notes')
+      .select('id, case_id, content, created_by')
+      .eq('id', input.noteId)
+      .maybeSingle()
+    if (!existing) return { success: false, error: 'Noten blev ikke fundet' }
+
+    const denied = await authorizeCaseNoteMutation(ctx, { case_id: existing.case_id as string, created_by: (existing.created_by as string | null) ?? null })
+    if (denied) return { success: false, error: denied }
+
+    const lenBefore = ((existing.content as string | null) ?? '').length
+    const { data: row, error } = await supabase
+      .from('case_notes')
+      .update({ content: content.slice(0, CASE_NOTE_MAX), kind })
+      .eq('id', input.noteId)
+      .select('id, content, kind, urgency, created_at, created_by')
+      .single()
+    if (error || !row) {
+      logger.error('updateCaseNote failed', { error })
+      return { success: false, error: 'Kunne ikke gemme ændringen' }
+    }
+
+    try {
+      await createAuditLog({
+        entity_type: 'service_case',
+        entity_id: existing.case_id as string,
+        entity_name: existing.case_id as string,
+        action: 'update',
+        action_description: `Note redigeret (${kind === 'warning' ? 'advarsel' : 'note'})`,
+        metadata: {
+          note_id: input.noteId,
+          case_id: existing.case_id,
+          kind,
+          content_length_before: lenBefore,
+          content_length_after: content.length,
+          event: 'note_edited',
+        },
+      })
+    } catch { /* best-effort */ }
+
+    let authorName: string | null = null
+    try {
+      const cbId = (row.created_by as string | null) ?? null
+      if (cbId) {
+        const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', cbId).maybeSingle()
+        authorName = (prof?.full_name as string | null) || null
+      }
+    } catch { /* best-effort */ }
+
+    return {
+      success: true,
+      data: {
+        id: row.id as string,
+        content: (row.content as string | null) ?? '',
+        kind: (row.kind as string | null) ?? null,
+        urgency: (row.urgency as string | null) ?? null,
+        created_at: row.created_at as string,
+        author_name: authorName,
+        is_mine: (row.created_by as string | null) === userId,
+      },
+    }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+/**
+ * Slet en note (hard-delete — case_notes har ingen soft-delete-kolonne).
+ * Gated via authorizeCaseNoteMutation. Audit uden fuld tekst.
+ */
+export async function deleteCaseNote(noteId: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    if (!noteId) return { success: false, error: 'noteId mangler' }
+    const ctx = await getAuthenticatedClientWithRole()
+    const { supabase } = ctx
+
+    const { data: existing } = await supabase
+      .from('case_notes')
+      .select('id, case_id, kind, content, created_by')
+      .eq('id', noteId)
+      .maybeSingle()
+    if (!existing) return { success: false, error: 'Noten blev ikke fundet' }
+
+    const denied = await authorizeCaseNoteMutation(ctx, { case_id: existing.case_id as string, created_by: (existing.created_by as string | null) ?? null })
+    if (denied) return { success: false, error: denied }
+
+    const lenBefore = ((existing.content as string | null) ?? '').length
+    const { error } = await supabase.from('case_notes').delete().eq('id', noteId)
+    if (error) {
+      logger.error('deleteCaseNote failed', { error })
+      return { success: false, error: 'Kunne ikke slette noten' }
+    }
+
+    try {
+      await createAuditLog({
+        entity_type: 'service_case',
+        entity_id: existing.case_id as string,
+        entity_name: existing.case_id as string,
+        action: 'delete',
+        action_description: 'Note slettet',
+        metadata: {
+          note_id: noteId,
+          case_id: existing.case_id,
+          kind: existing.kind,
+          content_length_before: lenBefore,
+          event: 'note_deleted',
+        },
+      })
+    } catch { /* best-effort */ }
+
+    return { success: true, data: { id: noteId } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

@@ -70,6 +70,7 @@ export function OrderDetailClient({
   canSeeBilling = false,
   canCreateInvoice = false,
   canAddNote = false,
+  canManageAllNotes = false,
 }: {
   sag: ServiceCaseWithRelations
   formand: { id: string; name: string } | null
@@ -83,6 +84,8 @@ export function OrderDetailClient({
   canCreateInvoice?: boolean
   /** Sprint Ø7.2 — cases.edit/edit.own: styrer om note-form vises. */
   canAddNote?: boolean
+  /** Sprint Ø7.4 — cases.edit: må redigere/slette ALLE noter (ikke kun egne). */
+  canManageAllNotes?: boolean
 }) {
   const [active, setActive] = useState<TabId>('overblik')
 
@@ -239,7 +242,7 @@ export function OrderDetailClient({
             <OrderBillingDraftTab caseId={sag.id} canCreate={canCreateInvoice} />
           )}
           {active === 'handlinger' && <OrderActionsTab sag={sag} />}
-          {active === 'noter' && <OrderNotesTab caseId={sag.id} canAddNote={canAddNote} />}
+          {active === 'noter' && <OrderNotesTab caseId={sag.id} canAddNote={canAddNote} canManageAllNotes={canManageAllNotes} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
           {active !== 'overblik' &&
             active !== 'planlaegning' &&

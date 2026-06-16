@@ -97,7 +97,8 @@ export default async function OrderDetailPage({
   // i Fakturakladde-fanen (serveren håndhæver alligevel via actions).
   const canCreateInvoice = await pageHasPermission('invoices.create')
   // Sprint Ø7.2 — må brugeren tilføje noter? (serveren håndhæver alligevel).
-  const canAddNote = (await pageHasPermission('cases.edit')) || (await pageHasPermission('cases.edit.own'))
+  const canManageAllNotes = await pageHasPermission('cases.edit')
+  const canAddNote = canManageAllNotes || (await pageHasPermission('cases.edit.own'))
 
   return (
     <OrderDetailClient
@@ -109,6 +110,7 @@ export default async function OrderDetailPage({
       canSeeBilling={canSeeBilling}
       canCreateInvoice={canCreateInvoice}
       canAddNote={canAddNote}
+      canManageAllNotes={canManageAllNotes}
     />
   )
 }

@@ -11,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
   FolderPlus,
+  Briefcase,
   FileText,
   Mail,
   Activity,
@@ -38,6 +39,7 @@ const ACTIVITY_ICONS: Record<OfferActivityType, typeof Plus> = {
   accepted: CheckCircle,
   rejected: XCircle,
   project_created: FolderPlus,
+  service_case_created: Briefcase,
   pdf_generated: FileText,
   email_sent: Mail,
 }
