@@ -40,6 +40,7 @@ import {
   InvoiceEconomySection,
   InvoiceLiquidityChart,
   AccountingHealthWidget,
+  OfferConversionWidget,
 } from '@/components/modules/dashboard'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
@@ -100,6 +101,8 @@ export default async function DashboardPage() {
   const canViewInvoices = await pageHasPermission('invoices.view.all')
   // Sprint Ø6.4 — regnskabs-widget kun for settings.economic (bogholderi/admin).
   const canViewEconomic = await pageHasPermission('settings.economic')
+  // Sprint Ø7.3 — tilbud-klar-til-sag-widget kun for offers.view.
+  const canViewOffers = await pageHasPermission('offers.view')
 
   return (
     <div className="space-y-6">
@@ -124,6 +127,9 @@ export default async function DashboardPage() {
 
       {/* Sprint Ø6.4 — Regnskabsstatus: e-conomic eksportfejl proaktivt */}
       {canViewEconomic && <AccountingHealthWidget />}
+
+      {/* Sprint Ø7.3 — Tilbud klar til sag: proaktiv konverterings-synlighed */}
+      {canViewOffers && <OfferConversionWidget />}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />

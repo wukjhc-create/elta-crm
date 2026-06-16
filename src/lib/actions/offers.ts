@@ -2620,3 +2620,99 @@ export async function optimizeOfferPrices(
     return { success: false, error: formatError(err, 'Prisoptimering fejlede') }
   }
 }
+
+// =====================================================
+// Sprint Ø7.3 — Dashboardwidget: tilbud klar til sag (cost-free)
+// =====================================================
+
+export interface OfferConversionSummary {
+  ok: boolean
+  message?: string
+  /** Tilbud klar til sag: status sent/viewed/accepted, uden converted_case_id. */
+  ready_count: number
+  /** Tilbud konverteret de seneste 30 dage. */
+  converted_30d: number
+  /** Seneste tilbud klar til sag (kun salgs-/visningsdata — ingen kost). */
+  latest_ready: {
+    id: string
+    offer_number: string | null
+    customer_name: string | null
+    amount: number | null
+    created_at: string | null
+  } | null
+}
+
+const CONVERSION_READY_STATUSES = ['sent', 'viewed', 'accepted']
+
+/**
+ * Cost-free sammenfatning til dashboard-widgeten. Tællere matcher PRÆCIST
+ * Ø7.1/Ø7.2 badge/filter-logikken (converted_case_id + status). Read-only,
+ * ingen audit. final_amount = salgssum (må vises) — ALDRIG intern kost.
+ */
+export async function getOfferConversionSummaryAction(): Promise<OfferConversionSummary> {
+  const empty: OfferConversionSummary = {
+    ok: false, ready_count: 0, converted_30d: 0, latest_ready: null,
+  }
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('offers.view')) {
+    return { ...empty, message: 'Manglende tilladelse: offers.view' }
+  }
+
+  // ready_count — head count, ingen rækker hentet (O(1), ingen N+1).
+  let readyCount = 0
+  try {
+    const { count } = await supabase
+      .from('offers')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_proposal', false)
+      .is('converted_case_id', null)
+      .in('status', CONVERSION_READY_STATUSES)
+    readyCount = count ?? 0
+  } catch (e) {
+    logger.error('getOfferConversionSummaryAction: ready count failed', { error: e })
+  }
+
+  // converted_30d — head count på converted_at.
+  let converted30d = 0
+  try {
+    const since = new Date(Date.now() - 30 * 86400_000).toISOString()
+    const { count } = await supabase
+      .from('offers')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_proposal', false)
+      .not('converted_case_id', 'is', null)
+      .gte('converted_at', since)
+    converted30d = count ?? 0
+  } catch (e) {
+    logger.error('getOfferConversionSummaryAction: converted_30d count failed', { error: e })
+  }
+
+  // latest_ready — ét opslag med kunde-embed (cost-free kolonner).
+  let latestReady: OfferConversionSummary['latest_ready'] = null
+  try {
+    const { data } = await supabase
+      .from('offers')
+      .select('id, offer_number, final_amount, created_at, customer:customers!offers_customer_id_fkey(company_name, contact_person)')
+      .eq('is_proposal', false)
+      .is('converted_case_id', null)
+      .in('status', CONVERSION_READY_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (data) {
+      const cust = (data as { customer?: { company_name?: string | null; contact_person?: string | null } | { company_name?: string | null; contact_person?: string | null }[] | null }).customer
+      const c = Array.isArray(cust) ? cust[0] : cust
+      latestReady = {
+        id: data.id as string,
+        offer_number: (data.offer_number as string | null) ?? null,
+        customer_name: (c?.company_name as string | null) || (c?.contact_person as string | null) || null,
+        amount: (data.final_amount as number | null) ?? null,
+        created_at: (data.created_at as string | null) ?? null,
+      }
+    }
+  } catch (e) {
+    logger.error('getOfferConversionSummaryAction: latest_ready failed', { error: e })
+  }
+
+  return { ok: true, ready_count: readyCount, converted_30d: converted30d, latest_ready: latestReady }
+}
