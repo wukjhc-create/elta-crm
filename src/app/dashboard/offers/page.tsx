@@ -17,10 +17,13 @@ interface PageProps {
     pageSize?: string
     search?: string
     status?: OfferStatus
+    conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
   }>
 }
+
+const VALID_CONVERSION = new Set(['ready', 'converted', 'not_converted'])
 
 export default async function OffersPage({ searchParams }: PageProps) {
   const params = await searchParams
@@ -28,6 +31,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
   const pageSize = params.pageSize ? parseInt(params.pageSize, 10) : 25
   const search = params.search || undefined
   const status = params.status || undefined
+  const conversion = params.conversion && VALID_CONVERSION.has(params.conversion) ? params.conversion : undefined
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
 
@@ -37,6 +41,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
       pageSize,
       search,
       status,
+      conversion,
       sortBy,
       sortOrder,
     }),
@@ -62,7 +67,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
         totalItems: offersResult.data.total,
         pageSize: offersResult.data.pageSize,
       }}
-      filters={{ search, status }}
+      filters={{ search, status, conversion }}
       sort={{ sortBy, sortOrder }}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />

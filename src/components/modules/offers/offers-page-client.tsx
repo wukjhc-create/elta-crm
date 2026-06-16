@@ -27,6 +27,13 @@ interface PaginationData {
 interface Filters {
   search?: string
   status?: OfferStatus
+  conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
+}
+
+const CONVERSION_LABELS: Record<string, string> = {
+  ready: 'Klar til sag',
+  converted: 'Konverteret',
+  not_converted: 'Ikke konverteret',
 }
 
 interface SortData {
@@ -92,7 +99,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
       })
 
       // Reset to page 1 when filters change
-      if (updates.search !== undefined || updates.status !== undefined) {
+      if (updates.search !== undefined || updates.status !== undefined || updates.conversion !== undefined) {
         params.delete('page')
       }
 
@@ -122,6 +129,10 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
     updateURL({ status: value || undefined })
   }
 
+  const handleConversionFilter = (value: string) => {
+    updateURL({ conversion: value || undefined })
+  }
+
   const handleSort = (column: string) => {
     const newOrder = sort?.sortBy === column && sort?.sortOrder === 'asc' ? 'desc' : 'asc'
     updateURL({ sortBy: column, sortOrder: newOrder })
@@ -132,7 +143,7 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
     router.push('/dashboard/offers')
   }
 
-  const hasActiveFilters = filters.search || filters.status
+  const hasActiveFilters = filters.search || filters.status || filters.conversion
 
   return (
     <>
@@ -202,6 +213,19 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
                 </option>
               ))}
             </select>
+
+            {/* Sprint Ø7.2 — konverteringsfilter */}
+            <select
+              value={filters.conversion || ''}
+              onChange={(e) => handleConversionFilter(e.target.value)}
+              className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              aria-label="Konverteringsstatus"
+            >
+              <option value="">Alle (konvertering)</option>
+              <option value="ready">Klar til sag</option>
+              <option value="converted">Konverteret</option>
+              <option value="not_converted">Ikke konverteret</option>
+            </select>
           </div>
 
           {/* Active filters display */}
@@ -220,6 +244,14 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                   Status: {OFFER_STATUS_LABELS[filters.status]}
                   <button onClick={() => handleStatusFilter('')} className="hover:text-red-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {filters.conversion && CONVERSION_LABELS[filters.conversion] && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
+                  Konvertering: {CONVERSION_LABELS[filters.conversion]}
+                  <button onClick={() => handleConversionFilter('')} aria-label="Ryd konverteringsfilter" className="hover:text-red-600">
                     <X className="w-3 h-3" />
                   </button>
                 </span>

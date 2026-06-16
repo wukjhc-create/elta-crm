@@ -25,6 +25,7 @@ import type {
   ServiceCaseType,
   ServiceCaseBillingMode,
   ChecklistItem,
+  CaseNoteKind,
 } from '@/types/service-cases.types'
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
 
@@ -1759,6 +1760,94 @@ export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNot
         created_at: r.created_at as string,
         author_name: r.created_by ? (nameById.get(r.created_by as string) || null) : null,
       })),
+    }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+const CASE_NOTE_MAX = 4000
+
+/**
+ * Opret en intern note på sagen. Gated server-side: cases.edit (alle sager)
+ * eller cases.edit.own (kun egne/tildelte sager via case-scope). Auditerer
+ * med case_id + kind + længde — ALDRIG den fulde notetekst. Read-after-write:
+ * returnerer den oprettede note (med forfatternavn) så UI kan vise den uden
+ * reload. Ingen portal/kundevendt adgang.
+ */
+export async function createCaseNote(input: {
+  caseId: string
+  content: string
+  kind?: CaseNoteKind
+}): Promise<ActionResult<CaseNoteEntry>> {
+  try {
+    const caseId = input.caseId
+    if (!caseId) return { success: false, error: 'caseId mangler' }
+    const content = (input.content ?? '').trim()
+    if (!content) return { success: false, error: 'Noten må ikke være tom' }
+    const kind: CaseNoteKind = input.kind === 'warning' ? 'warning' : 'note'
+
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+
+    // Permission: cases.edit (alle) ELLER cases.edit.own (kun egne sager).
+    const canEditAll = hasPermission('cases.edit')
+    if (!canEditAll) {
+      if (!hasPermission('cases.edit.own')) {
+        return { success: false, error: 'Manglende tilladelse: cases.edit' }
+      }
+      const ownsCase = await userCanViewCase(caseId, { role, userId, supabase })
+      if (!ownsCase) {
+        return { success: false, error: 'Du har kun adgang til at tilføje noter på egne sager' }
+      }
+    }
+
+    const { data: row, error } = await supabase
+      .from('case_notes')
+      .insert({
+        case_id: caseId,
+        content: content.slice(0, CASE_NOTE_MAX),
+        kind,
+        urgency: null,
+        created_by: userId,
+      })
+      .select('id, content, kind, urgency, created_at, created_by')
+      .single()
+    if (error || !row) {
+      logger.error('createCaseNote insert failed', { error })
+      return { success: false, error: 'Kunne ikke gemme noten' }
+    }
+
+    // Audit — case_id + kind + længde, IKKE den fulde tekst.
+    try {
+      await createAuditLog({
+        entity_type: 'service_case',
+        entity_id: caseId,
+        entity_name: caseId,
+        action: 'update',
+        action_description: `Note tilføjet (${kind === 'warning' ? 'advarsel' : 'note'})`,
+        metadata: { case_id: caseId, kind, content_length: content.length, event: 'note_added' },
+      })
+    } catch {
+      /* best-effort */
+    }
+
+    // Forfatternavn til read-after-write.
+    let authorName: string | null = null
+    try {
+      const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle()
+      authorName = (prof?.full_name as string | null) || null
+    } catch { /* best-effort */ }
+
+    return {
+      success: true,
+      data: {
+        id: row.id as string,
+        content: (row.content as string | null) ?? '',
+        kind: (row.kind as string | null) ?? null,
+        urgency: (row.urgency as string | null) ?? null,
+        created_at: row.created_at as string,
+        author_name: authorName,
+      },
     }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }

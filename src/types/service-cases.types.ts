@@ -256,3 +256,7 @@ export interface ServiceCaseWithRelations extends ServiceCase {
   } | null
   attachments?: ServiceCaseAttachment[]
 }
+
+// Sprint Ø7.2 — note-typer brugeren kan vælge (matcher case_notes.kind-brug).
+export const CASE_NOTE_KINDS = ['note', 'warning'] as const
+export type CaseNoteKind = (typeof CASE_NOTE_KINDS)[number]

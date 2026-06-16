@@ -50,6 +50,8 @@ export async function getOffers(filters?: {
   pageSize?: number
   /** Staging-model B: vis kun is_proposal=true. Default vises kun is_proposal=false. */
   proposalsOnly?: boolean
+  /** Sprint Ø7.2 — konverteringsfilter (drevet af converted_case_id). */
+  conversion?: 'all' | 'ready' | 'converted' | 'not_converted'
 }): Promise<ActionResult<PaginatedResponse<OfferWithRelations>>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -98,6 +100,22 @@ export async function getOffers(filters?: {
     if (filters?.customer_id) {
       countQuery = countQuery.eq('customer_id', filters.customer_id)
       dataQuery = dataQuery.eq('customer_id', filters.customer_id)
+    }
+
+    // Sprint Ø7.2 — konverteringsfilter (samme logik som Ø7.1-badget; O(1),
+    // ingen N+1 — bruger kun eksisterende kolonner converted_case_id/status).
+    const conv = filters?.conversion
+    if (conv === 'converted') {
+      countQuery = countQuery.not('converted_case_id', 'is', null)
+      dataQuery = dataQuery.not('converted_case_id', 'is', null)
+    } else if (conv === 'not_converted') {
+      countQuery = countQuery.is('converted_case_id', null)
+      dataQuery = dataQuery.is('converted_case_id', null)
+    } else if (conv === 'ready') {
+      // Klar til sag = ikke konverteret + status sendt/set/accepteret.
+      const READY = ['sent', 'viewed', 'accepted']
+      countQuery = countQuery.is('converted_case_id', null).in('status', READY)
+      dataQuery = dataQuery.is('converted_case_id', null).in('status', READY)
     }
 
     // Apply sorting
