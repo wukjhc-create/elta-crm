@@ -1032,3 +1032,104 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
     return { success: false, error: formatError(e, 'Kunne ikke hente faktureringsopfølgning') }
   }
 }
+
+// =====================================================
+// Sprint Ø9.3 — Intern indkøb-vs-budget pr. sag (INTERN KOST)
+// =====================================================
+//
+// INTERN INDKØBSØKONOMI — gated economy.cost_prices (samme interne kost-gate
+// som Økonomi-fanen). MÅ IKKE blandes ind i Ø8 cost-free salgs-/projekt-
+// økonomi (getServiceCaseProjectEconomy / billing). Viser leverandørfaktura-
+// omkostninger (case_materials/case_other_costs m. source='supplier_invoice')
+// op mod budget/kontraktsum som ren reference — IKKE dækningsbidrag/margin.
+// Read-only, ingen audit, ingen e-conomic-push. Ét query pr. kilde (ingen N+1).
+
+const SUPPLIER_INVOICE_SOURCE = 'supplier_invoice'
+
+export interface CasePurchaseSummary {
+  ok: boolean
+  message?: string
+  supplier_material_cost_total: number
+  supplier_other_cost_total: number
+  supplier_purchase_total: number
+  /** Antal konverterede leverandørfaktura-linjer (materialer + udlæg). */
+  converted_line_count: number
+  currency: string
+  /** Reference (IKKE margin/DB): budget eller kontraktsum, hvis sat. */
+  budget_reference: number | null
+  budget_reference_kind: 'budget' | 'contract' | null
+  invoices: Array<{ id: string; invoice_number: string | null; supplier_name: string | null; invoice_date: string | null; amount_incl_vat: number | null }>
+  /** Markør: dette er intern indkøbsøkonomi, ikke kundevendt salg. */
+  internal_purchase: true
+}
+
+export async function getServiceCasePurchaseSummary(caseId: string): Promise<CasePurchaseSummary> {
+  const base: CasePurchaseSummary = {
+    ok: false, supplier_material_cost_total: 0, supplier_other_cost_total: 0, supplier_purchase_total: 0,
+    converted_line_count: 0, currency: 'DKK', budget_reference: null, budget_reference_kind: null,
+    invoices: [], internal_purchase: true,
+  }
+  try {
+    validateUUID(caseId, 'case_id')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // Intern kost-gate — IKKE den cost-free billing-gate fra Ø8.
+    if (!hasPermission('economy.cost_prices')) {
+      return { ...base, message: 'Manglende tilladelse: economy.cost_prices' }
+    }
+
+    // Ét query pr. kilde + sag + leverandørfakturaer (matched_case_id). Ingen N+1.
+    const [matRes, othRes, sagRes, invRes] = await Promise.all([
+      supabase.from('case_materials')
+        .select('total_cost, source_incoming_invoice_line_id')
+        .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE),
+      supabase.from('case_other_costs')
+        .select('total_cost, source_incoming_invoice_line_id')
+        .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE),
+      supabase.from('service_cases').select('contract_sum, revised_sum, budget').eq('id', caseId).maybeSingle(),
+      supabase.from('incoming_invoices')
+        .select('id, invoice_number, supplier_name_extracted, invoice_date, amount_incl_vat, currency, supplier:supplier_id ( name )')
+        .eq('matched_case_id', caseId)
+        .order('invoice_date', { ascending: false })
+        .limit(50),
+    ])
+
+    const matRows = (matRes.data ?? []) as Array<{ total_cost: number | string | null; source_incoming_invoice_line_id: string | null }>
+    const othRows = (othRes.data ?? []) as Array<{ total_cost: number | string | null; source_incoming_invoice_line_id: string | null }>
+    const matTotal = matRows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0)
+    const othTotal = othRows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0)
+
+    const sag = sagRes.data as { contract_sum: number | string | null; revised_sum: number | string | null; budget: number | string | null } | null
+    let budgetRef: number | null = null
+    let budgetKind: 'budget' | 'contract' | null = null
+    if (sag?.budget != null) { budgetRef = Number(sag.budget); budgetKind = 'budget' }
+    else if (sag?.revised_sum != null) { budgetRef = Number(sag.revised_sum); budgetKind = 'contract' }
+    else if (sag?.contract_sum != null) { budgetRef = Number(sag.contract_sum); budgetKind = 'contract' }
+
+    let currency = 'DKK'
+    const invoices = ((invRes.data ?? []) as Array<{ id: string; invoice_number: string | null; supplier_name_extracted: string | null; invoice_date: string | null; amount_incl_vat: number | string | null; currency: string | null; supplier?: { name?: string } | { name?: string }[] | null }>).map((r) => {
+      if (r.currency) currency = r.currency
+      const supJoin = Array.isArray(r.supplier) ? r.supplier[0]?.name : r.supplier?.name
+      return {
+        id: r.id, invoice_number: r.invoice_number,
+        supplier_name: supJoin ?? r.supplier_name_extracted ?? null,
+        invoice_date: r.invoice_date,
+        amount_incl_vat: r.amount_incl_vat != null ? Number(r.amount_incl_vat) : null,
+      }
+    })
+
+    return {
+      ok: true,
+      supplier_material_cost_total: r2(matTotal),
+      supplier_other_cost_total: r2(othTotal),
+      supplier_purchase_total: r2(matTotal + othTotal),
+      converted_line_count: matRows.length + othRows.length,
+      currency,
+      budget_reference: budgetRef != null ? r2(budgetRef) : null,
+      budget_reference_kind: budgetKind,
+      invoices,
+      internal_purchase: true,
+    }
+  } catch (e) {
+    return { ...base, message: formatError(e, 'Kunne ikke hente indkøbsoverblik') }
+  }
+}
