@@ -30,6 +30,7 @@ import { OrderBillingDraftTab } from './order-billing-draft-tab'
 import { OrderMailsTab } from './order-mails-tab'
 import { OrderDocumentsTab } from './order-documents-tab'
 import { OrderNotesTab } from './order-notes-tab'
+import { OrderTasksTab } from './order-tasks-tab'
 import { InlineStatusChanger } from './inline-status-changer'
 
 const TABS = [
@@ -41,6 +42,7 @@ const TABS = [
   { id: 'mails',        label: 'Mails',              ready: true },
   { id: 'dokumenter',   label: 'Dokumenter',         ready: true },
   { id: 'oekonomi',     label: 'Økonomi',            ready: true },
+  { id: 'opgaver',      label: 'Opgaver',            ready: true },
   { id: 'noter',        label: 'Noter',              ready: true },
   { id: 'aktivitet',    label: 'Aktivitet',          ready: true },
   { id: 'dokumentation',label: 'Dokumentation',      ready: false },
@@ -242,6 +244,7 @@ export function OrderDetailClient({
             <OrderBillingDraftTab caseId={sag.id} canCreate={canCreateInvoice} />
           )}
           {active === 'handlinger' && <OrderActionsTab sag={sag} />}
+          {active === 'opgaver' && <OrderTasksTab caseId={sag.id} canComplete={canAddNote} />}
           {active === 'noter' && <OrderNotesTab caseId={sag.id} canAddNote={canAddNote} canManageAllNotes={canManageAllNotes} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
           {active !== 'overblik' &&
@@ -253,6 +256,7 @@ export function OrderDetailClient({
             active !== 'oekonomi' &&
             active !== 'fakturakladde' &&
             active !== 'handlinger' &&
+            active !== 'opgaver' &&
             active !== 'noter' &&
             active !== 'aktivitet' && (
               <Placeholder

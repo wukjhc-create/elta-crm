@@ -92,6 +92,40 @@ export async function getCustomerTasks(
   return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
 }
 
+/**
+ * Sprint Ø7.5 — opgaver knyttet til en sag (service_case_id). Intern, gated
+ * cases.view (all/assigned). Bruges af sagens Opgaver-fane til at vise
+ * opstartstjeklisten. Cost-free; ingen portal/kundevendt adgang.
+ */
+export async function getServiceCaseTasks(
+  caseId: string
+): Promise<CustomerTaskWithRelations[]> {
+  if (!caseId) return []
+  let supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('cases.view.all') && !ctx.hasPermission('cases.view.assigned')) {
+      return []
+    }
+    supabase = ctx.supabase
+  } catch {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('customer_tasks')
+    .select('*')
+    .eq('service_case_id', caseId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    logger.error('Failed to fetch service case tasks', { error, entityId: caseId })
+    return []
+  }
+
+  return enrichWithProfiles(supabase, (data || []) as CustomerTaskWithRelations[])
+}
+
 export async function getAllTasks(options?: {
   status?: string
   priority?: string

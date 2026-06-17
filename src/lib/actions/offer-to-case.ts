@@ -11,6 +11,18 @@ import type { OfferStatus } from '@/types/offers.types'
 // tilladt selv hvis auto-create fejlede). draft/rejected/expired blokeres.
 const CONVERTIBLE_STATUSES: ReadonlySet<string> = new Set(['sent', 'viewed', 'accepted'])
 
+// Sprint Ø7.5 — standard opstartstjekliste oprettet ved konvertering.
+// Praktiske ELTA Drift-punkter. auto_rule gør oprettelsen idempotent.
+const OFFER_STARTUP_RULE = 'offer_conversion_startup'
+const OFFER_STARTUP_TASKS = [
+  'Gennemgå tilbudsmateriale',
+  'Bekræft kunde, anlægsejer og betaler',
+  'Kontrollér dokumenter og bilag',
+  'Planlæg besigtigelse eller montage',
+  'Afklar materialer og bestilling',
+  'Afklar faktura- og betalingsplan',
+] as const
+
 export type OfferConversionStatus =
   | 'not_converted'      // ikke konverteret (og ikke klar — fx kladde/afvist)
   | 'ready'              // klar til konvertering
@@ -354,6 +366,48 @@ export async function createServiceCaseFromOffer(
       logger.error('createServiceCaseFromOffer: case note failed', { error: e })
     }
 
+    // 5b. Opstartstjekliste (Ø7.5) — genbruger customer_tasks-motoren med
+    // auto_generated + auto_rule. Idempotent: spring over hvis opstartsopgaver
+    // allerede findes for sagen (denne blok nås kun ved NY sag, men dobbelt-
+    // sikres mod andre kodestier). Cost-free, ingen deadlines (konservativt).
+    let startupTaskCount = 0
+    try {
+      const { data: existingTasks } = await supabase
+        .from('customer_tasks')
+        .select('id')
+        .eq('service_case_id', caseId)
+        .eq('auto_rule', OFFER_STARTUP_RULE)
+        .limit(1)
+      if (!existingTasks || existingTasks.length === 0) {
+        const rows = OFFER_STARTUP_TASKS.map((title) => ({
+          customer_id: customerId,
+          service_case_id: caseId,
+          offer_id: offer.id as string,
+          title,
+          status: 'pending' as const,
+          priority: 'normal' as const,
+          assigned_to: userId,
+          created_by: userId,
+          auto_generated: true,
+          auto_rule: OFFER_STARTUP_RULE,
+        }))
+        const { data: inserted } = await supabase.from('customer_tasks').insert(rows).select('id')
+        startupTaskCount = inserted?.length ?? 0
+
+        if (startupTaskCount > 0) {
+          await supabase.from('case_notes').insert({
+            case_id: caseId,
+            content: `Opstartstjekliste oprettet fra tilbud (${startupTaskCount} punkter).`,
+            kind: 'system',
+            urgency: 'normal',
+            created_by: userId,
+          })
+        }
+      }
+    } catch (e) {
+      logger.error('createServiceCaseFromOffer: startup tasks failed', { error: e })
+    }
+
     // 6. Forward-link på tilbuddet (status O(1) + ekstra dublet-sikring).
     try {
       await supabase
@@ -403,6 +457,7 @@ export async function createServiceCaseFromOffer(
           customer_id: customerId,
           contract_sum: (offer.final_amount as number | null) ?? null,
           document_count: documentCount,
+          startup_task_count: startupTaskCount,
         },
       })
     } catch {
