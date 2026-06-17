@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { getServiceCases } from '@/lib/actions/service-cases'
 import { getServiceCaseEconomyBatch, type CaseEconomyBatchEntry } from '@/lib/actions/service-case-economy'
+import { caseMatchesBillingFilter, type CaseBillingFilter } from '@/lib/invoices/case-billing-status'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
@@ -25,8 +26,16 @@ interface PageProps {
     status?: ServiceCaseStatus
     priority?: ServiceCasePriority
     type?: ServiceCaseType
+    billing?: string
   }>
 }
+
+const VALID_BILLING = new Set<CaseBillingFilter>(['outstanding', 'ready_final', 'over_invoiced', 'no_contract'])
+// Cap for global faktureringsfilter: filtrér på tværs af op til N sager i
+// scope (filter-derefter-paginér). Bounded queries (cases + invoices) — ingen
+// N+1. Over capen falder vi tilbage til upagineret filtrering af de første N.
+const BILLING_FILTER_CAP = 500
+const LIST_PAGE_SIZE = 50
 
 export default async function OrdersPage({ searchParams }: PageProps) {
   // Sprint 7E — accept enten cases.view.all eller cases.view.assigned.
@@ -40,10 +49,22 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   const params = await searchParams
   const page = params.page ? Math.max(1, parseInt(params.page, 10)) : 1
 
+  // Sprint Ø8.1/Ø8.2 — billing-gate. Faktureringsstatus/-tal + -filter kræver
+  // invoices.view.own_cases; uden adgang ignoreres billing helt (ingen payload).
+  const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
+  const billingFilter: CaseBillingFilter | undefined =
+    canSeeBilling && params.billing && VALID_BILLING.has(params.billing as CaseBillingFilter)
+      ? (params.billing as CaseBillingFilter)
+      : undefined
+
   // Pull cases (reuses Phase 6.1 server action — already joins customer + assignee).
+  // Ved aktivt billing-filter hentes et større, scope-respekterende sæt (cap),
+  // beregnes økonomi i batch, filtreres korrekt og pagineres derefter i memory
+  // (filter-derefter-paginér) — så filteret er korrekt på tværs af sager, ikke
+  // kun den viste side. Ingen N+1.
   const casesResult = await getServiceCases({
-    page,
-    pageSize: 50,
+    page: billingFilter ? 1 : page,
+    pageSize: billingFilter ? BILLING_FILTER_CAP : LIST_PAGE_SIZE,
     search: params.search,
     status: params.status,
     priority: params.priority,
@@ -82,34 +103,54 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     )
   }
 
-  // Sprint Ø8.1 — cost-free projektøkonomi for de viste sager (batch, ingen
-  // N+1). Kun hvis brugeren har faktura-/billing-adgang; ellers ingen tal i
-  // payload eller UI.
-  const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
+  // Sprint Ø8.1 — cost-free projektøkonomi (batch, ingen N+1). Kun ved
+  // billing-adgang; ellers ingen tal i payload eller UI.
   let economy: Record<string, CaseEconomyBatchEntry> = {}
+  let displayCases = casesResult.data.data
+  let pag = {
+    currentPage: casesResult.data.page,
+    totalPages: casesResult.data.totalPages,
+    totalItems: casesResult.data.total,
+    pageSize: casesResult.data.pageSize,
+  }
+
   if (canSeeBilling) {
-    const caseIds = casesResult.data.data.map((c) => c.id)
-    const ecoRes = await getServiceCaseEconomyBatch(caseIds)
+    const ecoRes = await getServiceCaseEconomyBatch(casesResult.data.data.map((c) => c.id))
     if (ecoRes.success && ecoRes.data) economy = ecoRes.data
+
+    if (billingFilter) {
+      // Filtrér det hentede sæt korrekt, derefter paginér i memory.
+      const matched = casesResult.data.data.filter((c) =>
+        caseMatchesBillingFilter(economy[c.id], c.status, billingFilter)
+      )
+      const totalMatched = matched.length
+      const start = (page - 1) * LIST_PAGE_SIZE
+      displayCases = matched.slice(start, start + LIST_PAGE_SIZE)
+      pag = {
+        currentPage: page,
+        totalPages: Math.max(1, Math.ceil(totalMatched / LIST_PAGE_SIZE)),
+        totalItems: totalMatched,
+        pageSize: LIST_PAGE_SIZE,
+      }
+    } else {
+      // Upagineret-batch er kun aktuelt ved filter; her er sættet allerede 1 side.
+      displayCases = casesResult.data.data
+    }
   }
 
   return (
     <OrdersListClient
-      cases={casesResult.data.data}
+      cases={displayCases}
       employees={Array.from(employeeMap.values())}
       economy={economy}
       canSeeBilling={canSeeBilling}
-      pagination={{
-        currentPage: casesResult.data.page,
-        totalPages: casesResult.data.totalPages,
-        totalItems: casesResult.data.total,
-        pageSize: casesResult.data.pageSize,
-      }}
+      pagination={pag}
       filters={{
         search: params.search,
         status: params.status,
         priority: params.priority,
         type: params.type,
+        billing: billingFilter,
       }}
     />
   )

@@ -14,6 +14,13 @@ import {
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
 import type { CaseEconomyBatchEntry } from '@/lib/actions/service-case-economy'
+import {
+  caseBillingBadge,
+  CASE_BILLING_BADGE_CONFIG,
+  CASE_BILLING_FILTERS,
+  CASE_BILLING_FILTER_LABELS,
+  type CaseBillingFilter,
+} from '@/lib/invoices/case-billing-status'
 
 interface PaginationState {
   currentPage: number
@@ -27,6 +34,7 @@ interface FiltersState {
   status?: ServiceCaseStatus
   priority?: string
   type?: ServiceCaseType
+  billing?: CaseBillingFilter
 }
 
 interface EmployeeOption {
@@ -150,7 +158,23 @@ export function OrdersListClient({
           </select>
         </div>
 
-        {(filters.search || filters.status || filters.type) && (
+        {canSeeBilling && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Fakturering</label>
+            <select
+              className="border rounded px-2 py-1.5 text-sm"
+              value={filters.billing ?? ''}
+              onChange={(e) => updateParam('billing', e.target.value || null)}
+            >
+              <option value="">Alle</option>
+              {CASE_BILLING_FILTERS.map((b) => (
+                <option key={b} value={b}>{CASE_BILLING_FILTER_LABELS[b]}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {(filters.search || filters.status || filters.type || filters.billing) && (
           <button
             className="text-xs text-emerald-700 hover:underline pb-2"
             onClick={() => startTransition(() => router.push('/dashboard/orders'))}
@@ -236,14 +260,27 @@ export function OrdersListClient({
                         <td className="px-3 py-2 text-right text-xs whitespace-nowrap">
                           {(() => {
                             const e = economy[c.id]
-                            if (!e || e.invoice_count === 0) return <span className="text-gray-300">—</span>
+                            const badge = caseBillingBadge(e, c.status)
+                            const cfg = badge !== 'none' ? CASE_BILLING_BADGE_CONFIG[badge] : null
+                            const hasNumbers = e && e.invoice_count > 0
                             return (
-                              <span>
-                                <span className="text-gray-700">{fmtAmount(e.net_invoiced)}</span>
-                                {e.outstanding_total > 0 && (
-                                  <span className="text-amber-700 font-medium"> · {fmtAmount(e.outstanding_total)}</span>
+                              <div className="flex flex-col items-end gap-1">
+                                {hasNumbers ? (
+                                  <span>
+                                    <span className="text-gray-700">{fmtAmount(e!.net_invoiced)}</span>
+                                    {e!.outstanding_total > 0 && (
+                                      <span className="text-amber-700 font-medium"> · {fmtAmount(e!.outstanding_total)}</span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-300">—</span>
                                 )}
-                              </span>
+                                {cfg && (
+                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cfg.cls}`}>
+                                    {cfg.label}
+                                  </span>
+                                )}
+                              </div>
                             )
                           })()}
                         </td>
