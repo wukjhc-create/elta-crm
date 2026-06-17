@@ -635,3 +635,127 @@ export async function getServiceCaseBillingStatus(
     return { success: false, error: formatError(e, 'Kunne ikke hente faktureringsstatus') }
   }
 }
+
+// =====================================================
+// Sprint Ø8.0 — Cost-free projektøkonomi pr. sag (faktura-side)
+// =====================================================
+
+export interface CaseProjectEconomy {
+  has_contract_sum: boolean
+  /** Effektiv kontraktsum (revised_sum hvis sat, ellers contract_sum). */
+  contract_sum: number | null
+  /** Brutto faktureret: gyldige (ikke-voided, udstedte) standard-fakturaer. */
+  invoiced_total: number
+  /** Kreditnotaer (gyldige). Reducerer netto faktureret. */
+  credited_total: number
+  /** Netto faktureret = invoiced_total - credited_total. */
+  net_invoiced: number
+  /** Modtaget betaling (amount_paid på gyldige standard-fakturaer). */
+  paid_total: number
+  /** Udestående saldo = netto faktureret - betalt (min 0). */
+  outstanding_total: number
+  /** Rest at fakturere = kontraktsum - netto faktureret (null uden kontraktsum). */
+  remaining_to_invoice: number | null
+  /** Antal gyldige udstedte fakturaer (standard + kredit). */
+  invoice_count: number
+  /** Antal annullerede (voided) fakturaer — kun til info. */
+  voided_count: number
+  currency: string
+  latest_invoice: {
+    id: string
+    invoice_number: string | null
+    invoice_type: string | null
+    status: string | null
+    final_amount: number | null
+    created_at: string | null
+  } | null
+}
+
+/**
+ * Cost-free projektøkonomi pr. sag. KUN salgs-/fakturadata — INGEN intern
+ * kost, timekost, materialekost, margin, DB eller dækningsbidrag. Read-only
+ * (ingen audit). Gated invoices.view.own_cases (samme som Ø3-faktureringen).
+ * Ét invoice-query (ingen N+1). Håndterer ingen kontraktsum / ingen fakturaer
+ * / kreditnotaer / annullerede fakturaer korrekt.
+ */
+export async function getServiceCaseProjectEconomy(
+  caseId: string
+): Promise<ActionResult<CaseProjectEconomy>> {
+  try {
+    validateUUID(caseId, 'case_id')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('invoices.view.own_cases')) {
+      return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
+    }
+
+    const { data: sag } = await supabase
+      .from('service_cases')
+      .select('id, contract_sum, revised_sum')
+      .eq('id', caseId)
+      .maybeSingle()
+    if (!sag) return { success: false, error: 'Sag ikke fundet' }
+
+    // Ét cost-free invoice-query (kun salgs-/status-felter).
+    const { data: invs } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, final_amount, amount_paid, status, invoice_type, voided_at, currency, created_at')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false })
+
+    const rows = (invs ?? []) as Array<{
+      id: string; invoice_number: string | null; final_amount: number | string | null
+      amount_paid: number | string | null; status: string | null; invoice_type: string | null
+      voided_at: string | null; currency: string | null; created_at: string | null
+    }>
+
+    const ISSUED = new Set(['sent', 'paid'])
+    let invoiced = 0, credited = 0, paid = 0, invoiceCount = 0, voidedCount = 0
+    let currency = 'DKK'
+    let latest: CaseProjectEconomy['latest_invoice'] = null
+
+    for (const r of rows) {
+      if (r.voided_at) { voidedCount++; continue }            // annulleret → tæller ikke med
+      if (!ISSUED.has(r.status ?? '')) continue                // kladder ekskluderes
+      if (r.currency) currency = r.currency
+      const amount = Number(r.final_amount ?? 0)
+      if (r.invoice_type === 'credit') {
+        credited += Math.abs(amount)
+      } else {
+        invoiced += amount
+        paid += Number(r.amount_paid ?? 0)
+      }
+      invoiceCount++
+      if (!latest) {
+        latest = {
+          id: r.id, invoice_number: r.invoice_number, invoice_type: r.invoice_type,
+          status: r.status, final_amount: amount, created_at: r.created_at,
+        }
+      }
+    }
+
+    const netInvoiced = invoiced - credited
+    const outstanding = Math.max(0, netInvoiced - paid)
+    const refSum = sag.revised_sum != null ? Number(sag.revised_sum)
+      : sag.contract_sum != null ? Number(sag.contract_sum) : null
+
+    return {
+      success: true,
+      data: {
+        has_contract_sum: refSum != null,
+        contract_sum: refSum != null ? r2(refSum) : null,
+        invoiced_total: r2(invoiced),
+        credited_total: r2(credited),
+        net_invoiced: r2(netInvoiced),
+        paid_total: r2(paid),
+        outstanding_total: r2(outstanding),
+        remaining_to_invoice: refSum != null ? r2(refSum - netInvoiced) : null,
+        invoice_count: invoiceCount,
+        voided_count: voidedCount,
+        currency,
+        latest_invoice: latest,
+      },
+    }
+  } catch (e) {
+    return { success: false, error: formatError(e, 'Kunne ikke hente projektøkonomi') }
+  }
+}

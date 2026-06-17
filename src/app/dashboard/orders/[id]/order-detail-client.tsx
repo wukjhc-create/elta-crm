@@ -26,6 +26,7 @@ import { OrderMaterialsTab } from './order-materials-tab'
 import { OrderOtherCostsTab } from './order-other-costs-tab'
 import { OrderEconomyTab } from './order-economy-tab'
 import { CaseBillingStatusCard } from '@/components/modules/orders/case-billing-status-card'
+import { CaseProjectEconomyCard } from '@/components/modules/orders/case-project-economy-card'
 import { OrderBillingDraftTab } from './order-billing-draft-tab'
 import { OrderMailsTab } from './order-mails-tab'
 import { OrderDocumentsTab } from './order-documents-tab'
@@ -299,12 +300,14 @@ function OverblikTab({
     <>
     {/* Sprint Ø3.1 — kost-fri faktureringsstatus på overblik */}
     {canSeeBilling && (
-      <div className="mb-5">
+      <div className="mb-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
         <CaseBillingStatusCard
           caseId={sag.id}
           canOpenFakturakladde={canSeeBilling}
           onOpenFakturakladde={onOpenFakturakladde}
         />
+        {/* Sprint Ø8.0 — cost-free projektøkonomi-overblik */}
+        <CaseProjectEconomyCard caseId={sag.id} caseNumber={sag.case_number} />
       </div>
     )}
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
