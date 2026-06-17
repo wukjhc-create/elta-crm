@@ -920,3 +920,115 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
     return { success: false, error: formatError(e, 'Kunne ikke hente porteføljeøkonomi') }
   }
 }
+
+// =====================================================
+// Sprint Ø8.3 — Faktureringsopfølgnings-summary (dashboard-widget)
+// =====================================================
+
+export interface BillingFollowupSummary {
+  over_invoiced: number
+  ready_final: number
+  outstanding: number
+  no_contract: number
+  /** Sum af handlingskrævende (over + ready + outstanding) — til tom-state. */
+  total_action: number
+  /** Sandt hvis kandidat-sættet ramte cap'en (tal kan være ufuldstændige). */
+  capped: boolean
+}
+
+// Bounded scope (samme cap som Ø8.2-sagslistefilteret). Dokumenteret tradeoff:
+// summen dækker op til N relevante sager (sager m. fakturaer + afsluttede sager).
+const BILLING_FOLLOWUP_CAP = 500
+
+/**
+ * Cost-free faktureringsopfølgning til dashboard-widgeten. Tæller sager pr.
+ * Ø8.2-handlingsstatus (genbruger caseMatchesBillingFilter — ingen nye regler).
+ * Read-only, gated invoices.view.own_cases. Bounded queries: invoices +
+ * service_cases (fakturerede + afsluttede) — ingen N+1. KUN salgs-/fakturatal.
+ */
+export async function getBillingFollowupSummaryAction(): Promise<ActionResult<BillingFollowupSummary>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('invoices.view.own_cases')) {
+      return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
+    }
+    const { caseMatchesBillingFilter } = await import('@/lib/invoices/case-billing-status')
+
+    // 1) Udstedte, ikke-voided fakturaer (cost-free) → aggreger pr. sag.
+    const { data: invs } = await supabase
+      .from('invoices')
+      .select('case_id, final_amount, amount_paid, status, invoice_type, voided_at')
+      .in('status', ['sent', 'paid'])
+      .is('voided_at', null)
+
+    const agg = new Map<string, { invoiced: number; credited: number; paid: number; count: number }>()
+    for (const r of (invs ?? []) as Array<{ case_id: string | null; final_amount: number | string | null; amount_paid: number | string | null; invoice_type: string | null }>) {
+      if (!r.case_id) continue
+      const cur = agg.get(r.case_id) ?? { invoiced: 0, credited: 0, paid: 0, count: 0 }
+      const amt = Number(r.final_amount ?? 0)
+      if (r.invoice_type === 'credit') cur.credited += Math.abs(amt)
+      else { cur.invoiced += amt; cur.paid += Number(r.amount_paid ?? 0) }
+      cur.count += 1
+      agg.set(r.case_id, cur)
+    }
+    const invoicedIds = Array.from(agg.keys())
+
+    // 2) Kandidat-sager: dem med fakturaer + alle afsluttede (ready_final kan
+    //    gælde en afsluttet sag uden fakturaer). Bounded queries.
+    const caseMeta = new Map<string, { status: string | null; ref: number | null }>()
+    const addRows = (rows: Array<{ id: string; status: string | null; contract_sum: number | string | null; revised_sum: number | string | null }>) => {
+      for (const c of rows) {
+        const ref = c.revised_sum != null ? Number(c.revised_sum) : c.contract_sum != null ? Number(c.contract_sum) : null
+        caseMeta.set(c.id, { status: c.status, ref })
+      }
+    }
+    if (invoicedIds.length) {
+      const { data } = await supabase
+        .from('service_cases')
+        .select('id, status, contract_sum, revised_sum')
+        .in('id', invoicedIds.slice(0, BILLING_FOLLOWUP_CAP))
+      addRows((data ?? []) as never)
+    }
+    const { data: closedRows } = await supabase
+      .from('service_cases')
+      .select('id, status, contract_sum, revised_sum')
+      .eq('status', 'closed')
+      .limit(BILLING_FOLLOWUP_CAP)
+    addRows((closedRows ?? []) as never)
+
+    const capped = invoicedIds.length > BILLING_FOLLOWUP_CAP || (closedRows?.length ?? 0) >= BILLING_FOLLOWUP_CAP
+
+    // 3) Byg cost-free entry pr. kandidat-sag + tæl via Ø8.2-reglerne.
+    let over = 0, ready = 0, outstanding = 0, noContract = 0
+    for (const [id, meta] of caseMeta) {
+      const a = agg.get(id) ?? { invoiced: 0, credited: 0, paid: 0, count: 0 }
+      const net = a.invoiced - a.credited
+      const entry = {
+        net_invoiced: r2(net),
+        outstanding_total: r2(Math.max(0, net - a.paid)),
+        remaining_to_invoice: meta.ref != null ? r2(meta.ref - net) : null,
+        has_contract_sum: meta.ref != null,
+        invoice_count: a.count,
+      }
+      if (caseMatchesBillingFilter(entry, meta.status, 'over_invoiced')) over++
+      if (caseMatchesBillingFilter(entry, meta.status, 'ready_final')) ready++
+      if (caseMatchesBillingFilter(entry, meta.status, 'outstanding')) outstanding++
+      // no_contract: kun handlingsrelevant når sagen rent faktisk er faktureret.
+      if (a.count > 0 && caseMatchesBillingFilter(entry, meta.status, 'no_contract')) noContract++
+    }
+
+    return {
+      success: true,
+      data: {
+        over_invoiced: over,
+        ready_final: ready,
+        outstanding,
+        no_contract: noContract,
+        total_action: over + ready + outstanding,
+        capped,
+      },
+    }
+  } catch (e) {
+    return { success: false, error: formatError(e, 'Kunne ikke hente faktureringsopfølgning') }
+  }
+}

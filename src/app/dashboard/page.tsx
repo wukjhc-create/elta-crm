@@ -42,6 +42,7 @@ import {
   AccountingHealthWidget,
   OfferConversionWidget,
   OutstandingPortfolioWidget,
+  BillingFollowupWidget,
 } from '@/components/modules/dashboard'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
@@ -136,6 +137,9 @@ export default async function DashboardPage() {
 
       {/* Sprint Ø8.1 — Udestående på tværs af aktive sager (cost-free) */}
       {canSeeBilling && <OutstandingPortfolioWidget />}
+
+      {/* Sprint Ø8.3 — Faktureringsopfølgning: sager der kræver fakturahandling */}
+      {canSeeBilling && <BillingFollowupWidget />}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />
