@@ -22,6 +22,7 @@ const TEST_SUPPLIER_NAME = 'TEST Leverandør ApS'
 import { Button } from '@/components/ui/button'
 import { IncomingInvoiceCasePicker } from './incoming-invoice-case-picker'
 import { ApprovePreviewDialog, type LinePlan } from './approve-preview-dialog'
+import { ConversionPreviewPanel } from './conversion-preview-panel'
 
 const fmtAmount = (n: number | null | undefined, ccy = 'DKK') =>
   n == null
@@ -476,6 +477,10 @@ export function IncomingInvoiceDetailClient({
           </div>
         )}
       </Panel>
+
+      {!terminal && (
+        <ConversionPreviewPanel invoiceId={inv.id} />
+      )}
 
       <Panel title="Bilag">
         {detail.has_file ? (

@@ -532,8 +532,13 @@ export async function approveIncomingInvoiceWithConversionAction(
   acknowledgeReview?: boolean
 ): Promise<ConvertAndApproveResult> {
   const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  // Sprint Ø9.2 — konvertering opretter case_materials/case_other_costs på
+  // sagen, så den kræver BÅDE godkendelses- OG materiale-tilføj-tilladelse.
   if (!hasPermission('incoming_invoices.approve')) {
     return { ok: false, message: 'Manglende tilladelse: incoming_invoices.approve', invoiceStatusFlipped: false, perLine: [], caseId: null }
+  }
+  if (!hasPermission('materials.add_to_case')) {
+    return { ok: false, message: 'Manglende tilladelse: materials.add_to_case', invoiceStatusFlipped: false, perLine: [], caseId: null }
   }
   const result = await convertAndApproveInvoice(invoiceId, userId, plan, {
     acknowledgeReview: acknowledgeReview === true,
@@ -947,5 +952,135 @@ export async function getIncomingInvoiceDueSummaryAction(): Promise<IncomingDueS
     due_7_amount: r2(due7Amount),
     currency,
     top: overdueRows.slice(0, 3),
+  }
+}
+
+// =====================================================
+// Sprint Ø9.2 — Server-side konverterings-preview (read-only)
+// =====================================================
+//
+// INTERN indkøbsøkonomi — gated incoming_invoices.view. Viser HVAD der vil
+// blive oprettet på sagen ved godkendelse-med-konvertering, uden at ændre
+// noget. Genbruger eksisterende incoming_invoice_lines + idempotency-felter.
+// INGEN AI/parsing, INGEN e-conomic-push, INGEN magisk total→materiale.
+
+export interface ConversionPreviewLine {
+  line_id: string
+  line_number: number | null
+  description: string
+  quantity: number
+  unit: string
+  unit_cost: number
+  total: number
+  suggested: 'material' | 'other_cost'
+  already_converted: boolean
+}
+
+export interface ConversionPreview {
+  ok: boolean
+  message?: string
+  invoice_number: string | null
+  supplier_name: string | null
+  amount_incl_vat: number | null
+  currency: string
+  /** Sagen fakturaen er matchet til (null → kræver match først). */
+  case: { id: string; case_number: string; title: string | null } | null
+  requires_case_match: boolean
+  requires_review: boolean
+  status: string
+  has_lines: boolean
+  /** Kun totalbeløb, ingen linjer → kræver eksplicit beslutning (ingen auto-oprettelse). */
+  total_only: boolean
+  convertible_count: number
+  already_converted_count: number
+  lines: ConversionPreviewLine[]
+  /** Markør: dette er intern indkøbsøkonomi (ikke kundevendt salg). */
+  internal_purchase: true
+}
+
+export async function getIncomingInvoiceConversionPreviewAction(id: string): Promise<ConversionPreview> {
+  const base: ConversionPreview = {
+    ok: false, invoice_number: null, supplier_name: null, amount_incl_vat: null, currency: 'DKK',
+    case: null, requires_case_match: true, requires_review: false, status: 'unknown',
+    has_lines: false, total_only: false, convertible_count: 0, already_converted_count: 0,
+    lines: [], internal_purchase: true,
+  }
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view')) {
+    return { ...base, message: 'Manglende tilladelse: incoming_invoices.view' }
+  }
+
+  const { data: inv } = await supabase
+    .from('incoming_invoices')
+    .select('id, invoice_number, supplier_id, supplier_name_extracted, amount_incl_vat, currency, status, requires_manual_review, matched_case_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!inv) return { ...base, message: 'Faktura ikke fundet' }
+
+  // Sag (intern) + leverandør-navn (cost-bounded, ingen N+1).
+  let caseInfo: ConversionPreview['case'] = null
+  if (inv.matched_case_id) {
+    const { data: c } = await supabase
+      .from('service_cases')
+      .select('id, case_number, title')
+      .eq('id', inv.matched_case_id as string)
+      .maybeSingle()
+    if (c) caseInfo = { id: c.id as string, case_number: c.case_number as string, title: (c.title as string | null) ?? null }
+  }
+  let supplierName = (inv.supplier_name_extracted as string | null) ?? null
+  if (inv.supplier_id) {
+    const { data: s } = await supabase.from('suppliers').select('name').eq('id', inv.supplier_id as string).maybeSingle()
+    if (s?.name) supplierName = s.name as string
+  }
+
+  const { data: lineRows } = await supabase
+    .from('incoming_invoice_lines')
+    .select('id, line_number, description, quantity, unit, unit_price, total_price, supplier_product_id, converted_at, converted_case_material_id, converted_case_other_cost_id')
+    .eq('incoming_invoice_id', id)
+    .order('line_number', { ascending: true })
+
+  const rows = (lineRows ?? []) as Array<Record<string, unknown>>
+  const lines: ConversionPreviewLine[] = rows.map((l) => {
+    const qty = Number(l.quantity ?? 0)
+    const quantity = Number.isFinite(qty) && qty > 0 ? qty : 1
+    let unitCost = Number(l.unit_price ?? 0)
+    if (!(unitCost > 0)) {
+      const tp = Number(l.total_price ?? 0)
+      unitCost = tp > 0 && quantity > 0 ? Math.round((tp / quantity) * 100) / 100 : 0
+    }
+    const total = Number(l.total_price ?? 0) || Math.round(unitCost * quantity * 100) / 100
+    const alreadyConverted = !!(l.converted_at || l.converted_case_material_id || l.converted_case_other_cost_id)
+    return {
+      line_id: l.id as string,
+      line_number: (l.line_number as number | null) ?? null,
+      description: ((l.description as string | null) ?? '').trim() || 'Linje uden beskrivelse',
+      quantity,
+      unit: ((l.unit as string | null) ?? '').trim() || 'stk',
+      unit_cost: unitCost,
+      total,
+      // Simpel default (dialogen har fuld heuristik): produkt-match → material.
+      suggested: l.supplier_product_id ? 'material' : 'other_cost',
+      already_converted: alreadyConverted,
+    }
+  })
+
+  const alreadyCount = lines.filter((l) => l.already_converted).length
+  const hasLines = lines.length > 0
+  return {
+    ok: true,
+    invoice_number: (inv.invoice_number as string | null) ?? null,
+    supplier_name: supplierName,
+    amount_incl_vat: inv.amount_incl_vat != null ? Number(inv.amount_incl_vat) : null,
+    currency: (inv.currency as string | null) ?? 'DKK',
+    case: caseInfo,
+    requires_case_match: !inv.matched_case_id,
+    requires_review: !!inv.requires_manual_review,
+    status: (inv.status as string) ?? 'unknown',
+    has_lines: hasLines,
+    total_only: !hasLines && inv.amount_incl_vat != null && Number(inv.amount_incl_vat) > 0,
+    convertible_count: lines.length - alreadyCount,
+    already_converted_count: alreadyCount,
+    lines,
+    internal_purchase: true,
   }
 }
