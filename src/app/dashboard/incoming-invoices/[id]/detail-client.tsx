@@ -11,6 +11,7 @@ import {
   reparseIncomingInvoiceAction,
   rejectIncomingInvoiceAction,
   setIncomingInvoiceCaseAction,
+  postIncomingInvoiceToEconomicAction,
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
 import { useUserRole } from '@/lib/hooks/use-user-role'
@@ -41,12 +42,21 @@ const SIGNAL_LABEL: Record<string, string> = {
 
 type Msg = { ok: boolean; text: string } | null
 
-export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvoiceDetail }) {
+export function IncomingInvoiceDetailClient({
+  initial,
+  canPost = false,
+  economicReady = false,
+}: {
+  initial: IncomingInvoiceDetail
+  canPost?: boolean
+  economicReady?: boolean
+}) {
   const router = useRouter()
   const { role } = useUserRole()
   const isAdmin = role === 'admin'
   const [detail, setDetail] = useState<IncomingInvoiceDetail>(initial)
   const [busy, startTransition] = useTransition()
+  const [posting, setPosting] = useState(false)
   const [msg, setMsg] = useState<Msg>(null)
   const [confirmReview, setConfirmReview] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
@@ -70,6 +80,18 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
   const refresh = async () => {
     const fresh = await getIncomingInvoiceDetailAction(inv.id)
     if (fresh) setDetail(fresh)
+  }
+
+  // Sprint Ø9.0 — manuel e-conomic-bogføring (godkendt + ikke bogført).
+  const alreadyPosted = !!inv.external_invoice_id
+  const canShowPost = canPost && inv.status === 'approved' && !alreadyPosted
+  const handlePost = async () => {
+    setMsg(null)
+    setPosting(true)
+    const res = await postIncomingInvoiceToEconomicAction(inv.id)
+    setPosting(false)
+    setMsg({ ok: res.ok, text: res.message })
+    if (res.ok && res.status === 'posted') await refresh()
   }
 
   const flash = (ok: boolean, text: string) => {
@@ -243,6 +265,19 @@ export function IncomingInvoiceDetailClient({ initial }: { initial: IncomingInvo
           <Row label="Modtaget"         value={fmtDate(inv.created_at)} />
           {inv.posted_at && <Row label="Bogført" value={fmtDate(inv.posted_at)} />}
           {inv.external_invoice_id && <Row label="e-conomic ID" value={<code className="text-xs">{inv.external_invoice_id}</code>} />}
+          {canShowPost && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              {economicReady ? (
+                <Button size="sm" onClick={handlePost} disabled={posting || busy}>
+                  {posting ? 'Bogfører…' : 'Bogfør til e-conomic'}
+                </Button>
+              ) : (
+                <div className="rounded-md ring-1 ring-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  e-conomic er ikke opsat endnu — bogføring er deaktiveret.
+                </div>
+              )}
+            </div>
+          )}
         </Panel>
 
         <Panel title="Parsede felter">

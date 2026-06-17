@@ -8,7 +8,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import {
   approveInvoice,
   getApprovalQueue,
@@ -59,7 +59,8 @@ export interface ListFilter {
 export async function listIncomingInvoicesAction(
   filter: ListFilter = {}
 ): Promise<IncomingInvoiceListItem[]> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view')) return []
   const limit = filter.limit ?? 200
 
   let q = supabase
@@ -148,7 +149,8 @@ export interface IncomingInvoiceDetail {
 }
 
 export async function getIncomingInvoiceDetailAction(id: string): Promise<IncomingInvoiceDetail | null> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view')) return null
   const invoice = await getInvoiceById(id)
   if (!invoice) return null
 
@@ -250,7 +252,10 @@ export async function approveIncomingInvoiceAction(
   id: string,
   acknowledgeReview?: boolean
 ): Promise<ActionOutcome> {
-  const { userId } = await getAuthenticatedClient()
+  const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.approve')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.approve' }
+  }
   const r = await approveInvoice(id, userId, { acknowledgeReview: acknowledgeReview === true })
   revalidatePath('/dashboard/incoming-invoices')
   revalidatePath(`/dashboard/incoming-invoices/${id}`)
@@ -266,7 +271,10 @@ export async function rejectIncomingInvoiceAction(
   if (!reason || reason.trim().length < 3) {
     return { ok: false, message: 'Angiv venligst en begrundelse (mindst 3 tegn).' }
   }
-  const { userId } = await getAuthenticatedClient()
+  const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.approve')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.approve' }
+  }
   const r = await rejectInvoice(id, userId, reason.trim())
   revalidatePath('/dashboard/incoming-invoices')
   revalidatePath(`/dashboard/incoming-invoices/${id}`)
@@ -509,7 +517,10 @@ export async function approveIncomingInvoiceWithConversionAction(
   plan: LinePlanInput[],
   acknowledgeReview?: boolean
 ): Promise<ConvertAndApproveResult> {
-  const { userId, supabase } = await getAuthenticatedClient()
+  const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.approve')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.approve', invoiceStatusFlipped: false, perLine: [], caseId: null }
+  }
   const result = await convertAndApproveInvoice(invoiceId, userId, plan, {
     acknowledgeReview: acknowledgeReview === true,
   })
@@ -532,7 +543,10 @@ export async function approveIncomingInvoiceWithConversionAction(
 }
 
 export async function reparseIncomingInvoiceAction(id: string): Promise<ActionOutcome> {
-  await getAuthenticatedClient()
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.edit')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.edit' }
+  }
   const r = await parseAndMatch(id)
   revalidatePath(`/dashboard/incoming-invoices/${id}`)
   return { ok: r.parsed, message: r.message, data: r as unknown as Record<string, unknown> }
@@ -556,7 +570,10 @@ export async function setIncomingInvoiceCaseAction(
   invoiceId: string,
   caseId: string | null
 ): Promise<ActionOutcome> {
-  const { supabase, userId } = await getAuthenticatedClient()
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.edit')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.edit' }
+  }
 
   // Read current state
   const { data: cur, error: readErr } = await supabase
@@ -646,7 +663,10 @@ export async function getApprovalQueueCountsAction(): Promise<{
   rejected: number
   posted: number
 }> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view')) {
+    return { awaiting_approval: 0, needs_review: 0, approved: 0, rejected: 0, posted: 0 }
+  }
   const [aw, nr, ap, rj, pst] = await Promise.all([
     supabase
       .from('incoming_invoices')
@@ -674,7 +694,8 @@ export async function getApprovalQueueCountsAction(): Promise<{
 
 // Re-export the queue helper for the list page's initial data fetch.
 export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem[]> {
-  await getAuthenticatedClient()
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view')) return []
   const rows = await getApprovalQueue(200)
   return rows.map((r) => ({
     id: r.id,
@@ -693,4 +714,72 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
     matched_case_id: (r as { matched_case_id?: string | null }).matched_case_id ?? null,
     created_at: r.created_at,
   }))
+}
+
+// =====================================================
+// Sprint Ø9.0 — Manuel defensiv "Bogfør til e-conomic"
+// =====================================================
+//
+// Godkendelse pusher allerede til e-conomic (skip-safe). Denne action giver
+// et manuelt genforsøg for GODKENDTE fakturaer der endnu ikke er bogført —
+// fx hvis integrationen ikke var opsat ved godkendelsen, eller pushet fejlede.
+// Defensiv: kun status='approved', ikke allerede bogført, integration klar.
+// Genbruger pushSupplierInvoiceToEconomic — ingen ny eksportmotor. Ingen
+// secrets i payload/logs. Audit i incoming_invoice_audit_log.
+
+export interface PostEconomicOutcome {
+  ok: boolean
+  status: 'posted' | 'not_configured' | 'already_posted' | 'not_eligible' | 'failed' | 'denied'
+  message: string
+  external_id?: string | null
+}
+
+export async function postIncomingInvoiceToEconomicAction(id: string): Promise<PostEconomicOutcome> {
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.approve')) {
+    return { ok: false, status: 'denied', message: 'Manglende tilladelse: incoming_invoices.approve' }
+  }
+
+  const { data: inv } = await supabase
+    .from('incoming_invoices')
+    .select('id, status, external_invoice_id, external_provider')
+    .eq('id', id)
+    .maybeSingle()
+  if (!inv) return { ok: false, status: 'not_eligible', message: 'Faktura ikke fundet' }
+  if (inv.external_invoice_id && inv.external_provider === 'economic') {
+    return { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført i e-conomic.', external_id: inv.external_invoice_id as string }
+  }
+  if (inv.status !== 'approved') {
+    return { ok: false, status: 'not_eligible', message: 'Kun godkendte fakturaer kan bogføres (ikke ' + inv.status + ').' }
+  }
+
+  const { getEconomicSettings, isEconomicReady, pushSupplierInvoiceToEconomic } = await import('@/lib/services/economic-client')
+  if (!isEconomicReady(await getEconomicSettings())) {
+    return { ok: false, status: 'not_configured', message: 'e-conomic er ikke opsat endnu.' }
+  }
+
+  // Bruger-attribueret audit (best-effort) — ingen secrets.
+  const audit = async (ok: boolean, message: string, newValue: Record<string, unknown>) => {
+    try {
+      await supabase.from('incoming_invoice_audit_log').insert({
+        incoming_invoice_id: id, action: 'posted', actor_id: userId, ok, message, new_value: newValue,
+      })
+    } catch { /* best-effort */ }
+  }
+
+  const econ = await pushSupplierInvoiceToEconomic(id)
+  if (econ.status === 'success') {
+    await audit(true, `Manuelt bogført i e-conomic (${econ.externalId})`, { external_invoice_id: econ.externalId })
+    revalidatePath(`/dashboard/incoming-invoices/${id}`)
+    revalidatePath('/dashboard/incoming-invoices')
+    return { ok: true, status: 'posted', message: 'Faktura bogført i e-conomic.', external_id: econ.externalId ?? null }
+  }
+  if (econ.status === 'skipped') {
+    const notConfigured = (econ.reason ?? '').includes('NOT_CONFIGURED')
+    return notConfigured
+      ? { ok: false, status: 'not_configured', message: 'e-conomic er ikke opsat endnu.' }
+      : { ok: true, status: 'already_posted', message: 'Fakturaen er allerede bogført.', external_id: econ.externalId ?? null }
+  }
+  await audit(false, `Manuel bogføring fejlede: ${econ.error ?? 'ukendt'}`, { reason: econ.reason ?? null })
+  return { ok: false, status: 'failed', message: `Bogføring fejlede: ${econ.error ?? 'ukendt fejl'}` }
 }
