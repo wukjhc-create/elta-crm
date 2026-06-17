@@ -125,6 +125,8 @@ export async function listIncomingInvoicesAction(
 
 export interface IncomingInvoiceDetail {
   invoice: IncomingInvoiceRow
+  /** Sprint Ø9.0 — har fakturaen et bilag? (beregnet før storage-URL redaction). */
+  has_file: boolean
   lines: IncomingInvoiceLineRow[]
   supplier: { id: string; name: string; code: string | null } | null
   workOrder: { id: string; title: string; status: string; case_id: string | null } | null
@@ -153,6 +155,15 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
   if (!hasPermission('incoming_invoices.view')) return null
   const invoice = await getInvoiceById(id)
   if (!invoice) return null
+
+  // Sprint Ø9.0 — har-bilag beregnes FØR redaction; rå storage-URL redactes ud
+  // af payloaden (storage-objekter må KUN nås via getIncomingInvoiceFileUrlAction
+  // / signed-url). Eksterne email/Graph-URL'er beholdes (provider-styret).
+  const attachmentKind = classifyAttachmentUrl(invoice.file_url).kind
+  const hasFile = attachmentKind !== 'none'
+  if (attachmentKind === 'storage') {
+    invoice.file_url = null
+  }
 
   const [linesRes, supplierRes, woRes, caseRes, auditRes] = await Promise.all([
     supabase
@@ -230,6 +241,7 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
 
   return {
     invoice,
+    has_file: hasFile,
     lines: (linesRes.data ?? []) as IncomingInvoiceLineRow[],
     supplier: (supplierRes.data ?? null) as IncomingInvoiceDetail['supplier'],
     workOrder: (woRes.data ?? null) as IncomingInvoiceDetail['workOrder'],
@@ -782,4 +794,79 @@ export async function postIncomingInvoiceToEconomicAction(id: string): Promise<P
   }
   await audit(false, `Manuel bogføring fejlede: ${econ.error ?? 'ukendt'}`, { reason: econ.reason ?? null })
   return { ok: false, status: 'failed', message: `Bogføring fejlede: ${econ.error ?? 'ukendt fejl'}` }
+}
+
+// =====================================================
+// Sprint Ø9.0 — Sikker bilags-URL (signed-url/admin-helper mønster)
+// =====================================================
+//
+// incoming_invoices.file_url er i dag enten NULL (email-body-ingest) eller en
+// EKSTERN email/Graph-URL. Men hvis et bilag nogensinde ligger i et privat
+// Supabase-bucket, må det KUN vises via signed-url-helperen — aldrig som rå
+// public storage-URL. Denne resolver klassificerer URL'en og signerer kun
+// storage-objekter; eksterne URL'er (provider-access-styret) passerer uændret.
+
+const KNOWN_STORAGE_BUCKETS = new Set(['attachments', 'service-case-files', 'portal-attachments'])
+
+type AttachmentKind =
+  | { kind: 'none' }
+  | { kind: 'external'; url: string }
+  | { kind: 'storage'; bucket: string; path: string }
+
+/** Klassificér en file_url. Ren funktion — ingen secrets, intet DB-kald. */
+function classifyAttachmentUrl(fileUrl: string | null | undefined): AttachmentKind {
+  if (!fileUrl || typeof fileUrl !== 'string') return { kind: 'none' }
+  const v = fileUrl.trim()
+  if (!v) return { kind: 'none' }
+
+  // Supabase storage-URL: .../storage/v1/object/(public|sign|authenticated)/<bucket>/<path>
+  const m = v.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+?)(?:\?|$)/)
+  if (m) {
+    return { kind: 'storage', bucket: decodeURIComponent(m[1]), path: decodeURIComponent(m[2]) }
+  }
+  // Ekstern http(s)-URL (email/Graph) — ikke vores at signere.
+  if (/^https?:\/\//i.test(v)) return { kind: 'external', url: v }
+  // Bar sti "bucket/path" hvor bucket er et kendt privat bucket → storage.
+  const slash = v.indexOf('/')
+  if (slash > 0) {
+    const bucket = v.slice(0, slash)
+    if (KNOWN_STORAGE_BUCKETS.has(bucket)) {
+      return { kind: 'storage', bucket, path: v.slice(slash + 1) }
+    }
+  }
+  return { kind: 'none' }
+}
+
+export interface AttachmentUrlResult {
+  ok: boolean
+  url: string | null
+  /** True når URL'en er ekstern (provider-styret), ikke et signeret storage-objekt. */
+  external: boolean
+  message?: string
+}
+
+/**
+ * Resolvér en sikker bilags-URL for en leverandørfaktura. Gated
+ * incoming_invoices.view. Storage-objekter signeres (kort TTL) via den
+ * eksisterende helper; eksterne URL'er returneres uændret (kun til
+ * autoriserede interne brugere). Returnerer ALDRIG en rå public storage-URL.
+ */
+export async function getIncomingInvoiceFileUrlAction(id: string): Promise<AttachmentUrlResult> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view')) {
+    return { ok: false, url: null, external: false, message: 'Manglende tilladelse: incoming_invoices.view' }
+  }
+  const { data: row } = await supabase
+    .from('incoming_invoices')
+    .select('file_url')
+    .eq('id', id)
+    .maybeSingle()
+  const cls = classifyAttachmentUrl(row?.file_url as string | null)
+  if (cls.kind === 'none') return { ok: true, url: null, external: false, message: 'Ingen fil tilknyttet' }
+  if (cls.kind === 'external') return { ok: true, url: cls.url, external: true }
+
+  const { getStorageSignedUrlOrNull, SIGNED_URL_TTL } = await import('@/lib/storage/signed-url')
+  const signed = await getStorageSignedUrlOrNull(cls.bucket, cls.path, SIGNED_URL_TTL.SHORT)
+  if (!signed) return { ok: false, url: null, external: false, message: 'Kunne ikke generere bilags-link' }
+  return { ok: true, url: signed, external: false }
 }

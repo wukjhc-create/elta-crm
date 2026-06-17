@@ -12,6 +12,7 @@ import {
   rejectIncomingInvoiceAction,
   setIncomingInvoiceCaseAction,
   postIncomingInvoiceToEconomicAction,
+  getIncomingInvoiceFileUrlAction,
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
 import { useUserRole } from '@/lib/hooks/use-user-role'
@@ -92,6 +93,21 @@ export function IncomingInvoiceDetailClient({
     setPosting(false)
     setMsg({ ok: res.ok, text: res.message })
     if (res.ok && res.status === 'posted') await refresh()
+  }
+
+  // Sprint Ø9.0 — bilag åbnes via sikker resolver (signeret storage / ekstern
+  // URL), aldrig en rå storage-URL fra payloaden.
+  const [openingFile, setOpeningFile] = useState(false)
+  const handleOpenFile = async () => {
+    setMsg(null)
+    setOpeningFile(true)
+    const res = await getIncomingInvoiceFileUrlAction(inv.id)
+    setOpeningFile(false)
+    if (res.ok && res.url) {
+      window.open(res.url, '_blank', 'noopener,noreferrer')
+    } else {
+      setMsg({ ok: false, text: res.message ?? 'Kunne ikke åbne bilag' })
+    }
   }
 
   const flash = (ok: boolean, text: string) => {
@@ -461,17 +477,18 @@ export function IncomingInvoiceDetailClient({
         )}
       </Panel>
 
-      <Panel title="Fil">
-        {inv.file_url ? (
+      <Panel title="Bilag">
+        {detail.has_file ? (
           <div className="flex items-center gap-3 text-sm">
-            <a href={inv.file_url} target="_blank" rel="noopener noreferrer"
-              className="text-emerald-700 hover:underline">
-              Hent {inv.file_name ?? 'fil'} ({inv.mime_type ?? 'ukendt'})
-            </a>
-            {inv.mime_type?.includes('pdf') && (
-              <a href={inv.file_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-gray-500 hover:underline">[åbn i ny fane]</a>
-            )}
+            <button
+              type="button"
+              onClick={handleOpenFile}
+              disabled={openingFile}
+              className="text-emerald-700 hover:underline disabled:opacity-50"
+            >
+              {openingFile ? 'Åbner…' : `Åbn ${inv.file_name ?? 'bilag'} (${inv.mime_type ?? 'ukendt'})`}
+            </button>
+            <span className="text-[11px] text-gray-400">Sikkert link genereres ved klik</span>
           </div>
         ) : (
           <p className="text-xs text-gray-400">Ingen fil tilknyttet (kilde: {inv.source}).</p>
