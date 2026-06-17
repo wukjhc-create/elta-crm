@@ -13,6 +13,7 @@ import {
   type ServiceCaseType,
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
+import type { CaseEconomyBatchEntry } from '@/lib/actions/service-case-economy'
 
 interface PaginationState {
   currentPage: number
@@ -49,11 +50,15 @@ export function OrdersListClient({
   employees,
   pagination,
   filters,
+  economy = {},
+  canSeeBilling = false,
 }: {
   cases: ServiceCaseWithRelations[]
   employees: EmployeeOption[]
   pagination: PaginationState
   filters: FiltersState
+  economy?: Record<string, CaseEconomyBatchEntry>
+  canSeeBilling?: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -173,13 +178,14 @@ export function OrdersListClient({
                 <th className="px-3 py-2">Planlagt</th>
                 <th className="px-3 py-2 text-right">Tilbudt</th>
                 <th className="px-3 py-2 text-right">Revideret</th>
+                {canSeeBilling && <th className="px-3 py-2 text-right">Faktureret / Udestående</th>}
                 <th className="px-3 py-2 text-center">Lav DB</th>
               </tr>
             </thead>
             <tbody>
               {cases.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-3 py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={canSeeBilling ? 14 : 13} className="px-3 py-12 text-center text-gray-400 text-sm">
                     {filters.search || filters.status || filters.type
                       ? 'Ingen sager matcher filtrene.'
                       : 'Ingen sager endnu — opret din første sag fra et tilbud, en email eller manuelt.'}
@@ -226,6 +232,22 @@ export function OrdersListClient({
                       <td className="px-3 py-2 text-xs whitespace-nowrap">{fmtDateRange(c.start_date, c.end_date)}</td>
                       <td className="px-3 py-2 text-right text-xs">{fmtAmount(c.contract_sum)}</td>
                       <td className="px-3 py-2 text-right text-xs">{fmtAmount(c.revised_sum)}</td>
+                      {canSeeBilling && (
+                        <td className="px-3 py-2 text-right text-xs whitespace-nowrap">
+                          {(() => {
+                            const e = economy[c.id]
+                            if (!e || e.invoice_count === 0) return <span className="text-gray-300">—</span>
+                            return (
+                              <span>
+                                <span className="text-gray-700">{fmtAmount(e.net_invoiced)}</span>
+                                {e.outstanding_total > 0 && (
+                                  <span className="text-amber-700 font-medium"> · {fmtAmount(e.outstanding_total)}</span>
+                                )}
+                              </span>
+                            )
+                          })()}
+                        </td>
+                      )}
                       <td className="px-3 py-2 text-center">
                         {c.low_profit ? (
                           <span title="Margin under 15 %" className="inline-block w-2 h-2 rounded-full bg-red-500" />

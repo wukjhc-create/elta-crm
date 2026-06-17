@@ -759,3 +759,164 @@ export async function getServiceCaseProjectEconomy(
     return { success: false, error: formatError(e, 'Kunne ikke hente projektøkonomi') }
   }
 }
+
+// =====================================================
+// Sprint Ø8.1 — Batch projektøkonomi (sagsliste + portefølje)
+// =====================================================
+
+export interface CaseEconomyBatchEntry {
+  net_invoiced: number
+  outstanding_total: number
+  remaining_to_invoice: number | null
+  has_contract_sum: boolean
+  invoice_count: number
+}
+
+const ISSUED_STATUSES = new Set(['sent', 'paid'])
+
+/**
+ * Aggreger Ø8.0-projektøkonomien for FLERE sager i ÉN invoice-query (+ én
+ * service_cases-query for kontraktsum). Ingen N+1. Gated invoices.view.own_cases.
+ * Cost-free — kun salgs-/fakturatal. Returnerer map keyed på case_id.
+ */
+export async function getServiceCaseEconomyBatch(
+  caseIds: string[]
+): Promise<ActionResult<Record<string, CaseEconomyBatchEntry>>> {
+  try {
+    const ids = Array.from(new Set((caseIds ?? []).filter(Boolean)))
+    if (ids.length === 0) return { success: true, data: {} }
+
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('invoices.view.own_cases')) {
+      return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
+    }
+
+    const [caseRes, invRes] = await Promise.all([
+      supabase.from('service_cases').select('id, contract_sum, revised_sum').in('id', ids),
+      supabase.from('invoices')
+        .select('case_id, final_amount, amount_paid, status, invoice_type, voided_at')
+        .in('case_id', ids),
+    ])
+
+    const refByCase = new Map<string, number | null>()
+    for (const c of (caseRes.data ?? []) as Array<{ id: string; contract_sum: number | string | null; revised_sum: number | string | null }>) {
+      const ref = c.revised_sum != null ? Number(c.revised_sum) : c.contract_sum != null ? Number(c.contract_sum) : null
+      refByCase.set(c.id, ref)
+    }
+
+    const agg = new Map<string, { invoiced: number; credited: number; paid: number; count: number }>()
+    for (const r of (invRes.data ?? []) as Array<{ case_id: string | null; final_amount: number | string | null; amount_paid: number | string | null; status: string | null; invoice_type: string | null; voided_at: string | null }>) {
+      if (!r.case_id) continue
+      if (r.voided_at) continue
+      if (!ISSUED_STATUSES.has(r.status ?? '')) continue
+      const cur = agg.get(r.case_id) ?? { invoiced: 0, credited: 0, paid: 0, count: 0 }
+      const amt = Number(r.final_amount ?? 0)
+      if (r.invoice_type === 'credit') cur.credited += Math.abs(amt)
+      else { cur.invoiced += amt; cur.paid += Number(r.amount_paid ?? 0) }
+      cur.count += 1
+      agg.set(r.case_id, cur)
+    }
+
+    const out: Record<string, CaseEconomyBatchEntry> = {}
+    for (const id of ids) {
+      const a = agg.get(id) ?? { invoiced: 0, credited: 0, paid: 0, count: 0 }
+      const ref = refByCase.get(id) ?? null
+      const net = a.invoiced - a.credited
+      out[id] = {
+        net_invoiced: r2(net),
+        outstanding_total: r2(Math.max(0, net - a.paid)),
+        remaining_to_invoice: ref != null ? r2(ref - net) : null,
+        has_contract_sum: ref != null,
+        invoice_count: a.count,
+      }
+    }
+    return { success: true, data: out }
+  } catch (e) {
+    return { success: false, error: formatError(e, 'Kunne ikke hente sagsøkonomi') }
+  }
+}
+
+export interface OutstandingPortfolio {
+  total_outstanding: number
+  total_net_invoiced: number
+  cases_with_outstanding: number
+  currency: string
+  top: Array<{ case_id: string; case_number: string | null; title: string | null; outstanding: number }>
+}
+
+/**
+ * Portefølje-summary: udestående på tværs af aktive (ikke-lukkede) sager.
+ * To queries (invoices + service_cases) — ingen N+1. Gated/cost-free/read-only.
+ */
+export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<OutstandingPortfolio>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('invoices.view.own_cases')) {
+      return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
+    }
+
+    // Udstedte, ikke-voided fakturaer (cost-free felter).
+    const { data: invs } = await supabase
+      .from('invoices')
+      .select('case_id, final_amount, amount_paid, status, invoice_type, voided_at, currency')
+      .in('status', ['sent', 'paid'])
+      .is('voided_at', null)
+
+    const agg = new Map<string, { invoiced: number; credited: number; paid: number }>()
+    let currency = 'DKK'
+    for (const r of (invs ?? []) as Array<{ case_id: string | null; final_amount: number | string | null; amount_paid: number | string | null; invoice_type: string | null; currency: string | null }>) {
+      if (!r.case_id) continue
+      if (r.currency) currency = r.currency
+      const cur = agg.get(r.case_id) ?? { invoiced: 0, credited: 0, paid: 0 }
+      const amt = Number(r.final_amount ?? 0)
+      if (r.invoice_type === 'credit') cur.credited += Math.abs(amt)
+      else { cur.invoiced += amt; cur.paid += Number(r.amount_paid ?? 0) }
+      agg.set(r.case_id, cur)
+    }
+
+    const caseIds = Array.from(agg.keys())
+    if (caseIds.length === 0) {
+      return { success: true, data: { total_outstanding: 0, total_net_invoiced: 0, cases_with_outstanding: 0, currency, top: [] } }
+    }
+
+    // Kun aktive (ikke-lukkede) sager tæller med.
+    const { data: cases } = await supabase
+      .from('service_cases')
+      .select('id, case_number, title, status')
+      .in('id', caseIds)
+    const activeMeta = new Map<string, { case_number: string | null; title: string | null }>()
+    for (const c of (cases ?? []) as Array<{ id: string; case_number: string | null; title: string | null; status: string | null }>) {
+      if (c.status === 'closed') continue
+      activeMeta.set(c.id, { case_number: c.case_number, title: c.title })
+    }
+
+    let totalOutstanding = 0, totalNet = 0, withOutstanding = 0
+    const perCase: Array<{ case_id: string; case_number: string | null; title: string | null; outstanding: number }> = []
+    for (const [id, a] of agg) {
+      const meta = activeMeta.get(id)
+      if (!meta) continue // kun aktive sager
+      const net = a.invoiced - a.credited
+      const outstanding = Math.max(0, net - a.paid)
+      totalNet += net
+      totalOutstanding += outstanding
+      if (outstanding > 0) {
+        withOutstanding++
+        perCase.push({ case_id: id, case_number: meta.case_number, title: meta.title, outstanding: r2(outstanding) })
+      }
+    }
+    perCase.sort((x, y) => y.outstanding - x.outstanding)
+
+    return {
+      success: true,
+      data: {
+        total_outstanding: r2(totalOutstanding),
+        total_net_invoiced: r2(totalNet),
+        cases_with_outstanding: withOutstanding,
+        currency,
+        top: perCase.slice(0, 3),
+      },
+    }
+  } catch (e) {
+    return { success: false, error: formatError(e, 'Kunne ikke hente porteføljeøkonomi') }
+  }
+}

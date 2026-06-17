@@ -41,6 +41,7 @@ import {
   InvoiceLiquidityChart,
   AccountingHealthWidget,
   OfferConversionWidget,
+  OutstandingPortfolioWidget,
 } from '@/components/modules/dashboard'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
@@ -103,6 +104,8 @@ export default async function DashboardPage() {
   const canViewEconomic = await pageHasPermission('settings.economic')
   // Sprint Ø7.3 — tilbud-klar-til-sag-widget kun for offers.view.
   const canViewOffers = await pageHasPermission('offers.view')
+  // Sprint Ø8.1 — portefølje-udestående-widget kun for invoices.view.own_cases.
+  const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
 
   return (
     <div className="space-y-6">
@@ -130,6 +133,9 @@ export default async function DashboardPage() {
 
       {/* Sprint Ø7.3 — Tilbud klar til sag: proaktiv konverterings-synlighed */}
       {canViewOffers && <OfferConversionWidget />}
+
+      {/* Sprint Ø8.1 — Udestående på tværs af aktive sager (cost-free) */}
+      {canSeeBilling && <OutstandingPortfolioWidget />}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />

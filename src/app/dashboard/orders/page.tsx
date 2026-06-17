@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { getServiceCases } from '@/lib/actions/service-cases'
+import { getServiceCaseEconomyBatch, type CaseEconomyBatchEntry } from '@/lib/actions/service-case-economy'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
@@ -81,10 +82,23 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     )
   }
 
+  // Sprint Ø8.1 — cost-free projektøkonomi for de viste sager (batch, ingen
+  // N+1). Kun hvis brugeren har faktura-/billing-adgang; ellers ingen tal i
+  // payload eller UI.
+  const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
+  let economy: Record<string, CaseEconomyBatchEntry> = {}
+  if (canSeeBilling) {
+    const caseIds = casesResult.data.data.map((c) => c.id)
+    const ecoRes = await getServiceCaseEconomyBatch(caseIds)
+    if (ecoRes.success && ecoRes.data) economy = ecoRes.data
+  }
+
   return (
     <OrdersListClient
       cases={casesResult.data.data}
       employees={Array.from(employeeMap.values())}
+      economy={economy}
+      canSeeBilling={canSeeBilling}
       pagination={{
         currentPage: casesResult.data.page,
         totalPages: casesResult.data.totalPages,
