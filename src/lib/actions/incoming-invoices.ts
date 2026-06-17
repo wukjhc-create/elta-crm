@@ -41,6 +41,7 @@ export interface IncomingInvoiceListItem {
   amount_incl_vat: number | null
   currency: string
   invoice_date: string | null
+  due_date: string | null
   status: IncomingInvoiceStatus
   parse_status: string
   parse_confidence: number | null
@@ -67,7 +68,7 @@ export async function listIncomingInvoicesAction(
     .from('incoming_invoices')
     .select(`
       id, supplier_id, supplier_name_extracted, invoice_number,
-      amount_incl_vat, currency, invoice_date, status,
+      amount_incl_vat, currency, invoice_date, due_date, status,
       parse_status, parse_confidence, match_confidence,
       requires_manual_review, matched_work_order_id, matched_case_id,
       created_at,
@@ -111,6 +112,7 @@ export async function listIncomingInvoicesAction(
       amount_incl_vat: r.amount_incl_vat != null ? Number(r.amount_incl_vat) : null,
       currency: r.currency,
       invoice_date: r.invoice_date,
+      due_date: (r as { due_date?: string | null }).due_date ?? null,
       status: r.status as IncomingInvoiceStatus,
       parse_status: r.parse_status as string,
       parse_confidence: r.parse_confidence != null ? Number(r.parse_confidence) : null,
@@ -717,6 +719,7 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
     amount_incl_vat: r.amount_incl_vat != null ? Number(r.amount_incl_vat) : null,
     currency: r.currency,
     invoice_date: r.invoice_date,
+    due_date: (r as { due_date?: string | null }).due_date ?? null,
     status: r.status,
     parse_status: r.parse_status,
     parse_confidence: r.parse_confidence != null ? Number(r.parse_confidence) : null,
@@ -869,4 +872,80 @@ export async function getIncomingInvoiceFileUrlAction(id: string): Promise<Attac
   const signed = await getStorageSignedUrlOrNull(cls.bucket, cls.path, SIGNED_URL_TTL.SHORT)
   if (!signed) return { ok: false, url: null, external: false, message: 'Kunne ikke generere bilags-link' }
   return { ok: true, url: signed, external: false }
+}
+
+// =====================================================
+// Sprint Ø9.1 — Forfaldsoverblik (dashboard-widget)
+// =====================================================
+//
+// INTERN indkøbsøkonomi — gated incoming_invoices.view, adskilt fra kundevendte
+// salgs-/projektøkonomi-views. Read-only (ingen audit). Fokus: GODKENDTE
+// fakturaer der endnu ikke er bogført ('approved') — afventer betaling/bogføring.
+// Genbruger Ø9.1-forfaldsreglerne. Ét query — ingen N+1. Ingen e-conomic-push.
+
+export interface IncomingDueSummary {
+  ok: boolean
+  message?: string
+  overdue_count: number
+  due_7_count: number
+  overdue_amount: number
+  due_7_amount: number
+  currency: string
+  top: Array<{ id: string; invoice_number: string | null; supplier_name: string | null; due_date: string | null; amount: number; overdue: boolean }>
+}
+
+export async function getIncomingInvoiceDueSummaryAction(): Promise<IncomingDueSummary> {
+  const empty: IncomingDueSummary = {
+    ok: false, overdue_count: 0, due_7_count: 0, overdue_amount: 0, due_7_amount: 0, currency: 'DKK', top: [],
+  }
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view')) {
+    return { ...empty, message: 'Manglende tilladelse: incoming_invoices.view' }
+  }
+
+  const { matchesIncomingDueFilter } = await import('@/lib/invoices/incoming-invoice-due')
+  const todayIso = new Date().toISOString().slice(0, 10)
+
+  // Ét cost-bounded query: godkendte fakturaer (afventer bogføring/betaling).
+  const { data } = await supabase
+    .from('incoming_invoices')
+    .select('id, invoice_number, supplier_name_extracted, due_date, amount_incl_vat, currency, status, supplier:supplier_id ( name )')
+    .eq('status', 'approved')
+    .limit(1000)
+
+  const rows = (data ?? []) as Array<{
+    id: string; invoice_number: string | null; supplier_name_extracted: string | null
+    due_date: string | null; amount_incl_vat: number | string | null; currency: string | null
+    supplier?: { name?: string } | { name?: string }[] | null
+  }>
+
+  let overdueCount = 0, due7Count = 0, overdueAmount = 0, due7Amount = 0
+  let currency = 'DKK'
+  const overdueRows: Array<{ id: string; invoice_number: string | null; supplier_name: string | null; due_date: string | null; amount: number; overdue: boolean }> = []
+
+  for (const r of rows) {
+    if (r.currency) currency = r.currency
+    const amt = Number(r.amount_incl_vat ?? 0)
+    const supplierJoin = Array.isArray(r.supplier) ? r.supplier[0]?.name : r.supplier?.name
+    const supplierName = supplierJoin ?? r.supplier_name_extracted ?? null
+    if (matchesIncomingDueFilter(r.due_date, 'overdue', todayIso)) {
+      overdueCount++; overdueAmount += amt
+      overdueRows.push({ id: r.id, invoice_number: r.invoice_number, supplier_name: supplierName, due_date: r.due_date, amount: amt, overdue: true })
+    } else if (matchesIncomingDueFilter(r.due_date, 'due_7', todayIso)) {
+      due7Count++; due7Amount += amt
+    }
+  }
+  // Top 3 ældste forfaldne (laveste due_date først).
+  overdueRows.sort((a, b) => String(a.due_date ?? '').localeCompare(String(b.due_date ?? '')))
+
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  return {
+    ok: true,
+    overdue_count: overdueCount,
+    due_7_count: due7Count,
+    overdue_amount: r2(overdueAmount),
+    due_7_amount: r2(due7Amount),
+    currency,
+    top: overdueRows.slice(0, 3),
+  }
 }

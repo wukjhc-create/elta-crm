@@ -43,6 +43,7 @@ import {
   OfferConversionWidget,
   OutstandingPortfolioWidget,
   BillingFollowupWidget,
+  IncomingInvoiceDueWidget,
 } from '@/components/modules/dashboard'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
@@ -107,6 +108,8 @@ export default async function DashboardPage() {
   const canViewOffers = await pageHasPermission('offers.view')
   // Sprint Ø8.1 — portefølje-udestående-widget kun for invoices.view.own_cases.
   const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
+  // Sprint Ø9.1 — leverandørfaktura-forfaldswidget kun for incoming_invoices.view.
+  const canViewIncoming = await pageHasPermission('incoming_invoices.view')
 
   return (
     <div className="space-y-6">
@@ -140,6 +143,9 @@ export default async function DashboardPage() {
 
       {/* Sprint Ø8.3 — Faktureringsopfølgning: sager der kræver fakturahandling */}
       {canSeeBilling && <BillingFollowupWidget />}
+
+      {/* Sprint Ø9.1 — Leverandørfaktura-forfald (intern indkøb, "pengene ud") */}
+      {canViewIncoming && <IncomingInvoiceDueWidget />}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />
