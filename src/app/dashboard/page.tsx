@@ -44,6 +44,7 @@ import {
   OutstandingPortfolioWidget,
   BillingFollowupWidget,
   IncomingInvoiceDueWidget,
+  PurchaseOperationsWidget,
 } from '@/components/modules/dashboard'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { SupplierHealthOverview } from '@/components/modules/suppliers/supplier-health-overview'
@@ -146,6 +147,9 @@ export default async function DashboardPage() {
 
       {/* Sprint Ø9.1 — Leverandørfaktura-forfald (intern indkøb, "pengene ud") */}
       {canViewIncoming && <IncomingInvoiceDueWidget />}
+
+      {/* Sprint Ø9.5 — Porteføljevidt indkøbsdrift-overblik (drift + forfald pr. sag) */}
+      {canViewIncoming && <PurchaseOperationsWidget />}
 
       {/* Phase 6.1 — Operational overview (auto-refresh, system health) */}
       <OperationalOverview />
