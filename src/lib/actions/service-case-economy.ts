@@ -1045,6 +1045,19 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
 // Read-only, ingen audit, ingen e-conomic-push. Ét query pr. kilde (ingen N+1).
 
 const SUPPLIER_INVOICE_SOURCE = 'supplier_invoice'
+// Bounded: en sag har realistisk få leverandører. Cap så payload aldrig
+// vokser ukontrolleret selv ved data-fejl.
+const PURCHASE_BREAKDOWN_CAP = 25
+const PURCHASE_UNKNOWN_SUPPLIER = 'Ukendt leverandør'
+
+/** Intern indkøbskost pr. leverandør (kun kost — ingen salg/margin). */
+export interface CasePurchaseSupplierBreakdown {
+  supplier_name: string
+  material_cost: number
+  other_cost: number
+  total_cost: number
+  line_count: number
+}
 
 export interface CasePurchaseSummary {
   ok: boolean
@@ -1054,6 +1067,12 @@ export interface CasePurchaseSummary {
   supplier_purchase_total: number
   /** Antal konverterede leverandørfaktura-linjer (materialer + udlæg). */
   converted_line_count: number
+  /** Antal konverterede materialer fra leverandørfaktura. */
+  converted_material_count: number
+  /** Antal konverterede øvrige omkostninger fra leverandørfaktura. */
+  converted_other_cost_count: number
+  /** Intern indkøbskost grupperet pr. leverandør (kost, ikke margin). */
+  supplier_breakdown: CasePurchaseSupplierBreakdown[]
   currency: string
   /** Reference (IKKE margin/DB): budget eller kontraktsum, hvis sat. */
   budget_reference: number | null
@@ -1066,7 +1085,8 @@ export interface CasePurchaseSummary {
 export async function getServiceCasePurchaseSummary(caseId: string): Promise<CasePurchaseSummary> {
   const base: CasePurchaseSummary = {
     ok: false, supplier_material_cost_total: 0, supplier_other_cost_total: 0, supplier_purchase_total: 0,
-    converted_line_count: 0, currency: 'DKK', budget_reference: null, budget_reference_kind: null,
+    converted_line_count: 0, converted_material_count: 0, converted_other_cost_count: 0,
+    supplier_breakdown: [], currency: 'DKK', budget_reference: null, budget_reference_kind: null,
     invoices: [], internal_purchase: true,
   }
   try {
@@ -1078,12 +1098,14 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
     }
 
     // Ét query pr. kilde + sag + leverandørfakturaer (matched_case_id). Ingen N+1.
+    // supplier_name_snapshot/supplier_name hentes til breakdown — begge er
+    // interne kost-felter, ingen salgspris/margin med i payload.
     const [matRes, othRes, sagRes, invRes] = await Promise.all([
       supabase.from('case_materials')
-        .select('total_cost, source_incoming_invoice_line_id')
+        .select('total_cost, supplier_name_snapshot, source_incoming_invoice_line_id')
         .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE),
       supabase.from('case_other_costs')
-        .select('total_cost, source_incoming_invoice_line_id')
+        .select('total_cost, supplier_name, source_incoming_invoice_line_id')
         .eq('case_id', caseId).eq('source', SUPPLIER_INVOICE_SOURCE),
       supabase.from('service_cases').select('contract_sum, revised_sum, budget').eq('id', caseId).maybeSingle(),
       supabase.from('incoming_invoices')
@@ -1093,10 +1115,34 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
         .limit(50),
     ])
 
-    const matRows = (matRes.data ?? []) as Array<{ total_cost: number | string | null; source_incoming_invoice_line_id: string | null }>
-    const othRows = (othRes.data ?? []) as Array<{ total_cost: number | string | null; source_incoming_invoice_line_id: string | null }>
+    const matRows = (matRes.data ?? []) as Array<{ total_cost: number | string | null; supplier_name_snapshot: string | null; source_incoming_invoice_line_id: string | null }>
+    const othRows = (othRes.data ?? []) as Array<{ total_cost: number | string | null; supplier_name: string | null; source_incoming_invoice_line_id: string | null }>
     const matTotal = matRows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0)
     const othTotal = othRows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0)
+
+    // Breakdown pr. leverandør — ren JS-aggregering på allerede-hentede rækker
+    // (ingen ekstra query, ingen N+1). Nøgle = leverandørnavn (snapshot).
+    const breakdownMap = new Map<string, CasePurchaseSupplierBreakdown>()
+    const bucket = (name: string | null): CasePurchaseSupplierBreakdown => {
+      const key = (name ?? '').trim() || PURCHASE_UNKNOWN_SUPPLIER
+      let b = breakdownMap.get(key)
+      if (!b) { b = { supplier_name: key, material_cost: 0, other_cost: 0, total_cost: 0, line_count: 0 }; breakdownMap.set(key, b) }
+      return b
+    }
+    for (const r of matRows) {
+      const b = bucket(r.supplier_name_snapshot)
+      const v = Number(r.total_cost ?? 0)
+      b.material_cost += v; b.total_cost += v; b.line_count += 1
+    }
+    for (const r of othRows) {
+      const b = bucket(r.supplier_name)
+      const v = Number(r.total_cost ?? 0)
+      b.other_cost += v; b.total_cost += v; b.line_count += 1
+    }
+    const supplier_breakdown = Array.from(breakdownMap.values())
+      .map((b) => ({ ...b, material_cost: r2(b.material_cost), other_cost: r2(b.other_cost), total_cost: r2(b.total_cost) }))
+      .sort((a, b) => b.total_cost - a.total_cost)
+      .slice(0, PURCHASE_BREAKDOWN_CAP)
 
     const sag = sagRes.data as { contract_sum: number | string | null; revised_sum: number | string | null; budget: number | string | null } | null
     let budgetRef: number | null = null
@@ -1123,6 +1169,9 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
       supplier_other_cost_total: r2(othTotal),
       supplier_purchase_total: r2(matTotal + othTotal),
       converted_line_count: matRows.length + othRows.length,
+      converted_material_count: matRows.length,
+      converted_other_cost_count: othRows.length,
+      supplier_breakdown,
       currency,
       budget_reference: budgetRef != null ? r2(budgetRef) : null,
       budget_reference_kind: budgetKind,

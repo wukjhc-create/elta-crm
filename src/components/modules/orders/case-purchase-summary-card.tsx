@@ -65,7 +65,20 @@ export function CasePurchaseSummaryCard({ caseId }: { caseId: string }) {
 
           <div className="text-xs text-gray-500">
             {data.converted_line_count} konverteret leverandørfaktura-linje(r)
+            {' · '}{data.converted_material_count} materiale(r){' · '}{data.converted_other_cost_count} udlæg
           </div>
+
+          {data.supplier_breakdown.length > 0 && (
+            <div className="border-t border-gray-100 pt-2 space-y-1">
+              <div className="text-xs font-medium text-gray-500">Pr. leverandør</div>
+              {data.supplier_breakdown.slice(0, 6).map((b) => (
+                <div key={b.supplier_name} className="flex items-center justify-between text-sm px-1.5 py-0.5">
+                  <span className="truncate text-gray-700">{b.supplier_name}</span>
+                  <span className="font-medium text-gray-700 shrink-0 ml-2">{kr(b.total_cost)}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {data.invoices.length > 0 && (
             <div className="border-t border-gray-100 pt-2 space-y-1">

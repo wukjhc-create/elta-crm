@@ -66,6 +66,9 @@ export interface CaseOtherCostRow {
   receipt_filename: string | null
 
   source: CaseOtherCostSource
+  // Provenance — sat når raden er konverteret fra en leverandørfaktura-linje
+  // (migration 00103). Spejler case_materials.source_incoming_invoice_line_id.
+  source_incoming_invoice_line_id: string | null
 
   billable: boolean
   invoice_line_id: string | null
