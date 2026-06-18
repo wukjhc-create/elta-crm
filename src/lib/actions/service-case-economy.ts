@@ -1182,3 +1182,183 @@ export async function getServiceCasePurchaseSummary(caseId: string): Promise<Cas
     return { ...base, message: formatError(e, 'Kunne ikke hente indkøbsoverblik') }
   }
 }
+
+// ============================================================================
+// Sprint Ø9.4 — Ukonverterede leverandørfaktura-linjer pr. sag.
+//
+// Driftshul der lukkes: "Der er modtaget/godkendt en leverandørfaktura matchet
+// til sagen, men linjerne er aldrig ført ind på sagen som materiale/udlæg."
+// Read-only overblik + link til det eksisterende konverterings-/godkendelses-
+// flow (/dashboard/incoming-invoices/[id]). INGEN auto-konvertering her.
+//
+// REGLER (spejler præcist getServiceCaseEconomy's supplier_invoices-rollup):
+//   • Kun incoming_invoices hvor matched_case_id = sagen.
+//   • En linje er HÅNDTERET hvis converted_case_material_id ELLER
+//     converted_case_other_cost_id er sat, ELLER converted_at er sat uden FK
+//     (= eksplicit "skip" i godkendelses-previewet). Alt andet = UKONVERTERET.
+//   • Fakturaer med status 'rejected'/'cancelled' EKSKLUDERES helt — de er
+//     døde og deres linjer skal aldrig føres på sagen (bevidst valg).
+//   • 'received'/'awaiting_approval' med ukonverterede linjer vises (afventer
+//     normalt flow), men markeres IKKE handlingskrævende.
+//   • 'approved'/'posted' med ukonverterede linjer = DRIFTPROBLEM →
+//     action_required=true. Dette er nøjagtig samme betingelse som det
+//     eksisterende quality_flags.unconverted_supplier_invoice_lines.
+//
+// Permission: incoming_invoices.view kræves for overblikket. Interne
+// linjebeløb (total_unconverted_amount / pr.-faktura unconverted_amount) vises
+// KUN hvis economy.cost_prices — ellers null (defense-in-depth, kost-adskilt).
+// ============================================================================
+
+const SI_DEAD_STATUSES = new Set(['rejected', 'cancelled'])
+const SI_ACTION_STATUSES = new Set(['approved', 'posted'])
+const UNCONVERTED_INVOICE_CAP = 50
+
+export interface UnconvertedSupplierInvoice {
+  id: string
+  supplier_name: string | null
+  invoice_number: string | null
+  status: string
+  invoice_date: string | null
+  due_date: string | null
+  unconverted_line_count: number
+  /** Intern kost — null hvis bruger mangler economy.cost_prices. */
+  unconverted_amount: number | null
+  /** approved/posted faktura med ukonverterede linjer = driftproblem. */
+  action_required: boolean
+  /** Link til faktura-/konverteringsflow (ingen rå storage-URL). */
+  link: string
+}
+
+export interface ServiceCaseUnconvertedSupplierLines {
+  ok: boolean
+  message?: string
+  unconverted_line_count: number
+  unconverted_invoice_count: number
+  /** Intern kost — null hvis bruger mangler economy.cost_prices. */
+  total_unconverted_amount: number | null
+  /** Om interne beløb er inkluderet (economy.cost_prices). */
+  can_view_amounts: boolean
+  /** Mindst én approved/posted faktura har ukonverterede linjer. */
+  has_action_required: boolean
+  invoices: UnconvertedSupplierInvoice[]
+  currency: string
+  /** Markør: intern indkøbsøkonomi, ikke kundevendt salg. */
+  internal_purchase: true
+}
+
+export async function getServiceCaseUnconvertedSupplierLinesAction(
+  caseId: string
+): Promise<ServiceCaseUnconvertedSupplierLines> {
+  const base: ServiceCaseUnconvertedSupplierLines = {
+    ok: false, unconverted_line_count: 0, unconverted_invoice_count: 0,
+    total_unconverted_amount: null, can_view_amounts: false, has_action_required: false,
+    invoices: [], currency: 'DKK', internal_purchase: true,
+  }
+  try {
+    validateUUID(caseId, 'case_id')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // Minimumsgate: skal kunne se leverandørfakturaer overhovedet.
+    if (!hasPermission('incoming_invoices.view')) {
+      return { ...base, message: 'Manglende tilladelse: incoming_invoices.view' }
+    }
+    // Interne linjebeløb kun bag kost-gaten — defense-in-depth.
+    const canViewAmounts = hasPermission('economy.cost_prices')
+
+    // Ét query: fakturaer matchet til sagen + deres linjers konverterings-state.
+    // Ingen N+1 (linjer hentes via nested select), bounded limit.
+    const { data, error } = await supabase
+      .from('incoming_invoices')
+      .select(`
+        id, status, invoice_number, invoice_date, due_date, currency,
+        supplier_name_extracted,
+        supplier:suppliers(name),
+        lines:incoming_invoice_lines(
+          total_price,
+          converted_case_material_id,
+          converted_case_other_cost_id,
+          converted_at
+        )
+      `)
+      .eq('matched_case_id', caseId)
+      .order('invoice_date', { ascending: false, nullsFirst: false })
+      .limit(UNCONVERTED_INVOICE_CAP)
+
+    if (error) return { ...base, can_view_amounts: canViewAmounts, message: error.message }
+
+    type Row = {
+      id: string; status: string; invoice_number: string | null
+      invoice_date: string | null; due_date: string | null; currency: string | null
+      supplier_name_extracted: string | null
+      supplier: { name: string | null } | { name: string | null }[] | null
+      lines: Array<{ total_price: number | string | null; converted_case_material_id: string | null; converted_case_other_cost_id: string | null; converted_at: string | null }> | null
+    }
+    const rows = (data ?? []) as Row[]
+
+    let currency = 'DKK'
+    let totalUnconvertedLines = 0
+    let totalUnconvertedAmount = 0
+    let hasActionRequired = false
+    const invoices: UnconvertedSupplierInvoice[] = []
+
+    for (const inv of rows) {
+      // Døde fakturaer tæller ikke som drift.
+      if (SI_DEAD_STATUSES.has(inv.status)) continue
+      if (inv.currency) currency = inv.currency
+
+      const lines = Array.isArray(inv.lines) ? inv.lines : []
+      let unconvLines = 0
+      let unconvAmount = 0
+      for (const ln of lines) {
+        const handled =
+          !!ln.converted_case_material_id ||
+          !!ln.converted_case_other_cost_id ||
+          !!ln.converted_at // eksplicit skip i preview
+        if (!handled) {
+          unconvLines += 1
+          unconvAmount += Number(ln.total_price ?? 0)
+        }
+      }
+      if (unconvLines === 0) continue // intet at handle på denne faktura
+
+      const actionRequired = SI_ACTION_STATUSES.has(inv.status)
+      if (actionRequired) hasActionRequired = true
+
+      totalUnconvertedLines += unconvLines
+      totalUnconvertedAmount += unconvAmount
+
+      const supplierObj = Array.isArray(inv.supplier) ? inv.supplier[0] : inv.supplier
+      invoices.push({
+        id: inv.id,
+        supplier_name: supplierObj?.name ?? inv.supplier_name_extracted ?? null,
+        invoice_number: inv.invoice_number,
+        status: inv.status,
+        invoice_date: inv.invoice_date,
+        due_date: inv.due_date,
+        unconverted_line_count: unconvLines,
+        unconverted_amount: canViewAmounts ? r2(unconvAmount) : null,
+        action_required: actionRequired,
+        link: `/dashboard/incoming-invoices/${inv.id}`,
+      })
+    }
+
+    // Handlingskrævende først, så nyeste faktura.
+    invoices.sort((a, b) => {
+      if (a.action_required !== b.action_required) return a.action_required ? -1 : 1
+      return (b.invoice_date ?? '').localeCompare(a.invoice_date ?? '')
+    })
+
+    return {
+      ok: true,
+      unconverted_line_count: totalUnconvertedLines,
+      unconverted_invoice_count: invoices.length,
+      total_unconverted_amount: canViewAmounts ? r2(totalUnconvertedAmount) : null,
+      can_view_amounts: canViewAmounts,
+      has_action_required: hasActionRequired,
+      invoices,
+      currency,
+      internal_purchase: true,
+    }
+  } catch (e) {
+    return { ...base, message: formatError(e, 'Kunne ikke hente ukonverterede leverandørlinjer') }
+  }
+}

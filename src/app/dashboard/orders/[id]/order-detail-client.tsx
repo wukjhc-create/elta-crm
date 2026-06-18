@@ -28,6 +28,7 @@ import { OrderEconomyTab } from './order-economy-tab'
 import { CaseBillingStatusCard } from '@/components/modules/orders/case-billing-status-card'
 import { CaseProjectEconomyCard } from '@/components/modules/orders/case-project-economy-card'
 import { CasePurchaseSummaryCard } from '@/components/modules/orders/case-purchase-summary-card'
+import { CaseUnconvertedSupplierLinesCard } from '@/components/modules/orders/case-unconverted-supplier-lines-card'
 import { OrderBillingDraftTab } from './order-billing-draft-tab'
 import { OrderMailsTab } from './order-mails-tab'
 import { OrderDocumentsTab } from './order-documents-tab'
@@ -244,6 +245,8 @@ export function OrderDetailClient({
               />
               {/* Sprint Ø9.3 — intern indkøb-vs-budget (kun kost-gatet) */}
               <CasePurchaseSummaryCard caseId={sag.id} />
+              {/* Sprint Ø9.4 — ukonverterede leverandørlinjer (kun kost-gatet) */}
+              <CaseUnconvertedSupplierLinesCard caseId={sag.id} />
             </div>
           )}
           {active === 'fakturakladde' && (
