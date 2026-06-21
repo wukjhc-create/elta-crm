@@ -974,7 +974,7 @@ export async function updateTeamMember(
   input: { role?: string; department?: string; is_active?: boolean }
 ): Promise<ActionResult<Profile>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('users.edit')) {
       return { success: false, error: 'Manglende tilladelse: users.edit' }
     }
@@ -993,7 +993,12 @@ export async function updateTeamMember(
     if (input.role !== undefined) rest.role = input.role
     if (input.department !== undefined) rest.department = input.department
 
-    const { data, error } = await supabase
+    // Rolle-/profilstyring af ANDRE brugere skal gå via service-role-klienten:
+    // live-RLS tillader kun `auth.uid()=id` (egen profil), og BEFORE UPDATE-
+    // guarden (migration 00150) afviser role/is_active-ændringer fra en
+    // autentificeret session. Admin-klienten (service_role) er undtaget begge.
+    const admin = createAdminClient()
+    const { data, error } = await admin
       .from('profiles')
       .update({
         ...rest,
