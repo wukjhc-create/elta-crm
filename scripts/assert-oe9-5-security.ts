@@ -52,10 +52,13 @@ assert(/Manglende tilladelse: incoming_invoices\.view/.test(actionSrc), 'afvisni
 assert(/hasPermission\(\s*['"]economy\.cost_prices['"]\s*\)/.test(actionCode), 'interne beløb gated bag economy.cost_prices')
 assert(/canViewAmounts\s*\?\s*r2\(/.test(actionCode), 'beløb nulles uden kost-permission (canViewAmounts ? ... : null)')
 
-// Read-only: ingen mutationer.
-for (const mut of ['.insert(', '.update(', '.delete(', '.upsert(', '.rpc(']) {
+// Read-only: ingen data-mutationer.
+for (const mut of ['.insert(', '.update(', '.delete(', '.upsert(']) {
   assert(!actionCode.includes(mut), `read-only: ingen "${mut}" i action`)
 }
+// Ø9.7: RPC tilladt, men KUN den ene read-only aggregerings-funktion.
+const rpcCalls = (actionCode.match(/\.rpc\(\s*['"]([a-z_]+)['"]/g) ?? [])
+assert(rpcCalls.length === 0 || rpcCalls.every((c) => /get_purchase_operations_page/.test(c)), 'KUN get_purchase_operations_page kaldes via .rpc (ingen andre RPC)')
 // Ingen auto-konvertering / godkendelse.
 assert(!/convertAndApprove|approveIncomingInvoice|WithConversion/.test(actionCode), 'ingen konverterings-/godkendelseskald')
 assert(/internal_purchase:\s*true/.test(actionCode), 'payload markeret internal_purchase: true')

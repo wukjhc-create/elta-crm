@@ -176,12 +176,6 @@ export function PurchaseOperationsClient() {
         <p className="text-sm text-red-600 py-4">{error || 'Ingen data'}</p>
       ) : (
         <>
-          {data.truncated && (
-            <p className="text-xs text-amber-600 flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5" /> Bemærk: kun de seneste {3000} fakturaer indgår (scan-cap nået) — tallene kan være et undersæt.
-            </p>
-          )}
-
           {data.items.length === 0 ? (
             <div className="rounded-lg ring-1 ring-emerald-200 bg-emerald-50 px-4 py-6 text-sm text-emerald-800 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />

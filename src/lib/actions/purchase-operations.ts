@@ -45,6 +45,17 @@ const PAGE_SIZE_MIN = 5
 const PAGE_SIZE_MAX = 100
 const SEARCH_MAX_LEN = 120
 
+// Ø9.7: ægte DB-level pagination via RPC get_purchase_operations_page (migration
+// 00151). Det gamle in-memory scan (scanPurchaseOps) beholdes bag dette flag for
+// hurtig rollback: sæt PURCHASE_OPS_LEGACY_SCAN=true for at falde tilbage.
+const USE_LEGACY_SCAN = process.env.PURCHASE_OPS_LEGACY_SCAN === 'true'
+
+// LIKE-escape (matcher SQL'ens ESCAPE-default '\'): %, _ og \ gøres literale, så
+// søgetokens opfører sig som JS String.includes (substring, ikke wildcard).
+function escapeLike(t: string): string {
+  return t.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
 const DEAD_STATUSES = new Set(['rejected', 'cancelled'])
 const PAYMENT_STATUSES = new Set(['approved', 'posted']) // betalingsforpligtende
 const SCAN_STATUSES = ['approved', 'posted', 'received', 'awaiting_approval']
@@ -137,10 +148,11 @@ function isActionableRow(r: PurchaseOpsCaseRow): boolean {
 }
 
 /**
- * Fælles bounded scan + aggregering. Returnerer ALLE kandidat-sager (inkl.
- * received-awaiting-only) + global summary. Read-only, max to queries.
+ * LEGACY (Ø9.5/Ø9.6): fælles bounded scan + in-memory aggregering. Beholdt bag
+ * USE_LEGACY_SCAN for rollback; erstattet i drift af RPC'en (migration 00151).
+ * Returnerer ALLE kandidat-sager (inkl. received-awaiting-only) + global summary.
  */
-async function scanPurchaseOps(): Promise<{ result?: ScanResult; error?: string; forbidden?: boolean; canViewAmounts: boolean }> {
+async function scanPurchaseOpsLegacy(): Promise<{ result?: ScanResult; error?: string; forbidden?: boolean; canViewAmounts: boolean }> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) {
     return { forbidden: true, canViewAmounts: false }
@@ -332,6 +344,110 @@ function sortByPriority(a: PurchaseOpsCaseRow, b: PurchaseOpsCaseRow): number {
 }
 
 // =====================================================================
+// Ø9.7 — DB-level pagination/aggregering via RPC (migration 00151)
+// =====================================================================
+
+interface RpcPageResult {
+  items: PurchaseOpsCaseRow[]
+  total_count: number
+  summary: PurchaseOpsSummary
+  supplier_options: string[]
+  currency: string
+  truncated: boolean
+  canViewAmounts: boolean
+}
+
+/**
+ * Kalder get_purchase_operations_page (én jsonb-RPC). Permission-gating, beløb-
+ * nulling (defense-in-depth), URL-bygning og leverandør-sortering sker her i TS,
+ * så adfærd + return-shape er identisk med det gamle scan.
+ */
+async function fetchPurchaseOpsViaRpc(opts: {
+  reason: PurchaseOpsReasonFilter
+  sort: PurchaseOpsSort
+  pageSize: number
+  offset: number
+  supplier: string
+  searchTokens: string[]
+}): Promise<{ result?: RpcPageResult; error?: string; forbidden?: boolean; canViewAmounts: boolean }> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.view')) {
+    return { forbidden: true, canViewAmounts: false }
+  }
+  const canViewAmounts = hasPermission('economy.cost_prices')
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const escapedTokens = opts.searchTokens.map(escapeLike)
+
+  const { data, error } = await supabase.rpc('get_purchase_operations_page', {
+    p_today: todayIso,
+    p_can_view_amounts: canViewAmounts,
+    p_reason: opts.reason,
+    p_supplier: opts.supplier || null,
+    p_search_tokens: escapedTokens.length ? escapedTokens : null,
+    p_sort: opts.sort,
+    p_limit: opts.pageSize,
+    p_offset: opts.offset,
+    p_case_ids: null, // altid NULL i produktion (kun test-scoping)
+  })
+  if (error) return { error: error.message, canViewAmounts }
+
+  const payload = (data ?? {}) as Record<string, unknown>
+  const rawItems = Array.isArray(payload.items) ? (payload.items as Record<string, unknown>[]) : []
+  const items: PurchaseOpsCaseRow[] = rawItems.map((it) => {
+    const caseId = String(it.case_id)
+    const topInvoiceId = (it.top_invoice_id as string | null) ?? null
+    return {
+      case_id: caseId,
+      case_number: (it.case_number as string | null) ?? null,
+      case_title: (it.case_title as string | null) ?? null,
+      customer_label: (it.customer_label as string | null) ?? null,
+      unconverted_line_count: Number(it.unconverted_line_count ?? 0),
+      unconverted_amount: canViewAmounts ? r2(Number(it.unconverted_amount ?? 0)) : null,
+      overdue_count: Number(it.overdue_count ?? 0),
+      due_soon_count: Number(it.due_soon_count ?? 0),
+      received_awaiting_count: Number(it.received_awaiting_count ?? 0),
+      latest_invoice_date: (it.latest_invoice_date as string | null) ?? null,
+      latest_due_date: (it.latest_due_date as string | null) ?? null,
+      earliest_due_date: (it.earliest_due_date as string | null) ?? null,
+      action_reasons: (Array.isArray(it.action_reasons) ? it.action_reasons : []) as PurchaseOpsActionReason[],
+      supplier_names: (Array.isArray(it.supplier_names) ? it.supplier_names : []) as string[],
+      case_link: `/dashboard/orders/${caseId}`,
+      top_invoice_id: topInvoiceId,
+      top_invoice_link: topInvoiceId ? `/dashboard/incoming-invoices/${topInvoiceId}` : null,
+    }
+  })
+
+  const s = (payload.summary ?? {}) as Record<string, unknown>
+  const summary: PurchaseOpsSummary = {
+    total_cases_with_action: Number(s.total_cases_with_action ?? 0),
+    total_unconverted_lines: Number(s.total_unconverted_lines ?? 0),
+    total_unconverted_amount: canViewAmounts ? r2(Number(s.total_unconverted_amount ?? 0)) : null,
+    overdue_invoice_count: Number(s.overdue_invoice_count ?? 0),
+    due_soon_invoice_count: Number(s.due_soon_invoice_count ?? 0),
+    approved_with_unconverted_count: Number(s.approved_with_unconverted_count ?? 0),
+    received_awaiting_unconverted_count: Number(s.received_awaiting_unconverted_count ?? 0),
+  }
+
+  // supplier_options leveres usorteret distinct fra DB → sortér (da) + cap i TS
+  // (identisk med det gamle scan).
+  const supplierOptions = (Array.isArray(payload.supplier_options) ? (payload.supplier_options as string[]) : [])
+    .slice().sort((a, b) => a.localeCompare(b, 'da')).slice(0, SUPPLIER_OPTIONS_CAP)
+
+  return {
+    result: {
+      items,
+      total_count: Number(payload.total_count ?? 0),
+      summary,
+      supplier_options: supplierOptions,
+      currency: (payload.currency as string) ?? 'DKK',
+      truncated: payload.truncated === true,
+      canViewAmounts,
+    },
+    canViewAmounts,
+  }
+}
+
+// =====================================================================
 // Ø9.5 — Dashboard-widget-overblik (kompakt, top-20)
 // =====================================================================
 
@@ -353,16 +469,30 @@ export async function getPurchaseOperationsDashboardAction(): Promise<PurchaseOp
     truncated: false, internal_purchase: true,
   }
   try {
-    const { result, error, forbidden, canViewAmounts } = await scanPurchaseOps()
+    if (USE_LEGACY_SCAN) {
+      const { result, error, forbidden, canViewAmounts } = await scanPurchaseOpsLegacy()
+      if (forbidden) return { ...base, message: 'Manglende tilladelse: incoming_invoices.view' }
+      if (error || !result) return { ...base, can_view_amounts: canViewAmounts, message: error ?? 'Ingen data' }
+      const actionable = result.rows.filter(isActionableRow).sort(sortByPriority)
+      return {
+        ok: true, ...result.summary, can_view_amounts: result.canViewAmounts,
+        top_cases: actionable.slice(0, TOP_CASES_CAP), currency: result.currency,
+        truncated: result.truncated, internal_purchase: true,
+      }
+    }
+
+    // RPC: top-20 actionable (reason=action_required, sort=priority); summary er
+    // altid global/ufiltreret i RPC'en — matcher widgettens behov.
+    const { result, error, forbidden, canViewAmounts } = await fetchPurchaseOpsViaRpc({
+      reason: 'action_required', sort: 'priority', pageSize: TOP_CASES_CAP, offset: 0, supplier: '', searchTokens: [],
+    })
     if (forbidden) return { ...base, message: 'Manglende tilladelse: incoming_invoices.view' }
     if (error || !result) return { ...base, can_view_amounts: canViewAmounts, message: error ?? 'Ingen data' }
-
-    const actionable = result.rows.filter(isActionableRow).sort(sortByPriority)
     return {
       ok: true,
       ...result.summary,
       can_view_amounts: result.canViewAmounts,
-      top_cases: actionable.slice(0, TOP_CASES_CAP),
+      top_cases: result.items,
       currency: result.currency,
       truncated: result.truncated,
       internal_purchase: true,
@@ -442,55 +572,73 @@ export async function getPurchaseOperationsPageAction(params: PurchaseOpsPagePar
     currency: 'DKK', truncated: false, internal_purchase: true,
   }
   try {
-    const { result, error, forbidden, canViewAmounts } = await scanPurchaseOps()
+    if (USE_LEGACY_SCAN) {
+      const { result, error, forbidden, canViewAmounts } = await scanPurchaseOpsLegacy()
+      if (forbidden) return { ...base, message: 'Manglende tilladelse: incoming_invoices.view' }
+      if (error || !result) return { ...base, can_view_amounts: canViewAmounts, message: error ?? 'Ingen data' }
+
+      // 1) Filtrér.
+      let filtered = result.rows.filter((r) => rowMatchesReason(r, reason))
+      if (supplierFilter) {
+        const sf = supplierFilter.toLowerCase()
+        filtered = filtered.filter((r) => r.supplier_names.some((s) => s.toLowerCase() === sf))
+      }
+      if (searchTokens.length > 0) {
+        filtered = filtered.filter((r) => {
+          const blob = [r.case_number, r.case_title, r.customer_label, ...r.supplier_names]
+            .filter(Boolean).join(' ').toLowerCase()
+          return searchTokens.every((t) => blob.includes(t))
+        })
+      }
+
+      // 2) Sortér.
+      if (sort === 'priority') filtered.sort(sortByPriority)
+      else if (sort === 'amount') filtered.sort((a, b) => (b.unconverted_amount ?? b.unconverted_line_count) - (a.unconverted_amount ?? a.unconverted_line_count))
+      else if (sort === 'newest_invoice') filtered.sort((a, b) => (b.latest_invoice_date ?? '').localeCompare(a.latest_invoice_date ?? ''))
+      else if (sort === 'due_date') filtered.sort((a, b) => {
+        const ad = a.earliest_due_date, bd = b.earliest_due_date
+        if (ad && bd) return ad.localeCompare(bd)
+        if (ad) return -1
+        if (bd) return 1
+        return 0
+      })
+
+      // 3) Paginér.
+      const total_count = filtered.length
+      const total_pages = Math.max(1, Math.ceil(total_count / pageSize))
+      if (page > total_pages) page = total_pages
+      const start = (page - 1) * pageSize
+      const items = filtered.slice(start, start + pageSize)
+      return {
+        ok: true, items, total_count, page, page_size: pageSize, total_pages, reason, sort,
+        summary: result.summary, supplier_options: result.supplierOptions,
+        can_view_amounts: result.canViewAmounts, currency: result.currency,
+        truncated: result.truncated, internal_purchase: true,
+      }
+    }
+
+    // RPC: al filtrering/sortering/pagination/aggregering sker i Postgres.
+    const offset = (page - 1) * pageSize
+    const { result, error, forbidden, canViewAmounts } = await fetchPurchaseOpsViaRpc({
+      reason, sort, pageSize, offset, supplier: supplierFilter, searchTokens,
+    })
     if (forbidden) return { ...base, message: 'Manglende tilladelse: incoming_invoices.view' }
     if (error || !result) return { ...base, can_view_amounts: canViewAmounts, message: error ?? 'Ingen data' }
 
-    // 1) Filtrér.
-    let filtered = result.rows.filter((r) => rowMatchesReason(r, reason))
-    if (supplierFilter) {
-      const sf = supplierFilter.toLowerCase()
-      filtered = filtered.filter((r) => r.supplier_names.some((s) => s.toLowerCase() === sf))
-    }
-    if (searchTokens.length > 0) {
-      filtered = filtered.filter((r) => {
-        const blob = [r.case_number, r.case_title, r.customer_label, ...r.supplier_names]
-          .filter(Boolean).join(' ').toLowerCase()
-        return searchTokens.every((t) => blob.includes(t))
-      })
-    }
-
-    // 2) Sortér.
-    if (sort === 'priority') filtered.sort(sortByPriority)
-    else if (sort === 'amount') filtered.sort((a, b) => (b.unconverted_amount ?? b.unconverted_line_count) - (a.unconverted_amount ?? a.unconverted_line_count))
-    else if (sort === 'newest_invoice') filtered.sort((a, b) => (b.latest_invoice_date ?? '').localeCompare(a.latest_invoice_date ?? ''))
-    else if (sort === 'due_date') filtered.sort((a, b) => {
-      // Mest presserende først: tidligste forfald (nulls sidst).
-      const ad = a.earliest_due_date, bd = b.earliest_due_date
-      if (ad && bd) return ad.localeCompare(bd)
-      if (ad) return -1
-      if (bd) return 1
-      return 0
-    })
-
-    // 3) Paginér.
-    const total_count = filtered.length
-    const total_pages = Math.max(1, Math.ceil(total_count / pageSize))
-    if (page > total_pages) page = total_pages
-    const start = (page - 1) * pageSize
-    const items = filtered.slice(start, start + pageSize)
-
+    // RPC clamper offset internt; gengiv den effektive side ud fra total_count.
+    const total_pages = Math.max(1, Math.ceil(result.total_count / pageSize))
+    const effPage = Math.min(page, total_pages)
     return {
       ok: true,
-      items,
-      total_count,
-      page,
+      items: result.items,
+      total_count: result.total_count,
+      page: effPage,
       page_size: pageSize,
       total_pages,
       reason,
       sort,
       summary: result.summary,
-      supplier_options: result.supplierOptions,
+      supplier_options: result.supplier_options,
       can_view_amounts: result.canViewAmounts,
       currency: result.currency,
       truncated: result.truncated,

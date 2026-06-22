@@ -46,10 +46,16 @@ assert(/Manglende tilladelse: incoming_invoices\.view/.test(actionSrc), 'afvisni
 assert(/hasPermission\(\s*['"]economy\.cost_prices['"]\s*\)/.test(actionCode), 'interne beløb gated bag economy.cost_prices')
 assert(/canViewAmounts\s*\?\s*r2\(/.test(actionCode), 'beløb nulles uden kost-permission')
 
-// Read-only.
-for (const mut of ['.insert(', '.update(', '.delete(', '.upsert(', '.rpc(']) {
+// Read-only (ingen data-mutation).
+for (const mut of ['.insert(', '.update(', '.delete(', '.upsert(']) {
   assert(!actionCode.includes(mut), `read-only: ingen "${mut}" i action`)
 }
+// Ø9.7: RPC tilladt, men KUN den ene read-only aggregerings-funktion.
+const rpcCalls = (actionCode.match(/\.rpc\(\s*['"]([a-z_]+)['"]/g) ?? [])
+assert(rpcCalls.length > 0, 'bruger RPC (get_purchase_operations_page)')
+assert(rpcCalls.every((c) => /get_purchase_operations_page/.test(c)), 'KUN get_purchase_operations_page kaldes via .rpc (ingen andre RPC)')
+// p_case_ids må aldrig sendes ikke-NULL fra produktions-action (kun test-scoping).
+assert(/p_case_ids:\s*null/.test(actionCode), 'p_case_ids sendes altid null fra action (kun test-scoping)')
 assert(!/convertAndApprove|approveIncomingInvoice|WithConversion/.test(actionCode), 'ingen konverterings-/godkendelseskald')
 assert(/internal_purchase:\s*true/.test(actionCode), 'payload markeret internal_purchase: true')
 
@@ -72,6 +78,20 @@ for (const f of ['portal_access_tokens', 'anonKey', 'ANON_KEY', 'createPublic'])
   assert(!actionSrc.includes(f), `ingen public/anon-adgang: "${f}"`)
 }
 assert(/\/dashboard\/orders\//.test(actionCode) && /\/dashboard\/incoming-invoices\//.test(actionCode), 'links peger på interne routes')
+
+console.log('\nMigration 00151 (RPC):')
+const MIGRATION = 'supabase/migrations/00151_purchase_operations_rpc.sql'
+let migSrc = ''
+try { migSrc = read(MIGRATION) } catch { /* fil mangler */ }
+assert(migSrc.length > 0, 'migration 00151 findes')
+assert(/CREATE OR REPLACE FUNCTION\s+get_purchase_operations_page/.test(migSrc), 'definerer get_purchase_operations_page')
+assert(/SECURITY INVOKER/.test(migSrc), 'funktionen er SECURITY INVOKER (ingen privilege-escalation)')
+assert(/GRANT EXECUTE ON FUNCTION get_purchase_operations_page[\s\S]*TO authenticated/.test(migSrc), 'EXECUTE grantet til authenticated')
+// Funktionskroppen må ikke mutere data.
+const fnBody = migSrc.slice(migSrc.indexOf('RETURNS jsonb'))
+for (const mut of [/INSERT\s+INTO/i, /\bUPDATE\s+\w/i, /DELETE\s+FROM/i]) {
+  assert(!mut.test(fnBody), `RPC-krop muterer ikke data (${mut.source})`)
+}
 
 console.log('\nUI — side + widget:')
 assert(/incoming_invoices\.view/.test(pageSrc) && /NoAccess/.test(pageSrc), 'side gated bag incoming_invoices.view (NoAccess)')
