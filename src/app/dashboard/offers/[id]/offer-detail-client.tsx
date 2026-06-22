@@ -29,8 +29,6 @@ import {
   MessageSquare,
   Plug,
   ClipboardCheck,
-  ExternalLink,
-  LinkIcon,
   Search,
   AlertTriangle,
   Save,
@@ -66,7 +64,6 @@ import {
   type OptimizationResult,
 } from '@/lib/actions/offers'
 import { getIntegrations, exportOfferToIntegration } from '@/lib/actions/integrations'
-import { sendOfferToOrdrestyring, getOfferOrdrestyringRef } from '@/lib/actions/ordrestyring'
 import { getUnreadPortalMessageCount } from '@/lib/actions/portal'
 import { getProductsForSelect } from '@/lib/actions/products'
 import { getCalculationsForSelect } from '@/lib/actions/calculations'
@@ -147,11 +144,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null)
 
-  // Ordrestyring state
-  const [isSendingToOS, setIsSendingToOS] = useState(false)
-  const [osRef, setOsRef] = useState<{ os_case_number: string; os_url: string; synced_at?: string } | null>(null)
-  const [osError, setOsError] = useState<string | null>(null)
-
   // Inline-editable text fields
   const [scopeText, setScopeText] = useState(offer.scope || '')
   const [notesText, setNotesText] = useState(offer.notes || '')
@@ -212,43 +204,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     const interval = setInterval(loadUnread, 30000) // poll every 30s
     return () => clearInterval(interval)
   }, [offer.customer_id, offer.id])
-
-  // Load existing Ordrestyring reference
-  useEffect(() => {
-    async function loadOsRef() {
-      const result = await getOfferOrdrestyringRef(offer.id)
-      if (result.success && result.data) {
-        setOsRef(result.data)
-      }
-    }
-    loadOsRef()
-  }, [offer.id])
-
-  const handleSendToOrdrestyring = async () => {
-    const ok = await confirm({
-      title: 'Send til Ordrestyring',
-      description: `Vil du oprette tilbud "${offer.title}" som en sag i Ordrestyring? Kunde- og linjedata sendes med.`,
-      confirmLabel: 'Send',
-    })
-    if (!ok) return
-
-    setIsSendingToOS(true)
-    setOsError(null)
-    const result = await sendOfferToOrdrestyring(offer.id)
-    setIsSendingToOS(false)
-
-    if (result.success && result.data) {
-      setOsRef({
-        os_case_number: result.data.os_case_number,
-        os_url: result.data.os_url,
-      })
-      toast.success(`Oprettet i Ordrestyring — Sagsnr. ${result.data.os_case_number}`)
-      router.refresh()
-    } else {
-      setOsError(result.error || 'Ukendt fejl')
-      toast.error('Ordrestyring fejl', result.error)
-    }
-  }
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -655,31 +610,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               )}
               Eksporter
             </button>
-            {osRef ? (
-              <a
-                href={osRef.os_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 border border-green-200 text-green-700 bg-green-50 rounded-md hover:bg-green-100"
-              >
-                <ExternalLink className="w-4 h-4" />
-                OS #{osRef.os_case_number}
-              </a>
-            ) : (
-              <button
-                onClick={handleSendToOrdrestyring}
-                disabled={isSendingToOS || offer.status === 'draft'}
-                title={offer.status === 'draft' ? 'Tilbuddet skal sendes først (kan ikke sendes fra Kladde)' : undefined}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-blue-200 text-blue-700 rounded-md hover:bg-blue-50 disabled:opacity-50"
-              >
-                {isSendingToOS ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <LinkIcon className="w-4 h-4" />
-                )}
-                {isSendingToOS ? 'Sender...' : 'Send til Ordrestyring'}
-              </button>
-            )}
             <button
               onClick={() => setShowTaskForm(true)}
               className="inline-flex items-center gap-2 px-4 py-2 border border-amber-200 text-amber-700 rounded-md hover:bg-amber-50"
@@ -703,16 +633,6 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               {isDeleting ? 'Sletter...' : 'Slet'}
             </button>
           </div>
-          {osError && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-              <div className="text-sm text-red-700">
-                <span className="font-medium">Ordrestyring fejl: </span>
-                {osError}
-              </div>
-              <button onClick={() => setOsError(null)} className="ml-auto text-red-400 hover:text-red-600 text-xs">✕</button>
-            </div>
-          )}
         </div>
 
         {/* Sprint 3B — Manual "Opret sag fra tilbud" CTA / linked-sag box */}

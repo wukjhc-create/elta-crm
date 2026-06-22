@@ -21,8 +21,6 @@ import {
   ExternalLink,
   User,
   Clock,
-  Send,
-  LinkIcon,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { DawaAddressInput, lookupPostalCode, type DawaAddress } from '@/components/shared/dawa-address-input'
@@ -36,7 +34,6 @@ import {
   uploadServiceCaseAttachment,
   deleteServiceCaseAttachment,
   signOffServiceCase,
-  sendToOrdrestyring,
 } from '@/lib/actions/service-cases'
 import {
   SERVICE_CASE_STATUSES,
@@ -114,8 +111,6 @@ export function ServiceCaseDetailClient({ serviceCase: sc, attachments: initialA
   const [attachments, setAttachments] = useState(initialAttachments)
   const [signatureName, setSignatureName] = useState(sc.customer_signature_name || '')
   const [showSignature, setShowSignature] = useState(false)
-  const [osCaseId, setOsCaseId] = useState(sc.os_case_id)
-  const [isSendingToOS, setIsSendingToOS] = useState(false)
 
   // Validation
   const ksrError = validateKSR(ksrNumber)
@@ -238,31 +233,6 @@ export function ServiceCaseDetailClient({ serviceCase: sc, attachments: initialA
     })
   }
 
-  const handleSendToOrdrestyring = async () => {
-    if (osCaseId) {
-      toast.error('Allerede sendt', `Sagsnr. i Ordrestyring: ${osCaseId}`)
-      return
-    }
-    if (!confirm('Er du sikker på, at du vil oprette denne sag i Ordrestyring?')) return
-
-    setIsSendingToOS(true)
-    try {
-      const result = await sendToOrdrestyring(sc.id)
-      if (result.success && result.data) {
-        setOsCaseId(result.data.os_case_number)
-        setStatus('converted')
-        toast.success('Oprettet i Ordrestyring', `Sagsnr.: ${result.data.os_case_number}`)
-        router.refresh()
-      } else {
-        toast.error('Fejl', result.error || 'Kunne ikke oprette i Ordrestyring')
-      }
-    } catch {
-      toast.error('Fejl', 'Netværksfejl — prøv igen')
-    } finally {
-      setIsSendingToOS(false)
-    }
-  }
-
   const hasLocation = latitude != null && longitude != null
   const fullAddress = [address, floorDoor, `${postalCode} ${city}`.trim()].filter(Boolean).join(', ')
 
@@ -288,11 +258,6 @@ export function ServiceCaseDetailClient({ serviceCase: sc, attachments: initialA
             {sc.signed_at && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                 <FileSignature className="w-3 h-3" /> Signeret
-              </span>
-            )}
-            {osCaseId && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
-                <LinkIcon className="w-3 h-3" /> OS: {osCaseId}
               </span>
             )}
           </div>
@@ -589,52 +554,6 @@ export function ServiceCaseDetailClient({ serviceCase: sc, attachments: initialA
             )}
           </div>
 
-          {/* Ordrestyring integration */}
-          <div className="bg-white rounded-lg border p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-              <Send className="w-4 h-4" /> Ordrestyring
-            </h2>
-
-            {osCaseId ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 px-3 py-2.5 bg-purple-50 rounded-lg border border-purple-200">
-                  <LinkIcon className="w-4 h-4 text-purple-600" />
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-purple-900">Sagsnr.: {osCaseId}</p>
-                    {sc.os_synced_at && (
-                      <p className="text-xs text-purple-600">
-                        Sendt {format(new Date(sc.os_synced_at), 'd. MMM yyyy HH:mm', { locale: da })}
-                      </p>
-                    )}
-                  </div>
-                  <CheckCircle className="w-5 h-5 text-purple-500" />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-gray-500">
-                  Send sagen til Ordrestyring med kundedata, adresse og sagsoplysninger.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleSendToOrdrestyring}
-                  disabled={isSendingToOS || isPending || !sc.customer_id}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 font-medium text-sm"
-                >
-                  {isSendingToOS ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  {isSendingToOS ? 'Opretter i Ordrestyring...' : 'Opret i Ordrestyring'}
-                </button>
-                {!sc.customer_id && (
-                  <p className="text-xs text-amber-600">Tilknyt en kunde før du kan sende til Ordrestyring</p>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* Case meta info */}
           <div className="bg-white rounded-lg border p-5 space-y-3">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Info</h2>
@@ -659,12 +578,6 @@ export function ServiceCaseDetailClient({ serviceCase: sc, attachments: initialA
                 <div className="flex justify-between">
                   <span className="text-gray-500">Lukket</span>
                   <span>{format(new Date(sc.closed_at), 'd. MMM yyyy', { locale: da })}</span>
-                </div>
-              )}
-              {osCaseId && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">OS-sag</span>
-                  <span className="font-mono font-medium text-purple-700">{osCaseId}</span>
                 </div>
               )}
               {sc.customer && (

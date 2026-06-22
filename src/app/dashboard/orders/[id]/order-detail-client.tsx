@@ -117,9 +117,6 @@ export function OrderDetailClient({
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
               <span>{sag.case_number}</span>
-              {sag.os_case_id && (
-                <span className="text-gray-400">· OS: {sag.os_case_id}</span>
-              )}
             </div>
             <h1 className="text-2xl font-semibold leading-tight">
               {sag.project_name || sag.title}
@@ -337,7 +334,6 @@ function OverblikTab({
         <Row label="Reference" value={sag.reference ?? '—'} />
         <Row label="Rekvirent" value={sag.requisition ?? '—'} />
         <Row label="Kilde" value={sag.source} />
-        {sag.os_case_id && <Row label="Ordrestyring ID" value={<code className="text-xs">{sag.os_case_id}</code>} />}
         <Row label="Oprettet" value={fmtDateLong(sag.created_at)} />
         {sag.closed_at && <Row label="Lukket" value={fmtDateLong(sag.closed_at)} />}
       </Panel>

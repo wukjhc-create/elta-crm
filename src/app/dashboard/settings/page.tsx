@@ -202,22 +202,6 @@ const settingsCards = [
     ),
   },
   {
-    href: '/dashboard/settings/ordrestyring',
-    title: 'Ordrestyring',
-    subtitle: 'GraphQL API',
-    description: 'Test forbindelse, diagnostik og konfiguration for Ordrestyring-integrationen',
-    iconBg: 'bg-cyan-100',
-    iconColor: 'text-cyan-600',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"
-      />
-    ),
-  },
-  {
     href: '/dashboard/settings/suppliers',
     title: 'Leverandører',
     subtitle: 'Grossister og import',
