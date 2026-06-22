@@ -1,36 +1,11 @@
-import { Metadata } from 'next'
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
-import { NotificationsSettingsClient } from './notifications-settings-client'
-import { getNotificationPreferences } from '@/lib/actions/settings'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'Notifikationer',
-  description: 'Konfigurer e-mail og push notifikationer',
-}
-
 export default async function NotificationsSettingsPage() {
-  const result = await getNotificationPreferences()
-  const saved = result.success && result.data ? result.data : {}
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link
-          href="/dashboard/settings"
-          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Notifikationer</h1>
-          <p className="text-gray-600 mt-1">E-mail og push</p>
-        </div>
-      </div>
-
-      <NotificationsSettingsClient savedPreferences={saved} />
-    </div>
-  )
+  // Notifikations-præferencer er midlertidigt skjult: der findes endnu ingen afsendelses-sti
+  // for nogen af de events, så toggles ville være uærlige. Komponenten
+  // (notifications-settings-client.tsx) og DB-kolonnen profiles.notification_preferences
+  // bevares til fremtidig brug, men ruten redirecter til settings indtil systemet bygges.
+  redirect('/dashboard/settings')
 }
