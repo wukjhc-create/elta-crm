@@ -69,6 +69,15 @@ export interface Integration {
   oauth_refresh_token: string | null
   oauth_expires_at: string | null
 
+  // Secret-maskering (kun sat paa laeste raekker mod browseren). Secrets
+  // selv returneres aldrig i klartekst; disse flags fortaeller om feltet er
+  // konfigureret, saa edit-formen kan vise "•••• (uændret)".
+  has_api_key?: boolean
+  has_api_secret?: boolean
+  has_oauth_client_secret?: boolean
+  has_oauth_access_token?: boolean
+  has_oauth_refresh_token?: boolean
+
   // Request config
   default_headers: Record<string, string>
   timeout_ms: number

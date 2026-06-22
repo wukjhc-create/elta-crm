@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createAnonClient, getUser } from '@/lib/supabase/server'
 import {
   getAuthenticatedClient,
   getAuthenticatedClientWithRole,
@@ -892,14 +893,48 @@ export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
 // ============================================
 
 // Change password
+//
+// Sikkerhed: Supabase auth.updateUser({ password }) verificerer IKKE den
+// nuvaerende adgangskode — en gyldig session er nok. Derfor kraever vi den
+// nuvaerende kode og re-verificerer den server-side via signInWithPassword
+// paa en throwaway anon-klient (ingen cookies → brugerens session roteres
+// ikke), foer vi skifter koden.
 export async function changePassword(
   currentPassword: string,
   newPassword: string
 ): Promise<ActionResult<void>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase } = await getAuthenticatedClient()
 
-    // Supabase updateUser method for password change
+    // Input-validering (matcher UI-kravene)
+    if (!currentPassword) {
+      return { success: false, error: 'Indtast din nuværende adgangskode' }
+    }
+    if (!newPassword || newPassword.length < 8) {
+      return { success: false, error: 'Den nye adgangskode skal være mindst 8 tegn' }
+    }
+    if (newPassword === currentPassword) {
+      return { success: false, error: 'Den nye adgangskode skal være forskellig fra den nuværende' }
+    }
+
+    // Hent den indloggede brugers email (kraeves til re-verifikation)
+    const user = await getUser()
+    if (!user?.email) {
+      return { success: false, error: 'Kunne ikke bekræfte din identitet' }
+    }
+
+    // Re-verificér nuvaerende adgangskode paa en separat, ikke-persisterende
+    // klient saa vi ikke overskriver brugerens session-cookies.
+    const verifyClient = createAnonClient()
+    const { error: verifyError } = await verifyClient.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    })
+    if (verifyError) {
+      return { success: false, error: 'Nuværende adgangskode er forkert' }
+    }
+
+    // Foerst nu skifter vi koden paa den normale session-klient.
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     })

@@ -28,6 +28,12 @@ import {
 } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import {
+  encryptIntegrationSecrets,
+  decryptIntegrationSecrets,
+  maskIntegrationSecrets,
+  INTEGRATION_SECRET_FIELDS,
+} from '@/lib/services/integration-secrets'
 
 // =====================================================
 // HELPERS
@@ -66,7 +72,9 @@ export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data as Integration[] }
+    // Returnér aldrig hemmeligheder i klartekst til browseren.
+    const masked = (data as Integration[]).map(maskIntegrationSecrets)
+    return { success: true, data: masked }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente integrationer') }
   }
@@ -97,7 +105,9 @@ export async function getIntegration(id: string): Promise<ActionResult<Integrati
       return { success: false, error: 'Integration ikke fundet' }
     }
 
-    return { success: true, data: data as IntegrationWithRelations }
+    // Masker secrets; relationer (webhooks/endpoints/creator) bevares.
+    const masked = maskIntegrationSecrets(data as Integration) as IntegrationWithRelations
+    return { success: true, data: masked }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente integration') }
   }
@@ -110,10 +120,13 @@ export async function createIntegration(
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase, userId } = await getAuthenticatedClient()
 
+    // Krypter secret-felter foer lagring (AES-256-GCM, enc:v1:-prefix).
+    const encryptedInput = await encryptIntegrationSecrets(input)
+
     const { data, error } = await supabase
       .from('integrations')
       .insert({
-        ...input,
+        ...encryptedInput,
         created_by: userId,
       })
       .select()
@@ -125,7 +138,7 @@ export async function createIntegration(
     }
 
     revalidatePath('/dashboard/settings/integrations')
-    return { success: true, data: data as Integration }
+    return { success: true, data: maskIntegrationSecrets(data as Integration) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette integration') }
   }
@@ -140,9 +153,22 @@ export async function updateIntegration(
 
     const { id, ...updateData } = input
 
+    // Hent eksisterende ciphertext, saa tomme secret-felter bevares (bevar-
+    // hvis-tom) i stedet for at blive nullet.
+    const { data: existing } = await supabase
+      .from('integrations')
+      .select(INTEGRATION_SECRET_FIELDS.join(','))
+      .eq('id', id)
+      .maybeSingle()
+
+    const encryptedUpdate = await encryptIntegrationSecrets(
+      updateData,
+      existing as Partial<Record<(typeof INTEGRATION_SECRET_FIELDS)[number], string | null>> | null
+    )
+
     const { data, error } = await supabase
       .from('integrations')
-      .update(updateData)
+      .update(encryptedUpdate)
       .eq('id', id)
       .select()
       .single()
@@ -153,7 +179,7 @@ export async function updateIntegration(
     }
 
     revalidatePath('/dashboard/settings/integrations')
-    return { success: true, data: data as Integration }
+    return { success: true, data: maskIntegrationSecrets(data as Integration) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere integration') }
   }
@@ -534,7 +560,8 @@ export async function triggerWebhooks(
 
   // Trigger each webhook
   for (const webhook of activeWebhooks) {
-    const integration = webhook.integration as Integration
+    // Dekrypter secrets in-memory lige foer auth-headers bygges.
+    const integration = await decryptIntegrationSecrets(webhook.integration as Integration)
     const startTime = Date.now()
 
     try {
@@ -763,19 +790,22 @@ export async function exportOfferToIntegration(
     const { supabase, userId } = await getAuthenticatedClient()
 
     // Get integration
-    const { data: integration, error: intError } = await supabase
+    const { data: integrationRow, error: intError } = await supabase
       .from('integrations')
       .select('*')
       .eq('id', integrationId)
       .maybeSingle()
 
-    if (intError || !integration) {
+    if (intError || !integrationRow) {
       return { success: false, error: 'Integration ikke fundet' }
     }
 
-    if (!integration.is_active) {
+    if (!integrationRow.is_active) {
       return { success: false, error: 'Integration er ikke aktiv' }
     }
+
+    // Dekrypter secrets in-memory foer auth-headers bygges.
+    const integration = await decryptIntegrationSecrets(integrationRow as Integration)
 
     // Get endpoint for create_order
     const { data: endpoint } = await supabase
@@ -888,15 +918,18 @@ export async function testIntegrationConnection(
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
-    const { data: integration, error } = await supabase
+    const { data: integrationRow, error } = await supabase
       .from('integrations')
       .select('*')
       .eq('id', integrationId)
       .maybeSingle()
 
-    if (error || !integration) {
+    if (error || !integrationRow) {
       return { success: false, error: 'Integration ikke fundet' }
     }
+
+    // Dekrypter secrets in-memory foer auth-headers bygges.
+    const integration = await decryptIntegrationSecrets(integrationRow as Integration)
 
     if (!integration.base_url) {
       return { success: false, error: 'Ingen base URL konfigureret' }

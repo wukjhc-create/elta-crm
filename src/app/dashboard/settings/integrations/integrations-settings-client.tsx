@@ -420,8 +420,10 @@ export function IntegrationsSettingsClient() {
       description: selectedIntegration.description || '',
       integration_type: selectedIntegration.integration_type,
       base_url: selectedIntegration.base_url || '',
-      api_key: selectedIntegration.api_key || '',
-      api_secret: selectedIntegration.api_secret || '',
+      // Secrets returneres aldrig i klartekst fra serveren — start tomme.
+      // Tomt felt = behold eksisterende (bevar-hvis-tom, haandteres server-side).
+      api_key: '',
+      api_secret: '',
       auth_type: selectedIntegration.auth_type,
     })
     setShowEditDialog(true)
@@ -991,9 +993,29 @@ export function IntegrationsSettingsClient() {
                 type="password"
                 value={formData.api_key}
                 onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-                placeholder="Lad tom for at beholde eksisterende"
+                placeholder={
+                  selectedIntegration?.has_api_key
+                    ? '•••• konfigureret — udfyld for at erstatte'
+                    : 'Ikke konfigureret'
+                }
               />
             </div>
+
+            {selectedIntegration?.auth_type === 'basic' && (
+              <div className="space-y-2">
+                <Label>Secret / Password</Label>
+                <Input
+                  type="password"
+                  value={formData.api_secret}
+                  onChange={(e) => setFormData({ ...formData, api_secret: e.target.value })}
+                  placeholder={
+                    selectedIntegration?.has_api_secret
+                      ? '•••• konfigureret — udfyld for at erstatte'
+                      : 'Ikke konfigureret'
+                  }
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>
