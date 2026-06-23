@@ -1,23 +1,11 @@
-import { Metadata } from 'next'
-import { ProfitSimulatorClient } from './profit-simulator-client'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'Profit Simulator',
-  description: 'Simuler profitabilitet med forskellige marginer og rabatter',
-}
-
 export default function ProfitSimulatorPage() {
-  return (
-    <div className="container mx-auto py-6 px-4 max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Profit Simulator</h1>
-        <p className="text-muted-foreground">
-          Beregn og sammenlign profit-scenarier med forskellige marginer, rabatter og timesatser
-        </p>
-      </div>
-      <ProfitSimulatorClient />
-    </div>
-  )
+  // Profit Simulator er forældreløs: ingen knap eller navigation peger længere på ruten.
+  // Den er en ren client-beregner uden persistens. Midlertidigt skjult — komponenten
+  // (profit-simulator-client.tsx) bevares dormant, men ruten redirecter til
+  // kalkulationslisten indtil den evt. genindføres et meningsfuldt sted.
+  redirect('/dashboard/calculations')
 }

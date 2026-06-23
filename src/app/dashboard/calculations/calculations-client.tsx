@@ -13,7 +13,6 @@ import {
   Copy,
   FileText,
   Zap,
-  Layers,
   Sun,
   Home,
 } from 'lucide-react'
@@ -189,10 +188,10 @@ export default function CalculationsClient({
             <Zap className="w-4 h-4 mr-2" />
             Hurtig kalkulation
           </Button>
-          <Button variant="outline" onClick={() => router.push('/dashboard/calculations/kalkia')}>
-            <Layers className="w-4 h-4 mr-2" />
-            Kalkia Pro
-          </Button>
+          {/* Kalkia Pro-knappen er midlertidigt skjult: builderen gemmer til kalkia_calculations,
+              som ingen visning læser tilbage, så brugerens arbejde forsvinder. Ruten
+              (/dashboard/calculations/kalkia) redirecter nu til denne liste indtil
+              datamodel-beslutningen (Model A vs kalkia) er taget. Kode bevares dormant. */}
           <ExportButton
             type="calculations"
             filters={{
