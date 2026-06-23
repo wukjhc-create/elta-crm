@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
 import { changePassword } from '@/lib/actions/settings'
-import { Lock, Eye, EyeOff, Save, Loader2, Shield, CheckCircle } from 'lucide-react'
+import { Lock, Eye, EyeOff, Save, Loader2, CheckCircle } from 'lucide-react'
 
 export function SecuritySettingsClient() {
   const [isPending, startTransition] = useTransition()
@@ -223,23 +223,6 @@ export function SecuritySettingsClient() {
           </div>
         </div>
       </form>
-
-      {/* 2FA section - placeholder */}
-      <div className="bg-white rounded-lg border p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Shield className="w-5 h-5 text-gray-700" />
-          <h3 className="text-lg font-semibold text-gray-900">To-faktor-autentificering (2FA)</h3>
-        </div>
-
-        <div className="bg-gray-50 rounded-lg p-4 text-center">
-          <p className="text-gray-500 mb-2">
-            Ekstra sikkerhed med to-faktor-autentificering kommer snart.
-          </p>
-          <p className="text-sm text-gray-400">
-            Med 2FA aktiveret skal du bekræfte login med din telefon.
-          </p>
-        </div>
-      </div>
 
       {/* Security tips */}
       <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">

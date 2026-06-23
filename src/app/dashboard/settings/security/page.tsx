@@ -22,7 +22,7 @@ export default function SecuritySettingsPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Sikkerhed</h1>
-          <p className="text-gray-600 mt-1">Adgangskode og 2FA</p>
+          <p className="text-gray-600 mt-1">Adgangskode</p>
         </div>
       </div>
 
