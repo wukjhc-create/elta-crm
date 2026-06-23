@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { validatePortalToken, getPortalOffers, getPortalMessages, getPortalDocuments } from '@/lib/actions/portal'
+import { validatePortalToken, getPortalOffers, getPortalMessages, getPortalDocuments, getPortalInvoices } from '@/lib/actions/portal'
 import { getPortalFuldmagter } from '@/lib/actions/fuldmagt'
 import { getPortalServiceCases } from '@/lib/actions/service-cases'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -25,11 +25,12 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
   const session = sessionResult.data
 
   // Fetch data (all anon-safe)
-  const [offersResult, messagesResult, documentsResult, serviceCasesResult, fuldmagterResult] = await Promise.all([
+  const [offersResult, messagesResult, documentsResult, serviceCasesResult, invoicesResult, fuldmagterResult] = await Promise.all([
     getPortalOffers(token),
     getPortalMessages(token),
     getPortalDocuments(token),
     getPortalServiceCases(session.customer_id),
+    getPortalInvoices(token),
     getPortalFuldmagter(token),
   ])
 
@@ -53,6 +54,7 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
       messages={messagesResult.data || []}
       documents={documentsResult.data || []}
       serviceCases={serviceCasesResult.data || []}
+      invoices={invoicesResult.data || []}
       fuldmagter={fuldmagterResult.data || []}
       companySettings={companySettings}
     />

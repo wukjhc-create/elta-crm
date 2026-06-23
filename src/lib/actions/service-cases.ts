@@ -28,6 +28,7 @@ import type {
   CaseNoteKind,
 } from '@/types/service-cases.types'
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
+import type { PortalServiceCase } from '@/types/portal.types'
 
 const PAGE_SIZE = 25
 
@@ -402,17 +403,22 @@ export async function deleteServiceCase(id: string): Promise<ActionResult> {
 
 export async function getPortalServiceCases(
   customerId: string
-): Promise<ActionResult<ServiceCase[]>> {
+): Promise<ActionResult<PortalServiceCase[]>> {
   try {
     // Phase α.2 trin 4: service_cases anon-policy via portal_access_tokens
     // er droppet i 00127. Vi bruger nu createAdminClient + customer_id-scope
     // fra caller (typisk session.customer_id efter validatePortalToken).
     // Samme moenster som getPortalDocuments / getPortalMessages.
+    //
+    // Sikkerhed: eksplicit kunde-sikker kolonneliste — ALDRIG select('*').
+    // Interne felter (budget, contract_sum, revised_sum, planned_hours,
+    // formand_id, assigned_to, low_profit, ksr_number, ean_number,
+    // case_notes, parts-FK'er) må aldrig nå portal-klientens RSC-payload.
     const supabase = createAdminClient()
 
     const { data, error } = await supabase
       .from('service_cases')
-      .select('*')
+      .select('id, case_number, title, description, status, priority, status_note, address, postal_code, city, floor_door, start_date, end_date, project_name, type, reference, created_at')
       .eq('customer_id', customerId)
       .in('status', ['new', 'in_progress', 'pending'])
       .order('created_at', { ascending: false })
@@ -422,7 +428,7 @@ export async function getPortalServiceCases(
       return { success: false, error: 'Kunne ikke hente serviceopgaver' }
     }
 
-    return { success: true, data: (data || []) as ServiceCase[] }
+    return { success: true, data: (data || []) as PortalServiceCase[] }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

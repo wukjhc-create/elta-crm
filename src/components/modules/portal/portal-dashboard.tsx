@@ -13,10 +13,10 @@ import {
   Download,
   FolderOpen,
   Wrench,
+  Receipt,
 } from 'lucide-react'
-import type { PortalSession, PortalOffer, PortalMessageWithRelations } from '@/types/portal.types'
+import type { PortalSession, PortalOffer, PortalMessageWithRelations, PortalServiceCase, PortalInvoice } from '@/types/portal.types'
 import type { PortalDocument } from '@/lib/actions/portal'
-import type { ServiceCase } from '@/types/service-cases.types'
 import { SERVICE_CASE_STATUS_LABELS, SERVICE_CASE_PRIORITY_LABELS } from '@/types/service-cases.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import type { FuldmagtData } from '@/lib/actions/fuldmagt'
@@ -33,7 +33,8 @@ interface PortalDashboardProps {
   offers: PortalOffer[]
   messages: PortalMessageWithRelations[]
   documents?: PortalDocument[]
-  serviceCases?: ServiceCase[]
+  serviceCases?: PortalServiceCase[]
+  invoices?: PortalInvoice[]
   fuldmagter?: FuldmagtData[]
   companySettings?: CompanySettings | null
 }
@@ -45,10 +46,48 @@ export function PortalDashboard({
   messages,
   documents = [],
   serviceCases = [],
+  invoices = [],
   fuldmagter = [],
   companySettings,
 }: PortalDashboardProps) {
   const [showChat, setShowChat] = useState(false)
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null)
+
+  const handleDownloadInvoice = async (invoiceId: string, invoiceNumber: string) => {
+    setDownloadingInvoiceId(invoiceId)
+    try {
+      const res = await fetch(
+        `/api/portal/invoices/pdf?token=${encodeURIComponent(token)}&invoiceId=${invoiceId}`
+      )
+      if (!res.ok) throw new Error('PDF fejl')
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${invoiceNumber || 'faktura'}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      alert('Kunne ikke downloade faktura. Prøv igen.')
+    } finally {
+      setDownloadingInvoiceId(null)
+    }
+  }
+
+  const invoiceStatusLabel = (inv: PortalInvoice): string => {
+    if (inv.is_credit_note) return 'Kreditnota'
+    if (inv.status === 'paid' || inv.payment_status === 'paid') return 'Betalt'
+    return 'Afventer betaling'
+  }
+
+  const invoiceStatusClass = (inv: PortalInvoice): string => {
+    if (inv.is_credit_note) return 'bg-purple-100 text-purple-700'
+    if (inv.status === 'paid' || inv.payment_status === 'paid')
+      return 'bg-green-100 text-green-700'
+    return 'bg-amber-100 text-amber-700'
+  }
 
   const pendingOffers = offers.filter(
     (o) => o.status === 'sent' || o.status === 'viewed'
@@ -59,6 +98,15 @@ export function PortalDashboard({
   )
 
   const currency = companySettings?.default_currency || 'DKK'
+
+  const statCardCount =
+    3 + (serviceCases.length > 0 ? 1 : 0) + (invoices.length > 0 ? 1 : 0)
+  const statGridClass =
+    statCardCount >= 5
+      ? 'md:grid-cols-3 lg:grid-cols-5'
+      : statCardCount === 4
+      ? 'md:grid-cols-2 lg:grid-cols-4'
+      : 'md:grid-cols-3'
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -104,12 +152,12 @@ export function PortalDashboard({
           {session.customer.company_name} ({session.customer.customer_number})
         </p>
         <p className="text-sm text-gray-500 mt-3">
-          Her finder du dine tilbud, dokumenter, sager og beskeder samlet ét sted.
+          Her finder du dine tilbud, fakturaer, dokumenter, sager og beskeder samlet ét sted.
         </p>
       </div>
 
       {/* Stats */}
-      <div className={`grid grid-cols-1 gap-4 ${serviceCases.length > 0 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+      <div className={`grid grid-cols-1 gap-4 ${statGridClass}`}>
         <div className="bg-white rounded-xl border p-6 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -163,6 +211,20 @@ export function PortalDashboard({
               <div>
                 <p className="text-2xl font-bold">{serviceCases.length}</p>
                 <p className="text-sm text-gray-600">Serviceopgaver</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {invoices.length > 0 && (
+          <div className="bg-white rounded-xl border p-6 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <Receipt className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{invoices.length}</p>
+                <p className="text-sm text-gray-600">Fakturaer</p>
               </div>
             </div>
           </div>
@@ -305,6 +367,73 @@ export function PortalDashboard({
                 </div>
               )
             })}
+          </div>
+        )}
+      </div>
+
+      {/* Invoices */}
+      <div className="bg-white rounded-xl border shadow-sm">
+        <div className="p-6 border-b">
+          <div className="flex items-center gap-2">
+            <Receipt className="w-5 h-5 text-emerald-600" />
+            <h2 className="text-lg font-semibold">Fakturaer</h2>
+            {invoices.length > 0 && (
+              <span className="text-sm text-gray-500">({invoices.length})</span>
+            )}
+          </div>
+        </div>
+        {invoices.length === 0 ? (
+          <div className="p-6 text-sm text-gray-500">
+            Der er endnu ingen fakturaer.
+          </div>
+        ) : (
+          <div className="divide-y">
+            {invoices.map((inv) => (
+              <div
+                key={inv.id}
+                className="flex items-center justify-between p-6"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                    <Receipt className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{inv.invoice_number}</p>
+                    <p className="text-sm text-gray-500">
+                      {formatDateUtil(inv.sent_at || inv.created_at)}
+                      {inv.due_date && (
+                        <span className="text-gray-400">
+                          {' '}· forfald {formatDateUtil(inv.due_date)}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900">
+                      {formatCurrency(inv.final_amount, currency)}
+                    </p>
+                    <span
+                      className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${invoiceStatusClass(inv)}`}
+                    >
+                      {invoiceStatusLabel(inv)}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadInvoice(inv.id, inv.invoice_number)}
+                    disabled={downloadingInvoiceId === inv.id}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 border rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4" />
+                    {downloadingInvoiceId === inv.id ? 'Henter…' : 'PDF'}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

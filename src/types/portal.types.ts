@@ -1,3 +1,9 @@
+import type {
+  ServiceCaseStatus,
+  ServiceCasePriority,
+  ServiceCaseType,
+} from '@/types/service-cases.types'
+
 // Portal Access Token types
 export interface PortalAccessToken {
   id: string
@@ -159,4 +165,46 @@ export interface AcceptOfferData {
 export interface RejectOfferData {
   offer_id: string
   reason?: string
+}
+
+// Portal service case view (kunde-sikker delmængde — ALDRIG interne felter som
+// budget/contract_sum/planned_hours/formand_id/low_profit/ksr_number/ean_number)
+export interface PortalServiceCase {
+  id: string
+  case_number: string
+  title: string
+  description: string | null
+  status: ServiceCaseStatus
+  priority: ServiceCasePriority
+  status_note: string | null
+  address: string | null
+  postal_code: string | null
+  city: string | null
+  floor_door: string | null
+  start_date: string | null
+  end_date: string | null
+  project_name: string | null
+  type: ServiceCaseType | null
+  reference: string | null
+  created_at: string
+}
+
+// Portal invoice view (kunde-sikker, cost-free — KUN salgs-/fakturatal, ALDRIG
+// kost/margin/dækningsbidrag). Afledte bool'er beregnes server-side.
+export interface PortalInvoice {
+  id: string
+  invoice_number: string
+  status: 'sent' | 'paid'
+  payment_status: 'pending' | 'partial' | 'paid'
+  invoice_type: 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
+  total_amount: number
+  tax_amount: number
+  final_amount: number
+  amount_paid: number
+  currency: string
+  due_date: string | null
+  sent_at: string | null
+  paid_at: string | null
+  created_at: string
+  is_credit_note: boolean
 }

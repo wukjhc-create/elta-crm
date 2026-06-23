@@ -27,6 +27,7 @@ import type {
   AcceptOfferData,
   PortalAttachment,
   UploadAttachmentResult,
+  PortalInvoice,
 } from '@/types/portal.types'
 import type { ActionResult } from '@/types/common.types'
 import { logger } from '@/lib/utils/logger'
@@ -1559,6 +1560,72 @@ export async function getAttachmentUrl(
     return { success: true, data: data.signedUrl }
   } catch (error) {
     logger.error('Error in getAttachmentUrl', { error: error })
+    return { success: false, error: 'Der opstod en fejl' }
+  }
+}
+
+// =====================================================
+// Portal Invoices
+// =====================================================
+
+// Get invoices visible to portal customer (cost-free, kunde-scoped).
+//
+// Sikkerhed (jf. plan-invarianter):
+//   - validatePortalToken først; customer_id stammer fra valideret token
+//   - admin-client + eksplicit .eq('customer_id', customerId) = grænsen
+//   - KUN salgs-/fakturatal i SELECT — ALDRIG kost/margin/dækningsbidrag.
+//     Interne kolonner (notes, payment_reference, reminder_*, external_*,
+//     work_order_id, voided_by, credit_reason, amount_basis*, parts-FK'er)
+//     udelades bevidst.
+//   - Synlighed: kun status sent/paid og IKKE annulleret (voided_at IS NULL)
+//     — drafts er internt WIP, voided er misvisende uden kontekst.
+export async function getPortalInvoices(
+  token: string
+): Promise<ActionResult<PortalInvoice[]>> {
+  try {
+    const sessionResult = await validatePortalToken(token)
+    if (!sessionResult.success || !sessionResult.data) {
+      return { success: false, error: sessionResult.error }
+    }
+
+    const supabase = createAdminClient()
+    const customerId = sessionResult.data.customer_id
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, status, payment_status, invoice_type, total_amount, tax_amount, final_amount, amount_paid, currency, due_date, sent_at, paid_at, created_at')
+      .eq('customer_id', customerId)
+      .in('status', ['sent', 'paid'])
+      .is('voided_at', null)
+      .order('created_at', { ascending: false })
+      .limit(100)
+
+    if (error) {
+      logger.error('Error fetching portal invoices', { error })
+      return { success: false, error: 'Kunne ikke hente fakturaer' }
+    }
+
+    const invoices: PortalInvoice[] = (data || []).map((inv) => ({
+      id: inv.id,
+      invoice_number: inv.invoice_number,
+      status: inv.status,
+      payment_status: inv.payment_status,
+      invoice_type: inv.invoice_type ?? 'standard',
+      total_amount: inv.total_amount,
+      tax_amount: inv.tax_amount,
+      final_amount: inv.final_amount,
+      amount_paid: inv.amount_paid,
+      currency: inv.currency,
+      due_date: inv.due_date,
+      sent_at: inv.sent_at,
+      paid_at: inv.paid_at,
+      created_at: inv.created_at,
+      is_credit_note: inv.invoice_type === 'credit',
+    }))
+
+    return { success: true, data: invoices }
+  } catch (error) {
+    logger.error('Error in getPortalInvoices', { error })
     return { success: false, error: 'Der opstod en fejl' }
   }
 }
