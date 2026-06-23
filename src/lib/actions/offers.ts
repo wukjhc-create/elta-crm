@@ -87,7 +87,21 @@ export async function getOffers(filters?: {
     // Apply filters to both queries with sanitized search
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `title.ilike.%${sanitized}%,offer_number.ilike.%${sanitized}%`
+      // Udvid søgningen til også at matche kundenavn + kundenummer. PostgREST kan ikke
+      // filtrere embedded relationer i .or(), så vi slår matchende kunde-id'er op først
+      // og føjer dem til OR'en som customer_id.in.(...) (base-tabel-kolonne).
+      const { data: matchingCustomers } = await supabase
+        .from('customers')
+        .select('id')
+        .or(`company_name.ilike.%${sanitized}%,customer_number.ilike.%${sanitized}%`)
+        .limit(100)
+
+      const orParts = [`title.ilike.%${sanitized}%`, `offer_number.ilike.%${sanitized}%`]
+      if (matchingCustomers && matchingCustomers.length > 0) {
+        const ids = matchingCustomers.map((c) => c.id).join(',')
+        orParts.push(`customer_id.in.(${ids})`)
+      }
+      const searchFilter = orParts.join(',')
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }

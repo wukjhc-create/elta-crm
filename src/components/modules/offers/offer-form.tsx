@@ -26,11 +26,13 @@ interface OfferFormProps {
   offer?: Offer
   companySettings?: CompanySettings | null
   calculatorData?: CalculatorData | null
+  /** Forudvælg kunde (fx ved oprettelse fra kundekortet). */
+  defaultCustomerId?: string
   onClose: () => void
   onSuccess?: (offer: Offer) => void
 }
 
-export function OfferForm({ offer, companySettings, calculatorData, onClose, onSuccess }: OfferFormProps) {
+export function OfferForm({ offer, companySettings, calculatorData, defaultCustomerId, onClose, onSuccess }: OfferFormProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -95,6 +97,7 @@ export function OfferForm({ offer, companySettings, calculatorData, onClose, onS
       : {
           title: getDefaultTitle(),
           description: getDefaultDescription(),
+          customer_id: defaultCustomerId,
           discount_percentage: 0,
           tax_percentage: companySettings?.default_tax_percentage ?? 25,
           valid_until: getDefaultValidUntil(),

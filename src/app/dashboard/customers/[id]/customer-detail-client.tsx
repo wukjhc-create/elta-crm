@@ -30,9 +30,12 @@ import {
   GitBranch,
   Briefcase,
   Receipt,
+  FileText,
 } from 'lucide-react'
 import { BookBesigtigelseModal } from '@/components/modules/customers/book-besigtigelse-modal'
 import { CustomerForm } from '@/components/modules/customers/customer-form'
+import { OfferForm } from '@/components/modules/offers/offer-form'
+import { CreateServiceCaseModal } from '@/components/modules/service-cases/create-service-case-modal'
 import { ContactForm } from '@/components/modules/customers/contact-form'
 import { PortalAccess } from '@/components/modules/customers/portal-access'
 import { CustomerPricing } from '@/components/modules/customers/customer-pricing'
@@ -58,14 +61,16 @@ import {
   type CustomerContact,
 } from '@/types/customers.types'
 import type { PortalAccessToken } from '@/types/portal.types'
+import type { CompanySettings } from '@/types/company-settings.types'
 import { useToast } from '@/components/ui/toast'
 
 interface CustomerDetailClientProps {
   customer: CustomerWithRelations
   portalTokens: PortalAccessToken[]
+  companySettings?: CompanySettings | null
 }
 
-export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, portalTokens, companySettings }: CustomerDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -78,6 +83,8 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
   const [showBesigtigelse, setShowBesigtigelse] = useState(false)
   const [activeTab, setActiveTab] = useState<'oversigt' | 'sager' | 'fakturaer' | 'besigtigelse' | 'dokumenter' | 'status'>('oversigt')
   const [showFuldmagtModal, setShowFuldmagtModal] = useState(false)
+  const [showOfferForm, setShowOfferForm] = useState(false)
+  const [showCaseModal, setShowCaseModal] = useState(false)
   const [fuldmagtOrderNr, setFuldmagtOrderNr] = useState('')
   const [isSendingFuldmagt, setIsSendingFuldmagt] = useState(false)
 
@@ -206,6 +213,20 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
           </div>
           {/* Action buttons — scrollable on mobile */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            <button
+              onClick={() => setShowOfferForm(true)}
+              className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium active:scale-95 transition-transform touch-manipulation"
+            >
+              <FileText className="w-4 h-4" />
+              Nyt tilbud
+            </button>
+            <button
+              onClick={() => setShowCaseModal(true)}
+              className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium active:scale-95 transition-transform touch-manipulation"
+            >
+              <Briefcase className="w-4 h-4" />
+              Ny sag
+            </button>
             <button
               onClick={() => setShowFuldmagtModal(true)}
               className="shrink-0 inline-flex items-center gap-2 px-4 min-h-[44px] bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium active:scale-95 transition-transform touch-manipulation"
@@ -729,6 +750,23 @@ export function CustomerDetailClient({ customer, portalTokens }: CustomerDetailC
           customer={customer}
           onClose={() => setShowEditForm(false)}
           onSuccess={() => router.refresh()}
+        />
+      )}
+
+      {showOfferForm && (
+        <OfferForm
+          companySettings={companySettings}
+          defaultCustomerId={customer.id}
+          onClose={() => setShowOfferForm(false)}
+          onSuccess={() => { setShowOfferForm(false); router.refresh() }}
+        />
+      )}
+
+      {showCaseModal && (
+        <CreateServiceCaseModal
+          defaultCustomer={{ id: customer.id, company_name: customer.company_name }}
+          onClose={() => setShowCaseModal(false)}
+          onCreated={() => { setShowCaseModal(false); router.refresh() }}
         />
       )}
 

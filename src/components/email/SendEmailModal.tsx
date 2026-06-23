@@ -22,9 +22,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import {
@@ -441,40 +439,18 @@ export function SendEmailModal({
                   )}
                 </div>
 
-                <Tabs defaultValue="preview">
-                  <TabsList>
-                    <TabsTrigger value="preview">
-                      <Eye className="h-4 w-4 mr-1" />
-                      Forhåndsvisning
-                    </TabsTrigger>
-                    <TabsTrigger value="edit">
-                      <Edit className="h-4 w-4 mr-1" />
-                      HTML
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="preview" className="mt-2">
-                    <div className="border rounded-lg bg-white overflow-hidden">
-                      <iframe
-                        srcDoc={bodyHtml}
-                        className="w-full h-[400px]"
-                        title="E-mail forhåndsvisning"
-                        sandbox="allow-same-origin"
-                      />
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="edit" className="mt-2">
-                    <Textarea
-                      value={bodyHtml}
-                      onChange={(e) => {
-                        setBodyHtml(e.target.value)
-                        setIsEditing(true)
-                      }}
-                      className="font-mono text-xs h-[400px]"
-                    />
-                  </TabsContent>
-                </Tabs>
+                <div className="flex items-center gap-1 text-sm text-gray-600">
+                  <Eye className="h-4 w-4" />
+                  Forhåndsvisning
+                </div>
+                <div className="border rounded-lg bg-white overflow-hidden">
+                  <iframe
+                    srcDoc={bodyHtml}
+                    className="w-full h-[400px]"
+                    title="E-mail forhåndsvisning"
+                    sandbox="allow-same-origin"
+                  />
+                </div>
               </div>
 
               {/* Editing notice */}
