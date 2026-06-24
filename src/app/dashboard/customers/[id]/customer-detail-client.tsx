@@ -38,6 +38,7 @@ import { OfferForm } from '@/components/modules/offers/offer-form'
 import { CreateServiceCaseModal } from '@/components/modules/service-cases/create-service-case-modal'
 import { ContactForm } from '@/components/modules/customers/contact-form'
 import { PortalAccess } from '@/components/modules/customers/portal-access'
+import { PartnerPortalAccess } from '@/components/modules/customers/partner-portal-access'
 import { CustomerPricing } from '@/components/modules/customers/customer-pricing'
 import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { CustomerTasks } from '@/components/modules/customers/customer-tasks'
@@ -61,16 +62,18 @@ import {
   type CustomerContact,
 } from '@/types/customers.types'
 import type { PortalAccessToken } from '@/types/portal.types'
+import type { PartnerAccessToken } from '@/types/partner-portal.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { useToast } from '@/components/ui/toast'
 
 interface CustomerDetailClientProps {
   customer: CustomerWithRelations
   portalTokens: PortalAccessToken[]
+  partnerTokens: PartnerAccessToken[]
   companySettings?: CompanySettings | null
 }
 
-export function CustomerDetailClient({ customer, portalTokens, companySettings }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings }: CustomerDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -713,6 +716,13 @@ export function CustomerDetailClient({ customer, portalTokens, companySettings }
               customerId={customer.id}
               customerEmail={customer.email}
               tokens={portalTokens}
+            />
+
+            {/* Partner Portal Access */}
+            <PartnerPortalAccess
+              customerId={customer.id}
+              customerEmail={customer.email}
+              tokens={partnerTokens}
             />
 
             {/* Portal Chat */}

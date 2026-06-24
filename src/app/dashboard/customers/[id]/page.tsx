@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getCustomer } from '@/lib/actions/customers'
 import { getPortalTokens } from '@/lib/actions/portal'
+import { getPartnerTokens } from '@/lib/actions/partner-portal'
 import { getCompanySettings } from '@/lib/actions/settings'
 import { CustomerDetailClient } from './customer-detail-client'
 
@@ -13,9 +14,10 @@ interface CustomerDetailPageProps {
 export default async function CustomerDetailPage({ params }: CustomerDetailPageProps) {
   const { id } = await params
 
-  const [customerResult, tokensResult, settingsResult] = await Promise.all([
+  const [customerResult, tokensResult, partnerTokensResult, settingsResult] = await Promise.all([
     getCustomer(id),
     getPortalTokens(id),
+    getPartnerTokens(id),
     getCompanySettings(),
   ])
 
@@ -27,6 +29,7 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
     <CustomerDetailClient
       customer={customerResult.data}
       portalTokens={tokensResult.data || []}
+      partnerTokens={partnerTokensResult.data || []}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
     />
   )
