@@ -233,7 +233,9 @@ export function OrderDetailClient({
           {active === 'materialer' && <OrderMaterialsTab caseId={sag.id} />}
           {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} />}
           {active === 'mails' && <OrderMailsTab caseId={sag.id} />}
-          {active === 'dokumenter' && <OrderDocumentsTab caseId={sag.id} />}
+          {active === 'dokumenter' && (
+            <OrderDocumentsTab caseId={sag.id} customerId={sag.customer_id ?? null} />
+          )}
           {active === 'oekonomi' && canSeeCost && (
             <div className="space-y-5">
               <OrderEconomyTab

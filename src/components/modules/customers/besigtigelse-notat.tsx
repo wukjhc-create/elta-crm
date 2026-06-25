@@ -24,6 +24,7 @@ import {
 import { saveBesigtigelsesnotat, sendBesigtigelsePdf } from '@/lib/actions/besigtigelse'
 import type { CustomerWithRelations } from '@/types/customers.types'
 import { useToast } from '@/components/ui/toast'
+import { RoofDrawingSection } from '@/components/modules/customers/roof-drawing/roof-drawing-section'
 
 interface BesigtigelsesNotatProps {
   customer: CustomerWithRelations
@@ -713,6 +714,11 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
             <CameraBtn category="andet" label="Tag billede" />
           </div>
           <ImageThumbs category="andet" />
+        </section>
+
+        {/* TAGTEGNING & PANELLAYOUT */}
+        <section className="border-t pt-5">
+          <RoofDrawingSection customerId={customer.id} serviceCaseId={null} />
         </section>
 
         {/* SÆRLIGE AFTALER */}

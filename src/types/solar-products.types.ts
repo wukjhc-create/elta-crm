@@ -24,8 +24,19 @@ export const SOLAR_PRODUCT_TYPE_LABELS: Record<SolarProductType, string> = {
 export interface PanelSpecs {
   wattage: number // Watts per panel
   efficiency: number // Decimal (0.20 = 20%)
+  width_mm?: number // Physical panel width in mm (used by roof drawing tool)
+  height_mm?: number // Physical panel height in mm (used by roof drawing tool)
   [key: string]: unknown
 }
+
+/**
+ * Fallback fysiske panelmål i mm når et panel mangler width_mm/height_mm.
+ * Svarer til et typisk ~440-450 W halvcelle-modul. Drawing-editoren bruger
+ * disse som default og viser en advarsel, så brugeren kan rette panelets
+ * mål i Solcelleindstillinger.
+ */
+export const FALLBACK_PANEL_WIDTH_MM = 1722
+export const FALLBACK_PANEL_HEIGHT_MM = 1134
 
 export interface InverterSpecs {
   capacity: number // kW

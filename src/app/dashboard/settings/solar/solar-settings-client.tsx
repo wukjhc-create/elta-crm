@@ -228,6 +228,14 @@ export function SolarSettingsClient({
                   <span className="text-gray-500">
                     {(specs.efficiency * 100).toFixed(0)}% eff
                   </span>
+                  {specs.width_mm && specs.height_mm && (
+                    <>
+                      <span className="text-gray-400 mx-2">·</span>
+                      <span className="text-gray-500">
+                        {specs.width_mm} × {specs.height_mm} mm
+                      </span>
+                    </>
+                  )}
                 </>
               )
             }}
@@ -611,6 +619,8 @@ function ProductDialog({ type, product, onSave, onClose, isPending }: ProductDia
     // Panel specs
     wattage: number
     panelEfficiency: number
+    panelWidthMm: number
+    panelHeightMm: number
     // Inverter specs
     capacity: number
     inverterEfficiency: number
@@ -630,6 +640,8 @@ function ProductDialog({ type, product, onSave, onClose, isPending }: ProductDia
         price: product.price,
         wattage: (specs.wattage as number) || 400,
         panelEfficiency: ((specs.efficiency as number) || 0.2) * 100,
+        panelWidthMm: (specs.width_mm as number) || 1722,
+        panelHeightMm: (specs.height_mm as number) || 1134,
         capacity: (specs.capacity as number) || 5,
         inverterEfficiency: ((specs.efficiency as number) || 0.97) * 100,
         inverterType: (specs.inverter_type as 'string' | 'hybrid') || 'string',
@@ -645,6 +657,8 @@ function ProductDialog({ type, product, onSave, onClose, isPending }: ProductDia
       price: 0,
       wattage: 400,
       panelEfficiency: 20,
+      panelWidthMm: 1722,
+      panelHeightMm: 1134,
       capacity: 5,
       inverterEfficiency: 97,
       inverterType: 'string',
@@ -664,6 +678,8 @@ function ProductDialog({ type, product, onSave, onClose, isPending }: ProductDia
         specifications = {
           wattage: formData.wattage,
           efficiency: formData.panelEfficiency / 100,
+          width_mm: formData.panelWidthMm,
+          height_mm: formData.panelHeightMm,
         }
         break
       case 'inverter':
@@ -768,37 +784,71 @@ function ProductDialog({ type, product, onSave, onClose, isPending }: ProductDia
 
           {/* Type-specific fields */}
           {type === 'panel' && (
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Watt *</label>
-                <input
-                  type="number"
-                  value={formData.wattage}
-                  onChange={(e) =>
-                    setFormData({ ...formData, wattage: parseInt(e.target.value) || 0 })
-                  }
-                  min="0"
-                  step="10"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  required
-                />
+            <div className="space-y-4 pt-4 border-t">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Watt *</label>
+                  <input
+                    type="number"
+                    value={formData.wattage}
+                    onChange={(e) =>
+                      setFormData({ ...formData, wattage: parseInt(e.target.value) || 0 })
+                    }
+                    min="0"
+                    step="10"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Effektivitet (%) *
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.panelEfficiency}
+                    onChange={(e) =>
+                      setFormData({ ...formData, panelEfficiency: parseFloat(e.target.value) || 0 })
+                    }
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    required
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Effektivitet (%) *
-                </label>
-                <input
-                  type="number"
-                  value={formData.panelEfficiency}
-                  onChange={(e) =>
-                    setFormData({ ...formData, panelEfficiency: parseFloat(e.target.value) || 0 })
-                  }
-                  min="0"
-                  max="100"
-                  step="0.5"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bredde (mm)</label>
+                  <input
+                    type="number"
+                    value={formData.panelWidthMm}
+                    onChange={(e) =>
+                      setFormData({ ...formData, panelWidthMm: parseInt(e.target.value) || 0 })
+                    }
+                    min="0"
+                    step="1"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Højde (mm)</label>
+                  <input
+                    type="number"
+                    value={formData.panelHeightMm}
+                    onChange={(e) =>
+                      setFormData({ ...formData, panelHeightMm: parseInt(e.target.value) || 0 })
+                    }
+                    min="0"
+                    step="1"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                </div>
+                <p className="col-span-2 text-xs text-gray-500">
+                  Fysiske mål bruges af den målfaste tagtegning. Standard halvcelle-modul er ca.
+                  1722 × 1134 mm.
+                </p>
               </div>
             </div>
           )}

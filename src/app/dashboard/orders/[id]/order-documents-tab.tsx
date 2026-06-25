@@ -14,6 +14,7 @@ import { FileText, Mail, Download, Loader2, FolderOpen } from 'lucide-react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { getDocumentsForCase, type CaseDocument } from '@/lib/actions/service-cases'
+import { RoofDrawingCaseCard } from '@/components/modules/customers/roof-drawing/roof-drawing-case-card'
 
 function isImage(mime: string | null | undefined, filename: string | null | undefined): boolean {
   if (mime?.startsWith('image/')) return true
@@ -27,7 +28,13 @@ function formatSize(bytes: number | null): string {
   return `${Math.round(bytes / 1024)} KB`
 }
 
-export function OrderDocumentsTab({ caseId }: { caseId: string }) {
+export function OrderDocumentsTab({
+  caseId,
+  customerId,
+}: {
+  caseId: string
+  customerId: string | null
+}) {
   const [documents, setDocuments] = useState<CaseDocument[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -54,25 +61,28 @@ export function OrderDocumentsTab({ caseId }: { caseId: string }) {
     )
   }
 
-  if (documents.length === 0) {
-    return (
-      <div className="bg-white rounded-lg border p-12 text-center text-gray-500">
-        <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
-        <p className="font-medium">Ingen dokumenter på denne sag</p>
-        <p className="text-sm mt-1">
-          Dokumenter dukker op her når mail-vedhæftninger downloades fra mails koblet til denne sag,
-          eller når brugeren manuelt flytter dokumenter til sagen.
-        </p>
-      </div>
-    )
-  }
-
   // Split mail-vedhæftninger fra øvrige
   const mailDocs = documents.filter((d) => d.source_email_id)
   const otherDocs = documents.filter((d) => !d.source_email_id)
 
   return (
     <div className="space-y-4">
+      {/* Tagtegninger (read-only) — redigeres i besigtigelses-flowet.
+          Tegninger er kunde-scopede i v1 (besigtigelse kender ikke sagen),
+          så vi henter på customerId, ikke service_case_id. */}
+      <RoofDrawingCaseCard customerId={customerId} />
+
+      {documents.length === 0 && (
+        <div className="bg-white rounded-lg border p-12 text-center text-gray-500">
+          <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">Ingen dokumenter på denne sag</p>
+          <p className="text-sm mt-1">
+            Dokumenter dukker op her når mail-vedhæftninger downloades fra mails koblet til denne
+            sag, eller når brugeren manuelt flytter dokumenter til sagen.
+          </p>
+        </div>
+      )}
+
       {/* Mail-vedhæftninger */}
       {mailDocs.length > 0 && (
         <div className="bg-white rounded-lg border">
