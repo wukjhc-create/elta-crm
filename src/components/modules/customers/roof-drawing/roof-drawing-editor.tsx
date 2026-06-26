@@ -17,6 +17,7 @@ import {
   Grid3x3,
   Hand,
   MoveHorizontal,
+  Frame,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { saveRoofDrawing, deleteRoofDrawing } from '@/lib/actions/roof-drawings'
@@ -31,9 +32,10 @@ import {
   type RoofDrawingWithUrl,
   type RoofDrawingData,
   type PanelPlacement,
+  type RoofField,
 } from '@/types/roof-drawings.types'
 
-type Mode = 'view' | 'scale' | 'panels' | 'fill'
+type Mode = 'view' | 'scale' | 'panels' | 'fill' | 'field'
 
 const MIN_SCALE = 0.5
 const MAX_SCALE = 8
@@ -97,6 +99,17 @@ function newPanelId() {
   return `p_${panelSeq}_${Date.now().toString(36)}`
 }
 
+let fieldSeq = 0
+function newFieldId() {
+  fieldSeq += 1
+  return `f_${fieldSeq}_${Date.now().toString(36)}`
+}
+
+/** Cellenøgle til RoofField.removed-sættet (negative koordinater tilladt). */
+function cellKey(r: number, c: number) {
+  return `${r},${c}`
+}
+
 export function RoofDrawingEditor({
   drawing,
   panels,
@@ -113,6 +126,8 @@ export function RoofDrawingEditor({
   const [data, setData] = useState<RoofDrawingData>(() => normalizeData(drawing.drawing_data))
   const [mode, setMode] = useState<Mode>('view')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Valgt felt (gruppe) i 'field'-mode — styrer rotation/udvid/forhindringer.
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [pendingLine, setPendingLine] = useState<{
     x1: number
     y1: number
@@ -147,6 +162,8 @@ export function RoofDrawingEditor({
   // Drejes via rotations-håndtag på et valgt panel eller via det numeriske felt.
   const [activeAngle, setActiveAngle] = useState(0)
   const rotateDrag = useRef<{ id: string } | null>(null)
+  // Felt-rotation (Trin 3): drej HELE feltet om dets centroid via gruppe-håndtag.
+  const fieldRotateDrag = useRef<{ fieldId: string; cx: number; cy: number } | null>(null)
 
   // Auto-spring til "Udfyld felt" én gang når forudsætningerne er klar (engangs).
   const didAutoTool = useRef(false)
@@ -233,6 +250,8 @@ export function RoofDrawingEditor({
   function selectTool(t: Mode) {
     setMode(t)
     setSelectedId(null)
+    setSelectedFieldId(null)
+    fieldRotateDrag.current = null
     setFillRect(null)
     cancelScale()
   }
@@ -246,6 +265,12 @@ export function RoofDrawingEditor({
       setMode((m) => (m === 'view' ? 'fill' : m))
     }
   }, [ready])
+
+  // Hvis et valgt felt forsvinder (tømt via forhindringer/formindsk, eller slettet),
+  // ryd markeringen så håndtag/kontekst-række ikke hænger ved et dødt felt.
+  useEffect(() => {
+    if (selectedFieldId && !data.fields?.[selectedFieldId]) setSelectedFieldId(null)
+  }, [data.fields, selectedFieldId])
 
   // Panel-px-størrelse ud fra valgt panels fysiske mål og målestok
   const panelPx = useMemo(() => {
@@ -366,6 +391,7 @@ export function RoofDrawingEditor({
     lineDrag.current = false
     panelDrag.current = null
     rotateDrag.current = null
+    fieldRotateDrag.current = null
     fillDrag.current = false
     setFillRect(null)
     setSnapGuides({ x: null, y: null })
@@ -421,6 +447,12 @@ export function RoofDrawingEditor({
       fillDrag.current = true
       setFillRect({ x1: x, y1: y, x2: x, y2: y })
       svg.setPointerCapture(e.pointerId)
+      return
+    }
+    if (mode === 'field') {
+      // Baggrundstryk: genskab tom celle i valgt felt, ellers afvælg.
+      const { x, y } = clientToContent(e.clientX, e.clientY)
+      handleFieldBackgroundPress(x, y)
     }
   }
 
@@ -440,6 +472,15 @@ export function RoofDrawingEditor({
     }
     if (fillDrag.current) {
       setFillRect((r) => (r ? { ...r, x2: x, y2: y } : r))
+      return
+    }
+    if (fieldRotateDrag.current) {
+      const fr = fieldRotateDrag.current
+      // Håndtaget sidder over feltets top → vinklen = retningen til pegeren + 90°.
+      const phi = (Math.atan2(y - fr.cy, x - fr.cx) * 180) / Math.PI
+      const target = snapAngle(phi + 90)
+      setActiveAngle(target)
+      applyFieldAngle(fr.fieldId, target)
       return
     }
     if (rotateDrag.current && panelPx) {
@@ -514,6 +555,10 @@ export function RoofDrawingEditor({
     }
     if (rotateDrag.current) {
       rotateDrag.current = null
+      setDirty(true)
+    }
+    if (fieldRotateDrag.current) {
+      fieldRotateDrag.current = null
       setDirty(true)
     }
     if (panelDrag.current) {
@@ -597,20 +642,106 @@ export function RoofDrawingEditor({
   }
 
   /**
+   * Gitter-cellestørrelse + pitch for en given orientering ud fra de AKTUELLE
+   * panelmål + gab. Udledes on-demand (gemmes ikke på feltet), så feltet ikke
+   * kan "drifte" væk fra panelerne. Kald kun når panelPx findes.
+   */
+  function fieldGeom(orientation: 0 | 90) {
+    const cw = orientation === 0 ? (panelPx?.w ?? 0) : (panelPx?.h ?? 0)
+    const ch = orientation === 0 ? (panelPx?.h ?? 0) : (panelPx?.w ?? 0)
+    return { cw, ch, pitchX: cw + gapPx, pitchY: ch + gapPx }
+  }
+
+  /**
+   * Celle (r,c) → panel-placement i billed-px. Ankeret er feltets `origin`
+   * (celle-(0,0)'s hjørne); cellecentret mappes via R(field.angle). Bruges af
+   * både udfyld og udvid, så nye celler altid ligger i samme gitter-lattice.
+   */
+  function cellToPanel(field: RoofField, r: number, c: number): PanelPlacement {
+    const { cw, ch, pitchX, pitchY } = fieldGeom(field.orientation)
+    const rad = (field.angle * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    const lcx = c * pitchX + cw / 2
+    const lcy = r * pitchY + ch / 2
+    const wcx = field.origin.x + lcx * cos - lcy * sin
+    const wcy = field.origin.y + lcx * sin + lcy * cos
+    return {
+      id: newPanelId(),
+      x: wcx - cw / 2,
+      y: wcy - ch / 2,
+      rotation: field.orientation,
+      angle: field.angle,
+      fieldId: field.id,
+      cell: { r, c },
+    }
+  }
+
+  /**
+   * Billed-punkt → nærmeste celle (r,c) i feltets gitter (invers af cellToPanel,
+   * R(-angle)). Bruges KUN til at finde hvilken celle brugeren rører — aldrig til
+   * at identificere eksisterende paneler (det gør panelets eget `cell`-felt).
+   */
+  function worldToCell(field: RoofField, px: number, py: number) {
+    const { cw, ch, pitchX, pitchY } = fieldGeom(field.orientation)
+    const rad = (field.angle * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    const dx = px - field.origin.x
+    const dy = py - field.origin.y
+    const lx = dx * cos + dy * sin
+    const ly = -dx * sin + dy * cos
+    return { r: Math.round((ly - ch / 2) / pitchY), c: Math.round((lx - cw / 2) / pitchX) }
+  }
+
+  /** Paneler der hører til et felt (i nuværende rækkefølge). */
+  function panelsOfField(fieldId: string) {
+    return data.panels.filter((p) => p.fieldId === fieldId)
+  }
+
+  /** Centroid (gennemsnit af panelcentre) for en panelmængde, eller null hvis tom. */
+  function panelsCentroid(ps: PanelPlacement[]) {
+    let sx = 0
+    let sy = 0
+    let n = 0
+    for (const p of ps) {
+      const r = rectFor(p)
+      if (!r) continue
+      sx += p.x + r.w / 2
+      sy += p.y + r.h / 2
+      n++
+    }
+    return n ? { x: sx / n, y: sy / n } : null
+  }
+
+  /** Celle-omfang (min/max r,c) for et felts paneler, eller null hvis ingen celler. */
+  function fieldExtent(ps: PanelPlacement[]) {
+    let minR = Infinity
+    let maxR = -Infinity
+    let minC = Infinity
+    let maxC = -Infinity
+    for (const p of ps) {
+      if (!p.cell) continue
+      minR = Math.min(minR, p.cell.r)
+      maxR = Math.max(maxR, p.cell.r)
+      minC = Math.min(minC, p.cell.c)
+      maxC = Math.max(maxC, p.cell.c)
+    }
+    if (!Number.isFinite(minR)) return null
+    return { minR, maxR, minC, maxC }
+  }
+
+  /**
    * Udfyld et markeret rektangel med paneler i et gitter (pitch = panelmål +
    * gab). Gitteret bygges i arbejdsvinklens (activeAngle) frame, så hele feltet
-   * følger tagets vinkel — hver celle mappes tilbage til billed-koordinater og
-   * får angle = activeAngle.
+   * følger tagets vinkel. Opretter et RoofField (gitter-anker/vinkel) og stempler
+   * hvert panel med fieldId + cell, så feltet senere kan drejes/udvides samlet.
    */
   function fillArea(rect: { x1: number; y1: number; x2: number; y2: number }) {
     if (!panelPx) return
     const angle = activeAngle
     const { ax, ay, cos, sin, lx0, ly0, rw, rh } = fillLocalRect(rect, angle)
-    // Cellestørrelse afhænger af valgt orientering (byt bredde/højde ved 90°).
-    const cw = fillOrientation === 0 ? panelPx.w : panelPx.h
-    const ch = fillOrientation === 0 ? panelPx.h : panelPx.w
-    const pitchX = cw + gapPx
-    const pitchY = ch + gapPx
+    const { cw, ch, pitchX, pitchY } = fieldGeom(fillOrientation)
     // n paneler fylder n*pitch - gab → n = floor((længde + gab) / pitch).
     const cols = Math.floor((rw + gapPx) / pitchX)
     const rows = Math.floor((rh + gapPx) / pitchY)
@@ -620,27 +751,198 @@ export function RoofDrawingEditor({
     }
     const count = cols * rows
     if (count > 400 && !confirm(`Dette udfylder ${count} paneler. Fortsæt?`)) return
+    // Feltets anker = celle-(0,0)'s hjørne (lokal (lx0,ly0)) mappet til billed-px.
+    const field: RoofField = {
+      id: newFieldId(),
+      angle,
+      orientation: fillOrientation,
+      origin: { x: ax + lx0 * cos - ly0 * sin, y: ay + lx0 * sin + ly0 * cos },
+      removed: [],
+    }
     const newPanels: PanelPlacement[] = []
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        // Cellens centrum i lokal frame → mappes til billed-koordinater via R(angle).
-        const lcx = lx0 + c * pitchX + cw / 2
-        const lcy = ly0 + r * pitchY + ch / 2
-        const wcx = ax + lcx * cos - lcy * sin
-        const wcy = ay + lcx * sin + lcy * cos
-        newPanels.push({
-          id: newPanelId(),
-          x: wcx - cw / 2,
-          y: wcy - ch / 2,
-          rotation: fillOrientation,
-          angle,
-        })
+        newPanels.push(cellToPanel(field, r, c))
       }
     }
-    setData((d) => ({ ...d, panels: [...d.panels, ...newPanels] }))
+    setData((d) => ({
+      ...d,
+      panels: [...d.panels, ...newPanels],
+      fields: { ...(d.fields ?? {}), [field.id]: field },
+    }))
     setSelectedId(null)
+    setSelectedFieldId(field.id)
     setDirty(true)
     toast.success(`${count} paneler tilføjet`)
+  }
+
+  // ---- Felt-handlinger (gruppe) ----
+
+  /**
+   * Drej HELE feltet til en absolut målvinkel: rotér hvert felt-panels CENTRUM
+   * om feltets centroid med delta = target − nuværende vinkel, læg delta til hvert
+   * panels egen `angle`, og rotér feltets `origin` med samme delta (så udvid-ankret
+   * følger med). Kaldes løbende under træk (target er absolut → delta bliver
+   * inkrementelt da field.angle opdateres hver gang).
+   */
+  function applyFieldAngle(fid: string, target: number) {
+    setData((d) => {
+      const field = d.fields?.[fid]
+      if (!field) return d
+      const ps = d.panels.filter((p) => p.fieldId === fid)
+      const G = panelsCentroid(ps)
+      if (!G) return d
+      const delta = target - field.angle
+      const rad = (delta * Math.PI) / 180
+      const cos = Math.cos(rad)
+      const sin = Math.sin(rad)
+      const rot = (px: number, py: number) => ({
+        x: G.x + (px - G.x) * cos - (py - G.y) * sin,
+        y: G.y + (px - G.x) * sin + (py - G.y) * cos,
+      })
+      const panels = d.panels.map((p) => {
+        if (p.fieldId !== fid) return p
+        const r = rectFor(p)
+        if (!r) return p
+        const nc = rot(p.x + r.w / 2, p.y + r.h / 2)
+        return { ...p, x: nc.x - r.w / 2, y: nc.y - r.h / 2, angle: normAngle((p.angle ?? 0) + delta) }
+      })
+      const no = rot(field.origin.x, field.origin.y)
+      return {
+        ...d,
+        panels,
+        fields: { ...d.fields, [fid]: { ...field, angle: normAngle(target), origin: no } },
+      }
+    })
+    setDirty(true)
+  }
+
+  /** Fjern en celle som forhindring: registrér i removed + slet panelet. */
+  function removeFieldCell(fid: string, r: number, c: number) {
+    const key = cellKey(r, c)
+    setData((d) => {
+      const field = d.fields?.[fid]
+      if (!field) return d
+      const removed = field.removed.includes(key) ? field.removed : [...field.removed, key]
+      return {
+        ...d,
+        panels: d.panels.filter(
+          (p) => !(p.fieldId === fid && p.cell && p.cell.r === r && p.cell.c === c),
+        ),
+        fields: { ...d.fields, [fid]: { ...field, removed } },
+      }
+    })
+    setDirty(true)
+  }
+
+  /** Genskab en tidligere fjernet celle: fjern fra removed + læg panel tilbage. */
+  function restoreFieldCell(fid: string, r: number, c: number) {
+    setData((d) => {
+      const field = d.fields?.[fid]
+      if (!field) return d
+      if (d.panels.some((p) => p.fieldId === fid && p.cell && p.cell.r === r && p.cell.c === c)) {
+        return d
+      }
+      const key = cellKey(r, c)
+      return {
+        ...d,
+        panels: [...d.panels, cellToPanel(field, r, c)],
+        fields: { ...d.fields, [fid]: { ...field, removed: field.removed.filter((k) => k !== key) } },
+      }
+    })
+    setDirty(true)
+  }
+
+  /**
+   * Udvid/formindsk feltet ved en kant. grow=true lægger en ny række/kolonne til
+   * (springer celler i `removed` og allerede optagne over); grow=false fjerner den
+   * yderste række/kolonne og rydder dens removed-nøgler. Tømmes feltet helt,
+   * fjernes feltets metadata.
+   */
+  function extendField(fid: string, edge: 'top' | 'bottom' | 'left' | 'right', grow: boolean) {
+    setData((d) => {
+      const field = d.fields?.[fid]
+      if (!field) return d
+      const ps = d.panels.filter((p) => p.fieldId === fid)
+      const ext = fieldExtent(ps)
+      if (!ext) return d
+      let panels = d.panels
+      let removed = field.removed
+      if (grow) {
+        const cells: Array<{ r: number; c: number }> = []
+        if (edge === 'left') for (let r = ext.minR; r <= ext.maxR; r++) cells.push({ r, c: ext.minC - 1 })
+        if (edge === 'right') for (let r = ext.minR; r <= ext.maxR; r++) cells.push({ r, c: ext.maxC + 1 })
+        if (edge === 'top') for (let c = ext.minC; c <= ext.maxC; c++) cells.push({ r: ext.minR - 1, c })
+        if (edge === 'bottom') for (let c = ext.minC; c <= ext.maxC; c++) cells.push({ r: ext.maxR + 1, c })
+        const add: PanelPlacement[] = []
+        for (const cell of cells) {
+          if (removed.includes(cellKey(cell.r, cell.c))) continue // respektér forhindring
+          if (ps.some((p) => p.cell && p.cell.r === cell.r && p.cell.c === cell.c)) continue
+          add.push(cellToPanel(field, cell.r, cell.c))
+        }
+        panels = [...d.panels, ...add]
+      } else {
+        const rmR = edge === 'top' ? ext.minR : edge === 'bottom' ? ext.maxR : null
+        const rmC = edge === 'left' ? ext.minC : edge === 'right' ? ext.maxC : null
+        panels = d.panels.filter((p) => {
+          if (p.fieldId !== fid || !p.cell) return true
+          if (rmC !== null && p.cell.c === rmC) return false
+          if (rmR !== null && p.cell.r === rmR) return false
+          return true
+        })
+        removed = removed.filter((k) => {
+          const [rr, cc] = k.split(',').map(Number)
+          if (rmC !== null && cc === rmC) return false
+          if (rmR !== null && rr === rmR) return false
+          return true
+        })
+      }
+      const fields = { ...d.fields }
+      if (panels.filter((p) => p.fieldId === fid).length === 0) {
+        delete fields[fid]
+      } else {
+        fields[fid] = { ...field, removed }
+      }
+      return { ...d, panels, fields }
+    })
+    setDirty(true)
+  }
+
+  /** Slet et helt felt (alle dets paneler + metadata). */
+  function removeSelectedField() {
+    if (!selectedFieldId) return
+    const fid = selectedFieldId
+    if (!confirm('Slet hele feltet?')) return
+    setData((d) => {
+      const fields = { ...(d.fields ?? {}) }
+      delete fields[fid]
+      return { ...d, panels: d.panels.filter((p) => p.fieldId !== fid), fields }
+    })
+    setSelectedFieldId(null)
+    setDirty(true)
+  }
+
+  /**
+   * Felt-baggrundstryk: hvis et felt er valgt og trykket rammer en tom/fjernet
+   * celle inden for feltets omfang → genskab den; ellers afvælg feltet.
+   */
+  function handleFieldBackgroundPress(x: number, y: number) {
+    if (selectedFieldId) {
+      const field = data.fields?.[selectedFieldId]
+      const ps = panelsOfField(selectedFieldId)
+      const ext = fieldExtent(ps)
+      if (field && ext) {
+        const { r, c } = worldToCell(field, x, y)
+        if (r >= ext.minR && r <= ext.maxR && c >= ext.minC && c <= ext.maxC) {
+          const occupied = ps.some((p) => p.cell && p.cell.r === r && p.cell.c === c)
+          if (!occupied) {
+            restoreFieldCell(selectedFieldId, r, c)
+            return
+          }
+        }
+      }
+    }
+    setSelectedFieldId(null)
   }
 
   function rotateSelected() {
@@ -662,6 +964,11 @@ export function RoofDrawingEditor({
   function applyAngle(a: number) {
     const na = normAngle(a)
     setActiveAngle(na)
+    // I felt-mode drejer det numeriske felt HELE det valgte felt.
+    if (mode === 'field' && selectedFieldId) {
+      applyFieldAngle(selectedFieldId, na)
+      return
+    }
     if (selectedId) {
       setData((d) => ({
         ...d,
@@ -673,7 +980,21 @@ export function RoofDrawingEditor({
 
   function deleteSelected() {
     if (!selectedId) return
-    setData((d) => ({ ...d, panels: d.panels.filter((p) => p.id !== selectedId) }))
+    setData((d) => {
+      const panel = d.panels.find((p) => p.id === selectedId)
+      // Hører panelet til et felt → registrér cellen som forhindring, så en senere
+      // udvid ikke uventet genskaber det.
+      let fields = d.fields
+      if (panel?.fieldId && panel.cell && d.fields?.[panel.fieldId]) {
+        const f = d.fields[panel.fieldId]
+        const key = cellKey(panel.cell.r, panel.cell.c)
+        fields = {
+          ...d.fields,
+          [panel.fieldId]: { ...f, removed: f.removed.includes(key) ? f.removed : [...f.removed, key] },
+        }
+      }
+      return { ...d, panels: d.panels.filter((p) => p.id !== selectedId), fields }
+    })
     setSelectedId(null)
     setDirty(true)
   }
@@ -682,6 +1003,20 @@ export function RoofDrawingEditor({
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     if (pointers.current.size >= 2) {
       beginPinch()
+      return
+    }
+    if (mode === 'field') {
+      e.stopPropagation()
+      const fid = panel.fieldId
+      if (!fid || !data.fields?.[fid]) return // løse paneler er ikke valgbare i felt-mode
+      if (fid !== selectedFieldId) {
+        // Første tryk: vælg hele feltet (rotér/udvid via håndtag herefter).
+        setSelectedFieldId(fid)
+        setActiveAngle(data.fields[fid].angle)
+      } else if (panel.cell) {
+        // Allerede valgt → tryk på et panel fjerner det som forhindring.
+        removeFieldCell(fid, panel.cell.r, panel.cell.c)
+      }
       return
     }
     if (mode !== 'panels') return
@@ -708,6 +1043,23 @@ export function RoofDrawingEditor({
     if (!svg) return
     setSelectedId(panel.id)
     rotateDrag.current = { id: panel.id }
+    svg.setPointerCapture(e.pointerId)
+  }
+
+  /** Start rotation af HELE feltet når man griber feltets gruppe-håndtag. */
+  function onFieldRotateHandlePointerDown(e: React.PointerEvent, fid: string) {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size >= 2) {
+      beginPinch()
+      return
+    }
+    if (mode !== 'field') return
+    e.stopPropagation()
+    const svg = svgRef.current
+    if (!svg) return
+    const G = panelsCentroid(panelsOfField(fid))
+    if (!G) return
+    fieldRotateDrag.current = { fieldId: fid, cx: G.x, cy: G.y }
     svg.setPointerCapture(e.pointerId)
   }
 
@@ -752,6 +1104,26 @@ export function RoofDrawingEditor({
 
   // 1 m målestok-bar i px
   const meterBarPx = hasScale ? 1000 / (mmPerPx as number) : 0
+
+  // ---- Felt-render-tilstand ----
+  const hasFields = !!data.fields && Object.keys(data.fields).length > 0
+  const selectedField = selectedFieldId ? data.fields?.[selectedFieldId] ?? null : null
+  const selectedFieldPanels = selectedFieldId ? panelsOfField(selectedFieldId) : []
+  const selectedFieldExtent = fieldExtent(selectedFieldPanels)
+  // Feltets bounding-rektangel i dets EGEN (roterede) frame — bruges til omrids,
+  // rotations-håndtag og kant +/−-håndtag. Tegnes via translate(origin)+rotate(angle).
+  const fieldBox =
+    selectedField && selectedFieldExtent && panelPx
+      ? (() => {
+          const { cw, ch, pitchX, pitchY } = fieldGeom(selectedField.orientation)
+          const { minR, maxR, minC, maxC } = selectedFieldExtent
+          const left = minC * pitchX
+          const top = minR * pitchY
+          const right = (maxC + 1) * pitchX - gapPx
+          const bottom = (maxR + 1) * pitchY - gapPx
+          return { left, top, right, bottom, w: right - left, h: bottom - top, cw, ch, pitchX, pitchY }
+        })()
+      : null
 
   // Genbruges i både udfyld- og enkelt-panel-kontekstrækken.
   const gapField = (
@@ -834,6 +1206,13 @@ export function RoofDrawingEditor({
               label="Udfyld felt"
               disabled={!ready}
               primary
+            />
+            <ToolButton
+              active={mode === 'field'}
+              onClick={() => selectTool('field')}
+              icon={Frame}
+              label="Felt"
+              disabled={!hasFields}
             />
             <ToolButton
               active={mode === 'panels'}
@@ -1005,6 +1384,49 @@ export function RoofDrawingEditor({
           </div>
         )}
 
+        {/* Felt kontekst-række */}
+        {mode === 'field' && (
+          <div className="px-3 py-2 bg-indigo-50 border-b text-sm text-indigo-900 flex items-center gap-3 flex-wrap">
+            {!selectedField ? (
+              <span className="font-medium flex items-center gap-1.5">
+                <Frame className="w-4 h-4 shrink-0" />
+                Tryk på et felt for at vælge det — drej hele feltet, udvid med +/− i kanten,
+                eller tryk et panel for at fjerne det ved en forhindring.
+              </span>
+            ) : (
+              <>
+                <span className="font-medium flex items-center gap-1.5">
+                  <Frame className="w-4 h-4 shrink-0" />
+                  {selectedFieldPanels.length} paneler i feltet — drej via håndtaget, +/− i
+                  kanten udvider, tryk et panel = fjern (forhindring), tryk hul = genskab.
+                </span>
+                <div className="ml-auto flex items-center gap-3 flex-wrap">
+                  <button
+                    onClick={() => setSnapEnabled((s) => !s)}
+                    title="Snap feltets vinkel til tagkanten (målestoks-linjen) + 15°-spring"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border ${
+                      snapEnabled
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Magnet className="w-4 h-4" />
+                    Snap
+                  </button>
+                  {angleField}
+                  <button
+                    onClick={removeSelectedField}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Fjern felt
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Tegneflade */}
         <div className="flex-1 min-h-0 relative bg-gray-100">
           <svg
@@ -1115,6 +1537,133 @@ export function RoofDrawingEditor({
                     </g>
                   )
                 })}
+
+              {/* Felt-overlay: omrids + rotations-håndtag + kant +/− + hul-markører */}
+              {mode === 'field' &&
+                selectedField &&
+                fieldBox &&
+                (() => {
+                  const { left, top, right, bottom } = fieldBox
+                  const midX = (left + right) / 2
+                  const midY = (top + bottom) / 2
+                  const sw = W * 0.003
+                  const pad = W * 0.04
+                  const inset = Math.min(W * 0.03, fieldBox.w / 3, fieldBox.h / 3)
+                  const btnR = W * 0.02
+                  const rotR = W * 0.014
+                  const rotY = top - pad - Math.max(H * 0.05, W * 0.05)
+                  const ext = selectedFieldExtent
+                  // Kant-knapper i feltets lokale frame: + (udvid, udenfor) / − (formindsk, indenfor).
+                  const btns: Array<{
+                    x: number
+                    y: number
+                    edge: 'top' | 'bottom' | 'left' | 'right'
+                    grow: boolean
+                  }> = [
+                    { x: midX, y: top - pad, edge: 'top', grow: true },
+                    { x: midX, y: top + inset, edge: 'top', grow: false },
+                    { x: midX, y: bottom + pad, edge: 'bottom', grow: true },
+                    { x: midX, y: bottom - inset, edge: 'bottom', grow: false },
+                    { x: left - pad, y: midY, edge: 'left', grow: true },
+                    { x: left + inset, y: midY, edge: 'left', grow: false },
+                    { x: right + pad, y: midY, edge: 'right', grow: true },
+                    { x: right - inset, y: midY, edge: 'right', grow: false },
+                  ]
+                  return (
+                    <g
+                      transform={`translate(${selectedField.origin.x} ${selectedField.origin.y}) rotate(${selectedField.angle})`}
+                    >
+                      {/* Hul-markører (fjernede celler) — tryk for at genskabe (via baggrund) */}
+                      {ext &&
+                        selectedField.removed.map((key) => {
+                          const [r, c] = key.split(',').map(Number)
+                          if (r < ext.minR || r > ext.maxR || c < ext.minC || c > ext.maxC) return null
+                          return (
+                            <rect
+                              key={key}
+                              x={c * fieldBox.pitchX}
+                              y={r * fieldBox.pitchY}
+                              width={fieldBox.cw}
+                              height={fieldBox.ch}
+                              fill="rgba(99,102,241,0.10)"
+                              stroke="#6366f1"
+                              strokeWidth={sw * 0.7}
+                              strokeDasharray={`${W * 0.008} ${W * 0.006}`}
+                              pointerEvents="none"
+                            />
+                          )
+                        })}
+
+                      {/* Omrids */}
+                      <rect
+                        x={left}
+                        y={top}
+                        width={fieldBox.w}
+                        height={fieldBox.h}
+                        fill="none"
+                        stroke="#4f46e5"
+                        strokeWidth={sw}
+                        strokeDasharray={`${W * 0.012} ${W * 0.008}`}
+                        pointerEvents="none"
+                      />
+
+                      {/* Rotations-håndtag for HELE feltet */}
+                      <line x1={midX} y1={top} x2={midX} y2={rotY} stroke="#4f46e5" strokeWidth={sw} />
+                      <circle
+                        cx={midX}
+                        cy={rotY}
+                        r={rotR}
+                        fill="#ffffff"
+                        stroke="#4f46e5"
+                        strokeWidth={sw}
+                        onPointerDown={(e) => onFieldRotateHandlePointerDown(e, selectedField.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ cursor: 'grab' }}
+                      />
+
+                      {/* Kant +/−-håndtag */}
+                      {btns.map((b, i) => (
+                        <g
+                          key={i}
+                          onPointerDown={(e) => {
+                            e.stopPropagation()
+                            extendField(selectedField.id, b.edge, b.grow)
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <circle
+                            cx={b.x}
+                            cy={b.y}
+                            r={btnR}
+                            fill={b.grow ? '#4f46e5' : '#ffffff'}
+                            stroke="#4f46e5"
+                            strokeWidth={sw}
+                          />
+                          {/* + / − tegn */}
+                          <line
+                            x1={b.x - btnR * 0.5}
+                            y1={b.y}
+                            x2={b.x + btnR * 0.5}
+                            y2={b.y}
+                            stroke={b.grow ? '#ffffff' : '#4f46e5'}
+                            strokeWidth={sw}
+                          />
+                          {b.grow && (
+                            <line
+                              x1={b.x}
+                              y1={b.y - btnR * 0.5}
+                              x2={b.x}
+                              y2={b.y + btnR * 0.5}
+                              stroke="#ffffff"
+                              strokeWidth={sw}
+                            />
+                          )}
+                        </g>
+                      ))}
+                    </g>
+                  )
+                })()}
 
               {/* Udfyld-område markerings-rektangel (under træk) — roteret efter arbejdsvinklen */}
               {fillRect &&
@@ -1350,6 +1899,28 @@ function ScaleLineGraphic({
 /** Sikr at en (evt. tom/legacy) drawing_data har alle felter. */
 function normalizeData(raw: RoofDrawingData | Record<string, unknown> | null): RoofDrawingData {
   const d = (raw ?? {}) as Partial<RoofDrawingData>
+  // Felt-metadata: behold kun velformede records (graciøs degradering ved skrald).
+  const fields: Record<string, RoofField> = {}
+  if (d.fields && typeof d.fields === 'object') {
+    for (const [fid, f] of Object.entries(d.fields as Record<string, unknown>)) {
+      const rf = f as Partial<RoofField>
+      if (
+        rf &&
+        typeof rf.angle === 'number' &&
+        rf.origin &&
+        typeof rf.origin.x === 'number' &&
+        typeof rf.origin.y === 'number'
+      ) {
+        fields[fid] = {
+          id: fid,
+          angle: rf.angle,
+          orientation: rf.orientation === 90 ? 90 : 0,
+          origin: { x: rf.origin.x, y: rf.origin.y },
+          removed: Array.isArray(rf.removed) ? rf.removed.filter((k) => typeof k === 'string') : [],
+        }
+      }
+    }
+  }
   return {
     referenceLine: d.referenceLine ?? null,
     mmPerPx: typeof d.mmPerPx === 'number' ? d.mmPerPx : null,
@@ -1361,7 +1932,13 @@ function normalizeData(raw: RoofDrawingData | Record<string, unknown> | null): R
           ...p,
           rotation: p.rotation === 90 ? 90 : 0,
           angle: typeof p.angle === 'number' ? p.angle : 0,
+          // Bevar additive felt-bindinger (fieldId/cell) hvis til stede.
+          ...(typeof p.fieldId === 'string' ? { fieldId: p.fieldId } : {}),
+          ...(p.cell && typeof p.cell.r === 'number' && typeof p.cell.c === 'number'
+            ? { cell: { r: p.cell.r, c: p.cell.c } }
+            : {}),
         }))
       : [],
+    fields,
   }
 }
