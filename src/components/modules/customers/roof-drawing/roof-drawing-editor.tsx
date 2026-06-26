@@ -72,6 +72,18 @@ function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v))
 }
 
+/** Normalisér en vinkel (grader) til [0, 360). */
+function normAngle(a: number) {
+  const r = a % 360
+  return r < 0 ? r + 360 : r
+}
+
+/** Mindste vinkelforskel (0–180°) mellem to vinkler i grader. */
+function angleDiff(a: number, b: number) {
+  const d = Math.abs(normAngle(a) - normAngle(b))
+  return d > 180 ? 360 - d : d
+}
+
 /** Overlapper to 1D-intervaller (med tolerance) — bruges til at gate snap-akser. */
 function nearRange(aMin: number, aMax: number, bMin: number, bMax: number, tol: number) {
   return aMin < bMax + tol && aMax > bMin - tol
@@ -128,6 +140,11 @@ export function RoofDrawingEditor({
   )
   const [fillOrientation, setFillOrientation] = useState<0 | 90>(0)
   const fillDrag = useRef(false)
+
+  // Fri rotation (Trin 2): arbejdsvinkel der bruges af nye paneler + udfyld.
+  // Drejes via rotations-håndtag på et valgt panel eller via det numeriske felt.
+  const [activeAngle, setActiveAngle] = useState(0)
+  const rotateDrag = useRef<{ id: string } | null>(null)
 
   // Aktiv gesture-state (refs for at undgå stale closures)
   const lineDrag = useRef(false)
@@ -266,6 +283,34 @@ export function RoofDrawingEditor({
     return { x: bestX.val, y: bestY.val, guideX: bestX.guide, guideY: bestY.guide }
   }
 
+  /**
+   * Vinkel-snap: hopper let på plads ved nærmeste "pæne" vinkel — multipla af
+   * 15° samt målestoks-referencelinjens vinkel (og vinkelret på den), da
+   * paneler ofte ligger parallelt med en tagkant. Tvinges ikke: fri når
+   * snapEnabled er slået fra, eller når ingen kandidat er inden for tærsklen.
+   */
+  function snapAngle(a: number) {
+    if (!snapEnabled) return normAngle(a)
+    const ANGLE_SNAP_THRESHOLD = 4 // grader
+    const cands: number[] = []
+    for (let k = 0; k < 360; k += 15) cands.push(k)
+    const rl = data.referenceLine
+    if (rl) {
+      const ra = (Math.atan2(rl.y2 - rl.y1, rl.x2 - rl.x1) * 180) / Math.PI
+      cands.push(ra, ra + 90, ra + 180, ra + 270)
+    }
+    let best = normAngle(a)
+    let bestD = ANGLE_SNAP_THRESHOLD
+    for (const c of cands) {
+      const d = angleDiff(a, c)
+      if (d < bestD) {
+        bestD = d
+        best = normAngle(c)
+      }
+    }
+    return best
+  }
+
   // ---- Panel-valg → opdatér fysiske mål i geometrien ----
   function handlePanelChange(code: string) {
     setPanelCode(code || null)
@@ -294,6 +339,7 @@ export function RoofDrawingEditor({
     // To-finger har forrang: afbryd evt. enkelt-finger-handlinger.
     lineDrag.current = false
     panelDrag.current = null
+    rotateDrag.current = null
     fillDrag.current = false
     setFillRect(null)
     setSnapGuides({ x: null, y: null })
@@ -370,22 +416,55 @@ export function RoofDrawingEditor({
       setFillRect((r) => (r ? { ...r, x2: x, y2: y } : r))
       return
     }
+    if (rotateDrag.current && panelPx) {
+      const rot = rotateDrag.current
+      const panel = data.panels.find((p) => p.id === rot.id)
+      const r = panel ? rectFor(panel) : null
+      if (panel && r) {
+        const cx = panel.x + r.w / 2
+        const cy = panel.y + r.h / 2
+        // Håndtaget sidder over panelets top → vinklen = retningen til pegeren + 90°.
+        const phi = (Math.atan2(y - cy, x - cx) * 180) / Math.PI
+        const a = snapAngle(phi + 90)
+        setActiveAngle(a)
+        setData((d) => ({
+          ...d,
+          panels: d.panels.map((p) => (p.id === rot.id ? { ...p, angle: a } : p)),
+        }))
+      }
+      return
+    }
     if (panelDrag.current && panelPx) {
       const drag = panelDrag.current
       const dragged = data.panels.find((p) => p.id === drag.id)
       const dr = dragged ? rectFor(dragged) : null
       const dw = dr?.w ?? panelPx.w
       const dh = dr?.h ?? panelPx.h
-      const rawX = clamp(x - drag.offsetX, 0, W - dw)
-      const rawY = clamp(y - drag.offsetY, 0, H - dh)
-      const snapped = snapPanelPosition(drag.id, rawX, rawY, dw, dh)
-      const nx = clamp(snapped.x, 0, W - dw)
-      const ny = clamp(snapped.y, 0, H - dh)
-      setData((d) => ({
-        ...d,
-        panels: d.panels.map((p) => (p.id === drag.id ? { ...p, x: nx, y: ny } : p)),
-      }))
-      setSnapGuides({ x: snapped.guideX, y: snapped.guideY })
+      const ang = dragged?.angle ?? 0
+      if (ang !== 0) {
+        // Roteret panel: nabo-snap giver ikke mening (akse-justeret) → fri flyt,
+        // og clamp kun panelets centrum inden for billedet.
+        const ncx = clamp(x - drag.offsetX + dw / 2, 0, W)
+        const ncy = clamp(y - drag.offsetY + dh / 2, 0, H)
+        const nx = ncx - dw / 2
+        const ny = ncy - dh / 2
+        setData((d) => ({
+          ...d,
+          panels: d.panels.map((p) => (p.id === drag.id ? { ...p, x: nx, y: ny } : p)),
+        }))
+        setSnapGuides({ x: null, y: null })
+      } else {
+        const rawX = clamp(x - drag.offsetX, 0, W - dw)
+        const rawY = clamp(y - drag.offsetY, 0, H - dh)
+        const snapped = snapPanelPosition(drag.id, rawX, rawY, dw, dh)
+        const nx = clamp(snapped.x, 0, W - dw)
+        const ny = clamp(snapped.y, 0, H - dh)
+        setData((d) => ({
+          ...d,
+          panels: d.panels.map((p) => (p.id === drag.id ? { ...p, x: nx, y: ny } : p)),
+        }))
+        setSnapGuides({ x: snapped.guideX, y: snapped.guideY })
+      }
     }
   }
 
@@ -406,6 +485,10 @@ export function RoofDrawingEditor({
         if (l && dist(l.x1, l.y1, l.x2, l.y2) < 5) return null // for kort = annullér
         return l
       })
+    }
+    if (rotateDrag.current) {
+      rotateDrag.current = null
+      setDirty(true)
     }
     if (panelDrag.current) {
       panelDrag.current = null
@@ -460,19 +543,43 @@ export function RoofDrawingEditor({
     const idx = data.panels.length
     const x = clamp(W / 2 - panelPx.w / 2 + (idx % 5) * 10, 0, W - panelPx.w)
     const y = clamp(H / 2 - panelPx.h / 2 + (idx % 5) * 10, 0, H - panelPx.h)
-    const panel: PanelPlacement = { id: newPanelId(), x, y, rotation: 0 }
+    const panel: PanelPlacement = { id: newPanelId(), x, y, rotation: 0, angle: activeAngle }
     setData((d) => ({ ...d, panels: [...d.panels, panel] }))
     setSelectedId(panel.id)
     setDirty(true)
   }
 
-  /** Udfyld et markeret rektangel med paneler i et gitter (pitch = panelmål + gab). */
+  /**
+   * Omregn et (skærm-akse) markerings-rektangel til arbejdsvinklens frame.
+   * Ankeret er trækkets startpunkt; vektoren til slutpunktet projiceres ind i
+   * den roterede frame (R(-angle)). Returnerer lokal bredde/højde + cos/sin til
+   * at mappe lokale gitter-celler tilbage til billed-koordinater.
+   */
+  function fillLocalRect(rect: { x1: number; y1: number; x2: number; y2: number }, angle: number) {
+    const ax = rect.x1
+    const ay = rect.y1
+    const vx = rect.x2 - ax
+    const vy = rect.y2 - ay
+    const rad = (angle * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    const localX = vx * cos + vy * sin
+    const localY = -vx * sin + vy * cos
+    const lx0 = Math.min(0, localX)
+    const ly0 = Math.min(0, localY)
+    return { ax, ay, cos, sin, lx0, ly0, rw: Math.abs(localX), rh: Math.abs(localY) }
+  }
+
+  /**
+   * Udfyld et markeret rektangel med paneler i et gitter (pitch = panelmål +
+   * gab). Gitteret bygges i arbejdsvinklens (activeAngle) frame, så hele feltet
+   * følger tagets vinkel — hver celle mappes tilbage til billed-koordinater og
+   * får angle = activeAngle.
+   */
   function fillArea(rect: { x1: number; y1: number; x2: number; y2: number }) {
     if (!panelPx) return
-    const rx = Math.min(rect.x1, rect.x2)
-    const ry = Math.min(rect.y1, rect.y2)
-    const rw = Math.abs(rect.x2 - rect.x1)
-    const rh = Math.abs(rect.y2 - rect.y1)
+    const angle = activeAngle
+    const { ax, ay, cos, sin, lx0, ly0, rw, rh } = fillLocalRect(rect, angle)
     // Cellestørrelse afhænger af valgt orientering (byt bredde/højde ved 90°).
     const cw = fillOrientation === 0 ? panelPx.w : panelPx.h
     const ch = fillOrientation === 0 ? panelPx.h : panelPx.w
@@ -490,11 +597,17 @@ export function RoofDrawingEditor({
     const newPanels: PanelPlacement[] = []
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
+        // Cellens centrum i lokal frame → mappes til billed-koordinater via R(angle).
+        const lcx = lx0 + c * pitchX + cw / 2
+        const lcy = ly0 + r * pitchY + ch / 2
+        const wcx = ax + lcx * cos - lcy * sin
+        const wcy = ay + lcx * sin + lcy * cos
         newPanels.push({
           id: newPanelId(),
-          x: rx + c * pitchX,
-          y: ry + r * pitchY,
+          x: wcx - cw / 2,
+          y: wcy - ch / 2,
           rotation: fillOrientation,
+          angle,
         })
       }
     }
@@ -515,6 +628,23 @@ export function RoofDrawingEditor({
     setDirty(true)
   }
 
+  /**
+   * Sæt arbejdsvinklen (numerisk felt). Bruges af nye paneler + udfyld. Hvis et
+   * panel er valgt, drejes det også med det samme, så feltet og håndtaget styrer
+   * det samme.
+   */
+  function applyAngle(a: number) {
+    const na = normAngle(a)
+    setActiveAngle(na)
+    if (selectedId) {
+      setData((d) => ({
+        ...d,
+        panels: d.panels.map((p) => (p.id === selectedId ? { ...p, angle: na } : p)),
+      }))
+      setDirty(true)
+    }
+  }
+
   function deleteSelected() {
     if (!selectedId) return
     setData((d) => ({ ...d, panels: d.panels.filter((p) => p.id !== selectedId) }))
@@ -533,8 +663,25 @@ export function RoofDrawingEditor({
     const svg = svgRef.current
     if (!svg) return
     setSelectedId(panel.id)
+    setActiveAngle(panel.angle ?? 0)
     const { x, y } = clientToContent(e.clientX, e.clientY)
     panelDrag.current = { id: panel.id, offsetX: x - panel.x, offsetY: y - panel.y }
+    svg.setPointerCapture(e.pointerId)
+  }
+
+  /** Start fri rotation når man griber fat i et valgt panels rotations-håndtag. */
+  function onRotateHandlePointerDown(e: React.PointerEvent, panel: PanelPlacement) {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size >= 2) {
+      beginPinch()
+      return
+    }
+    if (mode !== 'panels') return
+    e.stopPropagation()
+    const svg = svgRef.current
+    if (!svg) return
+    setSelectedId(panel.id)
+    rotateDrag.current = { id: panel.id }
     svg.setPointerCapture(e.pointerId)
   }
 
@@ -719,6 +866,25 @@ export function RoofDrawingEditor({
             mm
           </label>
 
+          <label
+            className="flex items-center gap-1.5 text-sm text-gray-600"
+            title="Vinkel for valgt panel + nye paneler/udfyld. Drej også via håndtaget på et valgt panel."
+          >
+            <RotateCw className="w-4 h-4 text-gray-400" />
+            Vinkel
+            <input
+              type="number"
+              value={Math.round(activeAngle)}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value)
+                applyAngle(Number.isFinite(v) ? v : 0)
+              }}
+              step="5"
+              className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg"
+            />
+            °
+          </label>
+
           <div className="ml-auto flex items-center gap-3 text-sm">
             <span className="font-medium text-gray-900">
               {data.panels.length} paneler
@@ -853,44 +1019,83 @@ export function RoofDrawingEditor({
                 />
               )}
 
-              {/* Paneler */}
+              {/* Paneler (sorte, evt. frit roterede om eget centrum) */}
               {panelPx &&
                 data.panels.map((panel) => {
                   const r = rectFor(panel)
                   if (!r) return null
                   const isSel = panel.id === selectedId
+                  const angle = panel.angle ?? 0
+                  const cx = panel.x + r.w / 2
+                  const cy = panel.y + r.h / 2
+                  const showHandle = isSel && mode === 'panels'
+                  const handleLen = Math.max(r.h * 0.6, H * 0.045)
+                  const handleR = W * 0.012
                   return (
-                    <rect
-                      key={panel.id}
-                      x={panel.x}
-                      y={panel.y}
-                      width={r.w}
-                      height={r.h}
-                      rx={Math.min(r.w, r.h) * 0.04}
-                      fill={isSel ? 'rgba(37,99,235,0.45)' : 'rgba(37,99,235,0.30)'}
-                      stroke={isSel ? '#1d4ed8' : '#1e3a8a'}
-                      strokeWidth={W * 0.0025}
-                      onPointerDown={(e) => onPanelPointerDown(e, panel)}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ cursor: mode === 'panels' ? 'move' : 'default' }}
-                    />
+                    <g key={panel.id} transform={`rotate(${angle} ${cx} ${cy})`}>
+                      <rect
+                        x={panel.x}
+                        y={panel.y}
+                        width={r.w}
+                        height={r.h}
+                        rx={Math.min(r.w, r.h) * 0.04}
+                        fill={isSel ? 'rgba(17,24,39,0.92)' : 'rgba(17,24,39,0.85)'}
+                        stroke={isSel ? '#2563eb' : '#0b0f19'}
+                        strokeWidth={isSel ? W * 0.004 : W * 0.0025}
+                        onPointerDown={(e) => onPanelPointerDown(e, panel)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ cursor: mode === 'panels' ? 'move' : 'default' }}
+                      />
+                      {/* Rotations-håndtag (mus + touch) over panelets top-kant */}
+                      {showHandle && (
+                        <g>
+                          <line
+                            x1={cx}
+                            y1={panel.y}
+                            x2={cx}
+                            y2={panel.y - handleLen}
+                            stroke="#2563eb"
+                            strokeWidth={W * 0.0025}
+                          />
+                          <circle
+                            cx={cx}
+                            cy={panel.y - handleLen}
+                            r={handleR}
+                            fill="#ffffff"
+                            stroke="#2563eb"
+                            strokeWidth={W * 0.003}
+                            onPointerDown={(e) => onRotateHandlePointerDown(e, panel)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ cursor: 'grab' }}
+                          />
+                        </g>
+                      )}
+                    </g>
                   )
                 })}
 
-              {/* Udfyld-område markerings-rektangel (under træk) */}
-              {fillRect && (
-                <rect
-                  x={Math.min(fillRect.x1, fillRect.x2)}
-                  y={Math.min(fillRect.y1, fillRect.y2)}
-                  width={Math.abs(fillRect.x2 - fillRect.x1)}
-                  height={Math.abs(fillRect.y2 - fillRect.y1)}
-                  fill="rgba(37,99,235,0.12)"
-                  stroke="#1d4ed8"
-                  strokeWidth={W * 0.0025}
-                  strokeDasharray={`${W * 0.01} ${W * 0.006}`}
-                  pointerEvents="none"
-                />
-              )}
+              {/* Udfyld-område markerings-rektangel (under træk) — roteret efter arbejdsvinklen */}
+              {fillRect &&
+                (() => {
+                  const fl = fillLocalRect(fillRect, activeAngle)
+                  return (
+                    <g
+                      transform={`translate(${fl.ax} ${fl.ay}) rotate(${activeAngle})`}
+                      pointerEvents="none"
+                    >
+                      <rect
+                        x={fl.lx0}
+                        y={fl.ly0}
+                        width={fl.rw}
+                        height={fl.rh}
+                        fill="rgba(37,99,235,0.12)"
+                        stroke="#1d4ed8"
+                        strokeWidth={W * 0.0025}
+                        strokeDasharray={`${W * 0.01} ${W * 0.006}`}
+                      />
+                    </g>
+                  )
+                })()}
 
               {/* Snap-guide-linjer (under træk) */}
               {(snapGuides.x !== null || snapGuides.y !== null) && (
@@ -1048,6 +1253,12 @@ function normalizeData(raw: RoofDrawingData | Record<string, unknown> | null): R
     panelWidthMm: typeof d.panelWidthMm === 'number' ? d.panelWidthMm : FALLBACK_PANEL_WIDTH_MM,
     panelHeightMm: typeof d.panelHeightMm === 'number' ? d.panelHeightMm : FALLBACK_PANEL_HEIGHT_MM,
     panelGapMm: typeof d.panelGapMm === 'number' ? d.panelGapMm : DEFAULT_PANEL_GAP_MM,
-    panels: Array.isArray(d.panels) ? d.panels : [],
+    panels: Array.isArray(d.panels)
+      ? d.panels.map((p) => ({
+          ...p,
+          rotation: p.rotation === 90 ? 90 : 0,
+          angle: typeof p.angle === 'number' ? p.angle : 0,
+        }))
+      : [],
   }
 }

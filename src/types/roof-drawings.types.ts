@@ -11,13 +11,25 @@
  * der matcher de naturlige mål.
  */
 
-/** Et placeret solpanel. x/y = øverste venstre hjørne i naturlige billed-px. */
+/**
+ * Et placeret solpanel.
+ *
+ * x/y = øverste venstre hjørne i naturlige billed-px, i panelets EGET
+ * (u-roterede) koordinatsystem. Den frie rotation (`angle`) tegnes som en
+ * rotation om panelets centrum oven på dette.
+ */
 export interface PanelPlacement {
   id: string
   x: number
   y: number
-  /** 0 = stående (portrait), 90 = liggende (landscape). */
+  /** Orientering: 0 = stående (portrait), 90 = liggende (landscape). Bytter bredde/højde. */
   rotation: 0 | 90
+  /**
+   * Fri rotation i grader (med uret) om panelets centrum, så panelet kan følge
+   * tagets skæve vinkel på billedet. 0 = akse-justeret. Ortogonal til `rotation`.
+   * Valgfri/additiv: ældre tegninger uden feltet behandles som 0.
+   */
+  angle?: number
 }
 
 /** Referencelinje brugt til at sætte målestok. Punkter i naturlige billed-px. */
