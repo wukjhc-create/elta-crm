@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Ruler,
   Plus,
@@ -10,6 +10,9 @@ import {
   X,
   Loader2,
   Sun,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { saveRoofDrawing, deleteRoofDrawing } from '@/lib/actions/roof-drawings'
@@ -27,6 +30,9 @@ import type {
 
 type Mode = 'view' | 'scale' | 'panels'
 
+const MIN_SCALE = 0.5
+const MAX_SCALE = 8
+
 interface RoofDrawingEditorProps {
   drawing: RoofDrawingWithUrl
   panels: PanelProduct[]
@@ -35,12 +41,21 @@ interface RoofDrawingEditorProps {
   onDeleted: (id: string) => void
 }
 
-/** Map klient-pixels til SVG user-space (naturlige billed-px). */
-function clientToSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
+/**
+ * Map klient-pixels til et SVG-elements lokale koordinatsystem via dets CTM.
+ * - `target = svg`  → user-space (viewBox = naturlige billed-px, FØR view-transform).
+ * - `target = <g>`  → indholds-koordinater (naturlige billed-px, EFTER zoom/pan).
+ */
+function clientToEl(
+  svg: SVGSVGElement,
+  target: SVGGraphicsElement,
+  clientX: number,
+  clientY: number,
+) {
   const pt = svg.createSVGPoint()
   pt.x = clientX
   pt.y = clientY
-  const ctm = svg.getScreenCTM()
+  const ctm = target.getScreenCTM()
   if (!ctm) return { x: 0, y: 0 }
   const p = pt.matrixTransform(ctm.inverse())
   return { x: p.x, y: p.y }
@@ -69,6 +84,7 @@ export function RoofDrawingEditor({
 }: RoofDrawingEditorProps) {
   const toast = useToast()
   const svgRef = useRef<SVGSVGElement>(null)
+  const contentRef = useRef<SVGGElement>(null)
 
   const [title, setTitle] = useState(drawing.title)
   const [panelCode, setPanelCode] = useState<string | null>(drawing.panel_product_code)
@@ -88,9 +104,79 @@ export function RoofDrawingEditor({
   const W = drawing.image_width
   const H = drawing.image_height
 
+  // View-transform (ren UI-tilstand, gemmes ikke): zoom + pan af tegnefladen.
+  const [view, setView] = useState({ scale: 1, tx: 0, ty: 0 })
+
   // Aktiv gesture-state (refs for at undgå stale closures)
   const lineDrag = useRef(false)
   const panelDrag = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
+  // Aktive pointers (til multi-touch pinch/pan) + sidste pinch-tilstand.
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const pinch = useRef<{ d: number; mx: number; my: number } | null>(null)
+
+  /** Klient-px → user-space (viewBox, før view-transform). Til zoom-ankre. */
+  function clientToUserSpace(clientX: number, clientY: number) {
+    const svg = svgRef.current
+    if (!svg) return { x: 0, y: 0 }
+    return clientToEl(svg, svg, clientX, clientY)
+  }
+
+  /** Klient-px → indholds-koordinater (naturlige billed-px, efter zoom/pan). Til geometri. */
+  function clientToContent(clientX: number, clientY: number) {
+    const svg = svgRef.current
+    const g = contentRef.current
+    if (!svg || !g) return { x: 0, y: 0 }
+    return clientToEl(svg, g, clientX, clientY)
+  }
+
+  /**
+   * Zoom om et user-space-ankerpunkt, så indholdspunktet under ankret bliver
+   * stående. Bevarer pan. `factor` ganges på scale (clampes).
+   */
+  function zoomAround(anchorX: number, anchorY: number, factor: number) {
+    setView((v) => {
+      const newScale = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE)
+      const f = newScale / v.scale
+      return {
+        scale: newScale,
+        tx: anchorX - f * (anchorX - v.tx),
+        ty: anchorY - f * (anchorY - v.ty),
+      }
+    })
+  }
+
+  function zoomButtons(factor: number) {
+    zoomAround(W / 2, H / 2, factor)
+  }
+
+  function resetView() {
+    setView({ scale: 1, tx: 0, ty: 0 })
+  }
+
+  // Hjul-zoom (non-passiv listener så preventDefault virker; ankrer på musen).
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const mp = clientToEl(svg, svg, e.clientX, e.clientY)
+      setView((v) => {
+        const newScale = clamp(
+          v.scale * (e.deltaY < 0 ? 1.1 : 1 / 1.1),
+          MIN_SCALE,
+          MAX_SCALE,
+        )
+        const f = newScale / v.scale
+        return {
+          scale: newScale,
+          tx: mp.x - f * (mp.x - v.tx),
+          ty: mp.y - f * (mp.y - v.ty),
+        }
+      })
+    }
+    svg.addEventListener('wheel', handler, { passive: false })
+    return () => svg.removeEventListener('wheel', handler)
+  }, [])
 
   const mmPerPx = data.mmPerPx
   const hasScale = !!mmPerPx && mmPerPx > 0
@@ -123,21 +209,76 @@ export function RoofDrawingEditor({
     !selectedPanelProduct?.specifications?.width_mm ||
     !selectedPanelProduct?.specifications?.height_mm
 
-  // ---- Målestok-gesture ----
+  // ---- Pinch/pan (to-finger) ----
+  /** Start (eller genstart) pinch ud fra de to første aktive pointers. */
+  function beginPinch() {
+    const pts = Array.from(pointers.current.values())
+    if (pts.length < 2) return
+    const [a, b] = pts
+    pinch.current = {
+      d: dist(a.x, a.y, b.x, b.y),
+      mx: (a.x + b.x) / 2,
+      my: (a.y + b.y) / 2,
+    }
+    // To-finger har forrang: afbryd evt. enkelt-finger-handlinger.
+    lineDrag.current = false
+    panelDrag.current = null
+    setPendingLine((l) => (l && dist(l.x1, l.y1, l.x2, l.y2) < 5 ? null : l))
+  }
+
+  function doPinch() {
+    const pts = Array.from(pointers.current.values())
+    if (pts.length < 2 || !pinch.current) return
+    const [a, b] = pts
+    const d1 = dist(a.x, a.y, b.x, b.y)
+    const m1x = (a.x + b.x) / 2
+    const m1y = (a.y + b.y) / 2
+    const prev = pinch.current
+    if (prev.d < 1 || d1 < 1) {
+      pinch.current = { d: d1, mx: m1x, my: m1y }
+      return
+    }
+    // Indholdspunktet under den forrige midte skal følge den nye midte, og
+    // scale ændres med d1/prev.d om samme punkt.
+    const mp0 = clientToUserSpace(prev.mx, prev.my)
+    const mp1 = clientToUserSpace(m1x, m1y)
+    setView((v) => {
+      const newScale = clamp(v.scale * (d1 / prev.d), MIN_SCALE, MAX_SCALE)
+      const f = newScale / v.scale
+      return {
+        scale: newScale,
+        tx: mp1.x - f * (mp0.x - v.tx),
+        ty: mp1.y - f * (mp0.y - v.ty),
+      }
+    })
+    pinch.current = { d: d1, mx: m1x, my: m1y }
+  }
+
+  // ---- Målestok-gesture + pointer-routing ----
   function onSvgPointerDown(e: React.PointerEvent) {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size >= 2) {
+      beginPinch()
+      return
+    }
     if (mode !== 'scale') return
     const svg = svgRef.current
     if (!svg) return
-    const { x, y } = clientToSvg(svg, e.clientX, e.clientY)
+    const { x, y } = clientToContent(e.clientX, e.clientY)
     lineDrag.current = true
     setPendingLine({ x1: x, y1: y, x2: x, y2: y })
     svg.setPointerCapture(e.pointerId)
   }
 
   function onSvgPointerMove(e: React.PointerEvent) {
-    const svg = svgRef.current
-    if (!svg) return
-    const { x, y } = clientToSvg(svg, e.clientX, e.clientY)
+    if (pointers.current.has(e.pointerId)) {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    }
+    if (pointers.current.size >= 2 && pinch.current) {
+      doPinch()
+      return
+    }
+    const { x, y } = clientToContent(e.clientX, e.clientY)
 
     if (lineDrag.current) {
       setPendingLine((l) => (l ? { ...l, x2: x, y2: y } : l))
@@ -155,6 +296,8 @@ export function RoofDrawingEditor({
   }
 
   function onSvgPointerUp(e: React.PointerEvent) {
+    pointers.current.delete(e.pointerId)
+    if (pointers.current.size < 2) pinch.current = null
     const svg = svgRef.current
     if (svg) {
       try {
@@ -240,12 +383,17 @@ export function RoofDrawingEditor({
   }
 
   function onPanelPointerDown(e: React.PointerEvent, panel: PanelPlacement) {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size >= 2) {
+      beginPinch()
+      return
+    }
     if (mode !== 'panels') return
     e.stopPropagation()
     const svg = svgRef.current
     if (!svg) return
     setSelectedId(panel.id)
-    const { x, y } = clientToSvg(svg, e.clientX, e.clientY)
+    const { x, y } = clientToContent(e.clientX, e.clientY)
     panelDrag.current = { id: panel.id, offsetX: x - panel.x, offsetY: y - panel.y }
     svg.setPointerCapture(e.pointerId)
   }
@@ -293,8 +441,8 @@ export function RoofDrawingEditor({
   const meterBarPx = hasScale ? 1000 / (mmPerPx as number) : 0
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[95vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-0 sm:p-4">
+      <div className="bg-white shadow-xl flex flex-col w-full h-full max-h-full sm:h-auto sm:max-w-5xl sm:max-h-[95vh] sm:rounded-lg">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <input
@@ -440,21 +588,25 @@ export function RoofDrawingEditor({
         )}
 
         {/* Tegneflade */}
-        <div className="flex-1 overflow-auto bg-gray-100 p-4">
-          <div className="mx-auto" style={{ maxWidth: 900 }}>
-            <svg
-              ref={svgRef}
-              viewBox={`0 0 ${W} ${H}`}
-              className="w-full h-auto border border-gray-300 bg-white touch-none select-none"
-              style={{
-                cursor: mode === 'scale' ? 'crosshair' : 'default',
-              }}
-              onPointerDown={onSvgPointerDown}
-              onPointerMove={onSvgPointerMove}
-              onPointerUp={onSvgPointerUp}
-              onClick={() => {
-                if (mode === 'panels') setSelectedId(null)
-              }}
+        <div className="flex-1 min-h-0 relative bg-gray-100">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${W} ${H}`}
+            className="w-full h-full bg-white touch-none select-none"
+            style={{
+              cursor: mode === 'scale' ? 'crosshair' : 'default',
+            }}
+            onPointerDown={onSvgPointerDown}
+            onPointerMove={onSvgPointerMove}
+            onPointerUp={onSvgPointerUp}
+            onPointerCancel={onSvgPointerUp}
+            onClick={() => {
+              if (mode === 'panels') setSelectedId(null)
+            }}
+          >
+            <g
+              ref={contentRef}
+              transform={`translate(${view.tx} ${view.ty}) scale(${view.scale})`}
             >
               {drawing.image_url && (
                 <image
@@ -535,7 +687,35 @@ export function RoofDrawingEditor({
                   </text>
                 </g>
               )}
-            </svg>
+            </g>
+          </svg>
+
+          {/* Zoom-knapper (touch-venlige, flyder over tegnefladen) */}
+          <div className="absolute bottom-3 right-3 flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => zoomButtons(1.25)}
+              className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/95 border border-gray-300 shadow-sm hover:bg-gray-100 text-gray-700"
+              aria-label="Zoom ind"
+            >
+              <ZoomIn className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomButtons(0.8)}
+              className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/95 border border-gray-300 shadow-sm hover:bg-gray-100 text-gray-700"
+              aria-label="Zoom ud"
+            >
+              <ZoomOut className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={resetView}
+              className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/95 border border-gray-300 shadow-sm hover:bg-gray-100 text-gray-700"
+              aria-label="Nulstil zoom"
+            >
+              <Maximize className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
