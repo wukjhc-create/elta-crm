@@ -39,6 +39,11 @@ type Mode = 'view' | 'scale' | 'panels' | 'fill' | 'field'
 
 const MIN_SCALE = 0.5
 const MAX_SCALE = 8
+/**
+ * Skærm-px en finger/mus skal flytte sig før et felt-greb tolkes som FLYT
+ * (ikke tap). Skærm-px (ikke content-px) gør tærsklen zoom-uafhængig.
+ */
+const FIELD_MOVE_THRESHOLD_PX = 6
 
 interface RoofDrawingEditorProps {
   drawing: RoofDrawingWithUrl
@@ -164,6 +169,23 @@ export function RoofDrawingEditor({
   const rotateDrag = useRef<{ id: string } | null>(null)
   // Felt-rotation (Trin 3): drej HELE feltet om dets centroid via gruppe-håndtag.
   const fieldRotateDrag = useRef<{ fieldId: string; cx: number; cy: number } | null>(null)
+  // Felt-flyt (Trin 3): grib et felt-panel og TRÆK hele gruppen samlet. Pending
+  // indtil pointeren kommer over tærsklen → så er det flyt; ellers var det et tap
+  // (vælg/fjern-panel, afgøres på pointerUp). Snapshot = absolut flyt, ingen drift.
+  const fieldMoveDrag = useRef<{
+    fieldId: string
+    wasSelected: boolean // var feltet valgt FØR grebet? (tap = fjern vs. vælg)
+    tappedCell: { r: number; c: number } | null
+    startCX: number // pointer-start i skærm-px (zoom-uafhængig tærskel)
+    startCY: number
+    startX: number // pointer-start i content-px (til translation)
+    startY: number
+    moved: boolean
+    originX: number // felt-origin ved start
+    originY: number
+    panels: Array<{ id: string; x: number; y: number }> // felt-panelernes start-pos
+    bbox: { minX: number; minY: number; maxX: number; maxY: number } // til clamp
+  } | null>(null)
 
   // Auto-spring til "Udfyld felt" én gang når forudsætningerne er klar (engangs).
   const didAutoTool = useRef(false)
@@ -392,6 +414,7 @@ export function RoofDrawingEditor({
     panelDrag.current = null
     rotateDrag.current = null
     fieldRotateDrag.current = null
+    fieldMoveDrag.current = null
     fillDrag.current = false
     setFillRect(null)
     setSnapGuides({ x: null, y: null })
@@ -483,6 +506,44 @@ export function RoofDrawingEditor({
       applyFieldAngle(fr.fieldId, target)
       return
     }
+    if (fieldMoveDrag.current) {
+      const md = fieldMoveDrag.current
+      if (!md.moved) {
+        if (Math.hypot(e.clientX - md.startCX, e.clientY - md.startCY) < FIELD_MOVE_THRESHOLD_PX) {
+          return // stadig et tap — afgøres på pointerUp
+        }
+        md.moved = true
+        if (selectedFieldId !== md.fieldId) {
+          // Auto-vælg ved træk-start, så omrids/håndtag følger med.
+          setSelectedFieldId(md.fieldId)
+          setActiveAngle(data.fields?.[md.fieldId]?.angle ?? 0)
+        }
+      }
+      let dx = x - md.startX
+      let dy = y - md.startY
+      // Clamp pr. akse KUN hvis feltet er smallere end billedet (ellers fri),
+      // så store felter ikke låses fast, men mindre felter ikke trækkes helt ud.
+      if (md.bbox.maxX - md.bbox.minX <= W) dx = clamp(dx, -md.bbox.minX, W - md.bbox.maxX)
+      if (md.bbox.maxY - md.bbox.minY <= H) dy = clamp(dy, -md.bbox.minY, H - md.bbox.maxY)
+      const startById = new Map(md.panels.map((p) => [p.id, p]))
+      setData((d) => {
+        const field = d.fields?.[md.fieldId]
+        if (!field) return d
+        return {
+          ...d,
+          panels: d.panels.map((p) => {
+            const s = startById.get(p.id)
+            return s ? { ...p, x: s.x + dx, y: s.y + dy } : p
+          }),
+          fields: {
+            ...d.fields,
+            [md.fieldId]: { ...field, origin: { x: md.originX + dx, y: md.originY + dy } },
+          },
+        }
+      })
+      setDirty(true)
+      return
+    }
     if (rotateDrag.current && panelPx) {
       const rot = rotateDrag.current
       const panel = data.panels.find((p) => p.id === rot.id)
@@ -560,6 +621,21 @@ export function RoofDrawingEditor({
     if (fieldRotateDrag.current) {
       fieldRotateDrag.current = null
       setDirty(true)
+    }
+    if (fieldMoveDrag.current) {
+      const md = fieldMoveDrag.current
+      fieldMoveDrag.current = null
+      if (!md.moved) {
+        // Intet træk → det var et tap: samme semantik som før (vælg/fjern-panel).
+        if (md.wasSelected && md.tappedCell) {
+          removeFieldCell(md.fieldId, md.tappedCell.r, md.tappedCell.c)
+        } else if (!md.wasSelected) {
+          setSelectedFieldId(md.fieldId)
+          setActiveAngle(data.fields?.[md.fieldId]?.angle ?? 0)
+        }
+      } else {
+        setDirty(true)
+      }
     }
     if (panelDrag.current) {
       panelDrag.current = null
@@ -1008,15 +1084,43 @@ export function RoofDrawingEditor({
     if (mode === 'field') {
       e.stopPropagation()
       const fid = panel.fieldId
-      if (!fid || !data.fields?.[fid]) return // løse paneler er ikke valgbare i felt-mode
-      if (fid !== selectedFieldId) {
-        // Første tryk: vælg hele feltet (rotér/udvid via håndtag herefter).
-        setSelectedFieldId(fid)
-        setActiveAngle(data.fields[fid].angle)
-      } else if (panel.cell) {
-        // Allerede valgt → tryk på et panel fjerner det som forhindring.
-        removeFieldCell(fid, panel.cell.r, panel.cell.c)
+      const field = fid ? data.fields?.[fid] : undefined
+      if (!fid || !field) return // løse paneler er ikke valgbare i felt-mode
+      const svg = svgRef.current
+      if (!svg) return
+      // Start et pending greb: træk forbi tærsklen = flyt hele feltet; et tap
+      // uden bevægelse afgøres på pointerUp (vælg ELLER fjern-panel som før).
+      const start = clientToContent(e.clientX, e.clientY)
+      const ps = panelsOfField(fid)
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      const snap: Array<{ id: string; x: number; y: number }> = []
+      for (const p of ps) {
+        const r = rectFor(p)
+        if (!r) continue
+        snap.push({ id: p.id, x: p.x, y: p.y })
+        minX = Math.min(minX, p.x)
+        minY = Math.min(minY, p.y)
+        maxX = Math.max(maxX, p.x + r.w)
+        maxY = Math.max(maxY, p.y + r.h)
       }
+      fieldMoveDrag.current = {
+        fieldId: fid,
+        wasSelected: selectedFieldId === fid,
+        tappedCell: panel.cell ?? null,
+        startCX: e.clientX,
+        startCY: e.clientY,
+        startX: start.x,
+        startY: start.y,
+        moved: false,
+        originX: field.origin.x,
+        originY: field.origin.y,
+        panels: snap,
+        bbox: { minX, minY, maxX, maxY },
+      }
+      svg.setPointerCapture(e.pointerId)
       return
     }
     if (mode !== 'panels') return
@@ -1508,7 +1612,14 @@ export function RoofDrawingEditor({
                         strokeWidth={isSel ? W * 0.004 : W * 0.0025}
                         onPointerDown={(e) => onPanelPointerDown(e, panel)}
                         onClick={(e) => e.stopPropagation()}
-                        style={{ cursor: mode === 'panels' ? 'move' : 'default' }}
+                        style={{
+                          cursor:
+                            mode === 'panels'
+                              ? 'move'
+                              : mode === 'field' && panel.fieldId
+                                ? 'grab'
+                                : 'default',
+                        }}
                       />
                       {/* Rotations-håndtag (mus + touch) over panelets top-kant */}
                       {showHandle && (
