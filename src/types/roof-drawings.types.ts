@@ -30,6 +30,9 @@ export interface ReferenceLine {
   realLengthMeters: number
 }
 
+/** Standard-mellemrum mellem paneler (montageskinne-gab) i mm. */
+export const DEFAULT_PANEL_GAP_MM = 20
+
 /** Geometri-payload gemt i roof_drawings.drawing_data (JSONB). */
 export interface RoofDrawingData {
   referenceLine: ReferenceLine | null
@@ -38,6 +41,8 @@ export interface RoofDrawingData {
   /** Fysiske mål for det valgte panel (kopieret ved valg, så gammel geometri er stabil). */
   panelWidthMm: number
   panelHeightMm: number
+  /** Mellemrum mellem paneler (mm) brugt ved snapping + udfyld-område. Additivt felt. */
+  panelGapMm: number
   panels: PanelPlacement[]
 }
 
@@ -50,6 +55,7 @@ export function emptyRoofDrawingData(
     mmPerPx: null,
     panelWidthMm,
     panelHeightMm,
+    panelGapMm: DEFAULT_PANEL_GAP_MM,
     panels: [],
   }
 }

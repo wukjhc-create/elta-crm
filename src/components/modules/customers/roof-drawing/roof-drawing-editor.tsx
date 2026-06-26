@@ -13,6 +13,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize,
+  Magnet,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { saveRoofDrawing, deleteRoofDrawing } from '@/lib/actions/roof-drawings'
@@ -21,11 +22,12 @@ import {
   FALLBACK_PANEL_HEIGHT_MM,
   type PanelProduct,
 } from '@/types/solar-products.types'
-import type {
-  RoofDrawing,
-  RoofDrawingWithUrl,
-  RoofDrawingData,
-  PanelPlacement,
+import {
+  DEFAULT_PANEL_GAP_MM,
+  type RoofDrawing,
+  type RoofDrawingWithUrl,
+  type RoofDrawingData,
+  type PanelPlacement,
 } from '@/types/roof-drawings.types'
 
 type Mode = 'view' | 'scale' | 'panels'
@@ -69,6 +71,11 @@ function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v))
 }
 
+/** Overlapper to 1D-intervaller (med tolerance) — bruges til at gate snap-akser. */
+function nearRange(aMin: number, aMax: number, bMin: number, bMax: number, tol: number) {
+  return aMin < bMax + tol && aMax > bMin - tol
+}
+
 let panelSeq = 0
 function newPanelId() {
   panelSeq += 1
@@ -106,6 +113,13 @@ export function RoofDrawingEditor({
 
   // View-transform (ren UI-tilstand, gemmes ikke): zoom + pan af tegnefladen.
   const [view, setView] = useState({ scale: 1, tx: 0, ty: 0 })
+
+  // Snapping (Trin 2): nabo-snap til/fra + aktive guide-linjer under træk.
+  const [snapEnabled, setSnapEnabled] = useState(true)
+  const [snapGuides, setSnapGuides] = useState<{ x: number | null; y: number | null }>({
+    x: null,
+    y: null,
+  })
 
   // Aktiv gesture-state (refs for at undgå stale closures)
   const lineDrag = useRef(false)
@@ -180,6 +194,7 @@ export function RoofDrawingEditor({
 
   const mmPerPx = data.mmPerPx
   const hasScale = !!mmPerPx && mmPerPx > 0
+  const gapPx = hasScale ? data.panelGapMm / (mmPerPx as number) : 0
 
   // Panel-px-størrelse ud fra valgt panels fysiske mål og målestok
   const panelPx = useMemo(() => {
@@ -193,6 +208,54 @@ export function RoofDrawingEditor({
   function patchData(patch: Partial<RoofDrawingData>) {
     setData((d) => ({ ...d, ...patch }))
     setDirty(true)
+  }
+
+  /**
+   * Nabo-snap: justér et trukket panels (nx,ny) så dets kanter flugter med /
+   * støder op mod nærmeste panel (med panelGapMm afstand). X og Y vælges
+   * uafhængigt og kun fra paneler der er nær på den anden akse, så man kan
+   * starte en ny række under en eksisterende. Returnerer også guide-linjer.
+   */
+  function snapPanelPosition(panelId: string, nx: number, ny: number, dw: number, dh: number) {
+    if (!snapEnabled || !panelPx) return { x: nx, y: ny, guideX: null, guideY: null }
+    const thr = Math.max(8, Math.min(dw, dh) * 0.2)
+    let bestX = { d: thr, val: nx, guide: null as number | null }
+    let bestY = { d: thr, val: ny, guide: null as number | null }
+    for (const o of data.panels) {
+      if (o.id === panelId) continue
+      const or = rectFor(o)
+      if (!or) continue
+      const { x: ox, y: oy } = o
+      const ow = or.w
+      const oh = or.h
+      // X-kandidater (kun hvis paneler er lodret nær hinanden).
+      if (nearRange(ny, ny + dh, oy, oy + oh, dh)) {
+        const cands: Array<{ val: number; guide: number }> = [
+          { val: ox, guide: ox }, // flugt venstre kant
+          { val: ox + ow - dw, guide: ox + ow }, // flugt højre kant
+          { val: ox + ow + gapPx, guide: ox + ow + gapPx }, // stød til højre for o
+          { val: ox - gapPx - dw, guide: ox - gapPx }, // stød til venstre for o
+        ]
+        for (const c of cands) {
+          const d = Math.abs(c.val - nx)
+          if (d < bestX.d) bestX = { d, val: c.val, guide: c.guide }
+        }
+      }
+      // Y-kandidater (kun hvis paneler er vandret nær hinanden).
+      if (nearRange(nx, nx + dw, ox, ox + ow, dw)) {
+        const cands: Array<{ val: number; guide: number }> = [
+          { val: oy, guide: oy },
+          { val: oy + oh - dh, guide: oy + oh },
+          { val: oy + oh + gapPx, guide: oy + oh + gapPx },
+          { val: oy - gapPx - dh, guide: oy - gapPx },
+        ]
+        for (const c of cands) {
+          const d = Math.abs(c.val - ny)
+          if (d < bestY.d) bestY = { d, val: c.val, guide: c.guide }
+        }
+      }
+    }
+    return { x: bestX.val, y: bestY.val, guideX: bestX.guide, guideY: bestY.guide }
   }
 
   // ---- Panel-valg → opdatér fysiske mål i geometrien ----
@@ -223,6 +286,7 @@ export function RoofDrawingEditor({
     // To-finger har forrang: afbryd evt. enkelt-finger-handlinger.
     lineDrag.current = false
     panelDrag.current = null
+    setSnapGuides({ x: null, y: null })
     setPendingLine((l) => (l && dist(l.x1, l.y1, l.x2, l.y2) < 5 ? null : l))
   }
 
@@ -286,12 +350,20 @@ export function RoofDrawingEditor({
     }
     if (panelDrag.current && panelPx) {
       const drag = panelDrag.current
-      const nx = clamp(x - drag.offsetX, 0, W - panelPx.w)
-      const ny = clamp(y - drag.offsetY, 0, H - panelPx.h)
+      const dragged = data.panels.find((p) => p.id === drag.id)
+      const dr = dragged ? rectFor(dragged) : null
+      const dw = dr?.w ?? panelPx.w
+      const dh = dr?.h ?? panelPx.h
+      const rawX = clamp(x - drag.offsetX, 0, W - dw)
+      const rawY = clamp(y - drag.offsetY, 0, H - dh)
+      const snapped = snapPanelPosition(drag.id, rawX, rawY, dw, dh)
+      const nx = clamp(snapped.x, 0, W - dw)
+      const ny = clamp(snapped.y, 0, H - dh)
       setData((d) => ({
         ...d,
         panels: d.panels.map((p) => (p.id === drag.id ? { ...p, x: nx, y: ny } : p)),
       }))
+      setSnapGuides({ x: snapped.guideX, y: snapped.guideY })
     }
   }
 
@@ -315,6 +387,7 @@ export function RoofDrawingEditor({
     }
     if (panelDrag.current) {
       panelDrag.current = null
+      setSnapGuides({ x: null, y: null })
       setDirty(true)
     }
   }
@@ -532,6 +605,35 @@ export function RoofDrawingEditor({
             Slet panel
           </button>
 
+          <button
+            onClick={() => setSnapEnabled((s) => !s)}
+            title="Snap paneler sammen i rækker"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border ${
+              snapEnabled
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            <Magnet className="w-4 h-4" />
+            Snap
+          </button>
+
+          <label className="flex items-center gap-1.5 text-sm text-gray-600">
+            Afstand
+            <input
+              type="number"
+              value={data.panelGapMm}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value)
+                patchData({ panelGapMm: Number.isFinite(v) && v >= 0 ? v : 0 })
+              }}
+              min="0"
+              step="5"
+              className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg"
+            />
+            mm
+          </label>
+
           <div className="ml-auto flex items-center gap-3 text-sm">
             <span className="font-medium text-gray-900">
               {data.panels.length} paneler
@@ -667,6 +769,34 @@ export function RoofDrawingEditor({
                   )
                 })}
 
+              {/* Snap-guide-linjer (under træk) */}
+              {(snapGuides.x !== null || snapGuides.y !== null) && (
+                <g pointerEvents="none">
+                  {snapGuides.x !== null && (
+                    <line
+                      x1={snapGuides.x}
+                      y1={0}
+                      x2={snapGuides.x}
+                      y2={H}
+                      stroke="#22c55e"
+                      strokeWidth={W * 0.0015}
+                      strokeDasharray={`${W * 0.01} ${W * 0.006}`}
+                    />
+                  )}
+                  {snapGuides.y !== null && (
+                    <line
+                      x1={0}
+                      y1={snapGuides.y}
+                      x2={W}
+                      y2={snapGuides.y}
+                      stroke="#22c55e"
+                      strokeWidth={W * 0.0015}
+                      strokeDasharray={`${W * 0.01} ${W * 0.006}`}
+                    />
+                  )}
+                </g>
+              )}
+
               {/* 1 m målestok-bar */}
               {hasScale && (
                 <g>
@@ -794,6 +924,7 @@ function normalizeData(raw: RoofDrawingData | Record<string, unknown> | null): R
     mmPerPx: typeof d.mmPerPx === 'number' ? d.mmPerPx : null,
     panelWidthMm: typeof d.panelWidthMm === 'number' ? d.panelWidthMm : FALLBACK_PANEL_WIDTH_MM,
     panelHeightMm: typeof d.panelHeightMm === 'number' ? d.panelHeightMm : FALLBACK_PANEL_HEIGHT_MM,
+    panelGapMm: typeof d.panelGapMm === 'number' ? d.panelGapMm : DEFAULT_PANEL_GAP_MM,
     panels: Array.isArray(d.panels) ? d.panels : [],
   }
 }
