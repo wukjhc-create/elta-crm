@@ -14,6 +14,7 @@ import {
   ZoomOut,
   Maximize,
   Magnet,
+  Grid3x3,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { saveRoofDrawing, deleteRoofDrawing } from '@/lib/actions/roof-drawings'
@@ -30,7 +31,7 @@ import {
   type PanelPlacement,
 } from '@/types/roof-drawings.types'
 
-type Mode = 'view' | 'scale' | 'panels'
+type Mode = 'view' | 'scale' | 'panels' | 'fill'
 
 const MIN_SCALE = 0.5
 const MAX_SCALE = 8
@@ -120,6 +121,13 @@ export function RoofDrawingEditor({
     x: null,
     y: null,
   })
+
+  // Udfyld område (Trin 3): markerings-rektangel + orientering for gitter-fyld.
+  const [fillRect, setFillRect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(
+    null,
+  )
+  const [fillOrientation, setFillOrientation] = useState<0 | 90>(0)
+  const fillDrag = useRef(false)
 
   // Aktiv gesture-state (refs for at undgå stale closures)
   const lineDrag = useRef(false)
@@ -286,6 +294,8 @@ export function RoofDrawingEditor({
     // To-finger har forrang: afbryd evt. enkelt-finger-handlinger.
     lineDrag.current = false
     panelDrag.current = null
+    fillDrag.current = false
+    setFillRect(null)
     setSnapGuides({ x: null, y: null })
     setPendingLine((l) => (l && dist(l.x1, l.y1, l.x2, l.y2) < 5 ? null : l))
   }
@@ -325,13 +335,21 @@ export function RoofDrawingEditor({
       beginPinch()
       return
     }
-    if (mode !== 'scale') return
     const svg = svgRef.current
     if (!svg) return
-    const { x, y } = clientToContent(e.clientX, e.clientY)
-    lineDrag.current = true
-    setPendingLine({ x1: x, y1: y, x2: x, y2: y })
-    svg.setPointerCapture(e.pointerId)
+    if (mode === 'scale') {
+      const { x, y } = clientToContent(e.clientX, e.clientY)
+      lineDrag.current = true
+      setPendingLine({ x1: x, y1: y, x2: x, y2: y })
+      svg.setPointerCapture(e.pointerId)
+      return
+    }
+    if (mode === 'fill' && panelPx) {
+      const { x, y } = clientToContent(e.clientX, e.clientY)
+      fillDrag.current = true
+      setFillRect({ x1: x, y1: y, x2: x, y2: y })
+      svg.setPointerCapture(e.pointerId)
+    }
   }
 
   function onSvgPointerMove(e: React.PointerEvent) {
@@ -346,6 +364,10 @@ export function RoofDrawingEditor({
 
     if (lineDrag.current) {
       setPendingLine((l) => (l ? { ...l, x2: x, y2: y } : l))
+      return
+    }
+    if (fillDrag.current) {
+      setFillRect((r) => (r ? { ...r, x2: x, y2: y } : r))
       return
     }
     if (panelDrag.current && panelPx) {
@@ -389,6 +411,13 @@ export function RoofDrawingEditor({
       panelDrag.current = null
       setSnapGuides({ x: null, y: null })
       setDirty(true)
+    }
+    if (fillDrag.current) {
+      fillDrag.current = false
+      if (fillRect && dist(fillRect.x1, fillRect.y1, fillRect.x2, fillRect.y2) >= 10) {
+        fillArea(fillRect)
+      }
+      setFillRect(null)
     }
   }
 
@@ -435,6 +464,44 @@ export function RoofDrawingEditor({
     setData((d) => ({ ...d, panels: [...d.panels, panel] }))
     setSelectedId(panel.id)
     setDirty(true)
+  }
+
+  /** Udfyld et markeret rektangel med paneler i et gitter (pitch = panelmål + gab). */
+  function fillArea(rect: { x1: number; y1: number; x2: number; y2: number }) {
+    if (!panelPx) return
+    const rx = Math.min(rect.x1, rect.x2)
+    const ry = Math.min(rect.y1, rect.y2)
+    const rw = Math.abs(rect.x2 - rect.x1)
+    const rh = Math.abs(rect.y2 - rect.y1)
+    // Cellestørrelse afhænger af valgt orientering (byt bredde/højde ved 90°).
+    const cw = fillOrientation === 0 ? panelPx.w : panelPx.h
+    const ch = fillOrientation === 0 ? panelPx.h : panelPx.w
+    const pitchX = cw + gapPx
+    const pitchY = ch + gapPx
+    // n paneler fylder n*pitch - gab → n = floor((længde + gab) / pitch).
+    const cols = Math.floor((rw + gapPx) / pitchX)
+    const rows = Math.floor((rh + gapPx) / pitchY)
+    if (cols < 1 || rows < 1) {
+      toast.error('Området er for lille til et panel')
+      return
+    }
+    const count = cols * rows
+    if (count > 400 && !confirm(`Dette udfylder ${count} paneler. Fortsæt?`)) return
+    const newPanels: PanelPlacement[] = []
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        newPanels.push({
+          id: newPanelId(),
+          x: rx + c * pitchX,
+          y: ry + r * pitchY,
+          rotation: fillOrientation,
+        })
+      }
+    }
+    setData((d) => ({ ...d, panels: [...d.panels, ...newPanels] }))
+    setSelectedId(null)
+    setDirty(true)
+    toast.success(`${count} paneler tilføjet`)
   }
 
   function rotateSelected() {
@@ -579,6 +646,24 @@ export function RoofDrawingEditor({
           </button>
 
           <button
+            onClick={() => {
+              setMode((m) => (m === 'fill' ? 'view' : 'fill'))
+              setSelectedId(null)
+              setFillRect(null)
+              cancelScale()
+            }}
+            disabled={!hasScale || !panelCode}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 ${
+              mode === 'fill'
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            <Grid3x3 className="w-4 h-4" />
+            Udfyld område
+          </button>
+
+          <button
             onClick={addPanel}
             disabled={mode !== 'panels'}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
@@ -688,6 +773,29 @@ export function RoofDrawingEditor({
             Solcelleindstillinger for korrekt størrelsesforhold.
           </div>
         )}
+        {mode === 'fill' && (
+          <div className="px-3 py-2 bg-amber-50 border-b text-sm text-amber-800 flex items-center gap-3 flex-wrap">
+            <span>Træk et rektangel over tagfladen — det fyldes automatisk med paneler i gitter.</span>
+            <div className="ml-auto flex items-center gap-1 bg-white rounded-lg border p-0.5">
+              <button
+                onClick={() => setFillOrientation(0)}
+                className={`px-2.5 py-1 rounded text-xs font-medium ${
+                  fillOrientation === 0 ? 'bg-primary text-white' : 'text-gray-700'
+                }`}
+              >
+                Stående
+              </button>
+              <button
+                onClick={() => setFillOrientation(90)}
+                className={`px-2.5 py-1 rounded text-xs font-medium ${
+                  fillOrientation === 90 ? 'bg-primary text-white' : 'text-gray-700'
+                }`}
+              >
+                Liggende
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tegneflade */}
         <div className="flex-1 min-h-0 relative bg-gray-100">
@@ -696,7 +804,7 @@ export function RoofDrawingEditor({
             viewBox={`0 0 ${W} ${H}`}
             className="w-full h-full bg-white touch-none select-none"
             style={{
-              cursor: mode === 'scale' ? 'crosshair' : 'default',
+              cursor: mode === 'scale' || mode === 'fill' ? 'crosshair' : 'default',
             }}
             onPointerDown={onSvgPointerDown}
             onPointerMove={onSvgPointerMove}
@@ -768,6 +876,21 @@ export function RoofDrawingEditor({
                     />
                   )
                 })}
+
+              {/* Udfyld-område markerings-rektangel (under træk) */}
+              {fillRect && (
+                <rect
+                  x={Math.min(fillRect.x1, fillRect.x2)}
+                  y={Math.min(fillRect.y1, fillRect.y2)}
+                  width={Math.abs(fillRect.x2 - fillRect.x1)}
+                  height={Math.abs(fillRect.y2 - fillRect.y1)}
+                  fill="rgba(37,99,235,0.12)"
+                  stroke="#1d4ed8"
+                  strokeWidth={W * 0.0025}
+                  strokeDasharray={`${W * 0.01} ${W * 0.006}`}
+                  pointerEvents="none"
+                />
+              )}
 
               {/* Snap-guide-linjer (under træk) */}
               {(snapGuides.x !== null || snapGuides.y !== null) && (
