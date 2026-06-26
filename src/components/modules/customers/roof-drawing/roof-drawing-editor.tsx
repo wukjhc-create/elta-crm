@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import {
   Ruler,
   Plus,
@@ -15,6 +15,8 @@ import {
   Maximize,
   Magnet,
   Grid3x3,
+  Hand,
+  MoveHorizontal,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { saveRoofDrawing, deleteRoofDrawing } from '@/lib/actions/roof-drawings'
@@ -146,6 +148,9 @@ export function RoofDrawingEditor({
   const [activeAngle, setActiveAngle] = useState(0)
   const rotateDrag = useRef<{ id: string } | null>(null)
 
+  // Auto-spring til "Udfyld felt" én gang når forudsætningerne er klar (engangs).
+  const didAutoTool = useRef(false)
+
   // Aktiv gesture-state (refs for at undgå stale closures)
   const lineDrag = useRef(false)
   const panelDrag = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
@@ -220,6 +225,27 @@ export function RoofDrawingEditor({
   const mmPerPx = data.mmPerPx
   const hasScale = !!mmPerPx && mmPerPx > 0
   const gapPx = hasScale ? data.panelGapMm / (mmPerPx as number) : 0
+
+  // Klar til at lægge paneler først når BÅDE målestok er sat OG et panel valgt.
+  const ready = hasScale && !!panelCode
+
+  /** Skift værktøj (mode) og ryd op i igangværende handlinger/markering. */
+  function selectTool(t: Mode) {
+    setMode(t)
+    setSelectedId(null)
+    setFillRect(null)
+    cancelScale()
+  }
+
+  // Når forudsætningerne bliver opfyldt (eller ved åbning af en klar tegning),
+  // hop én gang til Udfyld-feltet, så den primære handling er valgt fra start.
+  useEffect(() => {
+    if (didAutoTool.current) return
+    if (ready) {
+      didAutoTool.current = true
+      setMode((m) => (m === 'view' ? 'fill' : m))
+    }
+  }, [ready])
 
   // Panel-px-størrelse ud fra valgt panels fysiske mål og målestok
   const panelPx = useMemo(() => {
@@ -727,6 +753,46 @@ export function RoofDrawingEditor({
   // 1 m målestok-bar i px
   const meterBarPx = hasScale ? 1000 / (mmPerPx as number) : 0
 
+  // Genbruges i både udfyld- og enkelt-panel-kontekstrækken.
+  const gapField = (
+    <label className="flex items-center gap-1.5 text-sm text-gray-600">
+      Afstand
+      <input
+        type="number"
+        value={data.panelGapMm}
+        onChange={(e) => {
+          const v = parseFloat(e.target.value)
+          patchData({ panelGapMm: Number.isFinite(v) && v >= 0 ? v : 0 })
+        }}
+        min="0"
+        step="5"
+        className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg"
+      />
+      mm
+    </label>
+  )
+
+  const angleField = (
+    <label
+      className="flex items-center gap-1.5 text-sm text-gray-600"
+      title="Vinkel for valgt panel + nye paneler/udfyld. Drej også via håndtaget på et valgt panel."
+    >
+      <RotateCw className="w-4 h-4 text-gray-400" />
+      Vinkel
+      <input
+        type="number"
+        value={Math.round(activeAngle)}
+        onChange={(e) => {
+          const v = parseFloat(e.target.value)
+          applyAngle(Number.isFinite(v) ? v : 0)
+        }}
+        step="5"
+        className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg"
+      />
+      °
+    </label>
+  )
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-0 sm:p-4">
       <div className="bg-white shadow-xl flex flex-col w-full h-full max-h-full sm:h-auto sm:max-w-5xl sm:max-h-[95vh] sm:rounded-lg">
@@ -747,26 +813,41 @@ export function RoofDrawingEditor({
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2 p-3 border-b bg-gray-50">
-          <button
-            onClick={() => {
-              setMode((m) => (m === 'scale' ? 'view' : 'scale'))
-              setSelectedId(null)
-              cancelScale()
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border ${
-              mode === 'scale'
-                ? 'bg-primary text-white border-primary'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-            }`}
-          >
-            <Ruler className="w-4 h-4" />
-            {hasScale ? 'Justér målestok' : 'Sæt målestok'}
-          </button>
+          {/* Værktøjsvælger — vælg ét værktøj ad gangen (touch-venligt) */}
+          <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-300 p-1">
+            <ToolButton
+              active={mode === 'view'}
+              onClick={() => selectTool('view')}
+              icon={Hand}
+              label="Vis"
+            />
+            <ToolButton
+              active={mode === 'scale'}
+              onClick={() => selectTool('scale')}
+              icon={Ruler}
+              label={hasScale ? 'Målestok' : 'Sæt målestok'}
+            />
+            <ToolButton
+              active={mode === 'fill'}
+              onClick={() => selectTool('fill')}
+              icon={Grid3x3}
+              label="Udfyld felt"
+              disabled={!ready}
+              primary
+            />
+            <ToolButton
+              active={mode === 'panels'}
+              onClick={() => selectTool('panels')}
+              icon={Sun}
+              label="Enkelt panel"
+              disabled={!ready}
+            />
+          </div>
 
           <select
             value={panelCode ?? ''}
             onChange={(e) => handlePanelChange(e.target.value)}
-            className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 bg-white"
+            className="px-3 py-2 rounded-lg text-sm border border-gray-300 bg-white"
           >
             <option value="">Vælg panel…</option>
             {panels.map((p) => (
@@ -775,115 +856,6 @@ export function RoofDrawingEditor({
               </option>
             ))}
           </select>
-
-          <button
-            onClick={() => {
-              setMode((m) => (m === 'panels' ? 'view' : 'panels'))
-              cancelScale()
-            }}
-            disabled={!hasScale || !panelCode}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 ${
-              mode === 'panels'
-                ? 'bg-primary text-white border-primary'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-            }`}
-          >
-            <Sun className="w-4 h-4" />
-            Panel-værktøj
-          </button>
-
-          <button
-            onClick={() => {
-              setMode((m) => (m === 'fill' ? 'view' : 'fill'))
-              setSelectedId(null)
-              setFillRect(null)
-              cancelScale()
-            }}
-            disabled={!hasScale || !panelCode}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 ${
-              mode === 'fill'
-                ? 'bg-primary text-white border-primary'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-            }`}
-          >
-            <Grid3x3 className="w-4 h-4" />
-            Udfyld område
-          </button>
-
-          <button
-            onClick={addPanel}
-            disabled={mode !== 'panels'}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-          >
-            <Plus className="w-4 h-4" />
-            Tilføj panel
-          </button>
-
-          <button
-            onClick={rotateSelected}
-            disabled={!selectedId}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-          >
-            <RotateCw className="w-4 h-4" />
-            Rotér
-          </button>
-
-          <button
-            onClick={deleteSelected}
-            disabled={!selectedId}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />
-            Slet panel
-          </button>
-
-          <button
-            onClick={() => setSnapEnabled((s) => !s)}
-            title="Snap paneler sammen i rækker"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border ${
-              snapEnabled
-                ? 'bg-primary text-white border-primary'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-            }`}
-          >
-            <Magnet className="w-4 h-4" />
-            Snap
-          </button>
-
-          <label className="flex items-center gap-1.5 text-sm text-gray-600">
-            Afstand
-            <input
-              type="number"
-              value={data.panelGapMm}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value)
-                patchData({ panelGapMm: Number.isFinite(v) && v >= 0 ? v : 0 })
-              }}
-              min="0"
-              step="5"
-              className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg"
-            />
-            mm
-          </label>
-
-          <label
-            className="flex items-center gap-1.5 text-sm text-gray-600"
-            title="Vinkel for valgt panel + nye paneler/udfyld. Drej også via håndtaget på et valgt panel."
-          >
-            <RotateCw className="w-4 h-4 text-gray-400" />
-            Vinkel
-            <input
-              type="number"
-              value={Math.round(activeAngle)}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value)
-                applyAngle(Number.isFinite(v) ? v : 0)
-              }}
-              step="5"
-              className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg"
-            />
-            °
-          </label>
 
           <div className="ml-auto flex items-center gap-3 text-sm">
             <span className="font-medium text-gray-900">
@@ -900,7 +872,23 @@ export function RoofDrawingEditor({
           </div>
         </div>
 
-        {/* Mode-hint / scale-input */}
+        {/* Forudsætnings-guide — vis vejen til at lægge paneler når noget mangler */}
+        {!ready && (
+          <div className="px-3 py-2.5 bg-blue-50 border-b text-sm text-blue-900 flex flex-wrap items-center gap-x-5 gap-y-1.5">
+            <span className="font-semibold">Sådan lægger du paneler:</span>
+            <GuideStep n={1} done={hasScale}>
+              Sæt målestok
+            </GuideStep>
+            <GuideStep n={2} done={!!panelCode}>
+              Vælg panel i listen
+            </GuideStep>
+            <GuideStep n={3} done={false}>
+              Vælg «Udfyld felt» og træk hen over taget
+            </GuideStep>
+          </div>
+        )}
+
+        {/* Målestok-række */}
         {mode === 'scale' && (
           <div className="px-3 py-2 bg-amber-50 border-b text-sm text-amber-800 flex items-center gap-3 flex-wrap">
             {!pendingLine ? (
@@ -932,34 +920,88 @@ export function RoofDrawingEditor({
             )}
           </div>
         )}
-        {mode === 'panels' && panelDimsAreFallback && panelCode && (
+
+        {/* Fallback-mål-advarsel (gælder både udfyld og enkelt panel) */}
+        {(mode === 'panels' || mode === 'fill') && panelDimsAreFallback && panelCode && (
           <div className="px-3 py-2 bg-amber-50 border-b text-xs text-amber-800">
             Det valgte panel mangler fysiske mål — bruger fallback{' '}
             {FALLBACK_PANEL_WIDTH_MM} × {FALLBACK_PANEL_HEIGHT_MM} mm. Ret målene under
             Solcelleindstillinger for korrekt størrelsesforhold.
           </div>
         )}
-        {mode === 'fill' && (
-          <div className="px-3 py-2 bg-amber-50 border-b text-sm text-amber-800 flex items-center gap-3 flex-wrap">
-            <span>Træk et rektangel over tagfladen — det fyldes automatisk med paneler i gitter.</span>
-            <div className="ml-auto flex items-center gap-1 bg-white rounded-lg border p-0.5">
-              <button
-                onClick={() => setFillOrientation(0)}
-                className={`px-2.5 py-1 rounded text-xs font-medium ${
-                  fillOrientation === 0 ? 'bg-primary text-white' : 'text-gray-700'
-                }`}
-              >
-                Stående
-              </button>
-              <button
-                onClick={() => setFillOrientation(90)}
-                className={`px-2.5 py-1 rounded text-xs font-medium ${
-                  fillOrientation === 90 ? 'bg-primary text-white' : 'text-gray-700'
-                }`}
-              >
-                Liggende
-              </button>
+
+        {/* Udfyld-felt kontekst-række */}
+        {mode === 'fill' && ready && (
+          <div className="px-3 py-2 bg-blue-50 border-b text-sm text-blue-900 flex items-center gap-3 flex-wrap">
+            <span className="font-medium flex items-center gap-1.5">
+              <MoveHorizontal className="w-4 h-4 shrink-0" />
+              Træk hen over taget — feltet fyldes med paneler på én bevægelse.
+            </span>
+            <div className="ml-auto flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1 bg-white rounded-lg border p-0.5">
+                <button
+                  onClick={() => setFillOrientation(0)}
+                  className={`px-2.5 py-1.5 rounded text-xs font-medium ${
+                    fillOrientation === 0 ? 'bg-primary text-white' : 'text-gray-700'
+                  }`}
+                >
+                  Stående
+                </button>
+                <button
+                  onClick={() => setFillOrientation(90)}
+                  className={`px-2.5 py-1.5 rounded text-xs font-medium ${
+                    fillOrientation === 90 ? 'bg-primary text-white' : 'text-gray-700'
+                  }`}
+                >
+                  Liggende
+                </button>
+              </div>
+              {gapField}
+              {angleField}
             </div>
+          </div>
+        )}
+
+        {/* Enkelt-panel kontekst-række */}
+        {mode === 'panels' && ready && (
+          <div className="px-3 py-2 bg-gray-50 border-b flex items-center gap-2 flex-wrap">
+            <button
+              onClick={addPanel}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+            >
+              <Plus className="w-4 h-4" />
+              Tilføj panel
+            </button>
+            <button
+              onClick={rotateSelected}
+              disabled={!selectedId}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+            >
+              <RotateCw className="w-4 h-4" />
+              Rotér
+            </button>
+            <button
+              onClick={deleteSelected}
+              disabled={!selectedId}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              Slet panel
+            </button>
+            <button
+              onClick={() => setSnapEnabled((s) => !s)}
+              title="Snap paneler sammen i rækker"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border ${
+                snapEnabled
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+              }`}
+            >
+              <Magnet className="w-4 h-4" />
+              Snap
+            </button>
+            {gapField}
+            {angleField}
           </div>
         )}
 
@@ -1148,6 +1190,16 @@ export function RoofDrawingEditor({
             </g>
           </svg>
 
+          {/* Vedvarende instruktion i udfyld-mode (touch) */}
+          {mode === 'fill' && ready && !fillRect && (
+            <div className="absolute inset-x-0 top-3 flex justify-center px-4 pointer-events-none">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600/90 text-white text-sm font-medium shadow-lg">
+                <MoveHorizontal className="w-4 h-4 shrink-0" />
+                Træk hen over taget for at lægge et helt felt
+              </div>
+            </div>
+          )}
+
           {/* Zoom-knapper (touch-venlige, flyder over tegnefladen) */}
           <div className="absolute bottom-3 right-3 flex flex-col gap-1.5">
             <button
@@ -1192,6 +1244,57 @@ export function RoofDrawingEditor({
         </div>
       </div>
     </div>
+  )
+}
+
+/** Knap i den segmenterede værktøjsvælger (touch-venlig, ét aktivt værktøj). */
+function ToolButton({
+  active,
+  disabled,
+  onClick,
+  icon: Icon,
+  label,
+  primary,
+}: {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  icon: ComponentType<{ className?: string }>
+  label: string
+  primary?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+        active
+          ? 'bg-primary text-white shadow-sm'
+          : primary
+            ? 'text-primary hover:bg-primary/10'
+            : 'text-gray-700 hover:bg-gray-100'
+      }`}
+    >
+      <Icon className="w-4 h-4 shrink-0" />
+      {label}
+    </button>
+  )
+}
+
+/** Et trin i forudsætnings-guiden (nummereret, krydses ud når opfyldt). */
+function GuideStep({ n, done, children }: { n: number; done: boolean; children: ReactNode }) {
+  return (
+    <span className={`flex items-center gap-1.5 ${done ? 'text-blue-400' : 'font-medium'}`}>
+      <span
+        className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs ${
+          done ? 'bg-blue-300 text-white' : 'bg-blue-600 text-white'
+        }`}
+      >
+        {done ? '✓' : n}
+      </span>
+      <span className={done ? 'line-through' : ''}>{children}</span>
+    </span>
   )
 }
 
