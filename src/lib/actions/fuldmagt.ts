@@ -24,6 +24,9 @@ export interface FuldmagtData {
   pdf_url: string | null
   status: 'pending' | 'signed'
   created_at: string
+  /** Fase 2a — er DETTE portal-token sagens anlægsejer (den tiltænkte signer)?
+   *  Kun true → signerings-formen vises; ellers read-only "afventer anlægsejer". */
+  is_intended_signer?: boolean
 }
 
 // ─── Employee: create fuldmagt request for a customer ───
@@ -62,6 +65,27 @@ export async function createFuldmagt(
       return { success: false, error: 'Den valgte sag tilhører ikke denne kunde' }
     }
 
+    // Fase 2a — fuldmagt skal kunne underskrives af anlægsejeren. Blokér
+    // oprettelse hvis den tiltænkte signer (end_customer) ikke har et aktivt
+    // portal-token — ellers ville fuldmagten være "død" (ingen kan signere
+    // den rette part). Dette er den juridiske rolle-gate (Plan A).
+    const signerCustomerId = parties.signer?.customerId || customerId
+    const { data: signerToken } = await supabase
+      .from('portal_access_tokens')
+      .select('id')
+      .eq('customer_id', signerCustomerId)
+      .eq('is_active', true)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .limit(1)
+      .maybeSingle()
+    if (!signerToken) {
+      return {
+        success: false,
+        error:
+          'Anlægsejeren har ikke portal-adgang endnu. Opret portal-adgang til anlægsejeren, før du opretter fuldmagten — så er det kun anlægsejeren der kan underskrive.',
+      }
+    }
+
     // Signer = sagens anlægsejer (end_customer) med fallback til kunden.
     const signerName =
       parties.signer?.contactPerson ||
@@ -95,9 +119,9 @@ export async function createFuldmagt(
           customer_address: address,
           customer_postal_city: postalCity,
           order_number: orderNumber,
-          // Tiltænkt underskriver (anlægsejer) — bruges til at vise/forvente
-          // den rette part i portalen. Hård rolle-gate på selve signeringen
-          // er en separat beslutning (portal-token er kunde-scopet).
+          // Tiltænkt underskriver (anlægsejer). Rolle-gaten (Plan A) håndhæver
+          // ved signering at portal-tokenets customer_id === denne signer.
+          expected_signer_customer_id: signerCustomerId,
           expected_signer_name: parties.signer?.contactPerson || parties.signer?.companyName || null,
           expected_signer_email: parties.signer?.email || null,
           foedselsdato_cvr: null,
@@ -151,10 +175,13 @@ export async function getPortalFuldmagter(
       return { success: false, error: 'Ugyldig adgang' }
     }
 
-    const { data: docs, error: docsErr } = await supabase
+    const tokenCustomerId = tokenData.customer_id as string
+
+    // Query 1 — fuldmagter der hænger direkte på dette token's kunde (uændret).
+    const { data: ownDocs, error: docsErr } = await supabase
       .from('customer_documents')
       .select('*')
-      .eq('customer_id', tokenData.customer_id)
+      .eq('customer_id', tokenCustomerId)
       .eq('document_type', 'contract')
       .order('created_at', { ascending: false })
 
@@ -162,13 +189,67 @@ export async function getPortalFuldmagter(
       return { success: false, error: 'Kunne ikke hente dokumenter' }
     }
 
-    // Filter to fuldmagt documents that are pending
-    const fuldmagtDocs = (docs || []).filter((doc) => {
+    // Query 2 (Fase 2a, additivt) — fuldmagter knyttet via sag til en sag hvor
+    // token-kunden er anlægsejer (end_customer) eller leveringskunde
+    // (site_customer). Så anlægsejeren ser fuldmagten, også når den hænger på
+    // en ANDEN kundes kort (fx partnerens). B2C er uændret.
+    type DocRow = NonNullable<typeof ownDocs>[number]
+    let linkedDocs: DocRow[] = []
+    const { data: signerCases } = await supabase
+      .from('service_cases')
+      .select('id')
+      .or(`end_customer_id.eq.${tokenCustomerId},site_customer_id.eq.${tokenCustomerId}`)
+    const visCaseIds = ((signerCases ?? []) as Array<{ id: string }>).map((c) => c.id)
+    if (visCaseIds.length > 0) {
+      const { data: ld } = await supabase
+        .from('customer_documents')
+        .select('*')
+        .in('service_case_id', visCaseIds)
+        .eq('document_type', 'contract')
+      linkedDocs = (ld ?? []) as DocRow[]
+    }
+
+    // Merge + dedupe på id
+    const byId = new Map<string, DocRow>()
+    for (const d of [...(ownDocs ?? []), ...linkedDocs]) byId.set(d.id as string, d)
+
+    // Filter to fuldmagt documents
+    const fuldmagtDocs = Array.from(byId.values()).filter((doc) => {
       try {
-        const desc = JSON.parse(doc.description || '{}')
+        const desc = JSON.parse((doc.description as string) || '{}')
         return desc.type === 'fuldmagt'
       } catch { return false }
     })
+
+    // Resolv tiltænkt signer pr. sag (end_customer → site_customer → customer)
+    // så vi kan markere om DETTE token er anlægsejeren.
+    const docCaseIds = Array.from(
+      new Set(fuldmagtDocs.map((d) => d.service_case_id as string | null).filter((v): v is string => !!v)),
+    )
+    const signerByCaseId = new Map<string, string | null>()
+    if (docCaseIds.length > 0) {
+      const { data: cases } = await supabase
+        .from('service_cases')
+        .select('id, end_customer_id, site_customer_id, customer_id')
+        .in('id', docCaseIds)
+      const caseRows = (cases ?? []) as Array<{
+        id: string
+        end_customer_id: string | null
+        site_customer_id: string | null
+        customer_id: string | null
+      }>
+      for (const c of caseRows) {
+        signerByCaseId.set(c.id, c.end_customer_id || c.site_customer_id || c.customer_id)
+      }
+    }
+    const isIntendedSigner = (doc: DocRow): boolean => {
+      const scId = doc.service_case_id as string | null
+      if (scId && signerByCaseId.has(scId)) {
+        return signerByCaseId.get(scId) === tokenCustomerId
+      }
+      // Gamle fuldmagter uden sag → token-kunden = doc.customer_id er signeren.
+      return (doc.customer_id as string) === tokenCustomerId
+    }
 
     // Phase β.2.3: lazy-refresh pdf_url via signed-URL helper for hver
     // fuldmagt-row der har storage_path. Sikrer at portalen viser fri-
@@ -204,6 +285,7 @@ export async function getPortalFuldmagter(
         pdf_url: freshByIdx[idx] ?? doc.file_url ?? null,
         status: desc.status || 'pending',
         created_at: doc.created_at,
+        is_intended_signer: isIntendedSigner(doc),
       }
     })
 
@@ -241,12 +323,11 @@ export async function submitSignedFuldmagt(
       return { success: false, error: 'Ugyldig adgang' }
     }
 
-    // Get existing document
+    // Get existing document (kun på id — ejerskab afgøres af rolle-gaten nedenfor)
     const { data: doc, error: docErr } = await supabase
       .from('customer_documents')
       .select('*')
       .eq('id', documentId)
-      .eq('customer_id', tokenData.customer_id)
       .single()
 
     if (docErr || !doc) {
@@ -254,6 +335,25 @@ export async function submitSignedFuldmagt(
     }
 
     const existingDesc = JSON.parse(doc.description || '{}')
+
+    // Fase 2a — ROLLE-GATE (Plan A): kun sagens anlægsejer (end_customer) må
+    // underskrive fuldmagten. Den tiltænkte signer resolves fra sagen (eller
+    // fra det gemte expected_signer_customer_id). For gamle fuldmagter uden
+    // sag falder vi tilbage til den hidtidige adfærd (doc.customer_id).
+    let requiredSignerCustomerId: string = doc.customer_id
+    if (doc.service_case_id) {
+      const { resolveCaseParties } = await import('@/lib/services/case-parties')
+      const parties = await resolveCaseParties(supabase, doc.service_case_id)
+      if (parties?.signer?.customerId) requiredSignerCustomerId = parties.signer.customerId
+    } else if (typeof existingDesc.expected_signer_customer_id === 'string') {
+      requiredSignerCustomerId = existingDesc.expected_signer_customer_id
+    }
+    if (tokenData.customer_id !== requiredSignerCustomerId) {
+      return {
+        success: false,
+        error: 'Denne fuldmagt skal underskrives af anlægsejeren.',
+      }
+    }
     const now = new Date()
     const dateStr = now.toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -296,7 +396,8 @@ export async function submitSignedFuldmagt(
     const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer())
     const fileDate = now.toISOString().slice(0, 10)
     const fileName = `fuldmagt-${fileDate}.pdf`
-    const storagePath = `customer-documents/${tokenData.customer_id}/${fileName}`
+    // Læg PDF'en under dokumentets kunde (ikke nødvendigvis = signeren).
+    const storagePath = `customer-documents/${doc.customer_id}/${fileName}`
 
     // Upload PDF
     const { error: uploadErr } = await supabase.storage
@@ -402,8 +503,9 @@ export async function submitSignedFuldmagt(
       // Non-critical — fuldmagt is still saved
     }
 
-    // Revalidate so Status & Flow updates
-    revalidatePath(`/dashboard/customers/${tokenData.customer_id}`)
+    // Revalidate kundekortet hvor fuldmagten er arkiveret (doc.customer_id)
+    // — kan afvige fra signerens egen customer_id (anlægsejer).
+    revalidatePath(`/dashboard/customers/${doc.customer_id}`)
 
     return { success: true }
   } catch (error) {

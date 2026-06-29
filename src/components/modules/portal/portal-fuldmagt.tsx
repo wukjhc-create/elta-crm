@@ -33,9 +33,25 @@ export function PortalFuldmagtSection({ token, fuldmagter }: PortalFuldmagtProps
       </div>
 
       <div className="divide-y">
-        {pending.map((f) => (
-          <FuldmagtForm key={f.id} token={token} fuldmagt={f} />
-        ))}
+        {pending.map((f) =>
+          f.is_intended_signer === false ? (
+            // Fase 2a — kun sagens anlægsejer må underskrive. Andre parter ser
+            // status, men ikke signerings-formen.
+            <div key={f.id} className="p-6 bg-amber-50">
+              <div className="flex items-center gap-3">
+                <FileSignature className="w-5 h-5 text-amber-600" />
+                <div>
+                  <p className="font-medium text-amber-800">Afventer anlægsejers underskrift</p>
+                  <p className="text-sm text-amber-700">
+                    Ordrenr. {f.order_number} — fuldmagten skal underskrives af anlægsejeren{f.customer_name ? ` (${f.customer_name})` : ''}.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <FuldmagtForm key={f.id} token={token} fuldmagt={f} />
+          )
+        )}
         {signed.map((f) => (
           <div key={f.id} className="p-6 bg-green-50">
             <div className="flex items-center gap-3">
