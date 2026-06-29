@@ -41,11 +41,11 @@ async function maybeBuildBesigtigelseShadowMeta(
 
 export interface BesigtigelsesNotatInput {
   customerId: string
-  // Sprint 9H Phase A — forward-looking: hvis besigtigelse oprettes fra
-  // en sag/ordre, persisteres service_case_id paa customer_documents.
-  // Eksisterende kundekort-flow saetter ikke feltet (NULL) — Send-dialog
-  // haandterer fallback med manuel sag-valg.
-  serviceCaseId?: string | null
+  // Fase 2a — sag-kobling er nu OBLIGATORISK. Besigtigelsen skal bindes til
+  // en sag, så signer (end_customer) + leveringsadresse kan resolves fra
+  // sagens parter og partner-scoping (payer_customer_id) holder hele vejen.
+  // Var tidligere nullable (Sprint 9H).
+  serviceCaseId: string
   formData: {
     tagType: string
     tagHaeldning: string
@@ -91,6 +91,14 @@ export async function saveBesigtigelsesnotat(
   try {
     const { supabase, userId } = await getAuthenticatedClient()
 
+    // Fase 2a — sag-kobling er obligatorisk. Kræv en sag og verificér (via
+    // den fælles resolver) at den hører til denne kunde, samt resolv
+    // leveringsadressen (hvor anlægget sidder) til PDF'en.
+    if (!input.serviceCaseId) {
+      return { success: false, error: 'Vælg en sag, før du gemmer besigtigelsen' }
+    }
+    validateUUID(input.serviceCaseId, 'serviceCaseId')
+
     // Fetch customer data for PDF
     const { data: customer, error: custErr } = await supabase
       .from('customers')
@@ -105,6 +113,15 @@ export async function saveBesigtigelsesnotat(
         customerExists: !!customer,
       })
       return { success: false, error: 'Kunde ikke fundet' }
+    }
+
+    const { resolveCaseParties } = await import('@/lib/services/case-parties')
+    const parties = await resolveCaseParties(supabase, input.serviceCaseId)
+    if (!parties) {
+      return { success: false, error: 'Den valgte sag findes ikke' }
+    }
+    if (!parties.partyCustomerIds.includes(input.customerId)) {
+      return { success: false, error: 'Den valgte sag tilhører ikke denne kunde' }
     }
 
     console.error('[BESIGTIGELSE-DIAG] customer fetched', {
@@ -172,6 +189,9 @@ export async function saveBesigtigelsesnotat(
         formData: input.formData,
         date: dateStr,
         images: input.images, // Pass base64 images directly to PDF
+        // Fase 2a — sagens leveringsadresse (hvor anlægget sidder) frem for
+        // kundens adresse. Template falder selv tilbage hvis tom.
+        siteAddress: parties.siteAddress,
       }),
     })
 
@@ -277,9 +297,8 @@ export async function saveBesigtigelsesnotat(
       .from('customer_documents')
       .insert({
         customer_id: input.customerId,
-        // Sprint 9H Phase A — service_case_id er nullable FK; saettes
-        // kun naar caller leverer den (fx fra service-case-flow).
-        service_case_id: input.serviceCaseId ?? null,
+        // Fase 2a — sag-kobling er obligatorisk (valideret ovenfor).
+        service_case_id: input.serviceCaseId,
         title,
         description: notatJson,
         document_type: 'besigtigelse',
@@ -552,6 +571,45 @@ export async function listCustomerServiceCasesForBesigtigelse(
     return { success: true, data: (data || []) as { id: string; case_number: string | null; title: string | null; status: string | null }[] }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente sager') }
+  }
+}
+
+/**
+ * Fase 2a — resumé af sagens parter til besigtigelse-UI'et: hvem underskriver
+ * (end_customer/anlægsejer), hvem får kopi/faktura (payer), og hvor anlægget
+ * sidder (leveringsadresse). Bruges til at prefill'e signer-navn + vise en
+ * kontekst-boks, så montøren ser hvem rapporten reelt vedrører. Genbruger
+ * den fælles resolver (robuste fallbacks til customer_id).
+ */
+export async function getCaseSignerSummary(serviceCaseId: string): Promise<
+  ActionResult<{
+    signerName: string | null
+    signerCompany: string | null
+    signerEmail: string | null
+    payerName: string | null
+    siteAddress: string
+    siteAddressSource: string
+  }>
+> {
+  try {
+    validateUUID(serviceCaseId, 'serviceCaseId')
+    const { supabase } = await getAuthenticatedClient()
+    const { resolveCaseParties } = await import('@/lib/services/case-parties')
+    const p = await resolveCaseParties(supabase, serviceCaseId)
+    if (!p) return { success: false, error: 'Sag ikke fundet' }
+    return {
+      success: true,
+      data: {
+        signerName: p.signer?.contactPerson ?? p.signer?.companyName ?? null,
+        signerCompany: p.signer?.companyName ?? null,
+        signerEmail: p.signer?.email ?? null,
+        payerName: p.payer?.companyName ?? null,
+        siteAddress: p.siteAddress.formatted,
+        siteAddressSource: p.siteAddress.source,
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente sagens parter') }
   }
 }
 
@@ -1161,6 +1219,282 @@ export async function sendExistingBesigtigelsesreport(
   } catch (err) {
     logger.error('sendExistingBesigtigelsesreport top-level error', { error: err })
     return { success: false, error: formatError(err, 'Kunne ikke sende besigtigelsesrapport') }
+  }
+}
+
+// =====================================================
+// Fase 2a — sekventiel godkendelse (kunde → partner) MED manuelt kontrolpunkt.
+//
+// Flow: opret en kæde af document_confirmations (trin 1 = anlægsejer/end_customer,
+// trin 2 = betaler/payer). Send KUN trin 1 ved start. Når kunden godkender,
+// markeres trin 2 "klar til at sende" (i submitConfirmation → markNextChainStepReady),
+// men sendes IKKE automatisk. Kontoret frigiver trin 2 manuelt via
+// sendReadyChainStep — et bevidst kontrolpunkt før noget går til en betalende
+// partner.
+// =====================================================
+
+type AuthedSupabase = Awaited<ReturnType<typeof getAuthenticatedClient>>['supabase']
+
+/**
+ * Genbrugelig: send (eller gensend) besigtigelses-PDF + bekræftelseslink for
+ * ÉN document_confirmations-row. Markerer rowen sent/failed. Bruges af både
+ * sekvens-start (trin 1) og manuelt videresend (trin 2+). PDF re-bruges fra
+ * storage — genereres aldrig.
+ */
+async function sendConfirmationEmailInternal(
+  supabase: AuthedSupabase,
+  confirmationId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const { data: conf } = await supabase
+    .from('document_confirmations')
+    .select(
+      'id, token, recipient_email, recipient_name, recipient_role, expires_at, customer_document_id, status',
+    )
+    .eq('id', confirmationId)
+    .maybeSingle()
+  if (!conf) return { success: false, error: 'Bekræftelse ikke fundet' }
+
+  const { data: doc } = await supabase
+    .from('customer_documents')
+    .select('id, customer_id, storage_path, file_name, title')
+    .eq('id', conf.customer_document_id)
+    .maybeSingle()
+  if (!doc || !doc.storage_path) return { success: false, error: 'Dokument/PDF mangler' }
+
+  const { data: docCustomer } = await supabase
+    .from('customers')
+    .select('company_name, contact_person')
+    .eq('id', doc.customer_id)
+    .maybeSingle()
+
+  if (!isGraphConfigured()) {
+    return { success: false, error: 'E-mail er ikke konfigureret (Microsoft Graph)' }
+  }
+
+  const { isInternalEmail } = await import('@/lib/services/mail-routing')
+  if (isInternalEmail(conf.recipient_email)) {
+    return { success: false, error: 'Modtager afvist — intern domæne' }
+  }
+
+  const { data: fileData, error: dlErr } = await supabase.storage
+    .from('attachments')
+    .download(doc.storage_path)
+  if (dlErr || !fileData) return { success: false, error: 'Kunne ikke hente PDF fra storage' }
+  const pdfBuffer = Buffer.from(await fileData.arrayBuffer())
+
+  const role = conf.recipient_role as BesigtigelseCaseParty['role'] | 'manual'
+  const mapping = RECIPIENT_ROLE_MAP[role] || RECIPIENT_ROLE_MAP.document_customer
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  const confirmUrl = `${appUrl.replace(/\/$/, '')}/portal/confirm-besigtigelse/${conf.token}`
+  const expiresLabel = new Date(conf.expires_at).toLocaleDateString('da-DK', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+  const greeting =
+    conf.recipient_name || docCustomer?.contact_person || docCustomer?.company_name || 'kunde'
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: ${BRAND.green}; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 20px;">Besigtigelsesrapport</h1>
+      </div>
+      <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+        <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(greeting)},</p>
+        <p style="color: #374151;">${escapeHtml(mapping.intro)}</p>
+        <p style="color: #374151;">Vedhæftet finder du besigtigelsesrapporten. Brug knappen nedenfor til at bekræfte, at du har gennemgået og godkendt rapporten.</p>
+        <div style="margin-top: 24px; padding: 20px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;">
+          <p style="margin: 0 0 16px 0;">
+            <a href="${confirmUrl}" style="display: inline-block; padding: 12px 24px; background: ${BRAND.green}; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Bekræft rapport</a>
+          </p>
+          <p style="margin: 0; color: #166534; font-size: 13px;">Hvis knappen ikke virker, kan du kopiere linket direkte:<br/><span style="color: #15803d; word-break: break-all;">${confirmUrl}</span></p>
+          <p style="margin: 12px 0 0 0; color: #15803d; font-size: 12px;">Linket er personligt og udløber den ${expiresLabel}.</p>
+        </div>
+        <p style="color: #374151; margin-top: 24px;">Med venlig hilsen,<br/><strong>${BRAND.companyName}</strong><br/>
+        <span style="color: #6b7280; font-size: 13px;">${BRAND.email} &bull; ${BRAND.website}</span></p>
+      </div>
+    </div>
+  `
+  const subject = `Besigtigelsesrapport — ${docCustomer?.company_name || 'Elta Solar'}`
+
+  const sendResult = await sendEmailViaGraph({
+    to: conf.recipient_email,
+    subject,
+    html,
+    attachments: [{ filename: doc.file_name, content: pdfBuffer, contentType: 'application/pdf' }],
+  })
+
+  if (sendResult.success) {
+    await supabase
+      .from('document_confirmations')
+      .update({ status: 'sent', mail_sent_at: new Date().toISOString() })
+      .eq('id', confirmationId)
+      .eq('status', 'pending')
+    return { success: true }
+  }
+  await supabase
+    .from('document_confirmations')
+    .update({ status: 'failed', mail_error: (sendResult.error || 'mail-send fejlede').slice(0, 1000) })
+    .eq('id', confirmationId)
+    .eq('status', 'pending')
+  return { success: false, error: sendResult.error || 'mail-send fejlede' }
+}
+
+/**
+ * Start sekventiel godkendelse for en besigtigelsesrapport. Resolver sagens
+ * parter (signer=end_customer, payer) og opretter en kæde. MAILER KUN trin 1
+ * (anlægsejeren). Trin 2 (betaler/partner) oprettes som pending og frigives
+ * først til manuelt videresend når kunden har godkendt.
+ */
+export async function sendBesigtigelseSequential(input: {
+  documentId: string
+  message?: string | null
+}): Promise<ActionResult<{ sentTo: string; steps: number; sequential: boolean }>> {
+  try {
+    validateUUID(input.documentId, 'documentId')
+    const { supabase } = await getAuthenticatedClient()
+
+    const { data: doc, error: docErr } = await supabase
+      .from('customer_documents')
+      .select('id, customer_id, service_case_id, document_type, title, file_name, storage_path')
+      .eq('id', input.documentId)
+      .single()
+    if (docErr || !doc) return { success: false, error: 'Dokument ikke fundet' }
+    if (!isBesigtigelseDocument(doc.document_type, doc.title)) {
+      return { success: false, error: 'Dokumentet er ikke en besigtigelsesrapport' }
+    }
+    if (!doc.storage_path) return { success: false, error: 'Dokumentet mangler storage path' }
+    if (!doc.service_case_id) {
+      return {
+        success: false,
+        error: 'Rapporten er ikke koblet til en sag — kobl den til en sag før sekventiel godkendelse',
+      }
+    }
+
+    const { resolveCaseParties } = await import('@/lib/services/case-parties')
+    const parties = await resolveCaseParties(supabase, doc.service_case_id)
+    if (!parties) return { success: false, error: 'Sagen findes ikke' }
+
+    const signer = parties.signer
+    const payer = parties.payer
+    if (!signer?.email) {
+      return { success: false, error: 'Anlægsejer (slutkunde) mangler en e-mail på sagen' }
+    }
+
+    // Trin 2 kun hvis betaler er en ANDEN part end signeren og har email.
+    const includePayer = !!(payer?.email && payer.customerId !== signer.customerId)
+
+    const recipients = [
+      {
+        recipientType: 'customer' as const,
+        customerId: signer.customerId,
+        contactId: null,
+        email: signer.email,
+        name: signer.companyName,
+        role: 'end_customer' as ConfirmationRecipientRole,
+      },
+      ...(includePayer
+        ? [
+            {
+              recipientType: 'customer' as const,
+              customerId: payer!.customerId,
+              contactId: null,
+              email: payer!.email as string,
+              name: payer!.companyName,
+              role: 'payer' as ConfirmationRecipientRole,
+            },
+          ]
+        : []),
+    ]
+
+    const { createConfirmationRequests } = await import('@/lib/actions/document-confirmations')
+    const created = await createConfirmationRequests({
+      documentId: input.documentId,
+      recipients,
+      sequential: includePayer, // kun en gated kæde hvis der reelt er et trin 2
+      expiresInDays: 30,
+    })
+    if (!created.success || !created.data || created.data.length === 0) {
+      return { success: false, error: created.error || 'Kunne ikke oprette bekræftelses-kæde' }
+    }
+
+    // Trin 1 = anlægsejer. Find robust via rolle (insert-rækkefølge er normalt
+    // bevaret, men vi matcher eksplicit).
+    const step1 =
+      created.data.find((c) => c.recipientRole === 'end_customer') || created.data[0]
+    const mail = await sendConfirmationEmailInternal(supabase, step1.confirmationId)
+    if (!mail.success) {
+      return {
+        success: false,
+        error: `Kæden blev oprettet, men mail til anlægsejer fejlede: ${mail.error || 'ukendt fejl'}`,
+      }
+    }
+
+    return {
+      success: true,
+      data: { sentTo: step1.recipientEmail, steps: recipients.length, sequential: includePayer },
+    }
+  } catch (err) {
+    logger.error('sendBesigtigelseSequential error', { error: err })
+    return { success: false, error: formatError(err, 'Kunne ikke starte sekventiel godkendelse') }
+  }
+}
+
+/**
+ * Manuelt kontrolpunkt: send et frigivet kæde-trin videre (typisk til den
+ * betalende partner) EFTER at kontoret har set, at forrige part har godkendt.
+ * Kræver status='pending' + metadata.readyToSend=true + at forrige trin er
+ * 'confirmed'. Det er bevidst IKKE automatisk.
+ */
+export async function sendReadyChainStep(
+  confirmationId: string,
+): Promise<ActionResult<{ sentTo: string }>> {
+  try {
+    validateUUID(confirmationId, 'confirmationId')
+    const { supabase } = await getAuthenticatedClient()
+
+    const { data: row } = await supabase
+      .from('document_confirmations')
+      .select('id, status, metadata, recipient_email, customer_document_id')
+      .eq('id', confirmationId)
+      .maybeSingle()
+    if (!row) return { success: false, error: 'Trin ikke fundet' }
+
+    const meta = (row.metadata ?? {}) as {
+      sequence?: { chainId?: string; order?: number; gated?: boolean }
+      readyToSend?: boolean
+    }
+    if (row.status !== 'pending') {
+      return { success: false, error: 'Trinnet er ikke længere afventende (allerede sendt eller afsluttet)' }
+    }
+    if (meta.readyToSend !== true) {
+      return { success: false, error: 'Trinnet er ikke frigivet endnu — afventer at forrige part godkender' }
+    }
+
+    // Defensiv: bekræft at forrige trin reelt er godkendt.
+    const seq = meta.sequence
+    if (seq?.chainId && typeof seq.order === 'number' && seq.order > 1) {
+      const { data: siblings } = await supabase
+        .from('document_confirmations')
+        .select('status, metadata')
+        .eq('customer_document_id', row.customer_document_id)
+      const prev = (siblings ?? []).find((s) => {
+        const m = (s.metadata ?? {}) as { sequence?: { chainId?: string; order?: number } }
+        return m.sequence?.chainId === seq.chainId && m.sequence?.order === seq.order! - 1
+      })
+      if (!prev || prev.status !== 'confirmed') {
+        return { success: false, error: 'Forrige trin er ikke godkendt endnu' }
+      }
+    }
+
+    const mail = await sendConfirmationEmailInternal(supabase, confirmationId)
+    if (!mail.success) return { success: false, error: mail.error || 'Kunne ikke sende' }
+    return { success: true, data: { sentTo: row.recipient_email } }
+  } catch (err) {
+    logger.error('sendReadyChainStep error', { error: err })
+    return { success: false, error: formatError(err, 'Kunne ikke sende videre') }
   }
 }
 

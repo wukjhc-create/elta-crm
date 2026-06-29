@@ -30,7 +30,12 @@ export interface FuldmagtData {
 
 export async function createFuldmagt(
   customerId: string,
-  orderNumber: string
+  orderNumber: string,
+  // Fase 2a — fuldmagt bindes nu til en sag, så signer (end_customer/anlægs-
+  // ejer) + leveringsadresse resolves fra sagens parter via den fælles
+  // resolver. En fuldmagt til anlægstilmelding skal juridisk underskrives af
+  // anlægsejeren, ikke betaleren.
+  serviceCaseId: string
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const { supabase, userId } = await getAuthenticatedClient()
@@ -45,23 +50,56 @@ export async function createFuldmagt(
       return { success: false, error: 'Kunde ikke fundet' }
     }
 
-    const address = customer.shipping_address || customer.billing_address || ''
-    const postalCity = [
-      customer.shipping_postal_code || customer.billing_postal_code,
-      customer.shipping_city || customer.billing_city,
-    ].filter(Boolean).join(' ')
+    if (!serviceCaseId) {
+      return { success: false, error: 'Vælg en sag, før du opretter fuldmagten' }
+    }
+    const { resolveCaseParties } = await import('@/lib/services/case-parties')
+    const parties = await resolveCaseParties(supabase, serviceCaseId)
+    if (!parties) {
+      return { success: false, error: 'Den valgte sag findes ikke' }
+    }
+    if (!parties.partyCustomerIds.includes(customerId)) {
+      return { success: false, error: 'Den valgte sag tilhører ikke denne kunde' }
+    }
+
+    // Signer = sagens anlægsejer (end_customer) med fallback til kunden.
+    const signerName =
+      parties.signer?.contactPerson ||
+      parties.signer?.companyName ||
+      customer.contact_person ||
+      customer.company_name
+    // Adresse = sagens leveringsadresse (hvor anlægget sidder) med fallback
+    // til kundens egen adresse.
+    const site = parties.siteAddress
+    const address =
+      site.address || customer.shipping_address || customer.billing_address || ''
+    const postalCity =
+      [site.postalCode, site.city].filter(Boolean).join(' ') ||
+      [
+        customer.shipping_postal_code || customer.billing_postal_code,
+        customer.shipping_city || customer.billing_city,
+      ]
+        .filter(Boolean)
+        .join(' ')
 
     const { data: fuldmagt, error: insertErr } = await supabase
       .from('customer_documents')
       .insert({
         customer_id: customerId,
+        service_case_id: serviceCaseId,
         title: `Fuldmagt — ${customer.company_name}`,
         description: JSON.stringify({
           type: 'fuldmagt',
-          customer_name: customer.contact_person || customer.company_name,
+          service_case_id: serviceCaseId,
+          customer_name: signerName,
           customer_address: address,
           customer_postal_city: postalCity,
           order_number: orderNumber,
+          // Tiltænkt underskriver (anlægsejer) — bruges til at vise/forvente
+          // den rette part i portalen. Hård rolle-gate på selve signeringen
+          // er en separat beslutning (portal-token er kunde-scopet).
+          expected_signer_name: parties.signer?.contactPerson || parties.signer?.companyName || null,
+          expected_signer_email: parties.signer?.email || null,
           foedselsdato_cvr: null,
           marketing_samtykke: null,
           signature_data: null,

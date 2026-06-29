@@ -106,14 +106,21 @@ interface BesigtigelsePDFProps {
   }
   date: string
   images?: { category: string; base64: string; name: string }[]
+  /** Fase 2a — sagens leveringsadresse (hvor anlægget sidder). Foretrækkes
+   *  over kundens adresse; tom/udeladt → fald tilbage til kundens adresse. */
+  siteAddress?: { formatted: string } | null
 }
 
-export function BesigtigelsePDF({ customer, formData, date, images }: BesigtigelsePDFProps) {
-  const address = [
-    customer.shipping_address || customer.billing_address,
-    customer.shipping_postal_code || customer.billing_postal_code,
-    customer.shipping_city || customer.billing_city,
-  ].filter(Boolean).join(', ')
+export function BesigtigelsePDF({ customer, formData, date, images, siteAddress }: BesigtigelsePDFProps) {
+  const address =
+    (siteAddress?.formatted || '').trim() ||
+    [
+      customer.shipping_address || customer.billing_address,
+      customer.shipping_postal_code || customer.billing_postal_code,
+      customer.shipping_city || customer.billing_city,
+    ]
+      .filter(Boolean)
+      .join(', ')
 
   const tagFields = [
     { label: 'Tagtype', value: formData.tagType },

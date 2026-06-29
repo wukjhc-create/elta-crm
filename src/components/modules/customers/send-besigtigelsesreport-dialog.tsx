@@ -22,6 +22,8 @@ import {
   getBesigtigelseRecipientOptions,
   listCustomerServiceCasesForBesigtigelse,
   sendExistingBesigtigelsesreport,
+  sendBesigtigelseSequential,
+  getCaseSignerSummary,
   type BesigtigelseCaseParty,
 } from '@/lib/actions/besigtigelse'
 
@@ -73,6 +75,38 @@ export function SendBesigtigelsesreportDialog({
   const [message, setMessage] = useState('')
   // Phase B1: gated bekraeftelses-flow. Default false = uaendret Phase A.
   const [requireConfirmation, setRequireConfirmation] = useState(false)
+  // Fase 2a: sekventiel godkendelse (kunde → partner) med manuelt kontrolpunkt.
+  // Default false = uændret parallel-flow.
+  const [sequential, setSequential] = useState(false)
+  const [seqSummary, setSeqSummary] = useState<{
+    signerName: string | null
+    signerCompany: string | null
+    payerName: string | null
+    siteAddress: string
+  } | null>(null)
+
+  // Hent sagens parter til sekvens-info-boksen når sekventiel slås til.
+  useEffect(() => {
+    if (!isOpen || !sequential || !documentServiceCaseId) {
+      setSeqSummary(null)
+      return
+    }
+    let cancelled = false
+    getCaseSignerSummary(documentServiceCaseId).then((res) => {
+      if (cancelled) return
+      if (res.success && res.data) {
+        setSeqSummary({
+          signerName: res.data.signerName,
+          signerCompany: res.data.signerCompany,
+          payerName: res.data.payerName,
+          siteAddress: res.data.siteAddress,
+        })
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, sequential, documentServiceCaseId])
 
   // Load recipient options when dialog opens or scope-case changes.
   useEffect(() => {
@@ -133,6 +167,40 @@ export function SendBesigtigelsesreportDialog({
   }
 
   const handleSend = async () => {
+    // Fase 2a — sekventiel godkendelse: sender kun til anlægsejer; partner-
+    // trinnet frigives til manuelt videresend efter kundens godkendelse.
+    if (sequential) {
+      if (!documentServiceCaseId) {
+        toast.error('Rapporten skal være koblet til en sag for sekventiel godkendelse')
+        return
+      }
+      setIsSending(true)
+      try {
+        const result = await sendBesigtigelseSequential({
+          documentId,
+          message: message.trim() || null,
+        })
+        if (result.success && result.data) {
+          toast.success(
+            `Sendt til anlægsejer (${result.data.sentTo})`,
+            result.data.sequential
+              ? 'Partner-trinnet frigives til manuelt videresend, når kunden har godkendt.'
+              : 'Ingen separat betaler på sagen — kun anlægsejeren skal godkende.'
+          )
+          onSent?.()
+          onClose()
+        } else {
+          toast.error('Kunne ikke starte sekventiel godkendelse', result.error)
+        }
+      } catch (err) {
+        console.error('[BESIGTIGELSE-SEQ] unexpected error', err)
+        toast.error('Kunne ikke starte sekventiel godkendelse')
+      } finally {
+        setIsSending(false)
+      }
+      return
+    }
+
     const chosenParties = recipients.filter((r) => r.selected && r.email)
     const manualValid = customEmailSelected && customEmail.trim().length > 0
 
@@ -260,6 +328,54 @@ export function SendBesigtigelsesreportDialog({
             </div>
           )}
 
+          {/* Fase 2a — Sekventiel godkendelse (kunde → partner) */}
+          <label
+            className={`flex items-start gap-3 p-3 border rounded-lg transition-colors ${
+              !documentServiceCaseId
+                ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                : sequential
+                ? 'border-green-500 bg-green-50 cursor-pointer'
+                : 'border-gray-200 hover:bg-gray-50 cursor-pointer'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={sequential}
+              onChange={(e) => setSequential(e.target.checked)}
+              disabled={isSending || !documentServiceCaseId}
+              className="mt-0.5"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Sekventiel godkendelse (kunde → partner)
+              </p>
+              <p className="text-xs text-gray-600 mt-0.5">
+                {documentServiceCaseId
+                  ? 'Sendes først til anlægsejeren. Når kunden har godkendt, kan du sende videre til betaleren med ét klik — intet sendes automatisk til partneren.'
+                  : 'Kobl rapporten til en sag for at bruge sekventiel godkendelse.'}
+              </p>
+            </div>
+          </label>
+
+          {sequential && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm space-y-1">
+              <p className="text-green-900 font-medium">Sådan kører flowet</p>
+              <p className="text-green-800 text-xs">
+                1. Anlægsejer{seqSummary?.signerName ? ` (${seqSummary.signerName})` : ''} får rapporten og godkender.
+              </p>
+              <p className="text-green-800 text-xs">
+                2. Du får et “send videre”-klik til betaler{seqSummary?.payerName ? ` (${seqSummary.payerName})` : ''} — kontrolpunkt før noget går til partneren.
+              </p>
+              {seqSummary && !seqSummary.payerName && (
+                <p className="text-green-800 text-xs italic">
+                  Ingen separat betaler på sagen — kun anlægsejeren skal godkende.
+                </p>
+              )}
+            </div>
+          )}
+
+          {!sequential && (
+          <>
           {/* Recipients */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -373,6 +489,8 @@ export function SendBesigtigelsesreportDialog({
               </p>
             </div>
           </label>
+          </>
+          )}
         </div>
 
         {/* Footer */}

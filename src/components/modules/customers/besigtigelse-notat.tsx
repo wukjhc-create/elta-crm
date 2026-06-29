@@ -21,7 +21,12 @@ import {
   Camera,
   X,
 } from 'lucide-react'
-import { saveBesigtigelsesnotat, sendBesigtigelsePdf } from '@/lib/actions/besigtigelse'
+import {
+  saveBesigtigelsesnotat,
+  sendBesigtigelsePdf,
+  listCustomerServiceCasesForBesigtigelse,
+  getCaseSignerSummary,
+} from '@/lib/actions/besigtigelse'
 import type { CustomerWithRelations } from '@/types/customers.types'
 import { useToast } from '@/components/ui/toast'
 import { RoofDrawingSection } from '@/components/modules/customers/roof-drawing/roof-drawing-section'
@@ -348,10 +353,73 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [images, setImages] = useState<ImageUpload[]>([])
 
+  // Fase 2a — sag-kobling er obligatorisk. Besigtigelsen skal bindes til en
+  // sag, så signer (end_customer) + leveringsadresse resolves fra sagens
+  // parter og partner-scoping holder hele vejen.
+  const [serviceCases, setServiceCases] = useState<
+    { id: string; case_number: string | null; title: string | null; status: string | null }[]
+  >([])
+  const [serviceCaseId, setServiceCaseId] = useState<string>('')
+  const [loadingCases, setLoadingCases] = useState(true)
+  const [caseSummary, setCaseSummary] = useState<{
+    signerName: string | null
+    signerCompany: string | null
+    payerName: string | null
+    siteAddress: string
+  } | null>(null)
+  // Spor om montøren selv har redigeret signer-navnet, så vi ikke overskriver
+  // det med sagens end_customer ved sag-skift.
+  const signerTouchedRef = useRef(false)
+
   const [form, setForm] = useState<BesigtigelseFormData>({
     ...EMPTY_FORM,
     signerName: customer.contact_person || '',
   })
+
+  // Fase 2a — hent kundens sager til den obligatoriske sag-vælger.
+  useEffect(() => {
+    let active = true
+    setLoadingCases(true)
+    listCustomerServiceCasesForBesigtigelse(customer.id)
+      .then((res) => {
+        if (!active) return
+        const cases = res.success && res.data ? res.data : []
+        setServiceCases(cases)
+        if (cases.length === 1) setServiceCaseId(cases[0].id) // auto-vælg eneste sag
+      })
+      .finally(() => {
+        if (active) setLoadingCases(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [customer.id])
+
+  // Fase 2a — når en sag vælges: resolv parterne (signer=end_customer, payer,
+  // leveringsadresse) og prefill signer-navnet med anlægsejeren, medmindre
+  // montøren selv har redigeret feltet.
+  useEffect(() => {
+    if (!serviceCaseId) {
+      setCaseSummary(null)
+      return
+    }
+    let active = true
+    getCaseSignerSummary(serviceCaseId).then((res) => {
+      if (!active || !res.success || !res.data) return
+      setCaseSummary({
+        signerName: res.data.signerName,
+        signerCompany: res.data.signerCompany,
+        payerName: res.data.payerName,
+        siteAddress: res.data.siteAddress,
+      })
+      if (!signerTouchedRef.current && res.data.signerName) {
+        setForm((prev) => ({ ...prev, signerName: res.data!.signerName as string }))
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [serviceCaseId])
 
   // Canvas setup
   useEffect(() => {
@@ -427,6 +495,10 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
   }
 
   const handleSave = async (sendToCustomer = false) => {
+    if (!serviceCaseId) {
+      toast.error('Vælg en sag', 'Besigtigelsen skal kobles til en sag, før den kan gemmes.')
+      return
+    }
     if (sendToCustomer) setIsSending(true)
     else setIsSaving(true)
 
@@ -490,6 +562,7 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
 
       const result = await saveBesigtigelsesnotat({
         customerId: customer.id,
+        serviceCaseId,
         formData: { ...form, signatureData },
         images: imageData,
         sendToCustomer,
@@ -565,12 +638,12 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
                 <Download className="w-4 h-4" /> PDF
               </a>
             )}
-            <button onClick={() => handleSave(false)} disabled={isSaving || isSending}
+            <button onClick={() => handleSave(false)} disabled={isSaving || isSending || !serviceCaseId}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 min-h-[50px] sm:min-h-0 sm:py-2 text-sm font-bold bg-green-600 text-white rounded-xl sm:rounded-lg hover:bg-green-700 disabled:opacity-50 active:scale-95 transition-transform touch-manipulation">
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Gem
             </button>
-            <button onClick={() => handleSave(true)} disabled={isSaving || isSending}
+            <button onClick={() => handleSave(true)} disabled={isSaving || isSending || !serviceCaseId}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 min-h-[50px] sm:min-h-0 sm:py-2 text-sm font-bold bg-blue-600 text-white rounded-xl sm:rounded-lg hover:bg-blue-700 disabled:opacity-50 active:scale-95 transition-transform touch-manipulation">
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Send
@@ -590,6 +663,56 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
             </div>
           </div>
         )}
+
+        {/* SAG (obligatorisk — Fase 2a) */}
+        <section>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            Sag <span className="text-red-500">*</span>
+          </h3>
+          {loadingCases ? (
+            <p className="text-sm text-gray-400">Henter sager…</p>
+          ) : serviceCases.length === 0 ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              Denne kunde har ingen sager endnu. Opret en sag på kundekortet, før du gemmer en besigtigelse.
+            </div>
+          ) : (
+            <>
+              <select
+                value={serviceCaseId}
+                onChange={(e) => setServiceCaseId(e.target.value)}
+                className="w-full min-h-[50px] sm:min-h-0 sm:py-2 px-3 border rounded-xl sm:rounded-lg text-sm bg-white"
+              >
+                <option value="">— Vælg sag —</option>
+                {serviceCases.map((sc) => (
+                  <option key={sc.id} value={sc.id}>
+                    {[sc.case_number, sc.title].filter(Boolean).join(' · ') || 'Sag'}
+                  </option>
+                ))}
+              </select>
+              {!serviceCaseId && (
+                <p className="text-xs text-amber-600 mt-1">Vælg en sag for at kunne gemme.</p>
+              )}
+              {serviceCaseId && caseSummary && (
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs bg-gray-50 border rounded-lg p-3">
+                  <div>
+                    <p className="text-gray-500">Underskriver (anlægsejer)</p>
+                    <p className="font-medium text-gray-800">
+                      {caseSummary.signerName || caseSummary.signerCompany || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Leveringsadresse</p>
+                    <p className="font-medium text-gray-800">{caseSummary.siteAddress || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Kopi / faktura</p>
+                    <p className="font-medium text-gray-800">{caseSummary.payerName || '—'}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </section>
 
         {/* STAMDATA */}
         <section>
@@ -718,7 +841,7 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
 
         {/* TAGTEGNING & PANELLAYOUT */}
         <section className="border-t pt-5">
-          <RoofDrawingSection customerId={customer.id} serviceCaseId={null} />
+          <RoofDrawingSection customerId={customer.id} serviceCaseId={serviceCaseId || null} />
         </section>
 
         {/* SÆRLIGE AFTALER */}
@@ -735,7 +858,7 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
           <div className="space-y-3">
             <div className="max-w-sm">
               <label className="block text-xs font-medium text-gray-600 mb-1">Navn</label>
-              <input type="text" value={form.signerName} onChange={(e) => set('signerName', e.target.value)}
+              <input type="text" value={form.signerName} onChange={(e) => { signerTouchedRef.current = true; set('signerName', e.target.value) }}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500" />
             </div>
             <div>

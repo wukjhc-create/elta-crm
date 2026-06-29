@@ -20,6 +20,8 @@ import {
   Loader2,
 } from 'lucide-react'
 import { listConfirmationsForDocument } from '@/lib/actions/document-confirmations'
+import { sendReadyChainStep } from '@/lib/actions/besigtigelse'
+import { useToast } from '@/components/ui/toast'
 import {
   RECIPIENT_ROLE_LABELS,
   type ConfirmationListItem,
@@ -121,6 +123,8 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  // Fase 2a — lokal refresh efter "send videre" uden at parent skal involveres.
+  const [localRefresh, setLocalRefresh] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -149,7 +153,7 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
     return () => {
       cancelled = true
     }
-  }, [documentId, refreshKey])
+  }, [documentId, refreshKey, localRefresh])
 
   // Defensiv: ved fejl eller ingen confirmations vises ingenting
   if (isLoading) {
@@ -182,7 +186,7 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
       {isExpanded && (
         <div className="mt-2 bg-white border rounded-lg divide-y">
           {items.map((it) => (
-            <RecipientRow key={it.id} item={it} />
+            <RecipientRow key={it.id} item={it} onSent={() => setLocalRefresh((v) => v + 1)} />
           ))}
         </div>
       )}
@@ -190,9 +194,31 @@ export function DocumentConfirmationStatus({ documentId, refreshKey = 0 }: Props
   )
 }
 
-function RecipientRow({ item }: { item: ConfirmationListItem }) {
+function RecipientRow({ item, onSent }: { item: ConfirmationListItem; onSent?: () => void }) {
   const roleLabel = RECIPIENT_ROLE_LABELS[item.recipientRole] || 'Modtager'
   const statusBadge = statusBadgeFor(item)
+  const toast = useToast()
+  const [isSending, setIsSending] = useState(false)
+
+  // Fase 2a — trin frigivet til manuelt videresend (kunden har godkendt forrige trin).
+  const canSendNext = item.status === 'pending' && item.readyToSend
+
+  const handleSendNext = async () => {
+    setIsSending(true)
+    try {
+      const res = await sendReadyChainStep(item.id)
+      if (res.success && res.data) {
+        toast.success(`Sendt videre til ${res.data.sentTo}`)
+        onSent?.()
+      } else {
+        toast.error('Kunne ikke sende videre', res.error)
+      }
+    } catch {
+      toast.error('Kunne ikke sende videre')
+    } finally {
+      setIsSending(false)
+    }
+  }
 
   return (
     <div className="p-3 text-xs">
@@ -209,9 +235,26 @@ function RecipientRow({ item }: { item: ConfirmationListItem }) {
         <span
           className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded ${statusBadge.bg} ${statusBadge.text} text-[11px] font-medium`}
         >
-          {statusBadge.label}
+          {canSendNext ? 'Klar til at sende' : statusBadge.label}
         </span>
       </div>
+
+      {canSendNext && (
+        <div className="mt-2 rounded-md border border-green-200 bg-green-50 p-2">
+          <p className="text-[11px] text-green-800 mb-1.5">
+            Kunden har godkendt. Send rapporten videre til denne part, når du er klar.
+          </p>
+          <button
+            type="button"
+            onClick={handleSendNext}
+            disabled={isSending}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-green-600 text-white text-[11px] font-semibold hover:bg-green-700 disabled:opacity-50"
+          >
+            {isSending ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+            Send videre til partner
+          </button>
+        </div>
+      )}
 
       <dl className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-gray-600">
         {item.mailSentAt && (

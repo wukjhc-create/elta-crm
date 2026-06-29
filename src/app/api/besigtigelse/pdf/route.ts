@@ -9,13 +9,13 @@ export const maxDuration = 60
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { customer, formData, date, images } = body
+    const { customer, formData, date, images, siteAddress } = body
 
     if (!customer || !formData || !date) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const pdfDocument = BesigtigelsePDF({ customer, formData, date, images: images || [] }) as ReactElement<
+    const pdfDocument = BesigtigelsePDF({ customer, formData, date, images: images || [], siteAddress }) as ReactElement<
       DocumentProps,
       string | JSXElementConstructor<DocumentProps>
     >

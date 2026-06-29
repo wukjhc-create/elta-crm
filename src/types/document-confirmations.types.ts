@@ -65,6 +65,21 @@ export interface CreateConfirmationRequestsInput {
   /** Default 30 dage hvis udeladt */
   expiresInDays?: number
   metadata?: Record<string, unknown>
+  /**
+   * Fase 2a — sekventiel kæde. Når true behandles `recipients` som en
+   * ordnet kæde (trin 1 = anlægsejer/signer, trin 2 = betaler/partner …).
+   * Hver row får metadata.sequence = { chainId, order, gated:true }. Kun
+   * trin 1 mailes ved oprettelse; senere trin frigives manuelt af kontoret
+   * efter forrige trins godkendelse (INGEN auto-send).
+   */
+  sequential?: boolean
+}
+
+/** Sekvens-info i document_confirmations.metadata.sequence (Fase 2a). */
+export interface ConfirmationSequenceMeta {
+  chainId: string
+  order: number
+  gated: boolean
 }
 
 /**
@@ -144,4 +159,9 @@ export interface ConfirmationListItem {
   revokedAt: string | null
   revokedReason: string | null
   createdAt: string
+  /** Fase 2a — sekvens-info hvis denne row er del af en gated kæde. */
+  sequence: ConfirmationSequenceMeta | null
+  /** Fase 2a — trin er frigivet (forrige trin godkendt) og klar til at kontoret
+   *  sender det videre manuelt. Kun relevant for gated, ikke-sendte trin. */
+  readyToSend: boolean
 }

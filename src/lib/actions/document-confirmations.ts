@@ -114,6 +114,64 @@ function isPlausibleToken(token: unknown): token is string {
   return /^[A-Za-z0-9_-]+$/.test(token)
 }
 
+interface SequenceMetaShape {
+  sequence?: { chainId?: string; order?: number; gated?: boolean }
+  readyToSend?: boolean
+  readyAt?: string
+  [key: string]: unknown
+}
+
+/**
+ * Fase 2a — efter at et kæde-trin er bekræftet: markér NÆSTE pending-trin i
+ * samme kæde som "klar til at sende" (metadata.readyToSend=true). Sender
+ * IKKE mail — kontoret frigiver det manuelt (kontrolpunkt før noget går til
+ * en betalende partner). Best-effort: fejl må aldrig vælte selve confirm'en.
+ *
+ * Tager en admin-klient (kaldes fra public submitConfirmation).
+ */
+async function markNextChainStepReady(
+  admin: ReturnType<typeof createAdminClient>,
+  confirmedId: string,
+): Promise<void> {
+  try {
+    const { data: row } = await admin
+      .from('document_confirmations')
+      .select('id, customer_document_id, metadata')
+      .eq('id', confirmedId)
+      .maybeSingle()
+    const meta = (row?.metadata ?? {}) as SequenceMetaShape
+    const seq = meta.sequence
+    if (!row || !seq?.gated || !seq.chainId || typeof seq.order !== 'number') return
+
+    const nextOrder = seq.order + 1
+    const { data: siblings } = await admin
+      .from('document_confirmations')
+      .select('id, status, metadata')
+      .eq('customer_document_id', row.customer_document_id)
+
+    const next = (siblings ?? []).find((s) => {
+      const m = (s.metadata ?? {}) as SequenceMetaShape
+      return (
+        s.status === 'pending' &&
+        m.sequence?.chainId === seq.chainId &&
+        m.sequence?.order === nextOrder
+      )
+    })
+    if (!next) return
+
+    const nextMeta = (next.metadata ?? {}) as SequenceMetaShape
+    await admin
+      .from('document_confirmations')
+      .update({
+        metadata: { ...nextMeta, readyToSend: true, readyAt: new Date().toISOString() },
+      })
+      .eq('id', next.id)
+      .eq('status', 'pending')
+  } catch (err) {
+    logger.error('markNextChainStepReady failed (non-fatal)', { error: err, entityId: confirmedId })
+  }
+}
+
 // =====================================================
 // 1. createConfirmationRequests  (authenticated)
 // =====================================================
@@ -149,8 +207,13 @@ export async function createConfirmationRequests(
     }
     const expiresAt = new Date(Date.now() + expiresInDays * 86_400_000).toISOString()
 
+    // Fase 2a — sekventiel kæde: ét chainId for hele kæden, order = 1-baseret
+    // position i recipients-arrayet. Kun trin 1 mailes senere; resten frigives
+    // manuelt af kontoret. Parallel-flow (sequential udeladt/false) er uændret.
+    const chainId = input.sequential ? crypto.randomUUID() : null
+
     // Byg insert-rows
-    const rows = input.recipients.map((r) => {
+    const rows = input.recipients.map((r, idx) => {
       if (!ALLOWED_RECIPIENT_TYPES.includes(r.recipientType)) {
         throw new ActionError(`Ugyldig recipient_type: ${r.recipientType}`)
       }
@@ -160,6 +223,10 @@ export async function createConfirmationRequests(
       const email = r.email?.trim().toLowerCase()
       if (!email || !email.includes('@')) {
         throw new ActionError(`Ugyldig email: ${r.email}`)
+      }
+      const metadata: Record<string, unknown> = { ...(input.metadata ?? {}) }
+      if (chainId) {
+        metadata.sequence = { chainId, order: idx + 1, gated: true }
       }
       return {
         customer_document_id: input.documentId,
@@ -173,7 +240,7 @@ export async function createConfirmationRequests(
         status: 'pending' as const,
         expires_at: expiresAt,
         created_by: userId,
-        metadata: input.metadata ?? {},
+        metadata,
       }
     })
 
@@ -409,6 +476,9 @@ export async function submitConfirmation(
           ip,
         },
       })
+      // Fase 2a — frigiv næste kæde-trin til manuelt videresend (sender IKKE
+      // mail). Best-effort; må aldrig vælte den gennemførte bekræftelse.
+      await markNextChainStepReady(admin, updated.id)
       return { success: true, data: { confirmedAt: updated.confirmed_at } }
     }
 
@@ -458,7 +528,7 @@ export async function listConfirmationsForDocument(
         status, expires_at, mail_sent_at, mail_error,
         first_opened_at, last_opened_at, open_count,
         confirmed_at, confirmed_by_name, confirmed_by_email, confirmation_note,
-        revoked_at, revoked_reason, created_at
+        revoked_at, revoked_reason, created_at, metadata
       `)
       .eq('customer_document_id', documentId)
       .order('created_at', { ascending: false })
@@ -492,7 +562,7 @@ export async function listConfirmationsForServiceCase(
         status, expires_at, mail_sent_at, mail_error,
         first_opened_at, last_opened_at, open_count,
         confirmed_at, confirmed_by_name, confirmed_by_email, confirmation_note,
-        revoked_at, revoked_reason, created_at
+        revoked_at, revoked_reason, created_at, metadata
       `)
       .eq('service_case_id', serviceCaseId)
       .order('created_at', { ascending: false })
@@ -648,11 +718,18 @@ function mapToListItem(r: {
   revoked_at: string | null
   revoked_reason: string | null
   created_at: string
+  metadata?: Record<string, unknown> | null
 }): ConfirmationListItem {
   const status = r.status as ConfirmationStatus
   const isExpired =
     (status === 'sent' || status === 'opened') &&
     new Date(r.expires_at).getTime() < Date.now()
+  const meta = (r.metadata ?? {}) as SequenceMetaShape
+  const seq = meta.sequence
+  const sequence =
+    seq && typeof seq.chainId === 'string' && typeof seq.order === 'number'
+      ? { chainId: seq.chainId, order: seq.order, gated: seq.gated === true }
+      : null
   return {
     id: r.id,
     recipientEmail: r.recipient_email,
@@ -674,5 +751,7 @@ function mapToListItem(r: {
     revokedAt: r.revoked_at,
     revokedReason: r.revoked_reason,
     createdAt: r.created_at,
+    sequence,
+    readyToSend: meta.readyToSend === true,
   }
 }
