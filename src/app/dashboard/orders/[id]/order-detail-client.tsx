@@ -32,6 +32,7 @@ import { CaseUnconvertedSupplierLinesCard } from '@/components/modules/orders/ca
 import { OrderBillingDraftTab } from './order-billing-draft-tab'
 import { OrderMailsTab } from './order-mails-tab'
 import { OrderDocumentsTab } from './order-documents-tab'
+import { OrderInspectionTab } from './order-inspection-tab'
 import { OrderNotesTab } from './order-notes-tab'
 import { OrderTasksTab } from './order-tasks-tab'
 import { InlineStatusChanger } from './inline-status-changer'
@@ -48,7 +49,7 @@ const TABS = [
   { id: 'opgaver',      label: 'Opgaver',            ready: true },
   { id: 'noter',        label: 'Noter',              ready: true },
   { id: 'aktivitet',    label: 'Aktivitet',          ready: true },
-  { id: 'dokumentation',label: 'Dokumentation',      ready: false },
+  { id: 'dokumentation',label: 'Dokumentation',      ready: true },
   { id: 'fakturakladde',label: 'Fakturakladde',      ready: true },
   { id: 'handlinger',   label: 'Handlinger',         ready: true },
 ] as const
@@ -236,6 +237,10 @@ export function OrderDetailClient({
           {active === 'dokumenter' && (
             <OrderDocumentsTab caseId={sag.id} customerId={sag.customer_id ?? null} />
           )}
+          {/* Trin 1 — besigtigelse fra sagen (sag forudvalgt + låst) */}
+          {active === 'dokumentation' && (
+            <OrderInspectionTab caseId={sag.id} customerId={sag.customer_id ?? null} />
+          )}
           {active === 'oekonomi' && canSeeCost && (
             <div className="space-y-5">
               <OrderEconomyTab
@@ -261,6 +266,7 @@ export function OrderDetailClient({
             active !== 'oevrige' &&
             active !== 'mails' &&
             active !== 'dokumenter' &&
+            active !== 'dokumentation' &&
             active !== 'oekonomi' &&
             active !== 'fakturakladde' &&
             active !== 'handlinger' &&
@@ -704,12 +710,6 @@ const PLACEHOLDER_INFO: Record<string, { headline: string; sprint: string; body:
     sprint: 'Sprint 8',
     body:
       'DB-beregning, profit-snapshots, tilbudt vs. revideret vs. faktisk forbrug.',
-  },
-  dokumentation: {
-    headline: 'Dokumentation og billeder',
-    sprint: 'Sprint 9',
-    body:
-      'Vedhæftninger, før/efter-billeder, signeret afleveringsformular, KSR/EAN-dokumentation.',
   },
   fakturakladde: {
     headline: 'Fakturakladde',

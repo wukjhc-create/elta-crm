@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -55,8 +55,7 @@ import {
   toggleCustomerActive,
   deleteCustomerContact,
 } from '@/lib/actions/customers'
-import { createFuldmagt } from '@/lib/actions/fuldmagt'
-import { listCustomerServiceCasesForBesigtigelse } from '@/lib/actions/besigtigelse'
+import { FuldmagtModal } from '@/components/modules/customers/fuldmagt-modal'
 import {
   CUSTOMER_CONTACT_ROLE_LABELS,
   type CustomerWithRelations,
@@ -89,34 +88,6 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
   const [showFuldmagtModal, setShowFuldmagtModal] = useState(false)
   const [showOfferForm, setShowOfferForm] = useState(false)
   const [showCaseModal, setShowCaseModal] = useState(false)
-  const [fuldmagtOrderNr, setFuldmagtOrderNr] = useState('')
-  const [isSendingFuldmagt, setIsSendingFuldmagt] = useState(false)
-  // Fase 2a — fuldmagt bindes til en sag (signer=end_customer + adresse).
-  const [fuldmagtServiceCaseId, setFuldmagtServiceCaseId] = useState('')
-  const [fuldmagtCases, setFuldmagtCases] = useState<
-    { id: string; case_number: string | null; title: string | null; status: string | null }[]
-  >([])
-  const [loadingFuldmagtCases, setLoadingFuldmagtCases] = useState(false)
-
-  // Hent kundens sager når fuldmagt-modalen åbnes.
-  useEffect(() => {
-    if (!showFuldmagtModal) return
-    let active = true
-    setLoadingFuldmagtCases(true)
-    listCustomerServiceCasesForBesigtigelse(customer.id)
-      .then((res) => {
-        if (!active) return
-        const cases = res.success && res.data ? res.data : []
-        setFuldmagtCases(cases)
-        if (cases.length === 1) setFuldmagtServiceCaseId(cases[0].id)
-      })
-      .finally(() => {
-        if (active) setLoadingFuldmagtCases(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [showFuldmagtModal, customer.id])
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -842,87 +813,12 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
         />
       )}
       {showFuldmagtModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowFuldmagtModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-lg font-bold mb-4">Send Fuldmagt til kunde</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Opret en fuldmagt som kunden kan underskrive i portalen. Fuldmagten giver {customer.company_name} mulighed for at underskrive digitalt.
-            </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sag <span className="text-red-500">*</span>
-              </label>
-              {loadingFuldmagtCases ? (
-                <p className="text-sm text-gray-400">Henter sager…</p>
-              ) : fuldmagtCases.length === 0 ? (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                  Denne kunde har ingen sager endnu. Opret en sag, før du opretter en fuldmagt.
-                </div>
-              ) : (
-                <select
-                  value={fuldmagtServiceCaseId}
-                  onChange={(e) => setFuldmagtServiceCaseId(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
-                >
-                  <option value="">— Vælg sag —</option>
-                  {fuldmagtCases.map((sc) => (
-                    <option key={sc.id} value={sc.id}>
-                      {[sc.case_number, sc.title].filter(Boolean).join(' · ') || 'Sag'}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <p className="mt-1 text-xs text-gray-500">
-                Underskriver bliver sagens anlægsejer (slutkunde), og adressen tages fra sagen.
-              </p>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ordrenummer</label>
-              <input
-                type="text"
-                value={fuldmagtOrderNr}
-                onChange={(e) => setFuldmagtOrderNr(e.target.value)}
-                placeholder="f.eks. ORD-2026-001"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-              />
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowFuldmagtModal(false)}
-                className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium">
-                Annuller
-              </button>
-              <button
-                onClick={async () => {
-                  if (!fuldmagtServiceCaseId) {
-                    toast.error('Vælg en sag')
-                    return
-                  }
-                  if (!fuldmagtOrderNr.trim()) {
-                    toast.error('Ordrenummer er påkrævet')
-                    return
-                  }
-                  setIsSendingFuldmagt(true)
-                  const result = await createFuldmagt(customer.id, fuldmagtOrderNr, fuldmagtServiceCaseId)
-                  setIsSendingFuldmagt(false)
-                  if (result.success) {
-                    toast.success('Fuldmagt oprettet — kunden kan nu underskrive i portalen')
-                    setShowFuldmagtModal(false)
-                    setFuldmagtOrderNr('')
-                    setFuldmagtServiceCaseId('')
-                    router.refresh()
-                  } else {
-                    toast.error(result.error || 'Kunne ikke oprette fuldmagt')
-                  }
-                }}
-                disabled={isSendingFuldmagt || !fuldmagtServiceCaseId}
-                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isSendingFuldmagt ? 'Opretter...' : <><FileSignature className="w-4 h-4" /> Opret Fuldmagt</>}
-              </button>
-            </div>
-          </div>
-        </div>
+        <FuldmagtModal
+          customerId={customer.id}
+          customerName={customer.company_name}
+          onClose={() => setShowFuldmagtModal(false)}
+          onSuccess={() => router.refresh()}
+        />
       )}
       {ConfirmDialog}
     </>

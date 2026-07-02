@@ -33,6 +33,13 @@ import { RoofDrawingSection } from '@/components/modules/customers/roof-drawing/
 
 interface BesigtigelsesNotatProps {
   customer: CustomerWithRelations
+  /**
+   * Fase 2b — når notatet åbnes FRA en sag, låses sagen: vælgeren skjules,
+   * og besigtigelsen bindes til denne sag. Udeladt (default) = kundekort-flow
+   * hvor montøren selv vælger sag blandt kundens sager (uændret adfærd).
+   */
+  serviceCaseId?: string
+  lockCase?: boolean
 }
 
 export interface BesigtigelseFormData {
@@ -339,7 +346,7 @@ function Input({ label, field, placeholder, inputMode, autoComplete }: {
   )
 }
 
-export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
+export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lockCase = false }: BesigtigelsesNotatProps) {
   const router = useRouter()
   const toast = useToast()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -359,8 +366,8 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
   const [serviceCases, setServiceCases] = useState<
     { id: string; case_number: string | null; title: string | null; status: string | null }[]
   >([])
-  const [serviceCaseId, setServiceCaseId] = useState<string>('')
-  const [loadingCases, setLoadingCases] = useState(true)
+  const [serviceCaseId, setServiceCaseId] = useState<string>(lockCase && lockedCaseId ? lockedCaseId : '')
+  const [loadingCases, setLoadingCases] = useState(!lockCase)
   const [caseSummary, setCaseSummary] = useState<{
     signerName: string | null
     signerCompany: string | null
@@ -377,7 +384,9 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
   })
 
   // Fase 2a — hent kundens sager til den obligatoriske sag-vælger.
+  // Låst sag (åbnet fra sagen) springer dette over — sagen er allerede kendt.
   useEffect(() => {
+    if (lockCase) return
     let active = true
     setLoadingCases(true)
     listCustomerServiceCasesForBesigtigelse(customer.id)
@@ -393,7 +402,7 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
     return () => {
       active = false
     }
-  }, [customer.id])
+  }, [customer.id, lockCase])
 
   // Fase 2a — når en sag vælges: resolv parterne (signer=end_customer, payer,
   // leveringsadresse) og prefill signer-navnet med anlægsejeren, medmindre
@@ -621,6 +630,27 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
     [form, images]
   )
 
+  // Sagens parter (underskriver/adresse/betaler) — vises både i kundekort-
+  // flowet (når en sag er valgt) og i låst-sag-flowet (åbnet fra sagen).
+  const caseSummaryBox = serviceCaseId && caseSummary && (
+    <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs bg-gray-50 border rounded-lg p-3">
+      <div>
+        <p className="text-gray-500">Underskriver (anlægsejer)</p>
+        <p className="font-medium text-gray-800">
+          {caseSummary.signerName || caseSummary.signerCompany || '—'}
+        </p>
+      </div>
+      <div>
+        <p className="text-gray-500">Leveringsadresse</p>
+        <p className="font-medium text-gray-800">{caseSummary.siteAddress || '—'}</p>
+      </div>
+      <div>
+        <p className="text-gray-500">Kopi / faktura</p>
+        <p className="font-medium text-gray-800">{caseSummary.payerName || '—'}</p>
+      </div>
+    </div>
+  )
+
   return (
     <BesigtigelseFormCtx.Provider value={ctrl}>
     <div className="bg-white rounded-lg border">
@@ -669,7 +699,10 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
             Sag <span className="text-red-500">*</span>
           </h3>
-          {loadingCases ? (
+          {lockCase ? (
+            // Sag er låst (åbnet fra sagen) — ingen vælger, vis kun parterne.
+            caseSummaryBox || <p className="text-sm text-gray-400">Henter sagens parter…</p>
+          ) : loadingCases ? (
             <p className="text-sm text-gray-400">Henter sager…</p>
           ) : serviceCases.length === 0 ? (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
@@ -692,24 +725,7 @@ export function BesigtigelsesNotat({ customer }: BesigtigelsesNotatProps) {
               {!serviceCaseId && (
                 <p className="text-xs text-amber-600 mt-1">Vælg en sag for at kunne gemme.</p>
               )}
-              {serviceCaseId && caseSummary && (
-                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs bg-gray-50 border rounded-lg p-3">
-                  <div>
-                    <p className="text-gray-500">Underskriver (anlægsejer)</p>
-                    <p className="font-medium text-gray-800">
-                      {caseSummary.signerName || caseSummary.signerCompany || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Leveringsadresse</p>
-                    <p className="font-medium text-gray-800">{caseSummary.siteAddress || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Kopi / faktura</p>
-                    <p className="font-medium text-gray-800">{caseSummary.payerName || '—'}</p>
-                  </div>
-                </div>
-              )}
+              {caseSummaryBox}
             </>
           )}
         </section>
