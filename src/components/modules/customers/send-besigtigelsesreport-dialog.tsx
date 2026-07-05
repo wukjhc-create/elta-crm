@@ -117,7 +117,8 @@ export function SendBesigtigelsesreportDialog({
       const result = await getBesigtigelseRecipientOptions(documentId, selectedCaseId)
       if (cancelled) return
       if (result.success && result.data) {
-        setRecipients(result.data.parties.map((p) => ({ ...p, selected: false })))
+        // Default-vælg sagens underskriver (anlægsejer) — resten er fravalgt.
+        setRecipients(result.data.parties.map((p) => ({ ...p, selected: !!p.isSigner })))
         setWarning(result.data.warning)
         setServiceCaseLabel(
           result.data.serviceCase
@@ -217,12 +218,20 @@ export function SendBesigtigelsesreportDialog({
         message: message.trim() || null,
         requireConfirmation,
         recipients: [
-          ...chosenParties.map((p) => ({
-            type: p.contactId ? ('contact' as const) : ('customer' as const),
-            customerId: p.contactId ? null : p.customerId,
-            contactId: p.contactId || null,
-            roleLabel: p.role,
-          })),
+          ...chosenParties.map((p) =>
+            p.role === 'partner'
+              ? {
+                  type: 'partner' as const,
+                  partnerTokenId: p.partnerTokenId ?? null,
+                  roleLabel: 'partner' as const,
+                }
+              : {
+                  type: p.contactId ? ('contact' as const) : ('customer' as const),
+                  customerId: p.contactId ? null : p.customerId,
+                  contactId: p.contactId || null,
+                  roleLabel: p.role,
+                }
+          ),
           ...(manualValid
             ? [
                 {

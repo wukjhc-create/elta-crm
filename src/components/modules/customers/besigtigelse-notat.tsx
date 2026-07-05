@@ -40,6 +40,9 @@ interface BesigtigelsesNotatProps {
    */
   serviceCaseId?: string
   lockCase?: boolean
+  /** kaldes efter en rapport er gemt (med dokument-id) — fx til at
+   *  genopfriske en send-liste på sagen. Additivt; udeladt = uændret. */
+  onSaved?: (documentId: string) => void
 }
 
 export interface BesigtigelseFormData {
@@ -346,7 +349,7 @@ function Input({ label, field, placeholder, inputMode, autoComplete }: {
   )
 }
 
-export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lockCase = false }: BesigtigelsesNotatProps) {
+export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lockCase = false, onSaved }: BesigtigelsesNotatProps) {
   const router = useRouter()
   const toast = useToast()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -585,6 +588,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
             ? 'Besigtigelsesrapport gemt og sendt til kunden'
             : 'Besigtigelsesrapport gemt og PDF genereret'
         )
+        onSaved?.(result.data.id)
         router.refresh()
       } else {
         toast.error('Kunne ikke gemme', result.error)

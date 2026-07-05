@@ -488,9 +488,21 @@ export interface BesigtigelseCaseParty {
   customerId: string
   email: string | null
   name: string
-  role: 'orderer' | 'end_customer' | 'payer' | 'site_customer' | 'site_contact' | 'document_customer'
+  role: 'orderer' | 'end_customer' | 'payer' | 'site_customer' | 'site_contact' | 'document_customer' | 'partner'
   roleLabel: string
   contactId?: string | null
+  /** sat på faste samarbejdspartnere (punkt c) — det aktive partner-token */
+  partnerTokenId?: string | null
+  /** true på sagens underskriver (anlægsejer m. fallbacks) → default-valgt i UI */
+  isSigner?: boolean
+}
+
+/** Række fra partner_access_tokens (migration 00152) med indlejret partner-navn. */
+interface PartnerTokenRow {
+  id: string
+  email: string | null
+  partner_customer_id: string | null
+  partner: { company_name: string | null } | { company_name: string | null }[] | null
 }
 
 export interface BesigtigelseRecipientOptions {
@@ -516,6 +528,7 @@ const ROLE_LABEL: Record<BesigtigelseCaseParty['role'], string> = {
   site_customer: 'Leveringskunde',
   site_contact: 'Kontaktperson på stedet',
   document_customer: 'Kunde på dokument',
+  partner: 'Samarbejdspartner',
 }
 
 function partyEntry(
@@ -703,9 +716,40 @@ export async function getBesigtigelseRecipientOptions(
       }
     }
 
+    // Punkt (c) — faste samarbejdspartnere: customers med et AKTIVT
+    // partner-token (migration 00152). Token-e-mailen er NOT NULL, så en
+    // partner har altid en modtager-adresse. Vi springer partnere over der
+    // allerede optræder som sagspart (undgår dublet-visning af samme firma).
+    try {
+      const nowIso = new Date().toISOString()
+      const { data: partnerTokens } = await supabase
+        .from('partner_access_tokens')
+        .select('id, email, partner_customer_id, partner:customers(company_name)')
+        .eq('is_active', true)
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+        .order('created_at', { ascending: false })
+      const partyCustomerIds = new Set(parties.map((p) => p.customerId))
+      for (const t of (partnerTokens as PartnerTokenRow[] | null) || []) {
+        if (!t.partner_customer_id || !t.email || partyCustomerIds.has(t.partner_customer_id)) continue
+        partyCustomerIds.add(t.partner_customer_id)
+        const partnerObj = Array.isArray(t.partner) ? t.partner[0] : t.partner
+        parties.push({
+          customerId: t.partner_customer_id,
+          email: t.email,
+          name: partnerObj?.company_name || 'Samarbejdspartner',
+          role: 'partner',
+          roleLabel: ROLE_LABEL.partner,
+          contactId: null,
+          partnerTokenId: t.id,
+        })
+      }
+    } catch (e) {
+      logger.error('getBesigtigelseRecipientOptions: partner-fetch fejlede', { error: e, entityId: documentId })
+    }
+
     // Dedup paa (customerId + contactId) — hvis en customer optraeder i
     // flere roller, beholdes foerste forekomst (orderer > end_customer
-    // > payer > site_customer > site_contact > document_customer).
+    // > payer > site_customer > site_contact > document_customer > partner).
     const seen = new Set<string>()
     const dedup = parties.filter((p) => {
       const key = `${p.customerId}:${p.contactId || ''}`
@@ -713,6 +757,17 @@ export async function getBesigtigelseRecipientOptions(
       seen.add(key)
       return true
     })
+
+    // Default-modtager = sagens underskriver (anlægsejer) med samme fallback-
+    // prioritet som case-parties-resolveren; vælg første kandidat MED e-mail så
+    // dialogen kan for-vælge en reelt sendbar modtager.
+    const signerCandidates = [
+      dedup.find((p) => p.role === 'end_customer'),
+      dedup.find((p) => p.role === 'site_customer'),
+      dedup.find((p) => p.role === 'document_customer'),
+    ].filter((p): p is BesigtigelseCaseParty => !!p)
+    const signerParty = signerCandidates.find((p) => p.email) || signerCandidates[0]
+    if (signerParty) signerParty.isSigner = true
 
     return {
       success: true,
@@ -737,13 +792,15 @@ function isBesigtigelseDocument(documentType: string, title: string): boolean {
   return false
 }
 
-type SendRecipientType = 'customer' | 'contact' | 'manual'
+type SendRecipientType = 'customer' | 'contact' | 'manual' | 'partner'
 
 export interface SendBesigtigelseRecipientInput {
   type: SendRecipientType
   customerId?: string | null
   contactId?: string | null
   email?: string | null
+  /** kræves for type 'partner' — det aktive partner-token (migration 00152) */
+  partnerTokenId?: string | null
   roleLabel?: BesigtigelseCaseParty['role'] | 'manual'
 }
 
@@ -785,6 +842,10 @@ const RECIPIENT_ROLE_MAP: Record<BesigtigelseCaseParty['role'] | 'manual', { rol
   document_customer: {
     role: 'paying_customer',
     intro: 'Du modtager besigtigelsesrapporten som kunde paa sagen.',
+  },
+  partner: {
+    role: 'manual',
+    intro: 'Du modtager besigtigelsesrapporten som samarbejdspartner på sagen.',
   },
   manual: {
     role: 'manual',
@@ -938,6 +999,29 @@ export async function sendExistingBesigtigelsesreport(
     const { logMailRoute } = await import('@/lib/actions/mail-route-resolvers')
     const fromMailbox = defaultFromMailbox()
 
+    // Punkt (c) — autoritative partner-modtagere. Vi henter aktive
+    // partner-tokens serverside og stoler ALDRIG på en e-mail fra klienten:
+    // partner-modtagerens adresse er token.email fra et token vi selv har
+    // udstedt (migration 00152). Samme whitelist-disciplin som customer/contact.
+    const partnerTokenById = new Map<string, { email: string; name: string | null; customerId: string }>()
+    if (input.recipients.some((r) => r.type === 'partner')) {
+      const nowIso = new Date().toISOString()
+      const { data: pts } = await supabase
+        .from('partner_access_tokens')
+        .select('id, email, partner_customer_id, partner:customers(company_name)')
+        .eq('is_active', true)
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+      for (const t of (pts as PartnerTokenRow[] | null) || []) {
+        if (!t.id || !t.email || !t.partner_customer_id) continue
+        const partnerObj = Array.isArray(t.partner) ? t.partner[0] : t.partner
+        partnerTokenById.set(t.id, {
+          email: t.email,
+          name: partnerObj?.company_name ?? null,
+          customerId: t.partner_customer_id,
+        })
+      }
+    }
+
     // =====================================================
     // PASS 1 — resolve hver input.recipient til en konkret modtager.
     // Resolution-fejl gemmes i preErrors og taeller med i samlet failed.
@@ -1005,6 +1089,19 @@ export async function sendExistingBesigtigelsesreport(
           resolvedCustomerId: null,
           resolvedContactId: null,
         })
+      } else if (r.type === 'partner') {
+        if (!r.partnerTokenId) { preErrors.push('Partner-token mangler'); continue }
+        const pt = partnerTokenById.get(r.partnerTokenId)
+        if (!pt) { preErrors.push('Samarbejdspartner afvist (intet aktivt token)'); continue }
+        if (isInternalEmail(pt.email)) { preErrors.push(`Partner-email afvist — intern domæne: ${pt.email}`); continue }
+        resolvedItems.push({
+          inputType: 'partner',
+          toEmail: normalizeEmail(pt.email),
+          toName: pt.name,
+          roleLabel: 'partner',
+          resolvedCustomerId: pt.customerId,
+          resolvedContactId: null,
+        })
       } else {
         preErrors.push('Ukendt modtager-type')
       }
@@ -1025,12 +1122,18 @@ export async function sendExistingBesigtigelsesreport(
 
     const confirmationByRecipientKey = new Map<string, { id: string; token: string; expiresAt: string }>()
 
-    if (input.requireConfirmation && resolvedItems.length > 0) {
+    // Samarbejdspartnere deltager IKKE i bekræftelses-flowet: 'partner' er ikke
+    // i document_confirmations' recipient_role CHECK, og bekræftelsen handler om
+    // kundens/anlægsejerens godkendelse — ikke partnerens. Partner-rækker får
+    // rapporten som almindelig mail (uden bekræftelseslink).
+    const confirmableItems = resolvedItems.filter((it) => it.roleLabel !== 'partner')
+
+    if (input.requireConfirmation && confirmableItems.length > 0) {
       // Krav 6: samme (email, role) maa IKKE optraede to gange — det
       // vil dublere tokens og forvirre status-tracking. Vi giver en klar
       // fejl frem for stille dedupe.
       const seenKeys = new Set<string>()
-      for (const it of resolvedItems) {
+      for (const it of confirmableItems) {
         const k = buildRecipientKey(it.toEmail, it.roleLabel)
         if (seenKeys.has(k)) {
           return {
@@ -1044,8 +1147,9 @@ export async function sendExistingBesigtigelsesreport(
       const { createConfirmationRequests } = await import('@/lib/actions/document-confirmations')
       const created = await createConfirmationRequests({
         documentId: input.documentId,
-        recipients: resolvedItems.map((it) => ({
-          recipientType: it.inputType,
+        recipients: confirmableItems.map((it) => ({
+          // confirmableItems ekskluderer partner-rækker → aldrig 'partner' her.
+          recipientType: it.inputType as 'customer' | 'contact' | 'manual',
           customerId: it.resolvedCustomerId,
           contactId: it.resolvedContactId,
           email: it.toEmail,

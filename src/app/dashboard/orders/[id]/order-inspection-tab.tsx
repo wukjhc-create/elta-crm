@@ -16,12 +16,20 @@
  * primære customer_id (låst beslutning); signer/adresse styres af sagen.
  */
 
-import { useEffect, useState } from 'react'
-import { Loader2, AlertTriangle, FileSignature } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Loader2, AlertTriangle, FileSignature, FileText, Send } from 'lucide-react'
 import { getCustomer } from '@/lib/actions/customers'
 import type { CustomerWithRelations } from '@/types/customers.types'
+import { getDocumentsForCase, type CaseDocument } from '@/lib/actions/service-cases'
 import { BesigtigelsesNotat } from '@/components/modules/customers/besigtigelse-notat'
 import { FuldmagtModal } from '@/components/modules/customers/fuldmagt-modal'
+import { SendBesigtigelsesreportDialog } from '@/components/modules/customers/send-besigtigelsesreport-dialog'
+
+/** Er dokumentet en besigtigelsesrapport? (spejler isBesigtigelseDocument serverside) */
+function isBesigtigelseReport(d: CaseDocument): boolean {
+  if (d.document_type === 'besigtigelse') return true
+  return d.document_type === 'other' && (d.title || '').toLowerCase().includes('besigtigelse')
+}
 
 export function OrderInspectionTab({
   caseId,
@@ -34,6 +42,21 @@ export function OrderInspectionTab({
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showFuldmagt, setShowFuldmagt] = useState(false)
+  const [reports, setReports] = useState<CaseDocument[]>([])
+  const [sendDoc, setSendDoc] = useState<CaseDocument | null>(null)
+
+  // Sagens besigtigelsesrapporter → "Send rapport" pr. rapport (Dialog B).
+  const loadReports = useCallback(() => {
+    let active = true
+    getDocumentsForCase(caseId).then((docs) => {
+      if (active) setReports(docs.filter(isBesigtigelseReport))
+    })
+    return () => {
+      active = false
+    }
+  }, [caseId])
+
+  useEffect(() => loadReports(), [loadReports])
 
   useEffect(() => {
     if (!customerId) {
@@ -109,7 +132,40 @@ export function OrderInspectionTab({
         </button>
       </div>
 
-      <BesigtigelsesNotat customer={customer} serviceCaseId={caseId} lockCase />
+      <BesigtigelsesNotat
+        customer={customer}
+        serviceCaseId={caseId}
+        lockCase
+        onSaved={() => loadReports()}
+      />
+
+      {/* Send rapport fra sagen — samme modtager-vælger som kundekortet
+          (underskriver default, + kontaktperson på stedet + samarbejdspartner). */}
+      {reports.length > 0 && (
+        <div className="bg-white rounded-lg border">
+          <div className="p-4 border-b flex items-center gap-2">
+            <FileText className="w-4 h-4 text-green-600" />
+            <h3 className="font-semibold text-sm text-gray-800">Besigtigelsesrapporter på sagen</h3>
+            <span className="text-xs text-gray-400 ml-1">({reports.length})</span>
+          </div>
+          <div className="divide-y">
+            {reports.map((doc) => (
+              <div key={doc.id} className="p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{doc.title || doc.file_name}</p>
+                  <p className="text-xs text-gray-500 truncate">{doc.file_name}</p>
+                </div>
+                <button
+                  onClick={() => setSendDoc(doc)}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 min-h-[40px] bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                >
+                  <Send className="w-4 h-4" /> Send rapport
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showFuldmagt && (
         <FuldmagtModal
@@ -118,6 +174,22 @@ export function OrderInspectionTab({
           serviceCaseId={caseId}
           lockCase
           onClose={() => setShowFuldmagt(false)}
+        />
+      )}
+
+      {sendDoc && (
+        <SendBesigtigelsesreportDialog
+          isOpen
+          documentId={sendDoc.id}
+          documentTitle={sendDoc.title || sendDoc.file_name}
+          documentFileName={sendDoc.file_name}
+          documentCustomerId={customer.id}
+          documentServiceCaseId={caseId}
+          onClose={() => setSendDoc(null)}
+          onSent={() => {
+            setSendDoc(null)
+            loadReports()
+          }}
         />
       )}
     </div>
