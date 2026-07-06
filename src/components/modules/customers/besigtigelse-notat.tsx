@@ -30,6 +30,7 @@ import {
 import type { CustomerWithRelations } from '@/types/customers.types'
 import { useToast } from '@/components/ui/toast'
 import { RoofDrawingSection } from '@/components/modules/customers/roof-drawing/roof-drawing-section'
+import { SendBesigtigelsesreportDialog } from '@/components/modules/customers/send-besigtigelsesreport-dialog'
 
 interface BesigtigelsesNotatProps {
   customer: CustomerWithRelations
@@ -361,6 +362,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
   const [isSending, setIsSending] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [showSendDialog, setShowSendDialog] = useState(false)
   const [images, setImages] = useState<ImageUpload[]>([])
 
   // Fase 2a — sag-kobling er obligatorisk. Besigtigelsen skal bindes til en
@@ -506,10 +508,12 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
     })
   }
 
-  const handleSave = async (sendToCustomer = false) => {
+  // Returnerer det gemte dokument-id ved succes (ellers null), så kaldere kan
+  // åbne send-dialogen for den netop gemte rapport.
+  const handleSave = async (sendToCustomer = false): Promise<string | null> => {
     if (!serviceCaseId) {
       toast.error('Vælg en sag', 'Besigtigelsen skal kobles til en sag, før den kan gemmes.')
-      return
+      return null
     }
     if (sendToCustomer) setIsSending(true)
     else setIsSaving(true)
@@ -551,7 +555,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
           } else {
             toast.error('Billedet kunne ikke behandles', 'Ukendt billedfejl — se browser console.')
           }
-          return
+          return null
         }
       }
 
@@ -569,7 +573,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
           'Billederne fylder for meget',
           'Prøv færre billeder eller tag billederne i lavere opløsning.'
         )
-        return
+        return null
       }
 
       const result = await saveBesigtigelsesnotat({
@@ -590,6 +594,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
         )
         onSaved?.(result.data.id)
         router.refresh()
+        return result.data.id
       } else {
         toast.error('Kunne ikke gemme', result.error)
       }
@@ -621,6 +626,15 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
       setIsSaving(false)
       setIsSending(false)
     }
+    return null
+  }
+
+  // Forslag 1 — al afsendelse går gennem SendBesigtigelsesreportDialog:
+  // den blå "Send" gemmer først (genererer PDF) og åbner derefter dialogen
+  // med modtager-vælgeren (underskriver default). Ingen auto-send længere.
+  const handleSaveAndSend = async () => {
+    const id = await handleSave(false)
+    if (id) setShowSendDialog(true)
   }
 
   const fullAddress = [
@@ -677,7 +691,7 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Gem
             </button>
-            <button onClick={() => handleSave(true)} disabled={isSaving || isSending || !serviceCaseId}
+            <button onClick={handleSaveAndSend} disabled={isSaving || isSending || !serviceCaseId}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 min-h-[50px] sm:min-h-0 sm:py-2 text-sm font-bold bg-blue-600 text-white rounded-xl sm:rounded-lg hover:bg-blue-700 disabled:opacity-50 active:scale-95 transition-transform touch-manipulation">
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Send
@@ -900,6 +914,20 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
         </section>
       </div>
     </div>
+
+    {/* Forslag 1 — modtager-vælgeren for den netop gemte rapport (blå "Send"). */}
+    {showSendDialog && savedId && (
+      <SendBesigtigelsesreportDialog
+        isOpen
+        documentId={savedId}
+        documentTitle={`Besigtigelsesrapport — ${customer.company_name}`}
+        documentFileName="Besigtigelsesrapport (PDF)"
+        documentCustomerId={customer.id}
+        documentServiceCaseId={serviceCaseId || null}
+        onClose={() => setShowSendDialog(false)}
+        onSent={() => setShowSendDialog(false)}
+      />
+    )}
     </BesigtigelseFormCtx.Provider>
   )
 }

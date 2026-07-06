@@ -668,6 +668,11 @@ export async function getBesigtigelseRecipientOptions(
     } | null = null
     const parties: BesigtigelseCaseParty[] = []
     let warning: string | undefined
+    // Underskriverens customerId (anlægsejer) — samme fallback-kæde som
+    // case-parties-resolveren: end_customer → site_customer → primær kunde.
+    // Bruges til at markere default-modtageren pr. customerId (ikke rolle-
+    // label), så det er robust mod at dedup samler flere roller på én kunde.
+    let signerCustomerId: string | null = null
 
     if (scopeServiceCaseId) {
       const { data: sc } = await supabase
@@ -701,6 +706,7 @@ export async function getBesigtigelseRecipientOptions(
         for (const p of [orderer, endCust, payer, siteCust, siteCont]) {
           if (p) parties.push(p)
         }
+        signerCustomerId = endCust?.customerId || siteCust?.customerId || sc.customer_id || null
       } else {
         warning = 'Den valgte sag kunne ikke findes.'
       }
@@ -758,16 +764,19 @@ export async function getBesigtigelseRecipientOptions(
       return true
     })
 
-    // Default-modtager = sagens underskriver (anlægsejer) med samme fallback-
-    // prioritet som case-parties-resolveren; vælg første kandidat MED e-mail så
-    // dialogen kan for-vælge en reelt sendbar modtager.
-    const signerCandidates = [
-      dedup.find((p) => p.role === 'end_customer'),
-      dedup.find((p) => p.role === 'site_customer'),
-      dedup.find((p) => p.role === 'document_customer'),
-    ].filter((p): p is BesigtigelseCaseParty => !!p)
-    const signerParty = signerCandidates.find((p) => p.email) || signerCandidates[0]
-    if (signerParty) signerParty.isSigner = true
+    // Default-modtager = sagens underskriver (anlægsejer). Vi matcher på
+    // customerId (ikke rolle-label): efter dedup kan underskriveren være
+    // bevaret under en HØJERE-prioritets-rolle (fx 'orderer'), fordi tomme
+    // part-felter defaulter til primær customer_id ved sags-oprettelse. Uden
+    // sag falder vi tilbage på dokumentets kunde. Foretræk kandidat m. e-mail.
+    const effectiveSignerId = signerCustomerId || customer?.id || null
+    if (effectiveSignerId) {
+      const signerCandidates = dedup.filter(
+        (p) => p.customerId === effectiveSignerId && p.role !== 'partner',
+      )
+      const signerParty = signerCandidates.find((p) => p.email) || signerCandidates[0]
+      if (signerParty) signerParty.isSigner = true
+    }
 
     return {
       success: true,
