@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useTransition } from 'react'
-import { ShieldCheck, ShieldOff, UserPlus, Link2, KeyRound } from 'lucide-react'
+import { ShieldCheck, ShieldOff, UserPlus, Link2, KeyRound, Mail, RefreshCw, Copy, Check, TriangleAlert } from 'lucide-react'
 import {
   getEmployeeLoginStatus,
   listLinkableProfiles,
@@ -18,6 +18,8 @@ import {
   linkExistingProfile,
   setEmployeeLoginActive,
   setEmployeeAuthRole,
+  sendEmployeeAccessEmail,
+  getEmployeeSetPasswordLink,
   type EmployeeLoginStatus,
   type LinkableProfile,
 } from '@/lib/actions/employee-login'
@@ -47,6 +49,10 @@ export function EmployeeLoginPanel({
   const [inviteRole, setInviteRole] = useState<UserRole>('montør')
   const [linkables, setLinkables] = useState<LinkableProfile[]>([])
   const [linkChoice, setLinkChoice] = useState<string>('')
+  // Kopierbart sæt-kode-link (fallback / manuel udlevering). Behandles som en
+  // adgangskode — vises kun on-demand.
+  const [revealedLink, setRevealedLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -81,6 +87,49 @@ export function EmployeeLoginPanel({
         setError(res.error ?? 'Handlingen fejlede')
       }
     })
+  }
+
+  // Send invitation/nulstil-mail via vores egen mail. Kommer der et fallback-
+  // link retur (mail ikke sat op / afsendelse fejlede), afsløres det så admin
+  // kan udlevere det manuelt.
+  const handleSendAccess = (mode: 'invite' | 'reset') => {
+    setError(null)
+    setInfo(null)
+    setRevealedLink(null)
+    startTransition(async () => {
+      const res = await sendEmployeeAccessEmail(employeeId, mode)
+      if (!res.success) {
+        setError(res.error ?? 'Handlingen fejlede')
+        return
+      }
+      if (res.data?.sent) {
+        setInfo(mode === 'invite' ? 'Invitation sendt på mail.' : 'Nulstil-adgangskode sendt på mail.')
+      } else {
+        setInfo('Mail er ikke sat op — kopiér linket nedenfor og udlevér det sikkert til medarbejderen.')
+        if (res.data?.link) setRevealedLink(res.data.link)
+      }
+      await load()
+    })
+  }
+
+  const handleRevealLink = () => {
+    setError(null)
+    setInfo(null)
+    startTransition(async () => {
+      const res = await getEmployeeSetPasswordLink(employeeId)
+      if (res.success && res.data) {
+        setRevealedLink(res.data.link)
+      } else {
+        setError(res.error ?? 'Kunne ikke generere link')
+      }
+    })
+  }
+
+  const handleCopy = async () => {
+    if (!revealedLink) return
+    await navigator.clipboard.writeText(revealedLink)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -144,6 +193,66 @@ export function EmployeeLoginPanel({
               </button>
             )}
           </div>
+
+          {/* Adgang & invitation — gensend/nulstil + kopierbart fallback-link */}
+          <div className="pt-3 border-t space-y-2">
+            <p className="text-xs font-medium text-gray-500">Adgang & invitation</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => handleSendAccess('invite')}
+                disabled={pending}
+                className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+              >
+                <RefreshCw className="w-4 h-4" /> Gensend invitation
+              </button>
+              <button
+                onClick={() => handleSendAccess('reset')}
+                disabled={pending}
+                className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded border border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+              >
+                <Mail className="w-4 h-4" /> Send nulstil adgangskode
+              </button>
+              <button
+                onClick={handleRevealLink}
+                disabled={pending}
+                className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <KeyRound className="w-4 h-4" /> Vis sæt-kode-link
+              </button>
+            </div>
+
+            {revealedLink && (
+              <div className="rounded border border-amber-200 bg-amber-50 p-2 space-y-2">
+                <p className="flex items-start gap-1.5 text-xs text-amber-800">
+                  <TriangleAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    <strong>Behandl dette link som en adgangskode.</strong> Del det kun sikkert
+                    med medarbejderen. Linket er personligt og udløber efter kort tid.
+                  </span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={revealedLink}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 text-xs font-mono border rounded px-2 py-1 bg-white text-gray-700"
+                  />
+                  <button
+                    onClick={handleCopy}
+                    className="inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? 'Kopieret' : 'Kopiér'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <p className="text-[11px] text-gray-400">
+              Invitation betyder, at medarbejderen selv sætter sin adgangskode via linket. Der
+              vises ingen adgangskode her.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -171,6 +280,10 @@ export function EmployeeLoginPanel({
               <UserPlus className="w-4 h-4" /> Inviter {employeeEmail ? `(${employeeEmail})` : ''}
             </button>
           </div>
+          <p className="text-[11px] text-gray-400 -mt-2">
+            Invitation betyder, at medarbejderen selv sætter sin adgangskode via linket i mailen.
+            Der vises ingen adgangskode her.
+          </p>
 
           {/* Knyt eksisterende bruger */}
           <div className="flex flex-wrap items-center gap-2">
