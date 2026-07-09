@@ -48,6 +48,19 @@ export async function createPortalToken(
   try {
     const { supabase, userId } = await getAuthenticatedClient()
 
+    // Idempotens: bloker en ny adgang hvis kunden allerede har en aktiv.
+    // Forhindrer dublet-tokens ved gentagne klik ("Opret adgang").
+    const { data: existing } = await supabase
+      .from('portal_access_tokens')
+      .select('id')
+      .eq('customer_id', data.customer_id)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle()
+    if (existing) {
+      return { success: false, error: 'Der findes allerede en aktiv adgang for denne kunde' }
+    }
+
     // Generate secure token
     const tokenBytes = new Uint8Array(32)
     crypto.getRandomValues(tokenBytes)
