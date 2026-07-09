@@ -10,14 +10,20 @@
  */
 import { z } from 'zod'
 
+// .nullable() er påkrævet: klientens zodResolver transformerer "" → null,
+// hvorefter server-actionen re-parser det transformerede output. Uden
+// .nullable() ville z.string().optional() afvise null ("Expected string,
+// received null"). Transformerne håndterer allerede null (v && … → null).
 const optionalString = z
   .string()
   .trim()
+  .nullable()
   .optional()
   .transform((v) => (v && v.length > 0 ? v : null))
 
 const optionalDate = z
   .string()
+  .nullable()
   .optional()
   .transform((v) => (v && v.length > 0 ? v : null))
   .refine(
@@ -27,6 +33,7 @@ const optionalDate = z
 
 const optionalNumber = z
   .union([z.number(), z.string()])
+  .nullable()
   .optional()
   .transform((v) => {
     if (v === undefined || v === null || v === '') return null
@@ -73,6 +80,7 @@ export const EmployeeIdentitySchema = z.object({
   role: z.enum(EMPLOYEE_ROLES, { message: 'Ugyldig rolle' }),
   employment_type: z
     .enum(['timelønnet', 'funktionær', 'lærling', 'ekstern'])
+    .nullable()
     .optional()
     .or(z.literal(''))
     .transform((v) => (v && v.length > 0 ? v : null)),
@@ -88,6 +96,7 @@ export const EmployeeIdentitySchema = z.object({
   profile_id: z
     .string()
     .uuid()
+    .nullable()
     .optional()
     .or(z.literal(''))
     .transform((v) => (v && v.length > 0 ? v : null)),
