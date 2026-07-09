@@ -1095,8 +1095,10 @@ export async function inviteTeamMember(
 
     // Send invite via Supabase Auth Admin
     const admin = createAdminClient()
+    const inviteRedirectTo = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/reset-password`
     const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email.toLowerCase(), {
       data: { role, invited_by: userId },
+      redirectTo: inviteRedirectTo,
     })
 
     if (inviteError) {
@@ -1253,8 +1255,10 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
 
     // Resend via Supabase Auth Admin
     const admin = createAdminClient()
+    const resendRedirectTo = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/reset-password`
     const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(invitation.email, {
       data: { role: invitation.role, invited_by: userId },
+      redirectTo: resendRedirectTo,
     })
 
     if (inviteError) {
