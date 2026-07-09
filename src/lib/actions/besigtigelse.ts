@@ -71,6 +71,10 @@ export interface BesigtigelsesNotatInput {
   }
   images: { category: string; base64: string; name: string }[]
   sendToCustomer?: boolean
+  // Idempotens: hvis sat, opdateres den eksisterende rapport (samme
+  // customer_documents-række) i stedet for at oprette en ny. Klienten sender
+  // savedId med ved gentagne gemninger, så anden gemning ikke laver en dublet.
+  documentId?: string | null
 }
 
 /**
@@ -292,28 +296,64 @@ export async function saveBesigtigelsesnotat(
 
     const pdfUrl = urlData?.signedUrl || ''
 
-    // Save as customer document
-    const { data: doc, error: docErr } = await supabase
-      .from('customer_documents')
-      .insert({
-        customer_id: input.customerId,
-        // Fase 2a — sag-kobling er obligatorisk (valideret ovenfor).
-        service_case_id: input.serviceCaseId,
-        title,
-        description: notatJson,
-        document_type: 'besigtigelse',
-        file_url: pdfUrl,
-        storage_path: storagePath,
-        file_name: fileName,
-        mime_type: 'application/pdf',
-        file_size: pdfBuffer.length,
-        shared_by: userId,
-      })
-      .select('id')
-      .single()
+    // Save as customer document. Idempotens: hvis klienten sender et
+    // eksisterende documentId (savedId fra en tidligere gemning), opdateres
+    // samme række i stedet for at oprette en dublet. Vi verificerer at rækken
+    // hører til denne kunde+sag og er en besigtigelse, før vi opdaterer.
+    const docFields = {
+      title,
+      description: notatJson,
+      file_url: pdfUrl,
+      storage_path: storagePath,
+      file_name: fileName,
+      mime_type: 'application/pdf',
+      file_size: pdfBuffer.length,
+    }
+
+    let doc: { id: string } | null = null
+    let docErr: unknown = null
+
+    if (input.documentId) {
+      validateUUID(input.documentId, 'documentId')
+      const { data: updated, error: updErr } = await supabase
+        .from('customer_documents')
+        .update(docFields)
+        .eq('id', input.documentId)
+        .eq('customer_id', input.customerId)
+        .eq('service_case_id', input.serviceCaseId)
+        .eq('document_type', 'besigtigelse')
+        .select('id')
+        .maybeSingle()
+      doc = updated
+      docErr = updErr
+      // Faldt tilbage til insert hvis id'et ikke matchede en gyldig række
+      // (fx slettet imellemtiden) — så en gemning aldrig taber data.
+      if (!updErr && !updated) {
+        console.error('[BESIGTIGELSE-DIAG] update matched no row, falling back to insert', {
+          documentId: input.documentId,
+        })
+      }
+    }
+
+    if (!doc && !docErr) {
+      const { data: inserted, error: insErr } = await supabase
+        .from('customer_documents')
+        .insert({
+          customer_id: input.customerId,
+          // Fase 2a — sag-kobling er obligatorisk (valideret ovenfor).
+          service_case_id: input.serviceCaseId,
+          document_type: 'besigtigelse',
+          shared_by: userId,
+          ...docFields,
+        })
+        .select('id')
+        .single()
+      doc = inserted
+      docErr = insErr
+    }
 
     if (docErr || !doc) {
-      console.error('[BESIGTIGELSE-DIAG] document insert failed', {
+      console.error('[BESIGTIGELSE-DIAG] document save failed', {
         docErr,
         customerId: input.customerId,
       })
@@ -321,7 +361,7 @@ export async function saveBesigtigelsesnotat(
       return { success: false, error: 'Kunne ikke gemme dokument' }
     }
 
-    console.error('[BESIGTIGELSE-DIAG] document insert success', {
+    console.error('[BESIGTIGELSE-DIAG] document save success', {
       documentId: doc.id,
       storagePath,
     })
@@ -724,8 +764,10 @@ export async function getBesigtigelseRecipientOptions(
 
     // Punkt (c) — faste samarbejdspartnere: customers med et AKTIVT
     // partner-token (migration 00152). Token-e-mailen er NOT NULL, så en
-    // partner har altid en modtager-adresse. Vi springer partnere over der
-    // allerede optræder som sagspart (undgår dublet-visning af samme firma).
+    // partner har altid en modtager-adresse. En partner tilføjes ALTID som
+    // selvstændig "Samarbejdspartner"-linje — også når partner-kunden også er
+    // sagspart (fx betaler). Dedup'en nedenfor nøgler partner-rækker på
+    // partnerTokenId, så de aldrig kollapses ind i en rolle-part.
     try {
       const nowIso = new Date().toISOString()
       const { data: partnerTokens } = await supabase
@@ -734,10 +776,8 @@ export async function getBesigtigelseRecipientOptions(
         .eq('is_active', true)
         .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
         .order('created_at', { ascending: false })
-      const partyCustomerIds = new Set(parties.map((p) => p.customerId))
       for (const t of (partnerTokens as PartnerTokenRow[] | null) || []) {
-        if (!t.partner_customer_id || !t.email || partyCustomerIds.has(t.partner_customer_id)) continue
-        partyCustomerIds.add(t.partner_customer_id)
+        if (!t.partner_customer_id || !t.email) continue
         const partnerObj = Array.isArray(t.partner) ? t.partner[0] : t.partner
         parties.push({
           customerId: t.partner_customer_id,
@@ -756,9 +796,14 @@ export async function getBesigtigelseRecipientOptions(
     // Dedup paa (customerId + contactId) — hvis en customer optraeder i
     // flere roller, beholdes foerste forekomst (orderer > end_customer
     // > payer > site_customer > site_contact > document_customer > partner).
+    // Partner-raekker noegles paa partnerTokenId, saa de ALDRIG kollapses ind
+    // i en rolle-part med samme customerId (partneren skal altid staa som egen
+    // "Samarbejdspartner"-linje).
     const seen = new Set<string>()
     const dedup = parties.filter((p) => {
-      const key = `${p.customerId}:${p.contactId || ''}`
+      const key = p.role === 'partner'
+        ? `partner:${p.partnerTokenId}`
+        : `${p.customerId}:${p.contactId || ''}`
       if (seen.has(key)) return false
       seen.add(key)
       return true
