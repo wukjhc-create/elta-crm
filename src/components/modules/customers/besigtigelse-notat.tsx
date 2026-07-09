@@ -582,6 +582,9 @@ export function BesigtigelsesNotat({ customer, serviceCaseId: lockedCaseId, lock
         formData: { ...form, signatureData },
         images: imageData,
         sendToCustomer,
+        // Idempotens: genbrug id fra en tidligere gemning, så anden gemning
+        // opdaterer samme rapport i stedet for at oprette en dublet.
+        documentId: savedId,
       })
 
       if (result.success && result.data) {
