@@ -28,6 +28,19 @@ export async function createPartnerToken(
   try {
     const { supabase, userId } = await getAuthenticatedClient()
 
+    // Idempotens: bloker en ny adgang hvis partner-kunden allerede har en
+    // aktiv. Forhindrer dublet-tokens ved gentagne klik ("Opret adgang").
+    const { data: existing } = await supabase
+      .from('partner_access_tokens')
+      .select('id')
+      .eq('partner_customer_id', data.partner_customer_id)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle()
+    if (existing) {
+      return { success: false, error: 'Der findes allerede en aktiv partner-adgang for denne kunde' }
+    }
+
     // Generate secure 64-char hex token (32 bytes) — identisk med kundeportalen
     const tokenBytes = new Uint8Array(32)
     crypto.getRandomValues(tokenBytes)
