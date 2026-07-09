@@ -72,6 +72,7 @@ Samarbejdspartnere (fx Watt) er ofte den **betalende** part, mens slutkunden få
 
 - **Supabase Auth custom SMTP** — konfigureres i Supabase-dashboardet så invite/reset-mails faktisk leveres (helst med eksisterende mail-opsætning som afsender). — **planlagt (konfigurationsopgave)**
 - **Robust invite + admin-fallback på medarbejderkortet:** `redirectTo` på begge invites; "Gensend invitation" + "Send nulstil adgangskode"; kopierbart sæt-kode-link via `generateLink` (med udløbstid + "behandl som adgangskode"-UI); note om at invitation = medarbejderen sætter selv sin kode. — **planlagt**
+- **`team_invitations`-tabel mangler i prod** — `inviteTeamMember`/`resendInvitation`/`getTeamInvitations` (settings.ts) skriver/læser en tabel der ikke findes i prod → team-sidens invitationssporing fejler tavst (auth-brugeren oprettes stadig). Kræver migration der opretter tabellen (eller fjernelse af sporingen). — **kandidat til Trin 3-migrationsbundtet** *(fund 2026-07-09)*
 
 ---
 
