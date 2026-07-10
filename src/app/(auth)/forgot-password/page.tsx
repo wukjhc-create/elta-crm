@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { forgotPasswordSchema, type ForgotPasswordInput } from '@/lib/validations/auth'
-import { createClient } from '@/lib/supabase/client'
+import { requestPasswordReset } from '@/lib/actions/password-reset'
 import authTranslations from '@/locales/da/auth.json'
 
 export default function ForgotPasswordPage() {
@@ -26,15 +26,10 @@ export default function ForgotPasswordPage() {
       setIsLoading(true)
       setError(null)
 
-      const supabase = createClient()
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      })
-
-      if (resetError) {
-        setError(resetError.message)
-        return
-      }
+      // Sender via vores egen Graph-postkasse (server-action), ikke Supabase
+      // Auth-mail. Action'en er enumeration-sikker og returnerer altid success,
+      // så vi viser altid bekræftelses-skærmen.
+      await requestPasswordReset(data.email)
 
       setSuccess(true)
     } catch (err) {
