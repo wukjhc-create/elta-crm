@@ -17,36 +17,11 @@ import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/actio
 import { setProfileLoginActive } from '@/lib/auth/login-access'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import { sendEmailViaGraph, isGraphConfigured } from '@/lib/services/microsoft-graph'
+import { resetPasswordRedirect, buildSetPasswordLink } from '@/lib/auth/set-password-link'
 import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { UserRole } from '@/types/auth.types'
-
-// Base-URL til set-kode/nulstil-links. Samme kilde som resten af appen
-// (besigtigelse m.fl.). action_link peger på /reset-password, som håndterer
-// BÅDE recovery- og invite-token (exchangeCodeForSession → updateUser).
-function resetPasswordRedirect(): string {
-  const base = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
-  return `${base}/reset-password`
-}
-
-// Genererer et Supabase "sæt adgangskode"-link (recovery) for en EKSISTERENDE
-// auth-bruger. Sender INGEN mail — kun linket. Bruges både til det kopierbare
-// admin-link og som payload i vores egen mail (uafhængig af Supabase-SMTP).
-async function buildSetPasswordLink(
-  admin: ReturnType<typeof createAdminClient>,
-  email: string
-): Promise<{ link: string | null; error?: string }> {
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: 'recovery',
-    email,
-    options: { redirectTo: resetPasswordRedirect() },
-  })
-  const link =
-    (data as { properties?: { action_link?: string } } | null)?.properties?.action_link ?? null
-  if (error || !link) return { link: null, error: error?.message ?? 'Kunne ikke generere link' }
-  return { link }
-}
 
 export interface EmployeeLoginStatus {
   has_login: boolean
