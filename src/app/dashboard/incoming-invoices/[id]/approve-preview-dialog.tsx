@@ -72,6 +72,7 @@ export function ApprovePreviewDialog({
   onClose,
   onConfirm,
   onMatchCase,
+  mode = 'approve',
 }: {
   open: boolean
   detail: IncomingInvoiceDetail
@@ -84,7 +85,14 @@ export function ApprovePreviewDialog({
   onConfirm: (plan: LinePlan[]) => void
   /** Open the case picker (used when matched_case_id is null). */
   onMatchCase: () => void
+  /**
+   * Sprint Ø9.7 — 'approve' (default): convert + flip status to approved
+   * (invoice detail page). 'convert_only': invoice is already approved/posted,
+   * so we only convert lines — labels reflect that, no status flip.
+   */
+  mode?: 'approve' | 'convert_only'
 }) {
+  const convertOnly = mode === 'convert_only'
   const inv = detail.invoice
   const lines = detail.lines
 
@@ -167,7 +175,7 @@ export function ApprovePreviewDialog({
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3 sticky top-0 bg-white z-10">
           <h2 id="approve-preview-title" className="text-base font-semibold text-gray-900">
-            Forhåndsvis godkendelse
+            {convertOnly ? 'Konvertér linjer' : 'Forhåndsvis godkendelse'}
           </h2>
           <button
             type="button"
@@ -367,14 +375,25 @@ export function ApprovePreviewDialog({
                 </table>
               </div>
             )}
-            <p className="mt-1.5 text-[11px] text-gray-500 flex items-center gap-1">
-              <ChevronRight className="w-3 h-3" />
-              Forhåndsvis kun. Selve konvertering til
-              <code className="px-1 bg-gray-100 rounded font-mono">case_materials</code>
-              /
-              <code className="px-1 bg-gray-100 rounded font-mono">case_other_costs</code>
-              kommer i Sprint 5E-3.
-            </p>
+            {convertOnly ? (
+              <p className="mt-1.5 text-[11px] text-gray-500 flex items-center gap-1">
+                <ChevronRight className="w-3 h-3" />
+                Fakturaen er allerede godkendt — linjerne føres ind på sagen som
+                <code className="px-1 bg-gray-100 rounded font-mono">case_materials</code>
+                /
+                <code className="px-1 bg-gray-100 rounded font-mono">case_other_costs</code>
+                uden at ændre fakturastatus.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[11px] text-gray-500 flex items-center gap-1">
+                <ChevronRight className="w-3 h-3" />
+                Selve konvertering fører linjerne ind på sagen som
+                <code className="px-1 bg-gray-100 rounded font-mono">case_materials</code>
+                /
+                <code className="px-1 bg-gray-100 rounded font-mono">case_other_costs</code>
+                og godkender fakturaen.
+              </p>
+            )}
           </div>
 
           {/* Manual review acknowledgment */}
@@ -403,9 +422,11 @@ export function ApprovePreviewDialog({
         {/* Footer */}
         <div className="flex items-center justify-between gap-2 border-t bg-gray-50 px-4 py-2.5 rounded-b-lg sticky bottom-0">
           <div className="text-[11px] text-gray-500">
-            {hasCase
-              ? 'Klik "Godkend" for at flippe status til approved.'
-              : 'Match til sag for at fortsætte.'}
+            {!hasCase
+              ? 'Match til sag for at fortsætte.'
+              : convertOnly
+              ? 'Klik "Konvertér linjer" for at føre linjerne ind på sagen.'
+              : 'Klik "Godkend" for at flippe status til approved.'}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -423,7 +444,7 @@ export function ApprovePreviewDialog({
               className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 inline-flex items-center gap-1"
             >
               {busy && <Loader2 className="w-3 h-3 animate-spin" />}
-              Godkend
+              {convertOnly ? 'Konvertér linjer' : 'Godkend'}
             </button>
           </div>
         </div>

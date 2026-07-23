@@ -88,71 +88,36 @@ function lineSnapshot(line: {
   return { description, quantity, unit, unit_cost }
 }
 
-export async function convertAndApproveInvoice(
-  invoiceId: string,
-  approverId: string,
+/** Invoice-header shape needed to run the per-line conversion. */
+interface InvoiceHeaderForConversion {
+  id: string
+  supplier_id: string | null
+  supplier_name_extracted: string | null
+  invoice_number: string | null
+}
+
+/**
+ * Shared per-line conversion logic — the SAME rules used by both
+ * convert+approve (received/awaiting) and convert-only (already
+ * approved/posted). Resolves supplier snapshot, loads + validates the
+ * lines, then converts each line per plan with idempotency and per-line
+ * fail isolation. Does NOT touch invoice status — the caller decides
+ * whether to flip.
+ *
+ * Returns ok:false only on a hard read/validation failure (nothing was
+ * attempted). When ok:true, inspect conversionFatal to see if any line
+ * INSERT failed.
+ */
+async function runLineConversion(
+  supabase: ReturnType<typeof createAdminClient>,
+  invoice: InvoiceHeaderForConversion,
+  actorId: string,
   plan: LinePlanInput[],
-  options: { acknowledgeReview?: boolean } = {}
-): Promise<ConvertAndApproveResult> {
-  const supabase = createAdminClient()
+  caseId: string
+): Promise<{ ok: boolean; message?: string; perLine: PerLineResult[]; conversionFatal: boolean }> {
   const perLine: PerLineResult[] = []
 
-  // 1. Read invoice header
-  const { data: invoice, error: invErr } = await supabase
-    .from('incoming_invoices')
-    .select(`
-      id, status, requires_manual_review,
-      matched_case_id, matched_work_order_id,
-      supplier_id, supplier_name_extracted, invoice_number, currency
-    `)
-    .eq('id', invoiceId)
-    .maybeSingle()
-  if (invErr || !invoice) {
-    return {
-      ok: false,
-      message: 'Faktura ikke fundet',
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId: null,
-    }
-  }
-
-  // 2. Status gate — must be in a non-terminal pre-approve state
-  const validStatuses = ['received', 'awaiting_approval']
-  if (!validStatuses.includes(invoice.status as string)) {
-    return {
-      ok: false,
-      message: `Faktura er ${invoice.status} — kan ikke godkendes igen`,
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId: invoice.matched_case_id as string | null,
-    }
-  }
-
-  // 3. Manual review gate (mirrors approveInvoice)
-  if (invoice.requires_manual_review && !options.acknowledgeReview) {
-    return {
-      ok: false,
-      message: 'Faktura kræver manuel gennemgang. Bekræft eksplicit.',
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId: invoice.matched_case_id as string | null,
-    }
-  }
-
-  // 4. Sag-gate — converter must have a sag to attach to
-  if (!invoice.matched_case_id) {
-    return {
-      ok: false,
-      message: 'Match fakturaen til en sag før godkendelse',
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId: null,
-    }
-  }
-  const caseId = invoice.matched_case_id as string
-
-  // 5. Resolve supplier display name (prefer canonical row over parsed)
+  // Resolve supplier display name (prefer canonical row over parsed)
   let supplierDisplayName: string | null = invoice.supplier_name_extracted ?? null
   if (invoice.supplier_id) {
     const { data: sup } = await supabase
@@ -163,7 +128,7 @@ export async function convertAndApproveInvoice(
     if (sup?.name) supplierDisplayName = sup.name
   }
 
-  // 6. Load all invoice lines (we need the snapshots + already-converted state)
+  // Load all invoice lines (we need the snapshots + already-converted state)
   const { data: lineRows, error: linesErr } = await supabase
     .from('incoming_invoice_lines')
     .select(`
@@ -171,21 +136,13 @@ export async function convertAndApproveInvoice(
       supplier_product_id,
       converted_case_material_id, converted_case_other_cost_id, converted_at
     `)
-    .eq('incoming_invoice_id', invoiceId)
+    .eq('incoming_invoice_id', invoice.id)
   if (linesErr) {
-    logger.error('convertAndApprove: line read failed', { error: linesErr, entityId: invoiceId })
-    return {
-      ok: false,
-      message: 'Kunne ikke læse fakturalinjer',
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId,
-    }
+    logger.error('runLineConversion: line read failed', { error: linesErr, entityId: invoice.id })
+    return { ok: false, message: 'Kunne ikke læse fakturalinjer', perLine, conversionFatal: false }
   }
 
-  const linesById = new Map(
-    (lineRows ?? []).map((l) => [l.id as string, l])
-  )
+  const linesById = new Map((lineRows ?? []).map((l) => [l.id as string, l]))
 
   // Validate every plan entry references a real line on this invoice.
   for (const p of plan) {
@@ -199,16 +156,10 @@ export async function convertAndApproveInvoice(
     }
   }
   if (perLine.length > 0) {
-    return {
-      ok: false,
-      message: 'Plan indeholder ukendte linjer',
-      invoiceStatusFlipped: false,
-      perLine,
-      caseId,
-    }
+    return { ok: false, message: 'Plan indeholder ukendte linjer', perLine, conversionFatal: false }
   }
 
-  // 7. Convert each line per plan
+  // Convert each line per plan
   let conversionFatal = false
   for (const p of plan) {
     const line = linesById.get(p.lineId)!
@@ -237,26 +188,16 @@ export async function convertAndApproveInvoice(
         .from('incoming_invoice_lines')
         .update({
           converted_at: new Date().toISOString(),
-          converted_by: approverId,
+          converted_by: actorId,
         })
         .eq('id', p.lineId)
         .is('converted_at', null)        // race-safe
       if (skipErr) {
-        perLine.push({
-          lineId: p.lineId,
-          disposition: 'skip',
-          ok: false,
-          message: skipErr.message,
-        })
+        perLine.push({ lineId: p.lineId, disposition: 'skip', ok: false, message: skipErr.message })
         conversionFatal = true
         continue
       }
-      perLine.push({
-        lineId: p.lineId,
-        disposition: 'skip',
-        ok: true,
-        message: 'Sprunget over',
-      })
+      perLine.push({ lineId: p.lineId, disposition: 'skip', ok: true, message: 'Sprunget over' })
       continue
     }
 
@@ -281,17 +222,12 @@ export async function convertAndApproveInvoice(
           source_incoming_invoice_line_id: line.id,
           billable: true,
           notes: invoiceRefNote,
-          created_by: approverId,
+          created_by: actorId,
         })
         .select('id')
         .single()
       if (cmErr || !cm) {
-        perLine.push({
-          lineId: p.lineId,
-          disposition: 'material',
-          ok: false,
-          message: cmErr?.message ?? 'INSERT failed',
-        })
+        perLine.push({ lineId: p.lineId, disposition: 'material', ok: false, message: cmErr?.message ?? 'INSERT failed' })
         conversionFatal = true
         continue
       }
@@ -302,29 +238,18 @@ export async function convertAndApproveInvoice(
         .update({
           converted_case_material_id: cm.id,
           converted_at: new Date().toISOString(),
-          converted_by: approverId,
+          converted_by: actorId,
         })
         .eq('id', p.lineId)
         .is('converted_case_material_id', null)
       if (bindErr) {
         // Couldn't bind — best effort cleanup of the orphan case_material.
         await supabase.from('case_materials').delete().eq('id', cm.id)
-        perLine.push({
-          lineId: p.lineId,
-          disposition: 'material',
-          ok: false,
-          message: bindErr.message,
-        })
+        perLine.push({ lineId: p.lineId, disposition: 'material', ok: false, message: bindErr.message })
         conversionFatal = true
         continue
       }
-      perLine.push({
-        lineId: p.lineId,
-        disposition: 'material',
-        ok: true,
-        createdAs: 'material',
-        createdId: cm.id,
-      })
+      perLine.push({ lineId: p.lineId, disposition: 'material', ok: true, createdAs: 'material', createdId: cm.id })
       continue
     }
 
@@ -345,17 +270,12 @@ export async function convertAndApproveInvoice(
           source_incoming_invoice_line_id: line.id,
           billable: true,
           notes: invoiceRefNote,
-          created_by: approverId,
+          created_by: actorId,
         })
         .select('id')
         .single()
       if (ocErr || !oc) {
-        perLine.push({
-          lineId: p.lineId,
-          disposition: 'other_cost',
-          ok: false,
-          message: ocErr?.message ?? 'INSERT failed',
-        })
+        perLine.push({ lineId: p.lineId, disposition: 'other_cost', ok: false, message: ocErr?.message ?? 'INSERT failed' })
         conversionFatal = true
         continue
       }
@@ -364,53 +284,37 @@ export async function convertAndApproveInvoice(
         .update({
           converted_case_other_cost_id: oc.id,
           converted_at: new Date().toISOString(),
-          converted_by: approverId,
+          converted_by: actorId,
         })
         .eq('id', p.lineId)
         .is('converted_case_other_cost_id', null)
       if (bindErr) {
         await supabase.from('case_other_costs').delete().eq('id', oc.id)
-        perLine.push({
-          lineId: p.lineId,
-          disposition: 'other_cost',
-          ok: false,
-          message: bindErr.message,
-        })
+        perLine.push({ lineId: p.lineId, disposition: 'other_cost', ok: false, message: bindErr.message })
         conversionFatal = true
         continue
       }
-      perLine.push({
-        lineId: p.lineId,
-        disposition: 'other_cost',
-        ok: true,
-        createdAs: 'other_cost',
-        createdId: oc.id,
-      })
+      perLine.push({ lineId: p.lineId, disposition: 'other_cost', ok: true, createdAs: 'other_cost', createdId: oc.id })
       continue
     }
 
     // Unknown disposition — defensive
-    perLine.push({
-      lineId: p.lineId,
-      disposition: p.disposition,
-      ok: false,
-      message: `Ukendt disposition: ${p.disposition}`,
-    })
+    perLine.push({ lineId: p.lineId, disposition: p.disposition, ok: false, message: `Ukendt disposition: ${p.disposition}` })
     conversionFatal = true
   }
 
-  // 8. Audit log per conversion (best-effort)
+  // Audit log per conversion (best-effort)
   for (const r of perLine) {
     try {
       await supabase.from('incoming_invoice_audit_log').insert({
-        incoming_invoice_id: invoiceId,
+        incoming_invoice_id: invoice.id,
         action:
           r.disposition === 'material'
             ? 'converted_to_case_material'
             : r.disposition === 'other_cost'
             ? 'converted_to_case_other_cost'
             : 'line_skipped',
-        actor_id: approverId,
+        actor_id: actorId,
         ok: r.ok,
         new_value: {
           line_id: r.lineId,
@@ -424,8 +328,88 @@ export async function convertAndApproveInvoice(
     }
   }
 
+  return { ok: true, perLine, conversionFatal }
+}
+
+export async function convertAndApproveInvoice(
+  invoiceId: string,
+  approverId: string,
+  plan: LinePlanInput[],
+  options: { acknowledgeReview?: boolean } = {}
+): Promise<ConvertAndApproveResult> {
+  const supabase = createAdminClient()
+
+  // 1. Read invoice header
+  const { data: invoice, error: invErr } = await supabase
+    .from('incoming_invoices')
+    .select(`
+      id, status, requires_manual_review,
+      matched_case_id, matched_work_order_id,
+      supplier_id, supplier_name_extracted, invoice_number, currency
+    `)
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (invErr || !invoice) {
+    return {
+      ok: false,
+      message: 'Faktura ikke fundet',
+      invoiceStatusFlipped: false,
+      perLine: [],
+      caseId: null,
+    }
+  }
+
+  // 2. Status gate — must be in a non-terminal pre-approve state
+  const validStatuses = ['received', 'awaiting_approval']
+  if (!validStatuses.includes(invoice.status as string)) {
+    return {
+      ok: false,
+      message: `Faktura er ${invoice.status} — kan ikke godkendes igen`,
+      invoiceStatusFlipped: false,
+      perLine: [],
+      caseId: invoice.matched_case_id as string | null,
+    }
+  }
+
+  // 3. Manual review gate (mirrors approveInvoice)
+  if (invoice.requires_manual_review && !options.acknowledgeReview) {
+    return {
+      ok: false,
+      message: 'Faktura kræver manuel gennemgang. Bekræft eksplicit.',
+      invoiceStatusFlipped: false,
+      perLine: [],
+      caseId: invoice.matched_case_id as string | null,
+    }
+  }
+
+  // 4. Sag-gate — converter must have a sag to attach to
+  if (!invoice.matched_case_id) {
+    return {
+      ok: false,
+      message: 'Match fakturaen til en sag før godkendelse',
+      invoiceStatusFlipped: false,
+      perLine: [],
+      caseId: null,
+    }
+  }
+  const caseId = invoice.matched_case_id as string
+
+  // 5-8. Shared per-line conversion (resolve supplier, load + validate
+  // lines, convert each per plan, audit). SAME rules as convert-only.
+  const conv = await runLineConversion(supabase, invoice, approverId, plan, caseId)
+  if (!conv.ok) {
+    return {
+      ok: false,
+      message: conv.message ?? 'Konvertering fejlede',
+      invoiceStatusFlipped: false,
+      perLine: conv.perLine,
+      caseId,
+    }
+  }
+  const perLine = conv.perLine
+
   // 9. Decide whether to flip status
-  if (conversionFatal) {
+  if (conv.conversionFatal) {
     return {
       ok: false,
       message:
@@ -485,6 +469,98 @@ export async function convertAndApproveInvoice(
       `Faktura godkendt. ${successCount} ${successCount === 1 ? 'linje' : 'linjer'} konverteret` +
       (skippedAlready > 0 ? ` (${skippedAlready} allerede konverteret)` : ''),
     invoiceStatusFlipped: true,
+    perLine,
+    caseId,
+  }
+}
+
+/**
+ * Sprint Ø9.7 — Convert-only path for invoices that are ALREADY
+ * approved/posted but still carry unconverted lines (the drift surfaced
+ * by Ø9.4/Ø9.5/Ø9.6). Reuses the EXACT same per-line conversion logic
+ * (runLineConversion) as convertAndApproveInvoice — no parallel rule —
+ * but does NOT flip status: the invoice is already past approval.
+ *
+ * Status gate is the mirror image of convert+approve: here we only accept
+ * 'approved'/'posted' and reject received/awaiting (those go through
+ * convertAndApproveInvoice so they get the approval + review gate).
+ */
+export async function convertApprovedInvoiceLines(
+  invoiceId: string,
+  actorId: string,
+  plan: LinePlanInput[]
+): Promise<ConvertAndApproveResult> {
+  const supabase = createAdminClient()
+
+  // 1. Read invoice header
+  const { data: invoice, error: invErr } = await supabase
+    .from('incoming_invoices')
+    .select(`
+      id, status, requires_manual_review,
+      matched_case_id, matched_work_order_id,
+      supplier_id, supplier_name_extracted, invoice_number, currency
+    `)
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (invErr || !invoice) {
+    return { ok: false, message: 'Faktura ikke fundet', invoiceStatusFlipped: false, perLine: [], caseId: null }
+  }
+
+  // 2. Status gate — convert-only is for already-approved/posted invoices.
+  //    received/awaiting must go through convertAndApproveInvoice instead.
+  const convertibleStatuses = ['approved', 'posted']
+  if (!convertibleStatuses.includes(invoice.status as string)) {
+    return {
+      ok: false,
+      message: `Faktura er ${invoice.status} — kun godkendte/bogførte fakturaer kan konverteres her`,
+      invoiceStatusFlipped: false,
+      perLine: [],
+      caseId: invoice.matched_case_id as string | null,
+    }
+  }
+
+  // 3. Sag-gate — converter must have a sag to attach to
+  if (!invoice.matched_case_id) {
+    return {
+      ok: false,
+      message: 'Match fakturaen til en sag før konvertering',
+      invoiceStatusFlipped: false,
+      perLine: [],
+      caseId: null,
+    }
+  }
+  const caseId = invoice.matched_case_id as string
+
+  // 4. Shared per-line conversion — identical rules, no status flip.
+  const conv = await runLineConversion(supabase, invoice, actorId, plan, caseId)
+  if (!conv.ok) {
+    return {
+      ok: false,
+      message: conv.message ?? 'Konvertering fejlede',
+      invoiceStatusFlipped: false,
+      perLine: conv.perLine,
+      caseId,
+    }
+  }
+  const perLine = conv.perLine
+  if (conv.conversionFatal) {
+    return {
+      ok: false,
+      message: 'Konvertering fejlede på en eller flere linjer.',
+      invoiceStatusFlipped: false,
+      perLine,
+      caseId,
+    }
+  }
+
+  const successCount = perLine.filter((r) => r.ok && !r.alreadyConverted).length
+  const skippedAlready = perLine.filter((r) => r.alreadyConverted).length
+  return {
+    ok: true,
+    message:
+      `${successCount} ${successCount === 1 ? 'linje' : 'linjer'} konverteret` +
+      (skippedAlready > 0 ? ` (${skippedAlready} allerede konverteret)` : ''),
+    invoiceStatusFlipped: false,
     perLine,
     caseId,
   }

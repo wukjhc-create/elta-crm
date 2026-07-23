@@ -18,6 +18,7 @@ import {
 } from '@/lib/services/incoming-invoices'
 import {
   convertAndApproveInvoice,
+  convertApprovedInvoiceLines,
   type LinePlanInput,
   type ConvertAndApproveResult,
 } from '@/lib/services/incoming-invoice-conversion'
@@ -548,6 +549,43 @@ export async function approveIncomingInvoiceWithConversionAction(
   revalidatePath(`/dashboard/incoming-invoices/${invoiceId}`)
   if (result.caseId) {
     // Resolve case_number for the canonical orders detail path.
+    const { data: caseRow } = await supabase
+      .from('service_cases')
+      .select('id, case_number')
+      .eq('id', result.caseId)
+      .maybeSingle()
+    if (caseRow?.case_number) {
+      revalidatePath(`/dashboard/orders/${caseRow.case_number}`)
+    }
+    revalidatePath(`/dashboard/orders/${result.caseId}`)
+  }
+  return result
+}
+
+/**
+ * Sprint Ø9.7 — convert-only for ALREADY approved/posted invoices, used by
+ * the inline action in /dashboard/purchase-operations. Mirrors the dual
+ * permission gate of approveIncomingInvoiceWithConversionAction
+ * (incoming_invoices.approve + materials.add_to_case) because it creates the
+ * same case_materials/case_other_costs rows — it just does not flip status.
+ */
+export async function convertIncomingInvoiceLinesAction(
+  invoiceId: string,
+  plan: LinePlanInput[]
+): Promise<ConvertAndApproveResult> {
+  const { userId, supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.approve')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.approve', invoiceStatusFlipped: false, perLine: [], caseId: null }
+  }
+  if (!hasPermission('materials.add_to_case')) {
+    return { ok: false, message: 'Manglende tilladelse: materials.add_to_case', invoiceStatusFlipped: false, perLine: [], caseId: null }
+  }
+  const result = await convertApprovedInvoiceLines(invoiceId, userId, plan)
+
+  revalidatePath('/dashboard/incoming-invoices')
+  revalidatePath(`/dashboard/incoming-invoices/${invoiceId}`)
+  revalidatePath('/dashboard/purchase-operations')
+  if (result.caseId) {
     const { data: caseRow } = await supabase
       .from('service_cases')
       .select('id, case_number')
