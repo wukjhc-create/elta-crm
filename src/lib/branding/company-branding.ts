@@ -13,6 +13,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
+import { APP_URL } from '@/lib/constants'
 
 const BRAND_DEFAULTS = {
   companyName: 'Elta Solar',
@@ -90,8 +91,18 @@ export async function getCompanyBranding(): Promise<CompanyBranding> {
     })
   }
 
-  const logoCandidate = pickString(row, 'company_logo_url', 'logo_url')
-  const logoUrl = isValidAbsoluteHttpsUrl(logoCandidate) ? logoCandidate! : null
+  // Phase C: logoet serveres via den stabile app-route /api/brand/logo naar
+  // et logo faktisk er uploadet (company_logo_storage_path sat). Dette undgaar
+  // udloebende Supabase signed URLs i mail-HTML. Fallback til en evt. gemt
+  // absolut https-URL (legacy) hvis ingen storage_path findes.
+  const logoStoragePath = pickString(row, 'company_logo_storage_path')
+  const hasManagedLogo = !!logoStoragePath && logoStoragePath.startsWith('logos/')
+  const legacyLogo = pickString(row, 'company_logo_url', 'logo_url')
+  const logoUrl = hasManagedLogo
+    ? `${APP_URL}/api/brand/logo`
+    : isValidAbsoluteHttpsUrl(legacyLogo)
+      ? legacyLogo!
+      : null
 
   const websiteRaw =
     pickString(row, 'company_website', 'website') || BRAND_DEFAULTS.website

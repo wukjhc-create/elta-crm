@@ -21,6 +21,8 @@ export interface CompanySettings {
   company_email: string | null
   company_vat_number: string | null
   company_logo_url: string | null
+  /** Sti i attachments-bucket (logos/...). Source of truth; logoet serveres via /api/brand/logo. */
+  company_logo_storage_path: string | null
   company_website: string | null
 
   // SMTP settings

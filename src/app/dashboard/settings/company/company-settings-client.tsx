@@ -163,7 +163,7 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              accept="image/png,image/jpeg,image/webp"
               onChange={handleLogoUpload}
               className="hidden"
             />
@@ -190,7 +190,7 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
             )}
 
             <p className="text-xs text-gray-500">
-              PNG, JPEG, WebP eller SVG. Maks 2 MB.
+              PNG, JPEG eller WebP. Maks 2 MB.
             </p>
           </div>
         </div>

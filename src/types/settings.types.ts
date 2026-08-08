@@ -9,6 +9,8 @@ export interface Profile {
   email: string
   full_name: string | null
   avatar_url: string | null
+  /** Sti i attachments-bucket (avatars/...). Source of truth; avatar_url er cache. */
+  avatar_storage_path?: string | null
   role: UserRole
   phone: string | null
   department: string | null

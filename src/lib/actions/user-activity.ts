@@ -1,6 +1,7 @@
 'use server'
 
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import type { ActionResult } from '@/types/common.types'
 
 export interface UserActivityEntry {
@@ -38,7 +39,7 @@ export async function getUserActivityList(): Promise<ActionResult<UserActivityEn
     // Get all profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, full_name, email, role, avatar_url, phone, department, is_active, created_at')
+      .select('id, full_name, email, role, avatar_url, avatar_storage_path, phone, department, is_active, created_at')
       .order('full_name')
 
     if (profilesError) {
@@ -57,12 +58,20 @@ export async function getUserActivityList(): Promise<ActionResult<UserActivityEn
       }
     }
 
-    const result: UserActivityEntry[] = (profiles || []).map((p) => ({
+    // Phase C: batch lazy-refresh avatar_url fra storage_path (source of truth).
+    const profileRows = profiles || []
+    const freshAvatars = await getStorageSignedUrls(
+      'attachments',
+      profileRows.map((p) => (p.avatar_storage_path as string | null) || ''),
+      SIGNED_URL_TTL.SHORT,
+    )
+
+    const result: UserActivityEntry[] = profileRows.map((p, idx) => ({
       id: p.id,
       full_name: p.full_name,
       email: p.email,
       role: p.role,
-      avatar_url: p.avatar_url,
+      avatar_url: p.avatar_storage_path ? (freshAvatars[idx] ?? p.avatar_url) : p.avatar_url,
       phone: p.phone,
       department: p.department,
       is_active: p.is_active ?? true,

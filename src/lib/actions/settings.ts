@@ -13,10 +13,10 @@ import type {
   UpdateCompanySettingsInput,
 } from '@/types/company-settings.types'
 import type { ActionResult } from '@/types/common.types'
-import { MAX_IMAGE_SIZE } from '@/lib/constants'
+import { MAX_IMAGE_SIZE, APP_URL } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 import { logger } from '@/lib/utils/logger'
-import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
+import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
 import {
   parseInvoiceEmailConfig,
@@ -628,7 +628,16 @@ export async function getProfile(): Promise<ActionResult<Profile>> {
       return { success: false, error: 'Profil ikke fundet' }
     }
 
-    return { success: true, data: data as Profile }
+    // Phase C: lazy-refresh avatar_url fra storage_path (source of truth),
+    // saa den virker uanset om den gemte cache-URL er udloebet.
+    const profile = data as Profile
+    if (profile.avatar_storage_path) {
+      profile.avatar_url =
+        (await getStorageSignedUrlOrNull('attachments', profile.avatar_storage_path, SIGNED_URL_TTL.SHORT)) ??
+        profile.avatar_url
+    }
+
+    return { success: true, data: profile }
   } catch (error) {
     logger.error('Error in getProfile', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -692,15 +701,16 @@ export async function uploadProfileAvatar(
     // Delete old avatar if exists
     const { data: currentProfile } = await supabase
       .from('profiles')
-      .select('avatar_url')
+      .select('avatar_url, avatar_storage_path')
       .eq('id', userId)
       .maybeSingle()
 
-    if (currentProfile?.avatar_url) {
-      const oldPath = currentProfile.avatar_url.split('/attachments/')[1]
-      if (oldPath) {
-        await supabase.storage.from('attachments').remove([oldPath])
-      }
+    const oldAvatarPath =
+      currentProfile?.avatar_storage_path ||
+      currentProfile?.avatar_url?.split('/attachments/')[1] ||
+      null
+    if (oldAvatarPath) {
+      await supabase.storage.from('attachments').remove([oldAvatarPath])
     }
 
     const ext = file.name.split('.').pop() || 'png'
@@ -708,19 +718,23 @@ export async function uploadProfileAvatar(
 
     const { error: uploadError } = await supabase.storage
       .from('attachments')
-      .upload(filePath, file, { upsert: true })
+      .upload(filePath, file, { upsert: true, contentType: file.type })
 
     if (uploadError) {
       return { success: false, error: formatError(uploadError, 'Kunne ikke uploade billede') }
     }
 
-    // Phase β.2.2: signed URL (1 år) i stedet for public. Consumer
-    // bør refreshe via helper hvis URL'en udloeber.
+    // Phase C: storage_path er source of truth. avatar_url gemmes som
+    // cache/fallback (1 år) — laesestierne lazy-refresher fra storage_path.
     const signedUrl = await getStorageSignedUrlOrNull('attachments', filePath, SIGNED_URL_TTL.YEAR)
 
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ avatar_url: signedUrl ?? '', updated_at: new Date().toISOString() })
+      .update({
+        avatar_url: signedUrl ?? '',
+        avatar_storage_path: filePath,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', userId)
 
     if (updateError) {
@@ -740,20 +754,21 @@ export async function deleteProfileAvatar(): Promise<ActionResult<void>> {
 
     const { data: currentProfile } = await supabase
       .from('profiles')
-      .select('avatar_url')
+      .select('avatar_url, avatar_storage_path')
       .eq('id', userId)
       .maybeSingle()
 
-    if (currentProfile?.avatar_url) {
-      const filePath = currentProfile.avatar_url.split('/attachments/')[1]
-      if (filePath) {
-        await supabase.storage.from('attachments').remove([filePath])
-      }
+    const filePath =
+      currentProfile?.avatar_storage_path ||
+      currentProfile?.avatar_url?.split('/attachments/')[1] ||
+      null
+    if (filePath) {
+      await supabase.storage.from('attachments').remove([filePath])
     }
 
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ avatar_url: null, updated_at: new Date().toISOString() })
+      .update({ avatar_url: null, avatar_storage_path: null, updated_at: new Date().toISOString() })
       .eq('id', userId)
 
     if (updateError) {
@@ -785,10 +800,11 @@ export async function uploadCompanyLogo(
       return { success: false, error: 'Ingen fil valgt' }
     }
 
-    // Validate file type
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+    // Validate file type — SVG bevidst IKKE tilladt (XSS-risiko ved
+    // servering af user-uploadet SVG). Kun raster-billeder.
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
-      return { success: false, error: 'Kun PNG, JPEG, WebP og SVG er tilladt' }
+      return { success: false, error: 'Kun PNG, JPEG og WebP er tilladt' }
     }
 
     // Validate file size (2MB max for logos)
@@ -803,20 +819,21 @@ export async function uploadCompanyLogo(
 
     const { error: uploadError } = await supabase.storage
       .from('attachments')
-      .upload(filePath, file, { upsert: true })
+      .upload(filePath, file, { upsert: true, contentType: file.type })
 
     if (uploadError) {
       return { success: false, error: formatError(uploadError, 'Kunne ikke uploade logo') }
     }
 
-    // Phase β.2.2: signed URL (1 år) i stedet for public.
-    const signedUrl = await getStorageSignedUrlOrNull('attachments', filePath, SIGNED_URL_TTL.YEAR)
-    const logoUrl = signedUrl ?? ''
+    // Phase C: storage_path er source of truth. company_logo_url gemmes som
+    // en STABIL app-route (ikke en udloebende Supabase signed URL), saa
+    // udgaaende mails ikke baerer tokens og aldrig faar broken image.
+    const logoUrl = `${APP_URL}/api/brand/logo`
 
     // Update company_settings
     const { data: existing } = await supabase
       .from('company_settings')
-      .select('id, company_logo_url')
+      .select('id, company_logo_url, company_logo_storage_path')
       .maybeSingle()
 
     if (!existing) {
@@ -824,16 +841,17 @@ export async function uploadCompanyLogo(
     }
 
     // Delete old logo file if exists
-    if (existing.company_logo_url) {
-      const oldPath = existing.company_logo_url.split('/attachments/')[1]
-      if (oldPath) {
-        await supabase.storage.from('attachments').remove([oldPath])
-      }
+    const oldLogoPath =
+      existing.company_logo_storage_path ||
+      existing.company_logo_url?.split('/attachments/')[1] ||
+      null
+    if (oldLogoPath && oldLogoPath !== filePath) {
+      await supabase.storage.from('attachments').remove([oldLogoPath])
     }
 
     const { error: updateError } = await supabase
       .from('company_settings')
-      .update({ company_logo_url: logoUrl })
+      .update({ company_logo_url: logoUrl, company_logo_storage_path: filePath })
       .eq('id', existing.id)
 
     if (updateError) {
@@ -856,7 +874,7 @@ export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
 
     const { data: existing } = await supabase
       .from('company_settings')
-      .select('id, company_logo_url')
+      .select('id, company_logo_url, company_logo_storage_path')
       .maybeSingle()
 
     if (!existing) {
@@ -864,17 +882,18 @@ export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
     }
 
     // Delete file from storage
-    if (existing.company_logo_url) {
-      const filePath = existing.company_logo_url.split('/attachments/')[1]
-      if (filePath) {
-        await supabase.storage.from('attachments').remove([filePath])
-      }
+    const filePath =
+      existing.company_logo_storage_path ||
+      existing.company_logo_url?.split('/attachments/')[1] ||
+      null
+    if (filePath) {
+      await supabase.storage.from('attachments').remove([filePath])
     }
 
-    // Clear URL in settings
+    // Clear URL + path in settings
     const { error: updateError } = await supabase
       .from('company_settings')
-      .update({ company_logo_url: null })
+      .update({ company_logo_url: null, company_logo_storage_path: null })
       .eq('id', existing.id)
 
     if (updateError) {
@@ -991,9 +1010,18 @@ export async function getTeamMembers(): Promise<ActionResult<Profile[]>> {
       // ikke-kritisk
     }
 
-    const enriched = (data ?? []).map((p) => ({
+    // Phase C: batch lazy-refresh avatar_url fra storage_path (source of truth).
+    const rows = data ?? []
+    const freshAvatars = await getStorageSignedUrls(
+      'attachments',
+      rows.map((p) => (p.avatar_storage_path as string | null) || ''),
+      SIGNED_URL_TTL.SHORT,
+    )
+
+    const enriched = rows.map((p, idx) => ({
       ...p,
       email: (p.email as string | null) || authEmailMap.get(p.id as string) || null,
+      avatar_url: p.avatar_storage_path ? (freshAvatars[idx] ?? (p.avatar_url as string | null)) : (p.avatar_url as string | null),
     }))
 
     return { success: true, data: enriched as Profile[] }
