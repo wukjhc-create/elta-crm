@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { Building2, Mail, Globe, FileText, Upload, Trash2, ImageIcon } from 'lucide-react'
 import { updateCompanySettings, uploadCompanyLogo, deleteCompanyLogo } from '@/lib/actions/settings'
 import { useToast } from '@/components/ui/toast'
@@ -146,7 +145,8 @@ export function CompanySettingsClient({ settings }: CompanySettingsClientProps) 
           {/* Logo preview */}
           <div className="flex-shrink-0 w-32 h-32 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden">
             {logoUrl ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={logoUrl}
                 alt="Virksomhedslogo"
                 width={128}
