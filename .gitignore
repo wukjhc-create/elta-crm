@@ -66,6 +66,9 @@ temp
 tmpclaude-*
 
 # Claude Code
-.claude
+# Ignorer hele .claude/ UNDTAGEN den delte permission-politik (settings.json).
+# settings.local.json (personlige/lokale allows, evt. tokens) forbliver ignoreret.
+.claude/*
+!.claude/settings.json
 
 .vercel
