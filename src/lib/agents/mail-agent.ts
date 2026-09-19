@@ -16,6 +16,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
+import { scoreLinkConfidence, type CustomerCandidate } from '@/lib/agents/mail-confidence'
 
 export interface MailAgentRunResult {
   runId: string
@@ -30,6 +31,54 @@ interface IncomingEmailLite {
   body_text: string | null
   body_preview: string | null
   customer_id: string | null
+}
+
+/** Find kunde-kandidater for en mail (email-exact = staerkt, navn = svagt). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findLinkCandidates(admin: any, mail: IncomingEmailLite): Promise<CustomerCandidate[]> {
+  const byId = new Map<string, CustomerCandidate>()
+
+  if (mail.sender_email) {
+    const { data } = await admin
+      .from('customers')
+      .select('id, company_name, customer_number, email')
+      .eq('email', mail.sender_email)
+      .limit(5)
+    for (const c of data ?? []) {
+      byId.set(c.id, {
+        id: c.id,
+        company_name: c.company_name,
+        customer_number: c.customer_number ?? null,
+        email: c.email ?? null,
+        signals: [{ kind: 'email', detail: mail.sender_email, strong: true }],
+      })
+    }
+  }
+
+  // Navne-match (svagt). Saniter for ilike-wildcards.
+  const nameTerm = (mail.sender_name ?? '').replace(/[%_\\]/g, '').trim()
+  if (nameTerm.length >= 3) {
+    const { data } = await admin
+      .from('customers')
+      .select('id, company_name, customer_number, email')
+      .ilike('company_name', `%${nameTerm}%`)
+      .limit(5)
+    for (const c of data ?? []) {
+      const sig = { kind: 'name' as const, detail: nameTerm, strong: false }
+      const existing = byId.get(c.id)
+      if (existing) existing.signals.push(sig)
+      else
+        byId.set(c.id, {
+          id: c.id,
+          company_name: c.company_name,
+          customer_number: c.customer_number ?? null,
+          email: c.email ?? null,
+          signals: [sig],
+        })
+    }
+  }
+
+  return [...byId.values()]
 }
 
 /** Simpelt, deterministisk svar-udkast (ingen LLM). Markerer huller. */
@@ -119,7 +168,7 @@ export async function runMailAgent(
   }
   const taskId = task.id as string
 
-  // Foreslaaede actions (INGEN eksekvering her).
+  // Foreslaaede actions (INGEN eksekvering her). Hver baerer confidence + rationale.
   const actions: Array<Record<string, unknown>> = [
     {
       task_id: taskId,
@@ -131,25 +180,48 @@ export async function runMailAgent(
       min_approvals: 1,
       idempotency_key: `mail-reply:${mail.id}`,
       status: 'planned', // read/no-approval -> Executor maa materialisere udkastet
-      payload: { email_id: mail.id, draft: buildReplyDraft(mail) },
+      payload: {
+        email_id: mail.id,
+        draft: buildReplyDraft(mail),
+        confidence_level: 'low',
+        confidence_score: 0.4,
+        rationale: 'Generisk kvitteringssvar — tilpas og udfyld [BRUGER UDFYLDER] foer afsendelse',
+      },
     },
   ]
 
-  // Foreslå kunde-kobling hvis ikke koblet (kraever approval; 'update').
+  // Foreslå kunde-kobling hvis ikke koblet OG der findes kandidater.
+  let topConfidence = 0.4
   if (!mail.customer_id) {
-    actions.push({
-      task_id: taskId,
-      run_id: runId,
-      action_type: 'link_customer',
-      capability: 'mail.link_customer',
-      side_effect_class: 'update',
-      requires_approval: true,
-      min_approvals: 1,
-      idempotency_key: `mail-link:${mail.id}`,
-      status: 'awaiting_approval',
-      payload: { email_id: mail.id, sender_email: mail.sender_email },
-    })
+    const candidates = await findLinkCandidates(admin, mail)
+    if (candidates.length > 0) {
+      const conf = scoreLinkConfidence(candidates)
+      topConfidence = Math.max(topConfidence, conf.score)
+      actions.push({
+        task_id: taskId,
+        run_id: runId,
+        action_type: 'link_customer',
+        capability: 'mail.link_customer',
+        side_effect_class: 'update',
+        requires_approval: true,
+        min_approvals: 1,
+        idempotency_key: `mail-link:${mail.id}`,
+        status: 'awaiting_approval',
+        payload: {
+          email_id: mail.id,
+          sender_email: mail.sender_email,
+          candidates,
+          confidence_level: conf.level,
+          confidence_score: conf.score,
+          rationale: conf.rationale,
+          conflicts: conf.conflicts,
+        },
+      })
+    }
   }
+
+  // Opdater task.confidence (hoejeste review-relevante score).
+  await admin.from('agent_tasks').update({ confidence: topConfidence }).eq('id', taskId)
 
   // Insert actions idempotent (unik idempotency_key). Dublet-mail -> ignoreres.
   let proposals = 0
