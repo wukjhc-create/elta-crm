@@ -75,6 +75,15 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                       {a.side_effect_class} · status: {a.status}
                       {needsApproval ? ` · kraever ${a.min_approvals} approval(s)` : ''}
                     </p>
+                    {typeof a.payload?.draft === 'string' && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs text-blue-600">Vis forslag</summary>
+                        <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-2 text-xs text-gray-700">{a.payload.draft as string}</pre>
+                      </details>
+                    )}
+                    {a.status === 'executed' && typeof a.result?.draft === 'string' && (
+                      <p className="mt-1 text-xs text-green-700">✓ Udkast materialiseret internt (ikke sendt).</p>
+                    )}
                   </div>
                   {!terminal && (
                     <div className="flex flex-shrink-0 gap-2">

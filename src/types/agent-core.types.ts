@@ -182,7 +182,7 @@ export interface AgentInboxItem {
   actions: Array<
     Pick<
       AgentAction,
-      'id' | 'capability' | 'action_type' | 'side_effect_class' | 'status' | 'requires_approval' | 'min_approvals' | 'payload'
+      'id' | 'capability' | 'action_type' | 'side_effect_class' | 'status' | 'requires_approval' | 'min_approvals' | 'payload' | 'result'
     >
   >
 }

@@ -43,7 +43,7 @@ export async function getAgentInbox(limit = 25): Promise<ActionResult<AgentInbox
     if (runIds.length > 0) {
       const { data: actions } = await supabase
         .from('agent_actions')
-        .select('id, run_id, capability, action_type, side_effect_class, status, requires_approval, min_approvals, payload')
+        .select('id, run_id, capability, action_type, side_effect_class, status, requires_approval, min_approvals, payload, result')
         .in('run_id', runIds)
         .order('created_at', { ascending: true })
       for (const a of actions ?? []) {
