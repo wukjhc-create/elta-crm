@@ -252,7 +252,8 @@ Kræver **altid** menneskelig approval — uanset agent-config, håndhævet i Ex
 ## Implementeringsstatus
 
 - **Fase 0 — Audit:** ✅ (dette dokument).
-- **Fase 1 — Skema:** ✅ skrevet + committet i `supabase/migrations/00156_agent_core.sql`. **Endnu IKKE kørt mod prod** (afventer godkendt migration-gate). Indeholder de 5 tabeller, hard-block-CHECK + execute-trigger, immutable approvals, composite run/task/action-FK, admin-only RLS, restriktive function-privileges, seed af 7 disabled agenter.
+- **Fase 1 — Skema:** ✅ `supabase/migrations/00156_agent_core.sql` **kørt mod prod og verificeret** (5 tabeller, RLS enabled, 7 disabled/suggest configs, funktioner+triggers). Guard-tests bestået (9/9, rollback-transaktion, 0 residual): hard-block-execute, config-superset/subset-CHECK, immutable approvals, composite FK, udløb, dual approval.
+  - **Grant-hygiejne-fund:** Supabase default-ACL gav `authenticated` brede table-privilegier (inkl. TRUNCATE, som ikke gates af RLS) + EXECUTE paa approval-helperne. Ikke et funktionelt hul (RLS/triggers haandhaever modellen), men et least-privilege-brud. Rettet i `supabase/migrations/00157_agent_core_grant_hardening.sql` (REVOKE-baseret stramning) — **afventer godkendt migration-gate**.
 - **Fase 2 — Executor + Capability Registry (kode):** ✅ skrevet, `tsc` + `next build` grønne, sikkerheds-logik enhedstestet (13/13 pass i `scripts/agent-core-logic-test.ts`). Filer:
   - `src/types/agent-core.types.ts` — typer + `HARD_BLOCKED_CLASSES`.
   - `src/lib/agents/approvals.ts` — app-side spejl af DB-approval-reglerne.
