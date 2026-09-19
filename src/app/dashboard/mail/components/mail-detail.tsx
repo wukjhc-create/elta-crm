@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Mail,
+  Bot,
   MailOpen,
   Archive,
   EyeOff,
@@ -23,6 +24,8 @@ import {
 import { checkCustomerPortalAccess } from '@/lib/actions/quote-actions'
 import { backfillEmailAttachments, sendQuickReply, findCustomerSuggestions, checkGraphEnvVars, linkEmailToCase } from '@/lib/actions/incoming-emails'
 import { getOpenAutoTasksForEmail } from '@/lib/actions/auto-tasks'
+import { runMailAgentAction } from '@/lib/actions/agent-inbox'
+import { useUserRole } from '@/lib/hooks/use-user-role'
 import { AIMailAssistantPanel } from '@/components/mail/ai-mail-assistant-panel'
 import { CreateFromMailDialog } from '@/components/mail/create-from-mail-dialog'
 import { getCustomerServiceCases } from '@/lib/actions/service-cases'
@@ -130,6 +133,34 @@ export function MailDetail({
 
   // Sprint 8E-1B: åbne auto-tasks for denne mail/tråd
   const [openAutoTasks, setOpenAutoTasks] = useState<Array<{ id: string; title: string; priority: string; created_at: string }>>([])
+
+  // Mailagent (Fase 3): manuel trigger. Kun admin ser knappen; server-action
+  // haandhaever admin-check server-side uanset UI.
+  const { role: currentRole } = useUserRole()
+  const [agentRunning, setAgentRunning] = useState(false)
+  const [agentResult, setAgentResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const handleRunMailAgent = async () => {
+    if (agentRunning) return
+    setAgentRunning(true)
+    setAgentResult(null)
+    try {
+      const res = await runMailAgentAction(email.id)
+      if (res.success) {
+        const n = res.data?.proposals ?? 0
+        setAgentResult({
+          ok: true,
+          msg: n > 0 ? `${n} forslag oprettet i Agent Inbox.` : 'Allerede behandlet — ingen dubletter oprettet.',
+        })
+      } else {
+        setAgentResult({ ok: false, msg: res.error || 'Kunne ikke køre Mailagent' })
+      }
+    } catch {
+      setAgentResult({ ok: false, msg: 'Der opstod en fejl' })
+    } finally {
+      setAgentRunning(false)
+    }
+  }
 
   // Sprint 8H Phase 1A polish: loading-state på "Fjern kobling"-knap
   const [isUnlinking, setIsUnlinking] = useState(false)
@@ -293,6 +324,32 @@ export function MailDetail({
           </div>
           <span className="text-xs text-gray-400">{formatDate(email.received_at)}</span>
         </div>
+
+        {/* Fase 3: Kør Mailagent (kun admin; server-action haandhaever adgang) */}
+        {currentRole === 'admin' && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleRunMailAgent}
+              disabled={agentRunning}
+              title="Start Mailagenten på denne mail (suggest-mode, sender intet)"
+              className="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {agentRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
+              {agentRunning ? 'Kører Mailagent…' : 'Kør Mailagent'}
+            </button>
+            {agentResult && (
+              <span className={`text-sm ${agentResult.ok ? 'text-green-700' : 'text-red-600'}`}>
+                {agentResult.msg}
+                {agentResult.ok && (
+                  <a href="/dashboard/agents" className="ml-2 text-blue-600 hover:underline">
+                    Åbn Agent Inbox →
+                  </a>
+                )}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Customer link */}
         {email.link_status === 'linked' && email.customers && (
