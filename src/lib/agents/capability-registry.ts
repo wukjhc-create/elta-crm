@@ -53,6 +53,14 @@ registerCapability({
   defaultRequiresApproval: false,
   minApprovals: 1,
   description: 'Foreslå et svar-udkast til en indgaaende mail (sender aldrig).',
+  // Kontrolleret intern execution: materialisér udkastet fra payload til
+  // result. INGEN ekstern effekt — sender ikke, gemmer ikke uden for agent-
+  // tabellerne. Dette er den sikre "execution" der demonstreres i MVP-slicen.
+  handler: async (ctx) => {
+    const draft = (ctx.action.payload?.draft as string | undefined) ?? ''
+    if (!draft) return { ok: false, error: 'intet udkast i payload' }
+    return { ok: true, data: { draft, materialized_at: new Date().toISOString() } }
+  },
 })
 
 registerCapability({

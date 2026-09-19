@@ -177,6 +177,16 @@ export interface CapabilityResult {
   error?: string
 }
 
+export interface AgentInboxItem {
+  run: Pick<AgentRun, 'id' | 'agent_type' | 'status' | 'safety_mode' | 'summary' | 'created_at'>
+  actions: Array<
+    Pick<
+      AgentAction,
+      'id' | 'capability' | 'action_type' | 'side_effect_class' | 'status' | 'requires_approval' | 'min_approvals' | 'payload'
+    >
+  >
+}
+
 export interface CapabilityDefinition {
   /** Unik noegle, matcher agent_actions.capability. */
   key: string
