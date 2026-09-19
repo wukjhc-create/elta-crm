@@ -16,6 +16,8 @@ interface NavItem {
   icon: React.ReactNode
   exact?: boolean
   permission?: Permission
+  /** Kun synlig for admin (bruges hvor der ikke findes en dedikeret permission endnu). */
+  adminOnly?: boolean
 }
 
 interface NavSection {
@@ -97,6 +99,21 @@ const navSections: NavSection[] = [
               strokeLinejoin="round"
               strokeWidth={2}
               d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
+          </svg>
+        ),
+      },
+      {
+        name: 'Agent Inbox',
+        href: '/dashboard/agents',
+        adminOnly: true,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 3h6M12 3v3m-5 0h10a2 2 0 012 2v3a5 5 0 01-5 5H10a5 5 0 01-5-5V8a2 2 0 012-2zm2 15h4M9.5 10h.01M14.5 10h.01"
             />
           </svg>
         ),
@@ -401,6 +418,7 @@ export function Sidebar() {
   const filteredSections = navSections.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (item.adminOnly) return role === 'admin'
       if (!item.permission) return true
       return hasPermission(role, item.permission)
     }),
