@@ -249,6 +249,20 @@ Kræver **altid** menneskelig approval — uanset agent-config, håndhævet i Ex
 
 ---
 
+## Implementeringsstatus
+
+- **Fase 0 — Audit:** ✅ (dette dokument).
+- **Fase 1 — Skema:** ✅ skrevet + committet i `supabase/migrations/00156_agent_core.sql`. **Endnu IKKE kørt mod prod** (afventer godkendt migration-gate). Indeholder de 5 tabeller, hard-block-CHECK + execute-trigger, immutable approvals, composite run/task/action-FK, admin-only RLS, restriktive function-privileges, seed af 7 disabled agenter.
+- **Fase 2 — Executor + Capability Registry (kode):** ✅ skrevet, `tsc` + `next build` grønne, sikkerheds-logik enhedstestet (13/13 pass i `scripts/agent-core-logic-test.ts`). Filer:
+  - `src/types/agent-core.types.ts` — typer + `HARD_BLOCKED_CLASSES`.
+  - `src/lib/agents/approvals.ts` — app-side spejl af DB-approval-reglerne.
+  - `src/lib/agents/capability-registry.ts` — registry-ramme + Mailagent-MVP-metadata (handlers endnu ikke wired → fail-safe).
+  - `src/lib/agents/budget.ts` — **fail-closed** budget-guard.
+  - `src/lib/agents/audit.ts` — agent-audit via `log_audit_event`.
+  - `src/lib/agents/executor.ts` — den tvungne, gatede Executor.
+  - Verifikation klar til gaten: `scripts/verify-00156.ts` (read-only pre/post), `scripts/test-00156-guards.sql` (negative guard-tests i rollback-transaktion).
+- **Fase 3+ (mangler):** wiring af capability-handlers til konkrete draft-funktioner, Agent-indbakke-UI, server-action-lag, per-agent aktivering. Ingen agent er aktiveret; alt kører suggest/disabled.
+
 ## Appendiks: kildehenvisninger (audit)
 
 - Mail-intelligence + gate: `src/lib/services/email-intelligence.ts:799`
