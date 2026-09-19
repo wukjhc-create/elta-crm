@@ -3,7 +3,6 @@
   "permissions": {
     "defaultMode": "acceptEdits",
     "deny": [
-      "Bash(git push:*)",
       "Bash(git reset --hard:*)",
       "Bash(git clean:*)",
       "Bash(vercel:*)",
@@ -23,6 +22,7 @@
       "Edit(./.env.*)"
     ],
     "ask": [
+      "Bash(git push:*)",
       "Bash(git commit:*)",
       "Bash(git merge:*)",
       "Bash(git rebase:*)",
