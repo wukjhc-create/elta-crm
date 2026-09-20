@@ -69,7 +69,33 @@ registerCapability({
   requiredScope: 'agent.mail.link',
   defaultRequiresApproval: true,
   minApprovals: 1,
-  description: 'Foreslå at koble en indgaaende mail til en eksisterende kunde.',
+  description: 'Koble en indgaaende mail til en eksisterende kunde (kun efter approval).',
+  // Approval-gated (Executor kraever approval fordi requires_approval=true).
+  // INGEN auto-link ved tvetydighed: linker KUN naar der er praecis én kandidat
+  // og ingen conflicts. Ellers refuseres -> manuel udvaelgelse (fremtidig picker).
+  handler: async (ctx) => {
+    const payload = (ctx.action.payload ?? {}) as {
+      email_id?: string
+      conflicts?: boolean
+      candidates?: Array<{ id: string; company_name?: string }>
+    }
+    const emailId = payload.email_id
+    const candidates = payload.candidates ?? []
+    if (!emailId) return { ok: false, error: 'mangler email_id i payload' }
+    if (payload.conflicts || candidates.length !== 1) {
+      return {
+        ok: false,
+        error: `manuel udvaelgelse paakraevet (kandidater=${candidates.length}, conflicts=${!!payload.conflicts})`,
+      }
+    }
+    const customerId = candidates[0].id
+    const { error } = await ctx.admin
+      .from('incoming_emails')
+      .update({ customer_id: customerId, link_status: 'linked', linked_by: 'agent' })
+      .eq('id', emailId)
+    if (error) return { ok: false, error: (error as { message?: string }).message ?? 'kunne ikke linke' }
+    return { ok: true, data: { email_id: emailId, linked_customer_id: customerId } }
+  },
 })
 
 registerCapability({
