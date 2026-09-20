@@ -8,15 +8,15 @@
  * Efter schema er etableret+verificeret kan HARNESS_SUPABASE_ACCESS_TOKEN
  * fjernes igen — runtime-simulation behoever det ikke.
  */
-import { assertBootstrapConfig, maskSecret } from './env-guard'
+import { assertBootstrapConfig, loadHarnessSecrets, maskSecret, type HarnessSecrets } from './env-guard'
 
-/** Diagnostics uden secrets (maskeret). */
-export function bootstrapDiagnostics(env: Record<string, string | undefined> = process.env): string {
-  const url = (env.HARNESS_SUPABASE_URL || '').trim()
+/** Diagnostics uden secrets (kun maskeret laengde + url). */
+export function bootstrapDiagnostics(secrets: HarnessSecrets = loadHarnessSecrets()): string {
   return [
-    `HARNESS_SUPABASE_URL: ${url || '(unset)'}`,
-    `HARNESS_SUPABASE_SERVICE_ROLE_KEY: ${maskSecret((env.HARNESS_SUPABASE_SERVICE_ROLE_KEY || '').trim() || undefined)}`,
-    `HARNESS_SUPABASE_ACCESS_TOKEN: ${maskSecret((env.HARNESS_SUPABASE_ACCESS_TOKEN || '').trim() || undefined)}`,
+    `supabaseUrl: ${(secrets.supabaseUrl || '').trim() || '(unset)'}`,
+    `environment: ${(secrets.environment || '').trim() || '(unset)'}`,
+    `serviceRoleKey: ${maskSecret((secrets.serviceRoleKey || '').trim() || undefined)}`,
+    `managementAccessToken: ${maskSecret((secrets.managementAccessToken || '').trim() || undefined)}`,
   ].join('\n')
 }
 

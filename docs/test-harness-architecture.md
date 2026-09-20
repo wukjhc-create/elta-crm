@@ -99,29 +99,36 @@ Indtil da er fundamentet på plads, testet, og **kan ikke røre production**.
 2. Anvend **samme migrationer** som prod: kør `supabase/migrations/00000…00158` mod staging (samme RLS/policies/functions/triggers følger med, da de ér migrationerne).
 3. Anvend **samme storage-buckets** (attachments/service-case-files/portal-attachments, alle private) — via migrationer/CLI.
 4. **Ingen prod-data** kopieres. Kun harness-genererede syntetiske data (tagget `HARNESS_SYNTHETIC`).
-5. Sæt harness-env i en **lokal, ikke-committet** fil (ikke `.env.local`, for at undgå prod-fallback). Credentials er **opdelt** så runtime-simulation ALDRIG kræver management-token:
+5. Læg config i en **lokal, gitignored JSON-fil**: `harness.secrets.local.json` (IKKE `.env.*` — policy blokerer .env-læsning, og vi undgår enhver prod-fallback):
 
-**A. BOOTSTRAP — kun schema/migrationer** (`assertBootstrapConfig`):
-| Env-variabel | Formål |
-|---|---|
-| `HARNESS_SUPABASE_URL` | Staging URL (≠ prod) |
-| `HARNESS_SUPABASE_SERVICE_ROLE_KEY` | Staging service-role |
-| `HARNESS_SUPABASE_ACCESS_TOKEN` | **Management API** — kun til at anvende/verificere migrationer |
-| `HARNESS_CONFIRM` | `I_UNDERSTAND_TEST_ONLY` |
+```json
+{
+  "supabaseUrl": "https://<staging-ref>.supabase.co",
+  "anonKey": "<staging anon/publishable key>",
+  "serviceRoleKey": "<staging service-role/secret key>",
+  "managementAccessToken": "<scoped PAT — KUN til bootstrap>",
+  "confirm": "I_UNDERSTAND_TEST_ONLY",
+  "environment": "staging"
+}
+```
 
-**B. RUNTIME — generator/scenario-runner/load** (`assertRuntimeConfig`, **INTET management-token**):
-| Env-variabel | Formål |
-|---|---|
-| `HARNESS_SUPABASE_URL` | Staging URL (≠ prod) |
-| `HARNESS_SUPABASE_ANON_KEY` | RLS/permission-scenarier (anon/non-admin) |
-| `HARNESS_SUPABASE_SERVICE_ROLE_KEY` | Data-generering/scenarier |
-| `HARNESS_CONFIRM` | `I_UNDERSTAND_TEST_ONLY` |
+Filen er tilføjet `.gitignore` og **må aldrig committes**.
 
-**Hvornår management-token kan fjernes:** `HARNESS_SUPABASE_ACCESS_TOKEN` bruges KUN under bootstrap (migrationer). Når staging-skemaet er anvendt og verificeret, **fjern det igen** — runtime-simulationen (`generate`/`runScenarios`) kalder aldrig Management API.
+**A. BOOTSTRAP — kun schema/migrationer** (`assertBootstrapConfig`): bruger `managementAccessToken` + `serviceRoleKey`. Kun til at anvende/verificere migrationer.
 
-**Fail-closed (hård):** ingen fallback til `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ACCESS_TOKEN` / `.env.local`-prod. Staging-url/ref må ikke matche prod. Runtime afviser hvis `HARNESS_SUPABASE_SERVICE_ROLE_KEY == production service-role`; bootstrap afviser hvis token/service == production. Mangler noget → stop.
+**B. RUNTIME — generator/scenario-runner/load** (`assertRuntimeConfig`, **INTET management-token**): bruger `supabaseUrl` + `anonKey` + `serviceRoleKey` + `confirm`/`environment`.
 
-**Secrets:** logges/committes/rapporteres ALDRIG. `maskSecret()` viser kun `set(len=N)`/`(unset)` i diagnostics — aldrig indhold.
+**Management PAT:** brug helst et **scoped Personal Access Token** begrænset til staging-projektet med kun de rettigheder migrationer kræver — ikke et bredt classic account-token. Runtime bruger det aldrig.
+
+**Hvornår token kan fjernes:** når staging-skemaet er anvendt og verificeret, **fjern `managementAccessToken`** fra JSON-filen — runtime kalder aldrig Management API.
+
+**Identitets-baseret FAIL-CLOSED (ingen navne-heuristik, ingen bypass):**
+- Kendte production-refs er **eksplicit hard-blocked** (`KNOWN_PRODUCTION_REFS` = `guhsjwewajyonehivffc`), plus prod-ref fra miljøet hvis sat.
+- `supabaseUrl`/ref må ikke matche production; `confirm` skal være sat; `environment=production` afvises; `NODE_ENV=production` afvises.
+- Ingen fallback til `NEXT_PUBLIC_SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_ACCESS_TOKEN`/`.env.local`. Runtime afviser hvis `serviceRoleKey == prod service-role`; bootstrap afviser hvis token/service == prod. Mangler noget → stop.
+- **Ingen `HARNESS_ALLOW_ANY`** — der findes ingen nem bypass af prod-spærren.
+
+**Secrets:** logges/committes/rapporteres ALDRIG. `maskSecret()` viser kun `set(len=N)`/`(unset)`.
 
 **Vercel (valgfrit app-lag mod staging):** en Preview/branch-deployment kan pege på staging-Supabase ved at sætte de fire `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` + `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_ACCESS_TOKEN` som **Preview-scope** env i Vercel (ikke Production-scope). Det kræver ændring af Vercel-secrets → separat beslutning. Harness'en behøver det ikke (den rammer staging-DB direkte); det er kun hvis app-UI skal testes mod staging.
 

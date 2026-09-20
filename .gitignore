@@ -65,6 +65,9 @@ temp
 *.tmp
 tmpclaude-*
 
+# Test Harness lokale secrets (MAA ALDRIG committes)
+harness.secrets.local.json
+
 # Claude Code
 # Ignorer hele .claude/ UNDTAGEN den delte permission-politik (settings.json).
 # settings.local.json (personlige/lokale allows, evt. tokens) forbliver ignoreret.
