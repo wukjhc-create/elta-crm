@@ -34,7 +34,7 @@ import { checkAgentBudget } from '@/lib/agents/budget'
 import { logAgentAudit } from '@/lib/agents/audit'
 
 export interface ExecuteOutcome {
-  status: 'executed' | 'refused' | 'failed' | 'noop'
+  status: 'executed' | 'refused' | 'failed' | 'noop' | 'needs_verification'
   reason?: string
 }
 
@@ -164,7 +164,30 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
       return { success: true, data: { status: 'executed' } }
     }
 
-    // Handler returnerede fejl
+    // Uvist transport-resultat: markér til menneskelig kontrol, retry ALDRIG.
+    if (result.uncertain) {
+      await admin
+        .from('agent_actions')
+        .update({
+          status: 'needs_verification',
+          error: result.error ?? 'uvist transport-resultat',
+          result: result.data ?? {},
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', act.id)
+      await logAgentAudit({
+        admin,
+        agentType: theRun.agent_type,
+        runId: theRun.id,
+        actionId: act.id,
+        action: 'needs_verification',
+        description: result.error ?? 'uvist transport-resultat — kraever manuel kontrol',
+        metadata: { capability: act.capability, side_effect_class: act.side_effect_class },
+      })
+      return { success: false, error: result.error ?? 'uvist resultat', data: { status: 'needs_verification' } }
+    }
+
+    // Handler returnerede definitiv fejl (intet sendt)
     await markFailed(admin, act.id, result.error ?? 'handler fejlede')
     await logAgentAudit({
       admin,

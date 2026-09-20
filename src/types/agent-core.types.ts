@@ -49,6 +49,9 @@ export type ActionStatus =
   | 'executed'
   | 'failed'
   | 'rolled_back'
+  // Uvist transport-resultat (fx Graph-timeout): kraever menneskelig kontrol,
+  // maa ALDRIG auto-retryes. Kraever migration 00158 i DB (CHECK-udvidelse).
+  | 'needs_verification'
 
 export type SideEffectClass =
   | 'read'
@@ -175,6 +178,12 @@ export interface CapabilityResult {
   ok: boolean
   data?: Record<string, unknown>
   error?: string
+  /**
+   * Sat naar udfaldet er UVIST (fx transport-timeout hvor vi ikke sikkert ved
+   * om beskeden blev sendt). Executor saetter da status='needs_verification'
+   * og retryer ALDRIG automatisk. Kun relevant for send_external/push_external.
+   */
+  uncertain?: boolean
 }
 
 export interface AgentInboxItem {
@@ -189,6 +198,18 @@ export interface AgentInboxItem {
   pendingCount: number
   /** Hoejeste review-prioritet blandt ikke-afsluttede actions (til sortering). */
   topReviewPriority: number
+  /** Mail-kontekst saa reviewer kan beslutte uden at hoppe vaek. */
+  mail?: {
+    id: string
+    subject: string
+    sender_name: string | null
+    sender_email: string
+    received_at: string | null
+    body_preview: string | null
+    customer_id: string | null
+    customer_name: string | null
+    customer_number: string | null
+  } | null
 }
 
 export interface CapabilityDefinition {

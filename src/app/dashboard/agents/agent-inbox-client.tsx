@@ -127,6 +127,28 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
             </span>
           </div>
 
+          {item.mail && (
+            <div className="mt-2 rounded border border-gray-100 bg-gray-50 p-2 text-xs text-gray-600">
+              <div>
+                <span className="font-medium text-gray-800">{item.mail.sender_name || item.mail.sender_email}</span>
+                <span className="text-gray-400"> &lt;{item.mail.sender_email}&gt;</span>
+                {item.mail.received_at && (
+                  <span className="text-gray-400"> · {new Date(item.mail.received_at).toLocaleString('da-DK')}</span>
+                )}
+              </div>
+              <div className="font-medium text-gray-700">{item.mail.subject || '(Intet emne)'}</div>
+              {item.mail.body_preview && <div className="mt-0.5 line-clamp-2 text-gray-500">{item.mail.body_preview}</div>}
+              <div className="mt-1 flex flex-wrap gap-3">
+                {item.mail.customer_id ? (
+                  <span className="text-green-700">Koblet: {item.mail.customer_name} ({item.mail.customer_number})</span>
+                ) : (
+                  <span className="text-amber-700">Ingen kunde koblet</span>
+                )}
+                <a href="/dashboard/mail" className="text-blue-600 hover:underline">Åbn i Mail →</a>
+              </div>
+            </div>
+          )}
+
           <ul className="mt-3 space-y-2">
             {[...item.actions]
               .sort(

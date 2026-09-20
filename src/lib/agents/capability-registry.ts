@@ -13,6 +13,7 @@
  */
 
 import type { CapabilityDefinition } from '@/types/agent-core.types'
+import { executeSendReply } from '@/lib/agents/send-reply'
 
 const registry = new Map<string, CapabilityDefinition>()
 
@@ -117,6 +118,19 @@ registerCapability({
   defaultRequiresApproval: true,
   minApprovals: 1,
   description: 'Foreslå oprettelse af en service-case ud fra en mail (kladde).',
+})
+
+registerCapability({
+  key: 'mail.send_reply',
+  sideEffectClass: 'send_external',
+  requiredScope: 'agent.mail.send',
+  defaultRequiresApproval: true,
+  minApprovals: 1,
+  description: 'Send et reviewet svar til kunden via Microsoft Graph (KUN efter approval; hard-blocked).',
+  // send_external => ALTID hard-blocked (approval kraeves; confidence bypasser aldrig).
+  // Eneste transport er sendEmailViaGraph (via executeSendReply). Uvist resultat
+  // => uncertain => Executor saetter needs_verification (ingen auto-retry).
+  handler: (ctx) => executeSendReply(ctx),
 })
 
 registerCapability({

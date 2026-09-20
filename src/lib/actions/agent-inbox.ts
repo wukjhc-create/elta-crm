@@ -67,6 +67,37 @@ export async function getAgentInbox(limit = 25): Promise<ActionResult<AgentInbox
       return { run, actions, pendingCount: nonTerminal.length, topReviewPriority }
     })
 
+    // Mail-kontekst: hent de mails forslagene refererer til (via RLS-klient).
+    const emailIdOf = (it: AgentInboxItem): string | undefined =>
+      it.actions.map((a) => a.payload?.email_id as string | undefined).find(Boolean)
+    const emailIds = [...new Set(items.map(emailIdOf).filter(Boolean) as string[])]
+    if (emailIds.length > 0) {
+      const { data: mails } = await supabase
+        .from('incoming_emails')
+        .select('id, subject, sender_name, sender_email, received_at, body_preview, customer_id, customers ( company_name, customer_number )')
+        .in('id', emailIds)
+      const mailById = new Map<string, AgentInboxItem['mail']>()
+      for (const m of mails ?? []) {
+        const custRaw = (m as { customers?: unknown }).customers
+        const cust = (Array.isArray(custRaw) ? custRaw[0] : custRaw) as { company_name?: string; customer_number?: string } | null
+        mailById.set(m.id, {
+          id: m.id,
+          subject: m.subject,
+          sender_name: m.sender_name ?? null,
+          sender_email: m.sender_email,
+          received_at: m.received_at ?? null,
+          body_preview: m.body_preview ?? null,
+          customer_id: m.customer_id ?? null,
+          customer_name: cust?.company_name ?? null,
+          customer_number: cust?.customer_number ?? null,
+        })
+      }
+      for (const it of items) {
+        const eid = emailIdOf(it)
+        it.mail = eid ? mailById.get(eid) ?? null : null
+      }
+    }
+
     // Prioritér paa tvaers af runs: stoerst review-behov foerst, derefter nyeste.
     items.sort((a, b) => {
       if (b.topReviewPriority !== a.topReviewPriority) return b.topReviewPriority - a.topReviewPriority
