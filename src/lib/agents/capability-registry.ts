@@ -78,17 +78,29 @@ registerCapability({
       email_id?: string
       conflicts?: boolean
       candidates?: Array<{ id: string; company_name?: string }>
+      selected_customer_id?: string
     }
     const emailId = payload.email_id
     const candidates = payload.candidates ?? []
+    const selected = payload.selected_customer_id
     if (!emailId) return { ok: false, error: 'mangler email_id i payload' }
-    if (payload.conflicts || candidates.length !== 1) {
+
+    // Bestem hvilken kunde der maa linkes:
+    //  - præcis én kandidat uden conflict => den (uændret adfaerd)
+    //  - ellers KUN et eksplicit reviewer-valg der findes blandt kandidaterne
+    //    (tamper-resistant: selected skal vaere en af forslagets kandidater)
+    let customerId: string | undefined
+    if (candidates.length === 1 && !payload.conflicts) {
+      customerId = candidates[0].id
+    } else if (selected && candidates.some((c) => c.id === selected)) {
+      customerId = selected
+    }
+    if (!customerId) {
       return {
         ok: false,
-        error: `manuel udvaelgelse paakraevet (kandidater=${candidates.length}, conflicts=${!!payload.conflicts})`,
+        error: `manuel udvaelgelse paakraevet eller ugyldigt valg (kandidater=${candidates.length}, valgt=${selected ?? 'ingen'})`,
       }
     }
-    const customerId = candidates[0].id
     const { error } = await ctx.admin
       .from('incoming_emails')
       .update({ customer_id: customerId, link_status: 'linked', linked_by: 'agent' })

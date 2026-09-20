@@ -74,6 +74,19 @@ async function run() {
     assert(ok, 'én kandidat => link med customer_id/link_status/linked_by', JSON.stringify(calls[0]?.vals))
   }
 
+  // 6) flere kandidater + gyldigt valg => link til det valgte
+  {
+    const { admin, calls } = makeMockAdmin()
+    const r = await cap.handler({ ...base, admin, action: { payload: { email_id: 'e9', conflicts: true, candidates: [{ id: 'a' }, { id: 'b' }], selected_customer_id: 'b' } } } as never)
+    assert(r.ok && calls.length === 1 && calls[0].vals.customer_id === 'b', 'flere kandidater + gyldigt valg => link til valgt (b)')
+  }
+  // 7) flere kandidater + manipuleret valg (ikke i listen) => refuser
+  {
+    const { admin, calls } = makeMockAdmin()
+    const r = await cap.handler({ ...base, admin, action: { payload: { email_id: 'e9', conflicts: true, candidates: [{ id: 'a' }, { id: 'b' }], selected_customer_id: 'zzz' } } } as never)
+    assert(!r.ok && calls.length === 0, 'manipuleret valg (ikke i kandidater) => refuser uden update')
+  }
+
   console.log(`\n${fails === 0 ? '✅ ALLE LINK_CUSTOMER-TESTS PASS' : `❌ ${fails} FEJL`}`)
   process.exit(fails === 0 ? 0 : 1)
 }

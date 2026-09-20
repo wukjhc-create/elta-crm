@@ -48,13 +48,13 @@ interface IncomingEmailLite {
 
 /** Find kunde-kandidater for en mail (email-exact = staerkt, navn = svagt). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function findLinkCandidates(admin: any, mail: IncomingEmailLite): Promise<CustomerCandidate[]> {
+export async function findLinkCandidates(admin: any, mail: IncomingEmailLite): Promise<CustomerCandidate[]> {
   const byId = new Map<string, CustomerCandidate>()
 
   if (mail.sender_email) {
     const { data } = await admin
       .from('customers')
-      .select('id, company_name, customer_number, email')
+      .select('id, company_name, customer_number, email, phone')
       .eq('email', mail.sender_email)
       .limit(5)
     for (const c of data ?? []) {
@@ -63,6 +63,7 @@ async function findLinkCandidates(admin: any, mail: IncomingEmailLite): Promise<
         company_name: c.company_name,
         customer_number: c.customer_number ?? null,
         email: c.email ?? null,
+        phone: c.phone ?? null,
         signals: [{ kind: 'email', detail: mail.sender_email, strong: true }],
       })
     }
@@ -73,7 +74,7 @@ async function findLinkCandidates(admin: any, mail: IncomingEmailLite): Promise<
   if (nameTerm.length >= 3) {
     const { data } = await admin
       .from('customers')
-      .select('id, company_name, customer_number, email')
+      .select('id, company_name, customer_number, email, phone')
       .ilike('company_name', `%${nameTerm}%`)
       .limit(5)
     for (const c of data ?? []) {
@@ -86,6 +87,7 @@ async function findLinkCandidates(admin: any, mail: IncomingEmailLite): Promise<
           company_name: c.company_name,
           customer_number: c.customer_number ?? null,
           email: c.email ?? null,
+          phone: c.phone ?? null,
           signals: [sig],
         })
     }

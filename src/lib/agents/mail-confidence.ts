@@ -22,6 +22,7 @@ export interface CustomerCandidate {
   company_name: string
   customer_number: string | null
   email: string | null
+  phone?: string | null
   signals: MatchSignal[]
 }
 
@@ -72,6 +73,33 @@ export function scoreLinkConfidence(candidates: CustomerCandidate[]): LinkConfid
     return { level: 'low', score: 0.4, rationale: 'Kun navne-lignende match — verificér manuelt', conflicts: false, candidateCount }
   }
   return { level: 'low', score: 0.3, rationale: 'Svagt match — verificér manuelt', conflicts: false, candidateCount }
+}
+
+/**
+ * Validér en reviewer's kandidat-valg mod forslagets kandidater + friske kandidater.
+ * Tamper: valgt id skal vaere blandt forslagets gemte kandidater.
+ * Stale: den friske kandidatliste skal matche den gemte (ellers kraev nyt review).
+ * Ren funktion (ingen DB) — kaldere leverer id-listerne.
+ */
+export function validateCandidateSelection(
+  storedCandidateIds: string[],
+  freshCandidateIds: string[],
+  customerId: string,
+): { ok: boolean; reason?: string } {
+  if (!customerId) return { ok: false, reason: 'intet kunde-valg' }
+  if (!storedCandidateIds.includes(customerId)) {
+    return { ok: false, reason: 'valgt kunde er ikke blandt forslagets kandidater' }
+  }
+  const a = [...storedCandidateIds].sort()
+  const b = [...freshCandidateIds].sort()
+  const sameSet = a.length === b.length && a.every((v, i) => v === b[i])
+  if (!sameSet) {
+    return { ok: false, reason: 'kandidatlisten er aendret (stale) — kraever nyt review' }
+  }
+  if (!freshCandidateIds.includes(customerId)) {
+    return { ok: false, reason: 'valgt kunde findes ikke laengere' }
+  }
+  return { ok: true }
 }
 
 /** Højere tal = større behov for review (bruges til sortering i Agent Inbox). */

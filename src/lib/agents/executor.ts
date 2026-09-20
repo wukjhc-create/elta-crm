@@ -159,7 +159,7 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
         actionId: act.id,
         action: 'executed',
         description: `${act.capability} (${act.side_effect_class})`,
-        metadata: { capability: act.capability, side_effect_class: act.side_effect_class },
+        metadata: { capability: act.capability, side_effect_class: act.side_effect_class, result: result.data ?? {} },
       })
       return { success: true, data: { status: 'executed' } }
     }

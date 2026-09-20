@@ -13,11 +13,12 @@ import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatError } from '@/lib/actions/action-helpers'
-import { runMailAgent } from '@/lib/agents/mail-agent'
+import { runMailAgent, findLinkCandidates } from '@/lib/agents/mail-agent'
 import { executeAction } from '@/lib/agents/executor'
+import { logAgentAudit } from '@/lib/agents/audit'
 import type { ActionResult } from '@/types/common.types'
 import type { AgentInboxItem } from '@/types/agent-core.types'
-import { reviewPriority, type ConfidenceLevel } from '@/lib/agents/mail-confidence'
+import { reviewPriority, validateCandidateSelection, type ConfidenceLevel } from '@/lib/agents/mail-confidence'
 
 const TERMINAL_ACTION_STATUS = ['executed', 'rejected', 'failed', 'rolled_back']
 
@@ -86,6 +87,78 @@ export async function runMailAgentAction(emailId: string): Promise<ActionResult<
     return res
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke koere Mailagent') }
+  }
+}
+
+/**
+ * Vælg en kunde-kandidat for et link_customer-forslag med flere kandidater.
+ * Tamper-resistant: customerId skal vaere blandt forslagets gemte kandidater.
+ * Stale-resistant: friske kandidater skal matche de gemte, ellers kraev nyt review.
+ * Skriver kun selected_customer_id paa actionen (linker IKKE — det sker via Executor
+ * efter approval). Kun admin.
+ */
+export async function selectLinkCandidateAction(
+  actionId: string,
+  customerId: string,
+): Promise<ActionResult<void>> {
+  try {
+    const { userId } = await requireAdmin()
+    const admin = createAdminClient()
+
+    const { data: action } = await admin
+      .from('agent_actions')
+      .select('id, run_id, capability, status, payload')
+      .eq('id', actionId)
+      .maybeSingle()
+    if (!action) return { success: false, error: 'Action ikke fundet' }
+    if (action.capability !== 'mail.link_customer') {
+      return { success: false, error: 'Kandidat-valg gaelder kun link_customer' }
+    }
+    if (['executed', 'rejected', 'failed', 'rolled_back'].includes(action.status)) {
+      return { success: false, error: `Action er allerede afsluttet (${action.status})` }
+    }
+
+    const payload = (action.payload ?? {}) as {
+      email_id?: string
+      candidates?: Array<{ id: string }>
+    }
+    const storedIds = (payload.candidates ?? []).map((c) => c.id)
+    const emailId = payload.email_id
+    if (!emailId) return { success: false, error: 'Forslag mangler email-reference' }
+
+    // Frisk kandidat-udledning til stale-check.
+    const { data: mail } = await admin
+      .from('incoming_emails')
+      .select('id, subject, sender_email, sender_name, body_text, body_preview, customer_id')
+      .eq('id', emailId)
+      .maybeSingle()
+    if (!mail) return { success: false, error: 'Mail ikke fundet' }
+    const fresh = await findLinkCandidates(admin, mail)
+    const freshIds = fresh.map((c) => c.id)
+
+    const v = validateCandidateSelection(storedIds, freshIds, customerId)
+    if (!v.ok) return { success: false, error: v.reason }
+
+    const { error: upErr } = await admin
+      .from('agent_actions')
+      .update({ payload: { ...payload, selected_customer_id: customerId }, updated_at: new Date().toISOString() })
+      .eq('id', actionId)
+    if (upErr) return { success: false, error: formatError(upErr, 'Kunne ikke gemme valg') }
+
+    await logAgentAudit({
+      admin,
+      agentType: 'mail',
+      runId: action.run_id,
+      actionId,
+      action: 'candidate_selected',
+      description: `Reviewer valgte kunde ${customerId}`,
+      metadata: { selected_customer_id: customerId, selected_by: userId },
+    })
+
+    revalidatePath('/dashboard/agents')
+    return { success: true, data: undefined }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Der opstod en fejl') }
   }
 }
 

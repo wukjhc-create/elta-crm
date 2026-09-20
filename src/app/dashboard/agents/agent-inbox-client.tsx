@@ -7,6 +7,7 @@ import {
   approveAgentActionAction,
   rejectAgentActionAction,
   executeAgentActionAction,
+  selectLinkCandidateAction,
 } from '@/lib/actions/agent-inbox'
 import type { AgentInboxItem } from '@/types/agent-core.types'
 import { reviewPriority, type ConfidenceLevel, type CustomerCandidate } from '@/lib/agents/mail-confidence'
@@ -122,24 +123,54 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                       {needsApproval ? ` · kraever ${a.min_approvals} approval(s)` : ''}
                     </p>
                     {rationale && <p className="mt-0.5 text-xs italic text-gray-600">{rationale}</p>}
-                    {candidates.length > 0 && (
-                      <div className="mt-1 space-y-1">
-                        {conflicts && (
-                          <p className="text-xs font-semibold text-red-600">
-                            ⚠ Flere mulige kunder — vælg manuelt, ingen auto-link.
-                          </p>
-                        )}
-                        {candidates.map((c) => (
-                          <div key={c.id} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs">
-                            <span className="font-medium text-gray-800">{c.company_name}</span>
-                            {c.customer_number && <span className="text-gray-500"> · {c.customer_number}</span>}
-                            <span className="ml-1 text-gray-400">
-                              [{c.signals.map((s) => (s.strong ? s.kind + '✓' : s.kind)).join(', ')}]
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {candidates.length > 0 && (() => {
+                      const selectable = candidates.length > 1 || conflicts
+                      const selectedId = a.payload?.selected_customer_id as string | undefined
+                      const busy = busyId === a.id && isPending
+                      return (
+                        <div className="mt-1 space-y-1">
+                          {conflicts && (
+                            <p className="text-xs font-semibold text-red-600">
+                              ⚠ Flere mulige kunder — vælg den korrekte manuelt (ingen auto-link).
+                            </p>
+                          )}
+                          {selectable && !selectedId && (
+                            <p className="text-xs text-amber-700">Vælg en kunde før godkendelse/udførelse.</p>
+                          )}
+                          {candidates.map((c) => {
+                            const isSelected = selectedId === c.id
+                            const rowCls = `w-full rounded border px-2 py-1 text-left text-xs ${
+                              isSelected ? 'border-green-500 bg-green-50 ring-1 ring-green-400' : 'border-gray-200 bg-white'
+                            }`
+                            const content = (
+                              <>
+                                <span className="font-medium text-gray-800">{c.company_name}</span>
+                                {c.customer_number && <span className="text-gray-500"> · {c.customer_number}</span>}
+                                {c.email && <span className="text-gray-500"> · {c.email}</span>}
+                                {c.phone && <span className="text-gray-500"> · {c.phone}</span>}
+                                <span className="ml-1 text-gray-400">
+                                  [{c.signals.map((s) => (s.strong ? s.kind + '✓' : s.kind)).join(', ')}]
+                                </span>
+                                {isSelected && <span className="ml-2 font-semibold text-green-700">✓ valgt</span>}
+                              </>
+                            )
+                            return selectable ? (
+                              <button
+                                key={c.id}
+                                type="button"
+                                disabled={busy}
+                                onClick={() => run(a.id, () => selectLinkCandidateAction(a.id, c.id), 'Kunde valgt')}
+                                className={`${rowCls} hover:bg-gray-50 disabled:opacity-50`}
+                              >
+                                {content}
+                              </button>
+                            ) : (
+                              <div key={c.id} className={rowCls}>{content}</div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
                     {typeof a.payload?.draft === 'string' && (
                       <details className="mt-1">
                         <summary className="cursor-pointer text-xs text-blue-600">Vis forslag</summary>

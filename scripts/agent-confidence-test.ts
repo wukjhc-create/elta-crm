@@ -2,7 +2,7 @@
  * Ren-logik-test af Mailagent confidence-modellen (ingen DB).
  *   npx tsx scripts/agent-confidence-test.ts
  */
-import { scoreLinkConfidence, reviewPriority, type CustomerCandidate } from '../src/lib/agents/mail-confidence'
+import { scoreLinkConfidence, reviewPriority, validateCandidateSelection, type CustomerCandidate } from '../src/lib/agents/mail-confidence'
 
 let fails = 0
 const assert = (cond: boolean, label: string, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`); if (!cond) fails++ }
@@ -41,6 +41,12 @@ assert(
   reviewPriority('medium', false) > reviewPriority('high', false),
   'reviewPriority: conflicts > low > medium > high',
 )
+
+// validateCandidateSelection
+assert(validateCandidateSelection(['a', 'b'], ['a', 'b'], 'b').ok, 'valg: gyldigt (stored==fresh, id i begge) => ok')
+assert(!validateCandidateSelection(['a', 'b'], ['a', 'b'], 'zzz').ok, 'valg: tamper (id ikke i kandidater) => refuser')
+assert(!validateCandidateSelection(['a', 'b'], ['a'], 'b').ok, 'valg: stale (fresh != stored) => refuser')
+assert(!validateCandidateSelection(['a'], ['a', 'b'], 'a').ok, 'valg: stale (fresh udvidet) => refuser')
 
 console.log(`\n${fails === 0 ? '✅ ALLE CONFIDENCE-TESTS PASS' : `❌ ${fails} FEJL`}`)
 process.exit(fails === 0 ? 0 : 1)
