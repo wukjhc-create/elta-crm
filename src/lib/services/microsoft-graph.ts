@@ -604,6 +604,39 @@ export interface GraphEmailOptions {
  * shared mailbox automatically. We do NOT set the `from` field because
  * that requires additional SendAs permission which may not be granted.
  */
+export interface SentItemRow {
+  id: string
+  conversationId?: string
+  internetMessageId?: string
+  subject?: string
+  toRecipients?: Array<{ emailAddress?: { address?: string } }>
+  sentDateTime?: string
+}
+
+/**
+ * Korrelér en sendt mail i sentItems-listen (client-side) uden at bruge et
+ * $filter der udloeser Graphs "InefficientFilter". Matcher paa subject +
+ * modtager + tidsvindue. Ren funktion (testbar). Returnerer undefined hvis
+ * ingen sikker match — caller beholder da metadata som undefined (send er
+ * stadig bekraeftet via sendMail-svaret).
+ */
+export function matchSentItem(
+  rows: SentItemRow[],
+  c: { subject: string; recipient: string; sentSinceIso: string },
+): SentItemRow | undefined {
+  return rows.find((row) => {
+    if (c.subject && row.subject && row.subject !== c.subject) return false
+    if (c.sentSinceIso && row.sentDateTime && row.sentDateTime < c.sentSinceIso) return false
+    if (c.recipient) {
+      const tos = (row.toRecipients || [])
+        .map((r) => r.emailAddress?.address?.toLowerCase() || '')
+        .filter(Boolean)
+      if (!tos.includes(c.recipient)) return false
+    }
+    return true
+  })
+}
+
 export async function sendEmailViaGraph(
   options: GraphEmailOptions
 ): Promise<{
@@ -798,7 +831,6 @@ export async function sendEmailViaGraph(
     let sentInternetMessageId: string | undefined
 
     const SENT_LOOKUP_DELAYS_MS = [500, 1000, 1500, 2000, 2500]
-    const subjectQuoted = options.subject.replace(/'/g, "''")
     const firstRecipient = recipients[0]?.trim().toLowerCase() || ''
     // sentDateTime-vindue: 2 min tilbage for at undgå at fange ældre mails med
     // samme subject. Format: ISO uden ms (Graph kræver Z-suffix).
@@ -808,34 +840,20 @@ export async function sendEmailViaGraph(
       await new Promise((r) => setTimeout(r, SENT_LOOKUP_DELAYS_MS[attempt]))
 
       try {
-        // Filter på subject + sentDateTime-vindue.
-        // Vi inkluderer ikke toRecipients i $filter — Graph kræver any()-operator
-        // som er upålidelig på flere mailboxe. Subject + tidsvindue er tilstrækkeligt
-        // entydigt indenfor 2 min ved unikke subjects som vi bruger fra task-mail.
+        // KUN $orderby + $top (ingen $filter) — undgaar Graphs "InefficientFilter"
+        // (kombination af $filter med ulighed + $orderby afvises). Korrelation
+        // sker client-side paa subject + modtager + tidsvindue via matchSentItem.
         const sentUrl = `${GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/mailFolders/sentItems/messages` +
-          `?$select=id,conversationId,internetMessageId,toRecipients,sentDateTime` +
-          `&$top=5&$orderby=sentDateTime desc` +
-          `&$filter=subject eq '${subjectQuoted}' and sentDateTime ge ${sentSinceIso}`
-        const sentResult = await graphFetch<{
-          value: Array<{
-            id: string
-            conversationId?: string
-            internetMessageId?: string
-            toRecipients?: Array<{ emailAddress?: { address?: string } }>
-            sentDateTime?: string
-          }>
-        }>(sentUrl)
+          `?$select=id,conversationId,internetMessageId,subject,toRecipients,sentDateTime` +
+          `&$top=15&$orderby=sentDateTime desc`
+        const sentResult = await graphFetch<{ value: SentItemRow[] }>(sentUrl)
 
-        // Ekstra-sikkerhed: pick row hvor toRecipients indeholder firstRecipient
-        // (klient-side filter, da Graph $filter på toRecipients er upålidelig).
-        const rows = sentResult.value || []
-        const match = rows.find((row) => {
-          if (!firstRecipient) return true
-          const tos = (row.toRecipients || [])
-            .map((r) => r.emailAddress?.address?.toLowerCase() || '')
-            .filter(Boolean)
-          return tos.includes(firstRecipient)
-        }) || rows[0]
+        // Konservativ client-side match (ingen rows[0]-fallback -> ingen forkert korrelation).
+        const match = matchSentItem(sentResult.value || [], {
+          subject: options.subject,
+          recipient: firstRecipient,
+          sentSinceIso,
+        })
 
         if (match?.conversationId) {
           sentMessageId = match.id

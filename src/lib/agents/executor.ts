@@ -188,7 +188,7 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
     }
 
     // Handler returnerede definitiv fejl (intet sendt)
-    await markFailed(admin, act.id, result.error ?? 'handler fejlede')
+    await markFailed(admin, act.id, result.error ?? 'handler fejlede', result.data)
     await logAgentAudit({
       admin,
       agentType: theRun.agent_type,
@@ -214,12 +214,16 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function markFailed(admin: any, actionId: string, error: string): Promise<void> {
-  await admin
-    .from('agent_actions')
-    .update({ status: 'failed', error, updated_at: new Date().toISOString() })
-    .eq('id', actionId)
+async function markFailed(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  actionId: string,
+  error: string,
+  result?: Record<string, unknown>,
+): Promise<void> {
+  const patch: Record<string, unknown> = { status: 'failed', error, updated_at: new Date().toISOString() }
+  if (result) patch.result = result
+  await admin.from('agent_actions').update(patch).eq('id', actionId)
 }
 
 async function refuse(

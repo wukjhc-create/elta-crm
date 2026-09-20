@@ -20,10 +20,12 @@ async function run() {
   // executeSendReply — transport kaldes præcis én gang ved gyldigt send
   {
     let calls = 0
-    const t: MailTransport = async () => { calls++; return { ok: true, messageId: 'm1' } }
+    const t: MailTransport = async () => { calls++; return { ok: true, messageId: 'm1', conversationId: 'c1' } }
     const r = await executeSendReply(ctx(validPayload), t)
     assert(r.ok && calls === 1, 'gyldigt send => transport kaldt PRAECIS én gang', `calls=${calls}`)
     assert(!r.uncertain, 'gyldigt send => ikke uncertain')
+    assert(r.data?.classification === 'confirmed_sent', 'gyldigt send => classification confirmed_sent')
+    assert(r.data?.message_id === 'm1' && r.data?.conversation_id === 'c1', 'gyldigt send => id/conversation gemt')
   }
 
   // invalid recipient => transport aldrig kaldt (intet sendt)
@@ -32,6 +34,7 @@ async function run() {
     const t: MailTransport = async () => { calls++; return { ok: true } }
     const r = await executeSendReply(ctx({ ...validPayload, to: 'bad' }), t)
     assert(!r.ok && calls === 0, 'ugyldig modtager => transport IKKE kaldt', `calls=${calls}`)
+    assert(r.data?.classification === 'failed_before_send', 'ugyldig modtager => classification failed_before_send')
   }
 
   // tomt draft => transport aldrig kaldt
@@ -47,6 +50,7 @@ async function run() {
     const t: MailTransport = async () => ({ ok: false })
     const r = await executeSendReply(ctx(validPayload), t)
     assert(!r.ok && !r.uncertain, 'transport eksplicit ikke-sendt => failed (definitivt)')
+    assert(r.data?.classification === 'failed_before_send', 'eksplicit ikke-sendt => classification failed_before_send')
   }
 
   // transport KASTER => uncertain (uvist om sendt) => aldrig auto-retry
@@ -54,6 +58,7 @@ async function run() {
     const t: MailTransport = async () => { throw new Error('timeout') }
     const r = await executeSendReply(ctx(validPayload), t)
     assert(!r.ok && r.uncertain === true, 'transport-exception => uncertain (needs_verification)')
+    assert(r.data?.classification === 'needs_verification', 'transport-exception => classification needs_verification')
   }
 
   console.log(`\n${fails === 0 ? '✅ ALLE SEND_REPLY-TESTS PASS' : `❌ ${fails} FEJL`}`)
