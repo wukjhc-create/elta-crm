@@ -185,6 +185,10 @@ export interface AgentInboxItem {
       'id' | 'capability' | 'action_type' | 'side_effect_class' | 'status' | 'requires_approval' | 'min_approvals' | 'payload' | 'result'
     >
   >
+  /** Antal ikke-afsluttede actions der venter paa review/handling. */
+  pendingCount: number
+  /** Hoejeste review-prioritet blandt ikke-afsluttede actions (til sortering). */
+  topReviewPriority: number
 }
 
 export interface CapabilityDefinition {

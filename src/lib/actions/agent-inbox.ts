@@ -17,6 +17,9 @@ import { runMailAgent } from '@/lib/agents/mail-agent'
 import { executeAction } from '@/lib/agents/executor'
 import type { ActionResult } from '@/types/common.types'
 import type { AgentInboxItem } from '@/types/agent-core.types'
+import { reviewPriority, type ConfidenceLevel } from '@/lib/agents/mail-confidence'
+
+const TERMINAL_ACTION_STATUS = ['executed', 'rejected', 'failed', 'rolled_back']
 
 async function requireAdmin() {
   const ctx = await getAuthenticatedClientWithRole()
@@ -53,10 +56,21 @@ export async function getAgentInbox(limit = 25): Promise<ActionResult<AgentInbox
       }
     }
 
-    const items: AgentInboxItem[] = (runs ?? []).map((run: AgentInboxItem['run']) => ({
-      run,
-      actions: actionsByRun.get(run.id) ?? [],
-    }))
+    const items: AgentInboxItem[] = (runs ?? []).map((run: AgentInboxItem['run']) => {
+      const actions = actionsByRun.get(run.id) ?? []
+      const nonTerminal = actions.filter((a) => !TERMINAL_ACTION_STATUS.includes(a.status))
+      const topReviewPriority = nonTerminal.reduce((max, a) => {
+        const p = reviewPriority((a.payload?.confidence_level as ConfidenceLevel) ?? 'high', !!a.payload?.conflicts)
+        return Math.max(max, p)
+      }, -1)
+      return { run, actions, pendingCount: nonTerminal.length, topReviewPriority }
+    })
+
+    // Prioritér paa tvaers af runs: stoerst review-behov foerst, derefter nyeste.
+    items.sort((a, b) => {
+      if (b.topReviewPriority !== a.topReviewPriority) return b.topReviewPriority - a.topReviewPriority
+      return new Date(b.run.created_at).getTime() - new Date(a.run.created_at).getTime()
+    })
     return { success: true, data: items }
   } catch (err) {
     return { success: false, error: formatError(err, 'Der opstod en fejl') }

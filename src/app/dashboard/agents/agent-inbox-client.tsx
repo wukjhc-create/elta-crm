@@ -32,6 +32,10 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [hideCompleted, setHideCompleted] = useState(false)
+
+  const visibleItems = hideCompleted ? items.filter((i) => i.pendingCount > 0) : items
+  const totalPending = items.reduce((n, i) => n + i.pendingCount, 0)
 
   const run = (actionId: string, fn: () => Promise<{ success: boolean; error?: string }>, okMsg: string) => {
     setBusyId(actionId)
@@ -49,24 +53,40 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Agent Inbox</h1>
         <p className="text-sm text-gray-500">
-          Forslag fra agenter. Intet udfoeres uden din godkendelse. Hard-blockede
-          handlinger (send/finans/push/slet) kraever altid approval.
+          Forslag fra agenter, prioriteret efter review-behov. Intet udfoeres uden din
+          godkendelse. Hard-blockede handlinger (send/finans/push/slet) kraever altid approval.
         </p>
+        <div className="mt-2 flex items-center gap-3">
+          <span className="text-sm text-gray-700">{totalPending} handling(er) afventer review</span>
+          <label className="inline-flex items-center gap-1.5 text-sm text-gray-600">
+            <input type="checkbox" checked={hideCompleted} onChange={(e) => setHideCompleted(e.target.checked)} />
+            Skjul færdige
+          </label>
+        </div>
       </div>
 
-      {items.length === 0 && (
-        <p className="text-sm text-gray-500">Ingen agent-forslag endnu.</p>
+      {visibleItems.length === 0 && (
+        <p className="text-sm text-gray-500">
+          {items.length === 0 ? 'Ingen agent-forslag endnu.' : 'Ingen forslag afventer review.'}
+        </p>
       )}
 
-      {items.map((item) => (
+      {visibleItems.map((item) => (
         <div key={item.run.id} className="rounded-lg border bg-white p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-medium text-gray-900">{item.run.summary || item.run.agent_type}</p>
               <p className="text-xs text-gray-500">
                 {item.run.agent_type} · {item.run.safety_mode} · {item.run.status}
               </p>
             </div>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                item.pendingCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {item.pendingCount > 0 ? `${item.pendingCount} afventer` : 'Færdig'}
+            </span>
           </div>
 
           <ul className="mt-3 space-y-2">
