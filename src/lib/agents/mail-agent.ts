@@ -17,6 +17,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import { scoreLinkConfidence, type CustomerCandidate } from '@/lib/agents/mail-confidence'
+import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
+
+const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
+const OPENAI_MODEL = 'gpt-4o-mini'
+const OPENAI_TIMEOUT_MS = 12_000
+
+// Genbruger den sikre prompt-linje fra ai-mail-assistant: opfind ALDRIG
+// priser/datoer/loefter; markér huller; sender aldrig.
+const DRAFT_SYSTEM_PROMPT = `Du er AI-assistent for Elta Solar (dansk el/solcelle-firma).
+Skriv et kort, professionelt, varmt svar-UDKAST paa dansk til kundens mail.
+ABSOLUT FORBUDT: opfind ALDRIG priser, beloeb, rabatter, datoer, tidspunkter eller loefter.
+Markér manglende info med [BRUGER UDFYLDER]. Afslut med "Med venlig hilsen,\\nElta Solar".
+Output: KUN selve mailteksten — ingen forklaring, ingen markdown.`
 
 export interface MailAgentRunResult {
   runId: string
@@ -79,6 +92,61 @@ async function findLinkCandidates(admin: any, mail: IncomingEmailLite): Promise<
   }
 
   return [...byId.values()]
+}
+
+/**
+ * Generér svar-udkast. Bruger OpenAI hvis konfigureret OG budget tillader det;
+ * ellers sikker deterministisk fallback. Budget-gated: kalder ALDRIG LLM naar
+ * canSpendAi() er false eller noeglen mangler (fail-closed paa spend). En LLM-
+ * fejl/timeout falder tilbage til template (proposal fejler aldrig paa dette).
+ */
+export async function generateReplyDraft(email: IncomingEmailLite): Promise<{ draft: string; source: 'llm' | 'template' }> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return { draft: buildReplyDraft(email), source: 'template' }
+
+  let allowed = false
+  try {
+    allowed = await canSpendAi()
+  } catch {
+    allowed = false // fail-closed paa spend
+  }
+  if (!allowed) return { draft: buildReplyDraft(email), source: 'template' }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS)
+  try {
+    const userContent = [
+      `Emne: ${email.subject}`,
+      `Afsender: ${email.sender_name ?? email.sender_email}`,
+      '',
+      (email.body_text || email.body_preview || '').slice(0, 4000),
+    ].join('\n')
+    const res = await fetch(OPENAI_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        max_tokens: 500,
+        temperature: 0.3,
+        messages: [
+          { role: 'system', content: DRAFT_SYSTEM_PROMPT },
+          { role: 'user', content: userContent },
+        ],
+      }),
+    })
+    if (!res.ok) return { draft: buildReplyDraft(email), source: 'template' }
+    const json = await res.json()
+    const text = json?.choices?.[0]?.message?.content?.trim()
+    await recordAiCall(1)
+    if (!text) return { draft: buildReplyDraft(email), source: 'template' }
+    return { draft: text, source: 'llm' }
+  } catch (err) {
+    logger.warn('generateReplyDraft: LLM fejlede, bruger template', { error: err })
+    return { draft: buildReplyDraft(email), source: 'template' }
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Simpelt, deterministisk svar-udkast (ingen LLM). Markerer huller. */
@@ -168,6 +236,12 @@ export async function runMailAgent(
   }
   const taskId = task.id as string
 
+  // Generér udkast (LLM hvis muligt, ellers template — budget-gated).
+  const reply = await generateReplyDraft(mail)
+  const draftConfidence = reply.source === 'llm'
+    ? { confidence_level: 'medium', confidence_score: 0.6, rationale: 'AI-genereret udkast — gennemlaes og tilpas foer afsendelse' }
+    : { confidence_level: 'low', confidence_score: 0.4, rationale: 'Generisk skabelon (LLM utilgaengelig/budget) — udfyld foer afsendelse' }
+
   // Foreslaaede actions (INGEN eksekvering her). Hver baerer confidence + rationale.
   const actions: Array<Record<string, unknown>> = [
     {
@@ -182,10 +256,9 @@ export async function runMailAgent(
       status: 'planned', // read/no-approval -> Executor maa materialisere udkastet
       payload: {
         email_id: mail.id,
-        draft: buildReplyDraft(mail),
-        confidence_level: 'low',
-        confidence_score: 0.4,
-        rationale: 'Generisk kvitteringssvar — tilpas og udfyld [BRUGER UDFYLDER] foer afsendelse',
+        draft: reply.draft,
+        draft_source: reply.source,
+        ...draftConfidence,
       },
     },
   ]
