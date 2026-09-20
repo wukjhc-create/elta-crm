@@ -8,7 +8,7 @@
  * aendringer/medarbejderhandlinger/agent-proposals+approvals/fejlscenarier/
  * samtidige handlinger. Alle rows markeres SYNTHETIC (SYNTHETIC_TAG).
  */
-import { assertSafeHarnessTarget } from './env-guard'
+import { assertRuntimeConfig } from './env-guard'
 import type { GeneratorConfig } from './types'
 import { buildPlan } from './planner'
 
@@ -44,8 +44,9 @@ export type { HarnessPlan, PlannedEntity } from './planner'
 export async function generate(config: GeneratorConfig = DEFAULT_CONFIG): Promise<never> {
   const { buildPlan } = await import('./planner')
   const plan = buildPlan(config) // ren — altid sikker at bygge
-  // Safeguard FOERST foer nogen skrivning: blokerer hvis target ligner production.
-  assertSafeHarnessTarget()
+  // RUNTIME-safeguard FOERST (ingen management-token): blokerer hvis target
+  // ligner production eller mangler runtime-config.
+  assertRuntimeConfig()
   throw new Error(
     `Test Harness plan bygget (${plan.entities.length} entiteter, seed=${config.seed}), ` +
       `men DB-anvendelse (applyPlan) er endnu ikke wired til staging-skemaet. ` +

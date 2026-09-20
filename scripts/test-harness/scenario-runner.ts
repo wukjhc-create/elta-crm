@@ -6,7 +6,7 @@
  *
  * Cleanup/reset: alle syntetiske rows fjernes via SYNTHETIC_TAG-filter.
  */
-import { assertSafeHarnessTarget } from './env-guard'
+import { assertRuntimeConfig } from './env-guard'
 import { SECURITY_SCENARIOS } from './security-scenarios'
 import type { ScenarioStep } from './types'
 
@@ -25,7 +25,7 @@ export function securityScenarioCount(): number {
  * rammer production; fundament/kontrakter er paa plads.
  */
 export async function runScenarios(_steps: ScenarioStep[], _seed: string): Promise<never> {
-  assertSafeHarnessTarget()
+  assertRuntimeConfig() // RUNTIME — ingen management-token
   void _steps
   void _seed
   throw new Error(

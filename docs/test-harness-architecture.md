@@ -99,17 +99,29 @@ Indtil da er fundamentet på plads, testet, og **kan ikke røre production**.
 2. Anvend **samme migrationer** som prod: kør `supabase/migrations/00000…00158` mod staging (samme RLS/policies/functions/triggers følger med, da de ér migrationerne).
 3. Anvend **samme storage-buckets** (attachments/service-case-files/portal-attachments, alle private) — via migrationer/CLI.
 4. **Ingen prod-data** kopieres. Kun harness-genererede syntetiske data (tagget `HARNESS_SYNTHETIC`).
-5. Sæt harness-env i en **lokal, ikke-committet** fil (ikke `.env.local`, for at undgå prod-fallback):
+5. Sæt harness-env i en **lokal, ikke-committet** fil (ikke `.env.local`, for at undgå prod-fallback). Credentials er **opdelt** så runtime-simulation ALDRIG kræver management-token:
 
+**A. BOOTSTRAP — kun schema/migrationer** (`assertBootstrapConfig`):
 | Env-variabel | Formål |
 |---|---|
-| `HARNESS_SUPABASE_URL` | Staging URL (≠ prod; guard blokerer ellers) |
-| `HARNESS_SUPABASE_SERVICE_ROLE_KEY` | Staging service-role (data-generering) |
-| `HARNESS_SUPABASE_ANON_KEY` | Staging anon (RLS/permission-scenarier) |
-| `HARNESS_SUPABASE_ACCESS_TOKEN` | Management API (anvend migrationer på staging) |
-| `HARNESS_CONFIRM` | Skal være `I_UNDERSTAND_TEST_ONLY` |
+| `HARNESS_SUPABASE_URL` | Staging URL (≠ prod) |
+| `HARNESS_SUPABASE_SERVICE_ROLE_KEY` | Staging service-role |
+| `HARNESS_SUPABASE_ACCESS_TOKEN` | **Management API** — kun til at anvende/verificere migrationer |
+| `HARNESS_CONFIRM` | `I_UNDERSTAND_TEST_ONLY` |
 
-Guarden **fail-closer**: mangler noget, eller ligner target production, kører intet. Der er **ingen fallback** til `.env.local`-prod-credentials.
+**B. RUNTIME — generator/scenario-runner/load** (`assertRuntimeConfig`, **INTET management-token**):
+| Env-variabel | Formål |
+|---|---|
+| `HARNESS_SUPABASE_URL` | Staging URL (≠ prod) |
+| `HARNESS_SUPABASE_ANON_KEY` | RLS/permission-scenarier (anon/non-admin) |
+| `HARNESS_SUPABASE_SERVICE_ROLE_KEY` | Data-generering/scenarier |
+| `HARNESS_CONFIRM` | `I_UNDERSTAND_TEST_ONLY` |
+
+**Hvornår management-token kan fjernes:** `HARNESS_SUPABASE_ACCESS_TOKEN` bruges KUN under bootstrap (migrationer). Når staging-skemaet er anvendt og verificeret, **fjern det igen** — runtime-simulationen (`generate`/`runScenarios`) kalder aldrig Management API.
+
+**Fail-closed (hård):** ingen fallback til `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ACCESS_TOKEN` / `.env.local`-prod. Staging-url/ref må ikke matche prod. Runtime afviser hvis `HARNESS_SUPABASE_SERVICE_ROLE_KEY == production service-role`; bootstrap afviser hvis token/service == production. Mangler noget → stop.
+
+**Secrets:** logges/committes/rapporteres ALDRIG. `maskSecret()` viser kun `set(len=N)`/`(unset)` i diagnostics — aldrig indhold.
 
 **Vercel (valgfrit app-lag mod staging):** en Preview/branch-deployment kan pege på staging-Supabase ved at sætte de fire `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` + `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_ACCESS_TOKEN` som **Preview-scope** env i Vercel (ikke Production-scope). Det kræver ændring af Vercel-secrets → separat beslutning. Harness'en behøver det ikke (den rammer staging-DB direkte); det er kun hvis app-UI skal testes mod staging.
 

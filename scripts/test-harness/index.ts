@@ -3,6 +3,7 @@
  * Se docs/test-harness-architecture.md.
  */
 export * from './env-guard'
+export { applyMigrationsToStaging, bootstrapDiagnostics } from './bootstrap'
 export * from './types'
 export { Rng } from './rng'
 export { INVARIANTS } from './invariants'
