@@ -221,6 +221,43 @@ export async function rejectAgentActionAction(
   }
 }
 
+/**
+ * Gem et manuelt redigeret draft_reply-udkast paa forslaget (sendes IKKE).
+ * Kun admin; kun draft_reply; ingen direkte DB-write fra UI (gaar via admin
+ * efter permission-check). Udkastet gemmes i payload til senere (gated) brug.
+ */
+export async function saveDraftAction(actionId: string, draft: string): Promise<ActionResult<void>> {
+  try {
+    await requireAdmin()
+    if (typeof draft !== 'string' || draft.length === 0 || draft.length > 20000) {
+      return { success: false, error: 'Ugyldigt udkast (tomt eller for langt)' }
+    }
+    const admin = createAdminClient()
+    const { data: action } = await admin
+      .from('agent_actions')
+      .select('id, capability, status, payload')
+      .eq('id', actionId)
+      .maybeSingle()
+    if (!action) return { success: false, error: 'Action ikke fundet' }
+    if (action.capability !== 'mail.draft_reply') {
+      return { success: false, error: 'Kun draft_reply-udkast kan redigeres' }
+    }
+    if (['executed', 'rejected', 'failed', 'rolled_back'].includes(action.status)) {
+      return { success: false, error: `Action er afsluttet (${action.status})` }
+    }
+    const payload = (action.payload ?? {}) as Record<string, unknown>
+    const { error } = await admin
+      .from('agent_actions')
+      .update({ payload: { ...payload, draft, draft_edited: true }, updated_at: new Date().toISOString() })
+      .eq('id', actionId)
+    if (error) return { success: false, error: formatError(error, 'Kunne ikke gemme udkast') }
+    revalidatePath('/dashboard/agents')
+    return { success: true, data: undefined }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Der opstod en fejl') }
+  }
+}
+
 /** Udfoer en action gennem Executor (som selv gater alt). */
 export async function executeAgentActionAction(actionId: string): Promise<ActionResult<{ status: string }>> {
   try {

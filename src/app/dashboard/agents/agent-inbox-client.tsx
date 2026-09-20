@@ -8,11 +8,48 @@ import {
   rejectAgentActionAction,
   executeAgentActionAction,
   selectLinkCandidateAction,
+  saveDraftAction,
 } from '@/lib/actions/agent-inbox'
 import type { AgentInboxItem } from '@/types/agent-core.types'
 import { reviewPriority, type ConfidenceLevel, type CustomerCandidate } from '@/lib/agents/mail-confidence'
 
 const HARD_BLOCKED = ['send_external', 'push_external', 'finance', 'delete']
+
+function DraftEditor({ actionId, initial }: { actionId: string; initial: string }) {
+  const router = useRouter()
+  const toast = useToast()
+  const [text, setText] = useState(initial)
+  const [saving, startSave] = useTransition()
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer text-xs text-blue-600">Vis / rediger udkast</summary>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={6}
+        className="mt-1 w-full rounded border border-gray-300 p-2 font-mono text-xs text-gray-700"
+      />
+      <div className="mt-1 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() =>
+            startSave(async () => {
+              const r = await saveDraftAction(actionId, text)
+              if (r.success) toast.success('Udkast gemt')
+              else toast.error('Kunne ikke gemme udkast', r.error)
+              router.refresh()
+            })
+          }
+          className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Gemmer…' : 'Gem udkast'}
+        </button>
+        <span className="text-[10px] text-gray-400">Sendes ikke — gemmes til senere.</span>
+      </div>
+    </details>
+  )
+}
 
 function ConfidenceBadge({ level, conflicts }: { level: ConfidenceLevel | null; conflicts: boolean }) {
   if (conflicts) {
@@ -171,14 +208,14 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                         </div>
                       )
                     })()}
-                    {typeof a.payload?.draft === 'string' && (
-                      <details className="mt-1">
-                        <summary className="cursor-pointer text-xs text-blue-600">Vis forslag</summary>
-                        <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-2 text-xs text-gray-700">{a.payload.draft as string}</pre>
-                      </details>
+                    {a.capability === 'mail.draft_reply' && !terminal && typeof a.payload?.draft === 'string' && (
+                      <DraftEditor actionId={a.id} initial={a.payload.draft as string} />
                     )}
                     {a.status === 'executed' && typeof a.result?.draft === 'string' && (
-                      <p className="mt-1 text-xs text-green-700">✓ Udkast materialiseret internt (ikke sendt).</p>
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs text-green-700">✓ Materialiseret udkast (ikke sendt)</summary>
+                        <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-2 text-xs text-gray-700">{a.result.draft as string}</pre>
+                      </details>
                     )}
                   </div>
                   {!terminal && (
