@@ -10,13 +10,25 @@ import type { InvariantCheck } from './types'
 export const INVARIANTS: InvariantCheck[] = [
   {
     id: 'duplicate_customers_email',
-    title: 'Dubletter: kunder med samme email',
-    description: 'Samme email paa flere customers indikerer dublet-oprettelse.',
-    severity: 'high',
+    title: 'Info: kunder der deler email',
+    description:
+      'Samme email paa flere customers. BEMAERK: ofte legitimt (delte B2B/partner-' +
+      'postkasser). Kun informationelt — se duplicate_customers_email_name for aegte dubletter.',
+    severity: 'low',
     violationSql: `SELECT lower(email) AS email, count(*) AS n
       FROM customers WHERE email IS NOT NULL AND email <> ''
       GROUP BY lower(email) HAVING count(*) > 1`,
     sampleColumns: ['email', 'n'],
+  },
+  {
+    id: 'duplicate_customers_email_name',
+    title: 'Dubletter: samme email OG samme navn',
+    description: 'Samme email + samme normaliserede company_name = sandsynlig aegte dublet.',
+    severity: 'high',
+    violationSql: `SELECT lower(email) AS email, lower(trim(company_name)) AS name, count(*) AS n
+      FROM customers WHERE email IS NOT NULL AND email <> '' AND company_name IS NOT NULL
+      GROUP BY lower(email), lower(trim(company_name)) HAVING count(*) > 1`,
+    sampleColumns: ['email', 'name', 'n'],
   },
   {
     id: 'duplicate_offer_number',

@@ -24,6 +24,13 @@ export interface HarnessTargetEval {
   serviceKey?: string
 }
 
+export interface HarnessConfig {
+  url: string
+  serviceKey: string
+  anonKey?: string
+  accessToken?: string // Supabase Management API (til staging-migrationer)
+}
+
 function refOf(url: string): string | undefined {
   return url.match(/https?:\/\/([^.]+)\.supabase\.co/i)?.[1]
 }
@@ -66,10 +73,9 @@ export function evaluateHarnessTarget(env: Record<string, string | undefined>): 
   return { ok: true, url, serviceKey: key }
 }
 
-export function assertSafeHarnessTarget(env: Record<string, string | undefined> = process.env): {
-  url: string
-  serviceKey: string
-} {
+export function assertSafeHarnessTarget(
+  env: Record<string, string | undefined> = process.env,
+): HarnessConfig {
   const e = evaluateHarnessTarget(env)
   if (!e.ok) {
     throw new Error(
@@ -79,5 +85,10 @@ export function assertSafeHarnessTarget(env: Record<string, string | undefined> 
         `HARNESS_SUPABASE_SERVICE_ROLE_KEY og HARNESS_CONFIRM=${HARNESS_CONFIRM_TOKEN}.`,
     )
   }
-  return { url: e.url!, serviceKey: e.serviceKey! }
+  return {
+    url: e.url!,
+    serviceKey: e.serviceKey!,
+    anonKey: (env.HARNESS_SUPABASE_ANON_KEY || '').trim() || undefined,
+    accessToken: (env.HARNESS_SUPABASE_ACCESS_TOKEN || '').trim() || undefined,
+  }
 }

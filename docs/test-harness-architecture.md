@@ -89,3 +89,32 @@ violation-count + sample.
 4. Kør invariant-suiten mod staging efter simulering; iterér.
 
 Indtil da er fundamentet på plads, testet, og **kan ikke røre production**.
+
+## 8. Staging — arkitektur & krævede env-variabler (setup-gate)
+
+**Nuværende arkitektur:** ét Supabase-projekt (prod, ref `guhsjw…`) + Vercel (ingen preview/staging-env i `vercel.json`). Supabase CLI-config findes (`supabase/config.toml`, `seed.sql`). Der er **intet** staging-miljø i dag.
+
+**Staging etableres sådan (kræver dine credentials — se gate nedenfor):**
+1. Opret et **nyt, separat Supabase-projekt** ("elta-crm-staging"). Det giver: ny `URL`, `anon key`, `service_role key`, projekt-ref og en Management API `access token`.
+2. Anvend **samme migrationer** som prod: kør `supabase/migrations/00000…00158` mod staging (samme RLS/policies/functions/triggers følger med, da de ér migrationerne).
+3. Anvend **samme storage-buckets** (attachments/service-case-files/portal-attachments, alle private) — via migrationer/CLI.
+4. **Ingen prod-data** kopieres. Kun harness-genererede syntetiske data (tagget `HARNESS_SYNTHETIC`).
+5. Sæt harness-env i en **lokal, ikke-committet** fil (ikke `.env.local`, for at undgå prod-fallback):
+
+| Env-variabel | Formål |
+|---|---|
+| `HARNESS_SUPABASE_URL` | Staging URL (≠ prod; guard blokerer ellers) |
+| `HARNESS_SUPABASE_SERVICE_ROLE_KEY` | Staging service-role (data-generering) |
+| `HARNESS_SUPABASE_ANON_KEY` | Staging anon (RLS/permission-scenarier) |
+| `HARNESS_SUPABASE_ACCESS_TOKEN` | Management API (anvend migrationer på staging) |
+| `HARNESS_CONFIRM` | Skal være `I_UNDERSTAND_TEST_ONLY` |
+
+Guarden **fail-closer**: mangler noget, eller ligner target production, kører intet. Der er **ingen fallback** til `.env.local`-prod-credentials.
+
+**Vercel (valgfrit app-lag mod staging):** en Preview/branch-deployment kan pege på staging-Supabase ved at sætte de fire `NEXT_PUBLIC_SUPABASE_URL`/`ANON_KEY` + `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_ACCESS_TOKEN` som **Preview-scope** env i Vercel (ikke Production-scope). Det kræver ændring af Vercel-secrets → separat beslutning. Harness'en behøver det ikke (den rammer staging-DB direkte); det er kun hvis app-UI skal testes mod staging.
+
+## 9. Stress-profiler & metrics (fundament)
+
+- Profiler: `normal` (1×), `x5` (5×), `x10` (10×) — skalerer `customersPerMonth` (`stress.ts`).
+- Metrics: `latencyStats` (min/max/mean/p50/p95/p99), `errorRate`, `timed()` (`metrics.ts`) — rene, testede.
+- Sikkerheds-scenarier: 10 deklarative i `security-scenarios.ts` (non-admin/montør/anon mod beskyttet data, manipuleret customer_id, stale approval, dobbelt-eksekvering, ugyldigt portal-token, storage uden ret, disabled agent, hard-blocked uden approval) — alle `mustBeDenied`.

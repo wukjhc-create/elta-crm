@@ -9,15 +9,10 @@
  * samtidige handlinger. Alle rows markeres SYNTHETIC (SYNTHETIC_TAG).
  */
 import { assertSafeHarnessTarget } from './env-guard'
-import { SYNTHETIC_TAG, type GeneratorConfig, type SyntheticMarker } from './types'
+import type { GeneratorConfig } from './types'
+import { buildPlan } from './planner'
 
-export function makeSeedRunId(seed: string): string {
-  return `harness-${seed}`
-}
-
-export function syntheticMarker(seed: string): SyntheticMarker {
-  return { tag: SYNTHETIC_TAG, seedRunId: makeSeedRunId(seed) }
-}
+export { makeSeedRunId, syntheticMarker } from './generator-util'
 
 export const DEFAULT_CONFIG: GeneratorConfig = {
   seed: 'default',
@@ -37,16 +32,23 @@ export const DEFAULT_CONFIG: GeneratorConfig = {
   },
 }
 
+export { buildPlan } from './planner'
+export type { HarnessPlan, PlannedEntity } from './planner'
+
 /**
- * Generér simuleret drift. IKKE implementeret endnu — kaster bevidst efter
- * safeguard, saa fundamentet er paa plads uden at kunne skrive data.
+ * Generér simuleret drift: bygger en deterministisk PLAN (ren, sikker) og
+ * anvender den mod staging. Selve DB-anvendelsen kraever et sikkert staging-
+ * target (assertSafeHarnessTarget) OG er endnu ikke wired til de faktiske
+ * tabeller — kaster bevidst, saa fundamentet er paa plads uden at kunne skrive.
  */
 export async function generate(config: GeneratorConfig = DEFAULT_CONFIG): Promise<never> {
-  // Safeguard FOERST: blokerer hvis target ligner production / ikke er sat.
+  const { buildPlan } = await import('./planner')
+  const plan = buildPlan(config) // ren — altid sikker at bygge
+  // Safeguard FOERST foer nogen skrivning: blokerer hvis target ligner production.
   assertSafeHarnessTarget()
-  void config
   throw new Error(
-    'Test Harness generator er endnu ikke implementeret. Fundament er paa plads; ' +
-      'selve aars-simulationen bygges naar staging-DB er sikkert etableret og verificeret.',
+    `Test Harness plan bygget (${plan.entities.length} entiteter, seed=${config.seed}), ` +
+      `men DB-anvendelse (applyPlan) er endnu ikke wired til staging-skemaet. ` +
+      `Implementeres naar en sikker staging-DB er etableret.`,
   )
 }

@@ -1,12 +1,13 @@
 /**
  * Test Harness — scenario-runner (SKELET). Koerer navngivne scenarier
- * (fejlscenarier, samtidige handlinger, permission/RLS-tests) mod et sikkert
- * target og opsamler metrics. Safeguard FOERST.
+ * (fejl/samtidighed/permission-RLS) mod et sikkert target og opsamler metrics.
+ * Safeguard FOERST. Kontrakter (SECURITY_SCENARIOS) + forventet udfald er
+ * defineret nu; udfoerelsen mod staging wires naar staging findes.
  *
- * Cleanup/reset: alle syntetiske rows kan fjernes via SYNTHETIC_TAG-filter
- * (implementeres sammen med generator).
+ * Cleanup/reset: alle syntetiske rows fjernes via SYNTHETIC_TAG-filter.
  */
 import { assertSafeHarnessTarget } from './env-guard'
+import { SECURITY_SCENARIOS } from './security-scenarios'
 import type { ScenarioStep } from './types'
 
 export interface ScenarioRunResult {
@@ -14,16 +15,21 @@ export interface ScenarioRunResult {
   steps: Array<{ id: string; ok: boolean; metrics?: Record<string, unknown>; error?: string }>
 }
 
+/** Antal definerede sikkerheds-scenarier (til fundament-verifikation). */
+export function securityScenarioCount(): number {
+  return SECURITY_SCENARIOS.length
+}
+
 /**
- * Koer et saet scenarier. IKKE implementeret endnu — safeguard sikrer at det
- * aldrig rammer production, og fundamentet (kontrakter) er paa plads.
+ * Koer scenarier. IKKE implementeret endnu — safeguard sikrer at det aldrig
+ * rammer production; fundament/kontrakter er paa plads.
  */
 export async function runScenarios(_steps: ScenarioStep[], _seed: string): Promise<never> {
   assertSafeHarnessTarget()
   void _steps
   void _seed
   throw new Error(
-    'Test Harness scenario-runner er endnu ikke implementeret. Fundament/kontrakter er paa plads; ' +
-      'scenarier bygges naar staging-DB er sikkert etableret.',
+    'Test Harness scenario-runner er endnu ikke implementeret. Fundament/kontrakter (inkl. ' +
+      `${SECURITY_SCENARIOS.length} sikkerheds-scenarier) er paa plads; scenarier bygges naar staging findes.`,
   )
 }
