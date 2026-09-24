@@ -15,7 +15,18 @@
     "supabase:types": "supabase gen types typescript --linked > src/types/database.types.ts",
     "db:migrate": "echo 'Run migrations manually in Supabase Dashboard SQL Editor' && echo 'Or use: supabase db push'",
     "db:inspect": "node scripts/db-inspect-schema.mjs",
-    "db:snapshot": "node scripts/db-snapshot-data.mjs"
+    "db:snapshot": "node scripts/db-snapshot-data.mjs",
+    "harness:typecheck": "tsc -p scripts/test-harness/tsconfig.json",
+    "harness:selftest": "tsx scripts/test-harness/cli.ts selftest",
+    "harness:smoke": "tsx scripts/test-harness/cli.ts smoke",
+    "harness:normal": "tsx scripts/test-harness/cli.ts normal",
+    "harness:stress": "tsx scripts/test-harness/cli.ts stress",
+    "harness:security": "tsx scripts/test-harness/cli.ts security",
+    "harness:invariants": "tsx scripts/test-harness/cli.ts invariants",
+    "harness:report": "tsx scripts/test-harness/cli.ts report",
+    "harness:status": "tsx scripts/test-harness/cli.ts status",
+    "harness:cleanup": "tsx scripts/test-harness/cli.ts cleanup",
+    "harness:full": "tsx scripts/test-harness/cli.ts full"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

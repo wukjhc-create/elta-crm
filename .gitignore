@@ -65,8 +65,12 @@ temp
 *.tmp
 tmpclaude-*
 
-# Test Harness lokale secrets (MAA ALDRIG committes)
+# Test Harness lokale secrets + schema-dumps + rapporter (MAA ALDRIG committes)
 harness.secrets.local.json
+prod-schema.sql
+staging-schema.sql
+*.harness-dump.sql
+harness-reports/
 
 # Claude Code
 # Ignorer hele .claude/ UNDTAGEN den delte permission-politik (settings.json).

@@ -85,7 +85,8 @@ export function evaluateHarnessTarget(
   const environment = (secrets.environment || '').trim().toLowerCase()
 
   if ((env.NODE_ENV || '').toLowerCase() === 'production') return { ok: false, reason: 'NODE_ENV=production' }
-  if (environment === 'production') return { ok: false, reason: 'environment=production i secrets — afvist' }
+  // Fail-closed: environment SKAL eksplicit vaere "staging" (ikke blot != production).
+  if (environment !== 'staging') return { ok: false, reason: `environment skal vaere "staging" (er: "${environment || '(tom)'}")` }
   if (!url) return { ok: false, reason: 'supabaseUrl ikke sat i harness.secrets.local.json' }
   if (!/^https:\/\/.+/.test(url)) return { ok: false, reason: 'supabaseUrl er ikke en gyldig https-URL' }
   if (confirm !== HARNESS_CONFIRM_TOKEN) return { ok: false, reason: `confirm skal vaere "${HARNESS_CONFIRM_TOKEN}"` }
