@@ -3,6 +3,11 @@
   "permissions": {
     "defaultMode": "acceptEdits",
     "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin --delete:*)",
+      "Bash(git push:* --force:*)",
+      "Bash(git push:* -f:*)",
       "Bash(git reset --hard:*)",
       "Bash(git clean:*)",
       "Bash(vercel:*)",
@@ -22,8 +27,6 @@
       "Edit(./.env.*)"
     ],
     "ask": [
-      "Bash(git push:*)",
-      "Bash(git commit:*)",
       "Bash(git merge:*)",
       "Bash(git rebase:*)",
       "Bash(npx tsx:*)",
@@ -36,6 +39,9 @@
       "Bash(npm install:*)"
     ],
     "allow": [
+      "Bash(git commit:*)",
+      "Bash(git push origin main)",
+      "Bash(git push origin main:*)",
       "Bash(npm run harness:typecheck)",
       "Bash(npm run harness:typecheck:*)",
       "Bash(npm run harness:selftest)",
