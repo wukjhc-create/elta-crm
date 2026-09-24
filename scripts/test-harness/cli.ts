@@ -199,8 +199,9 @@ function saveReport(name: string, data: unknown) {
 
 async function main() {
   const seedBase = `h${Date.now().toString(36)}`
-  const normal: GeneratorConfig = { ...DEFAULT_CONFIG, seed: seedBase }
-  const smoke: GeneratorConfig = { ...DEFAULT_CONFIG, seed: seedBase, customersPerMonth: 5, months: 1 }
+  // Distinkte seeds pr. profil => ingen customer_number/email-kollision paa tvaers.
+  const normal: GeneratorConfig = { ...DEFAULT_CONFIG, seed: `${seedBase}n` }
+  const smoke: GeneratorConfig = { ...DEFAULT_CONFIG, seed: `${seedBase}s`, customersPerMonth: 5, months: 1 }
   const profiles: ProfileResult[] = []
   const seeds: string[] = []
   let securityResults: { id: string; ok: boolean; note: string }[] = []

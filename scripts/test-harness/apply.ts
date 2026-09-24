@@ -100,14 +100,14 @@ export async function applyPlan(admin: Supa, plan: HarnessPlan, actors: Actors):
   await insertBatched(admin, 'customers', of('customer').map((e, i) => ({
     id: uid(e.ref), customer_number: `HARNESS-${seed}-C${i + 1}`,
     company_name: e.data.company_name, contact_person: e.data.company_name,
-    email: e.data.email, phone: e.data.phone ?? null, created_by: owner,
+    email: nsEmail(e.data.email), phone: e.data.phone ?? null, created_by: owner,
     notes: SYNTHETIC_TAG, custom_fields: hz, created_at: e.createdAt,
   })), m)
 
   // 2) leads
   await insertBatched(admin, 'leads', of('lead').map((e) => ({
     id: uid(e.ref), company_name: e.data.name, contact_person: e.data.name,
-    email: e.data.email, status: 'won', created_by: owner, // 'won' = konverteret (gyldig lead_status)
+    email: nsEmail(e.data.email), status: 'won', created_by: owner, // 'won' = konverteret (gyldig lead_status)
     custom_fields: hz, created_at: e.createdAt,
   })), m)
 
