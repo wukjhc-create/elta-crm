@@ -142,11 +142,28 @@ export async function applyPlan(admin: Supa, plan: HarnessPlan, actors: Actors):
   }
   await insertBatched(admin, 'offer_line_items', lines, m)
 
+  // 5c) customer_documents (parent = case -> kundens uuid)
+  await insertBatched(admin, 'customer_documents', of('document').map((e, i): Record<string, unknown> | null => {
+    const custId = e.parentRef ? caseCustomer.get(e.parentRef) ?? null : null
+    return custId ? {
+      id: uid(e.ref), customer_id: custId, service_case_id: e.parentRef ? uid(e.parentRef) : null,
+      title: `[HARNESS ${seed}] Dok ${i + 1}`, file_url: `harness://doc/${seed}/${i + 1}`,
+      file_name: `doc-${seed}-${i + 1}.pdf`, document_type: 'other', mime_type: 'application/pdf', created_at: e.createdAt,
+    } : null
+  }).filter((r): r is Record<string, unknown> => r !== null), m)
+
   // 6) portal_messages (parent = customer)
   await insertBatched(admin, 'portal_messages', of('portal_activity').map((e) => ({
     id: uid(e.ref), customer_id: e.parentRef ? uid(e.parentRef) : null,
     sender_type: 'customer', message: `[${SYNTHETIC_TAG}] portal-besked`, created_at: e.createdAt,
   })).filter((r) => r.customer_id), m)
+
+  // 6b) audit_logs for status-aendringer + medarbejder-handlinger (audit completeness)
+  const caseAudit = [
+    ...of('status_change').map((e) => ({ id: randomUUID(), entity_type: 'service_case', entity_id: e.parentRef ? uid(e.parentRef) : null, action: 'status_change', user_id: owner, metadata: hz })),
+    ...of('employee_action').map((e) => ({ id: randomUUID(), entity_type: 'service_case', entity_id: e.parentRef ? uid(e.parentRef) : null, action: 'employee_action', user_id: owner, metadata: hz })),
+  ].filter((r) => r.entity_id)
+  await insertBatched(admin, 'audit_logs', caseAudit, m)
 
   // 7) agent_runs
   await insertBatched(admin, 'agent_runs', of('agent_run').map((e) => ({
@@ -178,16 +195,23 @@ export async function applyPlan(admin: Supa, plan: HarnessPlan, actors: Actors):
 
   // 9b) en delmaengde eksekveres (status=executed) + audit-spor (invariant-daekning)
   //     bulk-update via .in() (én request pr. batch, ikke pr. row)
+  //     read-actions eksekveres: status=executed KRAEVER executed_at (CHECK-constraint).
   const executed = actionRows.filter((_, i) => i % 2 === 0)
+  const executedOk: string[] = []
   for (let i = 0; i < executed.length; i += BATCH) {
-    const ids = executed.slice(i, i + BATCH).map((a) => a.id)
+    const slice = executed.slice(i, i + BATCH)
+    const ids = slice.map((a) => a.id)
     const t0 = Date.now()
-    const { error } = await admin.from('agent_actions').update({ status: 'executed', executed_by: owner }).in('id', ids)
+    const { error } = await admin.from('agent_actions')
+      .update({ status: 'executed', executed_by: owner, executed_at: new Date().toISOString() })
+      .in('id', ids)
     m.batchLatenciesMs.push(Date.now() - t0)
-    if (error && m.errorSamples.length < 8) m.errorSamples.push(`agent_actions.update: ${error.message}`)
+    if (error) { m.errors += slice.length; if (m.errorSamples.length < 8) m.errorSamples.push(`agent_actions.update: ${error.message}`) }
+    else executedOk.push(...ids)
   }
-  await insertBatched(admin, 'audit_logs', executed.map((a) => ({
-    id: randomUUID(), entity_type: 'agent_action', entity_id: a.id, action: 'executed',
+  // audit KUN for faktisk eksekverede (konsistens: ingen orphan-audit)
+  await insertBatched(admin, 'audit_logs', executedOk.map((id) => ({
+    id: randomUUID(), entity_type: 'agent_action', entity_id: id, action: 'executed',
     user_id: owner, metadata: hz,
   })), m)
 

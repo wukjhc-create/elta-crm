@@ -24,6 +24,9 @@
     "harness:security": "tsx scripts/test-harness/cli.ts security",
     "harness:invariants": "tsx scripts/test-harness/cli.ts invariants",
     "harness:report": "tsx scripts/test-harness/cli.ts report",
+    "harness:persist": "tsx scripts/test-harness/cli.ts persist",
+    "harness:flows": "tsx scripts/test-harness/cli.ts flows",
+    "harness:pilot": "tsx scripts/test-harness/cli.ts pilot",
     "harness:status": "tsx scripts/test-harness/cli.ts status",
     "harness:cleanup": "tsx scripts/test-harness/cli.ts cleanup",
     "harness:full": "tsx scripts/test-harness/cli.ts full"
