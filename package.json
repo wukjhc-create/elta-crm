@@ -16,6 +16,7 @@
     "db:migrate": "echo 'Run migrations manually in Supabase Dashboard SQL Editor' && echo 'Or use: supabase db push'",
     "db:inspect": "node scripts/db-inspect-schema.mjs",
     "db:snapshot": "node scripts/db-snapshot-data.mjs",
+    "safety:flags": "tsx scripts/safety-flags.ts",
     "harness:typecheck": "tsc -p scripts/test-harness/tsconfig.json",
     "harness:selftest": "tsx scripts/test-harness/cli.ts selftest",
     "harness:smoke": "tsx scripts/test-harness/cli.ts smoke",
@@ -27,6 +28,7 @@
     "harness:persist": "tsx scripts/test-harness/cli.ts persist",
     "harness:flows": "tsx scripts/test-harness/cli.ts flows",
     "harness:pilot": "tsx scripts/test-harness/cli.ts pilot",
+    "harness:seed-reference": "tsx scripts/test-harness/cli.ts seed-reference",
     "harness:status": "tsx scripts/test-harness/cli.ts status",
     "harness:cleanup": "tsx scripts/test-harness/cli.ts cleanup",
     "harness:full": "tsx scripts/test-harness/cli.ts full"

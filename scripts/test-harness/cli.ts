@@ -10,6 +10,7 @@
  *   report      invarianter + sikkerhed -> gem rapport (ingen ny data)
  *   full        smoke -> normal -> 5x -> 10x -> security -> invariants -> report -> cleanup
  *   selftest    bekræft guard hard-blocker prod + at staging accepteres
+ *   seed-reference  genskab migrationers seed-data i staging (agent_configs; idempotent)
  *
  * Sikkerhed: assertRuntimeConfig/assertBootstrapConfig fail-closer paa prod-ref/-url,
  * environment!=staging, manglende confirm-token/credentials. Ingen prod-fallback.
@@ -19,8 +20,9 @@ import { createClient } from '@supabase/supabase-js'
 import { mkdirSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import {
-  assertRuntimeConfig, assertBootstrapConfig, loadHarnessSecrets, evaluateHarnessTarget, maskSecret,
+  assertRuntimeConfig, assertBootstrapConfig, loadHarnessSecrets, evaluateHarnessTarget, maskSecret, bindAppEnvToStaging,
 } from './env-guard'
+import { runAppLayerScenarios, type ScenarioResult } from './app-layer-scenarios'
 import { buildPlan } from './planner'
 import { DEFAULT_CONFIG } from './generator'
 import { applyPlan, ensureActors, cleanupStatements, type Actors, type ApplyMetrics } from './apply'
@@ -62,6 +64,11 @@ function selftest(): number {
     if (!blocked) allBlocked = false
     log(`  ${blocked ? '✅ BLOKERET' : '❌ SLAP IGENNEM'}  ${c.name}${blocked ? ` (${e.reason})` : ''}`)
   }
+  // App-env-binding SKAL afvise prod-ref (isoleret env-objekt; process.env roeres ikke)
+  let bindBlocked = false
+  try { bindAppEnvToStaging({ url: `https://${prodRef}.supabase.co`, anonKey: 'x', serviceKey: 'x' }, {}) } catch { bindBlocked = true }
+  if (!bindBlocked) allBlocked = false
+  log(`  ${bindBlocked ? '✅ BLOKERET' : '❌ SLAP IGENNEM'}  app-env binding til prod-ref`)
   log(`\nSelf-test: ${realStaging.ok && allBlocked ? '✅ GRØN (staging ok, alle prod-cases hard-blokeret)' : '❌ FEJL'}`)
   return realStaging.ok && allBlocked ? 0 : 1
 }
@@ -72,9 +79,12 @@ if (SUB === 'selftest') { process.exit(selftest()) }
 const runtime = assertRuntimeConfig()
 const boot = assertBootstrapConfig(loadHarnessSecrets())
 const ref = runtime.url.match(/https?:\/\/([^.]+)\.supabase\.co/)![1]
+// App-lagets klienter (createAdminClient) bindes til STAGING i denne proces (fail-closed paa prod-ref).
+const appRef = bindAppEnvToStaging(runtime)
+if (appRef !== ref) throw new Error('app-env ref matcher ikke harness-target — stopper')
 const admin = createClient(runtime.url, runtime.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
 log(`=== ELTA CRM TEST HARNESS === sub=${SUB} target=staging:${ref} (prod hard-blokeret)`)
-log(`[guard] runtime service=${maskSecret(runtime.serviceKey)} mgmt=${maskSecret(boot.accessToken)} — prod-ref hard-blocked`)
+log(`[guard] runtime service=${maskSecret(runtime.serviceKey)} mgmt=${maskSecret(boot.accessToken)} — prod-ref hard-blocked | app-env bundet til staging:${appRef}`)
 
 async function stagingSql(sql: string): Promise<any[]> {
   const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
@@ -116,8 +126,8 @@ async function runProfile(cfg: GeneratorConfig, actors: Actors, label: string): 
   return { res, seed: cfg.seed.replace(/[^a-z0-9:]/gi, '') }
 }
 
-async function runSecurity(actors: Actors): Promise<{ id: string; ok: boolean; note: string }[]> {
-  const out: { id: string; ok: boolean; note: string }[] = []
+async function runSecurity(actors: Actors): Promise<ScenarioResult[]> {
+  const out: ScenarioResult[] = []
   const anon = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
   const nonAdmin = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
   const signIn = await nonAdmin.auth.signInWithPassword({ email: actors.nonAdminEmail, password: actors.nonAdminPassword })
@@ -188,6 +198,9 @@ async function runSecurity(actors: Actors): Promise<{ id: string; ok: boolean; n
   out.push({ id: 'disabled_agent_state', ok: Number(enabled) === 0, note: `agent_configs enabled=true: ${enabled} (skal=0; executor-håndhævelse i app-lag)` })
 
   await cleanupProbes()
+
+  // App-lag: rigtig executor/handler/portal/storage-kode mod staging
+  out.push(...await runAppLayerScenarios({ admin, anon, sql: stagingSql, ownerUid: actors.ownerUid }))
   return out
 }
 
@@ -288,6 +301,8 @@ async function status() {
   const a = (await stagingSql(`SELECT count(*) n FROM agent_runs WHERE input_context->>'harness' IS NOT NULL`))[0].n
   const o = (await stagingSql(`SELECT count(*) n FROM offers WHERE offer_number LIKE 'HARNESS-%'`))[0].n
   log(`[status] staging:${ref} DB=${mb(bytes)} | harness-rows: customers=${c} agent_runs=${a} offers=${o}`)
+  const ag = (await stagingSql(`SELECT count(*) n, count(*) FILTER (WHERE enabled) en, coalesce(string_agg(DISTINCT safety_mode, ','), '-') modes FROM agent_configs`))[0]
+  log(`[status] agent_configs: total=${ag.n} enabled=${ag.en} safety_mode=${ag.modes}`)
   return { customers: Number(c), agent_runs: Number(a), offers: Number(o) }
 }
 
@@ -308,13 +323,21 @@ async function main() {
   const pilot: GeneratorConfig = { ...DEFAULT_CONFIG, seed: 'pilot' } // stabilt, persistent datasæt
   const profiles: ProfileResult[] = []
   const seeds: string[] = []
-  let securityResults: { id: string; ok: boolean; note: string }[] = []
+  let securityResults: ScenarioResult[] = []
   let flowsResults: { id: string; ok: boolean; detail: string }[] = []
   let invReport: HarnessReport | undefined
   let actors: Actors | undefined
 
   // Drift-subcommands uden data-generering:
   if (SUB === 'status') { await status(); return }
+  if (SUB === 'seed-reference') {
+    // Paritet: staging er bygget fra schema-dump uden migrationernes seed-data.
+    // Genskaber PRAECIS seed fra 00156_agent_core.sql (defaults: enabled=false, safety_mode='suggest').
+    // Idempotent (ON CONFLICT DO NOTHING) — overskriver aldrig eksisterende configs.
+    log('=== SEED-REFERENCE (staging-paritet med migration 00156) ===')
+    await stagingSql(`INSERT INTO public.agent_configs (agent_type) VALUES ('mail'),('offer'),('planning'),('purchase'),('followup'),('economy'),('director') ON CONFLICT (agent_type) DO NOTHING;`)
+    await status(); return
+  }
   if (SUB === 'cleanup') { log('=== CLEANUP (alle syntetiske rows) ==='); await cleanupAll(); return }
   if (SUB === 'flows') {
     flowsResults = await runFlows()
@@ -335,7 +358,10 @@ async function main() {
     else if (SUB === 'normal') await doProfile(normal, 'normal(1x,12mo)')
     else if (SUB === 'stress') {
       for (const p of ['x5', 'x10'] as StressProfile[]) await doProfile(applyStressProfile({ ...normal, months: STRESS_MONTHS }, p), `${p}(${STRESS_MONTHS}mo)`)
-    } else if (SUB === 'security') { securityResults = await runSecurity(actors!) }
+    } else if (SUB === 'security') {
+      securityResults = await runSecurity(actors!)
+      for (const s of securityResults) log(`  ${s.skipped ? '⏭️' : s.ok ? '✅' : '❌'} ${s.id.padEnd(28)} ${s.note}`)
+    }
     else if (SUB === 'invariants') { invReport = await runInvariantsPhase() }
     else if (SUB === 'report') { invReport = await runInvariantsPhase(); if (actors) securityResults = await runSecurity(actors) }
     else if (SUB === 'persist') {
@@ -354,7 +380,7 @@ async function main() {
       for (const x of flowsResults) log(`  ${x.ok ? '✅' : '❌'} ${x.id.padEnd(20)} ${x.detail}`)
       log('\n=== INVARIANTER ==='); invReport = await runInvariantsPhase(); checkpoint('invariants done')
       log('\n=== SIKKERHED ==='); securityResults = await runSecurity(actors!)
-      for (const s of securityResults) log(`  ${s.ok ? '✅' : '❌'} ${s.id.padEnd(26)} ${s.note}`)
+      for (const s of securityResults) log(`  ${s.skipped ? '⏭️' : s.ok ? '✅' : '❌'} ${s.id.padEnd(28)} ${s.note}`)
       checkpoint('pilot: datasæt BEVARET (ingen cleanup)')
     } else if (SUB === 'full') {
       checkpoint('FULL: start')
@@ -372,7 +398,7 @@ async function main() {
   }
 
   // Security-gate: hvis noget der SKAL afvises slap igennem -> hard fail
-  const secGate = securityResults.length > 0 && securityResults.some((s) => !s.ok)
+  const secGate = securityResults.length > 0 && securityResults.some((s) => !s.ok && !s.skipped)
   const invFailed = invReport ? invReport.failed : 0
 
   const flowsFailed = flowsResults.filter((f) => !f.ok).length

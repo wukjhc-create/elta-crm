@@ -133,6 +133,31 @@ export function assertRuntimeConfig(
   return { url, anonKey, serviceKey }
 }
 
+/**
+ * Bind app-lagets klienter (createAdminClient m.fl. laeser NEXT_PUBLIC_SUPABASE_URL
+ * + SUPABASE_SERVICE_ROLE_KEY fra process.env) til STAGING, saa rigtig app-kode
+ * (executor, capability-handlere, portal-validering) kan testes i harness-processen.
+ * Fail-closed: kaster hvis runtime-ref er en production-ref (kendt ELLER fra env).
+ * Overskriver bevidst evt. prod-vaerdier i processens env — aldrig filer.
+ */
+export function bindAppEnvToStaging(
+  runtime: RuntimeConfig,
+  env: Record<string, string | undefined> = process.env,
+): string {
+  const ref = refOf(runtime.url)
+  if (!ref) throw new Error('bindAppEnvToStaging: kunne ikke udlede ref fra staging-URL')
+  if (productionRefs(env).has(ref)) {
+    throw new Error(`bindAppEnvToStaging BLOKERET: ref (${ref}) er en production-ref`)
+  }
+  env.NEXT_PUBLIC_SUPABASE_URL = runtime.url
+  env.NEXT_PUBLIC_SUPABASE_ANON_KEY = runtime.anonKey
+  env.SUPABASE_SERVICE_ROLE_KEY = runtime.serviceKey
+  if (refOf(env.NEXT_PUBLIC_SUPABASE_URL || '') !== ref || KNOWN_PRODUCTION_REFS.includes(ref)) {
+    throw new Error('bindAppEnvToStaging: verifikation fejlede')
+  }
+  return ref
+}
+
 // ---------------------------------------------------------------------
 // A. BOOTSTRAP (kun schema/migrationer)
 // ---------------------------------------------------------------------
