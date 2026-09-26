@@ -17,12 +17,13 @@
  * Secrets logges/gemmes ALDRIG (kun ref + maskerede laengder).
  */
 import { createClient } from '@supabase/supabase-js'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync, readdirSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import {
   assertRuntimeConfig, assertBootstrapConfig, loadHarnessSecrets, evaluateHarnessTarget, maskSecret, bindAppEnvToStaging,
 } from './env-guard'
 import { runAppLayerScenarios, type ScenarioResult } from './app-layer-scenarios'
+import { collectSnapshot, evaluateSnapshot, diffSnapshots, formatSnapshot, type StorageSnapshot } from './storage-audit'
 import { buildPlan } from './planner'
 import { DEFAULT_CONFIG } from './generator'
 import { applyPlan, ensureActors, cleanupStatements, type Actors, type ApplyMetrics } from './apply'
@@ -200,7 +201,7 @@ async function runSecurity(actors: Actors): Promise<ScenarioResult[]> {
   await cleanupProbes()
 
   // App-lag: rigtig executor/handler/portal/storage-kode mod staging
-  out.push(...await runAppLayerScenarios({ admin, anon, sql: stagingSql, ownerUid: actors.ownerUid }))
+  out.push(...await runAppLayerScenarios({ admin, anon, sql: stagingSql, ownerUid: actors.ownerUid, authed: signIn.error ? undefined : nonAdmin }))
   return out
 }
 
@@ -337,6 +338,56 @@ async function main() {
     log('=== SEED-REFERENCE (staging-paritet med migration 00156) ===')
     await stagingSql(`INSERT INTO public.agent_configs (agent_type) VALUES ('mail'),('offer'),('planning'),('purchase'),('followup'),('economy'),('director') ON CONFLICT (agent_type) DO NOTHING;`)
     await status(); return
+  }
+  if (SUB === 'storage-parity') {
+    // STAGING-ONLY storage-paritet (godkendt 2026-09-25). Spejler production 1:1 som verificeret read-only af
+    // prod:storage-audit (2026-09-26): 00132 (drop 00035-anon-policies), 00113 (attachments + policies),
+    // 00133 (private buckets) og dashboard-oprettet service-case-files + policy. Kun storage; idempotent.
+    // anon table-grants roeres ikke (production har dem ogsaa; ejet af supabase_storage_admin, RLS blokerer).
+    log('=== STORAGE-PARITET (staging) ===')
+    await stagingSql(`BEGIN;
+DROP POLICY IF EXISTS "portal_customers_upload_attachments" ON storage.objects;
+DROP POLICY IF EXISTS "portal_customers_read_attachments" ON storage.objects;
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) VALUES
+  ('attachments', 'attachments', false, 26214400, ARRAY['image/*','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.*','application/vnd.ms-excel','text/*']),
+  ('service-case-files', 'service-case-files', false, 10485760, ARRAY['image/jpeg','image/png','image/webp','image/heic','application/pdf'])
+ON CONFLICT (id) DO NOTHING;
+UPDATE storage.buckets SET public = false WHERE id IN ('attachments', 'portal-attachments', 'service-case-files');
+DROP POLICY IF EXISTS "attachments_authenticated_select" ON storage.objects;
+DROP POLICY IF EXISTS "attachments_authenticated_insert" ON storage.objects;
+DROP POLICY IF EXISTS "attachments_authenticated_update" ON storage.objects;
+DROP POLICY IF EXISTS "Auth users manage service case files" ON storage.objects;
+CREATE POLICY "attachments_authenticated_select" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'attachments');
+CREATE POLICY "attachments_authenticated_insert" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'attachments');
+CREATE POLICY "attachments_authenticated_update" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'attachments') WITH CHECK (bucket_id = 'attachments');
+CREATE POLICY "Auth users manage service case files" ON storage.objects FOR ALL TO authenticated USING (bucket_id = 'service-case-files') WITH CHECK (bucket_id = 'service-case-files');
+COMMIT;`)
+    const snap = await collectSnapshot(`staging:${ref}`, stagingSql)
+    log(formatSnapshot(snap))
+    const holes = evaluateSnapshot(snap).filter((x) => x.severity === 'hole')
+    log(holes.length ? `❌ ${holes.length} HUL tilbage: ${holes.map((h) => h.message).join('; ')}` : '✅ ingen huller — kør harness:storage-audit for diff mod prod')
+    process.exitCode = holes.length ? 2 : 0
+    return
+  }
+  if (SUB === 'storage-audit') {
+    // Read-only: samme faste SELECTs som prod-audit; diff mod seneste prod-snapshot hvis det findes.
+    const snap = await collectSnapshot(`staging:${ref}`, stagingSql)
+    log(formatSnapshot(snap))
+    const findings = evaluateSnapshot(snap)
+    for (const x of findings) log(`  ${x.severity === 'hole' ? '❌ HUL ' : 'ℹ️ info'} ${x.message}`)
+    let prodFile: string | undefined
+    try { prodFile = readdirSync(REPORT_DIR).filter((f) => f.startsWith('prod-storage-audit-')).sort().pop() } catch { /* ingen rapporter */ }
+    if (prodFile) {
+      const prod = (JSON.parse(readFileSync(resolve(REPORT_DIR, prodFile), 'utf8')) as { snapshot: StorageSnapshot }).snapshot
+      const diff = diffSnapshots(prod, snap)
+      log(`\n=== PARITET mod ${prodFile} ===`)
+      for (const d of diff) log(`  ≠ ${d}`)
+      log(diff.length ? `  ${diff.length} afvigelse(r)` : '  ✅ identisk (buckets + policies + RLS)')
+    } else log('\n(ingen prod-snapshot fundet — kør npm run prod:storage-audit)')
+    const holes = findings.filter((x) => x.severity === 'hole').length
+    log(`\n=== STAGING STORAGE: ${holes ? `❌ ${holes} HUL` : '✅ ingen huller'} ===`)
+    process.exitCode = holes ? 2 : 0
+    return
   }
   if (SUB === 'cleanup') { log('=== CLEANUP (alle syntetiske rows) ==='); await cleanupAll(); return }
   if (SUB === 'flows') {

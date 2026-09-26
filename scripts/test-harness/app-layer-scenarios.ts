@@ -22,7 +22,7 @@ import { randomBytes } from 'crypto'
 export interface ScenarioResult { id: string; ok: boolean; note: string; skipped?: boolean }
 type Sql = (sql: string) => Promise<any[]>
 
-interface Ctx { admin: SupabaseClient; anon: SupabaseClient; sql: Sql; ownerUid: string }
+interface Ctx { admin: SupabaseClient; anon: SupabaseClient; sql: Sql; ownerUid: string; authed?: SupabaseClient }
 
 const PROBE_CAPABILITY = 'harness.probe_noop'
 const uuidRe = /^[0-9a-f-]{36}$/i
@@ -143,23 +143,37 @@ async function storageAccessNoRight(c: Ctx): Promise<ScenarioResult> {
   if (!priv.length) return { id, ok: wronglyPublic.length === 0, skipped: true, note: `ingen private buckets i staging — ikke testbar (mangler: ${missing.join(',') || '-'})` }
 
   const leaks: string[] = [...wronglyPublic.map((b: string) => `${b}:PUBLIC`)]
+  const legitFail: string[] = []
   let probed = 0
+  let legitOk = 0
   for (const b of priv) {
     // Probe-objekt uploades med service-role saa download/sign testes mod et objekt der FINDES
     const path = `harness-sec/probe-${Date.now()}.pdf`
+    const anonPath = `harness-sec/anon-${Date.now()}.pdf`
     const up = await c.admin.storage.from(b).upload(path, Buffer.from('%PDF-1.4 harness probe'), { contentType: 'application/pdf', upsert: false })
+    let anonUploaded = false
     try {
       const { data: listed, error: listErr } = await c.anon.storage.from(b).list('harness-sec', { limit: 5 })
       if (!listErr && listed && listed.length > 0) leaks.push(`${b}:list`)
+      // Anon upload uden autorisation SKAL afvises
+      const au = await c.anon.storage.from(b).upload(anonPath, Buffer.from('%PDF-1.4 anon'), { contentType: 'application/pdf', upsert: false })
+      if (!au.error) { anonUploaded = true; leaks.push(`${b}:upload`) }
       if (!up.error) {
         probed++
         const dl = await c.anon.storage.from(b).download(path)
         if (!dl.error && dl.data) leaks.push(`${b}:download`)
         const su = await c.anon.storage.from(b).createSignedUrl(path, 60)
         if (!su.error && su.data?.signedUrl) leaks.push(`${b}:sign`)
+        // Legitim adgang: authenticated medarbejder SKAL kunne laese (policies er authenticated + bucket_id)
+        if (c.authed) {
+          const adl = await c.authed.storage.from(b).download(path)
+          if (!adl.error && adl.data) legitOk++
+          else legitFail.push(`${b}:${adl.error?.message?.slice(0, 30) ?? 'ingen data'}`)
+        }
       }
     } finally {
-      if (!up.error) await c.admin.storage.from(b).remove([path])
+      const cleanup = [...(up.error ? [] : [path]), ...(anonUploaded ? [anonPath] : [])]
+      if (cleanup.length) await c.admin.storage.from(b).remove(cleanup)
     }
   }
   if (leaks.length) {
@@ -167,9 +181,11 @@ async function storageAccessNoRight(c: Ctx): Promise<ScenarioResult> {
     const pol = await c.sql(`SELECT policyname, cmd FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND (roles @> ARRAY['anon']::name[] OR roles @> ARRAY['public']::name[]) ORDER BY 1`)
     leaks.push(`anon/public-policies=[${pol.map((p: any) => `${p.policyname}(${p.cmd})`).join('; ') || 'ingen'}]`)
   }
+  const legitNote = c.authed ? ` | authenticated download ${legitOk}/${probed}${legitFail.length ? ` FEJL: ${legitFail.join(',')}` : ''}` : ''
   return {
-    id, ok: leaks.length === 0,
-    note: `private=${priv.join(',')} probe-objekter=${probed}/${priv.length}${missing.length ? ` | PARITET mangler: ${missing.join(',')}` : ''}${leaks.length ? ` | LAEK: ${leaks.join(',')}` : ' | alt afvist'}`,
+    id, ok: leaks.length === 0 && legitFail.length === 0 && (!c.authed || legitOk === probed),
+    note: `private=${priv.join(',')} probe-objekter=${probed}/${priv.length} anon list/upload/download/sign testet${legitNote}`
+      + `${missing.length ? ` | PARITET mangler: ${missing.join(',')}` : ''}${leaks.length ? ` | LAEK: ${leaks.join(',')}` : ' | alt afvist'}`,
   }
 }
 
