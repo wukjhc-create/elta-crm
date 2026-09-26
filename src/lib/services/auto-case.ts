@@ -70,9 +70,11 @@ export function detectPriority(subject: string, body: string, intent: CaseIntent
 
 export async function createCaseFromEmail(
   email: CaseEmailInput,
-  customerId: string
+  customerId: string,
+  // Agent Core's Executor passes its own admin client (one client per execution); default unchanged.
+  client?: any
 ): Promise<string | null> {
-  const supabase = createAdminClient()
+  const supabase = client ?? createAdminClient()
 
   // Dedup — one case per source email. With UNIQUE partial index (migration 00074)
   // the DB will enforce this even under concurrent runs.

@@ -233,6 +233,20 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                     {a.capability === 'mail.draft_reply' && !terminal && typeof a.payload?.draft === 'string' && (
                       <DraftEditor actionId={a.id} initial={a.payload.draft as string} />
                     )}
+                    {a.capability === 'case.propose_from_email' && (
+                      <p className="mt-0.5 text-xs text-gray-700">
+                        Sagsforslag: <span className="font-medium">{String(a.payload?.proposed_title ?? '')}</span>
+                        {' · '}{String(a.payload?.intent ?? '')} · prioritet {String(a.payload?.priority ?? '')}
+                      </p>
+                    )}
+                    {a.status === 'executed' && typeof a.result?.case_id === 'string' && (
+                      <a
+                        href={`/dashboard/service-cases/${a.result.case_id}`}
+                        className="mt-1 inline-block text-xs font-medium text-green-700 underline"
+                      >
+                        ✓ {a.result.created ? 'Sagsforslag oprettet' : 'Sagen fandtes allerede'} — åbn sag
+                      </a>
+                    )}
                     {a.status === 'executed' && typeof a.result?.draft === 'string' && (
                       <details className="mt-1">
                         <summary className="cursor-pointer text-xs text-green-700">✓ Materialiseret udkast (ikke sendt)</summary>

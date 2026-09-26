@@ -18,6 +18,7 @@ import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import { scoreLinkConfidence, type CustomerCandidate } from '@/lib/agents/mail-confidence'
 import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
+import { buildCaseProposal, findExistingCaseForEmail } from '@/lib/agents/case-proposal'
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
 const OPENAI_MODEL = 'gpt-4o-mini'
@@ -293,6 +294,30 @@ export async function runMailAgent(
         },
       })
     }
+  }
+
+  // Fase 4: foreslå en service-sag naar mailen er koblet til en kunde og der ikke findes en sag for den.
+  // Oprettes KUN efter approval via Executor (case.propose_from_email) — og da som forslag (is_proposal).
+  const hasCase = mail.customer_id ? !!(await findExistingCaseForEmail(admin, mail.id)) : false
+  const caseProposal = buildCaseProposal(mail, hasCase)
+  if (caseProposal) {
+    actions.push({
+      task_id: taskId,
+      run_id: runId,
+      action_type: 'propose_case',
+      capability: 'case.propose_from_email',
+      side_effect_class: 'create',
+      requires_approval: true,
+      min_approvals: 1,
+      idempotency_key: `mail-case:${mail.id}`,
+      status: 'awaiting_approval',
+      payload: {
+        ...caseProposal,
+        confidence_level: 'medium',
+        confidence_score: 0.6,
+        rationale: `Mailen er koblet til en kunde og har ingen sag. Foreslaaet som ${caseProposal.intent}/${caseProposal.priority}; oprettes som sagsforslag efter godkendelse.`,
+      },
+    })
   }
 
   // Opdater task.confidence (hoejeste review-relevante score).

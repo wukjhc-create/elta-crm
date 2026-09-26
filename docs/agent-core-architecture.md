@@ -262,7 +262,13 @@ Kræver **altid** menneskelig approval — uanset agent-config, håndhævet i Ex
   - `src/lib/agents/audit.ts` — agent-audit via `log_audit_event`.
   - `src/lib/agents/executor.ts` — den tvungne, gatede Executor.
   - Verifikation klar til gaten: `scripts/verify-00156.ts` (read-only pre/post), `scripts/test-00156-guards.sql` (negative guard-tests i rollback-transaktion).
-- **Fase 3+ (mangler):** wiring af capability-handlers til konkrete draft-funktioner, Agent-indbakke-UI, server-action-lag, per-agent aktivering. Ingen agent er aktiveret; alt kører suggest/disabled.
+- **Fase 3 — Mailagent (suggest) + Agent Inbox:** ✅ (2026-09-19/20) Mailagent-vertical-slice, confidence-model, kandidat-picker til `mail.link_customer` (tamper/stale-sikker), `mail.draft_reply` (LLM, budget-gated fallback), redigerbart udkast, forberedt `mail.send_reply` (hard-blocked, ingen live send), admin-only Agent Inbox.
+- **Fase 4 — Approve-eksekvering for draft/intern create:** ✅ (2026-09-26)
+  - `case.propose_from_email` (class `create`) wired: `src/lib/agents/case-proposal.ts`. Mailagenten foreslår en sag når mailen er kundekoblet og ingen sag findes (`awaiting_approval`). Efter approval + enabled agent opretter Executor sagen via den eksisterende idempotente `createCaseFromEmail` som **forslag** (`is_proposal=true`, dedup `uq_service_cases_source_email_id`). Afvises hvis mailens kundekobling er ændret siden forslaget. Ingen mail, opgaver eller noter.
+  - Inbox viser sagsforslag (titel/intent/prioritet) og link til oprettet sag.
+  - Test: `scripts/agent-case-proposal-test.ts` (14/14, mock) + harness-scenarie `case_proposal_flow` mod staging (forslag → executor refuser ved disabled → opret → idempotent → tamper afvist).
+  - Uændret: **ingen agent er aktiveret** (7 configs disabled/suggest, prod og staging). Aktivering af `mail` i prod er en forretningsbeslutning.
+- **Fase 5+ (mangler):** `offer.propose_draft_from_case`-handler, Opfølgningsagent, live send bag obligatorisk approval, per-agent aktivering.
 
 ## Appendiks: kildehenvisninger (audit)
 

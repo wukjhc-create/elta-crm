@@ -189,9 +189,60 @@ async function storageAccessNoRight(c: Ctx): Promise<ScenarioResult> {
   }
 }
 
+/**
+ * Fase 4: case.propose_from_email ende-til-ende paa staging.
+ * Mailagent foreslår sag -> Executor afviser (agent disabled) uden sag -> handler (som Executor kalder efter
+ * approval + enabled) opretter sagsforslag -> gentagelse genbruger sagen -> aendret kundekobling afvises.
+ */
+async function caseProposalFlow(c: Ctx): Promise<ScenarioResult> {
+  const id = 'case_proposal_flow'
+  const mail = (await c.sql(`SELECT e.id, e.customer_id FROM incoming_emails e WHERE e.sender_email LIKE '%@harness.test' AND e.customer_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM service_cases s WHERE s.source_email_id = e.id) ORDER BY e.id LIMIT 1`))[0]
+  const other = (await c.sql(`SELECT id FROM customers WHERE custom_fields->>'harness' IS NOT NULL AND id <> ${lit(mail?.customer_id ?? '00000000-0000-0000-0000-000000000000')} LIMIT 1`))[0]
+  if (!mail || !other) return { id, ok: false, note: 'mangler harness-mail uden sag / anden harness-kunde' }
+  let runId: string | undefined
+  let caseId: string | undefined
+  try {
+    const { runMailAgent } = await import('../../src/lib/agents/mail-agent')
+    const { executeAction } = await import('../../src/lib/agents/executor')
+    const { getCapability } = await import('../../src/lib/agents/capability-registry')
+    const r = await runMailAgent(mail.id, { dryRun: true })
+    runId = r.data?.runId
+    if (!runId) return { id, ok: false, note: `Mailagent fejlede: ${r.error}` }
+    const act = (await c.sql(`SELECT id, status, side_effect_class, requires_approval FROM agent_actions WHERE run_id=${lit(runId)} AND capability='case.propose_from_email'`))[0]
+    const proposed = !!act && act.status === 'awaiting_approval' && act.side_effect_class === 'create' && act.requires_approval === true
+    const casesFor = async () => Number((await c.sql(`SELECT count(*) n FROM service_cases WHERE source_email_id=${lit(mail.id)}`))[0].n)
+
+    // Executor: agent er disabled => refused, INGEN sag
+    const ex = act ? await executeAction(act.id) : undefined
+    const refusedNoCase = ex?.data?.status === 'refused' && (await casesFor()) === 0
+
+    // Handler (den Executor kalder efter approval + enabled): opret, gentag, tamper
+    const handler = getCapability('case.propose_from_email')!.handler!
+    const call = (customerId: string) => handler({ run: {} as never, admin: c.admin, action: { payload: { email_id: mail.id, customer_id: customerId } } } as never)
+    const tamper = await call(other.id)
+    const tamperOk = !tamper.ok && (await casesFor()) === 0
+    const first = await call(mail.customer_id)
+    caseId = first.data?.case_id as string | undefined
+    const row = caseId ? (await c.sql(`SELECT is_proposal, status, source, customer_id, source_email_id FROM service_cases WHERE id=${lit(caseId)}`))[0] : undefined
+    const createdOk = first.ok && first.data?.created === true && row?.is_proposal === true && row?.status === 'new' && row?.source === 'email'
+      && row?.customer_id === mail.customer_id && row?.source_email_id === mail.id
+    const second = await call(mail.customer_id)
+    const idempotent = second.ok && second.data?.created === false && second.data?.case_id === caseId && (await casesFor()) === 1
+    return {
+      id, ok: proposed && refusedNoCase && tamperOk && createdOk && idempotent,
+      note: `forslag=${proposed ? 'awaiting_approval/create' : 'MANGLER'} | executor(disabled)=${ex?.data?.status ?? '-'} sag=${refusedNoCase ? 0 : 'OPRETTET'}`
+        + ` | tamper=${tamperOk ? 'afvist' : 'ACCEPTERET'} | opret=${createdOk ? 'forslag ok' : 'FEJL'} | gentag=${idempotent ? 'genbrug' : 'DUBLET'}`,
+    }
+  } finally {
+    if (caseId) await c.sql(`DELETE FROM service_cases WHERE id=${lit(caseId)}`)
+    if (runId) await c.sql(`DELETE FROM audit_logs WHERE entity_type='agent_action' AND entity_id IN (SELECT id FROM agent_actions WHERE run_id=${lit(runId)}); DELETE FROM agent_runs WHERE id=${lit(runId)};`)
+  }
+}
+
 export async function runAppLayerScenarios(c: Ctx): Promise<ScenarioResult[]> {
   const out: ScenarioResult[] = []
-  for (const fn of [disabledAgentExecute, duplicateExecution, manipulatedCustomerLink, invalidPortalToken, storageAccessNoRight]) {
+  for (const fn of [disabledAgentExecute, duplicateExecution, manipulatedCustomerLink, invalidPortalToken, storageAccessNoRight, caseProposalFlow]) {
     try { out.push(await fn(c)) } catch (e: any) { out.push({ id: fn.name, ok: false, note: `EXCEPTION: ${String(e.message).slice(0, 100)}` }) }
   }
   return out

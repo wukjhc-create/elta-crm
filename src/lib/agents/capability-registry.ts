@@ -14,6 +14,7 @@
 
 import type { CapabilityDefinition } from '@/types/agent-core.types'
 import { executeSendReply } from '@/lib/agents/send-reply'
+import { executeCaseProposal } from '@/lib/agents/case-proposal'
 
 const registry = new Map<string, CapabilityDefinition>()
 
@@ -118,6 +119,9 @@ registerCapability({
   defaultRequiresApproval: true,
   minApprovals: 1,
   description: 'Foreslå oprettelse af en service-case ud fra en mail (kladde).',
+  // Fase 4 (intern create): kun efter approval + enabled agent. Opretter sagen som FORSLAG
+  // (is_proposal=true) via idempotent createCaseFromEmail; afviser hvis kundekoblingen er aendret.
+  handler: (ctx) => executeCaseProposal(ctx),
 })
 
 registerCapability({
