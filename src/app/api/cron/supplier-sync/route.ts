@@ -15,13 +15,14 @@ import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp
 import { decryptCredentials } from '@/lib/utils/encryption'
 import { BATCH_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
 
 // Vercel cron secret for authentication
 const CRON_SECRET = process.env.CRON_SECRET
 
-export async function GET(request: Request) {
+async function handleCron(request: Request): Promise<Response> {
   try {
     // Verify cron secret - fail-secure when CRON_SECRET is not configured
     const authHeader = request.headers.get('authorization')
@@ -561,3 +562,6 @@ function getNextRunTime(cronExpression: string): string {
   tomorrow.setHours(3, 0, 0, 0)
   return tomorrow.toISOString()
 }
+
+// P1 #9: hver autoriseret koersel registreres i system_health_log (service='cron').
+export const GET = withCronRun('supplier-sync', handleCron)

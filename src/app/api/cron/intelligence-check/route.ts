@@ -4,6 +4,7 @@ import { timingSafeEqual } from 'crypto'
 import { MONITORING_CONFIG } from '@/lib/constants'
 import { calculateDBPercentage } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
+import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
 
 const CRON_SECRET = process.env.CRON_SECRET
 
-export async function GET(request: Request) {
+async function handleCron(request: Request): Promise<Response> {
   // Verify authorization - fail-secure when CRON_SECRET is not configured
   const authHeader = request.headers.get('authorization')
   const expected = `Bearer ${CRON_SECRET}`
@@ -382,3 +383,6 @@ export async function GET(request: Request) {
     }, { status: 500 })
   }
 }
+
+// P1 #9: hver autoriseret koersel registreres i system_health_log (service='cron').
+export const GET = withCronRun('intelligence-check', handleCron)

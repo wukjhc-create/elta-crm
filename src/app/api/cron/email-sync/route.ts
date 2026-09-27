@@ -11,12 +11,13 @@
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { logger } from '@/lib/utils/logger'
+import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
 
 const CRON_SECRET = process.env.CRON_SECRET
 
-export async function GET(request: Request) {
+async function handleCron(request: Request): Promise<Response> {
   try {
     // Verify cron secret — fail-secure when not configured
     const authHeader = request.headers.get('authorization')
@@ -58,3 +59,6 @@ export async function GET(request: Request) {
     )
   }
 }
+
+// P1 #9: hver autoriseret koersel registreres i system_health_log (service='cron').
+export const GET = withCronRun('email-sync', handleCron)

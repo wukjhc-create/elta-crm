@@ -20,13 +20,14 @@ import {
   autoCloseRespondedTasks,
 } from '@/lib/actions/auto-tasks'
 import { logger } from '@/lib/utils/logger'
+import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const CRON_SECRET = process.env.CRON_SECRET
 
-export async function GET(request: Request) {
+async function handleCron(request: Request): Promise<Response> {
   const startedAt = Date.now()
 
   // Auth: timingSafeEqual + fail-secure when secret missing
@@ -76,3 +77,6 @@ export async function GET(request: Request) {
     )
   }
 }
+
+// P1 #9: hver autoriseret koersel registreres i system_health_log (service='cron').
+export const GET = withCronRun('unanswered-mails-check', handleCron)

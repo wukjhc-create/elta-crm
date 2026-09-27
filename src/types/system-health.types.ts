@@ -7,6 +7,7 @@ export type HealthService =
   | 'bank'
   | 'economic'
   | 'health_check'
+  | 'cron'
 
 export type HealthStatus = 'ok' | 'warning' | 'error'
 

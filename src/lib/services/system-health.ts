@@ -27,6 +27,7 @@ const ALL_SERVICES: HealthService[] = [
   'bank',
   'economic',
   'health_check',
+  'cron',
 ]
 
 const ERRORS_THRESHOLD_PER_HOUR = 5

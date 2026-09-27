@@ -14,6 +14,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp-sync'
 import { decryptCredentials } from '@/lib/utils/encryption'
 import { logger } from '@/lib/utils/logger'
+import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes max
@@ -21,7 +22,7 @@ export const maxDuration = 300 // 5 minutes max
 const CRON_SECRET = process.env.CRON_SECRET
 const UPSERT_BATCH_SIZE = 1000 // Supabase bulk upsert batch size
 
-export async function GET(request: Request) {
+async function handleCron(request: Request): Promise<Response> {
   try {
     // Verify cron secret
     const authHeader = request.headers.get('authorization')
@@ -290,3 +291,6 @@ export async function GET(request: Request) {
     )
   }
 }
+
+// P1 #9: hver autoriseret koersel registreres i system_health_log (service='cron').
+export const GET = withCronRun('lemu-sync', handleCron)

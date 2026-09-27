@@ -13,13 +13,14 @@ import { timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_EMAIL, BRAND_WEBSITE, BRAND_GREEN } from '@/lib/brand'
+import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const CRON_SECRET = process.env.CRON_SECRET
 
-export async function GET(request: Request) {
+async function handleCron(request: Request): Promise<Response> {
   try {
     // Auth check
     const authHeader = request.headers.get('authorization')
@@ -366,3 +367,6 @@ function buildFollowUpEmail(
     </div>
   `
 }
+
+// P1 #9: hver autoriseret koersel registreres i system_health_log (service='cron').
+export const GET = withCronRun('offer-reminders', handleCron)

@@ -423,6 +423,13 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'cron-log') {
+    const { runCronLog, formatCronLog } = await import('./cron-log')
+    const checks = await runCronLog({ admin })
+    log(formatCronLog(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'ui-states') {
     const { runUiStates, formatUiStates } = await import('./ui-states')
     const checks = await runUiStates({ admin, sql: stagingSql })
