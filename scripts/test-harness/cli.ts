@@ -423,6 +423,13 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'ui-states') {
+    const { runUiStates, formatUiStates } = await import('./ui-states')
+    const checks = await runUiStates({ admin, sql: stagingSql })
+    log(formatUiStates(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'concurrency') {
     const { runConcurrency, formatConcurrency } = await import('./concurrency')
     const actors = await ensureActors(admin, seedBase)

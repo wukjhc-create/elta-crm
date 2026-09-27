@@ -9,6 +9,7 @@
  * gaar altid gennem Executor (som selv gater budget/approval/hard-block).
  */
 
+import { staleDecisionError } from '@/lib/agents/decision-guard'
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -225,12 +226,18 @@ export async function selectLinkCandidateAction(
 }
 
 /** Godkend en action. Approval inds�ttes via authenticated klient (RLS-haandhaevet). */
+
 export async function approveAgentActionAction(
   actionId: string,
   reason?: string,
 ): Promise<ActionResult<void>> {
   try {
     const { supabase, userId } = await requireAdmin()
+    const stale = await staleDecisionError(createAdminClient(), actionId)
+    if (stale) {
+      revalidatePath('/dashboard/agents')
+      return { success: false, error: stale }
+    }
 
     const { error } = await supabase.from('agent_action_approvals').insert({
       action_id: actionId,
@@ -261,6 +268,11 @@ export async function rejectAgentActionAction(
 ): Promise<ActionResult<void>> {
   try {
     const { supabase, userId } = await requireAdmin()
+    const stale = await staleDecisionError(createAdminClient(), actionId)
+    if (stale) {
+      revalidatePath('/dashboard/agents')
+      return { success: false, error: stale }
+    }
 
     const { error } = await supabase.from('agent_action_approvals').insert({
       action_id: actionId,
@@ -321,13 +333,14 @@ export async function saveDraftAction(actionId: string, draft: string): Promise<
 }
 
 /** Udfoer en action gennem Executor (som selv gater alt). */
-export async function executeAgentActionAction(actionId: string): Promise<ActionResult<{ status: string }>> {
+export async function executeAgentActionAction(actionId: string): Promise<ActionResult<{ status: string; reason?: string }>> {
   try {
     await requireAdmin()
     const res = await executeAction(actionId)
     revalidatePath('/dashboard/agents')
     if (!res.success) return { success: false, error: res.error }
-    return { success: true, data: { status: res.data?.status ?? 'unknown' } }
+    // 'noop' = allerede udfoert/afgjort (fx af en anden fane) — UI viser det som info, ikke som "Udfoert".
+    return { success: true, data: { status: res.data?.status ?? 'unknown', reason: res.data?.reason } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke udfoere action') }
   }

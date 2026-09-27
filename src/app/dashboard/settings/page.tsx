@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -267,7 +268,12 @@ const settingsCards = [
   },
 ]
 
-export default function SettingsPage() {
+// Personlige sider er aabne for alle roller (header-menuen linker til profil); resten kraever settings.view.
+const PERSONAL_SETTINGS = new Set(['/dashboard/settings/profile', '/dashboard/settings/security'])
+
+export default async function SettingsPage() {
+  const canManage = await pageHasPermission('settings.view')
+  const visibleCards = canManage ? settingsCards : settingsCards.filter((c) => PERSONAL_SETTINGS.has(c.href))
   return (
     <div className="space-y-6">
       <div>
@@ -276,7 +282,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {settingsCards.map((card) => (
+        {visibleCards.map((card) => (
           <Link
             key={card.href}
             href={card.href}

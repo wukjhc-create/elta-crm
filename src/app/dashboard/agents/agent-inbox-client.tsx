@@ -77,11 +77,18 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
   const visibleItems = hideCompleted ? items.filter((i) => i.pendingCount > 0) : items
   const totalPending = items.reduce((n, i) => n + i.pendingCount, 0)
 
-  const run = (actionId: string, fn: () => Promise<{ success: boolean; error?: string }>, okMsg: string) => {
+  const run = (
+    actionId: string,
+    fn: () => Promise<{ success: boolean; error?: string; data?: unknown }>,
+    okMsg: string,
+  ) => {
     setBusyId(actionId)
     startTransition(async () => {
       const res = await fn()
-      if (res.success) toast.success(okMsg)
+      const outcome = (res.data ?? null) as { status?: string; reason?: string } | null
+      if (res.success && outcome?.status === 'noop') toast.info('Allerede håndteret — intet nyt udført', outcome.reason)
+      else if (res.success && outcome?.status === 'needs_verification') toast.warning('Udført, men skal verificeres', outcome.reason)
+      else if (res.success) toast.success(okMsg)
       else toast.error('Handling fejlede', res.error)
       setBusyId(null)
       router.refresh()
