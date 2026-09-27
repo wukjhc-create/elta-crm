@@ -39,7 +39,7 @@
 --   COMMIT;
 --   (Kode der skriver source_case_id skal rulles tilbage FOERST.)
 --
--- KOER IKKE MOD PRODUCTION uden eksplicit approval. Staging: npm run harness:migrate-staging -- 00159
+-- ANVENDT I PRODUCTION 2026-09-27 (godkendt af Henrik). Staging: npm run harness:migrate-staging -- 00159
 -- =====================================================================
 
 BEGIN;

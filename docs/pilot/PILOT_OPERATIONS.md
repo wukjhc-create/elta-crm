@@ -69,9 +69,9 @@ Alle prod-kommandoer kører i en read-only session (`scripts/prod-readonly.ts`) 
 Log i [INCIDENT_LOG.md](INCIDENT_LOG.md). Rollback: [ROLLBACK_PLAN.md](ROLLBACK_PLAN.md).
 
 ## 7. Go / no-go for at starte piloten
-- [ ] Migration 00160 (RLS) godkendt, kørt, `prod:role-policies` = 0 huller
-- [ ] Migration 00159 godkendt og kørt, feature-branch merget (valgfrit for pilotstart)
+- [x] Migration 00160 (RLS) godkendt, kørt, `prod:role-policies` = 0 huller (2026-09-27)
+- [x] Migration 00159 godkendt og kørt, feature-branch merget (2026-09-27)
 - [ ] `prod:pilot-health` 🟢 tre dage i træk
 - [ ] Pilotbrugere navngivet og oprettet med korrekte roller
 - [ ] Workflow-tests W1–W8 gennemført én gang sammen med Henrik
-- [ ] Alle agents disabled/suggest · `AUTO_CREATE_CASES_ENABLED` OFF · ingen live kundemail fra agenter
+- [x] Alle agents disabled/suggest · `AUTO_CREATE_CASES_ENABLED` OFF · ingen live kundemail fra agenter (bekræftet 2026-09-27)

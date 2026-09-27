@@ -67,7 +67,7 @@
 --   NOTIFY pgrst, 'reload schema';
 --   COMMIT;
 --
--- KOER IKKE MOD PRODUCTION uden eksplicit approval. Staging: npm run harness:migrate-staging -- 00160
+-- ANVENDT I PRODUCTION 2026-09-27 (godkendt af Henrik). Staging: npm run harness:migrate-staging -- 00160
 -- Verifikation: npm run harness:pilot-roles (staging) / npm run prod:role-policies (read-only)
 -- =====================================================================
 

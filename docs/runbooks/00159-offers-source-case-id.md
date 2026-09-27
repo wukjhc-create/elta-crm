@@ -1,6 +1,6 @@
 # Runbook — prod-migration 00159 `offers.source_case_id`
 
-**Status:** forberedt · anvendt og verificeret på staging (2026-09-27) · **IKKE kørt i production** — kræver eksplicit godkendelse.
+**Status:** ✅ KØRT I PRODUCTION 2026-09-27 (godkendt af Henrik) · verificeret med `prod:verify-00159`; kode merget efterfølgende.
 
 ## Hvad og hvorfor
 Additiv, nullable FK `offers.source_case_id → service_cases(id) ON DELETE SET NULL` + opslags-index + partial

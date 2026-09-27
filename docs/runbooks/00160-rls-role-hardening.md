@@ -1,6 +1,6 @@
 # Runbook — prod-migration 00160 RLS-stramning (pilot-gate, incident P-000)
 
-**Status:** forberedt · anvendt og verificeret på staging (2026-09-27) · **IKKE kørt i production** — kræver eksplicit godkendelse.
+**Status:** ✅ KØRT I PRODUCTION 2026-09-27 (godkendt af Henrik) · verificeret med `prod:role-policies` + `prod:verify-00160`.
 **Prioritet:** skal køres før ikke-admin pilotbrugere onboardes (prod har i dag 2 montør-konti).
 
 ## Hvad og hvorfor

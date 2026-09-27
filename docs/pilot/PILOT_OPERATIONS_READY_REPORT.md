@@ -1,18 +1,21 @@
 # ELTA CRM — Pilot Operations Ready-rapport
 
-**Dato:** 2026-09-27 · **Konklusion: 🟡 KLAR, med én sikkerhedsgate** — piloten kan starte med **admin**-brugere nu;
-**ikke-admin** pilotbrugere først når migration 00160 er godkendt og kørt i production.
+**Dato:** 2026-09-27 · **Konklusion: 🟢 PROD READY** — 00160 og 00159 er kørt og verificeret i production (2026-09-27).
+**Næste skridt:** pilotbrugerne (navngivning + oprettelse med korrekte roller, §3).
+
+<!-- tidligere status: 🟡 KLAR med sikkerhedsgate — piloten kunne starte med admin-brugere;
+ikke-admin først efter 00160. -->
 
 | Område | Status | Kort |
 |---|---|---|
 | Pilotbrugere & roller | 🟡 | Rollemodel afklaret (P1 admin, P2 serviceleder, P3 montør/bogholderi); navne = Henriks valg |
-| Roller/permissions (RLS) | 🔴→🟢 staging | Prod: 8 tabeller åbne for alle indloggede (læs + skriv). Rettelse 00160 verificeret på staging; prod afventer godkendelse |
+| Roller/permissions (RLS) | 🟢 prod | 00160 kørt i prod 2026-09-27: 0 uventede huller, præcis forventet policy-sæt (16 policies, ingen skrive-`true`); rest-risici R1–R3 dokumenteret |
 | Onboarding | 🟢 | Procedure pr. bruger (PILOT_OPERATIONS §2) |
-| Workflow-tests | 🟢 | W1–W8 defineret; W1, W3–W5, W8 automatisk dækket på staging, W6 efter 00160, W2/W7 manuelle |
+| Workflow-tests | 🟢 | W1–W8 defineret; W1, W3–W6, W8 automatisk dækket på staging; W2/W7 manuelle ved onboarding |
 | Incident-log | 🟢 | Proces S1–S4 + log; første post P-000 (RLS) |
 | Rollback-plan | 🟢 | Stop-knapper, kode-, migrations- og data-rollback |
 | Metrics/overvågning | 🟢 | `prod:pilot-health`, `prod:role-policies`, `prod:storage-audit` (alle read-only) |
-| offers.source_case_id (00159) | 🟡 | Staging ✅; prod forberedt (runbook), kode på lokal branch til efter migration |
+| offers.source_case_id (00159) | 🟢 prod | Kørt i prod 2026-09-27 (kolonne, FK, 2 indexes, 0 backfill); `feat/offers-source-case-id` merget og deployet efterfølgende |
 
 ## 1. Hvad der er bygget
 - **Rollemåling** `npm run harness:pilot-roles` (staging): 5 syntetiske personaer med ægte roller logger ind og
@@ -46,10 +49,24 @@ R1 salg læser alle fakturaer via REST · R2 tidsregistreringer læsbare for all
 leverandør-credentials læsbare (skrivning lukket). Anbefalet næste sikkerhedsmilestone: flyt disse læsninger til
 server-side gatede stier og stram RLS pr. række.
 
-## 3. Kræver Henriks beslutning
-1. **Godkend og kør 00160** (prod) — runbook: `docs/runbooks/00160-rls-role-hardening.md`. Forudsætning for P2/P3.
-2. **Godkend og kør 00159** (prod) — derefter merges `feat/offers-source-case-id` (valgfrit for pilotstart).
-3. **Navngiv pilotbrugerne** og opret dem med korrekte roller.
+## 3. Production-udrulning (2026-09-27, godkendt af Henrik)
+| Trin | Resultat |
+|---|---|
+| 00160 pre-check (read-only) | 8 åbne tabeller — som forventet |
+| 00160 anvendt (`prod:apply-migration`, allowlist + godkendelsesflag, én transaktion) | ✅ COMMIT |
+| 00160 post-check: `prod:role-policies` · `prod:verify-00160` | 0 uventede huller · præcis 16 forventede policies, ingen skrive-`true` |
+| 00159 anvendt · post-check `prod:verify-00159` | ✅ kolonne + FK + 2 indexes, 15 tilbud uændrede, 0 backfill |
+| Merge `feat/offers-source-case-id` → `main`, push (deploy) | ✅ efter fuld staging-regression på den mergede kode |
+| Regression efter deploy | `prod:role-policies` 0 · `prod:verify-00160/00159` ✅ · `prod:storage-audit` 0 huller · `prod:pilot-health` 🟢 · staging security 21/21 · pilot 9/9 flows + 14/14 invarianter · rollematrix 0 uventede huller, montør/salg 0/8 indsættelser · typecheck/lint/build ✅ |
+
+Bekræftet: ingen tilladt rolle har mistet nødvendig adgang (staging-måling, alle ✓-celler uændrede; bogholderi/admin
+kan fortsat rette indgående fakturaer) · montør/salg kan ikke skrive til økonomitabellerne · alle 7 agents
+disabled/suggest · `AUTO_CREATE_CASES_ENABLED` OFF · `vercel.json`-crons uændrede · ingen agent kaldes fra API/cron ·
+eneste send-capability (`mail.send_reply`) er hard-blocked · ingen finance/delete-capabilities.
+
+## 3b. Næste skridt (Henriks valg)
+**Navngiv 2–3 pilotbrugere** (P2 serviceleder, P3 montør eller bogholderi) → oprettes via Indstillinger → Brugere med
+korrekt rolle → onboarding (PILOT_OPERATIONS §2) → W2/W7 manuelt første gang.
 
 ## 4. Uændret
 Alle agents disabled/suggest (prod + staging) · `AUTO_CREATE_CASES_ENABLED` OFF · ingen live kundemail ·
