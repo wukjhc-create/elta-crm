@@ -31,6 +31,18 @@ export const INVARIANTS: InvariantCheck[] = [
     sampleColumns: ['email', 'name', 'n'],
   },
   {
+    id: 'offer_open_proposal_per_source_case',
+    title: 'Tilbud: flere aabne forslag for samme sag (00159)',
+    description: 'Hoejst ét aabent tilbudsforslag (is_proposal) pr. source_case_id; source_case_id skal pege paa en eksisterende sag.',
+    severity: 'critical',
+    violationSql: `SELECT o.source_case_id::text AS source_case_id, count(*) AS n
+      FROM offers o LEFT JOIN service_cases s ON s.id = o.source_case_id
+      WHERE o.source_case_id IS NOT NULL
+      GROUP BY o.source_case_id
+      HAVING count(*) FILTER (WHERE o.is_proposal) > 1 OR bool_or(s.id IS NULL)`,
+    sampleColumns: ['source_case_id', 'n'],
+  },
+  {
     id: 'duplicate_offer_number',
     title: 'Dubletter: tilbud med samme offer_number',
     description: 'offer_number skal vaere unikt.',

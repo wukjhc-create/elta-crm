@@ -306,7 +306,7 @@ async function status() {
   log(`[status] agent_configs: total=${ag.n} enabled=${ag.en} safety_mode=${ag.modes}`)
   // Rester fra sikkerheds-/E2E-probes (skal altid vaere 0 efter en koersel)
   const lo = (await stagingSql(`SELECT
-      (SELECT count(*) FROM offers WHERE offer_number LIKE 'HARNESS-SEC-%' OR notes LIKE '%[agent-action:%') probe_offers,
+      (SELECT count(*) FROM offers WHERE offer_number LIKE 'HARNESS-SEC-%' OR source_case_id IS NOT NULL OR notes LIKE '%agent-action%') probe_offers,
       (SELECT count(*) FROM agent_runs WHERE input_context->>'harness' IS NULL) untagged_runs,
       (SELECT count(*) FROM customer_tasks WHERE auto_rule = 'agent_followup_offer') followup_tasks,
       (SELECT count(*) FROM agent_actions WHERE idempotency_key LIKE 'harness-sec:%') probe_actions`))[0]

@@ -12,7 +12,7 @@ const assert = (cond: boolean, label: string, extra = '') => { console.log(`${co
 
 type Row = Record<string, any>
 /** Generisk kaedbar supabase-mock over in-memory tabeller. Registrerer inserts. */
-function makeDb(tables: Record<string, Row[]>) {
+function makeDb(tables: Record<string, Row[]>, onInsert?: (table: string, row: Row) => { code: string; message: string } | undefined) {
   const inserts: Array<{ table: string; row: Row }> = []
   const get = (r: Row, k: string) => (k.includes('->>') ? r[k.split('->>')[0]]?.[k.split('->>')[1]] : r[k])
   const admin = {
@@ -32,6 +32,8 @@ function makeDb(tables: Record<string, Row[]>) {
         async maybeSingle() { return { data: rows()[0] ?? null, error: null } },
         then(res: (v: unknown) => void) { res({ data: rows(), error: null }) },
         insert(row: Row) {
+          const err = onInsert?.(table, row)
+          if (err) return { select() { return { async single() { return { data: null, error: err } } } } }
           inserts.push({ table, row })
           const created = { id: `${table}-new-${inserts.length}`, ...row }
           ;(tables[table] ??= []).push(created)
@@ -85,12 +87,26 @@ async function run() {
     assert(r.ok && r.data?.created === true && inserts.length === 1 && inserts[0].table === 'offers', 'offer handler: opretter praecis ét tilbud')
     assert(row.status === 'draft' && row.is_proposal === true && row.total_amount === 0 && row.final_amount === 0, 'offer handler: tomt udkast som forslag (draft, is_proposal, 0 kr)')
     assert(row.customer_id === 'cust1' && row.payer_customer_id === 'payer1' && row.created_by === 'approver1', 'offer handler: kunde/betaler fra sagen, opretter = godkender')
-    assert(row.offer_number === 'TILBUD-2026-0042' && String(row.notes).includes('[agent-action:act1]'), 'offer handler: naeste tilbudsnummer + action-markoer', String(row.offer_number))
+    assert(row.offer_number === 'TILBUD-2026-0042' && row.source_case_id === 'case1', 'offer handler: naeste tilbudsnummer + source_case_id = sagen', String(row.offer_number))
+    assert(String(row.notes).includes('agent-action act1'), 'offer handler: action-id i notes (sporbarhed)')
     assert(row.converted_case_id === undefined && row.sent_at === undefined, 'offer handler: roerer ikke converted_case_id/sent_at') }
-  { // gentaget kald for samme action => genbrug via markoer
-    const { admin, inserts } = makeDb(tbl({ offers: [{ id: 'o-mine', offer_number: 'TILBUD-2026-0050', notes: 'x [agent-action:act1]' }] }))
+  { // gentaget kald / andet forslag: sagen har allerede et aabent tilbudsforslag => genbrug
+    const { admin, inserts } = makeDb(tbl({ offers: [{ id: 'o-mine', offer_number: 'TILBUD-2026-0050', source_case_id: 'case1', is_proposal: true }] }))
     const r = await execOffer(admin, payload)
-    assert(r.ok && r.data?.offer_id === 'o-mine' && r.data?.created === false && inserts.length === 0, 'offer handler: gentaget kald => genbrug, ingen ny insert') }
+    assert(r.ok && r.data?.offer_id === 'o-mine' && r.data?.created === false && inserts.length === 0, 'offer handler: aabent forslag for sagen => genbrug, ingen ny insert') }
+  { // promoveret (almindeligt) tilbud paa sagen blokerer IKKE via source_case_id-reglen (flere almindelige tilbud tilladt)
+    const { admin, inserts } = makeDb(tbl({ offers: [{ id: 'o-promoted', offer_number: 'TILBUD-2026-0060', source_case_id: 'case1', is_proposal: false }] }))
+    const r = await execOffer(admin, payload)
+    assert(r.ok && r.data?.created === true && inserts.length === 1, 'offer handler: promoveret tilbud paa sagen => nyt forslag tilladt') }
+  { // race: samtidig udfoerelse vinder UNIQUE (source_case_id) WHERE is_proposal => genbrug vinderens tilbud
+    const tables = tbl()
+    const { admin, inserts } = makeDb(tables, (table) => {
+      if (table !== 'offers') return undefined
+      if (!tables.offers.some((o) => o.id === 'o-winner')) tables.offers.push({ id: 'o-winner', offer_number: 'TILBUD-2026-0070', source_case_id: 'case1', is_proposal: true })
+      return { code: '23505', message: 'duplicate key value violates unique constraint "uq_offers_open_proposal_per_source_case"' }
+    })
+    const r = await execOffer(admin, payload)
+    assert(r.ok && r.data?.offer_id === 'o-winner' && r.data?.created === false && inserts.length === 0, 'offer handler: race paa unik index => vinderens tilbud genbruges') }
   { // andet udfoert forslag for samme sag => genbrug
     const { admin, inserts } = makeDb(tbl({ offers: [{ id: 'o-prev', offer_number: 'TILBUD-2026-0051', notes: '' }],
       agent_actions: [{ id: 'act0', capability: 'offer.propose_draft_from_case', status: 'executed', payload: { case_id: 'case1' }, result: { offer_id: 'o-prev' } }] }))
