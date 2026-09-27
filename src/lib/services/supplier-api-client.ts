@@ -6,7 +6,8 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
-import { getDecryptedCredentials, type CredentialInput } from '@/lib/actions/credentials'
+import type { CredentialInput } from '@/lib/actions/credentials'
+import { loadDecryptedSupplierCredentials } from '@/lib/services/supplier-credential-secrets'
 import { SUPPLIER_API_CONFIG } from '@/lib/constants'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
@@ -102,7 +103,8 @@ export abstract class BaseSupplierAPIClient {
    */
   async loadCredentials(): Promise<boolean> {
     try {
-      const result = await getDecryptedCredentials(this.supplierId, 'api')
+      // Server-only service-role læsning (R3): dekrypterede credentials forlader aldrig serveren.
+      const result = await loadDecryptedSupplierCredentials(this.supplierId, 'api')
       if (result.success && result.data) {
         this.credentials = result.data
         this.lastCredentialError = null

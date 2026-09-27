@@ -314,7 +314,12 @@ async function status() {
         + (SELECT count(*) FROM integration_settings WHERE key LIKE 'harness-probe-%')
         + (SELECT count(*) FROM accounting_integration_settings WHERE provider LIKE 'harness-probe-%')
         + (SELECT count(*) FROM incoming_invoices WHERE source = 'manual' AND (notes IS NULL OR notes LIKE 'probe %') AND file_hash IS NULL AND invoice_number IS NULL)
-        + (SELECT count(*) FROM bank_transactions WHERE date = '2026-01-01' AND amount = 1) AS role_probes`))[0]
+        + (SELECT count(*) FROM bank_transactions WHERE date = '2026-01-01' AND amount = 1)
+        + (SELECT count(*) FROM service_cases WHERE title LIKE '[HARNESS-SEC]%')
+        + (SELECT count(*) FROM work_orders WHERE title LIKE '[HARNESS-SEC]%')
+        + (SELECT count(*) FROM employees WHERE email LIKE 'harness-sec-%@harness.test')
+        + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSEC%')
+        + (SELECT count(*) FROM audit_logs WHERE entity_type = 'harness_sec_probe') AS role_probes`))[0]
   const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n
     FROM agent_actions a JOIN agent_runs r ON r.id = a.run_id WHERE a.created_at > now() - interval '24 hours' GROUP BY 1,2,3 ORDER BY 1,2`)
   const cases24 = await stagingSql(`SELECT source, (title LIKE '[HARNESS %') AS harness_title, is_proposal, count(*) AS n
@@ -375,12 +380,16 @@ async function main() {
     log(rm.formatMatrix(rows))
     const writes = await rm.runWriteProbes(clients, admin)
     const updates = await rm.runUpdateProbes(clients, admin)
+    const { runResidualProbes, formatResidualChecks } = await import('./rls-residuals')
+    const residualChecks = await runResidualProbes(admin, clients)
     for (const c of clients.values()) await c.auth.signOut()
     log('\nSKRIVE-PROBES (ikke-admin indsaetter direkte via REST):')
     for (const w of writes) log(`  ${w.inserted ? '⚠' : '✓'} ${w.role.padEnd(8)} ${w.table.padEnd(24)} ${w.note}`)
     log('UPDATE-PROBES incoming_invoices (tilladt: admin, bogholderi):')
     for (const u of updates) log(`  ${u.updated === u.expected ? '✓' : '❌'} ${u.role.padEnd(12)} ${u.updated ? 'kunne rette' : 'afvist'}${u.updated === u.expected ? '' : ' (FORKERT)'}`)
     const updateWrong = updates.filter((u) => u.updated !== u.expected).length
+    log(formatResidualChecks(residualChecks))
+    const residualWrong = residualChecks.filter((c) => !c.ok).length
     const strict = rows.filter((r) => r.tooStrict.length)
     if (strict.length) log(`For stramt (tilladt rolle ser 0 af >0 raekker): ${strict.map((r) => `${r.table}[${r.tooStrict.join(',')}]`).join('; ')}`)
     const policies = await rm.analysePolicies(stagingSql)
@@ -389,11 +398,29 @@ async function main() {
     const staticGaps = policies.filter((p) => p.disallowed.length).map((p) => `${p.table}[${p.disallowed.join(',')}]`)
     const writeGaps = writes.filter((w) => w.inserted).map((w) => `${w.table}[${w.role}]`)
     const residuals = rows.filter((r) => r.residual.length).map((r) => `${rm.KNOWN_RESIDUALS[r.table]?.id} ${r.table}[${r.residual.join(',')}]`)
-    const holes = [...new Set([...readGaps, ...staticGaps])].length + writeGaps.length + strict.length + updateWrong
-    log(`\nKendte rest-risici (dokumenteret, ikke lukket): ${residuals.join('; ') || 'ingen'}`)
-    log(`=== ROLLEADGANG: ${holes ? `❌ ${holes} problem(er) — laese: ${[...new Set([...readGaps, ...staticGaps])].join('; ') || '-'} | skrive: ${writeGaps.join('; ') || '-'} | for stramt: ${strict.length}` : '✅ ingen uventede huller (kun kendte rest-risici)'} ===`)
-    saveReport('pilot-roles', { target: `staging:${ref}`, at: new Date().toISOString(), rows, writes, policies })
+    const views = await rm.analyseViews(stagingSql)
+    log(rm.formatViews(views))
+    const secrets = await rm.analyseSecretColumns(stagingSql)
+    log(rm.formatSecretColumns(secrets))
+    const viewGaps = views.filter((v) => v.authenticatedSelect && !v.invoker).length
+    const secretGaps = secrets.filter((s) => s.authenticated || s.anon).length
+    const holes = [...new Set([...readGaps, ...staticGaps])].length + writeGaps.length + strict.length + updateWrong + residualWrong + viewGaps + secretGaps
+    log(`\nRaekkeafgraenset adgang (scope verificeret af R1–R4-probes ovenfor): ${residuals.join('; ') || 'ingen'}`)
+    log(`=== ROLLEADGANG: ${holes ? `❌ ${holes} problem(er) — laese: ${[...new Set([...readGaps, ...staticGaps])].join('; ') || '-'} | skrive: ${writeGaps.join('; ') || '-'} | for stramt: ${strict.length} | R1–R4: ${residualWrong} | views: ${viewGaps} | hemmelige kolonner: ${secretGaps}` : '✅ ingen huller (R1–R4 lukket og verificeret med probe-data)'} ===`)
+    saveReport('pilot-roles', { target: `staging:${ref}`, at: new Date().toISOString(), rows, writes, policies, residualChecks, views, secrets })
     process.exitCode = holes ? 2 : 0
+    return
+  }
+  if (SUB === 'view-parity') {
+    // STAGING-ONLY paritet: schema-dumpet tog ikke view-reloptions med. Production har (verificeret read-only,
+    // prod:role-policies 2026-09-27) security_invoker paa betalingsoversigts-views'ene.
+    log('=== VIEW-PARITET (staging) ===')
+    await stagingSql(`BEGIN;
+ALTER VIEW public.v_customer_payment_summary SET (security_invoker = true);
+ALTER VIEW public.v_customers_with_payment_summary SET (security_invoker = true);
+COMMIT;`)
+    const { analyseViews, formatViews } = await import('./role-matrix')
+    log(formatViews(await analyseViews(stagingSql)))
     return
   }
   if (SUB === 'migrate-staging') {

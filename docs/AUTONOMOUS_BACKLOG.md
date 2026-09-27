@@ -9,10 +9,10 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 ## P0 — Sikkerhed
 | # | Opgave | Status | Note / blocker |
 |---|---|---|---|
-| 1 | R1: salg må kun læse fakturaer efter besluttet adgangsmodel | TODO | |
-| 2 | R2: time_logs ikke læsbar for alle authenticated | TODO | |
-| 3 | R3: supplier_credentials ikke læsbar for almindelige brugere | TODO | |
-| 4 | Security harness: R1–R3 kan ikke regressere (rigtige probe-rækker) | TODO | |
+| 1 | R1: salg må kun læse fakturaer efter besluttet adgangsmodel | DONE (staging) | Model SPRINT_7A own_cases (sag created_by); 00161 · prod → P0-gate |
+| 2 | R2: time_logs ikke læsbar for alle authenticated | DONE (staging) | Scope = app case-scope (employee.profile_id/work_orders); skriv kun egen medarbejder+ordre; 00161 |
+| 3 | R3: supplier_credentials ikke læsbar for almindelige brugere | DONE (kode i prod, DB staging) | Server-only secrets-modul + settings.suppliers-gate (pushet); kolonne-grants i 00161 |
+| 4 | Security harness: R1–R4 kan ikke regressere (rigtige probe-rækker) | DONE | rls-residuals.ts (35 checks) + views + hemmelige kolonner i pilot-roles/prod:role-policies; scripts/security-static-test.ts |
 
 ## P1 — Pilot-robusthed
 | # | Opgave | Status | Note / blocker |
@@ -44,7 +44,12 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 ## Blokerede opgaver uden for nummerering
 | Opgave | Status | Mangler |
 |---|---|---|
+| P0-gate: prod-migration 00161 (R1–R4) | BLOCKED | Henriks godkendelse. Runbook: docs/runbooks/00161-rls-residual-risks.md. Kode-forudsætning er deployet. |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
 
+## Fund registreret undervejs
+- P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
+
 ## Log
+- 2026-09-27: P0 #1–#4 færdige på staging; 00161 forberedt (gate).
 - 2026-09-27: backlog oprettet (Henrik). Forudgående: 00159 + 00160 kørt i prod, Pilot Ops PROD READY.

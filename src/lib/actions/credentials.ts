@@ -4,8 +4,19 @@ import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
 import { encryptCredentials, decryptCredentials, isEncryptionConfigured, maskSensitive } from '@/lib/utils/encryption'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
+import { loadCredentialSecretById, SUPPLIER_CREDENTIAL_PUBLIC_COLUMNS } from '@/lib/services/supplier-credential-secrets'
+
+/**
+ * Credential-administration kræver settings.suppliers (admin) — samme som RLS-skrive-policyen (00160).
+ * Hemmelige kolonner læses aldrig med brugerklienten, kun via server-only supplier-credential-secrets (R3, 00161).
+ */
+async function requireSupplierSettings() {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission('settings.suppliers')
+  return ctx
+}
 
 // =====================================================
 // Types
@@ -58,26 +69,12 @@ export async function getSupplierCredentials(
   supplierId: string
 ): Promise<ActionResult<SupplierCredential[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierSettings()
     validateUUID(supplierId, 'leverandør ID')
 
     const { data, error } = await supabase
       .from('supplier_credentials')
-      .select(`
-        id,
-        supplier_id,
-        credential_type,
-        api_endpoint,
-        is_active,
-        last_test_at,
-        last_test_status,
-        last_test_error,
-        environment,
-        notes,
-        created_at,
-        updated_at,
-        credentials_encrypted
-      `)
+      .select(SUPPLIER_CREDENTIAL_PUBLIC_COLUMNS)
       .eq('supplier_id', supplierId)
       .order('credential_type')
 
@@ -100,7 +97,7 @@ export async function getSupplierCredentials(
       notes: row.notes,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      has_credentials: !!row.credentials_encrypted,
+      has_credentials: true, // credentials_encrypted er NOT NULL
     }))
 
     return { success: true, data: credentials }
@@ -113,7 +110,7 @@ export async function createSupplierCredential(
   data: CreateCredentialData
 ): Promise<ActionResult<SupplierCredential>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireSupplierSettings()
     validateUUID(data.supplier_id, 'leverandør ID')
 
     if (!isEncryptionConfigured()) {
@@ -135,7 +132,7 @@ export async function createSupplierCredential(
         is_active: true,
         created_by: userId,
       })
-      .select()
+      .select(SUPPLIER_CREDENTIAL_PUBLIC_COLUMNS)
       .single()
 
     if (error) {
@@ -182,7 +179,7 @@ export async function updateSupplierCredential(
   }
 ): Promise<ActionResult<SupplierCredential>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierSettings()
     validateUUID(id, 'credential ID')
 
     const updateData: Record<string, unknown> = {}
@@ -212,7 +209,7 @@ export async function updateSupplierCredential(
       .from('supplier_credentials')
       .update(updateData)
       .eq('id', id)
-      .select()
+      .select(SUPPLIER_CREDENTIAL_PUBLIC_COLUMNS)
       .single()
 
     if (error) {
@@ -240,7 +237,7 @@ export async function updateSupplierCredential(
         notes: result.notes,
         created_at: result.created_at,
         updated_at: result.updated_at,
-        has_credentials: !!result.credentials_encrypted,
+        has_credentials: true, // credentials_encrypted er NOT NULL
       },
     }
   } catch (err) {
@@ -250,7 +247,7 @@ export async function updateSupplierCredential(
 
 export async function deleteSupplierCredential(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierSettings()
     validateUUID(id, 'credential ID')
 
     const { error } = await supabase
@@ -270,51 +267,8 @@ export async function deleteSupplierCredential(id: string): Promise<ActionResult
   }
 }
 
-// =====================================================
-// Internal: Get Decrypted Credentials (for API calls)
-// =====================================================
-
-export async function getDecryptedCredentials(
-  supplierId: string,
-  credentialType: CredentialType = 'api'
-): Promise<ActionResult<CredentialInput & { api_endpoint?: string }>> {
-  try {
-    const { supabase } = await getAuthenticatedClient()
-    validateUUID(supplierId, 'leverandør ID')
-
-    if (!isEncryptionConfigured()) {
-      return { success: false, error: 'Krypteringsnøgle er ikke konfigureret' }
-    }
-
-    const { data, error } = await supabase
-      .from('supplier_credentials')
-      .select('credentials_encrypted, api_endpoint')
-      .eq('supplier_id', supplierId)
-      .eq('credential_type', credentialType)
-      .eq('is_active', true)
-      .maybeSingle()
-
-    if (error) {
-      throw new Error('DATABASE_ERROR')
-    }
-
-    if (!data) {
-      return { success: false, error: 'Ingen aktive loginoplysninger fundet' }
-    }
-
-    const credentials = await decryptCredentials(data.credentials_encrypted) as CredentialInput
-
-    return {
-      success: true,
-      data: {
-        ...credentials,
-        api_endpoint: data.api_endpoint,
-      },
-    }
-  } catch (err) {
-    return { success: false, error: formatError(err, 'Kunne ikke hente loginoplysninger') }
-  }
-}
+// Dekrypterede credentials til API-kald: se loadDecryptedSupplierCredentials i
+// '@/lib/services/supplier-credential-secrets' (server-only; tidligere en ugatet server action her).
 
 // =====================================================
 // Test Connection
@@ -324,17 +278,13 @@ export async function testSupplierConnection(
   credentialId: string
 ): Promise<ActionResult<{ status: TestStatus; message: string }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierSettings()
     validateUUID(credentialId, 'credential ID')
 
-    // Get credential info
-    const { data: credential, error: fetchError } = await supabase
-      .from('supplier_credentials')
-      .select('id, supplier_id, credential_type, credentials_encrypted, api_endpoint')
-      .eq('id', credentialId)
-      .maybeSingle()
+    // Hemmeligheden hentes server-side (service-role); brugerklienten kan ikke læse den (R3).
+    const credential = await loadCredentialSecretById(credentialId)
 
-    if (fetchError || !credential) {
+    if (!credential) {
       return { success: false, error: 'Loginoplysninger ikke fundet' }
     }
 
@@ -511,22 +461,14 @@ export async function getMaskedCredentials(
   credentialId: string
 ): Promise<ActionResult<Record<string, string>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    await requireSupplierSettings()
     validateUUID(credentialId, 'credential ID')
 
     if (!isEncryptionConfigured()) {
       return { success: false, error: 'Krypteringsnøgle er ikke konfigureret' }
     }
 
-    const { data, error } = await supabase
-      .from('supplier_credentials')
-      .select('credentials_encrypted')
-      .eq('id', credentialId)
-      .maybeSingle()
-
-    if (error) {
-      return { success: false, error: 'Loginoplysninger ikke fundet' }
-    }
+    const data = await loadCredentialSecretById(credentialId)
 
     if (!data) {
       return { success: false, error: 'Loginoplysninger ikke fundet' }

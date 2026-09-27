@@ -7,7 +7,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 
@@ -197,7 +197,9 @@ export async function triggerLemuSync(): Promise<ActionResult<{
   file_name: string
 }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // Bruger service-role til SFTP-credentials (R3) -> kræver settings.suppliers (admin), som credential-administrationen.
+    const { supabase, requirePermission } = await getAuthenticatedClientWithRole()
+    requirePermission('settings.suppliers')
 
     // Find LM supplier
     const { data: supplier } = await supabase
@@ -210,22 +212,14 @@ export async function triggerLemuSync(): Promise<ActionResult<{
       return { success: false, error: 'Lemvigh-Müller leverandør ikke fundet i systemet. Opret den først under Indstillinger → Leverandører.' }
     }
 
-    // Get FTP credentials
-    const { data: credRow } = await supabase
-      .from('supplier_credentials')
-      .select('credentials_encrypted, api_endpoint')
-      .eq('supplier_id', supplier.id)
-      .eq('credential_type', 'ftp')
-      .eq('is_active', true)
-      .maybeSingle()
-
-    if (!credRow) {
+    // FTP-credentials hentes og dekrypteres server-side (service-role, R3) — brugerklienten kan ikke læse dem.
+    const { loadDecryptedSupplierCredentials } = await import('@/lib/services/supplier-credential-secrets')
+    const credResult = await loadDecryptedSupplierCredentials(supplier.id, 'ftp')
+    if (!credResult.success || !credResult.data) {
       return { success: false, error: 'Ingen SFTP-loginoplysninger konfigureret for Lemvigh-Müller.' }
     }
-
-    // Decrypt credentials
-    const { decryptCredentials } = await import('@/lib/utils/encryption')
-    const decrypted = await decryptCredentials(credRow.credentials_encrypted) as Record<string, string>
+    const credRow = { api_endpoint: credResult.data.api_endpoint ?? null }
+    const decrypted = credResult.data as Record<string, string>
 
     const { buildFtpCredentials, executeFtpSync } = await import('@/lib/services/supplier-ftp-sync')
     const creds = buildFtpCredentials(

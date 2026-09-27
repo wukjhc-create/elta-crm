@@ -13,14 +13,13 @@ export const PILOT_ROLES = ['admin', 'serviceleder', 'montør', 'salg', 'boghold
 export type PilotRole = (typeof PILOT_ROLES)[number]
 
 /**
- * Kendte, dokumenterede rest-risici (migration 00160 header, R1-R3): roller der BEVIDST stadig kan laese direkte,
- * fordi en lukning kraever kodeaendring. Rapporteres separat - aldrig som "ok".
+ * Raekkeafgraenset adgang (00161): rollen maa se en DELMAENGDE (salg: egne sager; montør: egne ordrer/registreringer).
+ * Tabel-matrixen kan ikke vurdere scope - det praecise scope verificeres af R1-R4-probes (rls-residuals.ts).
  */
 export const KNOWN_RESIDUALS: Record<string, { roles: readonly PilotRole[]; id: string }> = {
-  invoices: { roles: ['salg'], id: 'R1' },
-  invoice_payments: { roles: ['salg'], id: 'R1' },
-  time_logs: { roles: ['montør', 'salg'], id: 'R2' },
-  supplier_credentials: { roles: ['serviceleder', 'montør', 'salg', 'bogholderi'], id: 'R3' },
+  invoices: { roles: ['salg'], id: 'raekkeafgraenset R1' },
+  invoice_payments: { roles: ['salg'], id: 'raekkeafgraenset R1' },
+  time_logs: { roles: ['montør', 'salg'], id: 'raekkeafgraenset R2' },
 }
 
 /**
@@ -45,7 +44,7 @@ export const READ_POLICY: Array<{ table: string; allowed: readonly PilotRole[]; 
   { table: 'invoice_payments', allowed: ['admin', 'serviceleder', 'bogholderi'], source: 'invoices.view.all' },
   { table: 'bank_transactions', allowed: ['admin', 'bogholderi'], source: 'bank.view' },
   { table: 'incoming_invoices', allowed: ['admin', 'serviceleder', 'bogholderi'], source: 'incoming_invoices.view' },
-  { table: 'supplier_credentials', allowed: ['admin'], source: 'settings.suppliers' },
+  { table: 'supplier_credentials', allowed: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'], source: 'metadata (tilbuds-embed); hemmelige kolonner kolonnebeskyttet (00161, se analyseSecretColumns)' },
   { table: 'accounting_integration_settings', allowed: ['admin', 'bogholderi'], source: 'settings.economic' },
   { table: 'integration_settings', allowed: ['admin'], source: 'settings.manage' },
   { table: 'audit_logs', allowed: ['admin'], source: 'settings.manage (audit er admin-side)' },
@@ -199,11 +198,87 @@ export async function analysePolicies(sql: Sql): Promise<PolicyVerdict[]> {
         const excluded = PILOT_ROLES.filter((r) => !pol.allowed.includes(r))
         const res = KNOWN_RESIDUALS[pol.table]
         const residual = open ? excluded.filter((r) => res?.roles.includes(r)) : []
-        return { disallowed: open ? excluded.filter((r) => !res?.roles.includes(r)) : [], residual, residualId: residual.length ? res?.id : undefined }
+        // USING (true) giver FULD adgang - ogsaa for raekkeafgraensede roller er det et hul (regression af 00161).
+        return { disallowed: open ? excluded : [], residual: [] as PilotRole[], residualId: undefined }
       })(),
     })
   }
   return out
+}
+
+/**
+ * Views der laeser foelsomme tabeller: koerer de med ejerens rettigheder (default i Postgres, uden
+ * security_invoker=true), omgaar de RLS helt for enhver rolle med SELECT paa viewet.
+ */
+export interface ViewVerdict { view: string; tables: string[]; invoker: boolean; authenticatedSelect: boolean }
+
+export async function analyseViews(sql: Sql): Promise<ViewVerdict[]> {
+  const sensitive = READ_POLICY.map((p) => p.table)
+  const rows = await sql(`SELECT v.viewname, v.definition, coalesce(c.reloptions::text, '') AS opts,
+      has_table_privilege('authenticated', 'public.' || quote_ident(v.viewname), 'SELECT') AS auth_select
+    FROM pg_views v JOIN pg_class c ON c.relname = v.viewname JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = v.schemaname
+    WHERE v.schemaname = 'public' ORDER BY v.viewname`)
+  // Transitivt: et view der laeser et andet view over foelsomme tabeller, arver foelsomheden (et ejer-view oven paa
+  // et invoker-view koerer det indre view med ejerens rettigheder).
+  const deps = new Map<string, Set<string>>()
+  const all = rows as any[]
+  for (const r of all) {
+    const def = String(r.definition)
+    deps.set(r.viewname, new Set(sensitive.filter((t) => new RegExp(`\\b(public\\.)?${t}\\b`).test(def))))
+  }
+  for (let changed = true; changed;) {
+    changed = false
+    for (const r of all) {
+      const mine = deps.get(r.viewname)!
+      for (const other of all) {
+        if (other.viewname === r.viewname || !new RegExp(`\\b(public\\.)?${other.viewname}\\b`).test(String(r.definition))) continue
+        for (const t of deps.get(other.viewname)!) if (!mine.has(t)) { mine.add(t); changed = true }
+      }
+    }
+  }
+  const out: ViewVerdict[] = []
+  for (const r of all) {
+    const tables = [...deps.get(r.viewname)!]
+    if (!tables.length) continue
+    out.push({ view: r.viewname, tables, invoker: /security_invoker=(true|on)/i.test(r.opts), authenticatedSelect: r.auth_select === true || r.auth_select === 't' })
+  }
+  return out
+}
+
+/** Hemmelige kolonner der ALDRIG maa kunne laeses af authenticated/anon (R3, 00161). */
+export const SECRET_COLUMNS: Array<{ table: string; column: string }> = [
+  { table: 'supplier_credentials', column: 'credentials_encrypted' },
+  { table: 'supplier_credentials', column: 'access_token_encrypted' },
+  { table: 'supplier_credentials', column: 'refresh_token_encrypted' },
+]
+
+export interface SecretColumnVerdict { table: string; column: string; authenticated: boolean; anon: boolean }
+
+export async function analyseSecretColumns(sql: Sql): Promise<SecretColumnVerdict[]> {
+  const out: SecretColumnVerdict[] = []
+  for (const s of SECRET_COLUMNS) {
+    if (!/^[a-z_]+$/.test(s.table) || !/^[a-z_]+$/.test(s.column)) throw new Error('ugyldigt navn')
+    const r = (await sql(`SELECT has_column_privilege('authenticated', 'public.${s.table}', '${s.column}', 'SELECT') AS auth,
+      has_column_privilege('anon', 'public.${s.table}', '${s.column}', 'SELECT') AS anon`))[0]
+    out.push({ ...s, authenticated: r.auth === true || r.auth === 't', anon: r.anon === true || r.anon === 't' })
+  }
+  return out
+}
+
+export function formatSecretColumns(v: SecretColumnVerdict[]): string {
+  const lines = ['', 'HEMMELIGE KOLONNER (maa ikke kunne laeses af authenticated/anon):']
+  for (const x of v) lines.push(`  ${x.authenticated || x.anon ? '⚠' : '✓'} ${`${x.table}.${x.column}`.padEnd(48)} authenticated=${x.authenticated ? 'LAESBAR' : 'nej'} anon=${x.anon ? 'LAESBAR' : 'nej'}`)
+  return lines.join('\n')
+}
+
+export function formatViews(v: ViewVerdict[]): string {
+  const lines = ['', 'VIEWS OVER FOELSOMME TABELLER:']
+  if (!v.length) lines.push('  (ingen)')
+  for (const x of v) {
+    const risk = x.authenticatedSelect && !x.invoker ? '⚠ OMGAAR RLS (ejer-rettigheder, authenticated kan SELECT)' : x.invoker ? 'security_invoker (RLS gaelder)' : 'ingen authenticated-adgang'
+    lines.push(`  ${x.view.padEnd(40)} [${x.tables.join(',')}]  ${risk}`)
+  }
+  return lines.join('\n')
 }
 
 export function formatPolicies(v: PolicyVerdict[]): string {
