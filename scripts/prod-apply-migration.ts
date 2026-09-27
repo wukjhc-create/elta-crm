@@ -20,6 +20,7 @@ import { maskDbError } from './prod-readonly'
 const APPROVED: Record<string, string> = {
   '00160': '2026-09-27',
   '00159': '2026-09-27',
+  '00161': '2026-09-27', // R1–R4, godkendt af Henrik i chat 2026-09-27
 }
 
 async function main() {

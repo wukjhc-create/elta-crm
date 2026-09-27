@@ -37,6 +37,7 @@
     "prod:apply-migration": "tsx scripts/prod-apply-migration.ts",
     "prod:pilot-health": "tsx scripts/prod-pilot-health.ts",
     "prod:role-policies": "tsx scripts/prod-role-policies.ts",
+    "prod:verify-00161": "tsx scripts/prod-verify-00161.ts",
     "prod:verify-00160": "tsx scripts/prod-verify-00160.ts",
     "prod:verify-00159": "tsx scripts/prod-verify-00159.ts",
     "harness:storage-parity": "tsx scripts/test-harness/cli.ts storage-parity",

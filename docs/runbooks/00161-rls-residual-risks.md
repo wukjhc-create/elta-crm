@@ -1,6 +1,6 @@
 # Runbook — prod-migration 00161: luk rest-risici R1–R4
 
-**Status:** forberedt · anvendt og verificeret på staging (2026-09-27) · **IKKE kørt i production** — kræver Henriks godkendelse.
+**Status:** ✅ KØRT I PRODUCTION 2026-09-27 (godkendt af Henrik) · verificeret med `prod:role-policies` (0·0·0) og `prod:verify-00161` (struktur + adfærd som admin/montør).
 
 ## Hvad
 | | Før (prod, read-only 2026-09-27) | Efter |

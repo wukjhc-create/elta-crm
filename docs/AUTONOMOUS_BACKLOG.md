@@ -44,12 +44,13 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 ## Blokerede opgaver uden for nummerering
 | Opgave | Status | Mangler |
 |---|---|---|
-| P0-gate: prod-migration 00161 (R1–R4) | BLOCKED | Henriks godkendelse. Runbook: docs/runbooks/00161-rls-residual-risks.md. Kode-forudsætning er deployet. |
+| P0-gate: prod-migration 00161 (R1–R4) | DONE | Kørt i prod 2026-09-27 (godkendt). prod:role-policies 0·0·0; prod:verify-00161 struktur + adfærd (admin/montør) grøn. |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
 
 ## Fund registreret undervejs
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-27: 00161 kørt i prod (godkendt) og verificeret; P0 lukket.
 - 2026-09-27: P0 #1–#4 færdige på staging; 00161 forberedt (gate).
 - 2026-09-27: backlog oprettet (Henrik). Forudgående: 00159 + 00160 kørt i prod, Pilot Ops PROD READY.

@@ -1,5 +1,5 @@
 /**
- * PRODUCTION read-only verifikation af migration 00160: ALLE policies (alle kommandoer) paa de 8 tabeller skal vaere
+ * PRODUCTION read-only verifikation af RLS-policy-saettet efter 00160 + 00161: ALLE policies (alle kommandoer) paa de 8 tabeller skal vaere
  * praecis det forventede saet, og ingen policy maa have USING/WITH CHECK = true udover de dokumenterede rest-risici.
  *   npm run prod:verify-00160
  */
@@ -17,10 +17,10 @@ const EXPECTED: Record<string, string[]> = {
   supplier_credentials: ['Authenticated users can view supplier credentials|SELECT', 'supplier_credentials_delete_admin|DELETE', 'supplier_credentials_update_admin|UPDATE', 'supplier_credentials_write_admin|INSERT'],
   accounting_integration_settings: ['accounting_integration_settings_select_by_role|SELECT'],
   integration_settings: ['integration_settings_select_admin|SELECT'],
-  time_logs: ['time_logs_insert_by_role|INSERT', 'time_logs_select_auth|SELECT', 'time_logs_update_by_role|UPDATE'],
+  time_logs: ['time_logs_insert_by_scope|INSERT', 'time_logs_select_by_scope|SELECT', 'time_logs_update_by_scope|UPDATE'], // 00161
 }
 /** Policies der BEVIDST stadig har USING (true) (kun SELECT; R2/R3). */
-const ALLOWED_TRUE = new Set(['time_logs_select_auth', 'Authenticated users can view supplier credentials'])
+const ALLOWED_TRUE = new Set(['Authenticated users can view supplier credentials']) // raekker = metadata; hemmelige kolonner kolonnebeskyttet (00161)
 
 withProdReadOnly('prod-verify-00160', async (run, masked) => {
   const rows = await run(`SELECT tablename, policyname, cmd, roles::text AS roles, coalesce(qual, '') AS qual, coalesce(with_check, '') AS with_check
