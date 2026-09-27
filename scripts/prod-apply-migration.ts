@@ -1,0 +1,56 @@
+/**
+ * PRODUCTION migration-anvendelse — KUN eksplicit godkendte migrationer.
+ *   npm run prod:apply-migration -- <nr> --approved-by-henrik
+ *
+ * Sikkerhed:
+ *   - Allowlist: kun migrationer Henrik har godkendt til prod (APPROVED nedenfor, med dato for godkendelsen).
+ *   - Kraever flaget --approved-by-henrik (ingen utilsigtet koersel).
+ *   - prodDbUrl skal pege paa den kendte production-ref.
+ *   - Filen koeres UAENDRET; den er selv én transaktion (BEGIN/COMMIT) - fejler ét trin, rulles alt tilbage.
+ *   - Credentials printes aldrig; fejl maskeres.
+ * Verifikation foer/efter sker med de read-only scripts (prod:role-policies, prod:verify-00159).
+ */
+import { Client } from 'pg'
+import { readFileSync, readdirSync } from 'fs'
+import { resolve } from 'path'
+import { KNOWN_PRODUCTION_REFS, HARNESS_SECRETS_FILE } from './test-harness/env-guard'
+import { maskDbError } from './prod-readonly'
+
+/** Godkendt til production af Henrik (chat, 2026-09-27): 00160 foerst, derefter 00159. */
+const APPROVED: Record<string, string> = {
+  '00160': '2026-09-27',
+  '00159': '2026-09-27',
+}
+
+async function main() {
+  const num = String(process.argv[2] || '')
+  if (!APPROVED[num]) throw new Error(`migration ${num || '(ingen)'} er ikke godkendt til production`)
+  if (!process.argv.includes('--approved-by-henrik')) throw new Error('mangler --approved-by-henrik')
+
+  const dir = resolve(process.cwd(), 'supabase', 'migrations')
+  const files = readdirSync(dir).filter((f) => f.startsWith(`${num}_`) && f.endsWith('.sql'))
+  if (files.length !== 1) throw new Error(`forventede praecis én fil for ${num}, fandt ${files.length}`)
+  const sql = readFileSync(resolve(dir, files[0]), 'utf8')
+  if (!/^\s*BEGIN;/m.test(sql) || !/^\s*COMMIT;/m.test(sql)) throw new Error('migrationen er ikke én eksplicit transaktion')
+
+  const j = JSON.parse(readFileSync(resolve(process.cwd(), HARNESS_SECRETS_FILE), 'utf8'))
+  const url = String(j.prodDbUrl || '').trim()
+  const u = new URL(url)
+  const ref = decodeURIComponent(u.username).match(/^postgres\.([a-z0-9]+)$/i)?.[1] ?? u.hostname.match(/^db\.([a-z0-9]+)\./i)?.[1]
+  if (!ref || !KNOWN_PRODUCTION_REFS.includes(ref)) throw new Error('prodDbUrl peger ikke paa kendt production-ref')
+
+  const client = new Client({ connectionString: url, ssl: { rejectUnauthorized: false }, application_name: `elta-apply-${num}`, statement_timeout: 60000 })
+  await client.connect()
+  try {
+    console.log(`[prod-apply] ${files[0]} -> prod:${ref.slice(0, 6)}… (godkendt ${APPROVED[num]})`)
+    await client.query(sql)
+    console.log('[prod-apply] ✅ COMMIT gennemfoert')
+  } catch (e) {
+    try { await client.query('ROLLBACK') } catch { /* noop */ }
+    throw e
+  } finally {
+    await client.end()
+  }
+}
+
+main().catch((e) => { console.error('[prod-apply] FEJL (intet aendret hvis fejlen skete i transaktionen):', maskDbError(e)); process.exit(1) })
