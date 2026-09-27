@@ -17,7 +17,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 ## P1 — Pilot-robusthed
 | # | Opgave | Status | Note / blocker |
 |---|---|---|---|
-| 5 | Udvid audit af alle rollefølsomme tabeller | TODO | |
+| 5 | Udvid audit af alle rollefølsomme tabeller | DONE (staging) | db-audit (T1–T4, F1–F3, V1) prod+staging; fund P-004 → 00162; anon-surface-probes i pilot-roles. 112 tabeller hvor alle indloggede kan skrive (T4, app-lag) → egen hærdnings-opgave |
 | 6 | Test sessions, invitationer, deaktiverede brugere, rolleændringer | TODO | |
 | 7 | Samtidige brugere/race conditions i centrale workflows | TODO | |
 | 8 | Fejloplevelser og tomme states i pilotens vigtigste UI | TODO | |
@@ -44,13 +44,16 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 ## Blokerede opgaver uden for nummerering
 | Opgave | Status | Mangler |
 |---|---|---|
+| P1-gate: prod-migration 00162 (anon-eksponering, P-004) | BLOCKED | Henriks godkendelse. Runbook: docs/runbooks/00162-anon-exposure-lockdown.md. HØJ prioritet. |
 | P0-gate: prod-migration 00161 (R1–R4) | DONE | Kørt i prod 2026-09-27 (godkendt). prod:role-policies 0·0·0; prod:verify-00161 struktur + adfærd (admin/montør) grøn. |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
 
 ## Fund registreret undervejs
+- P-004 (S1) anon kunne læse 310k leverandørpriser via view + forfalske audit (→ 00162).
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-27: P1 #5 db-audit færdig; P-004 fundet, 00162 forberedt (gate).
 - 2026-09-27: 00161 kørt i prod (godkendt) og verificeret; P0 lukket.
 - 2026-09-27: P0 #1–#4 færdige på staging; 00161 forberedt (gate).
 - 2026-09-27: backlog oprettet (Henrik). Forudgående: 00159 + 00160 kørt i prod, Pilot Ops PROD READY.

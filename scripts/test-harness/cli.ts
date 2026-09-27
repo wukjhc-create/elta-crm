@@ -319,7 +319,14 @@ async function status() {
         + (SELECT count(*) FROM work_orders WHERE title LIKE '[HARNESS-SEC]%')
         + (SELECT count(*) FROM employees WHERE email LIKE 'harness-sec-%@harness.test')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSEC%')
-        + (SELECT count(*) FROM audit_logs WHERE entity_type = 'harness_sec_probe') AS role_probes`))[0]
+        + (SELECT count(*) FROM audit_logs WHERE entity_type IN ('harness_sec_probe', 'harness_anon_probe'))
+        + (SELECT count(*) FROM packages WHERE name LIKE 'HARNESS-SEC%')
+        + (SELECT count(*) FROM product_catalog WHERE name LIKE 'HARNESS-SEC%')
+        + (SELECT count(*) FROM package_categories WHERE slug LIKE 'hsec-%')
+        + (SELECT count(*) FROM product_categories WHERE slug LIKE 'hsec-%')
+        + (SELECT count(*) FROM project_templates WHERE name LIKE 'HARNESS-SEC%')
+        + (SELECT count(*) FROM supplier_products WHERE supplier_sku LIKE 'HSEC-%')
+        + (SELECT count(*) FROM integration_logs WHERE log_type LIKE 'harness_anon_probe_%') AS role_probes`))[0]
   const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n
     FROM agent_actions a JOIN agent_runs r ON r.id = a.run_id WHERE a.created_at > now() - interval '24 hours' GROUP BY 1,2,3 ORDER BY 1,2`)
   const cases24 = await stagingSql(`SELECT source, (title LIKE '[HARNESS %') AS harness_title, is_proposal, count(*) AS n
@@ -382,6 +389,9 @@ async function main() {
     const updates = await rm.runUpdateProbes(clients, admin)
     const { runResidualProbes, formatResidualChecks } = await import('./rls-residuals')
     const residualChecks = await runResidualProbes(admin, clients)
+    const { runAnonSurfaceProbes, formatAnonChecks } = await import('./anon-surface')
+    const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false, autoRefreshToken: false } })
+    const anonChecks = await runAnonSurfaceProbes(anonClient, clients.get('salg')!, admin)
     for (const c of clients.values()) await c.auth.signOut()
     log('\nSKRIVE-PROBES (ikke-admin indsaetter direkte via REST):')
     for (const w of writes) log(`  ${w.inserted ? '⚠' : '✓'} ${w.role.padEnd(8)} ${w.table.padEnd(24)} ${w.note}`)
@@ -390,6 +400,8 @@ async function main() {
     const updateWrong = updates.filter((u) => u.updated !== u.expected).length
     log(formatResidualChecks(residualChecks))
     const residualWrong = residualChecks.filter((c) => !c.ok).length
+    log(formatAnonChecks(anonChecks))
+    const anonWrong = anonChecks.filter((c) => !c.ok).length
     const strict = rows.filter((r) => r.tooStrict.length)
     if (strict.length) log(`For stramt (tilladt rolle ser 0 af >0 raekker): ${strict.map((r) => `${r.table}[${r.tooStrict.join(',')}]`).join('; ')}`)
     const policies = await rm.analysePolicies(stagingSql)
@@ -404,11 +416,18 @@ async function main() {
     log(rm.formatSecretColumns(secrets))
     const viewGaps = views.filter((v) => v.authenticatedSelect && !v.invoker).length
     const secretGaps = secrets.filter((s) => s.authenticated || s.anon).length
-    const holes = [...new Set([...readGaps, ...staticGaps])].length + writeGaps.length + strict.length + updateWrong + residualWrong + viewGaps + secretGaps
+    const holes = [...new Set([...readGaps, ...staticGaps])].length + writeGaps.length + strict.length + updateWrong + residualWrong + viewGaps + secretGaps + anonWrong
     log(`\nRaekkeafgraenset adgang (scope verificeret af R1–R4-probes ovenfor): ${residuals.join('; ') || 'ingen'}`)
-    log(`=== ROLLEADGANG: ${holes ? `❌ ${holes} problem(er) — laese: ${[...new Set([...readGaps, ...staticGaps])].join('; ') || '-'} | skrive: ${writeGaps.join('; ') || '-'} | for stramt: ${strict.length} | R1–R4: ${residualWrong} | views: ${viewGaps} | hemmelige kolonner: ${secretGaps}` : '✅ ingen huller (R1–R4 lukket og verificeret med probe-data)'} ===`)
+    log(`=== ROLLEADGANG: ${holes ? `❌ ${holes} problem(er) — laese: ${[...new Set([...readGaps, ...staticGaps])].join('; ') || '-'} | skrive: ${writeGaps.join('; ') || '-'} | for stramt: ${strict.length} | R1–R4: ${residualWrong} | views: ${viewGaps} | hemmelige kolonner: ${secretGaps} | anon: ${anonWrong}` : '✅ ingen huller (R1–R4 lukket og verificeret med probe-data)'} ===`)
     saveReport('pilot-roles', { target: `staging:${ref}`, at: new Date().toISOString(), rows, writes, policies, residualChecks, views, secrets })
     process.exitCode = holes ? 2 : 0
+    return
+  }
+  if (SUB === 'db-audit') {
+    const { runDbAudit, formatDbAudit } = await import('./db-audit')
+    const r = await runDbAudit(stagingSql)
+    log(formatDbAudit(`staging:${ref}`, r))
+    process.exitCode = r.findings.some((x) => x.severity === 'HOEJ' && !x.intentional) ? 2 : 0
     return
   }
   if (SUB === 'view-parity') {
