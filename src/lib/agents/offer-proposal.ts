@@ -5,10 +5,11 @@
  * approval (og kun med enabled agent) kalder Executor handleren, som opretter udkastet som FORSLAG:
  * status 'draft', is_proposal=true, beløb 0. Intet sendes, intet posteres, ingen linjer/priser beregnes.
  *
- * Idempotens:
+ * Idempotens (migration 00159):
  *   - højst ét aktivt (ikke-afvist) forslag pr. sag; idempotency_key `case-offer:<case>:<n>` (UNIQUE i DB)
- *   - handleren skriver en markør `[agent-action:<id>]` i tilbuddets interne notes og genbruger et tilbud med
- *     samme markør (gentaget kald) eller et tilbud fra et tidligere udført forslag for samme sag.
+ *   - tilbuddet kobles til sagen via offers.source_case_id; UNIQUE (source_case_id) WHERE is_proposal garanterer
+ *     højst ét åbent tilbudsforslag pr. sag, også under samtidige udførelser. Handleren genbruger et eksisterende
+ *     åbent forslag for sagen (gentaget kald/race) eller et tilbud fra et tidligere udført forslag.
  * Tamper/stale: sagen skal findes, være bekræftet (ikke et sagsforslag), ikke lukket/konverteret, ikke selv
  * stamme fra et tilbud, og have samme kunde som da forslaget blev lavet.
  *
@@ -63,7 +64,11 @@ export function buildOfferProposal(c: OfferProposalCase): OfferProposalPayload |
   return { case_id: c.id, case_number: c.case_number, customer_id: c.customer_id!, proposed_title: `Tilbud - ${c.title}` }
 }
 
-const marker = (actionId: string) => `[agent-action:${actionId}]`
+/** Åbent tilbudsforslag koblet til sagen (højst ét - UNIQUE-index fra 00159). */
+async function openProposalOfferForCase(admin: any, caseId: string): Promise<{ id: string; offer_number: string } | null> {
+  const { data } = await admin.from('offers').select('id, offer_number').eq('source_case_id', caseId).eq('is_proposal', true).limit(1).maybeSingle()
+  return (data as { id: string; offer_number: string } | null) ?? null
+}
 
 /** Tilbudsforslag for sagen der stadig er aktive eller udførte (ikke afviste/fejlede). */
 async function activeProposalsForCase(admin: any, caseId: string): Promise<Array<{ id: string; status: string; result: Record<string, unknown> | null }>> {
@@ -88,16 +93,19 @@ export async function executeOfferProposal(ctx: CapabilityContext): Promise<Capa
   const blocker = offerProposalBlocker(c)
   if (blocker) return { ok: false, error: `${blocker} - intet tilbud oprettet` }
 
-  // Idempotens 1: denne action har allerede oprettet tilbuddet (gentaget kald).
-  const { data: mine } = await ctx.admin.from('offers').select('id, offer_number').ilike('notes', `%${marker(ctx.action.id)}%`).limit(1).maybeSingle()
-  if (mine?.id) return { ok: true, data: { offer_id: mine.id, offer_number: mine.offer_number, created: false, already_existed: true, case_id: c.id } }
+  const reuse = (o: { id: string; offer_number: string }) =>
+    ({ ok: true, data: { offer_id: o.id, offer_number: o.offer_number, created: false, already_existed: true, case_id: c.id } }) as CapabilityResult
+
+  // Idempotens 1: sagen har allerede et åbent tilbudsforslag (gentaget kald eller andet forslag).
+  const open = await openProposalOfferForCase(ctx.admin, c.id)
+  if (open) return reuse(open)
 
   // Idempotens 2: et andet forslag for samme sag er allerede udført, og dets tilbud findes stadig.
   for (const a of await activeProposalsForCase(ctx.admin, c.id)) {
     const offerId = a.id !== ctx.action.id && a.status === 'executed' ? (a.result?.offer_id as string | undefined) : undefined
     if (!offerId) continue
     const { data: prior } = await ctx.admin.from('offers').select('id, offer_number').eq('id', offerId).maybeSingle()
-    if (prior?.id) return { ok: true, data: { offer_id: prior.id, offer_number: prior.offer_number, created: false, already_existed: true, case_id: c.id } }
+    if (prior?.id) return reuse(prior)
   }
 
   // created_by: den der godkendte forslaget (fallback: første admin).
@@ -128,11 +136,15 @@ export async function executeOfferProposal(ctx: CapabilityContext): Promise<Capa
     final_amount: 0,
     tax_percentage: 25,
     currency: 'DKK',
-    notes: `Tilbudsudkast foreslaaet af Agent Core ud fra sag ${c.case_number ?? c.id}. Tomt udkast - linjer og priser tilfoejes manuelt. ${marker(ctx.action.id)}`,
+    notes: `Tilbudsudkast foreslaaet af Agent Core ud fra sag ${c.case_number ?? c.id} (agent-action ${ctx.action.id}). Tomt udkast - linjer og priser tilfoejes manuelt.`,
     created_by: createdBy,
     is_proposal: true,
+    source_case_id: c.id,
   })
   if (res.error || !res.data) {
+    // Race: en samtidig udfoerelse vandt UNIQUE (source_case_id) WHERE is_proposal -> genbrug dens tilbud.
+    const winner = await openProposalOfferForCase(ctx.admin, c.id)
+    if (winner) return reuse(winner)
     logger.error('executeOfferProposal: insert fejlede', { error: res.error, metadata: { caseId: c.id, actionId: ctx.action.id } })
     return { ok: false, error: 'tilbudsudkastet kunne ikke oprettes' }
   }
@@ -155,6 +167,9 @@ export async function runOfferAgent(
   if (!proposal) return { success: true, data: { runId: null, proposals: 0, reason: offerProposalBlocker(c) ?? undefined } }
   const existing = await activeProposalsForCase(admin, c.id)
   if (existing.length > 0) return { success: true, data: { runId: null, proposals: 0, reason: 'der findes allerede et tilbudsforslag for sagen' } }
+  if (await openProposalOfferForCase(admin, c.id)) {
+    return { success: true, data: { runId: null, proposals: 0, reason: 'sagen har allerede et aabent tilbudsforslag' } }
+  }
 
   const { data: cfg } = await admin.from('agent_configs').select('safety_mode').eq('agent_type', 'offer').maybeSingle()
   const { data: run, error: rErr } = await admin

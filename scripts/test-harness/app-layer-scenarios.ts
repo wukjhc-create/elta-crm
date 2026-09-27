@@ -289,15 +289,16 @@ async function offerProposalFlow(c: Ctx): Promise<ScenarioResult> {
     const r2 = await runOfferAgent(A.id, { dryRun: true })
     if (r2.data?.runId) runIds.push(r2.data.runId)
     const proposedOnce = !!act && act.status === 'awaiting_approval' && r2.data?.proposals === 0
-    const offersFor = async (aid: string) => Number((await c.sql(`SELECT count(*) n FROM offers WHERE notes LIKE '%[agent-action:${aid}]%'`))[0].n)
+    // Tilbud koblet til sagen via 00159 (source_case_id) — dedup-noeglen
+    const offersFor = async (caseId: string) => Number((await c.sql(`SELECT count(*) n FROM offers WHERE source_case_id=${lit(caseId)}`))[0].n)
     if (!act) return { id, ok: false, note: `intet forslag: ${r1.error ?? r1.data?.reason}` }
 
     const exDisabled = await executeAction(act.id)
-    const disabledOk = exDisabled.data?.status === 'refused' && (await offersFor(act.id)) === 0
+    const disabledOk = exDisabled.data?.status === 'refused' && (await offersFor(A.id)) === 0
 
     const flow = await withStagingAgentEnabled(c, 'offer', async () => {
       const noAppr = await executeAction(act.id)
-      const noApprovalOk = noAppr.data?.status === 'refused' && (await offersFor(act.id)) === 0
+      const noApprovalOk = noAppr.data?.status === 'refused' && (await offersFor(A.id)) === 0
       const approved = await approve(c, act.id)
       const ex = await executeAction(act.id)
       const res = (await c.sql(`SELECT status, result FROM agent_actions WHERE id=${lit(act.id)}`))[0]
@@ -307,9 +308,15 @@ async function offerProposalFlow(c: Ctx): Promise<ScenarioResult> {
       const createdOk = approved && ex.data?.status === 'executed' && res?.status === 'executed' && offer?.status === 'draft' && offer?.is_proposal === true
         && Number(offer?.total_amount) === 0 && offer?.customer_id === A.customer_id && offer?.sent_at === null && offer?.converted_case_id === null
       const again = await executeAction(act.id)
-      const idempotent = again.data?.status === 'noop' && (await offersFor(act.id)) === 1
+      const idempotent = again.data?.status === 'noop' && (await offersFor(A.id)) === 1
       const audit = await auditActions(c, act.id)
       const auditOk = audit.filter((x) => x === 'refused').length >= 2 && audit.includes('executed')
+
+      // DB-garanti (00159): et andet AABENT forslag for samme sag afvises af uq_offers_open_proposal_per_source_case
+      const dup = await c.admin.from('offers').insert([{ offer_number: `HARNESS-SEC-DUP-${Date.now()}`, title: '[HARNESS] dublet', status: 'draft',
+        customer_id: A.customer_id, created_by: c.ownerUid, total_amount: 0, final_amount: 0, is_proposal: true, source_case_id: A.id }]).select('id')
+      if (dup.data?.[0]?.id) offerIds.push(dup.data[0].id)
+      const dbUniqueOk = !!dup.error && /uq_offers_open_proposal_per_source_case|duplicate/i.test(dup.error.message) && (await offersFor(A.id)) === 1
 
       // Stale: sag B lukkes efter forslaget -> handler afviser -> ingen tilbud
       const rb = await runOfferAgent(B.id, { dryRun: true })
@@ -321,18 +328,19 @@ async function offerProposalFlow(c: Ctx): Promise<ScenarioResult> {
         try {
           await approve(c, actB.id)
           const exB = await executeAction(actB.id)
-          staleOk = exB.data?.status === 'failed' && (await offersFor(actB.id)) === 0
+          staleOk = exB.data?.status === 'failed' && (await offersFor(B.id)) === 0
         } finally {
           await c.sql(`UPDATE service_cases SET status='${String(B.status).replace(/'/g, "''")}' WHERE id=${lit(B.id)}`)
         }
       }
-      return { noApprovalOk, createdOk, idempotent, auditOk, staleOk, audit }
+      return { noApprovalOk, createdOk, idempotent, auditOk, staleOk, audit, dbUniqueOk }
     })
-    const ok = proposedOnce && disabledOk && flow.noApprovalOk && flow.createdOk && flow.idempotent && flow.auditOk && flow.staleOk
+    const ok = proposedOnce && disabledOk && flow.noApprovalOk && flow.createdOk && flow.idempotent && flow.auditOk && flow.staleOk && flow.dbUniqueOk
     return {
       id, ok,
       note: `forslag=${proposedOnce ? '1 (gentagelse 0)' : 'FEJL'} | disabled=${disabledOk ? 'afvist' : 'FEJL'} | uden approval=${flow.noApprovalOk ? 'afvist' : 'FEJL'}`
         + ` | approve+execute=${flow.createdOk ? 'tomt udkast (draft, forslag, 0 kr, ikke sendt)' : 'FEJL'} | gentag=${flow.idempotent ? 'noop' : 'DUBLET'}`
+        + ` | DB-unik=${flow.dbUniqueOk ? 'dublet afvist' : 'FEJL'}`
         + ` | audit=[${flow.audit.join(',')}] | stale=${flow.staleOk ? 'afvist' : 'FEJL'}`,
     }
   } finally {
