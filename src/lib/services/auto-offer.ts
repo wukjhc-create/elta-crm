@@ -22,7 +22,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
-import { retryOnUniqueViolation } from '@/lib/utils/retry'
+import { insertOfferWithNumber } from '@/lib/services/offer-number'
 import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
 import { fillOfferStarterLines } from '@/lib/services/offer-starter-packs'
 import { applyPackageToOffer } from '@/lib/services/offer-packages'
@@ -97,48 +97,21 @@ export async function createOfferDraftFromCase(input: AutoOfferInput): Promise<s
     ? aiSummary.wants
     : buildFallbackDescription(input)
 
-  // Race-safe offer_number generation: re-read MAX+1 each retry.
-  const result = await retryOnUniqueViolation<{ id: string; offer_number: string }>(
-    async () => {
-      const year = new Date().getFullYear()
-      const prefix = `TILBUD-${year}-`
-      const { data: lastRows } = await supabase
-        .from('offers')
-        .select('offer_number')
-        .like('offer_number', `${prefix}%`)
-        .order('offer_number', { ascending: false })
-        .limit(1)
-
-      let offerNumber = `${prefix}0001`
-      if (lastRows && lastRows.length > 0) {
-        const last = lastRows[0].offer_number as string
-        const n = parseInt(last.split('-').pop() || '0', 10)
-        if (!Number.isNaN(n)) offerNumber = `${prefix}${(n + 1).toString().padStart(4, '0')}`
-      }
-
-      return await supabase
-        .from('offers')
-        .insert({
-          offer_number: offerNumber,
-          title,
-          description,
-          status: 'draft',
-          customer_id: input.customerId,
-          total_amount: 0,
-          final_amount: 0,
-          tax_percentage: 25,
-          currency: 'DKK',
-          notes,
-          source_email_id: input.emailId,
-          created_by: adminProfile.id,
-          is_proposal: true,
-        })
-        .select('id, offer_number')
-        .single()
-    },
-    3,
-    'offer_number/source_email_id'
-  )
+  // Race-safe offer_number (retry kun ved nummer-kollision); 23505 paa source_email_id returneres straks.
+  const result = await insertOfferWithNumber(supabase, {
+    title,
+    description,
+    status: 'draft',
+    customer_id: input.customerId,
+    total_amount: 0,
+    final_amount: 0,
+    tax_percentage: 25,
+    currency: 'DKK',
+    notes,
+    source_email_id: input.emailId,
+    created_by: adminProfile.id,
+    is_proposal: true,
+  })
 
   if (result.error || !result.data) {
     // 23505 on source_email_id means another worker beat us — return that offer.

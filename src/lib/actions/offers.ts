@@ -15,6 +15,7 @@ import { calculateSalePrice, calculateLineTotal, computeOfferDB, calculateMargin
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
+import { insertOfferWithNumber } from '@/lib/services/offer-number'
 import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
@@ -211,29 +212,6 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
   }
 }
 
-// Generate next offer number
-async function generateOfferNumber(): Promise<string> {
-  const { supabase } = await getAuthenticatedClient()
-  const currentYear = new Date().getFullYear()
-  const prefix = `TILBUD-${currentYear}-`
-
-  const { data } = await supabase
-    .from('offers')
-    .select('offer_number')
-    .like('offer_number', `${prefix}%`)
-    .order('offer_number', { ascending: false })
-    .limit(1)
-
-  if (!data || data.length === 0) {
-    return `${prefix}0001`
-  }
-
-  const lastNumber = data[0].offer_number
-  const numPart = parseInt(lastNumber.split('-').pop() || '0', 10)
-  const nextNum = numPart + 1
-  return `${prefix}${nextNum.toString().padStart(4, '0')}`
-}
-
 // Create new offer
 export async function createOffer(formData: FormData): Promise<ActionResult<Offer>> {
   try {
@@ -280,11 +258,8 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
       const errors = validated.error.errors.map((e) => e.message).join(', ')
       return { success: false, error: errors }
     }
-    const offerNumber = await generateOfferNumber()
-
     // Strip null/undefined values to avoid PostgREST errors for new columns
     const insertData: Record<string, unknown> = {
-      offer_number: offerNumber,
       created_by: userId,
     }
     for (const [key, value] of Object.entries(validated.data)) {
@@ -304,14 +279,11 @@ export async function createOffer(formData: FormData): Promise<ActionResult<Offe
     }
     if (!insertData.billing_mode) insertData.billing_mode = 'same_as_customer'
 
-    const { data, error } = await supabase
-      .from('offers')
-      .insert(insertData)
-      .select()
-      .single()
+    // Race-sikkert tilbudsnummer (retry ved samtidig oprettelse) — se services/offer-number.ts
+    const { data, error } = await insertOfferWithNumber<Offer>(supabase, insertData, '*')
 
-    if (error) {
-      if (error.code === '23503') {
+    if (error || !data) {
+      if (error?.code === '23503') {
         return { success: false, error: 'Den valgte kunde eller lead findes ikke' }
       }
       logger.error('Database error creating offer', { error: error })
@@ -424,10 +396,7 @@ export async function quickCreateCustomerAndOffer(
     }
 
     // Step 2: Create offer
-    const offerNumber = await generateOfferNumber()
-
     const insertData: Record<string, unknown> = {
-      offer_number: offerNumber,
       title: input.offerTitle,
       customer_id: customerId,
       // Sprint 12A — default-fyld parti-roller til customerId.
@@ -445,13 +414,9 @@ export async function quickCreateCustomerAndOffer(
       insertData.description = `Produkttype: ${input.productType}`
     }
 
-    const { data: offer, error: offerError } = await supabase
-      .from('offers')
-      .insert(insertData)
-      .select()
-      .single()
+    const { data: offer, error: offerError } = await insertOfferWithNumber<Offer>(supabase, insertData, '*')
 
-    if (offerError) {
+    if (offerError || !offer) {
       logger.error('Error creating offer in quick flow', { error: offerError })
       return { success: false, error: 'Kunde oprettet, men tilbud fejlede' }
     }
@@ -464,7 +429,7 @@ export async function quickCreateCustomerAndOffer(
       userId
     )
     await logCreate('offer', offer.id, offer.title, {
-      offer_number: offerNumber,
+      offer_number: offer.offer_number,
       customer_id: customerId,
       source: 'quick_create_from_mail',
     })

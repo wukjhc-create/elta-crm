@@ -30,6 +30,7 @@ import { DEFAULT_TAX_RATE } from '@/lib/constants'
 import { getStandardSaleRate, FALLBACK_SALE_RATE } from '@/lib/services/rates'
 import { calculateSalePrice } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
+import { insertOfferWithNumber } from '@/lib/services/offer-number'
 
 // =====================================================
 // Kalkia Calculations CRUD
@@ -668,26 +669,6 @@ export async function createOfferFromCalculation(
       return { success: false, error: 'Kunde ikke fundet' }
     }
 
-    // Generate offer number
-    const currentYear = new Date().getFullYear()
-    const prefix = `TILBUD-${currentYear}-`
-
-    const { data: lastOffer } = await supabase
-      .from('offers')
-      .select('offer_number')
-      .ilike('offer_number', `${prefix}%`)
-      .order('offer_number', { ascending: false })
-      .limit(1)
-
-    let nextNumber = 1
-    if (lastOffer && lastOffer.length > 0) {
-      const lastNum = parseInt(lastOffer[0].offer_number.replace(prefix, ''), 10)
-      if (!isNaN(lastNum)) {
-        nextNumber = lastNum + 1
-      }
-    }
-    const offerNumber = `${prefix}${String(nextNumber).padStart(4, '0')}`
-
     // Calculate totals from items
     const totalAmount = input.result?.salePriceExclVat ||
       input.items.reduce((sum, item) => sum + item.salePrice * item.quantity, 0)
@@ -699,10 +680,8 @@ export async function createOfferFromCalculation(
     const finalAmount = totalAmount - discountAmount + taxAmount
 
     // Create the offer
-    const { data: offer, error: offerError } = await supabase
-      .from('offers')
-      .insert({
-        offer_number: offerNumber,
+    // Race-sikkert tilbudsnummer (retry ved samtidig oprettelse) — se services/offer-number.ts
+    const { data: offer, error: offerError } = await insertOfferWithNumber(supabase, {
         title: input.title,
         description: input.description,
         customer_id: input.customerId,
@@ -725,8 +704,6 @@ export async function createOfferFromCalculation(
         terms_and_conditions: input.termsAndConditions,
         created_by: userId,
       })
-      .select('id, offer_number')
-      .single()
 
     if (offerError || !offer) {
       logger.error('Error creating offer', { error: offerError })

@@ -6,7 +6,7 @@
  * status 'draft', is_proposal=true, beløb 0. Intet sendes, intet posteres, ingen linjer/priser beregnes.
  *
  * Idempotens (migration 00159):
- *   - højst ét aktivt (ikke-afvist) forslag pr. sag; idempotency_key `case-offer:<case>:<n>` (UNIQUE i DB)
+ *   - højst ét aktivt (ikke-afvist) forslag pr. sag; idempotency_key `case-offer:<case>:<antal inaktive forslag>` (UNIQUE i DB)
  *   - tilbuddet kobles til sagen via offers.source_case_id; UNIQUE (source_case_id) WHERE is_proposal garanterer
  *     højst ét åbent tilbudsforslag pr. sag, også under samtidige udførelser. Handleren genbruger et eksisterende
  *     åbent forslag for sagen (gentaget kald/race) eller et tilbud fra et tidligere udført forslag.
@@ -203,8 +203,12 @@ export async function runOfferAgent(
     return { success: false, error: 'Kunne ikke oprette task' }
   }
 
-  // Attempt-nummer i noeglen: et afvist forslag kan erstattes af et nyt; samtidige koersler kolliderer (UNIQUE).
-  const { count } = await admin.from('agent_actions').select('id', { count: 'exact', head: true }).eq('capability', OFFER_CAPABILITY).eq('payload->>case_id', c.id)
+  // Generation i noeglen = antal INAKTIVE (afviste/fejlede) forslag: et afvist forslag kan erstattes af et nyt, mens
+  // samtidige koersler faar SAMME noegle og kolliderer paa UNIQUE (et nyt aktivt forslag aendrer ikke tallet).
+  // (Taelles alle forslag, kan en samtidig koersel se sin konkurrents insert og faa naeste noegle -> 2 aktive;
+  // fundet af harness:concurrency C2.)
+  const { count } = await admin.from('agent_actions').select('id', { count: 'exact', head: true })
+    .eq('capability', OFFER_CAPABILITY).eq('payload->>case_id', c.id).in('status', INACTIVE_ACTION_STATUSES)
   const { error: aErr } = await admin.from('agent_actions').insert({
     task_id: task.id, run_id: runId, action_type: 'propose_offer', capability: OFFER_CAPABILITY, side_effect_class: 'create',
     requires_approval: true, min_approvals: 1, idempotency_key: `case-offer:${c.id}:${count ?? 0}`, status: 'awaiting_approval',

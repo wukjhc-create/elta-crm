@@ -19,7 +19,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 |---|---|---|---|
 | 5 | Udvid audit af alle rollefølsomme tabeller | DONE (staging) | db-audit (T1–T4, F1–F3, V1) prod+staging; fund P-004 → 00162; anon-surface-probes i pilot-roles. 112 tabeller hvor alle indloggede kan skrive (T4, app-lag) → egen hærdnings-opgave |
 | 6 | Test sessions, invitationer, deaktiverede brugere, rolleændringer | DONE | harness:session-lifecycle 7/7: signup-rolle ignoreres, ingen selv-eskalering, rolleændring live i aktiv session, deaktivering → login/refresh afvist og gyldigt token behandles som anon med det samme. Staging-paritet: auth-trigger on_auth_user_created tilføjet (harness:staging-parity) |
-| 7 | Samtidige brugere/race conditions i centrale workflows | TODO | |
+| 7 | Samtidige brugere/race conditions i centrale workflows | DONE | harness:concurrency 6/6 (stabil 5 koersler): parallel executeAction, runOfferAgent, handler (UNIQUE source_case_id), tilbudsnumre, opfølgningsagent, kundenumre. **2 race-fejl fundet og rettet:** (a) tilbudsnummer: 4/8 samtidige oprettelser fejlede (3 forsøg, 3 generatorer helt uden retry) → alle 5 generatorer samlet i services/offer-number.ts, 10 forsøg m. jitter-backoff, retry kun ved nummer-kollision; kundenummer samme (10 forsøg). (b) runOfferAgent kunne give 2 aktive forslag pr. sag → idempotency-generation = antal inaktive forslag |
 | 8 | Fejloplevelser og tomme states i pilotens vigtigste UI | TODO | |
 | 9 | Logging/incident visibility | TODO | |
 | 10 | Pilot Operations-dashboard/health så enkelt som muligt | TODO | |
@@ -50,9 +50,11 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 
 ## Fund registreret undervejs
 - P-004 (S1) anon kunne læse 310k leverandørpriser via view + forfalske audit (→ 00162).
+- Offers-RLS: UPDATE/DELETE `USING (true)` for alle indloggede (montør kan slette tilbud via REST). Ikke eksponeret for anon. → vurderes i #11/RBAC-milestone (kræver DDL-gate).
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-27: P1 #7 race-tests færdige; 2 race-fejl rettet i kode (tilbuds-/kundenummer, dobbelt tilbudsforslag).
 - 2026-09-27: P1 #5 db-audit færdig; P-004 fundet, 00162 forberedt (gate).
 - 2026-09-27: 00161 kørt i prod (godkendt) og verificeret; P0 lukket.
 - 2026-09-27: P0 #1–#4 færdige på staging; 00161 forberedt (gate).

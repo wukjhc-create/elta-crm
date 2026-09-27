@@ -16,7 +16,9 @@ export interface UniqueViolationResult<T> {
 export async function retryOnUniqueViolation<T>(
   attempt: () => Promise<UniqueViolationResult<T>>,
   maxAttempts = 3,
-  label = 'insert'
+  label = 'insert',
+  /** Valgfrit filter: kun disse unique-fejl forsoeges igen (fx kun nummer-constraintet, ikke en dedup-noegle). */
+  isRetryable?: (error: { code?: string; message?: string }) => boolean
 ): Promise<UniqueViolationResult<T>> {
   let last: UniqueViolationResult<T> = { data: null, error: { code: 'no_attempt' } }
   for (let i = 0; i < maxAttempts; i++) {
@@ -26,9 +28,11 @@ export async function retryOnUniqueViolation<T>(
       last.error.code === '23505' ||
       /duplicate|unique|already exists/i.test(last.error.message || '')
     if (!isUniqueViolation) return last
+    if (isRetryable && !isRetryable(last.error)) return last
     if (i < maxAttempts - 1) {
       console.warn(`RETRY ${label} on 23505 (attempt ${i + 2}/${maxAttempts})`)
-      await sleep(20 + Math.floor(Math.random() * 40))
+      // Backoff med fuld jitter: jo flere samtidige skribenter, jo mere spredes de (P1 #7 race-test).
+      await sleep(Math.floor(Math.random() * Math.min(400, 25 * 2 ** i)) + 5)
     }
   }
   return last

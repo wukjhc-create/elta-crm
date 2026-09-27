@@ -31,6 +31,7 @@
     "harness:pilot": "tsx scripts/test-harness/cli.ts pilot",
     "harness:pilot-health": "tsx scripts/test-harness/cli.ts pilot-health",
     "harness:pilot-roles": "tsx scripts/test-harness/cli.ts pilot-roles",
+    "harness:concurrency": "tsx scripts/test-harness/cli.ts concurrency",
     "harness:session-lifecycle": "tsx scripts/test-harness/cli.ts session-lifecycle",
     "harness:db-audit": "tsx scripts/test-harness/cli.ts db-audit",
     "harness:staging-parity": "tsx scripts/test-harness/cli.ts staging-parity",

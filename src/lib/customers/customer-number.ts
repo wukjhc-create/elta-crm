@@ -22,7 +22,8 @@ import { logger } from '@/lib/utils/logger'
 
 const CUSTOMER_NUMBER_PREFIX = 'C'
 const CUSTOMER_NUMBER_PADDING = 6
-const DEFAULT_MAX_ATTEMPTS = 5
+// Hver runde vinder mindst én samtidig skribent (harness:concurrency C6: 8 parallelle).
+const DEFAULT_MAX_ATTEMPTS = 10
 
 // Helper accepterer enhver Supabase-client (server, anon, admin). Vi bruger
 // `any` her for at undgaa hard dependency paa @supabase/supabase-js i en
@@ -131,5 +132,5 @@ export async function insertCustomerWithRetry<TResult = unknown>(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       error: (error as any) ?? null,
     }
-  }, maxAttempts, label)
+  }, maxAttempts, label, (e) => /customer_number/i.test(e.message || ''))
 }

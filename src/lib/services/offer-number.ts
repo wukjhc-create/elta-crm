@@ -22,19 +22,35 @@ export async function nextOfferNumber(client: any, year = new Date().getFullYear
   return `${prefix}${((Number.isNaN(n) ? 0 : n) + 1).toString().padStart(4, '0')}`
 }
 
+/**
+ * Max forsoeg ved nummer-kollision. Hver runde vinder mindst én samtidig skribent, saa N forsoeg daekker N
+ * samtidige oprettelser; 10 er rigeligt til pilotens belastning (verificeret: harness:concurrency C4, 8 parallelle).
+ */
+export const OFFER_NUMBER_MAX_ATTEMPTS = 10
+
+/**
+ * Kun kollision paa offers_offer_number_key forsoeges igen. Andre unique-constraints (source_email_id,
+ * uq_offers_open_proposal_per_source_case) er dedup-noegler: dér skal kalderen straks have 23505 og hente vinderen.
+ */
+export function isOfferNumberCollision(error: { message?: string }): boolean {
+  return /offer_number/i.test(error.message || '')
+}
+
 /** Insert an offer row (without offer_number) with a fresh number; retries on number collisions. */
-export async function insertOfferWithNumber(
+export async function insertOfferWithNumber<T extends { id: string; offer_number: string } = { id: string; offer_number: string }>(
   client: any,
   row: Record<string, unknown>,
-): Promise<UniqueViolationResult<{ id: string; offer_number: string }>> {
-  return retryOnUniqueViolation<{ id: string; offer_number: string }>(
+  select = 'id, offer_number',
+): Promise<UniqueViolationResult<T>> {
+  return retryOnUniqueViolation<T>(
     async () =>
       client
         .from('offers')
         .insert({ ...row, offer_number: await nextOfferNumber(client) })
-        .select('id, offer_number')
+        .select(select)
         .single(),
-    3,
+    OFFER_NUMBER_MAX_ATTEMPTS,
     'offer_number',
+    isOfferNumberCollision,
   )
 }

@@ -21,6 +21,7 @@ import { CalculationIntelligenceEngine, detectAnomalies } from '@/lib/services/c
 import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import { insertOfferWithNumber } from '@/lib/services/offer-number'
 
 // =====================================================
 // Auth Helper
@@ -606,22 +607,6 @@ export async function convertCalculationToOffer(
 
     const gen = genResult.data
 
-    // Generate offer number
-    const currentYear = new Date().getFullYear()
-    const prefix = `TILBUD-${currentYear}-`
-    const { data: lastOffer } = await supabase
-      .from('offers')
-      .select('offer_number')
-      .like('offer_number', `${prefix}%`)
-      .order('offer_number', { ascending: false })
-      .limit(1)
-
-    let offerNumber = `${prefix}0001`
-    if (lastOffer && lastOffer.length > 0) {
-      const numPart = parseInt(lastOffer[0].offer_number.split('-').pop() || '0', 10)
-      offerNumber = `${prefix}${(numPart + 1).toString().padStart(4, '0')}`
-    }
-
     // Build terms text with all sections
     const fullTerms = [
       gen.introduction,
@@ -651,10 +636,8 @@ export async function convertCalculationToOffer(
     const finalAmount = subtotal - discountAmount + taxAmount
 
     // Create the offer
-    const { data: offer, error: offerError } = await supabase
-      .from('offers')
-      .insert({
-        offer_number: offerNumber,
+    // Race-sikkert tilbudsnummer (retry ved samtidig oprettelse) — se services/offer-number.ts
+    const { data: offer, error: offerError } = await insertOfferWithNumber(supabase, {
         title: gen.title,
         description: gen.description,
         status: 'draft',
@@ -671,8 +654,6 @@ export async function convertCalculationToOffer(
           : null,
         created_by: userId,
       })
-      .select('id')
-      .single()
 
     if (offerError || !offer) {
       logger.error('Error creating offer', { error: offerError })

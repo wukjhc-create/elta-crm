@@ -423,6 +423,14 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'concurrency') {
+    const { runConcurrency, formatConcurrency } = await import('./concurrency')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runConcurrency({ admin, sql: stagingSql, ownerUid: actors.ownerUid })
+    log(formatConcurrency(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'session-lifecycle') {
     const { runSessionLifecycle, formatLifecycle } = await import('./session-lifecycle')
     const checks = await runSessionLifecycle({ url: runtime.url, anonKey: runtime.anonKey, admin })
