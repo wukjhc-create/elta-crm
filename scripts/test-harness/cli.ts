@@ -423,6 +423,13 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'session-lifecycle') {
+    const { runSessionLifecycle, formatLifecycle } = await import('./session-lifecycle')
+    const checks = await runSessionLifecycle({ url: runtime.url, anonKey: runtime.anonKey, admin })
+    log(formatLifecycle(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'db-audit') {
     const { runDbAudit, formatDbAudit } = await import('./db-audit')
     const r = await runDbAudit(stagingSql)
@@ -430,13 +437,17 @@ async function main() {
     process.exitCode = r.findings.some((x) => x.severity === 'HOEJ' && !x.intentional) ? 2 : 0
     return
   }
-  if (SUB === 'view-parity') {
-    // STAGING-ONLY paritet: schema-dumpet tog ikke view-reloptions med. Production har (verificeret read-only,
-    // prod:role-policies 2026-09-27) security_invoker paa betalingsoversigts-views'ene.
-    log('=== VIEW-PARITET (staging) ===')
+  if (SUB === 'staging-parity' || SUB === 'view-parity') {
+    // STAGING-ONLY paritet: schema-dumpet tog kun public-skemaets DDL (ikke view-reloptions, funktions-ACL'er eller
+    // triggere paa auth.users). Spejler production som verificeret read-only 2026-09-27:
+    //   - security_invoker paa betalingsoversigts-views'ene (prod:role-policies)
+    //   - on_auth_user_created AFTER INSERT ON auth.users -> handle_new_user() (pg_trigger i prod)
+    log('=== STAGING-PARITET ===')
     await stagingSql(`BEGIN;
 ALTER VIEW public.v_customer_payment_summary SET (security_invoker = true);
 ALTER VIEW public.v_customers_with_payment_summary SET (security_invoker = true);
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 COMMIT;`)
     const { analyseViews, formatViews } = await import('./role-matrix')
     log(formatViews(await analyseViews(stagingSql)))

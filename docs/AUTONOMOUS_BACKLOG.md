@@ -18,7 +18,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | # | Opgave | Status | Note / blocker |
 |---|---|---|---|
 | 5 | Udvid audit af alle rollefølsomme tabeller | DONE (staging) | db-audit (T1–T4, F1–F3, V1) prod+staging; fund P-004 → 00162; anon-surface-probes i pilot-roles. 112 tabeller hvor alle indloggede kan skrive (T4, app-lag) → egen hærdnings-opgave |
-| 6 | Test sessions, invitationer, deaktiverede brugere, rolleændringer | TODO | |
+| 6 | Test sessions, invitationer, deaktiverede brugere, rolleændringer | DONE | harness:session-lifecycle 7/7: signup-rolle ignoreres, ingen selv-eskalering, rolleændring live i aktiv session, deaktivering → login/refresh afvist og gyldigt token behandles som anon med det samme. Staging-paritet: auth-trigger on_auth_user_created tilføjet (harness:staging-parity) |
 | 7 | Samtidige brugere/race conditions i centrale workflows | TODO | |
 | 8 | Fejloplevelser og tomme states i pilotens vigtigste UI | TODO | |
 | 9 | Logging/incident visibility | TODO | |
