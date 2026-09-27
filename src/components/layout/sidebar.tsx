@@ -119,6 +119,21 @@ const navSections: NavSection[] = [
         ),
       },
       {
+        name: 'Pilot Health',
+        href: '/dashboard/pilot-health',
+        adminOnly: true,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 12h4l3-8 4 16 3-8h4"
+            />
+          </svg>
+        ),
+      },
+      {
         name: 'Sager / Ordrer',
         href: '/dashboard/orders',
         // Sprint 7E — view.assigned er lavere baseline (admin/serviceleder/

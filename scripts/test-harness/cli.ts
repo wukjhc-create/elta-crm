@@ -423,6 +423,13 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'health-snapshot') {
+    const { runHealthSnapshot, formatHealthSnapshot } = await import('./health-snapshot')
+    const checks = await runHealthSnapshot({ admin, sql: stagingSql })
+    log(formatHealthSnapshot(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'cron-log') {
     const { runCronLog, formatCronLog } = await import('./cron-log')
     const checks = await runCronLog({ admin })

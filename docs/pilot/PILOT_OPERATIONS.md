@@ -49,11 +49,13 @@ Måling: `npm run harness:pilot-roles` (staging) og `npm run prod:role-policies`
 ## 5. Overvågning
 | Hvad | Kommando / sted | Frekvens | Alarm |
 |---|---|---|---|
+| **Samlet overblik** (system, crons, brugere, agenter/flag, incidents, integrationer, live anon-prober) | **`/dashboard/pilot-health`** (admin, read-only) | dagligt | Samlet status 🔴 · enhver rød linje |
 | Fejl pr. service, aktive brugere, agent-sikkerhed, aktivitet | `npm run prod:pilot-health` (read-only) | dagligt | ≥5 fejl/service/24t · agent enabled/ikke-suggest · fejlet/needs_verification agent-action |
 | Rolleadgang (RLS vs. app-politik) | `npm run prod:role-policies` (read-only) | efter hver migration + ugentligt | ethvert hul |
 | Storage-politikker | `npm run prod:storage-audit` (read-only) | ugentligt | ethvert hul |
 | Sikkerhedsflag | `npm run safety:flags` | før hver deploy | `AUTO_CREATE_CASES_ENABLED: ON` |
-| System-fejl i UI | `/dashboard/go-live` → "System fejl (24t)" | dagligt | >0 fejl |
+| System-fejl i UI | `/dashboard/go-live` → "System fejl (24t)" (operatørpanel med handlinger — brug Pilot Health til at kigge) | dagligt | >0 fejl |
+| Cron-kørsler | Pilot Health → Crons (hver kørsel logges i `system_health_log`, service `cron`) | dagligt | error · FORSINKET · kendt fund |
 | Admin-mails | `admin-alerts` (eksisterende, fra `system_health_log`) | løbende | efter behov |
 
 Alle prod-kommandoer kører i en read-only session (`scripts/prod-readonly.ts`) og kan ikke skrive.
