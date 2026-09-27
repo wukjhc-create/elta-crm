@@ -71,7 +71,9 @@ export async function ensureActors(admin: Supa, seed: string): Promise<Actors> {
 
   // Profiler (id -> auth.users). Owner=admin, non-admin uden admin-rolle.
   await admin.from('profiles').upsert([{ id: ownerUid, role: 'admin', is_active: true }], { onConflict: 'id' })
-  await admin.from('profiles').upsert([{ id: nonAdminUid, role: 'montoer', is_active: true }], { onConflict: 'id' })
+  // Rolleværdien SKAL matche appens/DB'ens ('montør' — default i 00150 og permissions.ts). En stavevariant som
+  // 'montoer' er en ukendt rolle og ville teste "ikke-admin" i stedet for en rigtig montør.
+  await admin.from('profiles').upsert([{ id: nonAdminUid, role: 'montør', is_active: true }], { onConflict: 'id' })
 
   return { ownerUid, nonAdminUid, nonAdminEmail, nonAdminPassword: password }
 }

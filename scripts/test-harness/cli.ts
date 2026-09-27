@@ -309,8 +309,19 @@ async function status() {
       (SELECT count(*) FROM offers WHERE offer_number LIKE 'HARNESS-SEC-%' OR notes LIKE '%[agent-action:%') probe_offers,
       (SELECT count(*) FROM agent_runs WHERE input_context->>'harness' IS NULL) untagged_runs,
       (SELECT count(*) FROM customer_tasks WHERE auto_rule = 'agent_followup_offer') followup_tasks,
-      (SELECT count(*) FROM agent_actions WHERE idempotency_key LIKE 'harness-sec:%') probe_actions`))[0]
-  log(`[status] probe-rester: tilbud=${lo.probe_offers} utaggede runs=${lo.untagged_runs} opfoelgningsopgaver=${lo.followup_tasks} probe-actions=${lo.probe_actions}`)
+      (SELECT count(*) FROM agent_actions WHERE idempotency_key LIKE 'harness-sec:%') probe_actions,
+      (SELECT count(*) FROM invoices WHERE invoice_number LIKE 'HARNESS-SEC-%')
+        + (SELECT count(*) FROM integration_settings WHERE key LIKE 'harness-probe-%')
+        + (SELECT count(*) FROM accounting_integration_settings WHERE provider LIKE 'harness-probe-%')
+        + (SELECT count(*) FROM incoming_invoices WHERE source = 'manual' AND (notes IS NULL OR notes LIKE 'probe %') AND file_hash IS NULL AND invoice_number IS NULL)
+        + (SELECT count(*) FROM bank_transactions WHERE date = '2026-01-01' AND amount = 1) AS role_probes`))[0]
+  const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n
+    FROM agent_actions a JOIN agent_runs r ON r.id = a.run_id WHERE a.created_at > now() - interval '24 hours' GROUP BY 1,2,3 ORDER BY 1,2`)
+  const cases24 = await stagingSql(`SELECT source, (title LIKE '[HARNESS %') AS harness_title, is_proposal, count(*) AS n
+    FROM service_cases WHERE created_at > now() - interval '24 hours' GROUP BY 1,2,3 ORDER BY 1`)
+  log(`[status] agent-actions 24t: ${act24.map((x: any) => `${x.capability}/${x.status}${x.tagged ? '(harness-run)' : '(UTAGGET)'}=${x.n}`).join(' ') || '0'}`)
+  log(`[status] sager 24t: ${cases24.map((x: any) => `${x.source}${x.harness_title ? '[HARNESS]' : ''}${x.is_proposal ? '(forslag)' : ''}=${x.n}`).join(' ') || '0'}`)
+  log(`[status] probe-rester: tilbud=${lo.probe_offers} utaggede runs=${lo.untagged_runs} opfoelgningsopgaver=${lo.followup_tasks} probe-actions=${lo.probe_actions} rolle-probes=${lo.role_probes}`)
   return { customers: Number(c), agent_runs: Number(a), offers: Number(o) }
 }
 
@@ -345,6 +356,45 @@ async function main() {
     log('=== SEED-REFERENCE (staging-paritet med migration 00156) ===')
     await stagingSql(`INSERT INTO public.agent_configs (agent_type) VALUES ('mail'),('offer'),('planning'),('purchase'),('followup'),('economy'),('director') ON CONFLICT (agent_type) DO NOTHING;`)
     await status(); return
+  }
+  if (SUB === 'pilot-health') {
+    const { collectPilotHealth, formatPilotHealth } = await import('./pilot-metrics')
+    const h = await collectPilotHealth(`staging:${ref}`, stagingSql)
+    log(formatPilotHealth(h))
+    process.exitCode = h.alarms.length ? 2 : 0
+    return
+  }
+  if (SUB === 'pilot-roles') {
+    // Rolle-adgangsmatrix: hvad kan hver rigtig rolle laese direkte via REST vs. app-politikken (read-only probes).
+    const rm = await import('./role-matrix')
+    const clients = await rm.loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
+    // Probe-raekker i tomme tabeller, saa "0 synlige" faktisk betyder afvist (ikke bare tom tabel). Ryddes altid op.
+    const cleanupSeeds = await rm.seedReadProbes(admin, stagingSql)
+    let rows: Awaited<ReturnType<typeof rm.runRoleMatrix>>
+    try { rows = await rm.runRoleMatrix({ url: runtime.url, anonKey: runtime.anonKey, admin, sql: stagingSql, clients }) } finally { await cleanupSeeds() }
+    log(rm.formatMatrix(rows))
+    const writes = await rm.runWriteProbes(clients, admin)
+    const updates = await rm.runUpdateProbes(clients, admin)
+    for (const c of clients.values()) await c.auth.signOut()
+    log('\nSKRIVE-PROBES (ikke-admin indsaetter direkte via REST):')
+    for (const w of writes) log(`  ${w.inserted ? '⚠' : '✓'} ${w.role.padEnd(8)} ${w.table.padEnd(24)} ${w.note}`)
+    log('UPDATE-PROBES incoming_invoices (tilladt: admin, bogholderi):')
+    for (const u of updates) log(`  ${u.updated === u.expected ? '✓' : '❌'} ${u.role.padEnd(12)} ${u.updated ? 'kunne rette' : 'afvist'}${u.updated === u.expected ? '' : ' (FORKERT)'}`)
+    const updateWrong = updates.filter((u) => u.updated !== u.expected).length
+    const strict = rows.filter((r) => r.tooStrict.length)
+    if (strict.length) log(`For stramt (tilladt rolle ser 0 af >0 raekker): ${strict.map((r) => `${r.table}[${r.tooStrict.join(',')}]`).join('; ')}`)
+    const policies = await rm.analysePolicies(stagingSql)
+    log(rm.formatPolicies(policies))
+    const readGaps = rows.filter((r) => r.gaps.length).map((r) => `${r.table}[${r.gaps.join(',')}]`)
+    const staticGaps = policies.filter((p) => p.disallowed.length).map((p) => `${p.table}[${p.disallowed.join(',')}]`)
+    const writeGaps = writes.filter((w) => w.inserted).map((w) => `${w.table}[${w.role}]`)
+    const residuals = rows.filter((r) => r.residual.length).map((r) => `${rm.KNOWN_RESIDUALS[r.table]?.id} ${r.table}[${r.residual.join(',')}]`)
+    const holes = [...new Set([...readGaps, ...staticGaps])].length + writeGaps.length + strict.length + updateWrong
+    log(`\nKendte rest-risici (dokumenteret, ikke lukket): ${residuals.join('; ') || 'ingen'}`)
+    log(`=== ROLLEADGANG: ${holes ? `❌ ${holes} problem(er) — laese: ${[...new Set([...readGaps, ...staticGaps])].join('; ') || '-'} | skrive: ${writeGaps.join('; ') || '-'} | for stramt: ${strict.length}` : '✅ ingen uventede huller (kun kendte rest-risici)'} ===`)
+    saveReport('pilot-roles', { target: `staging:${ref}`, at: new Date().toISOString(), rows, writes, policies })
+    process.exitCode = holes ? 2 : 0
+    return
   }
   if (SUB === 'migrate-staging') {
     // STAGING-ONLY: anvend én navngiven migration fra supabase/migrations (guard er allerede passeret ovenfor).
