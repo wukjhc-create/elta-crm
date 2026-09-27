@@ -3,14 +3,15 @@
 **Opdateret:** 2026-09-27 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
 
 ## Nu
-P0 DONE (00161 i prod). P1 #5 DONE på staging. **Venter på Henrik: 00162 (P-004 anon-eksponering, HØJ)** —
-runbook docs/runbooks/00162-anon-exposure-lockdown.md. **Næste: P1 #6** (sessions/invitationer/deaktiverede
-brugere/rolleændringer), derefter #7–#10, så P2. Pilot-onboarding BLOCKED (navne) — stopper ikke runnet.
+P0 + **P1 DONE** (#6–#10, 2026-09-27). **Næste: P2 #11** (audit af capabilities mod approval/executor-modellen), så #12–#14.
+**Venter på Henrik:** 00162 (P-004, HØJ) · kundemail-crons aktive under pilot? · rette anon-crons (aktivering) · pilotbrugernes navne.
+Pilot Health: `/dashboard/pilot-health` (viser P-004 rød i prod indtil 00162).
 
 ## Staging-state at kende
 - 00159, 00160, 00161, 00162 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
 - `npm run harness:pilot-roles` = fuld rolle-regression (matrix + skrive/update-probes + R1–R4 35 checks + views + hemmelige kolonner).
-- Latent fund P-003: `api/cron/supplier-sync` bruger anon-klient (→ backlog #9, ændr ikke uden beslutning).
+- P-003 udvidet (#9): 4 crons bruger anon-klient → stille no-ops; se docs/pilot/CRON_DISCOVERY.md. Ret ikke uden beslutning (= aktivering).
+- Alle cron-kørsler logges i `system_health_log` (service `cron`) via `withCronRun`.
 
 ## Faste rammer (må ikke brydes)
 - Alle 7 agents disabled/suggest i prod · `AUTO_CREATE_CASES_ENABLED` OFF · ingen live kundemail, cron-/event-autonomi,
@@ -23,9 +24,10 @@ brugere/rolleændringer), derefter #7–#10, så P2. Pilot-onboarding BLOCKED (n
 ## Vigtige kommandoer
 | Formål | Kommando |
 |---|---|
-| Staging regression | `npm run harness:security` · `harness:pilot` · `harness:pilot-roles` · `harness:status` |
+| Staging regression | `npm run harness:security` · `harness:pilot` · `harness:pilot-roles` · `harness:status` · `harness:session-lifecycle` · `harness:concurrency` · `harness:ui-states` · `harness:cron-log` · `harness:health-snapshot` |
+| Statisk ops | `ui:guard-audit` · `ops:cron-check` · `ops:incident-check` |
 | Staging migration | `npm run harness:migrate-staging -- <nr>` |
-| Prod read-only | `prod:db-audit` · `prod:verify-00161` · `prod:role-policies` · `prod:pilot-health` · `prod:storage-audit` · `prod:verify-00159/00160` |
+| Prod read-only | `prod:db-audit` · `prod:verify-00161` · `prod:role-policies` · `prod:pilot-health` · `prod:storage-audit` · `prod:verify-00159/00160` · `npx tsx scripts/prod-cron-discovery.ts` |
 | Kode | `npm run type-check` · `harness:typecheck` · `build` · unit: `npx tsx scripts/agent-*-test.ts` |
 | Flag | `npm run safety:flags` |
 
