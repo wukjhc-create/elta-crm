@@ -304,6 +304,13 @@ async function status() {
   log(`[status] staging:${ref} DB=${mb(bytes)} | harness-rows: customers=${c} agent_runs=${a} offers=${o}`)
   const ag = (await stagingSql(`SELECT count(*) n, count(*) FILTER (WHERE enabled) en, coalesce(string_agg(DISTINCT safety_mode, ','), '-') modes FROM agent_configs`))[0]
   log(`[status] agent_configs: total=${ag.n} enabled=${ag.en} safety_mode=${ag.modes}`)
+  // Rester fra sikkerheds-/E2E-probes (skal altid vaere 0 efter en koersel)
+  const lo = (await stagingSql(`SELECT
+      (SELECT count(*) FROM offers WHERE offer_number LIKE 'HARNESS-SEC-%' OR notes LIKE '%[agent-action:%') probe_offers,
+      (SELECT count(*) FROM agent_runs WHERE input_context->>'harness' IS NULL) untagged_runs,
+      (SELECT count(*) FROM customer_tasks WHERE auto_rule = 'agent_followup_offer') followup_tasks,
+      (SELECT count(*) FROM agent_actions WHERE idempotency_key LIKE 'harness-sec:%') probe_actions`))[0]
+  log(`[status] probe-rester: tilbud=${lo.probe_offers} utaggede runs=${lo.untagged_runs} opfoelgningsopgaver=${lo.followup_tasks} probe-actions=${lo.probe_actions}`)
   return { customers: Number(c), agent_runs: Number(a), offers: Number(o) }
 }
 

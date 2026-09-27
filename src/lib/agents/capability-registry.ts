@@ -15,6 +15,8 @@
 import type { CapabilityDefinition } from '@/types/agent-core.types'
 import { executeSendReply } from '@/lib/agents/send-reply'
 import { executeCaseProposal } from '@/lib/agents/case-proposal'
+import { executeOfferProposal } from '@/lib/agents/offer-proposal'
+import { executeFollowupTask, materializeFollowupDraft } from '@/lib/agents/followup-agent'
 
 const registry = new Map<string, CapabilityDefinition>()
 
@@ -144,4 +146,33 @@ registerCapability({
   defaultRequiresApproval: true,
   minApprovals: 1,
   description: 'Foreslå oprettelse af en tom offer-draft ud fra en case (sender aldrig).',
+  // Fase 5 (intern): kun efter approval + enabled agent. Tomt udkast som forslag (is_proposal, beloeb 0);
+  // stale/tamper-tjek paa sagen; idempotent pr. action og pr. sag. Ingen send, ingen postering.
+  handler: (ctx) => executeOfferProposal(ctx),
+})
+
+// ---------------------------------------------------------------------
+// Opfoelgningsagent (Fase 5, intern) — INGEN mail/SMS, ingen cron.
+// ---------------------------------------------------------------------
+
+registerCapability({
+  key: 'followup.draft_offer_reminder',
+  sideEffectClass: 'read',
+  requiredScope: 'agent.followup.draft',
+  defaultRequiresApproval: false,
+  minApprovals: 1,
+  description: 'Foreslå et paamindelses-udkast til et sendt tilbud uden svar (sender aldrig).',
+  // Materialiserer kun udkastet fra payload til result (som mail.draft_reply). Ingen ekstern effekt.
+  handler: (ctx) => materializeFollowupDraft(ctx),
+})
+
+registerCapability({
+  key: 'followup.create_task',
+  sideEffectClass: 'create',
+  requiredScope: 'agent.followup.task',
+  defaultRequiresApproval: true,
+  minApprovals: 1,
+  description: 'Opret en intern opfoelgningsopgave paa et sendt tilbud uden svar (kun efter approval).',
+  // Genkontrollerer tilbudsstatus/kunde og aaben opgave (stale/dublet) foer oprettelse.
+  handler: (ctx) => executeFollowupTask(ctx),
 })

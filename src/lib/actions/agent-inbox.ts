@@ -14,6 +14,11 @@ import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatError } from '@/lib/actions/action-helpers'
 import { runMailAgent, findLinkCandidates } from '@/lib/agents/mail-agent'
+import { runOfferAgent } from '@/lib/agents/offer-proposal'
+import { runFollowupAgent } from '@/lib/agents/followup-agent'
+
+/** Capabilities hvis udkast (payload.draft) maa redigeres af en reviewer. Udkast sendes aldrig herfra. */
+const EDITABLE_DRAFT_CAPABILITIES = ['mail.draft_reply', 'followup.draft_offer_reminder']
 import { executeAction } from '@/lib/agents/executor'
 import { logAgentAudit } from '@/lib/agents/audit'
 import type { ActionResult } from '@/types/common.types'
@@ -118,6 +123,32 @@ export async function runMailAgentAction(emailId: string): Promise<ActionResult<
     return res
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke koere Mailagent') }
+  }
+}
+
+/** Trig tilbudsagenten mod en sag (opretter et forslag om tomt tilbudsudkast; eksekverer intet). */
+export async function runOfferAgentAction(
+  caseId: string,
+): Promise<ActionResult<{ runId: string | null; proposals: number; reason?: string }>> {
+  try {
+    const { userId } = await requireAdmin()
+    const res = await runOfferAgent(caseId, { triggeredBy: userId })
+    if (res.success) revalidatePath('/dashboard/agents')
+    return res
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke koere tilbudsagenten') }
+  }
+}
+
+/** Trig opfoelgningsagenten manuelt (ingen cron). Opretter forslag; sender intet. */
+export async function runFollowupAgentAction(): Promise<ActionResult<{ runId: string | null; offers: number; proposals: number }>> {
+  try {
+    const { userId } = await requireAdmin()
+    const res = await runFollowupAgent({ triggeredBy: userId })
+    if (res.success) revalidatePath('/dashboard/agents')
+    return res
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke koere opfoelgningsagenten') }
   }
 }
 
@@ -254,7 +285,7 @@ export async function rejectAgentActionAction(
 
 /**
  * Gem et manuelt redigeret draft_reply-udkast paa forslaget (sendes IKKE).
- * Kun admin; kun draft_reply; ingen direkte DB-write fra UI (gaar via admin
+ * Kun admin; kun udkast (EDITABLE_DRAFT_CAPABILITIES); ingen direkte DB-write fra UI (gaar via admin
  * efter permission-check). Udkastet gemmes i payload til senere (gated) brug.
  */
 export async function saveDraftAction(actionId: string, draft: string): Promise<ActionResult<void>> {
@@ -270,8 +301,8 @@ export async function saveDraftAction(actionId: string, draft: string): Promise<
       .eq('id', actionId)
       .maybeSingle()
     if (!action) return { success: false, error: 'Action ikke fundet' }
-    if (action.capability !== 'mail.draft_reply') {
-      return { success: false, error: 'Kun draft_reply-udkast kan redigeres' }
+    if (!EDITABLE_DRAFT_CAPABILITIES.includes(action.capability)) {
+      return { success: false, error: 'Kun udkast (svar/paamindelse) kan redigeres' }
     }
     if (['executed', 'rejected', 'failed', 'rolled_back'].includes(action.status)) {
       return { success: false, error: `Action er afsluttet (${action.status})` }

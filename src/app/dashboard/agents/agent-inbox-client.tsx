@@ -9,11 +9,13 @@ import {
   executeAgentActionAction,
   selectLinkCandidateAction,
   saveDraftAction,
+  runFollowupAgentAction,
 } from '@/lib/actions/agent-inbox'
 import type { AgentInboxItem } from '@/types/agent-core.types'
 import { reviewPriority, type ConfidenceLevel, type CustomerCandidate } from '@/lib/agents/mail-confidence'
 
 const HARD_BLOCKED = ['send_external', 'push_external', 'finance', 'delete']
+const EDITABLE_DRAFTS = ['mail.draft_reply', 'followup.draft_offer_reminder']
 
 function DraftEditor({ actionId, initial }: { actionId: string; initial: string }) {
   const router = useRouter()
@@ -100,7 +102,25 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
             <input type="checkbox" checked={hideCompleted} onChange={(e) => setHideCompleted(e.target.checked)} />
             Skjul færdige
           </label>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() =>
+              run('followup-run', async () => {
+                const r = await runFollowupAgentAction()
+                if (r.success && r.data && r.data.proposals === 0) toast.info('Ingen tilbud kræver opfølgning lige nu')
+                return r
+              }, 'Opfølgningsagent kørt — forslag oprettet')
+            }
+            className="ml-auto rounded border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {busyId === 'followup-run' && isPending ? 'Kører…' : 'Kør opfølgningsagent'}
+          </button>
         </div>
+        <p className="mt-1 text-[11px] text-gray-400">
+          Opfølgningsagenten finder sendte tilbud uden svar (&gt; 7 dage). Den foreslår et påmindelses-udkast og en intern
+          opgave — der sendes aldrig mail eller SMS automatisk.
+        </p>
       </div>
 
       {visibleItems.length === 0 && (
@@ -230,7 +250,40 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                         </div>
                       )
                     })()}
-                    {a.capability === 'mail.draft_reply' && !terminal && typeof a.payload?.draft === 'string' && (
+                    {a.capability === 'offer.propose_draft_from_case' && (
+                      <p className="mt-0.5 text-xs text-gray-700">
+                        Tomt tilbudsudkast: <span className="font-medium">{String(a.payload?.proposed_title ?? '')}</span>
+                        {a.payload?.case_id ? (
+                          <>
+                            {' · '}
+                            <a href={`/dashboard/service-cases/${String(a.payload.case_id)}`} className="text-blue-600 hover:underline">
+                              sag {String(a.payload?.case_number ?? '')}
+                            </a>
+                          </>
+                        ) : null}
+                        <span className="text-gray-400"> · ingen linjer/priser · sendes ikke</span>
+                      </p>
+                    )}
+                    {(a.capability === 'followup.create_task' || a.capability === 'followup.draft_offer_reminder') && (
+                      <p className="mt-0.5 text-xs text-gray-700">
+                        Tilbud <a href={`/dashboard/offers/${String(a.payload?.offer_id ?? '')}`} className="font-medium text-blue-600 hover:underline">
+                          {String(a.payload?.offer_number ?? '')}
+                        </a>
+                        {a.payload?.customer_name ? ` · ${String(a.payload.customer_name)}` : ''}
+                        {' · '}uden svar i {String(a.payload?.days_since_sent ?? '?')} dage
+                      </p>
+                    )}
+                    {a.status === 'executed' && typeof a.result?.offer_id === 'string' && (
+                      <a href={`/dashboard/offers/${a.result.offer_id}`} className="mt-1 inline-block text-xs font-medium text-green-700 underline">
+                        ✓ {a.result.created ? 'Tilbudsudkast oprettet' : 'Tilbuddet fandtes allerede'} {String(a.result.offer_number ?? '')} — åbn
+                      </a>
+                    )}
+                    {a.status === 'executed' && typeof a.result?.task_id === 'string' && (
+                      <a href="/dashboard/tasks" className="mt-1 inline-block text-xs font-medium text-green-700 underline">
+                        ✓ {a.result.created ? 'Opfølgningsopgave oprettet' : 'Opgaven fandtes allerede'} — se opgaver
+                      </a>
+                    )}
+                    {EDITABLE_DRAFTS.includes(a.capability) && !terminal && typeof a.payload?.draft === 'string' && (
                       <DraftEditor actionId={a.id} initial={a.payload.draft as string} />
                     )}
                     {a.capability === 'case.propose_from_email' && (

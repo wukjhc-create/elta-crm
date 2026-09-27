@@ -268,7 +268,18 @@ Kræver **altid** menneskelig approval — uanset agent-config, håndhævet i Ex
   - Inbox viser sagsforslag (titel/intent/prioritet) og link til oprettet sag.
   - Test: `scripts/agent-case-proposal-test.ts` (14/14, mock) + harness-scenarie `case_proposal_flow` mod staging (forslag → executor refuser ved disabled → opret → idempotent → tamper afvist).
   - Uændret: **ingen agent er aktiveret** (7 configs disabled/suggest, prod og staging). Aktivering af `mail` i prod er en forretningsbeslutning.
-- **Fase 5+ (mangler):** `offer.propose_draft_from_case`-handler, Opfølgningsagent, live send bag obligatorisk approval, per-agent aktivering.
+- **Fase 5 — intern del:** ✅ (2026-09-27)
+  - **Tilbudsagent** `offer.propose_draft_from_case` (`create`, approval): `src/lib/agents/offer-proposal.ts`. Admin-knap "Foreslå tilbud (agent)" på sagssiden → forslag i Inbox. Efter approval opretter Executor et **tomt internt udkast** (`draft`, `is_proposal=true`, 0 kr; kunde/betaler fra sagen; opretter = godkender). Stale/tamper: sag findes, bekræftet, ikke lukket/konverteret, ikke fra tilbud, samme kunde. Idempotent: ét aktivt forslag pr. sag (UNIQUE-nøgle `case-offer:<sag>:<n>`), action-markør i `notes`, genbrug af tidligere udført forslag. `offers.converted_case_id` bruges ikke (anden semantik). Tilbudsnummer via ny delt `src/lib/services/offer-number.ts`.
+  - **Opfølgningsagent** (manuel knap i Inbox, ingen cron): sendte/sete tilbud uden svar > 7 dage, gyldige, uden åben opfølgningsopgave. Pr. tilbud: `followup.draft_offer_reminder` (`read`, redigerbart udkast, **sendes aldrig**) + `followup.create_task` (`create`, approval → intern `customer_tasks`, `auto_rule='agent_followup_offer'`, tildelt sælger). Stale: tilbud stadig sent/viewed, gyldigt, samme kunde; dublet: åben opgave genbruges; én forslagsrunde pr. afsendelses-cyklus.
+  - Inbox: forhåndsvisning af tilbuds-/opfølgningsforslag, redigerbart påmindelsesudkast (samme gatede `saveDraftAction`), links til oprettet tilbud/opgave. Al udførelse går via Executor.
+  - Test: `scripts/agent-offer-followup-test.ts` (33/33) + staging-E2E `fase5_offer_flow` og `fase5_followup_flow` (forslag, idempotens, disabled, uden approval, approve+execute, audit, gentagelse=noop, stale). Agenter aktiveres KUN på staging inden for scenariet og deaktiveres i `finally`; `harness:status` verificerer 0 probe-rester.
+- **Live-gates der stadig er lukkede (kræver eksplicit beslutning):**
+  1. Aktivering af agenter i production (`agent_configs.enabled`) — alle 7 er disabled/suggest.
+  2. Live kundemail: `mail.send_reply` er wired men hard-blocked; ingen afsendelse af opfølgnings-/svarudkast.
+  3. Send af tilbud til kunde (tilbudsudkast er kun interne).
+  4. Cron-/event-trigger af agenter (i dag kun manuelle admin-knapper).
+  5. SMS (Relatel), finance/e-conomic, delete — ikke implementeret som capabilities.
+  6. Valgfri skema-hærdning: `offers.source_case_id` + UNIQUE-index (erstatter notes-markøren som dedup-nøgle) — kræver godkendt migration.
 
 ## Appendiks: kildehenvisninger (audit)
 

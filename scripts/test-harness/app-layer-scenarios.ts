@@ -240,9 +240,176 @@ async function caseProposalFlow(c: Ctx): Promise<ScenarioResult> {
   }
 }
 
+// ---------------------------------------------------------------- Fase 5 (intern) E2E
+
+/**
+ * Aktivér en agent PAA STAGING kun for varigheden af fn, og deaktivér ALTID bagefter (ogsaa ved fejl).
+ * Bruges til at teste approve -> Executor-stien. Production har ingen kodevej hertil (harness er staging-bundet).
+ */
+async function withStagingAgentEnabled<T>(c: Ctx, agentType: 'offer' | 'followup', fn: () => Promise<T>): Promise<T> {
+  if (!/^[a-z]+$/.test(agentType)) throw new Error('ugyldig agent_type')
+  await c.sql(`UPDATE agent_configs SET enabled = true WHERE agent_type = '${agentType}'`)
+  try { return await fn() } finally {
+    await c.sql(`UPDATE agent_configs SET enabled = false WHERE agent_type = '${agentType}'`)
+  }
+}
+
+async function approve(c: Ctx, actionId: string): Promise<boolean> {
+  const { error } = await c.admin.from('agent_action_approvals').insert([{ action_id: actionId, decision: 'approved', decided_by: c.ownerUid }])
+  return !error
+}
+
+async function auditActions(c: Ctx, actionId: string): Promise<string[]> {
+  return (await c.sql(`SELECT action FROM audit_logs WHERE entity_type='agent_action' AND entity_id=${lit(actionId)} ORDER BY created_at`)).map((r: any) => r.action)
+}
+
+async function cleanupRuns(c: Ctx, runIds: string[]) {
+  for (const r of runIds) {
+    await c.sql(`DELETE FROM audit_logs WHERE entity_type='agent_action' AND entity_id IN (SELECT id FROM agent_actions WHERE run_id=${lit(r)}); DELETE FROM agent_runs WHERE id=${lit(r)};`)
+  }
+}
+
+/** offer.propose_draft_from_case: forslag -> idempotent -> disabled -> uden approval -> approval -> udfoert + audit -> noop -> stale. */
+async function offerProposalFlow(c: Ctx): Promise<ScenarioResult> {
+  const id = 'fase5_offer_flow'
+  const cases = await c.sql(`SELECT s.id, s.customer_id, s.status FROM service_cases s WHERE s.title LIKE '[HARNESS %' AND s.is_proposal = false
+    AND s.status NOT IN ('closed','converted') AND s.customer_id IS NOT NULL AND s.source_offer_id IS NULL
+    AND NOT EXISTS (SELECT 1 FROM agent_actions a WHERE a.capability='offer.propose_draft_from_case' AND a.payload->>'case_id' = s.id::text)
+    ORDER BY s.id LIMIT 2`)
+  if (cases.length < 2) return { id, ok: false, note: 'mangler 2 bekraeftede harness-sager uden tilbudsforslag' }
+  const [A, B] = cases
+  const runIds: string[] = []
+  const offerIds: string[] = []
+  try {
+    const { runOfferAgent } = await import('../../src/lib/agents/offer-proposal')
+    const { executeAction } = await import('../../src/lib/agents/executor')
+    const r1 = await runOfferAgent(A.id, { dryRun: true })
+    if (r1.data?.runId) runIds.push(r1.data.runId)
+    const act = r1.data?.runId ? (await c.sql(`SELECT id, status FROM agent_actions WHERE run_id=${lit(r1.data.runId)}`))[0] : undefined
+    const r2 = await runOfferAgent(A.id, { dryRun: true })
+    if (r2.data?.runId) runIds.push(r2.data.runId)
+    const proposedOnce = !!act && act.status === 'awaiting_approval' && r2.data?.proposals === 0
+    const offersFor = async (aid: string) => Number((await c.sql(`SELECT count(*) n FROM offers WHERE notes LIKE '%[agent-action:${aid}]%'`))[0].n)
+    if (!act) return { id, ok: false, note: `intet forslag: ${r1.error ?? r1.data?.reason}` }
+
+    const exDisabled = await executeAction(act.id)
+    const disabledOk = exDisabled.data?.status === 'refused' && (await offersFor(act.id)) === 0
+
+    const flow = await withStagingAgentEnabled(c, 'offer', async () => {
+      const noAppr = await executeAction(act.id)
+      const noApprovalOk = noAppr.data?.status === 'refused' && (await offersFor(act.id)) === 0
+      const approved = await approve(c, act.id)
+      const ex = await executeAction(act.id)
+      const res = (await c.sql(`SELECT status, result FROM agent_actions WHERE id=${lit(act.id)}`))[0]
+      const offerId = res?.result?.offer_id as string | undefined
+      if (offerId) offerIds.push(offerId)
+      const offer = offerId ? (await c.sql(`SELECT status, is_proposal, total_amount, customer_id, sent_at, converted_case_id FROM offers WHERE id=${lit(offerId)}`))[0] : undefined
+      const createdOk = approved && ex.data?.status === 'executed' && res?.status === 'executed' && offer?.status === 'draft' && offer?.is_proposal === true
+        && Number(offer?.total_amount) === 0 && offer?.customer_id === A.customer_id && offer?.sent_at === null && offer?.converted_case_id === null
+      const again = await executeAction(act.id)
+      const idempotent = again.data?.status === 'noop' && (await offersFor(act.id)) === 1
+      const audit = await auditActions(c, act.id)
+      const auditOk = audit.filter((x) => x === 'refused').length >= 2 && audit.includes('executed')
+
+      // Stale: sag B lukkes efter forslaget -> handler afviser -> ingen tilbud
+      const rb = await runOfferAgent(B.id, { dryRun: true })
+      if (rb.data?.runId) runIds.push(rb.data.runId)
+      const actB = rb.data?.runId ? (await c.sql(`SELECT id FROM agent_actions WHERE run_id=${lit(rb.data.runId)}`))[0] : undefined
+      let staleOk = false
+      if (actB) {
+        await c.sql(`UPDATE service_cases SET status='closed' WHERE id=${lit(B.id)}`)
+        try {
+          await approve(c, actB.id)
+          const exB = await executeAction(actB.id)
+          staleOk = exB.data?.status === 'failed' && (await offersFor(actB.id)) === 0
+        } finally {
+          await c.sql(`UPDATE service_cases SET status='${String(B.status).replace(/'/g, "''")}' WHERE id=${lit(B.id)}`)
+        }
+      }
+      return { noApprovalOk, createdOk, idempotent, auditOk, staleOk, audit }
+    })
+    const ok = proposedOnce && disabledOk && flow.noApprovalOk && flow.createdOk && flow.idempotent && flow.auditOk && flow.staleOk
+    return {
+      id, ok,
+      note: `forslag=${proposedOnce ? '1 (gentagelse 0)' : 'FEJL'} | disabled=${disabledOk ? 'afvist' : 'FEJL'} | uden approval=${flow.noApprovalOk ? 'afvist' : 'FEJL'}`
+        + ` | approve+execute=${flow.createdOk ? 'tomt udkast (draft, forslag, 0 kr, ikke sendt)' : 'FEJL'} | gentag=${flow.idempotent ? 'noop' : 'DUBLET'}`
+        + ` | audit=[${flow.audit.join(',')}] | stale=${flow.staleOk ? 'afvist' : 'FEJL'}`,
+    }
+  } finally {
+    for (const o of offerIds) await c.sql(`DELETE FROM offers WHERE id=${lit(o)}`)
+    await cleanupRuns(c, runIds)
+  }
+}
+
+/** Opfoelgningsagent: probe-tilbud (sendt, uden svar) -> forslag -> udkast materialiseres (ikke sendt) -> opgave kun efter approval -> idempotent -> stale. */
+async function followupFlow(c: Ctx): Promise<ScenarioResult> {
+  const id = 'fase5_followup_flow'
+  const cust = (await c.sql(`SELECT id FROM customers WHERE custom_fields->>'harness' IS NOT NULL LIMIT 1`))[0]
+  if (!cust) return { id, ok: false, note: 'ingen harness-kunde' }
+  const stamp = Date.now()
+  const sentAt = new Date(Date.now() - 10 * 86_400_000).toISOString()
+  const mk = (n: number) => ({ offer_number: `HARNESS-SEC-FU-${stamp}-${n}`, title: `[HARNESS] opfoelgning ${n}`, status: 'sent', customer_id: cust.id,
+    created_by: c.ownerUid, sent_at: sentAt, total_amount: 0, final_amount: 0, is_proposal: false })
+  const ins = await c.admin.from('offers').insert([mk(1), mk(2)]).select('id')
+  const probe = (ins.data ?? []).map((r: any) => r.id as string)
+  const runIds: string[] = []
+  try {
+    if (probe.length !== 2) return { id, ok: false, note: `kunne ikke oprette probe-tilbud: ${ins.error?.message?.slice(0, 60)}` }
+    const { runFollowupAgent } = await import('../../src/lib/agents/followup-agent')
+    const { executeAction } = await import('../../src/lib/agents/executor')
+    const r1 = await runFollowupAgent({ offerIds: probe, dryRun: true })
+    if (r1.data?.runId) runIds.push(r1.data.runId)
+    const r2 = await runFollowupAgent({ offerIds: probe, dryRun: true })
+    if (r2.data?.runId) runIds.push(r2.data.runId)
+    const acts = r1.data?.runId ? await c.sql(`SELECT id, capability, status, payload->>'offer_id' AS offer_id FROM agent_actions WHERE run_id=${lit(r1.data.runId)}`) : []
+    const proposedOk = r1.data?.proposals === 4 && r2.data?.runId === null
+    const pick = (cap: string, offer: string) => acts.find((a: any) => a.capability === cap && a.offer_id === offer)
+    const draft1 = pick('followup.draft_offer_reminder', probe[0])
+    const task1 = pick('followup.create_task', probe[0])
+    const task2 = pick('followup.create_task', probe[1])
+    if (!draft1 || !task1 || !task2) return { id, ok: false, note: `forslag mangler (proposals=${r1.data?.proposals})` }
+    const tasksFor = async (offer: string) => Number((await c.sql(`SELECT count(*) n FROM customer_tasks WHERE offer_id=${lit(offer)}`))[0].n)
+
+    const disabled = await executeAction(task1.id)
+    const disabledOk = disabled.data?.status === 'refused' && (await tasksFor(probe[0])) === 0
+
+    const flow = await withStagingAgentEnabled(c, 'followup', async () => {
+      const d = await executeAction(draft1.id)
+      const dres = (await c.sql(`SELECT result FROM agent_actions WHERE id=${lit(draft1.id)}`))[0]?.result
+      const draftOk = d.data?.status === 'executed' && typeof dres?.draft === 'string' && dres?.sent === false
+      const noAppr = await executeAction(task1.id)
+      const noApprovalOk = noAppr.data?.status === 'refused' && (await tasksFor(probe[0])) === 0
+      await approve(c, task1.id)
+      const ex = await executeAction(task1.id)
+      const task = (await c.sql(`SELECT status, auto_rule, customer_id FROM customer_tasks WHERE offer_id=${lit(probe[0])}`))[0]
+      const createdOk = ex.data?.status === 'executed' && task?.auto_rule === 'agent_followup_offer' && task?.status === 'pending' && task?.customer_id === cust.id
+      const again = await executeAction(task1.id)
+      const idempotent = again.data?.status === 'noop' && (await tasksFor(probe[0])) === 1
+      const audit = await auditActions(c, task1.id)
+      const auditOk = audit.includes('refused') && audit.includes('executed') && (await auditActions(c, draft1.id)).includes('executed')
+      // Stale: tilbud 2 accepteres efter forslaget -> opgave afvises
+      await c.sql(`UPDATE offers SET status='accepted', accepted_at=now() WHERE id=${lit(probe[1])}`)
+      await approve(c, task2.id)
+      const ex2 = await executeAction(task2.id)
+      const staleOk = ex2.data?.status === 'failed' && (await tasksFor(probe[1])) === 0
+      return { draftOk, noApprovalOk, createdOk, idempotent, auditOk, staleOk }
+    })
+    const ok = proposedOk && disabledOk && flow.draftOk && flow.noApprovalOk && flow.createdOk && flow.idempotent && flow.auditOk && flow.staleOk
+    return {
+      id, ok,
+      note: `forslag=${proposedOk ? '2x2 (gentagelse 0)' : 'FEJL'} | disabled=${disabledOk ? 'afvist' : 'FEJL'} | udkast=${flow.draftOk ? 'materialiseret, ikke sendt' : 'FEJL'}`
+        + ` | uden approval=${flow.noApprovalOk ? 'afvist' : 'FEJL'} | approve+execute=${flow.createdOk ? 'opgave oprettet' : 'FEJL'} | gentag=${flow.idempotent ? 'noop' : 'DUBLET'}`
+        + ` | audit=${flow.auditOk ? 'ok' : 'MANGLER'} | stale=${flow.staleOk ? 'afvist' : 'FEJL'}`,
+    }
+  } finally {
+    if (probe.length) await c.sql(`DELETE FROM customer_tasks WHERE offer_id IN (${probe.map(lit).join(',')}); DELETE FROM offers WHERE id IN (${probe.map(lit).join(',')});`)
+    await cleanupRuns(c, runIds)
+  }
+}
+
 export async function runAppLayerScenarios(c: Ctx): Promise<ScenarioResult[]> {
   const out: ScenarioResult[] = []
-  for (const fn of [disabledAgentExecute, duplicateExecution, manipulatedCustomerLink, invalidPortalToken, storageAccessNoRight, caseProposalFlow]) {
+  for (const fn of [disabledAgentExecute, duplicateExecution, manipulatedCustomerLink, invalidPortalToken, storageAccessNoRight, caseProposalFlow, offerProposalFlow, followupFlow]) {
     try { out.push(await fn(c)) } catch (e: any) { out.push({ id: fn.name, ok: false, note: `EXCEPTION: ${String(e.message).slice(0, 100)}` }) }
   }
   return out

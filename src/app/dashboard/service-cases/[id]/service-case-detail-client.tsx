@@ -23,6 +23,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
+import { OfferAgentButton } from './offer-agent-button'
 import { DawaAddressInput, lookupPostalCode, type DawaAddress } from '@/components/shared/dawa-address-input'
 import { WeatherWidget } from '@/components/shared/weather-widget'
 import { CompletionChecklist } from '@/components/shared/completion-checklist'
@@ -278,6 +279,7 @@ export function ServiceCaseDetailClient({ serviceCase: sc, attachments: initialA
           </div>
         </div>
 
+        <OfferAgentButton caseId={sc.id} />
         <button
           onClick={handleSave}
           disabled={isPending}
