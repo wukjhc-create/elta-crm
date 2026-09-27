@@ -346,6 +346,25 @@ async function main() {
     await stagingSql(`INSERT INTO public.agent_configs (agent_type) VALUES ('mail'),('offer'),('planning'),('purchase'),('followup'),('economy'),('director') ON CONFLICT (agent_type) DO NOTHING;`)
     await status(); return
   }
+  if (SUB === 'migrate-staging') {
+    // STAGING-ONLY: anvend én navngiven migration fra supabase/migrations (guard er allerede passeret ovenfor).
+    const num = String(process.argv[3] || '')
+    if (!/^\d{5}$/.test(num)) { log('brug: npm run harness:migrate-staging -- <5-cifret nr>'); process.exit(2) }
+    const dir = resolve(process.cwd(), 'supabase', 'migrations')
+    const files = readdirSync(dir).filter((f) => f.startsWith(`${num}_`) && f.endsWith('.sql'))
+    if (files.length !== 1) { log(`forventede præcis én fil for ${num}, fandt ${files.length}`); process.exit(2) }
+    log(`=== MIGRATE STAGING: ${files[0]} → staging:${ref} ===`)
+    await stagingSql(readFileSync(resolve(dir, files[0]), 'utf8'))
+    log('✅ anvendt (kør verifikation: npm run harness:verify-00159)')
+    return
+  }
+  if (SUB === 'verify-00159') {
+    const { run00159Checks, format00159 } = await import('./migration-checks')
+    const r = await run00159Checks(stagingSql)
+    log(format00159(`staging:${ref}`, r))
+    process.exitCode = r.applied && r.problems.length === 0 ? 0 : 2
+    return
+  }
   if (SUB === 'storage-parity') {
     // STAGING-ONLY storage-paritet (godkendt 2026-09-25). Spejler production 1:1 som verificeret read-only af
     // prod:storage-audit (2026-09-26): 00132 (drop 00035-anon-policies), 00113 (attachments + policies),
