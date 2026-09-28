@@ -41,9 +41,17 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | 18 | Profit Engine-datamodel (materiale + timer + overhead + DB → salgspris) | TODO | |
 | 19 | Invoice Control pipeline (design) | TODO | |
 
+## P2-rest (før P3)
+| # | Opgave | Status | Note |
+|---|---|---|---|
+| A | DB-trigger-hærdning (capability-guard) | DONE (staging) · prod-gate | Migration 00163: `agent_capabilities` + `trg_agent_actions_capability_guard`, fail-closed på klasse/approval/agent/capability-ændring og executing uden approval. `harness:agent-gating` 13/13; testfixtures med opdigtede capabilities rettet. Prod pre-check grøn. Runbook: docs/runbooks/00163-agent-capability-guard.md |
+| B | `mail.send_reply`-producer | TODO | |
+| C | Browser/UI-verifikation (Agent Inbox/Pilot Health) | TODO | |
+
 ## Blokerede opgaver uden for nummerering
 | Opgave | Status | Mangler |
 |---|---|---|
+| Prod-migration 00163 (agent capability-guard) | BLOCKED | Henriks godkendelse (defense-in-depth; ikke akut — ingen agenter aktive) |
 | P1-gate: prod-migration 00162 (anon-eksponering, P-004) | DONE | Kørt i prod 2026-09-28 (godkendt). db-audit HØJ 21→0; prod:verify-00162 grøn; P-004 lukket. |
 | P0-gate: prod-migration 00161 (R1–R4) | DONE | Kørt i prod 2026-09-27 (godkendt). prod:role-policies 0·0·0; prod:verify-00161 struktur + adfærd (admin/montør) grøn. |
 | Beslutning: kundemail-crons (offer-/invoice-reminders) aktive under pilot? | BLOCKED | Henrik. Ingen sendt seneste 30 d, men kan sende uden varsel; invoice-reminders har ingen kill-switch (CRON_DISCOVERY F6/F7) |
@@ -56,6 +64,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-28: P2-rest A: 00163 capability-guard på staging (prod-gate).
 - 2026-09-28: P2 #14 Inbox reviewer-UX færdig. **P2 komplet.**
 - 2026-09-28: P2 #13 næste milepæl (Fase 6 planlægningsagent) forberedt og testet, disabled.
 - 2026-09-28: P2 #12 stale/idempotens/samtidighed for alle agent-actions (1 fejl rettet).

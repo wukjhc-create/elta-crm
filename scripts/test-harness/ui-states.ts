@@ -12,7 +12,7 @@ export interface UiCheck { id: string; ok: boolean; note: string }
 type Sql = (sql: string) => Promise<any[]>
 const lit = (v: string) => { if (!/^[0-9a-f-]{36}$/i.test(v)) throw new Error('ikke-uuid'); return `'${v}'` }
 
-export async function runUiStates(c: { admin: SupabaseClient; sql: Sql }): Promise<UiCheck[]> {
+export async function runUiStates(c: { admin: SupabaseClient; sql: Sql; ownerUid: string }): Promise<UiCheck[]> {
   const out: UiCheck[] = []
   const { staleDecisionError } = await import('../../src/lib/agents/decision-guard')
   const { runOfferAgent } = await import('../../src/lib/agents/offer-proposal')
@@ -31,6 +31,8 @@ export async function runUiStates(c: { admin: SupabaseClient; sql: Sql }): Promi
     const actId = (await c.sql(`SELECT id FROM agent_actions WHERE run_id=${lit(runId)}`))[0].id as string
     const open = await staleDecisionError(c.admin, actId)
     const texts: Record<string, string | null> = {}
+    // 'executed' kraever en gyldig approval (00163) — fixturen simulerer en reelt godkendt+udfoert action.
+    await c.admin.from('agent_action_approvals').insert([{ action_id: actId, decision: 'approved', decided_by: c.ownerUid }])
     for (const st of ['rejected', 'executed', 'failed']) {
       await c.sql(`UPDATE agent_actions SET status='${st}', executed_at=${st === 'executed' ? 'now()' : 'NULL'} WHERE id=${lit(actId)}`)
       texts[st] = await staleDecisionError(c.admin, actId)

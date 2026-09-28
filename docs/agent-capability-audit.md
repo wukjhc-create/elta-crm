@@ -25,8 +25,8 @@ Alle registrerede capabilities er gennemgået mod approval/executor-modellen. Te
 | A7 | `requiredScope` er kun metadata; der findes ingen scope-model. | Ingen i dag. | Designpunkt til #13. | – |
 | A8 | Handler-funktioner kaldes kun fra registeret (ingen genvej uden om Executor). | – | Verificeret. | S3 |
 
-## Åbent — kræver DDL (gate)
-DB-triggeren `agent_enforce_approval_before_execute` bruger stadig rækkens klasse. Executoren lukker nu hullet i koden. En DB-side hærdning (fx en `CHECK`, der binder kendte capability-nøgler til deres klasse, eller en `agent_capabilities`-tabel, som triggeren slår op i) vil være et ekstra lag. Det er **ikke** lavet, da det er en prod-migration og kræver Henriks godkendelse. Den er ikke nødvendig, så længe kun service-role skriver `agent_actions`, og det gør den i dag (ingen authenticated INSERT/UPDATE-policy).
+## DB-side hærdning (P2-rest A) — migration 00163
+`agent_capabilities` (spejl af registeret) + triggeren `trg_agent_actions_capability_guard` gør DB'en fail-closed uafhængigt af koden. Se [runbook](runbooks/00163-agent-capability-guard.md). Status: **staging ✅, prod afventer gate.** Test: `harness:agent-gating` 13/13.
 
 ## P2 #12 — stale-state / idempotens / samtidighed pr. capability
 

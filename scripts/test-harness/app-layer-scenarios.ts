@@ -24,12 +24,13 @@ type Sql = (sql: string) => Promise<any[]>
 
 interface Ctx { admin: SupabaseClient; anon: SupabaseClient; sql: Sql; ownerUid: string; authed?: SupabaseClient }
 
-const PROBE_CAPABILITY = 'harness.probe_noop'
+// Rigtig, registreret laese-capability (00163 afviser ukendte capabilities); agenten 'mail' er disabled.
+const PROBE_CAPABILITY = 'mail.draft_reply'
 const uuidRe = /^[0-9a-f-]{36}$/i
 const lit = (v: string) => { if (!uuidRe.test(v)) throw new Error('ikke-uuid i probe-SQL'); return `'${v}'` }
 
 async function harnessRunTask(sql: Sql): Promise<{ rid: string; tid: string } | null> {
-  const r = (await sql(`SELECT r.id rid, t.id tid FROM agent_runs r JOIN agent_tasks t ON t.run_id=r.id WHERE r.input_context->>'harness' IS NOT NULL LIMIT 1`))[0]
+  const r = (await sql(`SELECT r.id rid, t.id tid FROM agent_runs r JOIN agent_tasks t ON t.run_id=r.id WHERE r.input_context->>'harness' IS NOT NULL AND r.agent_type = 'mail' LIMIT 1`))[0]
   return r ? { rid: r.rid, tid: r.tid } : null
 }
 

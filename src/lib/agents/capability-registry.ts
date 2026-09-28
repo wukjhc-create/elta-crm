@@ -10,6 +10,10 @@
  * Handlers er bevidst endnu IKKE wired (handler === undefined) — Executor
  * naegter at udfoere en capability uden handler (fail-safe). Wiring til
  * konkrete draft-funktioner sker per agent i senere faser.
+ *
+ * DB-spejl (00163): hver capability SKAL ogsaa have en raekke i public.agent_capabilities (samme klasse,
+ * approval, min_approvals, agenter) — ellers afviser DB-triggeren dens actions (fail-closed).
+ * `npm run harness:agent-gating` (S4) fejler ved afvigelse. Ny capability = ny migration.
  */
 
 import type { CapabilityDefinition } from '@/types/agent-core.types'

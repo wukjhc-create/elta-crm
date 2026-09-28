@@ -146,7 +146,8 @@ async function runSecurity(actors: Actors): Promise<ScenarioResult[]> {
   } else out.push({ id: 'nonadmin_signin', ok: false, note: `login fejlede: ${signIn.error.message}` })
 
   // ---- Trigger/RLS-håndhævelse (probe-rows ryddes via 'harness-sec:'-praefiks) ----
-  const rid = (await stagingSql(`SELECT id FROM agent_runs WHERE input_context->>'harness' IS NOT NULL LIMIT 1`))[0]?.id
+  // mail-run: probe-actions bruger rigtige mail-capabilities (00163 afviser ukendte capabilities og forkert agent)
+  const rid = (await stagingSql(`SELECT id FROM agent_runs WHERE input_context->>'harness' IS NOT NULL AND agent_type = 'mail' LIMIT 1`))[0]?.id
   const tid = rid ? (await stagingSql(`SELECT id FROM agent_tasks WHERE run_id='${rid}' LIMIT 1`))[0]?.id : null
   const cleanupProbes = async () => { try { await stagingSql(`DELETE FROM agent_actions WHERE idempotency_key LIKE 'harness-sec:%';`) } catch { /* noop */ } }
 
@@ -154,8 +155,8 @@ async function runSecurity(actors: Actors): Promise<ScenarioResult[]> {
     // 1) hard-blocked (send_external) executed UDEN approval => afvist
     try {
       const key = `harness-sec:hb:${Date.now()}`
-      const { error } = await admin.from('agent_actions').insert([{ run_id: rid, task_id: tid, action_type: 'send', capability: 'mail.send', side_effect_class: 'send_external', status: 'executed', idempotency_key: key }])
-      out.push({ id: 'hardblocked_without_approval', ok: !!error, note: error ? `afvist: ${error.message.slice(0, 60)}` : 'SLAP IGENNEM' })
+      const { error } = await admin.from('agent_actions').insert([{ run_id: rid, task_id: tid, action_type: 'send', capability: 'mail.send_reply', side_effect_class: 'send_external', requires_approval: true, status: 'executed', idempotency_key: key }])
+      out.push({ id: 'hardblocked_without_approval', ok: !!error && /approval/.test(error.message), note: error ? `afvist: ${error.message.slice(0, 60)}` : 'SLAP IGENNEM' })
     } catch (e: any) { out.push({ id: 'hardblocked_without_approval', ok: true, note: `afvist: ${String(e.message).slice(0, 60)}` }) }
 
     // 2) duplicate idempotency_key => 2. insert afvist (UNIQUE)
@@ -170,13 +171,13 @@ async function runSecurity(actors: Actors): Promise<ScenarioResult[]> {
     // 3) stale approval execute: godkendt men UDLOEBET approval => execute afvist
     try {
       const key = `harness-sec:stale:${Date.now()}`
-      const ins = await admin.from('agent_actions').insert([{ run_id: rid, task_id: tid, action_type: 'send', capability: 'mail.send', side_effect_class: 'send_external', status: 'planned', idempotency_key: key }]).select('id')
+      const ins = await admin.from('agent_actions').insert([{ run_id: rid, task_id: tid, action_type: 'send', capability: 'mail.send_reply', side_effect_class: 'send_external', requires_approval: true, status: 'planned', idempotency_key: key }]).select('id')
       const aid = ins.data?.[0]?.id
       if (aid) {
         await admin.from('agent_action_approvals').insert([{ action_id: aid, decision: 'approved', decided_by: actors.ownerUid, expires_at: new Date(Date.now() - 3600_000).toISOString() }])
         const upd = await admin.from('agent_actions').update({ status: 'executed', executed_by: actors.ownerUid }).eq('id', aid)
-        out.push({ id: 'stale_approval_execute', ok: !!upd.error, note: upd.error ? `afvist: ${upd.error.message.slice(0, 55)}` : 'UDLOEBET APPROVAL ACCEPTERET' })
-      } else out.push({ id: 'stale_approval_execute', ok: false, note: 'kunne ikke oprette test-action' })
+        out.push({ id: 'stale_approval_execute', ok: !!upd.error && /approval/.test(upd.error.message), note: upd.error ? `afvist: ${upd.error.message.slice(0, 55)}` : 'UDLOEBET APPROVAL ACCEPTERET' })
+      } else out.push({ id: 'stale_approval_execute', ok: false, note: `kunne ikke oprette test-action: ${ins.error?.message?.slice(0, 60)}` })
     } catch (e: any) { out.push({ id: 'stale_approval_execute', ok: true, note: `afvist: ${String(e.message).slice(0, 55)}` }) }
 
     // 4) anon skriver til agent-tabel => afvist (RLS/grants)
@@ -463,7 +464,8 @@ async function main() {
   }
   if (SUB === 'ui-states') {
     const { runUiStates, formatUiStates } = await import('./ui-states')
-    const checks = await runUiStates({ admin, sql: stagingSql })
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runUiStates({ admin, sql: stagingSql, ownerUid: actors.ownerUid })
     log(formatUiStates(checks))
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
