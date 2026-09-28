@@ -3,11 +3,12 @@
 **Opdateret:** 2026-09-27 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
 
 ## Nu
-P0–P2 + P2-rest A–C DONE. P3 #15 (Relatel) + #16 (opfølgningsmotor) DONE som discovery/foundation. **Næste: P3 #17** (grossist/KlarPris), #18 (Profit Engine), #19 (Invoice Control).
-**Venter på Henrik:** prod-migration 00163 (agent capability-guard) · kundemail-crons (NB: fakturarykkere har aldrig virket i prod; rettes de, sendes straks rykker på 83 d forfalden faktura) · anon-crons · Relatel-token + trin 1–5 · pilotbrugere · agent-aktivering.
+P0–P3 DONE (P3 = discovery/design + intern foundation). **I gang: RBAC app-lag (P-006)** — runde 1+2 færdige, 92 actions tilbage (`npx tsx scripts/action-gate-audit.ts`).
+**Venter på Henrik:** prod-migrationer 00163 (agent-guard), 00164 (supplier_settings, P-005), 00165 (prishistorik) · kundemail-crons (fakturarykkere har aldrig virket) · anon-crons · Relatel-token · pilotbrugere · agent-aktivering.
+Nye designs: docs/followup, docs/profit, docs/invoice-control, docs/integrations (Relatel, grossist).
 
 ## Staging-state at kende
-- 00159, 00160, 00161, 00162, 00163 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
+- 00159–00165 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
 - `npm run harness:pilot-roles` = fuld rolle-regression (matrix + skrive/update-probes + R1–R4 35 checks + views + hemmelige kolonner).
 - P-003 udvidet (#9): 4 crons bruger anon-klient → stille no-ops; se docs/pilot/CRON_DISCOVERY.md. Ret ikke uden beslutning (= aktivering).
 - Alle cron-kørsler logges i `system_health_log` (service `cron`) via `withCronRun`.
@@ -25,7 +26,7 @@ P0–P2 + P2-rest A–C DONE. P3 #15 (Relatel) + #16 (opfølgningsmotor) DONE so
 |---|---|
 | UI (staging, headless) | `npm run harness:ui-e2e` — syntetiske brugere, ingen rigtige logins; skærmbilleder i %TEMP%\elta-ui-e2e |
 | Staging regression | `npm run harness:agent-gating` · `harness:send-producer` · `harness:agent-actions` · `harness:planning-flow` · `harness:security` · `harness:pilot` · `harness:pilot-roles` · `harness:status` · `harness:session-lifecycle` · `harness:concurrency` · `harness:ui-states` · `harness:cron-log` · `harness:health-snapshot` |
-| Statisk ops | `ui:guard-audit` · `ops:cron-check` · `ops:incident-check` |
+| Statisk ops | `ui:guard-audit` · `ops:cron-check` · `ops:incident-check` · `security:actions` |
 | Staging migration | `npm run harness:migrate-staging -- <nr>` |
 | Prod read-only | `prod:db-audit` · `prod:verify-00162` · `prod:verify-00161` · `prod:role-policies` · `prod:pilot-health` · `prod:storage-audit` · `prod:verify-00159/00160` · `npx tsx scripts/prod-cron-discovery.ts` |
 | Kode | `npm run type-check` · `harness:typecheck` · `build` · unit: `npx tsx scripts/agent-*-test.ts` |
