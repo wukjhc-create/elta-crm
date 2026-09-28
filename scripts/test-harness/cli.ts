@@ -424,6 +424,13 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'ui-e2e') {
+    const { runUiE2e, formatUiE2e } = await import('./ui-e2e')
+    const checks = await runUiE2e({ admin, stagingRef: ref })
+    log(formatUiE2e(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'send-producer') {
     const { runSendProducer, formatSendProducer } = await import('./send-producer')
     const actors = await ensureActors(admin, seedBase)

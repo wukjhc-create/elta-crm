@@ -1,10 +1,15 @@
 import { getAgentInbox } from '@/lib/actions/agent-inbox'
 import { AgentInboxClient } from './agent-inbox-client'
 import { isLiveSendEnabled } from '@/lib/agents/live-gates'
+import { getUserRoleForPage } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AgentsPage() {
+  // Layout-guarden og siden renderes parallelt: uden dette tjek koerte getAgentInbox() alligevel for
+  // ikke-admins og loggede en serverfejl ved hvert besoeg (fundet af harness:ui-e2e U5).
+  if ((await getUserRoleForPage()) !== 'admin') return <NoAccess permission="admin" />
   const res = await getAgentInbox()
 
   if (!res.success) {

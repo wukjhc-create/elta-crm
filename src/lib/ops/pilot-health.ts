@@ -80,7 +80,8 @@ async function cronItems(admin: Admin): Promise<HealthItem[]> {
   return CRON_REGISTRY.map((c) => {
     const run = last.get(c.name)
     const stale = run ? (Date.now() - new Date(run.at).getTime()) / HOUR > expectedGapHours(c.schedule) : false
-    const level: HealthLevel = !run ? 'unknown' : run.status === 'error' ? 'red' : run.status === 'warning' || stale || c.knownIssue ? 'yellow' : 'green'
+    // 'unknown' er forbeholdt kilder der ikke kunne hentes; 'ingen koersel endnu' er en observation (gul).
+    const level: HealthLevel = !run ? 'yellow' : run.status === 'error' ? 'red' : run.status === 'warning' || stale || c.knownIssue ? 'yellow' : 'green'
     const mail = c.external === 'customer_mail' ? ' · ⚠ sender kundemail' : ''
     const runTxt = run ? `seneste ${run.status} ${ago(run.at)}${stale ? ' (FORSINKET)' : ''}` : 'ingen kørsel registreret endnu'
     return { label: c.name, level, detail: `${runTxt}${mail}${c.knownIssue ? ` · kendt: ${c.knownIssue}` : ''}` }
