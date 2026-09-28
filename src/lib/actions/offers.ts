@@ -671,7 +671,7 @@ export async function updateOfferStatus(
         .maybeSingle()
 
       if (offerWithItems?.line_items) {
-        const offerDB = computeOfferDB(offerWithItems.line_items)
+        const offerDB = computeOfferDB(offerWithItems.line_items, Number(offerWithItems.discount_percentage ?? 0))
         if (offerDB.hasAnyCost && offerDB.totalCost > 0) {
           const { getCalculationSettings } = await import('@/lib/actions/calculation-settings')
           const calcSettings = await getCalculationSettings()
@@ -833,7 +833,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
 
     // Validate DB% is above red threshold (if line items have cost data)
     const lineItems = offer.line_items || []
-    const offerDB = computeOfferDB(lineItems)
+    const offerDB = computeOfferDB(lineItems, Number(offer.discount_percentage ?? 0))
     if (offerDB.hasAnyCost && offerDB.totalCost > 0) {
       // Load red threshold from settings
       const { getCalculationSettings } = await import('@/lib/actions/calculation-settings')

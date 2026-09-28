@@ -435,7 +435,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
 
   // Compute offer-level DB for send validation (uses actual thresholds from settings)
   const thresholds = dbThresholds || DEFAULT_DB_THRESHOLDS
-  const offerDB = computeOfferDB(lineItems)
+  const offerDB = computeOfferDB(lineItems, Number(offer.discount_percentage ?? 0))
   const offerDBPct = offerDB.dbPercentage
   const isOfferRed = offerDB.hasAnyCost && isDBBelowSendThreshold(offerDBPct, thresholds)
 

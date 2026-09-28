@@ -92,8 +92,12 @@ export interface LineItemForDB {
   supplier_margin_applied: number | null
 }
 
-/** Compute offer-level DB from line items */
-export function computeOfferDB(lineItems: LineItemForDB[]): {
+/**
+ * Compute offer-level DB from line items.
+ * P3 #18: `offerDiscountPercentage` (tilbuddets samlede rabat) SKAL med — ellers regnes DB paa salget FOER rabat
+ * og overvurderes, og send-gaten (rod DB-taerskel) kan lade et tilbud med negativ reel DB passere.
+ */
+export function computeOfferDB(lineItems: LineItemForDB[], offerDiscountPercentage: number = 0): {
   totalCost: number
   totalSale: number
   dbAmount: number
@@ -104,7 +108,9 @@ export function computeOfferDB(lineItems: LineItemForDB[]): {
     const cost = item.cost_price || item.supplier_cost_price_at_creation || 0
     return sum + cost * item.quantity
   }, 0)
-  const totalSale = lineItems.reduce((sum, item) => sum + item.total, 0)
+  const grossSale = lineItems.reduce((sum, item) => sum + item.total, 0)
+  const discount = offerDiscountPercentage > 0 ? Math.min(offerDiscountPercentage, 100) : 0
+  const totalSale = grossSale * (1 - discount / 100)
   const hasAnyCost = lineItems.some(item => item.cost_price || item.supplier_cost_price_at_creation)
 
   return {

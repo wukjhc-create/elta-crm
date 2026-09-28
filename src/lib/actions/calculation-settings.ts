@@ -76,45 +76,45 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
 
       switch (setting.setting_key) {
         case 'hourly_rate_electrician':
-          settings.hourly_rates.electrician = (value.rate as number) || CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN
+          settings.hourly_rates.electrician = (value.rate as number) ?? CALC_DEFAULTS.HOURLY_RATES.ELECTRICIAN
           break
         case 'hourly_rate_apprentice':
-          settings.hourly_rates.apprentice = (value.rate as number) || CALC_DEFAULTS.HOURLY_RATES.APPRENTICE
+          settings.hourly_rates.apprentice = (value.rate as number) ?? CALC_DEFAULTS.HOURLY_RATES.APPRENTICE
           break
         case 'hourly_rate_master':
-          settings.hourly_rates.master = (value.rate as number) || CALC_DEFAULTS.HOURLY_RATES.MASTER
+          settings.hourly_rates.master = (value.rate as number) ?? CALC_DEFAULTS.HOURLY_RATES.MASTER
           break
         case 'hourly_rate_helper':
-          settings.hourly_rates.helper = (value.rate as number) || CALC_DEFAULTS.HOURLY_RATES.HELPER
+          settings.hourly_rates.helper = (value.rate as number) ?? CALC_DEFAULTS.HOURLY_RATES.HELPER
           break
         case 'margin_materials':
-          settings.margins.materials = (value.percentage as number) || CALC_DEFAULTS.MARGINS.MATERIALS
+          settings.margins.materials = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.MATERIALS
           break
         case 'margin_products':
-          settings.margins.products = (value.percentage as number) || CALC_DEFAULTS.MARGINS.PRODUCTS
+          settings.margins.products = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.PRODUCTS
           break
         case 'margin_subcontractor':
-          settings.margins.subcontractor = (value.percentage as number) || CALC_DEFAULTS.MARGINS.SUBCONTRACTOR
+          settings.margins.subcontractor = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.SUBCONTRACTOR
           break
         case 'default_db_target':
-          settings.margins.default_db_target = (value.percentage as number) || CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET
+          settings.margins.default_db_target = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET
           break
         case 'minimum_db':
-          settings.margins.minimum_db = (value.percentage as number) || CALC_DEFAULTS.MARGINS.MINIMUM_DB
+          settings.margins.minimum_db = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.MINIMUM_DB
           break
         case 'db_green_threshold':
-          settings.margins.db_green_threshold = (value.percentage as number) || CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET
+          settings.margins.db_green_threshold = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.DEFAULT_DB_TARGET
           break
         case 'db_yellow_threshold':
-          settings.margins.db_yellow_threshold = (value.percentage as number) || CALC_DEFAULTS.MARGINS.MINIMUM_DB
+          settings.margins.db_yellow_threshold = (value.percentage as number) ?? CALC_DEFAULTS.MARGINS.MINIMUM_DB
           break
         case 'db_red_threshold':
-          settings.margins.db_red_threshold = (value.percentage as number) || 10
+          settings.margins.db_red_threshold = (value.percentage as number) ?? 10
           break
         case 'work_hours_standard':
           settings.work_hours.start = (value.start as string) || CALC_DEFAULTS.WORK_HOURS.START
           settings.work_hours.end = (value.end as string) || CALC_DEFAULTS.WORK_HOURS.END
-          settings.work_hours.break_minutes = (value.break_minutes as number) || CALC_DEFAULTS.WORK_HOURS.BREAK_MINUTES
+          settings.work_hours.break_minutes = (value.break_minutes as number) ?? CALC_DEFAULTS.WORK_HOURS.BREAK_MINUTES
           break
         case 'work_hours_overtime':
           settings.work_hours.overtime_multiplier = (value.multiplier as number) || CALC_DEFAULTS.WORK_HOURS.OVERTIME_MULTIPLIER
@@ -123,7 +123,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
           settings.work_hours.weekend_multiplier = (value.multiplier as number) || CALC_DEFAULTS.WORK_HOURS.WEEKEND_MULTIPLIER
           break
         case 'default_vat':
-          settings.defaults.vat_percentage = (value.percentage as number) || DEFAULT_TAX_RATE
+          settings.defaults.vat_percentage = (value.percentage as number) ?? DEFAULT_TAX_RATE
           break
         case 'default_currency':
           settings.defaults.currency = (value.code as string) || DEFAULT_CURRENCY
@@ -132,7 +132,7 @@ export async function getCalculationSettings(): Promise<ActionResult<Calculation
           settings.defaults.validity_days = (value.days as number) || OFFER_VALIDITY_DAYS
           break
         case 'default_payment_terms':
-          settings.defaults.payment_terms_days = (value.days as number) || CALC_DEFAULTS.PAYMENT_TERMS_DAYS
+          settings.defaults.payment_terms_days = (value.days as number) ?? CALC_DEFAULTS.PAYMENT_TERMS_DAYS
           break
         case 'transport_fee':
           settings.transport.flat_fee = (value.flat_fee as number) ?? 450
