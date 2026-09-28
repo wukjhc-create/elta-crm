@@ -15,7 +15,7 @@
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 
-const GATE_RE = /requirePermission\(|hasPermission\(|requireAdmin\(|requireSupplier[A-Za-z]*\(|requireRole\(|assertPermission\(|pageHasPermission\(/
+const GATE_RE = /requirePermission\(|hasPermission\(|requireAdmin\w*\(|requireSupplier[A-Za-z]*\(|requireRole\(|assertPermission\(|pageHasPermission\(/
 // rpc('get_*'/'calculate_*') er rene laese-funktioner og taeller ikke som skrivning.
 const WRITE_RE = /\.(insert|update|upsert|delete)\(|\.rpc\(\s*['"](?!get_|calculate_)/
 const AUTH_RE = /getAuthenticatedClient|getUser\(|auth\.getUser|requirePermission|require[A-Z]\w*\(|pageHasPermission|getUserRoleForPage|[Tt]oken|timingSafeEqual/
@@ -37,7 +37,8 @@ function exportedFunctions(src: string): Array<{ name: string; body: string }> {
 /** Lokale (ikke-eksporterede) hjaelpere hvis krop selv indeholder et rettighedstjek. */
 function localGateHelpers(src: string): RegExp | null {
   const names: string[] = []
-  for (const h of src.matchAll(/(?:async )?function (\w+)\s*\([^)]*\)[^{]*\{/g)) {
+  // Krop-klammen er den der afslutter signatur-linjen (returtyper kan selv indeholde '{ ... }').
+  for (const h of src.matchAll(/(?:async )?function (\w+)\s*\([^)]*\)[^\n]*\{\r?\n/g)) {
     if (/export\s+$/.test(src.slice(Math.max(0, h.index! - 20), h.index!))) continue
     const start = h.index! + h[0].length
     let depth = 1

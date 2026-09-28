@@ -12,7 +12,18 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006): globale indstillinger/forslag var ugatede — enhver indlogget kunne aendre dem via
+ * direkte server-action-kald. Kraever nu den relevante rettighed.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
@@ -146,7 +157,7 @@ export async function getProposalsCount(): Promise<number> {
 export async function promoteCaseProposal(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'sag-ID')
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('cases.create')
     const { error } = await supabase
       .from('service_cases')
       .update({ is_proposal: false })
@@ -168,7 +179,7 @@ export async function promoteCaseProposal(id: string): Promise<ActionResult> {
 export async function promoteOfferProposal(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'tilbud-ID')
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('offers.create')
     const { error } = await supabase
       .from('offers')
       .update({ is_proposal: false })
@@ -189,7 +200,7 @@ export async function promoteOfferProposal(id: string): Promise<ActionResult> {
 export async function rejectCaseProposal(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'sag-ID')
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('cases.create')
     // Defensiv: ryd incoming_emails.service_case_id-referencer foer DELETE.
     await supabase
       .from('incoming_emails')
@@ -214,7 +225,7 @@ export async function rejectCaseProposal(id: string): Promise<ActionResult> {
 export async function rejectOfferProposal(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'tilbud-ID')
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('offers.create')
     const { error } = await supabase
       .from('offers')
       .delete()

@@ -15,6 +15,8 @@ export interface IncidentEntry {
 }
 
 export const INCIDENT_REGISTER: IncidentEntry[] = [
+  { id: 'P-006', severity: 'S3', area: 'Server-action-RBAC', title: 'Mange skrivende server-actions uden rettighedstjek (runde 1: ekstern adgang/effekt + globale indstillinger gatet)', closed: false,
+    pending: 'Gennemgang af de resterende actions (action-gate-audit)' },
   { id: 'P-005', severity: 'S3', area: 'Pris/leverandør-RBAC', title: 'Pris-/leverandør-actions uden rettighedstjek; supplier_settings skrivbar for alle indloggede', closed: false,
     pending: 'Migration 00164 i prod (kode-gates er deployet)' },
   { id: 'P-004', severity: 'S1', area: 'Anon-eksponering', title: 'Anon kunne læse leverandørpriser via views og kalde audit-/rolle-funktioner', closed: true },

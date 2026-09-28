@@ -3,7 +3,18 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, createAnonClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006): actions med EKSTERN effekt/adgang (portal-/partner-tokens, integrationer, afsendelse)
+ * var ugatede — enhver indlogget kunne kalde dem direkte. Kraever nu den relevante rettighed.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createProjectFromOffer } from '@/lib/actions/projects'
@@ -46,7 +57,7 @@ export async function createPortalToken(
   data: CreatePortalTokenData
 ): Promise<ActionResult<PortalAccessToken>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('offers.send')
 
     // Idempotens: bloker en ny adgang hvis kunden allerede har en aktiv.
     // Forhindrer dublet-tokens ved gentagne klik ("Opret adgang").
@@ -123,7 +134,7 @@ export async function deactivatePortalToken(
   tokenId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('offers.send')
 
     const { error } = await supabase
       .from('portal_access_tokens')

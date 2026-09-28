@@ -52,7 +52,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | Opgave | Status | Mangler |
 |---|---|---|
 | Prod-migrationer 00164 (supplier_settings, P-005) + 00165 (prishistorik) | BLOCKED | Henriks godkendelse. Runbook: docs/runbooks/00164-00165-supplier-domain.md |
-| RBAC app-lag: 201 skrivende server-actions uden genkendt rettighedstjek (uden for prisdomænet) | TODO (ny milepæl) | `npx tsx scripts/action-gate-audit.ts` viser listen; mange er formentlig legitime (token-portal, egne data), men skal gennemgås |
+| RBAC app-lag (P-006): skrivende server-actions uden rettighedstjek | IN_PROGRESS | **Runde 1 DONE:** portal- og partner-tokens, integrationer/webhooks, tilbudsmail, hurtigsvar, integrations-eksport, globale kalkulationsindstillinger, Kalkia-faktorer og godkendelse af sags-/tilbudsforslag (27 actions). Auditten er gjort præcis (lokale gate-hjælpere, CRLF, `requireAdmin*`, læse-RPC'er). **176 tilbage:** gennemgås domæne for domæne; mange er legitime (token-validerede portal-actions, egne beskeder og profil) og kræver en undtagelsesliste med begrundelse. |
 | Prod-migration 00163 (agent capability-guard) | BLOCKED | Henriks godkendelse (defense-in-depth; ikke akut — ingen agenter aktive) |
 | P1-gate: prod-migration 00162 (anon-eksponering, P-004) | DONE | Kørt i prod 2026-09-28 (godkendt). db-audit HØJ 21→0; prod:verify-00162 grøn; P-004 lukket. |
 | P0-gate: prod-migration 00161 (R1–R4) | DONE | Kørt i prod 2026-09-27 (godkendt). prod:role-policies 0·0·0; prod:verify-00161 struktur + adfærd (admin/montør) grøn. |
@@ -66,6 +66,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-28: RBAC app-lag runde 1 (P-006): 27 actions med ekstern effekt/globale indstillinger gatet.
 - 2026-09-28: P3 #19 fakturakontrol (motor + design) + 3 e-conomic-vejfejl rettet. **P3 komplet.**
 - 2026-09-28: P3 #18 Profit Engine (ren motor + design) + 2 prisfejl rettet.
 - 2026-09-28: P3 #17 grossist-discovery + P-005 (S3) rettet i kode; 00164/00165 på staging.

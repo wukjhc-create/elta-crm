@@ -12,7 +12,18 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006): actions med EKSTERN effekt/adgang (portal-/partner-tokens, integrationer, afsendelse)
+ * var ugatede — enhver indlogget kunne kalde dem direkte. Kraever nu den relevante rettighed.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { revalidatePath } from 'next/cache'
 import { isGraphConfigured, sendEmailViaGraph, getMailbox } from '@/lib/services/microsoft-graph'
 import { getCompanySettings } from '@/lib/actions/settings'
@@ -643,7 +654,7 @@ export async function sendOfferEmail(
   input: SendOfferEmailInput
 ): Promise<SendOfferEmailResult> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('offers.send')
 
     // Resolve sender name: explicit > profile > fallback
     let senderName = input.sender_name

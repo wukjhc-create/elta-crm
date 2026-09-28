@@ -11,7 +11,18 @@ import type {
   KalkiaGlobalFactor,
 } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006): globale indstillinger/forslag var ugatede — enhver indlogget kunne aendre dem via
+ * direkte server-action-kald. Kraever nu den relevante rettighed.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -42,7 +53,7 @@ export async function updateBuildingProfile(
   formData: FormData
 ): Promise<ActionResult<KalkiaBuildingProfile>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -123,7 +134,7 @@ export async function updateGlobalFactor(
   formData: FormData
 ): Promise<ActionResult<KalkiaGlobalFactor>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
 
     const id = formData.get('id') as string
     if (!id) {

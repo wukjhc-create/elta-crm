@@ -26,6 +26,17 @@ import {
   getAuthenticatedClientWithRole,
   formatError,
 } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006): actions med EKSTERN effekt/adgang (portal-/partner-tokens, integrationer, afsendelse)
+ * var ugatede — enhver indlogget kunne kalde dem direkte. Kraever nu den relevante rettighed.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -118,7 +129,7 @@ export async function createIntegration(
 ): Promise<ActionResult<Integration>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.manage')
 
     // Krypter secret-felter foer lagring (AES-256-GCM, enc:v1:-prefix).
     const encryptedInput = await encryptIntegrationSecrets(input)
@@ -149,7 +160,7 @@ export async function updateIntegration(
 ): Promise<ActionResult<Integration>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { id, ...updateData } = input
 
@@ -189,7 +200,7 @@ export async function deleteIntegration(id: string): Promise<ActionResult> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     validateUUID(id, 'integration ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { error } = await supabase
       .from('integrations')
@@ -214,7 +225,7 @@ export async function toggleIntegration(
 ): Promise<ActionResult<Integration>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { data, error } = await supabase
       .from('integrations')
@@ -266,7 +277,7 @@ export async function createWebhook(
 ): Promise<ActionResult<IntegrationWebhook>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { data, error } = await supabase
       .from('integration_webhooks')
@@ -291,7 +302,7 @@ export async function updateWebhook(
 ): Promise<ActionResult<IntegrationWebhook>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { id, ...updateData } = input
 
@@ -318,7 +329,7 @@ export async function deleteWebhook(id: string): Promise<ActionResult> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     validateUUID(id, 'webhook ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { error } = await supabase
       .from('integration_webhooks')
@@ -368,7 +379,7 @@ export async function createEndpoint(
 ): Promise<ActionResult<IntegrationEndpoint>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { data, error } = await supabase
       .from('integration_endpoints')
@@ -393,7 +404,7 @@ export async function updateEndpoint(
 ): Promise<ActionResult<IntegrationEndpoint>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { id, ...updateData } = input
 
@@ -419,7 +430,7 @@ export async function updateEndpoint(
 export async function deleteEndpoint(id: string): Promise<ActionResult> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { error } = await supabase
       .from('integration_endpoints')
@@ -787,7 +798,7 @@ export async function exportOfferToIntegration(
 ): Promise<ActionResult<{ externalId?: string }>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('offers.send')
 
     // Get integration
     const { data: integrationRow, error: intError } = await supabase
@@ -916,7 +927,7 @@ export async function testIntegrationConnection(
 ): Promise<ActionResult<{ status: number; message: string }>> {
   try {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { data: integrationRow, error } = await supabase
       .from('integrations')

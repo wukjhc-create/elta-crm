@@ -10,7 +10,18 @@ import type {
   CalculationSummary,
 } from '@/types/calculation-settings.types'
 import { validateUUID } from '@/lib/validations/common'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006): globale indstillinger/forslag var ugatede — enhver indlogget kunne aendre dem via
+ * direkte server-action-kald. Kraever nu den relevante rettighed.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { DEFAULT_TAX_RATE, DEFAULT_CURRENCY, OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 // =====================================================
@@ -177,7 +188,7 @@ export async function updateSetting(
   value: Record<string, unknown>
 ): Promise<ActionResult<CalculationSetting>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.manage')
 
     if (!settingKey || settingKey.trim().length === 0) {
       return { success: false, error: 'Indstillingsnøgle er påkrævet' }
@@ -379,7 +390,7 @@ export async function getRoomType(code: string): Promise<ActionResult<RoomType>>
 
 export async function calculateTotals(calculationId: string): Promise<ActionResult<CalculationSummary>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(calculationId, 'kalkulation ID')
 
     // Call the database function

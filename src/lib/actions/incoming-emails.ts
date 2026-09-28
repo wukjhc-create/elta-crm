@@ -1117,7 +1117,10 @@ export async function sendQuickReply(
   recipientOverride?: string
 ): Promise<{ success: boolean; error?: string }> {
   validateUUID(emailId, 'emailId')
-  const { userId } = await getAuthenticatedClient()
+  // RBAC app-lag (P-006): afsendelse til kunde kraever inbox.send (var ugatet).
+  const gate = await getAuthenticatedClientWithRole()
+  if (!gate.hasPermission('inbox.send')) return { success: false, error: 'Manglende tilladelse: inbox.send' }
+  const { userId } = gate
   const safeAttachmentIds = (attachmentIds || []).filter((x): x is string => !!x)
   const overrideTrim = (recipientOverride || '').trim().toLowerCase()
   for (const id of safeAttachmentIds) {

@@ -2,7 +2,18 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006): actions med EKSTERN effekt/adgang (portal-/partner-tokens, integrationer, afsendelse)
+ * var ugatede — enhver indlogget kunne kalde dem direkte. Kraever nu den relevante rettighed.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import type {
   PartnerAccessToken,
   PartnerSession,
@@ -26,7 +37,7 @@ export async function createPartnerToken(
   data: CreatePartnerTokenData
 ): Promise<ActionResult<PartnerAccessToken>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.manage')
 
     // Idempotens: bloker en ny adgang hvis partner-kunden allerede har en
     // aktiv. Forhindrer dublet-tokens ved gentagne klik ("Opret adgang").
@@ -103,7 +114,7 @@ export async function deactivatePartnerToken(
   tokenId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.manage')
 
     const { error } = await supabase
       .from('partner_access_tokens')
