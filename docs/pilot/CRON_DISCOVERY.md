@@ -34,7 +34,7 @@ Maskinlæsbart register: [`src/lib/services/cron-registry.ts`](../../src/lib/ser
 | F3 | unanswered-mails-check | `'use server'`-fil med cookie-klient → 0 mails tjekket, 0 opgaver. | Ingen auto-opgaver for ubesvarede mails. | Admin-klient i auto-tasks.ts. Opretter interne opgaver → ændrer adfærd. |
 | F4 | email-sync | `linkEmail` (email-linker.ts:392) bruger cookie-klient → kobling mail→kunde formentlig no-op under cron. | Mails hentes, men kobles ikke automatisk. | Admin-klient til linkeren. |
 | F5 | lemu-sync | Exceptions skrives ikke til `supplier_sync_logs`. | Var usynlige. **Nu synlige via cron-log.** | (evt. også `failed`-række i supplier_sync_logs) |
-| F6 | invoice-reminders | Ingen on/off-kontakt for kundemails. | 0 sendt (se ovenfor). | Env/indstillings-kill-switch. Standardværdien er en forretningsbeslutning. |
+| F6 | invoice-reminders | Ingen on/off-kontakt for kundemails. **P3 #16:** har aldrig virket i prod, fordi `resolveInvoiceMailRoute` (`'use server'`, cookie-klient) er anon under cron og derfor giver "Faktura ikke fundet". Samme rodårsag som F1–F4. | 0 sendt. Den ene faktura er 83 dage over forfald. | Env/indstillings-kill-switch. **Rettes klienten, sendes der straks en rykker (L1) for den faktura.** Det er en forretningsbeslutning. |
 | F7 | offer-reminders | Kontakt findes, men default er TIL (`?? true`) og TIL i prod. | 0 sendt seneste 30 dage. | Bekræft at automatiske kunderykkere ønskes under piloten. |
 
 ## Beslutninger til Henrik (BLOCKED i backlog)

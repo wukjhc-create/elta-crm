@@ -36,7 +36,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | # | Opgave | Status | Note / blocker |
 |---|---|---|---|
 | 15 | Relatel: teknisk discovery + integrationskontrakt (ingen rigtig SMS) | DONE (discovery + foundation) | docs/integrations/RELATEL_CONTRACT.md er baseret på den offentlige API-dokumentation. Fund: iframe-API'et er usigneret (kun `?number=`), `X-Frame-Options: DENY` + SameSite-cookies forhindrer indlogget iframe, og telefonformaterne er blandede. Foundation er bygget: nummer-normalisering, opkalds-opslag `/dashboard/cti?number=` (login + RLS), kontrakt-typer og en deaktiveret klient uden netværk. Tests: `relatel-test` + `harness:relatel-lookup` 3/3 + ui-e2e U6. **BLOCKED:** access-token + beslutning om trin 1–5 (CTI-side, opkaldslog, click-to-call, SMS-udbyder). |
-| 16 | Deterministic follow-up engine (design, ingen live automation) | TODO | |
+| 16 | Deterministic follow-up engine (design, ingen live automation) | DONE (design + motor) | 10 tidsdrevne regler kortlagt med konflikter: parallel kundemail + agent på samme tilbud, 3 alders- og udløbsbegreber, UTC-crons, intet loft pr. kunde, samtidighedsrisiko. En ren deterministisk motor er bygget (dansk kalender, stabile nøgler, én regel pr. situation, loft på 1 kundepåmindelse pr. dag); unit-tests inkl. DST og determinisme. Read-only skygge mod prod fandt, at **fakturarykkere aldrig har virket** (anon-klient i mail-router, P-003-familien). Intet koblet på drift. docs/followup/FOLLOWUP_ENGINE_DESIGN.md |
 | 17 | Grossist/KlarPris discovery (datamodel, prisimport, lager, rabatter, sammenligning) | TODO | |
 | 18 | Profit Engine-datamodel (materiale + timer + overhead + DB → salgspris) | TODO | |
 | 19 | Invoice Control pipeline (design) | TODO | |
@@ -64,6 +64,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-28: P3 #16 opfølgningsmotor designet + bygget (ren); fakturarykker-fund dokumenteret.
 - 2026-09-28: P3 #15 Relatel discovery + CTI-foundation (ingen netværk, ingen SMS).
 - 2026-09-28: P2-rest C: reproducerbar UI-E2E (staging, syntetiske brugere) + 2 UI-fejl rettet. P2-rest A–C færdig.
 - 2026-09-28: P2-rest B: send_reply-producer + live-send kill-switch (intet sendt).

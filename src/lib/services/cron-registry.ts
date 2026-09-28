@@ -31,7 +31,7 @@ export const CRON_REGISTRY: CronInfo[] = [
     knownIssue: 'Kobling mail→kunde (linkEmail) bruger anon-klient → formentlig stille no-op.' },
   { name: 'offer-reminders', schedule: '0 8 * * *', purpose: 'Rykker-mail til kunder på ubesvarede tilbud', external: 'customer_mail', gate: 'company_settings.reminder_enabled (TIL i prod; 0 sendt seneste 30 dage)' },
   { name: 'invoice-reminders', schedule: '0 7 * * *', purpose: 'Betalingsrykker-mail til kunder', external: 'customer_mail', gate: null,
-    knownIssue: 'Ingen on/off-kontakt. I prod: 0 sendt; samme faktura springes over dagligt siden 2026-07-10.' },
+    knownIssue: 'Ingen on/off-kontakt. Virker ikke i prod: mail-routeren bruger anon-klient → "Faktura ikke fundet" dagligt siden 2026-07-10 (0 sendt). Rettes den, sendes straks rykker på en 83 dage forfalden faktura.' },
   { name: 'bank-match', schedule: '30 6 * * *', purpose: 'Match bankposteringer til fakturaer', external: 'none', gate: null },
   { name: 'payment-report', schedule: '30 7 * * *', purpose: 'Intern betalingsrapport-mail', external: 'internal_mail', gate: 'payment_report_config.enabled' },
   { name: 'export-error-notification', schedule: '15 8 * * *', purpose: 'Intern mail om fejlede e-conomic-eksporter', external: 'internal_mail', gate: 'export_error_notification_config.enabled' },

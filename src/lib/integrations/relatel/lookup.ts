@@ -26,7 +26,6 @@ export interface CallerLookup {
 
 const SCAN_LIMIT = 5000
 
- 
 export async function lookupCaller(client: any, rawNumber: string | null | undefined): Promise<CallerLookup> {
   const number = toRelatelNumber(rawNumber)
   const empty: CallerLookup = { number, matches: [], openCases: [], openOffers: [] }
