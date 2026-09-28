@@ -12,7 +12,18 @@ import type {
   UpdateSyncJobData,
   SyncLogFilters,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
+ * indlogget bruger (et skjult menupunkt eller en layout-guard beskytter ikke en action).
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Sync Job CRUD
@@ -81,7 +92,7 @@ export async function createSyncJob(
   data: CreateSyncJobData
 ): Promise<ActionResult<SupplierSyncJob>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.suppliers')
     validateUUID(data.supplier_id, 'leverandør ID')
 
     const { data: job, error } = await supabase
@@ -110,7 +121,7 @@ export async function updateSyncJob(
   data: UpdateSyncJobData
 ): Promise<ActionResult<SupplierSyncJob>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'sync job ID')
 
     const { data: job, error } = await supabase
@@ -139,7 +150,7 @@ export async function deleteSyncJob(
   id: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'sync job ID')
 
     const { error } = await supabase
@@ -208,7 +219,7 @@ export async function updateSyncLog(
   >>
 ): Promise<ActionResult<SupplierSyncLog>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(logId, 'sync log ID')
 
     const { data, error } = await supabase

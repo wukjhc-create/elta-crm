@@ -26,7 +26,18 @@ import type {
 } from '@/types/products.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
+ * indlogget bruger (et skjult menupunkt eller en layout-guard beskytter ikke en action).
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
@@ -105,7 +116,7 @@ export async function createProductCategory(
   formData: FormData
 ): Promise<ActionResult<ProductCategory>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
 
     const parentId = formData.get('parent_id') as string || null
     if (parentId) {
@@ -154,7 +165,7 @@ export async function updateProductCategory(
   formData: FormData
 ): Promise<ActionResult<ProductCategory>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -213,7 +224,7 @@ export async function updateProductCategory(
 
 export async function deleteProductCategory(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
     validateUUID(id, 'kategori ID')
 
     const { error } = await supabase.from('product_categories').delete().eq('id', id)
@@ -350,7 +361,7 @@ export async function getProduct(id: string): Promise<ActionResult<ProductWithCa
 
 export async function createProduct(formData: FormData): Promise<ActionResult<Product>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('materials.edit')
 
     const categoryId = formData.get('category_id') as string || null
     if (categoryId) {
@@ -404,7 +415,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult<Pr
 
 export async function updateProduct(formData: FormData): Promise<ActionResult<Product>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -468,7 +479,7 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
 
 export async function deleteProduct(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
     validateUUID(id, 'produkt ID')
 
     const { error } = await supabase.from('product_catalog').delete().eq('id', id)
@@ -613,7 +624,7 @@ export async function getSupplier(id: string): Promise<ActionResult<Supplier>> {
 
 export async function createSupplier(formData: FormData): Promise<ActionResult<Supplier>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.suppliers')
 
     const rawData = {
       name: formData.get('name') as string,
@@ -658,7 +669,7 @@ export async function createSupplier(formData: FormData): Promise<ActionResult<S
 
 export async function updateSupplier(formData: FormData): Promise<ActionResult<Supplier>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -712,7 +723,7 @@ export async function updateSupplier(formData: FormData): Promise<ActionResult<S
 
 export async function deleteSupplier(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'leverandør ID')
 
     const { error } = await supabase.from('suppliers').delete().eq('id', id)
@@ -848,7 +859,7 @@ export async function createSupplierProduct(
   formData: FormData
 ): Promise<ActionResult<SupplierProduct>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
 
     const supplierId = formData.get('supplier_id') as string
     if (!supplierId) {
@@ -907,7 +918,7 @@ export async function updateSupplierProduct(
   formData: FormData
 ): Promise<ActionResult<SupplierProduct>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -976,7 +987,7 @@ export async function updateSupplierProduct(
 
 export async function deleteSupplierProduct(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'leverandørprodukt ID')
 
     const { error } = await supabase.from('supplier_products').delete().eq('id', id)

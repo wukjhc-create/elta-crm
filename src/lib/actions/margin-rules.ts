@@ -8,7 +8,18 @@ import type {
   CreateMarginRuleData,
   MarginRuleType,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
+ * indlogget bruger (et skjult menupunkt eller en layout-guard beskytter ikke en action).
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Margin Rules CRUD
@@ -49,7 +60,7 @@ export async function createMarginRule(
   data: CreateMarginRuleData
 ): Promise<ActionResult<SupplierMarginRule>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.suppliers')
     validateUUID(data.supplier_id, 'leverandør ID')
 
     // Validate optional IDs
@@ -130,7 +141,7 @@ export async function updateMarginRule(
   }>
 ): Promise<ActionResult<SupplierMarginRule>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'regel ID')
 
     const updateData: Record<string, unknown> = {}
@@ -174,7 +185,7 @@ export async function updateMarginRule(
  */
 export async function deleteMarginRule(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'regel ID')
 
     const { error } = await supabase
@@ -200,7 +211,7 @@ export async function deleteMarginRule(id: string): Promise<ActionResult> {
  */
 export async function toggleMarginRule(id: string): Promise<ActionResult<SupplierMarginRule>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'regel ID')
 
     // Get current state
@@ -352,7 +363,7 @@ export async function setDefaultSupplierMargin(
   }
 ): Promise<ActionResult<SupplierMarginRule>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.suppliers')
     validateUUID(supplierId, 'leverandør ID')
 
     // Check if supplier-level rule exists

@@ -4,7 +4,18 @@ import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
 import { SupplierAPIClientFactory, type ProductPrice } from '@/lib/services/supplier-api-client'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
+ * indlogget bruger (et skjult menupunkt eller en layout-guard beskytter ikke en action).
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { BATCH_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 
@@ -43,7 +54,7 @@ export async function syncSupplierPrices(
   const startTime = Date.now()
 
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.suppliers')
     validateUUID(supplierId, 'leverandør ID')
 
     // Get supplier info
@@ -341,7 +352,7 @@ export async function importProductsFromAPI(
   products: ProductPrice[]
 ): Promise<ActionResult<{ imported: number; updated: number }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.suppliers')
     validateUUID(supplierId, 'leverandør ID')
 
     let imported = 0

@@ -5,6 +5,21 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+
+/**
+ * P3 #17 / P-005: disse actions bruger service-role og havde INTET login-tjek (kaldbare af enhver indlogget
+ * bruger direkte). Kraever nu login + materials.edit (admin, serviceleder) FOER service-role bruges.
+ */
+async function requireMaterialsEdit(): Promise<string | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    ctx.requirePermission('materials.edit')
+    return null
+  } catch (err) {
+    return err instanceof Error ? err.message : 'Manglende tilladelse: materials.edit'
+  }
+}
 import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
@@ -39,6 +54,8 @@ export async function bindMaterialToSupplier(
   supplierProductId: string,
   options: { force?: boolean } = {}
 ): Promise<BindMaterialResult> {
+  const denied = await requireMaterialsEdit()
+  if (denied) return { success: false, error: denied }
   if (!materialSlug || typeof materialSlug !== 'string') {
     return { success: false, error: 'materialSlug er påkrævet' }
   }
@@ -147,6 +164,8 @@ export async function bindMaterialToSupplier(
  * Clear a binding so the material falls back to search-based resolution.
  */
 export async function unbindMaterialSupplier(materialSlug: string): Promise<BindMaterialResult> {
+  const denied = await requireMaterialsEdit()
+  if (denied) return { success: false, error: denied }
   if (!materialSlug) return { success: false, error: 'materialSlug er påkrævet' }
   const supabase = createAdminClient()
 
@@ -205,6 +224,8 @@ export interface ListMaterialsOptions {
 export async function listMaterialsForAdmin(
   options: ListMaterialsOptions = {}
 ): Promise<MaterialAdminRow[]> {
+  const denied = await requireMaterialsEdit()
+  if (denied) return [] // ingen adgang -> tom liste (siden viser NoAccess via layout-guard)
   const supabase = createAdminClient()
 
   let query = supabase
@@ -327,6 +348,8 @@ async function countOfferLineUsage(materialIds: string[]): Promise<Map<string, n
 }
 
 export async function listMaterialCategories(): Promise<string[]> {
+  const denied = await requireMaterialsEdit()
+  if (denied) return []
   const supabase = createAdminClient()
   const { data } = await supabase
     .from('materials')
@@ -358,6 +381,8 @@ export async function searchSupplierProductsForBinding(
   query: string,
   options: { supplierId?: string; limit?: number } = {}
 ): Promise<SupplierProductPickerRow[]> {
+  const denied = await requireMaterialsEdit()
+  if (denied) return []
   const trimmed = (query || '').trim()
   if (trimmed.length < 2) return []
 

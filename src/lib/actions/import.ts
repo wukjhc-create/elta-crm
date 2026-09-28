@@ -1,5 +1,6 @@
 'use server'
 
+import { SUPPLIER_SETTINGS_PUBLIC_COLUMNS } from '@/lib/services/supplier-settings-columns'
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
 import { ImportEngine, decodeFileContent, detectColumnMappings, createImportResult, calculatePriceChange } from '@/lib/services/import-engine'
@@ -17,7 +18,18 @@ import type {
   PriceChange,
   ColumnMappings,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+
+/**
+ * P3 #17 / P-005: skrivende leverandoer-/prisimport-actions var ugatede (enhver indlogget kunne overskrive
+ * kostpriser via direkte server-action-kald). Kraever nu settings.suppliers (admin) — samme gate som credentials.
+ * Laese-actions (produktsoegning i tilbud/kalkulation) er uaendrede.
+ */
+async function requireSupplierWrite() {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission('settings.suppliers')
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 /**
  * Get importer config based on supplier code
@@ -43,7 +55,7 @@ export async function previewImport(
   customMappings?: ColumnMappings
 ): Promise<ActionResult<ImportPreview>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierWrite()
     validateUUID(supplierId, 'leverandør ID')
 
     // Get supplier info and settings
@@ -60,7 +72,7 @@ export async function previewImport(
     // Get supplier settings
     const { data: settings } = await supabase
       .from('supplier_settings')
-      .select('*')
+      .select(SUPPLIER_SETTINGS_PUBLIC_COLUMNS)
       .eq('supplier_id', supplierId)
       .maybeSingle()
 
@@ -174,7 +186,7 @@ export async function executeImport(
   options: { dryRun?: boolean; customMappings?: ColumnMappings }
 ): Promise<ActionResult<ImportResult>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireSupplierWrite()
     validateUUID(supplierId, 'leverandør ID')
 
     // Get supplier info and settings
@@ -191,7 +203,7 @@ export async function executeImport(
     // Get supplier settings
     const { data: settings } = await supabase
       .from('supplier_settings')
-      .select('*')
+      .select(SUPPLIER_SETTINGS_PUBLIC_COLUMNS)
       .eq('supplier_id', supplierId)
       .maybeSingle()
 
@@ -575,7 +587,7 @@ export async function retryImport(
   batchId: string
 ): Promise<ActionResult<ImportResult>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierWrite()
     validateUUID(batchId, 'batch ID')
 
     // Get original batch info

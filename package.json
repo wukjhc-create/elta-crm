@@ -31,6 +31,8 @@
     "harness:pilot": "tsx scripts/test-harness/cli.ts pilot",
     "harness:pilot-health": "tsx scripts/test-harness/cli.ts pilot-health",
     "harness:pilot-roles": "tsx scripts/test-harness/cli.ts pilot-roles",
+    "harness:supplier-lockdown": "tsx scripts/test-harness/cli.ts supplier-lockdown",
+    "security:actions": "tsx scripts/action-gate-audit.ts --domain supplier && tsx scripts/action-gate-audit.ts --unauth",
     "harness:relatel-lookup": "tsx scripts/test-harness/cli.ts relatel-lookup",
     "harness:ui-e2e": "tsx scripts/test-harness/cli.ts ui-e2e",
     "harness:send-producer": "tsx scripts/test-harness/cli.ts send-producer",

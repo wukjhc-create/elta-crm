@@ -9,7 +9,18 @@ import type {
   CustomerProductPrice,
   CustomerEffectivePrice,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
+ * indlogget bruger (et skjult menupunkt eller en layout-guard beskytter ikke en action).
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Customer-Supplier Price Agreements
@@ -44,7 +55,7 @@ export async function upsertCustomerSupplierPrice(
   data: CreateCustomerSupplierPriceData
 ): Promise<ActionResult<CustomerSupplierPrice>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.pricing')
     validateUUID(data.customer_id, 'kunde ID')
     validateUUID(data.supplier_id, 'leverandør ID')
 
@@ -76,7 +87,7 @@ export async function deleteCustomerSupplierPrice(
   id: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.pricing')
     validateUUID(id, 'aftale ID')
 
     const { error } = await supabase
@@ -148,7 +159,7 @@ export async function upsertCustomerProductPrice(
   }
 ): Promise<ActionResult<CustomerProductPrice>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.pricing')
     validateUUID(customerId, 'kunde ID')
     validateUUID(supplierProductId, 'leverandørprodukt ID')
 

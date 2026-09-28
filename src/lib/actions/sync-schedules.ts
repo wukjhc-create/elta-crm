@@ -9,7 +9,18 @@ import type {
   SyncType,
   ScheduleRunStatus,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
+ * indlogget bruger (et skjult menupunkt eller en layout-guard beskytter ikke en action).
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Sync Schedule CRUD
@@ -49,7 +60,7 @@ export async function createSyncSchedule(
   data: CreateSyncScheduleData
 ): Promise<ActionResult<SupplierSyncSchedule>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.suppliers')
     validateUUID(data.supplier_id, 'leverandør ID')
 
     // Calculate next run time
@@ -110,7 +121,7 @@ export async function updateSyncSchedule(
   }>
 ): Promise<ActionResult<SupplierSyncSchedule>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'plan ID')
 
     const updateData: Record<string, unknown> = {}
@@ -156,7 +167,7 @@ export async function updateSyncSchedule(
  */
 export async function deleteSyncSchedule(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'plan ID')
 
     const { error } = await supabase
@@ -182,7 +193,7 @@ export async function deleteSyncSchedule(id: string): Promise<ActionResult> {
  */
 export async function toggleSyncSchedule(id: string): Promise<ActionResult<SupplierSyncSchedule>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(id, 'plan ID')
 
     // Get current state

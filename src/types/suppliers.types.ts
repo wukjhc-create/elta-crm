@@ -77,9 +77,9 @@ export interface SupplierSettings {
   csv_encoding: string
   column_mappings: ColumnMappings
   api_base_url: string | null
-  api_credentials: ApiCredentials | null
   ftp_host: string | null
-  ftp_credentials: FtpCredentials | null
+  // api_credentials/ftp_credentials er hemmelige og returneres aldrig (P-005, 00164).
+  // Credentials hoerer til i supplier_credentials (krypteret, admin-only).
   default_margin_percentage: number
   auto_update_prices: boolean
   is_preferred: boolean
@@ -94,9 +94,7 @@ export interface UpdateSupplierSettingsData {
   csv_encoding?: string
   column_mappings?: ColumnMappings
   api_base_url?: string
-  api_credentials?: ApiCredentials
   ftp_host?: string
-  ftp_credentials?: FtpCredentials
   default_margin_percentage?: number
   auto_update_prices?: boolean
   is_preferred?: boolean

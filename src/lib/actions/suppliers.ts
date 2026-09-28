@@ -1,5 +1,6 @@
 'use server'
 
+import { SUPPLIER_SETTINGS_PUBLIC_COLUMNS } from '@/lib/services/supplier-settings-columns'
 import { revalidatePath } from 'next/cache'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
@@ -18,7 +19,18 @@ import type {
   SupplierProductFilters,
   SupplierOptionForMaterial,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+
+/**
+ * P3 #17 / P-005: skrivende leverandoer-/prisimport-actions var ugatede (enhver indlogget kunne overskrive
+ * kostpriser via direkte server-action-kald). Kraever nu settings.suppliers (admin) — samme gate som credentials.
+ * Laese-actions (produktsoegning i tilbud/kalkulation) er uaendrede.
+ */
+async function requireSupplierWrite() {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission('settings.suppliers')
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Supplier CRUD
@@ -94,7 +106,7 @@ export async function createSupplier(
   data: CreateSupplierData
 ): Promise<ActionResult<Supplier>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireSupplierWrite()
 
     const { data: supplier, error } = await supabase
       .from('suppliers')
@@ -125,7 +137,7 @@ export async function updateSupplier(
   data: Omit<UpdateSupplierData, 'id'>
 ): Promise<ActionResult<Supplier>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierWrite()
     validateUUID(id, 'leverandør ID')
 
     const { data: supplier, error } = await supabase
@@ -156,7 +168,7 @@ export async function updateSupplier(
 
 export async function deleteSupplier(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierWrite()
     validateUUID(id, 'leverandør ID')
 
     const { error } = await supabase
@@ -189,7 +201,7 @@ export async function getSupplierSettings(
 
     const { data, error } = await supabase
       .from('supplier_settings')
-      .select('*')
+      .select(SUPPLIER_SETTINGS_PUBLIC_COLUMNS)
       .eq('supplier_id', supplierId)
       .maybeSingle()
 
@@ -209,7 +221,7 @@ export async function updateSupplierSettings(
   data: UpdateSupplierSettingsData
 ): Promise<ActionResult<SupplierSettings>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierWrite()
     validateUUID(supplierId, 'leverandør ID')
 
     // Check if settings exist
@@ -226,7 +238,7 @@ export async function updateSupplierSettings(
         .from('supplier_settings')
         .update(data)
         .eq('supplier_id', supplierId)
-        .select()
+        .select(SUPPLIER_SETTINGS_PUBLIC_COLUMNS)
         .single()
     } else {
       // Create new
@@ -236,7 +248,7 @@ export async function updateSupplierSettings(
           supplier_id: supplierId,
           ...data,
         })
-        .select()
+        .select(SUPPLIER_SETTINGS_PUBLIC_COLUMNS)
         .single()
     }
 
@@ -420,7 +432,7 @@ export async function updateSupplierProduct(
   data: Omit<UpdateSupplierProductData, 'id'>
 ): Promise<ActionResult<SupplierProduct>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireSupplierWrite()
     validateUUID(id, 'produkt ID')
 
     const { data: product, error } = await supabase

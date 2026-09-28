@@ -4,7 +4,18 @@ import { revalidatePath } from 'next/cache'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { KalkiaVariantMaterial } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
+ * indlogget bruger (et skjult menupunkt eller en layout-guard beskytter ikke en action).
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { CALC_DEFAULTS, BATCH_CONFIG, MONITORING_CONFIG } from '@/lib/constants'
 import { calculateSalePrice } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
@@ -22,7 +33,7 @@ export async function linkMaterialToSupplierProduct(
   autoUpdatePrice: boolean = false
 ): Promise<ActionResult<KalkiaVariantMaterial>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
     validateUUID(materialId, 'materiale ID')
     validateUUID(supplierProductId, 'leverandørprodukt ID')
 
@@ -82,7 +93,7 @@ export async function unlinkMaterialFromSupplierProduct(
   materialId: string
 ): Promise<ActionResult<KalkiaVariantMaterial>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
     validateUUID(materialId, 'materiale ID')
 
     const { data, error } = await supabase
@@ -186,7 +197,7 @@ export async function syncMaterialPricesFromSupplier(
   variantId: string
 ): Promise<ActionResult<{ updated: number; skipped: number }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
     validateUUID(variantId, 'variant ID')
 
     // Get all materials with supplier links that have auto_update_price enabled
@@ -281,7 +292,7 @@ export async function syncMaterialPricesFromSupplier(
  */
 export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult<{ updated: number; skipped: number }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('materials.edit')
 
     // Call the database function to sync all materials
     const { data, error } = await supabase
@@ -664,7 +675,7 @@ export async function refreshSupplierPricesForCalculation(
   }>
 }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(calculationId, 'kalkulation ID')
 
     // Get all variants in calculation

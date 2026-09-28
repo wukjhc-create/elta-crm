@@ -37,7 +37,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 |---|---|---|---|
 | 15 | Relatel: teknisk discovery + integrationskontrakt (ingen rigtig SMS) | DONE (discovery + foundation) | docs/integrations/RELATEL_CONTRACT.md er baseret på den offentlige API-dokumentation. Fund: iframe-API'et er usigneret (kun `?number=`), `X-Frame-Options: DENY` + SameSite-cookies forhindrer indlogget iframe, og telefonformaterne er blandede. Foundation er bygget: nummer-normalisering, opkalds-opslag `/dashboard/cti?number=` (login + RLS), kontrakt-typer og en deaktiveret klient uden netværk. Tests: `relatel-test` + `harness:relatel-lookup` 3/3 + ui-e2e U6. **BLOCKED:** access-token + beslutning om trin 1–5 (CTI-side, opkaldslog, click-to-call, SMS-udbyder). |
 | 16 | Deterministic follow-up engine (design, ingen live automation) | DONE (design + motor) | 10 tidsdrevne regler kortlagt med konflikter: parallel kundemail + agent på samme tilbud, 3 alders- og udløbsbegreber, UTC-crons, intet loft pr. kunde, samtidighedsrisiko. En ren deterministisk motor er bygget (dansk kalender, stabile nøgler, én regel pr. situation, loft på 1 kundepåmindelse pr. dag); unit-tests inkl. DST og determinisme. Read-only skygge mod prod fandt, at **fakturarykkere aldrig har virket** (anon-klient i mail-router, P-003-familien). Intet koblet på drift. docs/followup/FOLLOWUP_ENGINE_DESIGN.md |
-| 17 | Grossist/KlarPris discovery (datamodel, prisimport, lager, rabatter, sammenligning) | TODO | |
+| 17 | Grossist/KlarPris discovery (datamodel, prisimport, lager, rabatter, sammenligning) | DONE (discovery) + sikkerhedsfund rettet | docs/integrations/GROSSIST_DISCOVERY.md. KlarPris-benchmark er med. Prod: LM 322k produkter (friske), AO 1,3k (7 mdr. gammel), 564 EAN hos begge, **0 prishistorik** (CHECK afviste FTP-kilder → 00165), 0 aftaler/lager. **P-005 (S3):** 50 pris-/leverandør-actions var ugatede, og `materials.ts` var service-role uden login. Gates er tilføjet i kode, og audit `security:actions` = 0 ugatede i domænet / 0 eksponerede uautentificerede. `supplier_settings` er låst på staging (00164). `harness:supplier-lockdown` 5/5, pilot-roles grøn. Resten af appen: 201 skrivende actions uden genkendt gate → egen RBAC-milepæl. |
 | 18 | Profit Engine-datamodel (materiale + timer + overhead + DB → salgspris) | TODO | |
 | 19 | Invoice Control pipeline (design) | TODO | |
 
@@ -51,6 +51,8 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 ## Blokerede opgaver uden for nummerering
 | Opgave | Status | Mangler |
 |---|---|---|
+| Prod-migrationer 00164 (supplier_settings, P-005) + 00165 (prishistorik) | BLOCKED | Henriks godkendelse. Runbook: docs/runbooks/00164-00165-supplier-domain.md |
+| RBAC app-lag: 201 skrivende server-actions uden genkendt rettighedstjek (uden for prisdomænet) | TODO (ny milepæl) | `npx tsx scripts/action-gate-audit.ts` viser listen; mange er formentlig legitime (token-portal, egne data), men skal gennemgås |
 | Prod-migration 00163 (agent capability-guard) | BLOCKED | Henriks godkendelse (defense-in-depth; ikke akut — ingen agenter aktive) |
 | P1-gate: prod-migration 00162 (anon-eksponering, P-004) | DONE | Kørt i prod 2026-09-28 (godkendt). db-audit HØJ 21→0; prod:verify-00162 grøn; P-004 lukket. |
 | P0-gate: prod-migration 00161 (R1–R4) | DONE | Kørt i prod 2026-09-27 (godkendt). prod:role-policies 0·0·0; prod:verify-00161 struktur + adfærd (admin/montør) grøn. |
@@ -64,6 +66,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-28: P3 #17 grossist-discovery + P-005 (S3) rettet i kode; 00164/00165 på staging.
 - 2026-09-28: P3 #16 opfølgningsmotor designet + bygget (ren); fakturarykker-fund dokumenteret.
 - 2026-09-28: P3 #15 Relatel discovery + CTI-foundation (ingen netværk, ingen SMS).
 - 2026-09-28: P2-rest C: reproducerbar UI-E2E (staging, syntetiske brugere) + 2 UI-fejl rettet. P2-rest A–C færdig.

@@ -424,6 +424,14 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'supplier-lockdown') {
+    const { runSupplierLockdown, formatSupplierLockdown } = await import('./supplier-lockdown')
+    const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
+    const checks = await runSupplierLockdown({ admin, anon: anonClient, url: runtime.url, anonKey: runtime.anonKey })
+    log(formatSupplierLockdown(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'relatel-lookup') {
     const { runRelatelLookup, formatRelatelLookup } = await import('./relatel-lookup')
     const actors = await ensureActors(admin, seedBase)

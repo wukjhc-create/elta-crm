@@ -19,7 +19,18 @@ import {
   type TierConfig,
   type VolumeBracket,
 } from '@/lib/services/price-engine'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
+ * indlogget bruger (et skjult menupunkt eller en layout-guard beskytter ikke en action).
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 
@@ -287,7 +298,7 @@ export async function setCustomerTier(
   tier: CustomerTier
 ): Promise<ActionResult<{ tier: CustomerTier }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.pricing')
     validateUUID(customerId, 'customerId')
 
     if (!CUSTOMER_TIERS[tier]) {

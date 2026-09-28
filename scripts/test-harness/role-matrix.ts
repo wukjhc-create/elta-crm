@@ -250,6 +250,9 @@ export const SECRET_COLUMNS: Array<{ table: string; column: string }> = [
   { table: 'supplier_credentials', column: 'credentials_encrypted' },
   { table: 'supplier_credentials', column: 'access_token_encrypted' },
   { table: 'supplier_credentials', column: 'refresh_token_encrypted' },
+  // P-005 (00164): legacy-credentials i supplier_settings
+  { table: 'supplier_settings', column: 'api_credentials' },
+  { table: 'supplier_settings', column: 'ftp_credentials' },
 ]
 
 export interface SecretColumnVerdict { table: string; column: string; authenticated: boolean; anon: boolean }
