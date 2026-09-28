@@ -192,8 +192,11 @@ export interface AgentInboxItem {
     Pick<
       AgentAction,
       'id' | 'capability' | 'action_type' | 'side_effect_class' | 'status' | 'requires_approval' | 'min_approvals' | 'payload' | 'result'
+      | 'error' | 'updated_at'
     >
   >
+  /** Om runnets agent er enabled (ellers afviser Executor enhver udfoerelse). */
+  agentEnabled: boolean
   /** Antal ikke-afsluttede actions der venter paa review/handling. */
   pendingCount: number
   /** Hoejeste review-prioritet blandt ikke-afsluttede actions (til sortering). */

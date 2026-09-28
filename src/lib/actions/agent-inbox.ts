@@ -54,7 +54,7 @@ export async function getAgentInbox(limit = 25): Promise<ActionResult<AgentInbox
     if (runIds.length > 0) {
       const { data: actions } = await supabase
         .from('agent_actions')
-        .select('id, run_id, capability, action_type, side_effect_class, status, requires_approval, min_approvals, payload, result')
+        .select('id, run_id, capability, action_type, side_effect_class, status, requires_approval, min_approvals, payload, result, error, updated_at')
         .in('run_id', runIds)
         .order('created_at', { ascending: true })
       for (const a of actions ?? []) {
@@ -64,6 +64,9 @@ export async function getAgentInbox(limit = 25): Promise<ActionResult<AgentInbox
       }
     }
 
+    const { data: cfgs } = await supabase.from('agent_configs').select('agent_type, enabled')
+    const enabledByType = new Map(((cfgs ?? []) as Array<{ agent_type: string; enabled: boolean }>).map((c) => [c.agent_type, c.enabled]))
+
     const items: AgentInboxItem[] = (runs ?? []).map((run: AgentInboxItem['run']) => {
       const actions = actionsByRun.get(run.id) ?? []
       const nonTerminal = actions.filter((a) => !TERMINAL_ACTION_STATUS.includes(a.status))
@@ -71,7 +74,7 @@ export async function getAgentInbox(limit = 25): Promise<ActionResult<AgentInbox
         const p = reviewPriority((a.payload?.confidence_level as ConfidenceLevel) ?? 'high', !!a.payload?.conflicts)
         return Math.max(max, p)
       }, -1)
-      return { run, actions, pendingCount: nonTerminal.length, topReviewPriority }
+      return { run, actions, pendingCount: nonTerminal.length, topReviewPriority, agentEnabled: enabledByType.get(run.agent_type) === true }
     })
 
     // Mail-kontekst: hent de mails forslagene refererer til (via RLS-klient).

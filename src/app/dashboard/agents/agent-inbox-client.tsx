@@ -14,6 +14,7 @@ import {
 } from '@/lib/actions/agent-inbox'
 import type { AgentInboxItem } from '@/types/agent-core.types'
 import { reviewPriority, type ConfidenceLevel, type CustomerCandidate } from '@/lib/agents/mail-confidence'
+import { actionControls, reviewerReason, CAPABILITY_LABELS, STATUS_LABELS, AGENT_LABELS } from '@/lib/agents/inbox-presentation'
 
 const HARD_BLOCKED = ['send_external', 'push_external', 'finance', 'delete']
 const EDITABLE_DRAFTS = ['mail.draft_reply', 'followup.draft_offer_reminder']
@@ -87,10 +88,10 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
     startTransition(async () => {
       const res = await fn()
       const outcome = (res.data ?? null) as { status?: string; reason?: string } | null
-      if (res.success && outcome?.status === 'noop') toast.info('Allerede håndteret — intet nyt udført', outcome.reason)
-      else if (res.success && outcome?.status === 'needs_verification') toast.warning('Udført, men skal verificeres', outcome.reason)
+      if (res.success && outcome?.status === 'noop') toast.info('Allerede håndteret — intet nyt udført', reviewerReason(outcome.reason))
+      else if (res.success && outcome?.status === 'needs_verification') toast.warning('Udført, men skal verificeres', reviewerReason(outcome.reason))
       else if (res.success) toast.success(okMsg)
-      else toast.error('Handling fejlede', res.error)
+      else toast.error('Ikke udført', reviewerReason(res.error))
       setBusyId(null)
       router.refresh()
     })
@@ -101,8 +102,8 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Agent Inbox</h1>
         <p className="text-sm text-gray-500">
-          Forslag fra agenter, prioriteret efter review-behov. Intet udfoeres uden din
-          godkendelse. Hard-blockede handlinger (send/finans/push/slet) kraever altid approval.
+          Forslag fra agenter, prioriteret efter review-behov. Intet udføres uden din
+          godkendelse. Hard-blockede handlinger (send/finans/push/slet) kræver altid godkendelse.
         </p>
         <div className="mt-2 flex items-center gap-3">
           <span className="text-sm text-gray-700">{totalPending} handling(er) afventer review</span>
@@ -157,8 +158,15 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-medium text-gray-900">{item.run.summary || item.run.agent_type}</p>
-              <p className="text-xs text-gray-500">
-                {item.run.agent_type} · {item.run.safety_mode} · {item.run.status}
+              <p className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span>{AGENT_LABELS[item.run.agent_type] ?? item.run.agent_type} · {item.run.safety_mode}</span>
+                {item.agentEnabled ? (
+                  <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">agent aktiv</span>
+                ) : (
+                  <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-600" title="Forslag kan godkendes, men udførelse afvises indtil agenten aktiveres">
+                    agent slået fra
+                  </span>
+                )}
               </p>
             </div>
             <span
@@ -208,11 +216,12 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
               const needsApproval = a.requires_approval || hard
               const busy = busyId === a.id && isPending
               const terminal = ['executed', 'rejected', 'failed', 'rolled_back'].includes(a.status)
+              const ctl = actionControls(a, item.agentEnabled)
               return (
                 <li key={a.id} className="flex items-center justify-between rounded border border-gray-100 bg-gray-50 px-3 py-2">
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 text-sm font-medium text-gray-800">
-                      {a.capability}
+                      <span title={a.capability}>{CAPABILITY_LABELS[a.capability] ?? a.capability}</span>
                       {hard && (
                         <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
                           HARD-BLOCK
@@ -221,9 +230,16 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                       <ConfidenceBadge level={level} conflicts={conflicts} />
                     </p>
                     <p className="text-xs text-gray-500">
-                      {a.side_effect_class} · status: {a.status}
-                      {needsApproval ? ` · kraever ${a.min_approvals} approval(s)` : ''}
+                      {STATUS_LABELS[a.status] ?? a.status}
+                      {needsApproval && !terminal && a.status !== 'approved' ? ` · kræver ${a.min_approvals} godkendelse${a.min_approvals > 1 ? 'r' : ''}` : ''}
+                      <span className="text-gray-400"> · {a.side_effect_class}</span>
                     </p>
+                    {ctl.warning && (
+                      <p className="mt-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900">⚠ {ctl.warning}</p>
+                    )}
+                    {(a.status === 'failed' || a.status === 'needs_verification') && a.error && (
+                      <p className="mt-1 text-xs text-red-700">Hvorfor: {reviewerReason(a.error)}</p>
+                    )}
                     {rationale && <p className="mt-0.5 text-xs italic text-gray-600">{rationale}</p>}
                     {candidates.length > 0 && (() => {
                       const selectable = candidates.length > 1 || conflicts
@@ -350,10 +366,10 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                       </details>
                     )}
                   </div>
-                  {!terminal && (
-                    <div className="flex flex-shrink-0 gap-2">
-                      {needsApproval && (
-                        <>
+                  {(ctl.canApprove || ctl.canReject || ctl.canExecute || ctl.executeHint) && (
+                    <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                      <div className="flex gap-2">
+                        {ctl.canApprove && (
                           <button
                             disabled={busy}
                             onClick={() => run(a.id, () => approveAgentActionAction(a.id), 'Godkendt')}
@@ -361,6 +377,8 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                           >
                             Godkend
                           </button>
+                        )}
+                        {ctl.canReject && (
                           <button
                             disabled={busy}
                             onClick={() => run(a.id, () => rejectAgentActionAction(a.id), 'Afvist')}
@@ -368,15 +386,17 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                           >
                             Afvis
                           </button>
-                        </>
-                      )}
-                      <button
-                        disabled={busy}
-                        onClick={() => run(a.id, () => executeAgentActionAction(a.id), 'Udfoert')}
-                        className="rounded border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        Udfoer
-                      </button>
+                        )}
+                        <button
+                          disabled={busy || !ctl.canExecute}
+                          title={ctl.executeHint ?? undefined}
+                          onClick={() => run(a.id, () => executeAgentActionAction(a.id), 'Udført')}
+                          className="rounded border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Udfør
+                        </button>
+                      </div>
+                      {ctl.executeHint && <span className="max-w-[16rem] text-right text-[11px] text-gray-500">{ctl.executeHint}</span>}
                     </div>
                   )}
                 </li>
