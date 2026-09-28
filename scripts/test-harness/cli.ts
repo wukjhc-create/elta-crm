@@ -424,6 +424,14 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'invoice-pipeline') {
+    const { runInvoicePipeline, formatInvoicePipeline } = await import('./invoice-pipeline')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runInvoicePipeline({ admin, ownerUid: actors.ownerUid })
+    log(formatInvoicePipeline(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'supplier-lockdown') {
     const { runSupplierLockdown, formatSupplierLockdown } = await import('./supplier-lockdown')
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })

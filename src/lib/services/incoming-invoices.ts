@@ -86,6 +86,9 @@ interface EmailAttachment {
   size?: number
 }
 
+/** Statusser hvor fakturaen er afgjort og ikke maa genaabnes (P3 #19). */
+export const LOCKED_INVOICE_STATUSES: string[] = ['approved', 'posted', 'rejected', 'cancelled']
+
 export async function ingestFromEmail(emailId: string): Promise<IngestEmailResult> {
   const result: IngestEmailResult = { ingested: 0, duplicates: 0, errors: [], invoiceIds: [] }
   const supabase = createAdminClient()
@@ -340,6 +343,11 @@ export async function parseAndMatch(invoiceId: string): Promise<{
     .eq('id', invoiceId)
     .maybeSingle()
   if (!row) return { parsed: false, matched: false, duplicate: false, message: 'not found' }
+  // P3 #19: en godkendt/bogfoert/afvist/annulleret faktura maa ALDRIG genaabnes af reparse — ellers kan den
+  // godkendes igen og skubbes til e-conomic en gang til.
+  if (LOCKED_INVOICE_STATUSES.includes(row.status)) {
+    return { parsed: false, matched: false, duplicate: false, message: `låst: status er ${row.status} — genparse ikke tilladt` }
+  }
 
   const text = row.raw_text || ''
   const parsed = parseSupplierInvoiceText(text)
@@ -352,6 +360,7 @@ export async function parseAndMatch(invoiceId: string): Promise<{
     supplierOrderRefs: parsed.supplierOrderRefs,
     deliveryAddressHints: parsed.deliveryAddressHints,
     fileHash: row.file_hash,
+    excludeInvoiceId: invoiceId,
   })
 
   // If duplicate of another row, mark and stop.
@@ -499,12 +508,18 @@ export async function approveInvoice(
     }
   }
 
-  const { error } = await supabase
+  const { data: approvedRows, error } = await supabase
     .from('incoming_invoices')
     .update({ status: 'approved', approved_by: approverId, approved_at: new Date().toISOString() })
     .eq('id', invoiceId)
     .eq('status', row.status) // race-safe
+    .select('id')
   if (error) return { ok: false, message: error.message }
+  // P3 #19: tabte vi racet (en anden godkendte/aendrede fakturaen imens), er der opdateret 0 raekker — saa maa
+  // der hverken logges godkendelse eller skubbes til e-conomic (ellers dobbelt-bogfoering).
+  if (!approvedRows || approvedRows.length !== 1) {
+    return { ok: false, message: 'Fakturaen blev ændret af en anden imens — intet godkendt eller bogført. Opdatér og prøv igen.' }
+  }
 
   await auditLog({
     incomingInvoiceId: invoiceId,

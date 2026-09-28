@@ -7,7 +7,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
@@ -942,6 +942,9 @@ export async function getEmailKalkiaSuggestions(emailId: string) {
  * Updates materials with auto_update_price enabled, returns summary.
  */
 export async function applyEmailKalkiaPriceUpdates(emailId: string) {
+  // P3 #19 / P-005: opdaterer Kalkia-materialepriser — kraever materials.edit (var ugatet).
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission('materials.edit')
   const email = await getIncomingEmail(emailId)
   if (!email || !email.ao_product_matches || email.ao_product_matches.length === 0) {
     return { suggestions: [], autoUpdatedCount: 0, manualReviewCount: 0 }

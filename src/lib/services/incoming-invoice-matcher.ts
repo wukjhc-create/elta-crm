@@ -38,6 +38,9 @@ export interface MatchInput {
   supplierOrderRefs: string[]
   deliveryAddressHints: string[]
   fileHash: string | null
+  /** P3 #19: fakturaen der matches — udelukkes fra dublet-opslag (ellers fandt den altid sig selv
+   * paa file_hash, og tjekket paa leverandoer+fakturanummer blev aldrig koert). */
+  excludeInvoiceId?: string | null
 }
 
 const WEIGHTS = {
@@ -111,6 +114,7 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       .from('incoming_invoices')
       .select('id')
       .eq('file_hash', input.fileHash)
+      .neq('id', input.excludeInvoiceId ?? '00000000-0000-0000-0000-000000000000')
       .limit(1)
       .maybeSingle()
     if (hashHit) {
@@ -125,6 +129,7 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       .select('id')
       .eq('supplier_id', supplierId)
       .eq('invoice_number', input.invoiceNumber)
+      .neq('id', input.excludeInvoiceId ?? '00000000-0000-0000-0000-000000000000')
       .limit(1)
       .maybeSingle()
     if (refHit) {
