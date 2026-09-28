@@ -1,6 +1,8 @@
 # Runbook — prod-migration 00162: luk anon-eksponering (incident P-004)
 
-**Status:** forberedt · anvendt og verificeret på staging (2026-09-27) · **IKKE kørt i production** — kræver Henriks godkendelse.
+**Status:** ✅ **KØRT i production 2026-09-28** (godkendt af Henrik) · staging 2026-09-27.
+
+**Resultat i prod:** pre-check HØJ=21 → post-check **HØJ=0, MIDDEL=0** (LAV 114→112: search_path låst) · `prod:role-policies` 0·0·0 · `prod:pilot-health` 🟢 · `prod:storage-audit` ingen huller · `prod:verify-00161` grøn · **`prod:verify-00162`**: alle 7 views security_invoker + anon afvist, 4 kataloger anon afvist, 3 log-tabeller uden anon-skriv, rolle-helpers afvist for anon; admin læser alle flader med uændret antal (fx 310.308/310.308 leverandørprodukter). Note: `handle_new_user` har fortsat EXECUTE for authenticated (00162 fjerner kun PUBLIC/anon) — uden betydning, da den returnerer `trigger` og ikke kan kaldes direkte.
 **Prioritet:** HØJ — fortrolige indkøbspriser er offentligt læsbare i dag.
 
 ## Fund (prod, read-only `npm run prod:db-audit`, 2026-09-27)

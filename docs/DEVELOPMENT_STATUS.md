@@ -4,8 +4,8 @@
 
 ## Nu
 P0 + **P1 DONE** (#6–#10, 2026-09-27). **Næste: P2 #11** (audit af capabilities mod approval/executor-modellen), så #12–#14.
-**Venter på Henrik:** 00162 (P-004, HØJ) · kundemail-crons aktive under pilot? · rette anon-crons (aktivering) · pilotbrugernes navne.
-Pilot Health: `/dashboard/pilot-health` (viser P-004 rød i prod indtil 00162).
+**00162 kørt i prod 2026-09-28 (P-004 lukket).** **Venter på Henrik:** kundemail-crons aktive under pilot? · rette anon-crons (aktivering) · pilotbrugernes navne.
+Pilot Health: `/dashboard/pilot-health`.
 
 ## Staging-state at kende
 - 00159, 00160, 00161, 00162 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
