@@ -16,7 +16,18 @@ import {
   type Adjustment,
 } from '@/lib/ai/learningEngine'
 import type { ActionResult } from '@/types/common.types'
-import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 
@@ -111,7 +122,7 @@ export async function applyCalibration(
   calibration: ComponentCalibration
 ): Promise<ActionResult<{ applied: boolean }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     // Verify admin role
     const { data: profile } = await supabase
@@ -412,7 +423,7 @@ export async function runAutoCalibrationAndApply(): Promise<
   ActionResult<{ analyzed: number; applied: number; adjustments: Adjustment[] }>
 > {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     // Verify admin role
     const { data: profile } = await supabase

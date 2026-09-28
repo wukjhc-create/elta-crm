@@ -13,7 +13,18 @@ import type {
   KalkiaNodeFilters,
 } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -183,7 +194,7 @@ export async function createKalkiaNode(
   formData: FormData
 ): Promise<ActionResult<KalkiaNode>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     const rawData = {
       parent_id: formData.get('parent_id') as string || null,
@@ -257,7 +268,7 @@ export async function updateKalkiaNode(
   formData: FormData
 ): Promise<ActionResult<KalkiaNode>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -320,7 +331,7 @@ export async function updateKalkiaNode(
 
 export async function deleteKalkiaNode(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'node ID')
 
     // Check for children

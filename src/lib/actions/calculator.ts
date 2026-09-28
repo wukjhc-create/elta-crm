@@ -1,6 +1,17 @@
 'use server'
 
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
 import type {
@@ -40,7 +51,7 @@ export async function createTemplate(input: CreateTemplateInput): Promise<{
   error?: string
 }> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const { data, error } = await supabase
       .from('calculator_templates')
@@ -76,7 +87,7 @@ export async function deleteTemplate(id: string): Promise<{
 }> {
   try {
     validateUUID(id, 'template ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const { error } = await supabase
       .from('calculator_templates')

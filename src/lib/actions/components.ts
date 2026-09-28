@@ -3,7 +3,18 @@
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import { validateUUID } from '@/lib/validations/common'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -265,7 +276,7 @@ export async function updateComponent(
   }
 ): Promise<ActionResult<Component>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'komponent ID')
 
     const { data: updated, error } = await supabase
@@ -310,7 +321,7 @@ export async function createVariant(
   }
 ): Promise<ActionResult<ComponentVariant>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(componentId, 'komponent ID')
 
     if (!data.name || data.name.trim().length === 0) {
@@ -393,7 +404,7 @@ export async function updateVariant(
   }
 ): Promise<ActionResult<ComponentVariant>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'variant ID')
     validateUUID(componentId, 'komponent ID')
 
@@ -436,7 +447,7 @@ export async function updateVariant(
 
 export async function deleteVariant(id: string, componentId: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'variant ID')
     validateUUID(componentId, 'komponent ID')
 
@@ -478,7 +489,7 @@ export async function createMaterial(
   }
 ): Promise<ActionResult<ComponentMaterial>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(componentId, 'komponent ID')
 
     if (!data.material_name || data.material_name.trim().length === 0) {
@@ -543,7 +554,7 @@ export async function updateMaterial(
   }
 ): Promise<ActionResult<ComponentMaterial>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'materiale ID')
     validateUUID(componentId, 'komponent ID')
 
@@ -572,7 +583,7 @@ export async function updateMaterial(
 
 export async function deleteMaterial(id: string, componentId: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'materiale ID')
     validateUUID(componentId, 'komponent ID')
 
@@ -634,7 +645,7 @@ export async function createVariantMaterial(
   }
 ): Promise<ActionResult<VariantMaterial>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(variantId, 'variant ID')
     validateUUID(componentId, 'komponent ID')
 
@@ -688,7 +699,7 @@ export async function createVariantMaterial(
 
 export async function deleteVariantMaterial(id: string, componentId: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'variant-materiale ID')
     validateUUID(componentId, 'komponent ID')
 

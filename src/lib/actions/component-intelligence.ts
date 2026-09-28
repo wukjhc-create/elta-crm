@@ -19,7 +19,18 @@ import type {
   CreateOfferTextInput,
   UpdateOfferTextInput,
 } from '@/types/component-intelligence.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 
@@ -80,7 +91,7 @@ export async function createRoomType(
   input: Omit<RoomType, 'id' | 'created_at' | 'updated_at'>
 ): Promise<ActionResult<RoomType>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const { data, error } = await supabase
       .from('room_types')
@@ -111,7 +122,7 @@ export async function updateRoomType(
   input: Partial<Omit<RoomType, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<ActionResult<RoomType>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const { data, error } = await supabase
       .from('room_types')
@@ -138,7 +149,7 @@ export async function updateRoomType(
 export async function deleteRoomType(id: string): Promise<ActionResult<void>> {
   try {
     validateUUID(id, 'rum type ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const { error } = await supabase
       .from('room_types')
@@ -228,7 +239,7 @@ export async function createRoomTemplate(
   input: CreateRoomTemplateInput
 ): Promise<ActionResult<RoomTemplate>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     const { data, error } = await supabase
       .from('room_templates')
@@ -255,7 +266,7 @@ export async function updateRoomTemplate(
   input: UpdateRoomTemplateInput
 ): Promise<ActionResult<RoomTemplate>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const { id, ...updateData } = input
 
@@ -283,7 +294,7 @@ export async function updateRoomTemplate(
 export async function deleteRoomTemplate(id: string): Promise<ActionResult<void>> {
   try {
     validateUUID(id, 'rumskabelon ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const { error } = await supabase
       .from('room_templates')
@@ -375,7 +386,7 @@ export async function createMaterial(
   input: CreateMaterialInput
 ): Promise<ActionResult<Material>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     const { data, error } = await supabase
       .from('materials_catalog')
@@ -414,7 +425,7 @@ export async function updateMaterial(
   input: UpdateMaterialInput
 ): Promise<ActionResult<Material>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     const { id, ...updateData } = input
 
@@ -466,7 +477,7 @@ export async function updateMaterial(
 export async function deleteMaterial(id: string): Promise<ActionResult<void>> {
   try {
     validateUUID(id, 'materiale ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     // Soft delete by setting is_active = false
     const { error } = await supabase
@@ -517,7 +528,7 @@ export async function updateMaterialPrice(
   }
 ): Promise<ActionResult<Material>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     // Get current prices
     const { data: current, error: fetchError } = await supabase
@@ -616,7 +627,7 @@ export async function createOfferTextTemplate(
   input: CreateOfferTextInput
 ): Promise<ActionResult<OfferTextTemplate>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     const { data, error } = await supabase
       .from('offer_text_templates')
@@ -643,7 +654,7 @@ export async function updateOfferTextTemplate(
   input: UpdateOfferTextInput
 ): Promise<ActionResult<OfferTextTemplate>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const { id, ...updateData } = input
 
@@ -671,7 +682,7 @@ export async function updateOfferTextTemplate(
 export async function deleteOfferTextTemplate(id: string): Promise<ActionResult<void>> {
   try {
     validateUUID(id, 'tilbudstekst ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const { error } = await supabase
       .from('offer_text_templates')
@@ -896,7 +907,7 @@ export async function bulkUpdateMaterialPrices(
   updates: Array<{ id: string; cost_price?: number; sale_price?: number }>
 ): Promise<ActionResult<{ updated: number }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     let updatedCount = 0
 

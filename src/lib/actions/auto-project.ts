@@ -18,7 +18,18 @@ import type {
   OfferTextTemplate,
   CalculationFeedback,
 } from '@/types/auto-project.types'
-import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
@@ -73,7 +84,7 @@ export async function analyzeProjectDescription(
   input: AnalyzeProjectInput
 ): Promise<ActionResult<AnalyzeProjectOutput & { id: string; warnings: string[] }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.ai_project')
 
     // Run the analysis
     const result = await analyzeProject(
@@ -534,7 +545,7 @@ export async function createOfferFromAnalysis(
   customerId: string
 ): Promise<ActionResult<{ offer_id: string }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.ai_project')
 
     // Get the analysis
     const analysisResult = await getAnalysis(analysisId)

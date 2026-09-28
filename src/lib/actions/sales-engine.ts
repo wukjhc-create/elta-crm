@@ -9,7 +9,18 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import {
   applyPackageWithOptionsToOffer,
   buildOfferText,
@@ -87,7 +98,7 @@ export async function applyPackageToDraftOfferAction(input: {
   writeOfferText?: boolean
 }): Promise<ActionOutcome<ApplyPackageWithOptionsResult>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('offers.edit')
 
     const result = await applyPackageWithOptionsToOffer({
       offerId: input.offerId,

@@ -14,7 +14,18 @@ import type {
   KalkiaVariantMaterial,
 } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -56,7 +67,7 @@ export async function createKalkiaVariant(
   formData: FormData
 ): Promise<ActionResult<KalkiaVariant>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const rawData = {
       node_id: formData.get('node_id') as string,
@@ -112,7 +123,7 @@ export async function updateKalkiaVariant(
   formData: FormData
 ): Promise<ActionResult<KalkiaVariant>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -184,7 +195,7 @@ export async function updateKalkiaVariant(
 
 export async function deleteKalkiaVariant(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'variant ID')
 
     const { error } = await supabase
@@ -212,7 +223,7 @@ export async function createKalkiaVariantMaterial(
   formData: FormData
 ): Promise<ActionResult<KalkiaVariantMaterial>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const rawData = {
       variant_id: formData.get('variant_id') as string,
@@ -254,7 +265,7 @@ export async function updateKalkiaVariantMaterial(
   formData: FormData
 ): Promise<ActionResult<KalkiaVariantMaterial>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -306,7 +317,7 @@ export async function updateKalkiaVariantMaterial(
 
 export async function deleteKalkiaVariantMaterial(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'materiale ID')
 
     const { error } = await supabase

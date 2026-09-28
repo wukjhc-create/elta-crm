@@ -20,7 +20,18 @@ import {
   isBatterySpecs,
   isMountingSpecs,
 } from '@/types/solar-products.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 // =====================================================
 // Read Operations
@@ -179,7 +190,7 @@ export async function createSolarProduct(
   input: CreateSolarProductInput
 ): Promise<ActionResult<SolarProduct>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     // Validate required fields
     if (!input.code || !input.name || !input.product_type) {
@@ -231,7 +242,7 @@ export async function updateSolarProduct(
   input: UpdateSolarProductInput
 ): Promise<ActionResult<SolarProduct>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'produkt ID')
 
     const { data, error } = await supabase
@@ -270,7 +281,7 @@ export async function updateSolarProduct(
  */
 export async function deleteSolarProduct(id: string): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'produkt ID')
 
     const { error } = await supabase
@@ -372,7 +383,7 @@ export async function updateSolarAssumption(
   value: number
 ): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
 
     // Validate key
     const validKeys = [

@@ -10,7 +10,18 @@
  * - Price explanations
  */
 
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { MONITORING_CONFIG, CALC_DEFAULTS } from '@/lib/constants'
 import { revalidatePath } from 'next/cache'
 import { parseProjectDescription, getKeywordCategories } from '@/lib/engines/project-intake'
@@ -59,7 +70,7 @@ export async function saveProjectContext(
   context: ProjectContextCreate
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     const { data, error } = await supabase
       .from('project_contexts')
@@ -180,7 +191,7 @@ export async function saveRiskAssessments(
   risks: RiskAssessmentCreate[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     if (risks.length === 0) {
       return { success: true }
@@ -242,7 +253,7 @@ export async function acknowledgeRisk(
   notes?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     const { error } = await supabase
       .from('risk_assessments')
@@ -308,7 +319,7 @@ export async function generateAndSaveOfferContent(
   context: OfferTextContext
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Fetch templates
     const { data: templates, error: templateError } = await supabase
@@ -399,7 +410,7 @@ export async function savePriceExplanation(
   format: 'simple' | 'detailed' | 'itemized' = 'detailed'
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     const { data, error } = await supabase
       .from('price_explanations')
@@ -471,7 +482,7 @@ export async function createCalculationSnapshot(
   reason?: string
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Get version number
     let version = 1

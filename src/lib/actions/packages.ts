@@ -19,7 +19,18 @@ import {
   type UpdatePackageItemInput,
 } from '@/lib/validations/packages'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
-import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { formatError, getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { DEFAULT_PAGE_SIZE, CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 
@@ -227,7 +238,7 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
 
 export async function createPackage(input: CreatePackageInput): Promise<ActionResult<Package>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.packages')
 
     // Validate input
     const validated = createPackageSchema.parse(input)
@@ -266,7 +277,7 @@ export async function createPackage(input: CreatePackageInput): Promise<ActionRe
 
 export async function updatePackage(input: UpdatePackageInput): Promise<ActionResult<Package>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages')
 
     // Validate input (includes id validation)
     const { id, ...validated } = updatePackageSchema.parse(input)
@@ -304,7 +315,7 @@ export async function updatePackage(input: UpdatePackageInput): Promise<ActionRe
 
 export async function deletePackage(id: string): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages')
     validateUUID(id, 'pakke ID')
 
     const { error } = await supabase
@@ -333,7 +344,7 @@ export async function copyPackage(
   newCode?: string
 ): Promise<ActionResult<Package>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages')
     validateUUID(sourceId, 'kilde pakke ID')
 
     const { data, error } = await supabase
@@ -397,7 +408,7 @@ export async function getPackageItems(packageId: string): Promise<ActionResult<P
 
 export async function createPackageItem(input: CreatePackageItemInput): Promise<ActionResult<PackageItem>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages')
 
     // Validate input (includes package_id validation)
     const validated = createPackageItemSchema.parse(input)
@@ -461,7 +472,7 @@ export async function createPackageItem(input: CreatePackageItemInput): Promise<
 
 export async function updatePackageItem(input: UpdatePackageItemInput): Promise<ActionResult<PackageItem>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages')
 
     // Validate input (includes id validation)
     const { id, ...validated } = updatePackageItemSchema.parse(input)
@@ -505,7 +516,7 @@ export async function updatePackageItem(input: UpdatePackageItemInput): Promise<
 
 export async function deletePackageItem(id: string): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages')
     validateUUID(id, 'element ID')
 
     // Get package_id first for revalidation
@@ -544,7 +555,7 @@ export async function reorderPackageItems(
   itemIds: string[]
 ): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages')
     validateUUID(packageId, 'pakke ID')
 
     // Validate all item IDs
@@ -586,7 +597,7 @@ export async function insertPackageIntoCalculation(
   }
 ): Promise<ActionResult<{ insertedCount: number }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(packageId, 'pakke ID')
     validateUUID(calculationId, 'kalkulation ID')
 
@@ -619,7 +630,7 @@ export async function insertPackageIntoOffer(
   }
 ): Promise<ActionResult<{ insertedCount: number }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('offers.edit')
     validateUUID(packageId, 'pakke ID')
     validateUUID(offerId, 'tilbud ID')
 

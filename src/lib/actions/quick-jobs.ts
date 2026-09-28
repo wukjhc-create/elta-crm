@@ -3,7 +3,18 @@
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { QuickJob, CalibrationPreset } from '@/types/quick-jobs.types'
-import { formatError, getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { formatError, getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -74,7 +85,7 @@ export async function getQuickJob(id: string): Promise<ActionResult<QuickJob>> {
 
 export async function incrementQuickJobUsage(id: string): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const { error } = await supabase.rpc('increment_quick_job_usage', { job_id: id })
 
@@ -182,7 +193,7 @@ export async function createCalibrationPreset(input: {
   default_building_profile_id?: string
 }): Promise<ActionResult<CalibrationPreset>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Generate unique code
     const code = `CAL-${Date.now().toString(36).toUpperCase()}`
@@ -229,7 +240,7 @@ export async function updateCalibrationPreset(
   }>
 ): Promise<ActionResult<CalibrationPreset>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const { data, error } = await supabase
       .from('calibration_presets')
@@ -255,7 +266,7 @@ export async function updateCalibrationPreset(
 
 export async function deleteCalibrationPreset(id: string): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const { error } = await supabase
       .from('calibration_presets')

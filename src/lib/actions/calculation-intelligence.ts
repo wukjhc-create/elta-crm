@@ -18,7 +18,18 @@ import type {
   ProfitSimulationResult,
 } from '@/types/calculation-intelligence.types'
 import { CalculationIntelligenceEngine, detectAnomalies } from '@/lib/services/calculation-intelligence'
-import { requireAuth, getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
@@ -144,7 +155,7 @@ export async function saveRoomCalculation(
   input: CreateRoomCalculationInput & { total_time_seconds: number; total_material_cost: number; total_cable_meters: number; total_labor_cost: number; total_cost: number; component_breakdown: unknown[] }
 ): Promise<ActionResult<RoomCalculation>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const { data, error } = await supabase
       .from('room_calculations')
@@ -207,7 +218,7 @@ export async function getRoomCalculations(
 export async function deleteRoomCalculation(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'rumberegning ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const { error } = await supabase
       .from('room_calculations')
@@ -235,7 +246,7 @@ export async function runAnomalyDetection(
   marginPercentage: number
 ): Promise<ActionResult<CalculationAnomaly[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const anomalies = detectAnomalies({
       calculation_id: calculationId,
@@ -303,7 +314,7 @@ export async function resolveAnomaly(
   notes: string
 ): Promise<ActionResult> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     const { error } = await supabase
       .from('calculation_anomalies')
@@ -593,7 +604,7 @@ export async function convertCalculationToOffer(
   }
 ): Promise<ActionResult<{ offer_id: string }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Generate offer data
     const genResult = await generateOfferFromCalculation(calculationId, {

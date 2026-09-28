@@ -20,7 +20,18 @@ import type {
 } from '@/types/calculations.types'
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
@@ -169,7 +180,7 @@ export async function createCalculation(
   formData: FormData
 ): Promise<ActionResult<Calculation>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Validate customer_id if provided
     const customerId = formData.get('customer_id') as string || null
@@ -236,7 +247,7 @@ export async function updateCalculation(
   formData: FormData
 ): Promise<ActionResult<Calculation>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -312,7 +323,7 @@ export async function updateCalculation(
 
 export async function deleteCalculation(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(id, 'kalkulation ID')
 
     const { error } = await supabase.from('calculations').delete().eq('id', id)
@@ -338,7 +349,7 @@ export async function duplicateCalculation(
   newName?: string
 ): Promise<ActionResult<Calculation>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
     validateUUID(id, 'kalkulation ID')
 
     // Get the original calculation with rows
@@ -493,7 +504,7 @@ export async function createCalculationRow(
   formData: FormData
 ): Promise<ActionResult<CalculationRow>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const calculationId = formData.get('calculation_id') as string
     if (!calculationId) {
@@ -575,7 +586,7 @@ export async function updateCalculationRow(
   formData: FormData
 ): Promise<ActionResult<CalculationRow>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const id = formData.get('id') as string
     const calculationId = formData.get('calculation_id') as string
@@ -665,7 +676,7 @@ export async function deleteCalculationRow(
   calculationId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(id, 'linje ID')
     validateUUID(calculationId, 'kalkulation ID')
 
@@ -690,7 +701,7 @@ export async function addProductToCalculation(
   quantity: number = 1
 ): Promise<ActionResult<CalculationRow>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(calculationId, 'kalkulation ID')
     validateUUID(productId, 'produkt ID')
 
@@ -763,7 +774,7 @@ export async function reorderCalculationRows(
   rowIds: string[]
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(calculationId, 'kalkulation ID')
 
     // Validate all row IDs
@@ -806,7 +817,7 @@ export async function updateCalculationROI(
   roiData: EnhancedROIData
 ): Promise<ActionResult<Calculation>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(calculationId, 'kalkulation ID')
 
     const { data, error } = await supabase
@@ -858,7 +869,7 @@ export async function createQuickCalculation(
   input: QuickCalculationInput
 ): Promise<ActionResult<Calculation>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Validate input
     if (!input.name || input.name.trim().length === 0) {

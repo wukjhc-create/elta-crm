@@ -25,7 +25,18 @@ import type {
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { KalkiaCalculationEngine, createDefaultContext } from '@/lib/services/kalkia-engine'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
+ * (ModuleGuard). Den der legitimt kan se modulet kan fortsat alt; direkte kald fra andre roller afvises.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { DEFAULT_TAX_RATE } from '@/lib/constants'
 import { getStandardSaleRate, FALLBACK_SALE_RATE } from '@/lib/services/rates'
 import { calculateSalePrice } from '@/lib/logic/pricing'
@@ -162,7 +173,7 @@ export async function createKalkiaCalculation(
   formData: FormData
 ): Promise<ActionResult<KalkiaCalculation>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Sprint 2D.5: fallback-timepris fra central accessor (master =
     // calculation_settings) i stedet for direkte CALC_DEFAULTS. Form-input
@@ -214,7 +225,7 @@ export async function updateKalkiaCalculation(
   formData: FormData
 ): Promise<ActionResult<KalkiaCalculation>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -275,7 +286,7 @@ export async function updateKalkiaCalculation(
 
 export async function deleteKalkiaCalculation(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
     validateUUID(id, 'kalkulation ID')
 
     const { error } = await supabase
@@ -350,7 +361,7 @@ export async function savePackageBuilderCalculation(
   input: PackageBuilderSaveInput
 ): Promise<ActionResult<KalkiaCalculation>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Build factors snapshot from settings
     const factorsSnapshot = {
@@ -656,7 +667,7 @@ export async function createOfferFromCalculation(
   input: CreateOfferFromCalculationInput
 ): Promise<ActionResult<{ id: string; offer_number: string }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     // Validate customer exists
     const { data: customer, error: customerError } = await supabase
