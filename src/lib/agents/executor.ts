@@ -33,6 +33,7 @@ import { getCapability } from '@/lib/agents/capability-registry'
 import { isActionExecutable } from '@/lib/agents/approvals'
 import { checkAgentBudget } from '@/lib/agents/budget'
 import { logAgentAudit } from '@/lib/agents/audit'
+import { liveSendBlocked, LIVE_SEND_OFF_REASON } from '@/lib/agents/live-gates'
 
 export interface ExecuteOutcome {
   status: 'executed' | 'refused' | 'failed' | 'noop' | 'needs_verification'
@@ -126,6 +127,12 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
         `mangler gyldig(e) approval(s) (kraever ${minApprovals}, hard_blocked=${hardBlocked})`,
       )
     }
+  }
+
+  // 6b. Live-gate (P2-rest B): ekstern afsendelse kraever AGENT_LIVE_SEND_ENABLED — ogsaa med approval.
+  //     Afvisningen er ikke-terminal (forslaget bliver staaende, intet claimes eller sendes).
+  if (liveSendBlocked(cap.sideEffectClass)) {
+    return refuse(admin, theRun, act, LIVE_SEND_OFF_REASON)
   }
 
   // 7. Budget (fail-closed)

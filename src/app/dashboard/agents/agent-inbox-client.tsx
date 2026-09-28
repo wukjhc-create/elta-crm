@@ -11,6 +11,7 @@ import {
   saveDraftAction,
   runFollowupAgentAction,
   runPlanningAgentAction,
+  prepareSendReplyAction,
 } from '@/lib/actions/agent-inbox'
 import type { AgentInboxItem } from '@/types/agent-core.types'
 import { reviewPriority, type ConfidenceLevel, type CustomerCandidate } from '@/lib/agents/mail-confidence'
@@ -69,7 +70,7 @@ function ConfidenceBadge({ level, conflicts }: { level: ConfidenceLevel | null; 
   return <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}>{level.toUpperCase()}</span>
 }
 
-export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
+export function AgentInboxClient({ items, liveSendEnabled = false }: { items: AgentInboxItem[]; liveSendEnabled?: boolean }) {
   const router = useRouter()
   const toast = useToast()
   const [isPending, startTransition] = useTransition()
@@ -216,7 +217,7 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
               const needsApproval = a.requires_approval || hard
               const busy = busyId === a.id && isPending
               const terminal = ['executed', 'rejected', 'failed', 'rolled_back'].includes(a.status)
-              const ctl = actionControls(a, item.agentEnabled)
+              const ctl = actionControls(a, item.agentEnabled, Date.now(), { liveSendEnabled })
               return (
                 <li key={a.id} className="flex items-center justify-between rounded border border-gray-100 bg-gray-50 px-3 py-2">
                   <div className="min-w-0">
@@ -363,6 +364,26 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                       <details className="mt-1">
                         <summary className="cursor-pointer text-xs text-green-700">✓ Materialiseret udkast (ikke sendt)</summary>
                         <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-2 text-xs text-gray-700">{a.result.draft as string}</pre>
+                      </details>
+                    )}
+                    {a.capability === 'mail.draft_reply' && a.status === 'executed'
+                      && !item.actions.some((x) => x.capability === 'mail.send_reply' && !['rejected', 'failed', 'rolled_back'].includes(x.status)) && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => run(a.id, () => prepareSendReplyAction(a.id), 'Afsendelsesforslag oprettet — kræver godkendelse')}
+                        className="mt-1 rounded border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Forbered afsendelse (kræver godkendelse)
+                      </button>
+                    )}
+                    {a.capability === 'mail.send_reply' && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs text-gray-700">
+                          Til <span className="font-medium">{String(a.payload?.to ?? '')}</span> · {String(a.payload?.subject ?? '')}
+                          {!liveSendEnabled && <span className="ml-2 font-semibold text-gray-500">· live afsendelse slået fra</span>}
+                        </summary>
+                        <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-2 text-xs text-gray-700">{String(a.payload?.body ?? '')}</pre>
                       </details>
                     )}
                   </div>

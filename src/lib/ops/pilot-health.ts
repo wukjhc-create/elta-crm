@@ -10,6 +10,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { CRON_REGISTRY } from '@/lib/services/cron-registry'
 import { INCIDENT_REGISTER } from '@/lib/ops/incident-register'
+import { isLiveSendEnabled } from '@/lib/agents/live-gates'
 
 export type HealthLevel = 'green' | 'yellow' | 'red' | 'unknown'
 
@@ -136,6 +137,7 @@ async function agentItems(admin: Admin, stuckMinutes: number): Promise<HealthIte
     { label: 'Agenter aktiveret', level: enabled.length ? 'red' : 'green', detail: enabled.length ? `AKTIVE: ${enabled.join(', ')} (pilot-kontrakt: alle disabled)` : `0 af ${rows.length} (alle disabled)` },
     { label: 'Sikkerhedstilstand', level: notSuggest.length ? 'red' : 'green', detail: notSuggest.length ? `ikke 'suggest': ${notSuggest.join(', ')}` : `alle ${rows.length} i 'suggest'` },
     { label: 'AUTO_CREATE_CASES_ENABLED', level: autoCreate ? 'red' : 'green', detail: autoCreate ? 'TIL (pilot-kontrakt: OFF)' : 'OFF' },
+    { label: 'AGENT_LIVE_SEND_ENABLED', level: isLiveSendEnabled() ? 'red' : 'green', detail: isLiveSendEnabled() ? 'TIL — agenter kan sende mail efter godkendelse (pilot-kontrakt: OFF)' : 'OFF (ingen agent-afsendelse mulig)' },
     { label: 'Forslag afventer review', level: 'green', detail: `${awaiting.count ?? 0}` },
     { label: 'Fejlede handlinger 7 d', level: (failed.count ?? 0) > 0 ? 'yellow' : 'green', detail: `${failed.count ?? 0}` },
     { label: 'Afventer verifikation', level: (verify.count ?? 0) > 0 ? 'yellow' : 'green', detail: `${verify.count ?? 0}` },

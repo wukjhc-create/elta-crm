@@ -285,7 +285,7 @@ Kræver **altid** menneskelig approval — uanset agent-config, håndhævet i Ex
   4. Cron-/event-trigger af agenter (i dag kun manuelle admin-knapper).
   5. SMS (Relatel), finance/e-conomic, delete — ikke implementeret som capabilities.
   6. ~~Skema-hærdning `offers.source_case_id`~~ — kørt i prod (00159).
-  7. `mail.send_reply` har ingen producent (capability-audit A6): før live send skal der besluttes en eksplicit, gated producent (reviewer promoverer et godkendt udkast), ellers forbliver den ubrugt.
+  7. Live-afsendelse fra agenter: `AGENT_LIVE_SEND_ENABLED` (default OFF) er en hård kill-switch i Executor og i send-handleren. Produceren (reviewer: "Forbered afsendelse" på et udført svarudkast) opretter kun forslag. Aktivering kræver flaget, enabled mail-agent og approval, og er en forretningsbeslutning.
   8. Scope-model (`requiredScope`) findes kun som metadata (A7) — nødvendig før agenter får forskellige principals.
 
 ## Appendiks: kildehenvisninger (audit)

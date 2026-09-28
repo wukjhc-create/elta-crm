@@ -1,5 +1,6 @@
 import { getAgentInbox } from '@/lib/actions/agent-inbox'
 import { AgentInboxClient } from './agent-inbox-client'
+import { isLiveSendEnabled } from '@/lib/agents/live-gates'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,5 +16,5 @@ export default async function AgentsPage() {
     )
   }
 
-  return <AgentInboxClient items={res.data ?? []} />
+  return <AgentInboxClient items={res.data ?? []} liveSendEnabled={isLiveSendEnabled()} />
 }

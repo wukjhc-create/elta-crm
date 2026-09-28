@@ -59,7 +59,7 @@ export interface ActionControls {
   warning: string | null
 }
 
-export function actionControls(a: InboxActionLite, agentEnabled: boolean, now = Date.now()): ActionControls {
+export function actionControls(a: InboxActionLite, agentEnabled: boolean, now = Date.now(), opts: { liveSendEnabled?: boolean } = {}): ActionControls {
   const needsApproval = a.requires_approval || HARD_BLOCKED.includes(a.side_effect_class)
   if (a.status === 'needs_verification') {
     return { canApprove: false, canReject: false, canExecute: false, executeHint: null,
@@ -74,10 +74,12 @@ export function actionControls(a: InboxActionLite, agentEnabled: boolean, now = 
 
   const approved = a.status === 'approved' || !needsApproval
   const canApprove = needsApproval && a.status !== 'approved'
+  const liveBlocked = ['send_external', 'push_external'].includes(a.side_effect_class) && !opts.liveSendEnabled
   let executeHint: string | null = null
-  if (!agentEnabled) executeHint = 'Agenten er slået fra — udførelse afvises, indtil den aktiveres.'
+  if (liveBlocked) executeHint = 'Live afsendelse er slået fra — intet kan sendes, før det besluttes.'
+  else if (!agentEnabled) executeHint = 'Agenten er slået fra — udførelse afvises, indtil den aktiveres.'
   else if (!approved) executeHint = 'Kræver godkendelse før udførelse.'
-  return { canApprove, canReject: needsApproval, canExecute: agentEnabled && approved, executeHint, warning: null }
+  return { canApprove, canReject: needsApproval, canExecute: agentEnabled && approved && !liveBlocked, executeHint, warning: null }
 }
 
 /** Oversæt Executor-/handler-årsager til reviewer-sprog. Ukendte årsager returneres uændret. */
@@ -91,6 +93,7 @@ export function reviewerReason(reason: string | null | undefined): string {
   if (/terminal status: (failed|rolled_back)/.test(r)) return 'Forslaget blev ikke udført tidligere — kør agenten igen for et nyt forslag.'
   if (/kunne ikke claime/.test(r)) return 'Forslaget bliver eller er allerede udført et andet sted — intet dobbelt.'
   if (/approval ikke laengere gyldig/.test(r)) return 'Godkendelsen blev trukket tilbage undervejs — intet er udført.'
+  if (/live afsendelse er slået fra/.test(r)) return 'Live afsendelse er slået fra — intet er sendt.'
   if (/budget/.test(r)) return `Agentens dagsbudget er brugt op — intet er udført (${r}).`
   if (/klasse-mismatch|tilhoerer ikke agenten|ukendt capability|uden handler/.test(r)) return `Forslaget er ugyldigt og blev afvist af sikkerhedstjekket — intet er udført (${r}).`
   if (/^forældet forslag:/.test(r)) return r.replace(/^forældet forslag:\s*/, 'Forslaget er forældet: ')

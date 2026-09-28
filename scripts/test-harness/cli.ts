@@ -424,6 +424,14 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'send-producer') {
+    const { runSendProducer, formatSendProducer } = await import('./send-producer')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runSendProducer({ admin, sql: stagingSql, ownerUid: actors.ownerUid })
+    log(formatSendProducer(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'planning-flow') {
     const { runPlanningFlow, formatPlanningFlow } = await import('./planning-flow')
     const actors = await ensureActors(admin, seedBase)

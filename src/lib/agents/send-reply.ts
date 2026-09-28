@@ -15,6 +15,7 @@
 
 import { sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { CapabilityContext, CapabilityResult } from '@/types/agent-core.types'
+import { isLiveSendEnabled, LIVE_SEND_OFF_REASON } from '@/lib/agents/live-gates'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -76,6 +77,11 @@ export async function executeSendReply(
   ctx: CapabilityContext,
   transport: MailTransport = defaultTransport,
 ): Promise<CapabilityResult> {
+  // Andet lag bag Executor-gaten: kun den rigtige Graph-transport er live-gated; injicerede test-transporter
+  // (unit-tests) er ikke eksterne og maa koere.
+  if (transport === defaultTransport && !isLiveSendEnabled()) {
+    return { ok: false, error: LIVE_SEND_OFF_REASON, data: { classification: 'failed_before_send' as SendClassification } }
+  }
   const prep = prepareSendReply((ctx.action.payload ?? {}) as SendReplyPayload)
   if (!prep.ok) {
     return { ok: false, error: prep.error, data: { classification: 'failed_before_send' as SendClassification } }

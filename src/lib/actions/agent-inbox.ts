@@ -18,6 +18,7 @@ import { runMailAgent, findLinkCandidates } from '@/lib/agents/mail-agent'
 import { runOfferAgent } from '@/lib/agents/offer-proposal'
 import { runFollowupAgent } from '@/lib/agents/followup-agent'
 import { runPlanningAgent } from '@/lib/agents/planning-agent'
+import { produceSendReplyProposal } from '@/lib/agents/send-reply-producer'
 
 /** Capabilities hvis udkast (payload.draft) maa redigeres af en reviewer. Udkast sendes aldrig herfra. */
 const EDITABLE_DRAFT_CAPABILITIES = ['mail.draft_reply', 'followup.draft_offer_reminder']
@@ -154,6 +155,23 @@ export async function runFollowupAgentAction(): Promise<ActionResult<{ runId: st
     return res
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke koere opfoelgningsagenten') }
+  }
+}
+
+/**
+ * Forbered afsendelse af et gennemset svarudkast (kun admin). Opretter et mail.send_reply-FORSLAG
+ * (awaiting_approval, hard-blocked). Sender ALDRIG — udfoerelse kraever approval, enabled mail-agent og
+ * AGENT_LIVE_SEND_ENABLED (default OFF).
+ */
+export async function prepareSendReplyAction(draftActionId: string): Promise<ActionResult<{ actionId: string }>> {
+  try {
+    await requireAdmin()
+    const res = await produceSendReplyProposal(createAdminClient(), draftActionId)
+    revalidatePath('/dashboard/agents')
+    if (!res.ok) return { success: false, error: res.error }
+    return { success: true, data: { actionId: res.actionId } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke forberede afsendelse') }
   }
 }
 
