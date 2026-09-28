@@ -3,9 +3,9 @@
 **Opdateret:** 2026-09-27 · **Repo:** `C:\Dev\elta-crm` (`main` = prod-deploy via Vercel) · **Backlog:** [AUTONOMOUS_BACKLOG.md](AUTONOMOUS_BACKLOG.md)
 
 ## Nu
-P0 + **P1 DONE** (#6–#10, 2026-09-27). **Næste: P2 #11** (audit af capabilities mod approval/executor-modellen), så #12–#14.
-**00162 kørt i prod 2026-09-28 (P-004 lukket).** **Venter på Henrik:** kundemail-crons aktive under pilot? · rette anon-crons (aktivering) · pilotbrugernes navne.
-Pilot Health: `/dashboard/pilot-health`.
+P0 + P1 + **P2 DONE** (2026-09-28). 00162 kørt i prod (P-004 lukket). **Næste: P3 #15** (Relatel-kontrakt, kun design/discovery), derefter #16–#19.
+**Venter på Henrik:** kundemail-crons aktive under pilot? · rette anon-crons (aktivering) · pilotbrugernes navne · aktivering af agenter i prod (inkl. ny planlægningsagent).
+Pilot Health: `/dashboard/pilot-health`. Agent-audit: docs/agent-capability-audit.md.
 
 ## Staging-state at kende
 - 00159, 00160, 00161, 00162 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
@@ -24,10 +24,10 @@ Pilot Health: `/dashboard/pilot-health`.
 ## Vigtige kommandoer
 | Formål | Kommando |
 |---|---|
-| Staging regression | `npm run harness:security` · `harness:pilot` · `harness:pilot-roles` · `harness:status` · `harness:session-lifecycle` · `harness:concurrency` · `harness:ui-states` · `harness:cron-log` · `harness:health-snapshot` |
+| Staging regression | `npm run harness:agent-gating` · `harness:agent-actions` · `harness:planning-flow` · `harness:security` · `harness:pilot` · `harness:pilot-roles` · `harness:status` · `harness:session-lifecycle` · `harness:concurrency` · `harness:ui-states` · `harness:cron-log` · `harness:health-snapshot` |
 | Statisk ops | `ui:guard-audit` · `ops:cron-check` · `ops:incident-check` |
 | Staging migration | `npm run harness:migrate-staging -- <nr>` |
-| Prod read-only | `prod:db-audit` · `prod:verify-00161` · `prod:role-policies` · `prod:pilot-health` · `prod:storage-audit` · `prod:verify-00159/00160` · `npx tsx scripts/prod-cron-discovery.ts` |
+| Prod read-only | `prod:db-audit` · `prod:verify-00162` · `prod:verify-00161` · `prod:role-policies` · `prod:pilot-health` · `prod:storage-audit` · `prod:verify-00159/00160` · `npx tsx scripts/prod-cron-discovery.ts` |
 | Kode | `npm run type-check` · `harness:typecheck` · `build` · unit: `npx tsx scripts/agent-*-test.ts` |
 | Flag | `npm run safety:flags` |
 
