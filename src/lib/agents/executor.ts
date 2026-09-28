@@ -6,13 +6,14 @@
  *   1. Load action + run + config.
  *   2. Idempotens: allerede 'executed' -> no-op.
  *   3. Agent enabled? (ellers afvis)
- *   4. Bestem requiresApproval (hard-block ELLER config ELLER action-flag).
- *   5. Hvis approval kraeves: verificér gyldige approvals NU (isActionExecutable).
+ *   4. Slaa capability op (ingen handler -> afvis); capabilityen skal tilhoere runnets agent, og action-
+ *      raekkens side_effect_class skal matche registeret (ellers afvis — raekken kan ikke loesne gating).
+ *   5. Bestem requiresApproval (hard-block ELLER config ELLER capability ELLER action-flag).
+ *   6. Hvis approval kraeves: verificér gyldige approvals NU (isActionExecutable).
  *      Hard-blocked klasser gaar ALTID gennem dette (defense-in-depth oven
  *      paa DB-triggeren).
- *   6. Budget (FAIL-CLOSED).
- *   7. Slaa capability op; ingen handler -> afvis (fail-safe).
- *   8. "Claim" action (status -> executing, kun hvis uaendret) og kald handler.
+ *   7. Budget (FAIL-CLOSED).
+ *   8. "Claim" action (status -> executing, kun hvis uaendret), genverificér approvals, og kald handler.
  *   9. Skriv resultat + audit-log (100%).
  *
  * Agenten kalder ALDRIG raa mutatorer — kun capability-handlere via denne fil.
@@ -84,47 +85,53 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
     return refuse(admin, theRun, act, 'agent disabled')
   }
 
-  // 4. requiresApproval
-  const hardBlocked = isHardBlocked(act.side_effect_class)
-  const requiresApproval =
-    hardBlocked ||
-    cfg.requires_approval_for.includes(act.side_effect_class) ||
-    act.requires_approval
-
-  // 5. Approval-tjek (hard-blocked gaar ALTID gennem)
-  if (requiresApproval) {
-    const { data: approvals, error: apErr } = await admin
-      .from('agent_action_approvals')
-      .select('*')
-      .eq('action_id', act.id)
-    if (apErr) {
-      // Fail-closed: kan ikke verificere approvals -> udfoer ikke.
-      return refuse(admin, theRun, act, 'kunne ikke laese approvals (fail-closed)')
-    }
-    const ok = isActionExecutable((approvals ?? []) as AgentActionApproval[], act.min_approvals)
-    if (!ok) {
-      return refuse(
-        admin,
-        theRun,
-        act,
-        `mangler gyldig(e) approval(s) (kraever ${act.min_approvals}, hard_blocked=${hardBlocked})`,
-      )
-    }
-  }
-
-  // 6. Budget (fail-closed)
-  const budget = await checkAgentBudget(admin, cfg, theRun.id, theRun.agent_type)
-  if (!budget.ok) {
-    return refuse(admin, theRun, act, `budget: ${budget.reason ?? 'afvist'}`)
-  }
-
-  // 7. Capability + handler
+  // 4. Capability FOER gating (P2 #11): registeret er sandheden om klasse, ejer og approval-krav — action-raekkens
+  //    egne felter maa kun skaerpe, aldrig loesne. Ukendt/uwired capability afvises fail-safe.
   const cap = getCapability(act.capability)
   if (!cap) {
     return refuse(admin, theRun, act, `ukendt capability: ${act.capability}`)
   }
   if (!cap.handler) {
     return refuse(admin, theRun, act, `capability uden handler (endnu ikke wired): ${act.capability}`)
+  }
+  if (!cap.agentTypes.includes(theRun.agent_type)) {
+    return refuse(admin, theRun, act, `capability ${act.capability} tilhoerer ikke agenten '${theRun.agent_type}'`)
+  }
+  if (cap.sideEffectClass !== act.side_effect_class) {
+    return refuse(admin, theRun, act,
+      `klasse-mismatch: action siger '${act.side_effect_class}', capability er '${cap.sideEffectClass}' (fail-closed)`)
+  }
+
+  // 5. requiresApproval (hard-block ELLER config ELLER capability ELLER action-flag)
+  const hardBlocked = isHardBlocked(cap.sideEffectClass)
+  const requiresApproval =
+    hardBlocked ||
+    cfg.requires_approval_for.includes(cap.sideEffectClass) ||
+    cap.defaultRequiresApproval ||
+    act.requires_approval
+  const minApprovals = Math.max(act.min_approvals, cap.minApprovals)
+
+  // 6. Approval-tjek (hard-blocked gaar ALTID gennem)
+  if (requiresApproval) {
+    const verdict = await approvalsSatisfied(admin, act.id, minApprovals)
+    if (verdict === 'unreadable') {
+      // Fail-closed: kan ikke verificere approvals -> udfoer ikke.
+      return refuse(admin, theRun, act, 'kunne ikke laese approvals (fail-closed)')
+    }
+    if (verdict === 'missing') {
+      return refuse(
+        admin,
+        theRun,
+        act,
+        `mangler gyldig(e) approval(s) (kraever ${minApprovals}, hard_blocked=${hardBlocked})`,
+      )
+    }
+  }
+
+  // 7. Budget (fail-closed)
+  const budget = await checkAgentBudget(admin, cfg, theRun.id, theRun.agent_type)
+  if (!budget.ok) {
+    return refuse(admin, theRun, act, `budget: ${budget.reason ?? 'afvist'}`)
   }
 
   // 8. Claim: status -> executing, kun hvis stadig i den forventede tilstand.
@@ -137,6 +144,17 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
   if (claim.error || !claim.data || claim.data.length === 0) {
     // En anden proces har allerede taget den, eller status er terminal.
     return { success: true, data: { status: 'noop', reason: 'kunne ikke claime (race/terminal)' } }
+  }
+
+  // 8b. Genverificér approvals EFTER claim (P2 #11): lukker vinduet hvor en afvisning lander mellem trin 6 og
+  //     claim. Ugyldig -> frigiv claim (tilbage til forrige status) og afvis; intet er udfoert.
+  if (requiresApproval && (await approvalsSatisfied(admin, act.id, minApprovals)) !== 'ok') {
+    await admin
+      .from('agent_actions')
+      .update({ status: act.status, updated_at: new Date().toISOString() })
+      .eq('id', act.id)
+      .eq('status', 'executing')
+    return refuse(admin, theRun, act, 'approval ikke laengere gyldig ved udfoerelse (afvist undervejs)')
   }
 
   // 9. Udfoer handler
@@ -214,8 +232,19 @@ export async function executeAction(actionId: string): Promise<ActionResult<Exec
   }
 }
 
+async function approvalsSatisfied(
+   
+  admin: any,
+  actionId: string,
+  minApprovals: number,
+): Promise<'ok' | 'missing' | 'unreadable'> {
+  const { data, error } = await admin.from('agent_action_approvals').select('*').eq('action_id', actionId)
+  if (error) return 'unreadable'
+  return isActionExecutable((data ?? []) as AgentActionApproval[], minApprovals) ? 'ok' : 'missing'
+}
+
 async function markFailed(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   admin: any,
   actionId: string,
   error: string,
@@ -227,7 +256,7 @@ async function markFailed(
 }
 
 async function refuse(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   admin: any,
   run: AgentRun,
   act: AgentAction,

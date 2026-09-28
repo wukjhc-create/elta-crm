@@ -28,6 +28,14 @@ export function registerCapability(def: CapabilityDefinition): void {
   if (def.minApprovals < 1) {
     throw new Error(`Capability ${def.key}: minApprovals skal vaere >= 1`)
   }
+  // P2 #11: kun rene laese-/udkast-capabilities maa undvaere approval; enhver skrivende eller ekstern klasse
+  // kraever altid approval (hard-blocked klasser haandhaeves desuden af Executor og DB-triggeren).
+  if (def.sideEffectClass !== 'read' && !def.defaultRequiresApproval) {
+    throw new Error(`Capability ${def.key}: klassen '${def.sideEffectClass}' kraever defaultRequiresApproval=true`)
+  }
+  if (def.agentTypes.length === 0) {
+    throw new Error(`Capability ${def.key}: mindst én agentType skal angives`)
+  }
   registry.set(def.key, def)
 }
 
@@ -52,6 +60,7 @@ export function __resetRegistryForTests(): void {
 
 registerCapability({
   key: 'mail.draft_reply',
+  agentTypes: ['mail'],
   sideEffectClass: 'read',
   requiredScope: 'agent.mail.draft',
   defaultRequiresApproval: false,
@@ -69,6 +78,7 @@ registerCapability({
 
 registerCapability({
   key: 'mail.link_customer',
+  agentTypes: ['mail'],
   sideEffectClass: 'update',
   requiredScope: 'agent.mail.link',
   defaultRequiresApproval: true,
@@ -116,6 +126,7 @@ registerCapability({
 
 registerCapability({
   key: 'case.propose_from_email',
+  agentTypes: ['mail'],
   sideEffectClass: 'create',
   requiredScope: 'agent.case.draft',
   defaultRequiresApproval: true,
@@ -128,6 +139,7 @@ registerCapability({
 
 registerCapability({
   key: 'mail.send_reply',
+  agentTypes: ['mail'],
   sideEffectClass: 'send_external',
   requiredScope: 'agent.mail.send',
   defaultRequiresApproval: true,
@@ -141,6 +153,7 @@ registerCapability({
 
 registerCapability({
   key: 'offer.propose_draft_from_case',
+  agentTypes: ['offer'],
   sideEffectClass: 'create',
   requiredScope: 'agent.offer.draft',
   defaultRequiresApproval: true,
@@ -157,6 +170,7 @@ registerCapability({
 
 registerCapability({
   key: 'followup.draft_offer_reminder',
+  agentTypes: ['followup'],
   sideEffectClass: 'read',
   requiredScope: 'agent.followup.draft',
   defaultRequiresApproval: false,
@@ -168,6 +182,7 @@ registerCapability({
 
 registerCapability({
   key: 'followup.create_task',
+  agentTypes: ['followup'],
   sideEffectClass: 'create',
   requiredScope: 'agent.followup.task',
   defaultRequiresApproval: true,

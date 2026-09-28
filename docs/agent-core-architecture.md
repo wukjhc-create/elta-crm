@@ -19,7 +19,7 @@ til en reel side-effekt; alt logges.
 2. **`suggest` er default safety-mode.** En ny agent kan kun foreslå — intet eksekverer.
 3. **`send_external`, `push_external`, `finance` og `delete` kræver ALTID menneskelig approval** — uanset agent-config. Håndhæves i Executor-kode, ikke kun i config (hård-blok-matrix).
 4. **Agenten kalder ALDRIG rå mutatorer direkte.** Den skriver kun `agent_actions`.
-5. **Kun Executor udfører side-effekter**, via en whitelistet Capability Registry.
+5. **Kun Executor udfører side-effekter**, via en whitelistet Capability Registry. Registeret er sandheden om klasse, ejer-agent og approval-krav; action-rækkens felter kan kun skærpe (P2 #11, [capability-audit](agent-capability-audit.md)).
 6. **Alle agent-handlinger audit-logges** (100%) via det eksisterende `audit_logs` + `log_audit_event`.
 7. **Agent Core aktiverer ALDRIG `AUTO_CREATE_CASES_ENABLED`.** Det er en parallel sti; nødstoppet forbliver slukket (se §4).
 8. **Budget fejler lukket (fail-closed) for agenter.** Modsat det nuværende `ai-budget` fail-open.

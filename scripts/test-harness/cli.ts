@@ -423,6 +423,14 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'agent-gating') {
+    const { runAgentGating, formatAgentGating } = await import('./agent-gating')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runAgentGating({ admin, sql: stagingSql, ownerUid: actors.ownerUid })
+    log(formatAgentGating(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'health-snapshot') {
     const { runHealthSnapshot, formatHealthSnapshot } = await import('./health-snapshot')
     const checks = await runHealthSnapshot({ admin, sql: stagingSql })

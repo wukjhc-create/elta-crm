@@ -217,8 +217,13 @@ export interface CapabilityDefinition {
   key: string
   /** Bestemmer gating (approval + hard-block). */
   sideEffectClass: SideEffectClass
-  /** Agent-principal-scope der kraeves (fx 'agent.mail.draft'). */
+  /** Agent-principal-scope der kraeves (fx 'agent.mail.draft'). Metadata — der findes endnu ingen scope-model. */
   requiredScope: string
+  /**
+   * Hvilke agenter der maa udfoere capabilityen (P2 #11). Executor afviser en action hvis runnets agent_type ikke
+   * er med — en mail-run kan fx aldrig udfoere en tilbuds-capability.
+   */
+  agentTypes: readonly AgentType[]
   /** Om denne capability som udgangspunkt kraever approval. */
   defaultRequiresApproval: boolean
   /** Antal distinkte approvals der kraeves (>=1). Finance saettes til 2 senere. */

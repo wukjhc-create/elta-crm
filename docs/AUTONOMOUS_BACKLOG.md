@@ -27,7 +27,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 ## P2 — Agent Core
 | # | Opgave | Status | Note / blocker |
 |---|---|---|---|
-| 11 | Audit af alle capabilities mod approval/executor-model | TODO | |
+| 11 | Audit af alle capabilities mod approval/executor-model | DONE | 4 defense-in-depth-huller lukket i Executor: klasse/approval/ejer udledes af capability-registeret (rækken kan kun skærpe), ejerskab `agentTypes`, approvals genverificeres efter claim; registrering kaster ved skrivende klasse uden approval. `harness:agent-gating` 8/8 (inkl. positiv kontrol). Fund: `mail.send_reply` uden producent (→ #13); DB-trigger-hærdning = DDL-gate. Rapport: docs/agent-capability-audit.md |
 | 12 | Udvid stale-state/idempotency/concurrency-tests | TODO | |
 | 13 | Forbered næste agent-milepæl (ingen live send/cron/finance) | TODO | |
 | 14 | Agent Inbox reviewer-UX (konkrete problemer) | TODO | |
@@ -56,6 +56,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-28: P2 #11 capability-audit færdig (Executor hærdet).
 - 2026-09-28: 00162 kørt i prod og verificeret; P-004 CLOSED. P2 startet.
 - 2026-09-27: P1 #10 Pilot Health færdig. **P1 komplet** (#9/#10 med 2 Henrik-beslutninger BLOCKED).
 - 2026-09-27: P1 #9 cron-synlighed + discovery færdig (intet aktiveret; 2 beslutninger til Henrik).
