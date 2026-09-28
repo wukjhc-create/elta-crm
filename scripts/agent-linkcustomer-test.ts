@@ -10,19 +10,36 @@ import { getCapability } from '../src/lib/agents/capability-registry'
 let fails = 0
 const assert = (cond: boolean, label: string, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`); if (!cond) fails++ }
 
-// Mock admin: registrerer om update blev kaldt + med hvilke vaerdier.
-function makeMockAdmin() {
+// Mock admin: modellerer incoming_emails med nuvaerende customer_id, saa den BETINGEDE update (.is('customer_id',
+// null)) opfoerer sig som i Postgres: raekken opdateres kun hvis den stadig er ukoblet. `calls` = gennemfoerte updates.
+function makeMockAdmin(current: Record<string, string | null> = {}) {
   const calls: Array<{ table: string; vals: Record<string, unknown>; id: string }> = []
+  const rows = { ...current }
   const admin = {
     from(table: string) {
       return {
         update(vals: Record<string, unknown>) {
-          return {
-            eq(_col: string, id: string) {
+          let id = ''
+          const chain = {
+            eq(_col: string, v: string) { id = v; return chain },
+            is(_col: string, _v: null) { return chain },
+            select() {
+              const existing = id in rows ? rows[id] : null
+              if (existing !== null && existing !== undefined) return { data: [], error: null }
+              rows[id] = vals.customer_id as string
               calls.push({ table, vals, id })
-              return { error: null }
+              return { data: [{ id }], error: null }
             },
           }
+          return chain
+        },
+        select() {
+          let id = ''
+          const chain = {
+            eq(_col: string, v: string) { id = v; return chain },
+            maybeSingle() { return { data: { customer_id: rows[id] ?? null }, error: null } },
+          }
+          return chain
         },
       }
     },
@@ -85,6 +102,19 @@ async function run() {
     const { admin, calls } = makeMockAdmin()
     const r = await cap.handler({ ...base, admin, action: { payload: { email_id: 'e9', conflicts: true, candidates: [{ id: 'a' }, { id: 'b' }], selected_customer_id: 'zzz' } } } as never)
     assert(!r.ok && calls.length === 0, 'manipuleret valg (ikke i kandidater) => refuser uden update')
+  }
+
+  // 8) STALE: mailen er koblet til en ANDEN kunde imens => ingen overskrivning (P2 #12)
+  {
+    const { admin, calls } = makeMockAdmin({ e9: 'human-choice' })
+    const r = await cap.handler({ ...base, admin, action: { payload: { email_id: 'e9', candidates: [{ id: 'cust-9' }] } } } as never)
+    assert(!r.ok && calls.length === 0 && /allerede koblet/.test(r.error ?? ''), 'stale: allerede koblet til anden kunde => refuser uden overskrivning', r.error)
+  }
+  // 9) Allerede koblet til SAMME kunde => idempotent ok, ingen ny update
+  {
+    const { admin, calls } = makeMockAdmin({ e9: 'cust-9' })
+    const r = await cap.handler({ ...base, admin, action: { payload: { email_id: 'e9', candidates: [{ id: 'cust-9' }] } } } as never)
+    assert(r.ok && calls.length === 0 && r.data?.already_linked === true, 'allerede koblet til samme kunde => ok (idempotent) uden update')
   }
 
   console.log(`\n${fails === 0 ? '✅ ALLE LINK_CUSTOMER-TESTS PASS' : `❌ ${fails} FEJL`}`)

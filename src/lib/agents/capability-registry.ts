@@ -115,12 +115,24 @@ registerCapability({
         error: `manuel udvaelgelse paakraevet eller ugyldigt valg (kandidater=${candidates.length}, valgt=${selected ?? 'ingen'})`,
       }
     }
-    const { error } = await ctx.admin
+    // Stale-/race-sikker kobling (P2 #12): opdatér KUN hvis mailen stadig er ukoblet (atomisk betingelse i
+    // UPDATE). Har et menneske (eller en anden proces) koblet mailen imens, overskrives det ALDRIG.
+    const { data: updated, error } = await ctx.admin
       .from('incoming_emails')
       .update({ customer_id: customerId, link_status: 'linked', linked_by: 'agent' })
       .eq('id', emailId)
+      .is('customer_id', null)
+      .select('id')
     if (error) return { ok: false, error: (error as { message?: string }).message ?? 'kunne ikke linke' }
-    return { ok: true, data: { email_id: emailId, linked_customer_id: customerId } }
+    if ((updated ?? []).length === 1) return { ok: true, data: { email_id: emailId, linked_customer_id: customerId } }
+
+    const { data: current } = await ctx.admin.from('incoming_emails').select('customer_id').eq('id', emailId).maybeSingle()
+    const currentCustomer = (current as { customer_id?: string | null } | null)?.customer_id ?? null
+    if (!current) return { ok: false, error: 'mailen findes ikke laengere' }
+    if (currentCustomer === customerId) {
+      return { ok: true, data: { email_id: emailId, linked_customer_id: customerId, already_linked: true } }
+    }
+    return { ok: false, error: 'forældet forslag: mailen er allerede koblet til en anden kunde (overskrives ikke)' }
   },
 })
 

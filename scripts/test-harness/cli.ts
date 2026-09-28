@@ -423,6 +423,14 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'agent-actions') {
+    const { runAgentActionsMatrix, formatAgentActionsMatrix } = await import('./agent-actions-matrix')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runAgentActionsMatrix({ admin, sql: stagingSql, ownerUid: actors.ownerUid })
+    log(formatAgentActionsMatrix(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'agent-gating') {
     const { runAgentGating, formatAgentGating } = await import('./agent-gating')
     const actors = await ensureActors(admin, seedBase)

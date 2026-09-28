@@ -27,3 +27,16 @@ Alle registrerede capabilities er gennemgået mod approval/executor-modellen. Te
 
 ## Åbent — kræver DDL (gate)
 DB-triggeren `agent_enforce_approval_before_execute` bruger stadig rækkens klasse. Executoren lukker nu hullet i koden. En DB-side hærdning (fx en `CHECK`, der binder kendte capability-nøgler til deres klasse, eller en `agent_capabilities`-tabel, som triggeren slår op i) vil være et ekstra lag. Det er **ikke** lavet, da det er en prod-migration og kræver Henriks godkendelse. Den er ikke nødvendig, så længe kun service-role skriver `agent_actions`, og det gør den i dag (ingen authenticated INSERT/UPDATE-policy).
+
+## P2 #12 — stale-state / idempotens / samtidighed pr. capability
+
+| Capability | Samtidig udførelse | Gentagelse | Stale-state | Samtidig forslags-kørsel | Test |
+|---|---|---|---|---|---|
+| `mail.draft_reply` | 1 executed, resten noop (claim) | noop | – (kun udkast) | 1 forslag (`mail-reply:<mail>`) | M1, M2 |
+| `mail.link_customer` | 1 executed | ok/idempotent (`already_linked`) | **rettet:** overskrev en manuel kobling → nu atomisk betinget UPDATE (`customer_id IS NULL`); anden kunde ⇒ failed, intet ændret | 1 forslag (`mail-link:<mail>`) | M3, M4, unit 8–9 |
+| `case.propose_from_email` | 1 executed, præcis 1 sag | genbrug af sag | kundekobling ændret ⇒ afvist (tamper) | 1 forslag (`mail-case:<mail>`) | M5, case_proposal_flow |
+| `offer.propose_draft_from_case` | 1 executed (C1) · UNIQUE pr. sag (C3) | noop | sag lukket/ændret ⇒ afvist | 1 aktivt forslag (C2, rettet i P1 #7) | concurrency C1–C3, fase5_offer_flow |
+| `followup.draft_offer_reminder` / `followup.create_task` | claim | noop | tilbud besvaret ⇒ afvist | 1 pr. afsendelses-cyklus (C5) | C5, fase5_followup_flow |
+| `mail.send_reply` | claim | noop · uvist ⇒ needs_verification (ingen retry) | – | ingen producent (A6) | agent-sendreply unit |
+
+**Hængende udførelse** (proces-crash efter claim): actionen bliver i `executing` og genoptages aldrig automatisk. Det er bevidst, for en sendt mail må aldrig sendes igen. Pilot Health viser nu "Hængende udførelser (>15 min)" som rød (M7).

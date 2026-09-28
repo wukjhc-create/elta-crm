@@ -31,6 +31,7 @@
     "harness:pilot": "tsx scripts/test-harness/cli.ts pilot",
     "harness:pilot-health": "tsx scripts/test-harness/cli.ts pilot-health",
     "harness:pilot-roles": "tsx scripts/test-harness/cli.ts pilot-roles",
+    "harness:agent-actions": "tsx scripts/test-harness/cli.ts agent-actions",
     "harness:agent-gating": "tsx scripts/test-harness/cli.ts agent-gating",
     "harness:health-snapshot": "tsx scripts/test-harness/cli.ts health-snapshot",
     "ops:incident-check": "tsx scripts/incident-register-check.ts",

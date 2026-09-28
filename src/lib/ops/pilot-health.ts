@@ -20,6 +20,7 @@ export interface PilotHealthSnapshot { generatedAt: string; overall: HealthLevel
 type Admin = any
 
 const HOUR = 3_600_000
+export const STUCK_EXECUTING_MINUTES = 15
 const worst = (levels: HealthLevel[]): HealthLevel =>
   levels.includes('red') ? 'red' : levels.includes('unknown') ? 'unknown' : levels.includes('yellow') ? 'yellow' : 'green'
 const ago = (iso: string | null | undefined): string => {
@@ -116,7 +117,7 @@ async function userItems(admin: Admin): Promise<HealthItem[]> {
 }
 
 // ---------- 4. Agenter + sikkerhedsflag ----------
-async function agentItems(admin: Admin): Promise<HealthItem[]> {
+async function agentItems(admin: Admin, stuckMinutes: number): Promise<HealthItem[]> {
   const { data: cfg, error } = await admin.from('agent_configs').select('agent_type, enabled, safety_mode')
   if (error) throw new Error(`agent_configs: ${error.message}`)
   const rows = (cfg ?? []) as Array<{ agent_type: string; enabled: boolean; safety_mode: string }>
@@ -124,10 +125,12 @@ async function agentItems(admin: Admin): Promise<HealthItem[]> {
   const notSuggest = rows.filter((r) => r.safety_mode !== 'suggest').map((r) => r.agent_type)
   const autoCreate = process.env.AUTO_CREATE_CASES_ENABLED === 'true'
   const since7 = new Date(Date.now() - 7 * 24 * HOUR).toISOString()
-  const [awaiting, failed, verify] = await Promise.all([
+  const stuckBefore = new Date(Date.now() - stuckMinutes * 60_000).toISOString()
+  const [awaiting, failed, verify, stuck] = await Promise.all([
     admin.from('agent_actions').select('id', { count: 'exact', head: true }).in('status', ['awaiting_approval', 'approved']),
     admin.from('agent_actions').select('id', { count: 'exact', head: true }).eq('status', 'failed').gte('created_at', since7),
     admin.from('agent_actions').select('id', { count: 'exact', head: true }).eq('status', 'needs_verification'),
+    admin.from('agent_actions').select('id', { count: 'exact', head: true }).eq('status', 'executing').lt('updated_at', stuckBefore),
   ])
   return [
     { label: 'Agenter aktiveret', level: enabled.length ? 'red' : 'green', detail: enabled.length ? `AKTIVE: ${enabled.join(', ')} (pilot-kontrakt: alle disabled)` : `0 af ${rows.length} (alle disabled)` },
@@ -136,6 +139,10 @@ async function agentItems(admin: Admin): Promise<HealthItem[]> {
     { label: 'Forslag afventer review', level: 'green', detail: `${awaiting.count ?? 0}` },
     { label: 'Fejlede handlinger 7 d', level: (failed.count ?? 0) > 0 ? 'yellow' : 'green', detail: `${failed.count ?? 0}` },
     { label: 'Afventer verifikation', level: (verify.count ?? 0) > 0 ? 'yellow' : 'green', detail: `${verify.count ?? 0}` },
+    // P2 #12: en action der haenger i 'executing' (proces-crash midt i udfoerelse) genoptages ALDRIG automatisk
+    // (bevidst: ingen auto-retry) — den skal ses og vurderes af et menneske.
+    { label: `Hængende udførelser (>${stuckMinutes} min)`, level: (stuck.count ?? 0) > 0 ? 'red' : 'green',
+      detail: (stuck.count ?? 0) > 0 ? `${stuck.count} action(s) står i 'executing' — kontrollér om effekten skete, før noget gentages` : '0' },
   ]
 }
 
@@ -204,12 +211,14 @@ async function securityItems(): Promise<HealthItem[]> {
   return items
 }
 
-export async function collectPilotHealthSnapshot(admin: Admin): Promise<PilotHealthSnapshot> {
+/** `stuckMinutes` kan kun saenkes af tests (updated_at saettes af trigger og kan ikke tilbagedateres). */
+export async function collectPilotHealthSnapshot(admin: Admin, opts: { stuckMinutes?: number } = {}): Promise<PilotHealthSnapshot> {
+  const stuckMinutes = opts.stuckMinutes ?? STUCK_EXECUTING_MINUTES
   const sections = await Promise.all([
     section('system', 'System', () => systemItems(admin)),
     section('crons', 'Crons', () => cronItems(admin)),
     section('users', 'Brugere', () => userItems(admin)),
-    section('agents', 'Agenter & sikkerhedsflag', () => agentItems(admin)),
+    section('agents', 'Agenter & sikkerhedsflag', () => agentItems(admin, stuckMinutes)),
     section('incidents', 'Incidents', () => incidentItems()),
     section('integrations', 'Integrationer', () => integrationItems(admin)),
     section('security', 'DB-/sikkerhed (live anon-prober)', () => securityItems()),
