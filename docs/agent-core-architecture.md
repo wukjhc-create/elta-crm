@@ -273,13 +273,20 @@ Kræver **altid** menneskelig approval — uanset agent-config, håndhævet i Ex
   - **Opfølgningsagent** (manuel knap i Inbox, ingen cron): sendte/sete tilbud uden svar > 7 dage, gyldige, uden åben opfølgningsopgave. Pr. tilbud: `followup.draft_offer_reminder` (`read`, redigerbart udkast, **sendes aldrig**) + `followup.create_task` (`create`, approval → intern `customer_tasks`, `auto_rule='agent_followup_offer'`, tildelt sælger). Stale: tilbud stadig sent/viewed, gyldigt, samme kunde; dublet: åben opgave genbruges; én forslagsrunde pr. afsendelses-cyklus.
   - Inbox: forhåndsvisning af tilbuds-/opfølgningsforslag, redigerbart påmindelsesudkast (samme gatede `saveDraftAction`), links til oprettet tilbud/opgave. Al udførelse går via Executor.
   - Test: `scripts/agent-offer-followup-test.ts` (33/33) + staging-E2E `fase5_offer_flow` og `fase5_followup_flow` (forslag, idempotens, disabled, uden approval, approve+execute, audit, gentagelse=noop, stale). Agenter aktiveres KUN på staging inden for scenariet og deaktiveres i `finally`; `harness:status` verificerer 0 probe-rester.
+- **Fase 6 — forberedelse (intern, disabled):** ✅ (2026-09-28, P2 #13)
+  - **Planlægningsagent** `planning.propose_work_order` (`create`, approval, ejer `planning`): `src/lib/agents/planning-agent.ts`. Manuel admin-knap "Kør planlægningsagent" i Inbox. For bekræftede sager uden aktiv arbejdsordre foreslås **dato + montør**: den mindst belastede feltmontør (montør/elektriker/electrician/installer, aktiv, ikke fratrådt) de næste 10 hverdage. Uafgjort afgøres alfabetisk. Første hverdag med < 2 aktive ordrer. Samme kørsel tænker egne forslag ind i belastningen. Efter approval opretter Executor en **intern** arbejdsordre (`planned`). Der sendes ingen besked til kunde eller montør, og eksisterende ordrer flyttes eller slettes aldrig.
+  - Stale ved udførelse: sagen skal stadig være uplanlagt med samme kunde, montøren aktiv, datoen ikke passeret og dagen ikke fyldt siden forslaget. Idempotent pr. action (markør i description) og ét aktivt forslag pr. sag (generations-nøgle `plan-wo:<sag>:<n>`).
+  - Test: `scripts/agent-planning-test.ts` (rene funktioner) + `npm run harness:planning-flow` 6/6 på staging (parallelle forslag, disabled, parallel godkendt udførelse, gentagelse, stale: manuelt planlagt / dato passeret / montør inaktiv).
+  - **Aktivering er en forretningsbeslutning** (som de øvrige): `planning` er disabled/suggest i prod.
 - **Live-gates der stadig er lukkede (kræver eksplicit beslutning):**
   1. Aktivering af agenter i production (`agent_configs.enabled`) — alle 7 er disabled/suggest.
   2. Live kundemail: `mail.send_reply` er wired men hard-blocked; ingen afsendelse af opfølgnings-/svarudkast.
   3. Send af tilbud til kunde (tilbudsudkast er kun interne).
   4. Cron-/event-trigger af agenter (i dag kun manuelle admin-knapper).
   5. SMS (Relatel), finance/e-conomic, delete — ikke implementeret som capabilities.
-  6. Valgfri skema-hærdning: `offers.source_case_id` + UNIQUE-index (erstatter notes-markøren som dedup-nøgle) — kræver godkendt migration.
+  6. ~~Skema-hærdning `offers.source_case_id`~~ — kørt i prod (00159).
+  7. `mail.send_reply` har ingen producent (capability-audit A6): før live send skal der besluttes en eksplicit, gated producent (reviewer promoverer et godkendt udkast), ellers forbliver den ubrugt.
+  8. Scope-model (`requiredScope`) findes kun som metadata (A7) — nødvendig før agenter får forskellige principals.
 
 ## Appendiks: kildehenvisninger (audit)
 

@@ -17,6 +17,7 @@ import { executeSendReply } from '@/lib/agents/send-reply'
 import { executeCaseProposal } from '@/lib/agents/case-proposal'
 import { executeOfferProposal } from '@/lib/agents/offer-proposal'
 import { executeFollowupTask, materializeFollowupDraft } from '@/lib/agents/followup-agent'
+import { executePlanningProposal } from '@/lib/agents/planning-agent'
 
 const registry = new Map<string, CapabilityDefinition>()
 
@@ -202,4 +203,20 @@ registerCapability({
   description: 'Opret en intern opfoelgningsopgave paa et sendt tilbud uden svar (kun efter approval).',
   // Genkontrollerer tilbudsstatus/kunde og aaben opgave (stale/dublet) foer oprettelse.
   handler: (ctx) => executeFollowupTask(ctx),
+})
+
+// ---------------------------------------------------------------------
+// Planlaegningsagent (Fase 6-forberedelse, P2 #13) — intern, INGEN besked til kunde/montoer, ingen cron.
+// ---------------------------------------------------------------------
+
+registerCapability({
+  key: 'planning.propose_work_order',
+  agentTypes: ['planning'],
+  sideEffectClass: 'create',
+  requiredScope: 'agent.planning.work_order',
+  defaultRequiresApproval: true,
+  minApprovals: 1,
+  description: 'Foreslå dato + montør og opret en intern arbejdsordre for en uplanlagt sag (kun efter approval).',
+  // Stale: sag stadig uplanlagt/samme kunde, montør aktiv, dato ikke passeret, dagen ikke fyldt. Idempotent pr. action.
+  handler: (ctx) => executePlanningProposal(ctx),
 })

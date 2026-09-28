@@ -10,6 +10,7 @@ import {
   selectLinkCandidateAction,
   saveDraftAction,
   runFollowupAgentAction,
+  runPlanningAgentAction,
 } from '@/lib/actions/agent-inbox'
 import type { AgentInboxItem } from '@/types/agent-core.types'
 import { reviewPriority, type ConfidenceLevel, type CustomerCandidate } from '@/lib/agents/mail-confidence'
@@ -123,10 +124,25 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
           >
             {busyId === 'followup-run' && isPending ? 'Kører…' : 'Kør opfølgningsagent'}
           </button>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() =>
+              run('planning-run', async () => {
+                const r = await runPlanningAgentAction()
+                if (r.success && r.data && r.data.proposals === 0) toast.info('Ingen uplanlagte sager med ledig montør lige nu')
+                return r
+              }, 'Planlægningsagent kørt — forslag oprettet')
+            }
+            className="rounded border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {busyId === 'planning-run' && isPending ? 'Kører…' : 'Kør planlægningsagent'}
+          </button>
         </div>
         <p className="mt-1 text-[11px] text-gray-400">
           Opfølgningsagenten finder sendte tilbud uden svar (&gt; 7 dage). Den foreslår et påmindelses-udkast og en intern
-          opgave — der sendes aldrig mail eller SMS automatisk.
+          opgave — der sendes aldrig mail eller SMS automatisk. Planlægningsagenten foreslår dato og montør for bekræftede
+          sager uden arbejdsordre; efter godkendelse oprettes en intern arbejdsordre — ingen besked til kunde eller montør.
         </p>
       </div>
 
@@ -279,6 +295,26 @@ export function AgentInboxClient({ items }: { items: AgentInboxItem[] }) {
                         {a.payload?.customer_name ? ` · ${String(a.payload.customer_name)}` : ''}
                         {' · '}uden svar i {String(a.payload?.days_since_sent ?? '?')} dage
                       </p>
+                    )}
+                    {a.capability === 'planning.propose_work_order' && (
+                      <p className="mt-0.5 text-xs text-gray-700">
+                        Arbejdsordre <span className="font-medium">{String(a.payload?.scheduled_date ?? '')}</span>
+                        {' · '}{String(a.payload?.employee_name ?? '')}
+                        {a.payload?.case_id ? (
+                          <>
+                            {' · '}
+                            <a href={`/dashboard/service-cases/${String(a.payload.case_id)}`} className="text-blue-600 hover:underline">
+                              sag {String(a.payload?.case_number ?? '')}
+                            </a>
+                          </>
+                        ) : null}
+                        <span className="text-gray-400"> · intern · ingen besked sendes</span>
+                      </p>
+                    )}
+                    {a.status === 'executed' && typeof a.result?.work_order_id === 'string' && (
+                      <a href={`/dashboard/service-cases/${String(a.payload?.case_id ?? '')}`} className="mt-1 inline-block text-xs font-medium text-green-700 underline">
+                        ✓ {a.result.created ? 'Arbejdsordre oprettet' : 'Arbejdsordren fandtes allerede'} — åbn sag
+                      </a>
                     )}
                     {a.status === 'executed' && typeof a.result?.offer_id === 'string' && (
                       <a href={`/dashboard/offers/${a.result.offer_id}`} className="mt-1 inline-block text-xs font-medium text-green-700 underline">

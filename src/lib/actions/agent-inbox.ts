@@ -17,6 +17,7 @@ import { formatError } from '@/lib/actions/action-helpers'
 import { runMailAgent, findLinkCandidates } from '@/lib/agents/mail-agent'
 import { runOfferAgent } from '@/lib/agents/offer-proposal'
 import { runFollowupAgent } from '@/lib/agents/followup-agent'
+import { runPlanningAgent } from '@/lib/agents/planning-agent'
 
 /** Capabilities hvis udkast (payload.draft) maa redigeres af en reviewer. Udkast sendes aldrig herfra. */
 const EDITABLE_DRAFT_CAPABILITIES = ['mail.draft_reply', 'followup.draft_offer_reminder']
@@ -150,6 +151,19 @@ export async function runFollowupAgentAction(): Promise<ActionResult<{ runId: st
     return res
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke koere opfoelgningsagenten') }
+  }
+}
+
+/** Koer planlaegningsagenten manuelt (kun admin). Opretter forslag i Inbox; udfoerer intet. */
+export async function runPlanningAgentAction(): Promise<ActionResult<{ runId: string | null; cases: number; proposals: number }>> {
+  try {
+    const { userId } = await requireAdmin()
+    const res = await runPlanningAgent({ triggeredBy: userId })
+    if (res.success) revalidatePath('/dashboard/agents')
+    if (!res.success || !res.data) return { success: false, error: res.error ?? 'Planlaegningsagenten fejlede' }
+    return { success: true, data: { runId: res.data.runId, cases: res.data.cases, proposals: res.data.proposals } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke koere planlaegningsagenten') }
   }
 }
 
