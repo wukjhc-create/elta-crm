@@ -31,6 +31,7 @@
     "harness:pilot": "tsx scripts/test-harness/cli.ts pilot",
     "harness:pilot-health": "tsx scripts/test-harness/cli.ts pilot-health",
     "harness:pilot-roles": "tsx scripts/test-harness/cli.ts pilot-roles",
+    "harness:relatel-lookup": "tsx scripts/test-harness/cli.ts relatel-lookup",
     "harness:ui-e2e": "tsx scripts/test-harness/cli.ts ui-e2e",
     "harness:send-producer": "tsx scripts/test-harness/cli.ts send-producer",
     "harness:planning-flow": "tsx scripts/test-harness/cli.ts planning-flow",

@@ -424,6 +424,14 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'relatel-lookup') {
+    const { runRelatelLookup, formatRelatelLookup } = await import('./relatel-lookup')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runRelatelLookup({ admin, ownerUid: actors.ownerUid })
+    log(formatRelatelLookup(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'ui-e2e') {
     const { runUiE2e, formatUiE2e } = await import('./ui-e2e')
     const checks = await runUiE2e({ admin, stagingRef: ref })

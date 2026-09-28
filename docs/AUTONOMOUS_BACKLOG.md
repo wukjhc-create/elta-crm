@@ -35,7 +35,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 ## P3 — Næste produktmoduler (discovery/design)
 | # | Opgave | Status | Note / blocker |
 |---|---|---|---|
-| 15 | Relatel: teknisk discovery + integrationskontrakt (ingen rigtig SMS) | TODO | |
+| 15 | Relatel: teknisk discovery + integrationskontrakt (ingen rigtig SMS) | DONE (discovery + foundation) | docs/integrations/RELATEL_CONTRACT.md er baseret på den offentlige API-dokumentation. Fund: iframe-API'et er usigneret (kun `?number=`), `X-Frame-Options: DENY` + SameSite-cookies forhindrer indlogget iframe, og telefonformaterne er blandede. Foundation er bygget: nummer-normalisering, opkalds-opslag `/dashboard/cti?number=` (login + RLS), kontrakt-typer og en deaktiveret klient uden netværk. Tests: `relatel-test` + `harness:relatel-lookup` 3/3 + ui-e2e U6. **BLOCKED:** access-token + beslutning om trin 1–5 (CTI-side, opkaldslog, click-to-call, SMS-udbyder). |
 | 16 | Deterministic follow-up engine (design, ingen live automation) | TODO | |
 | 17 | Grossist/KlarPris discovery (datamodel, prisimport, lager, rabatter, sammenligning) | TODO | |
 | 18 | Profit Engine-datamodel (materiale + timer + overhead + DB → salgspris) | TODO | |
@@ -64,6 +64,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-28: P3 #15 Relatel discovery + CTI-foundation (ingen netværk, ingen SMS).
 - 2026-09-28: P2-rest C: reproducerbar UI-E2E (staging, syntetiske brugere) + 2 UI-fejl rettet. P2-rest A–C færdig.
 - 2026-09-28: P2-rest B: send_reply-producer + live-send kill-switch (intet sendt).
 - 2026-09-28: P2-rest A: 00163 capability-guard på staging (prod-gate).

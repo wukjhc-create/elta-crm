@@ -16,6 +16,7 @@
  *   U3  admin: Pilot Health renderer alle 7 sektioner, ingen sektion "Kunne ikke hentes", live-send OFF
  *   U4  montør: Agent Inbox og Pilot Health viser "Du har ikke adgang"
  *   U5  ingen browser-konsolfejl / sidefejl under forløbet
+ *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { spawn, execSync, type ChildProcess } from 'child_process'
@@ -138,6 +139,11 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       const liveOff = (await a.page.getByText('OFF (ingen agent-afsendelse mulig)').count()) > 0
       out.push({ id: 'U3 Pilot Health (admin)', ok: seen.length === 7 && failedSections === 0 && liveOff,
         note: `sektioner=${seen.length}/7 · fejlede sektioner=${failedSections} · live-send OFF vist=${liveOff ? 'ja' : 'nej'}` })
+      // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
+      await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
+      const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
+        unknown: (await a.page.getByText('Ukendt nummer').count()) > 0 }
+      out.push({ id: 'U6 opkalds-opslag (admin)', ok: cti.heading && cti.formatted && cti.unknown, note: Object.entries(cti).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
     }
 
     // ---- montoer
