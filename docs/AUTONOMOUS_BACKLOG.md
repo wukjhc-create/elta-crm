@@ -48,6 +48,14 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | B | `mail.send_reply`-producer | DONE | Årsag: transportlaget blev bygget i Fase 3, og produceren blev bevidst udskudt. Den eneste prod-række var en intern test. Nu findes en sikker producer: "Forbered afsendelse" på et udført, udfyldt svarudkast opretter et forslag til afsenderen med "Re:". Den afviser skabelon-udkast og giver ét aktivt forslag pr. mail. Hård kill-switch `AGENT_LIVE_SEND_ENABLED` (default OFF) i Executor og handler; den vises i Pilot Health og i `safety:flags`. `harness:send-producer` 5/5 (ingen afsendelse mulig: kræver Graph ukonfigureret + flag off). |
 | C | Browser/UI-verifikation (Agent Inbox/Pilot Health) | DONE | `npm run harness:ui-e2e` 5/5. Syntetiske staging-brugere (admin + montør) med password der kun lever i processen. `next dev` startes med staging-env, og eksterne integrationer tømmes. Headless Playwright klikker kun navigation, aldrig handlinger. **Fundet og rettet:** (1) `/dashboard/agents` kørte `getAgentInbox()` for ikke-admins (layout og side renderes parallelt) og loggede en serverfejl ved hvert besøg; (2) Pilot Health viste "Samlet: Ukendt" blot fordi crons ikke havde kørt endnu. Skærmbilleder gennemset. |
 
+## Fakturapipeline-fejl (efter P3 #19)
+| # | Opgave | Status | Note |
+|---|---|---|---|
+| F-a | API-import må ikke overskrive hoveddata med tomme værdier (IC5) | DONE | Eksisterende værdi vinder, og strukturerede hints bruges. `harness:invoice-pipeline` I5 |
+| F-b | Linje→produkt-match | DONE | Varenummer bevares. Deterministisk varenr. → EAN → tekst-varenr. (samme leverandør). I6 |
+| F-c | Reel dækningsgrad | DONE | `coverage.ts` + prod-script + Pilot Health. Prod: 0 % (ærligt). I7 |
+| F-d | RLS på incoming_invoices* | TODO | migration (staging først) |
+
 ## Blokerede opgaver uden for nummerering
 | Opgave | Status | Mangler |
 |---|---|---|
@@ -66,6 +74,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-29: fakturapipeline F-a/F-b/F-c (hoveddata bevares, linje→produkt, reel dækning).
 - 2026-09-29: RBAC runde 3 færdig — 0 ugatede skrivende actions; streng audit blokerende i CI.
 - 2026-09-28: RBAC runde 2 (modul-paritet): 84 actions i kalkulations-/stamdata-/pakkedomænet gatet; 176 → 92.
 - 2026-09-28: RBAC app-lag runde 1 (P-006): 27 actions med ekstern effekt/globale indstillinger gatet.

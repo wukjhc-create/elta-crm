@@ -33,18 +33,23 @@ Benchmark: KlarPris' fakturakontrol ([Installatør](https://www.installator.dk/m
 | IC2 | **Godkendelses-race ikke håndhævet.** Den "race-sikre" update tjekkede ikke, om en række blev ramt, så en tabt race gav alligevel "ok" og et e-conomic-forsøg. | dobbelt-bogføring | **Rettet:** 0 ramte rækker giver konflikt, og der er intet push. Test I4 (3 parallelle → 1 vinder, 2 konflikter). |
 | IC3 | **Dubletkontrollen fandt altid fakturaen selv** på `file_hash`, så tjekket på leverandør + fakturanummer blev aldrig kørt. | samme faktura to gange | **Rettet:** egen række udelukkes. Test I1/I2. |
 | IC4 | `applyEmailKalkiaPriceUpdates` opdaterede Kalkia-materialepriser **uden rettighedstjek** | prisintegritet (P-005-klassen) | **Rettet:** `materials.edit` |
-| IC5 | API-fakturaers strukturerede hoveddata **overskrives** af regex-parse af JSON-teksten (nr., beløb, datoer bliver null) | datatab | åben, backlog |
+| IC5 | API-fakturaers strukturerede hoveddata **overskrives** af regex-parse af JSON-teksten (nr., beløb, datoer bliver null) | datatab | **Rettet (2026-09-29):** en eksisterende værdi vinder altid over regex, og matcheren bruger strukturerede værdier og leverandør (`knownSupplierId`) plus adapterens ordre-/sagshints. Test I5. |
+| IC9 | Leverandørens varenummer blev smidt væk (`raw_line: null`), så **ingen linje kunne matches** | kontrol umulig | **Rettet:** varenummer bevares i `raw_line`. Deterministisk linje→produkt: varenr. → EAN → varenr. i teksten, kun samme leverandør (`line-matcher.ts`). Test I6. |
+| IC10 | Matcherens CVR-opslag bruger `suppliers.vat_number`, **som ikke findes** → CVR-match har aldrig virket (fejler stille) | lavere matchgrad | åben — kræver migration (kolonne) |
 | IC6 | RLS på `incoming_invoices*` er `USING (true)` for alle indloggede; gates findes kun i server-actions | P-000-klassen | åben, migration (gate) |
 | IC7 | Konverterede linjer får `unit_sales_price: 0` og `billable: true` | risiko for underfakturering | åben, Profit Engine (#18) |
 | IC8 | Ingen OIOUBL, intet tjek af header-total = sum af linjer, e-conomic-fejl returnerer `ok: true`, fejl kun i audit/log | kvalitet og synlighed | åben |
 
-## 4. Kontrolmotor (implementeret, ren)
+## 4. Reel dækning (målt)
+`src/lib/invoice-control/coverage.ts` (ren; samme kode på staging og read-only i prod): `npx tsx scripts/prod-invoice-coverage.ts` og Pilot Health → Integrationer → *Fakturakontrol-dækning*. **Prod 2026-09-29: 0 % (0 af 9 linjer; 3 af 53 fakturaer har linjer)**. Nye API-fakturaer får nu varenummer og match, så tallet kan stige, men det kræver, at API-importen køres (i dag inaktiv/ukonfigureret, gate). Test I7: 75 % dækning og 100 kr merbetaling målt korrekt på en probe-faktura.
+
+## 5. Kontrolmotor (implementeret, ren)
 `controlInvoice(lines, tolerance)` returnerer pr. linje `ok | overcharge | undercharge | not_controllable` (med årsag), og pr. faktura `ok | deviation | partially_controlled | not_controllable`. Den giver også **dækning i %** og **merbetaling i kr**.
 - Tolerance: afvigelsen skal overstige **både** 2 % og 0,50 kr pr. enhed (afrunding giver ikke falske alarmer).
 - En faktura uden kontrollerbare linjer bliver **aldrig** `ok`. Manglende data vises ærligt som manglende dækning.
 - Forventet pris er nettoprisen på fakturadatoen fra grossistaftalen (Profit Engine #18: `supplier_agreements`) eller `supplier_products.cost_price`.
 
-## 5. Målbillede (trin; hver er en gate)
+## 6. Målbillede (trin; hver er en gate)
 1. ✅ Kontrolmotor + fejlrettelser IC1–IC4.
 2. **Linjedata:**
    - behold leverandørens varenummer/EAN fra API-stien og slå op til `supplier_product_id`,

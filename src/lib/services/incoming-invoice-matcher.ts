@@ -41,6 +41,8 @@ export interface MatchInput {
   /** P3 #19: fakturaen der matches — udelukkes fra dublet-opslag (ellers fandt den altid sig selv
    * paa file_hash, og tjekket paa leverandoer+fakturanummer blev aldrig koert). */
   excludeInvoiceId?: string | null
+  /** Leverandoer kendt fra en struktureret kilde (API-import). Vinder over CVR/navn-gaet. */
+  knownSupplierId?: string | null
 }
 
 const WEIGHTS = {
@@ -71,7 +73,13 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
   let caseId: string | null = null
 
   // ---- 1. supplier resolution ----
-  if (input.supplierVatNumber) {
+  // Struktureret kilde (API) er mere paalidelig end regex-udtrukket CVR/navn.
+  if (input.knownSupplierId) {
+    supplierId = input.knownSupplierId
+    breakdown.vat_match = WEIGHTS.vat_match
+    breakdown.reasons.push('structured_supplier')
+  }
+  if (!supplierId && input.supplierVatNumber) {
     const vat = input.supplierVatNumber.replace(/\s/g, '').toUpperCase()
     const { data } = await supabase
       .from('suppliers')

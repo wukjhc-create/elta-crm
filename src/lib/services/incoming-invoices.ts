@@ -329,7 +329,10 @@ export async function ingestFromUpload(input: UploadInput): Promise<{ invoiceId:
 // Parse + match (driven by status='received' / parse_status='pending')
 // =====================================================
 
-export async function parseAndMatch(invoiceId: string): Promise<{
+/** Hints fra en struktureret kilde (API-adapteren), som regex-parseren ikke kan udlede af raw_text. */
+export interface StructuredHints { supplierOrderRefs?: string[]; workOrderHints?: string[] }
+
+export async function parseAndMatch(invoiceId: string, hints: StructuredHints = {}): Promise<{
   parsed: boolean
   matched: boolean
   duplicate: boolean
@@ -339,7 +342,7 @@ export async function parseAndMatch(invoiceId: string): Promise<{
 
   const { data: row } = await supabase
     .from('incoming_invoices')
-    .select('id, raw_text, file_hash, status')
+    .select('id, raw_text, file_hash, status, supplier_id, supplier_name_extracted, supplier_vat_number, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat, payment_reference, iban')
     .eq('id', invoiceId)
     .maybeSingle()
   if (!row) return { parsed: false, matched: false, duplicate: false, message: 'not found' }
@@ -352,15 +355,22 @@ export async function parseAndMatch(invoiceId: string): Promise<{
   const text = row.raw_text || ''
   const parsed = parseSupplierInvoiceText(text)
 
+  // IC5: en eksisterende (struktureret, fx API) vaerdi vinder ALTID over regex-parse — og en tom parse maa
+  // aldrig overskrive en kendt vaerdi. For mail-fakturaer er felterne tomme ved foerste parse (uaendret adfaerd).
+  const pick = <T,>(existing: T | null | undefined, parsedValue: T | null | undefined): T | null =>
+    existing !== null && existing !== undefined && (existing as unknown) !== '' ? existing : (parsedValue ?? null)
+  const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))]
+
   const match = await matchSupplierInvoice({
-    supplierName: parsed.supplierName,
-    supplierVatNumber: parsed.supplierVatNumber,
-    invoiceNumber: parsed.invoiceNumber,
-    workOrderHints: parsed.workOrderHints,
-    supplierOrderRefs: parsed.supplierOrderRefs,
+    supplierName: pick(row.supplier_name_extracted, parsed.supplierName),
+    supplierVatNumber: pick(row.supplier_vat_number, parsed.supplierVatNumber),
+    invoiceNumber: pick(row.invoice_number, parsed.invoiceNumber),
+    workOrderHints: uniq([...(hints.workOrderHints ?? []), ...parsed.workOrderHints]),
+    supplierOrderRefs: uniq([...(hints.supplierOrderRefs ?? []), ...parsed.supplierOrderRefs]),
     deliveryAddressHints: parsed.deliveryAddressHints,
     fileHash: row.file_hash,
     excludeInvoiceId: invoiceId,
+    knownSupplierId: row.supplier_id,
   })
 
   // If duplicate of another row, mark and stop.
@@ -400,18 +410,18 @@ export async function parseAndMatch(invoiceId: string): Promise<{
       : 'parsed'
 
   const patch = {
-    supplier_id: match.supplierId,
-    supplier_name_extracted: parsed.supplierName,
-    supplier_vat_number: parsed.supplierVatNumber,
-    invoice_number: parsed.invoiceNumber,
-    invoice_date: parsed.invoiceDate,
-    due_date: parsed.dueDate,
-    currency: parsed.currency,
-    amount_excl_vat: parsed.amountExclVat,
-    vat_amount: parsed.vatAmount,
-    amount_incl_vat: parsed.amountInclVat,
-    payment_reference: parsed.paymentReference,
-    iban: parsed.iban,
+    supplier_id: pick(row.supplier_id, match.supplierId),
+    supplier_name_extracted: pick(row.supplier_name_extracted, parsed.supplierName),
+    supplier_vat_number: pick(row.supplier_vat_number, parsed.supplierVatNumber),
+    invoice_number: pick(row.invoice_number, parsed.invoiceNumber),
+    invoice_date: pick(row.invoice_date, parsed.invoiceDate),
+    due_date: pick(row.due_date, parsed.dueDate),
+    currency: pick(row.currency, parsed.currency),
+    amount_excl_vat: pick(row.amount_excl_vat, parsed.amountExclVat),
+    vat_amount: pick(row.vat_amount, parsed.vatAmount),
+    amount_incl_vat: pick(row.amount_incl_vat, parsed.amountInclVat),
+    payment_reference: pick(row.payment_reference, parsed.paymentReference),
+    iban: pick(row.iban, parsed.iban),
     matched_work_order_id: match.workOrderId,
     matched_case_id: match.caseId,
     match_confidence: match.confidence,
@@ -766,12 +776,17 @@ export async function ingestFromSupplierAPI(
 
       const invoiceId = ins.id
 
-      // Insert lines (best-effort).
+      // Insert lines (best-effort). Leverandoerens varenummer bevares i raw_line, og linjen matches
+      // deterministisk til supplier_products (sku -> ean -> varenr. i teksten) — grundlag for fakturakontrol.
       if (norm.lines.length > 0) {
+        const { resolveLineProducts } = await import('@/lib/invoice-control/line-matcher')
+        const matches = await resolveLineProducts(supabase, supplierRow.id, norm.lines.map((l) => ({
+          lineNumber: l.lineNumber, description: l.description, supplierProductCode: l.supplierProductCode,
+        })))
         const { error: lineErr } = await supabase
           .from('incoming_invoice_lines')
           .insert(
-            norm.lines.map((l) => ({
+            norm.lines.map((l, i) => ({
               incoming_invoice_id: invoiceId,
               line_number: l.lineNumber,
               description: l.description,
@@ -779,7 +794,8 @@ export async function ingestFromSupplierAPI(
               unit: l.unit,
               unit_price: l.unitPrice,
               total_price: l.totalPrice,
-              raw_line: null,
+              supplier_product_id: matches[i]?.supplierProductId ?? null,
+              raw_line: JSON.stringify({ supplier_product_code: l.supplierProductCode, match_method: matches[i]?.method ?? null }),
             }))
           )
         if (lineErr) {
@@ -801,7 +817,7 @@ export async function ingestFromSupplierAPI(
       })
 
       try {
-        await parseAndMatch(invoiceId)
+        await parseAndMatch(invoiceId, { supplierOrderRefs: norm.supplierOrderRefs, workOrderHints: norm.workOrderHints })
       } catch (err) {
         logger.warn('ingestFromSupplierAPI: parseAndMatch threw', {
           entityId: invoiceId, error: err,

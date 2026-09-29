@@ -6,6 +6,9 @@
  *   I2  en faktura er ikke dublet af sig selv
  *   I3  reparse af en godkendt faktura afvises; status uaendret (foer: blev sendt tilbage i koeen)
  *   I4  3x parallel godkendelse: praecis én vinder; de andre faar konflikt (foer: alle "ok" + e-conomic-forsoeg)
+ *   I5  API-faktura: strukturerede hoveddata overlever parse (foer: regex paa JSON-tekst satte dem til null)
+ *   I6  linje -> produkt: sku / ean / varenr. i tekst / intet match (deterministisk, kun samme leverandoer)
+ *   I7  reel daekningsgrad + merbetaling maales paa probe-fakturaen
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -54,6 +57,45 @@ export async function runInvoicePipeline(c: { admin: SupabaseClient; ownerUid: s
       out.push({ id: 'I4 parallel godkendelse', ok: conflicts === 2 && approvedAudits === 1,
         note: `konflikter=${conflicts}/2 · godkendt-audit=${approvedAudits} · vinder: ${res.find((r) => !/ændret af en anden/.test(r.message))?.message ?? '-'}` })
     }
+
+    // I5 — API-lignende raekke: strukturerede felter + JSON raw_text (regex finder intet)
+    const api = await ins('incoming_invoices', { source: 'manual', supplier_id: supplierId, supplier_name_extracted: 'LM', invoice_number: `${invNo}-API`,
+      invoice_date: '2026-09-01', due_date: '2026-10-01', currency: 'DKK', amount_excl_vat: 800, vat_amount: 200, amount_incl_vat: 1000,
+      raw_text: JSON.stringify({ doc: 'api', items: [1, 2] }), file_hash: `harness-api-${stamp}`, status: 'received', parse_status: 'pending', notes: 'api-ingest:LM' })
+    await parseAndMatch(api, { supplierOrderRefs: [], workOrderHints: [] })
+    const after = (await c.admin.from('incoming_invoices').select('supplier_id, invoice_number, invoice_date, amount_incl_vat, currency').eq('id', api).single()).data as Record<string, unknown>
+    out.push({ id: 'I5 API-hoveddata bevares', ok: after.supplier_id === supplierId && after.invoice_number === `${invNo}-API` && after.invoice_date === '2026-09-01' && Number(after.amount_incl_vat) === 1000,
+      note: `leverandør=${after.supplier_id === supplierId ? 'bevaret' : 'TABT'} · nr=${after.invoice_number ?? 'NULL'} · dato=${after.invoice_date ?? 'NULL'} · beløb=${after.amount_incl_vat ?? 'NULL'}` })
+
+    // I6/I7 — probe-produkter + linjer
+    const { resolveLineProducts } = await import('../../src/lib/invoice-control/line-matcher')
+    const { measureCoverage } = await import('../../src/lib/invoice-control/coverage')
+    const pSku = await ins('supplier_products', { supplier_id: supplierId, supplier_sku: `70${String(stamp).slice(-6)}`, supplier_name: 'Probe SKU', cost_price: 100, ean: null })
+    const pEan = await ins('supplier_products', { supplier_id: supplierId, supplier_sku: `ZZ-${stamp}`, supplier_name: 'Probe EAN', cost_price: 50, ean: `57${String(stamp).slice(-11)}` })
+    const pDesc = await ins('supplier_products', { supplier_id: supplierId, supplier_sku: `81${String(stamp).slice(-6)}`, supplier_name: 'Probe tekst', cost_price: 10 })
+    const lines = [
+      { lineNumber: 1, description: 'Kabel', supplierProductCode: `70${String(stamp).slice(-6)}` },
+      { lineNumber: 2, description: 'Stikdåse', supplierProductCode: `57${String(stamp).slice(-11)}` },
+      { lineNumber: 3, description: `Varenr ${`81${String(stamp).slice(-6)}`} afbryder`, supplierProductCode: null },
+      { lineNumber: 4, description: 'Fragt', supplierProductCode: null },
+    ]
+    const m = await resolveLineProducts(c.admin, supplierId, lines)
+    out.push({ id: 'I6 linje→produkt', ok: m[0].supplierProductId === pSku && m[0].method === 'sku' && m[1].supplierProductId === pEan && m[1].method === 'ean'
+      && m[2].supplierProductId === pDesc && m[2].method === 'description_sku' && m[3].supplierProductId === null,
+      note: m.map((x) => `${x.lineNumber}:${x.method ?? 'intet'}`).join(' ') })
+
+    const cov = measureCoverage([{ id: api, supplier_id: supplierId, lines: [
+      { line_number: 1, description: 'Kabel', quantity: 10, unit_price: 110, supplier_product_id: pSku, raw_line: null },          // +10 % -> merbetaling 100
+      { line_number: 2, description: 'Stikdåse', quantity: 4, unit_price: 50, supplier_product_id: null, raw_line: JSON.stringify({ supplier_product_code: lines[1].supplierProductCode }) },
+      { line_number: 3, description: lines[2].description, quantity: 20, unit_price: 10, supplier_product_id: null, raw_line: null },
+      { line_number: 4, description: 'Fragt', quantity: 1, unit_price: 95, supplier_product_id: null, raw_line: null },
+    ] }], new Map([[supplierId, [
+      { id: pSku, supplier_sku: `70${String(stamp).slice(-6)}`, ean: null, cost_price: 100 },
+      { id: pEan, supplier_sku: `ZZ-${stamp}`, ean: `57${String(stamp).slice(-11)}`, cost_price: 50 },
+      { id: pDesc, supplier_sku: `81${String(stamp).slice(-6)}`, ean: null, cost_price: 10 },
+    ]]]), new Map([[pSku, { id: pSku, supplier_sku: null, ean: null, cost_price: 100 }]]))
+    out.push({ id: 'I7 reel dækning + merbetaling', ok: cov.coveragePct === 75 && cov.controllableLines === 3 && cov.overchargeAmount === 100 && cov.verdicts.deviation === 1 && cov.byMethod.stored === 1,
+      note: `dækning=${cov.coveragePct}% (${cov.controllableLines}/${cov.lines}) · merbetaling=${cov.overchargeAmount} kr · metoder=${JSON.stringify(cov.byMethod)}` })
   } finally {
     for (const x of created) {
       if (x.table === 'incoming_invoices') await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', x.id)

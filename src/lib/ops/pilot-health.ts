@@ -182,6 +182,14 @@ async function integrationItems(admin: Admin): Promise<HealthItem[]> {
   const l = lemu.data?.[0] as { job_type?: string; status?: string; created_at?: string } | undefined
   items.push({ label: 'Leverandørsync (seneste)', level: !l ? 'yellow' : l.status === 'failed' ? 'red' : 'green', detail: l ? `${l.job_type} ${l.status} ${ago(l.created_at)}` : 'ingen sync-log' })
   const c = (creds.data ?? []) as Array<{ is_active: boolean; last_test_status: string | null }>
+  try {
+    const { loadAndMeasureCoverage } = await import('@/lib/invoice-control/coverage')
+    const cov = await loadAndMeasureCoverage(admin)
+    items.push({ label: 'Fakturakontrol-dækning', level: cov.lines === 0 || cov.coveragePct < 50 ? 'yellow' : cov.verdicts.deviation > 0 ? 'yellow' : 'green',
+      detail: `${cov.coveragePct} % af ${cov.lines} linjer kontrollerbare (${cov.invoicesWithLines}/${cov.invoices} fakturaer har linjer) · afvigelser ${cov.deviatingLines} · merbetaling ${cov.overchargeAmount} kr` })
+  } catch (err) {
+    items.push({ label: 'Fakturakontrol-dækning', level: 'unknown', detail: `kunne ikke måles: ${err instanceof Error ? err.message.slice(0, 80) : 'fejl'}` })
+  }
   items.push({ label: 'Leverandør-credentials', level: c.some((x) => x.is_active && x.last_test_status === 'failed') ? 'yellow' : 'green', detail: `${c.filter((x) => x.is_active).length} aktive · ${c.filter((x) => x.last_test_status === 'failed').length} med fejlet test (værdier vises aldrig)` })
   return items
 }
