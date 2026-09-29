@@ -80,7 +80,21 @@ async function handleCron(request: Request): Promise<Response> {
       `dup=${summary.duplicates}`,
       `err=${summary.errors}`
     )
-    return NextResponse.json({ ok: true, summary })
+
+    // IC11: backfill af aeldre broedtekst-fakturaer med PDF-vedhaeftning — kun naar INVOICE_ATTACHMENT_FETCH_ENABLED
+    // er TIL (ellers no-op). Lille batch pr. koersel (maxDuration 60 s); idempotent, fejl pr. mail isoleres.
+    let backfill: { candidates: number; processed: number; byOutcome: Record<string, number> } | null = null
+    try {
+      const { backfillInvoiceAttachments } = await import('@/lib/invoice-control/attachment-backfill')
+      const b = await backfillInvoiceAttachments({ limit: 8 })
+      if (b.enabled) {
+        backfill = { candidates: b.candidates, processed: b.processed, byOutcome: b.byOutcome }
+        console.log('INCOMING INVOICES BACKFILL:', `candidates=${b.candidates}`, `processed=${b.processed}`, JSON.stringify(b.byOutcome))
+      }
+    } catch (err) {
+      logger.error('incoming-invoices cron: attachment backfill threw', { error: err })
+    }
+    return NextResponse.json({ ok: true, summary, backfill })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Internal error' },

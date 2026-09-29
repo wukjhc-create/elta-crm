@@ -911,7 +911,7 @@ export async function backfillEmailAttachments(
   // Fetch the email to get graph_message_id
   const { data: email, error: fetchError } = await supabase
     .from('incoming_emails')
-    .select('id, graph_message_id, has_attachments, attachment_urls')
+    .select('id, graph_message_id, has_attachments, attachment_urls, to_email')
     .eq('id', emailId)
     .single()
 
@@ -933,7 +933,7 @@ export async function backfillEmailAttachments(
     const { processEmailAttachments } = await import(
       '@/lib/services/email-attachment-storage'
     )
-    const stored = await processEmailAttachments(emailId, email.graph_message_id)
+    const stored = await processEmailAttachments(emailId, email.graph_message_id, email.to_email || undefined)
     revalidatePath('/dashboard/mail')
     return { success: true, count: stored.length }
   } catch (err) {

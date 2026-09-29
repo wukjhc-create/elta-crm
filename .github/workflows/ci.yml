@@ -50,6 +50,10 @@ jobs:
       - name: RBAC — server-action gate audit
         run: npm run check:rbac
 
+      # IC12: faktura-PDF-tekstudtraek (pdf-parse v2). Lokal, ingen DB/secrets.
+      - name: Fakturakontrol - PDF-tekst
+        run: npm run test:invoice-pdf
+
       - name: Build application
         run: npm run build
         env:

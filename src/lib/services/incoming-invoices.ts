@@ -90,12 +90,12 @@ interface EmailAttachment {
 export const LOCKED_INVOICE_STATUSES: string[] = ['approved', 'posted', 'rejected', 'cancelled']
 
 export async function ingestFromEmail(emailId: string): Promise<IngestEmailResult> {
-  const result: IngestEmailResult = { ingested: 0, duplicates: 0, errors: [], invoiceIds: [] }
+  const result: IngestEmailResult = { ingested: 0, duplicates: 0, errors: [], invoiceIds: [], upgraded: 0, skipped: [] }
   const supabase = createAdminClient()
 
   const { data: email, error: readErr } = await supabase
     .from('incoming_emails')
-    .select('id, sender_email, sender_name, subject, body_text, body_preview, attachment_urls, has_attachments, graph_message_id')
+    .select('id, sender_email, sender_name, subject, body_text, body_preview, attachment_urls, has_attachments, graph_message_id, to_email, customer_id')
     .eq('id', emailId)
     .maybeSingle()
   if (readErr || !email) {
@@ -103,14 +103,22 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
     return result
   }
 
+  // IC13: en mail som kunden SELV har sendt (afsender = den koblede kundes e-mail) er ikke en leverandoerfaktura.
+  // Prod: 20 af 50 "faktura-mails" var kundens egne mails med billeder/bilag. Deterministisk frasortering.
+  if (await isCustomerOwnMail(supabase, email)) {
+    result.skipped!.push('customer_mail')
+    return result
+  }
+
   // Vedhaeftninger hentes KUN naar INVOICE_ATTACHMENT_FETCH_ENABLED er TIL (default OFF = uaendret adfaerd).
+  // Kun LAESNING fra postkassen + upload til privat storage; aldrig arkivering i customer_documents (portal).
   // Fejl ved hentning -> fallback til broedtekst som i dag. Se src/lib/invoice-control/attachment-gate.ts.
   let attachmentUrls: unknown = email.attachment_urls
   const { isInvoiceAttachmentFetchEnabled, shouldFetchAttachments } = await import('@/lib/invoice-control/attachment-gate')
   if (shouldFetchAttachments(email, isInvoiceAttachmentFetchEnabled())) {
     try {
       const { processEmailAttachments } = await import('@/lib/services/email-attachment-storage')
-      await processEmailAttachments(emailId, email.graph_message_id as string)
+      await processEmailAttachments(emailId, email.graph_message_id as string, email.to_email || undefined, { archiveToCustomer: false })
       const { data: fresh } = await supabase.from('incoming_emails').select('attachment_urls').eq('id', emailId).maybeSingle()
       attachmentUrls = (fresh as { attachment_urls?: unknown } | null)?.attachment_urls ?? attachmentUrls
     } catch (err) {
@@ -119,88 +127,183 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
     }
   }
 
+  const bodyText = email.body_text || email.body_preview || ''
   const attachments: EmailAttachment[] = parseAttachments(attachmentUrls)
   const candidates = attachments.filter(isLikelyInvoiceAttachment)
 
   // No attachments: still ingest the email body as a single record (some
   // suppliers email plain-text invoices). Skip if body is tiny.
   if (candidates.length === 0) {
-    const body = (email.body_text || email.body_preview || '').trim()
-    if (body.length < 200) return result
-    candidates.push({ name: `email-${emailId}.txt`, mime: 'text/plain' })
+    if (bodyText.trim().length < 200) return result
+    await insertEmailInvoice(supabase, emailId, email.sender_name, { name: bodyInvoiceName(emailId), mime: 'text/plain' }, bodyText, result)
+    return logIngest(emailId, result)
   }
 
-  for (const att of candidates) {
+  // IC11: findes der allerede en (ulaast) broedtekst-faktura for mailen, OPGRADERES den med vedhaeftningens tekst i
+  // stedet for at oprette en ny raekke — ellers dubletfakturaer ved backfill/genkoersel.
+  const { data: existingRows } = await supabase.from('incoming_invoices').select('id, status, file_name').eq('source_email_id', emailId)
+  const existing = (existingRows ?? []) as Array<{ id: string; status: string; file_name: string | null }>
+  let bodyInvoice = existing.find((r) => r.file_name === bodyInvoiceName(emailId) && !LOCKED_INVOICE_STATUSES.includes(r.status)) ?? null
+  let mailHasInvoice = existing.length > 0
+
+  // Udtraek tekst foerst; vedhaeftninger MED fakturanummer behandles foerst (deterministisk raekkefoelge).
+  const texts = await Promise.all(candidates.map(async (att) => ({ att, text: await extractAttachmentText(att) })))
+  const ranked = texts
+    .map((t) => ({ ...t, invoiceNumber: t.text ? parseSupplierInvoiceText(t.text).invoiceNumber : null }))
+    .sort((a, b) => Number(!!b.invoiceNumber) - Number(!!a.invoiceNumber) || (a.att.name ?? '').localeCompare(b.att.name ?? ''))
+
+  for (const { att, text, invoiceNumber } of ranked) {
     try {
-      const rawText = await fetchAttachmentText(att, email.body_text || email.body_preview || '')
-      const fileHash = rawText ? sha256(rawText) : null
-
-      // Hard-dedup on file hash — UNIQUE index on file_hash blocks the row;
-      // we pre-check to log it as a duplicate cleanly.
-      if (fileHash) {
-        const { data: dup } = await supabase
-          .from('incoming_invoices')
-          .select('id')
-          .eq('file_hash', fileHash)
-          .limit(1)
-          .maybeSingle()
-        if (dup) {
-          result.duplicates++
-          continue
-        }
-      }
-
-      const { data: ins, error } = await supabase
-        .from('incoming_invoices')
-        .insert({
-          source: 'email',
-          source_email_id: emailId,
-          file_url: att.url ?? null,
-          file_name: att.name ?? null,
-          file_size_bytes: att.size ?? null,
-          mime_type: att.mime ?? null,
-          file_hash: fileHash,
-          raw_text: rawText,
-          supplier_name_extracted: email.sender_name ?? null,
-          status: 'received',
-          parse_status: 'pending',
-        })
-        .select('id')
-        .single()
-
-      if (error) {
-        if ((error as { code?: string }).code === '23505') {
-          result.duplicates++
-          continue
-        }
-        result.errors.push(`${att.name ?? 'attachment'}: ${error.message}`)
+      if (!text) {
+        // Ingen udtrukket tekst (ikke-PDF / ulaeselig): broedtekst-fallback kun hvis mailen ikke allerede har en faktura.
+        if (mailHasInvoice) { result.skipped!.push('unreadable_attachment'); continue }
+        if (await insertEmailInvoice(supabase, emailId, email.sender_name, att, bodyText, result)) mailHasInvoice = true
         continue
       }
+      const fileHash = sha256(text)
+      const { data: dup } = await supabase.from('incoming_invoices').select('id').eq('file_hash', fileHash).limit(1).maybeSingle()
+      if (dup) { result.duplicates++; continue }
 
-      const invoiceId = ins!.id
-      result.ingested++
-      result.invoiceIds.push(invoiceId)
-      await auditLog({
-        incomingInvoiceId: invoiceId,
-        action: 'ingested',
-        message: `from email ${emailId} attachment ${att.name ?? '(body)'}`,
-        newValue: { source: 'email', file_name: att.name ?? null },
-      })
-
-      // Run parse + match immediately.
-      try {
-        await parseAndMatch(invoiceId)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        await auditLog({ incomingInvoiceId: invoiceId, action: 'error', ok: false, message: msg })
+      if (bodyInvoice) {
+        const upgraded = await upgradeBodyInvoice(supabase, emailId, bodyInvoice, att, text, fileHash)
+        if (upgraded === 'upgraded') { result.upgraded!++; result.invoiceIds.push(bodyInvoice.id); bodyInvoice = null; continue }
+        if (upgraded === 'duplicate') { result.duplicates++; continue }
+        bodyInvoice = null // raekken blev aendret af en anden imens — almindelig regel nedenfor
       }
+      // Ekstra vedhaeftninger paa en mail der allerede har en faktura: kun hvis teksten har et fakturanummer
+      // (ellers typisk handelsbetingelser/foelgeseddel -> stoej i godkendelseskoeen).
+      if (mailHasInvoice && !invoiceNumber) { result.skipped!.push('non_invoice_attachment'); continue }
+      if (await insertEmailInvoice(supabase, emailId, email.sender_name, att, text, result)) mailHasInvoice = true
     } catch (err) {
       result.errors.push(err instanceof Error ? err.message : String(err))
     }
   }
+  return logIngest(emailId, result)
+}
 
-  console.log('INCOMING INVOICE EMAIL INGEST:', emailId, 'ingested=' + result.ingested, 'dup=' + result.duplicates, 'err=' + result.errors.length)
+function bodyInvoiceName(emailId: string): string {
+  return `email-${emailId}.txt`
+}
+
+function logIngest(emailId: string, result: IngestEmailResult): IngestEmailResult {
+  console.log('INCOMING INVOICE EMAIL INGEST:', emailId, 'ingested=' + result.ingested, 'upgraded=' + (result.upgraded ?? 0),
+    'dup=' + result.duplicates, 'skipped=' + (result.skipped?.length ?? 0), 'err=' + result.errors.length)
   return result
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
+/** IC13: afsender er praecis den e-mail der staar paa mailens koblede kunde. */
+export async function isCustomerOwnMail(supabase: AdminClient, email: { customer_id?: string | null; sender_email?: string | null }): Promise<boolean> {
+  if (!email.customer_id || !email.sender_email) return false
+  const { data: customer } = await supabase.from('customers').select('email').eq('id', email.customer_id).maybeSingle()
+  const custEmail = ((customer as { email?: string | null } | null)?.email || '').trim().toLowerCase()
+  return !!custEmail && custEmail === email.sender_email.trim().toLowerCase()
+}
+
+/** Indsaet en ny mail-faktura (hash-dedup) og koer parse+match. Returnerer true hvis en raekke blev oprettet. */
+async function insertEmailInvoice(
+  supabase: AdminClient, emailId: string, senderName: string | null, att: EmailAttachment, rawText: string, result: IngestEmailResult,
+): Promise<boolean> {
+  const fileHash = rawText ? sha256(rawText) : null
+  // Hard-dedup on file hash — UNIQUE index on file_hash blocks the row;
+  // we pre-check to log it as a duplicate cleanly.
+  if (fileHash) {
+    const { data: dup } = await supabase.from('incoming_invoices').select('id').eq('file_hash', fileHash).limit(1).maybeSingle()
+    if (dup) { result.duplicates++; return false }
+  }
+  const { data: ins, error } = await supabase
+    .from('incoming_invoices')
+    .insert({
+      source: 'email',
+      source_email_id: emailId,
+      file_url: att.url ?? null,
+      file_name: att.name ?? null,
+      file_size_bytes: att.size ?? null,
+      mime_type: att.mime ?? null,
+      file_hash: fileHash,
+      raw_text: rawText,
+      supplier_name_extracted: senderName ?? null,
+      status: 'received',
+      parse_status: 'pending',
+    })
+    .select('id')
+    .single()
+  if (error) {
+    if ((error as { code?: string }).code === '23505') { result.duplicates++; return false }
+    result.errors.push(`${att.name ?? 'attachment'}: ${error.message}`)
+    return false
+  }
+  const invoiceId = ins!.id
+  result.ingested++
+  result.invoiceIds.push(invoiceId)
+  await auditLog({
+    incomingInvoiceId: invoiceId,
+    action: 'ingested',
+    message: `from email ${emailId} attachment ${att.name ?? '(body)'}`,
+    newValue: { source: 'email', file_name: att.name ?? null },
+  })
+  // Run parse + match immediately.
+  try {
+    await parseAndMatch(invoiceId)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    await auditLog({ incomingInvoiceId: invoiceId, action: 'error', ok: false, message: msg })
+  }
+  return true
+}
+
+/** Header-felter der blev udledt af broedteksten og nulstilles, naar den autoritative PDF-tekst overtager. */
+const BODY_DERIVED_FIELDS = ['supplier_vat_number', 'invoice_number', 'invoice_date', 'due_date', 'amount_excl_vat', 'vat_amount',
+  'amount_incl_vat', 'payment_reference', 'iban'] as const
+
+/**
+ * IC11: opgrader en ulaast broedtekst-faktura med vedhaeftningens tekst. Race-/idempotens-sikker: opdateringen
+ * kraever uaendret status OG at raekken stadig er broedtekst-fakturaen; derefter deterministisk genparse.
+ * supplier_id og leverandoernavn bevares (eksisterende match). Forrige vaerdier gemmes i audit-loggen.
+ */
+async function upgradeBodyInvoice(
+  supabase: AdminClient, emailId: string, inv: { id: string; status: string }, att: EmailAttachment, text: string, fileHash: string,
+): Promise<'upgraded' | 'duplicate' | 'conflict'> {
+  const { data: prev } = await supabase.from('incoming_invoices')
+    .select(`status, parse_status, file_name, ${BODY_DERIVED_FIELDS.join(', ')}`).eq('id', inv.id).maybeSingle()
+  const reset = Object.fromEntries(BODY_DERIVED_FIELDS.map((f) => [f, null]))
+  const { data: rows, error } = await supabase
+    .from('incoming_invoices')
+    .update({
+      ...reset,
+      raw_text: text,
+      file_hash: fileHash,
+      file_url: att.url ?? null,
+      file_name: att.name ?? null,
+      mime_type: att.mime ?? 'application/pdf',
+      file_size_bytes: att.size ?? null,
+      duplicate_of_id: null,
+      status: 'received',
+      parse_status: 'pending',
+    })
+    .eq('id', inv.id)
+    .eq('status', inv.status)
+    .eq('file_name', bodyInvoiceName(emailId))
+    .select('id')
+  if (error) {
+    if ((error as { code?: string }).code === '23505') return 'duplicate'
+    throw new Error(`upgrade ${inv.id}: ${error.message}`)
+  }
+  if (!rows || rows.length !== 1) return 'conflict'
+  await auditLog({
+    incomingInvoiceId: inv.id,
+    action: 'upgraded_from_attachment',
+    message: `brødtekst erstattet af vedhæftning ${att.name ?? '(ukendt)'} fra email ${emailId}`,
+    previousValue: prev ?? null,
+    newValue: { file_name: att.name ?? null, mime_type: att.mime ?? null },
+  })
+  try {
+    await parseAndMatch(inv.id)
+  } catch (err) {
+    await auditLog({ incomingInvoiceId: inv.id, action: 'error', ok: false, message: err instanceof Error ? err.message : String(err) })
+  }
+  return 'upgraded'
 }
 
 function parseAttachments(raw: unknown): EmailAttachment[] {
@@ -222,36 +325,24 @@ function parseAttachments(raw: unknown): EmailAttachment[] {
 }
 
 /**
- * Fetch the text of an attachment.
- *
- * - text/plain → return the email body as the synthesised text.
- * - PDF (mime application/pdf or .pdf filename) → download bytes from
- *   `att.url` and pass through pdf-parse. Falls back to email body on
- *   any error so the pipeline keeps moving.
- * - Anything else → email body fallback.
+ * Udtraek tekst fra en vedhaeftning. Returnerer null naar der ikke kunne udtraekkes brugbar tekst (ikke-PDF,
+ * download-fejl, ulaeselig PDF) — kalderen beslutter fallback. PDF via pdf-parse v2 (IC12).
  */
-async function fetchAttachmentText(
-  att: EmailAttachment,
-  fallback: string
-): Promise<string> {
-  if (att.mime === 'text/plain') return fallback
-
+async function extractAttachmentText(att: EmailAttachment): Promise<string | null> {
   const looksLikePdf =
     (att.mime || '').toLowerCase().includes('pdf') ||
     /\.pdf(\?|$)/i.test(att.url || att.name || '')
-  if (!looksLikePdf || !att.url) return fallback
-
+  if (!looksLikePdf || !att.url) return null
   try {
     const buf = await downloadAttachmentBytes(att.url)
-    if (!buf || buf.length === 0) return fallback
+    if (!buf || buf.length === 0) return null
+    const { extractPdfText } = await import('@/lib/invoice-control/pdf-text')
     const text = await extractPdfText(buf)
     if (text && text.trim().length > 50) return text
   } catch (err) {
-    logger.warn('PDF text extraction failed (using email body)', {
-      metadata: { url: att.url }, error: err,
-    })
+    logger.warn('PDF text extraction failed', { metadata: { file: att.name }, error: err })
   }
-  return fallback
+  return null
 }
 
 async function downloadAttachmentBytes(url: string): Promise<Buffer | null> {
@@ -262,23 +353,6 @@ async function downloadAttachmentBytes(url: string): Promise<Buffer | null> {
     return Buffer.from(ab)
   } catch {
     return null
-  }
-}
-
-/**
- * Extract text from a PDF buffer using pdf-parse. Wrapped so a
- * failing PDF library never crashes the ingest pipeline.
- */
-async function extractPdfText(buf: Buffer): Promise<string> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-    const mod: any = await import('pdf-parse')
-    const fn = (mod.default || mod) as (b: Buffer) => Promise<{ text: string }>
-    const result = await fn(buf)
-    return (result?.text || '').trim()
-  } catch (err) {
-    logger.warn('pdf-parse threw', { error: err })
-    return ''
   }
 }
 

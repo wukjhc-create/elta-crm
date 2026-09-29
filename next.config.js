@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Mark native Node.js packages as external so they're not bundled by Turbopack
-  serverExternalPackages: ['ssh2', 'ssh2-sftp-client', 'basic-ftp', 'socks', 'cpu-features'],
+  // pdf-parse v2 + pdfjs-dist (faktura-PDF, IC12) koeres som native Node-moduler (worker-filer maa ikke bundles).
+  serverExternalPackages: ['ssh2', 'ssh2-sftp-client', 'basic-ftp', 'socks', 'cpu-features', 'pdf-parse', 'pdfjs-dist'],
   images: {
     remotePatterns: [
       {

@@ -113,4 +113,8 @@ export interface IngestEmailResult {
   duplicates: number
   errors: string[]
   invoiceIds: string[]
+  /** IC11: eksisterende broedtekst-faktura opgraderet med PDF-vedhaeftningens tekst (ingen ny raekke). */
+  upgraded?: number
+  /** Deterministiske frasorteringer, fx 'customer_mail' (afsender = mailens kunde) eller 'non_invoice_attachment'. */
+  skipped?: string[]
 }

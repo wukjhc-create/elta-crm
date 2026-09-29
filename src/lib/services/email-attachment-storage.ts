@@ -149,7 +149,10 @@ export async function downloadAndStoreAttachment(
 export async function processEmailAttachments(
   emailId: string,
   graphMessageId: string,
-  mailboxOverride?: string
+  mailboxOverride?: string,
+  // Faktura-pipelinen (IC11) saetter false: leverandoerfakturaer maa ALDRIG arkiveres i customer_documents,
+  // fordi alle kundens dokumenter vises i kundeportalen (indkoebspriser). Default = uaendret adfaerd.
+  options: { archiveToCustomer?: boolean } = {}
 ): Promise<StoredAttachment[]> {
   const { fetchMessageWithAttachments } = await import('@/lib/services/microsoft-graph')
 
@@ -244,7 +247,7 @@ export async function processEmailAttachments(
     // Læser email.customer_id + service_case_id og opretter
     // customer_documents-rows. Idempotent: skipper allerede-arkiverede
     // filer baseret på storage_path.
-    await archiveAttachmentsToCustomerDocuments(emailId, stored)
+    if (options.archiveToCustomer !== false) await archiveAttachmentsToCustomerDocuments(emailId, stored)
   }
 
   logger.info('Email attachments processed', {

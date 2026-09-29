@@ -330,6 +330,7 @@ async function status() {
         + (SELECT count(*) FROM integration_logs WHERE log_type LIKE 'harness_anon_probe_%') AS role_probes,
       (SELECT count(*) FROM incoming_invoices WHERE invoice_number LIKE 'HARN-%' OR file_hash LIKE 'harness-%')
         + (SELECT count(*) FROM incoming_emails WHERE sender_email LIKE 'faktura-%@harness.test')
+        + (SELECT count(*) FROM customers WHERE customer_number LIKE 'HARNESS-ATT-%')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSINV%') AS invoice_probes`))[0]
   const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n
     FROM agent_actions a JOIN agent_runs r ON r.id = a.run_id WHERE a.created_at > now() - interval '24 hours' GROUP BY 1,2,3 ORDER BY 1,2`)
@@ -447,6 +448,14 @@ async function main() {
     const actors = await ensureActors(admin, seedBase)
     const checks = await runInvoicePipeline({ admin, ownerUid: actors.ownerUid })
     log(formatInvoicePipeline(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
+  if (SUB === 'invoice-attachments') {
+    const { runInvoiceAttachments, formatInvoiceAttachments } = await import('./invoice-attachments')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runInvoiceAttachments({ admin, ownerUid: actors.ownerUid })
+    log(formatInvoiceAttachments(checks))
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
