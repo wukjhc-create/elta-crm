@@ -12,6 +12,7 @@
  * can be unit-tested and re-run on the same text deterministically.
  */
 import type { ParsedInvoiceFields } from '@/types/incoming-invoices.types'
+import { normalizeVatNumber } from '@/lib/invoice-control/vat'
 
 export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
   const text = (rawText || '').replace(/ /g, ' ')
@@ -178,11 +179,9 @@ export function parseSupplierInvoiceText(rawText: string): ParsedInvoiceFields {
 // helpers
 // =====================================================
 
+// Samme regel som suppliers.vat_number-triggeren (00167) — se src/lib/invoice-control/vat.ts.
 function normalizeVat(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (digits.length === 8) return `DK${digits}`
-  if (digits.length === 10 && digits.startsWith('45')) return `DK${digits.slice(2)}`
-  return raw.replace(/\s/g, '').toUpperCase()
+  return normalizeVatNumber(raw) ?? raw.replace(/\s/g, '').toUpperCase()
 }
 
 function guessSupplierName(lines: string[]): string | null {

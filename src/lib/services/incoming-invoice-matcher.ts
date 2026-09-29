@@ -15,6 +15,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { MatchBreakdown } from '@/types/incoming-invoices.types'
+import { normalizeVatNumber } from '@/lib/invoice-control/vat'
 
 export interface MatchResult {
   supplierId: string | null
@@ -80,16 +81,18 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
     breakdown.reasons.push('structured_supplier')
   }
   if (!supplierId && input.supplierVatNumber) {
-    const vat = input.supplierVatNumber.replace(/\s/g, '').toUpperCase()
-    const { data } = await supabase
-      .from('suppliers')
-      .select('id, code, name, vat_number')
-      .ilike('vat_number', vat)
-      .limit(2)
-    if (data && data.length === 1) {
+    // IC10: suppliers.vat_number (00167) er normaliseret af trigger; samme regel her. Praecis ét hit kraeves —
+    // flere leverandoerer med samme CVR = tvetydigt, intet gaet (navne-match kan stadig afgoere det).
+    const vat = normalizeVatNumber(input.supplierVatNumber)
+    const { data, error: vatErr } = vat
+      ? await supabase.from('suppliers').select('id, code, name').eq('vat_number', vat).limit(2)
+      : { data: null, error: null }
+    if (!vatErr && data && data.length === 1) {
       supplierId = data[0].id
       breakdown.vat_match = WEIGHTS.vat_match
       breakdown.reasons.push(`vat_match:${vat}`)
+    } else if (!vatErr && data && data.length > 1) {
+      breakdown.reasons.push(`ambiguous_vat:${vat}`)
     }
   }
   if (!supplierId && input.supplierName) {

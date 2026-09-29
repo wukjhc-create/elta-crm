@@ -15,6 +15,8 @@ export interface Supplier {
   contact_email: string | null
   contact_phone: string | null
   website: string | null
+  /** CVR/VAT, normaliseret (fx DK12345678). Migration 00167. */
+  vat_number?: string | null
   notes: string | null
   is_active: boolean
   created_by: string | null
@@ -29,6 +31,8 @@ export interface CreateSupplierData {
   contact_email?: string
   contact_phone?: string
   website?: string
+  /** CVR/VAT — normaliseres server-side (samme regel som DB-triggeren i 00167). */
+  vat_number?: string
   notes?: string
   is_active?: boolean
 }

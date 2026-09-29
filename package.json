@@ -36,6 +36,7 @@
     "harness:invoice-pipeline": "tsx scripts/test-harness/cli.ts invoice-pipeline",
     "harness:invoice-attachments": "tsx scripts/test-harness/cli.ts invoice-attachments",
     "test:invoice-pdf": "tsx scripts/invoice-pdf-text-test.ts",
+    "harness:supplier-vat": "tsx scripts/test-harness/cli.ts supplier-vat",
     "harness:supplier-lockdown": "tsx scripts/test-harness/cli.ts supplier-lockdown",
     "security:actions": "tsx scripts/action-gate-audit.ts --domain supplier && tsx scripts/action-gate-audit.ts --unauth",
     "check:rbac": "tsx scripts/action-gate-audit.ts --strict && tsx scripts/action-gate-audit.ts --unauth && tsx scripts/action-gate-audit-test.ts",

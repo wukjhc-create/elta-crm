@@ -20,12 +20,32 @@ import type {
   SupplierOptionForMaterial,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { normalizeVatNumber, isValidVatFormat } from '@/lib/invoice-control/vat'
 
 /**
  * P3 #17 / P-005: skrivende leverandoer-/prisimport-actions var ugatede (enhver indlogget kunne overskrive
  * kostpriser via direkte server-action-kald). Kraever nu settings.suppliers (admin) — samme gate som credentials.
  * Laese-actions (produktsoegning i tilbud/kalkulation) er uaendrede.
  */
+/**
+ * CVR (00167): normaliseres med samme regel som DB-triggeren. Feltet sendes KUN naar det er relevant, saa
+ * formularen virker baade foer og efter migrationen (expand/contract): tomt ved opret -> udelades; tomt ved
+ * redigering af en leverandoer uden CVR -> udelades; tomt ved redigering med CVR -> NULL (ryddes).
+ */
+function prepareVat(raw: string | undefined, mode: 'create' | 'update'): { value: string | null | undefined } | { error: string } {
+  if (raw === undefined) return { value: undefined }
+  const v = normalizeVatNumber(raw)
+  if (v === null) return { value: mode === 'create' ? undefined : null }
+  if (!isValidVatFormat(v)) return { error: 'Ugyldigt CVR-nr. — brug 8 cifre (fx 12345678) eller landekode + nummer' }
+  return { value: v }
+}
+
+function withVat<T extends { vat_number?: string }>(data: T, vat: string | null | undefined): Omit<T, 'vat_number'> & { vat_number?: string | null } {
+  const rest: Omit<T, 'vat_number'> & { vat_number?: string } = { ...data }
+  delete rest.vat_number
+  return vat === undefined ? rest : { ...rest, vat_number: vat }
+}
+
 async function requireSupplierWrite() {
   const ctx = await getAuthenticatedClientWithRole()
   ctx.requirePermission('settings.suppliers')
@@ -107,11 +127,13 @@ export async function createSupplier(
 ): Promise<ActionResult<Supplier>> {
   try {
     const { supabase, userId } = await requireSupplierWrite()
+    const vat = prepareVat(data.vat_number, 'create')
+    if ('error' in vat) return { success: false, error: vat.error }
 
     const { data: supplier, error } = await supabase
       .from('suppliers')
       .insert({
-        ...data,
+        ...withVat(data, vat.value),
         created_by: userId,
       })
       .select()
@@ -139,10 +161,12 @@ export async function updateSupplier(
   try {
     const { supabase } = await requireSupplierWrite()
     validateUUID(id, 'leverandør ID')
+    const vat = prepareVat(data.vat_number, 'update')
+    if ('error' in vat) return { success: false, error: vat.error }
 
     const { data: supplier, error } = await supabase
       .from('suppliers')
-      .update(data)
+      .update(withVat(data, vat.value))
       .eq('id', id)
       .select()
       .single()

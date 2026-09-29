@@ -41,6 +41,7 @@ export function SupplierForm({
     contact_email: supplier?.contact_email || '',
     contact_phone: supplier?.contact_phone || '',
     website: supplier?.website || '',
+    vat_number: supplier?.vat_number || '',
     notes: supplier?.notes || '',
     is_active: supplier?.is_active ?? true,
   })
@@ -57,11 +58,15 @@ export function SupplierForm({
 
     setIsSaving(true)
 
+    // CVR sendes kun naar det er aendret (virker ogsaa foer migration 00167, hvor kolonnen ikke findes).
+    const payload: CreateSupplierData = { ...formData }
+    if ((formData.vat_number || '').trim() === (supplier?.vat_number || '')) delete payload.vat_number
+
     let result
     if (isEdit) {
-      result = await updateSupplier(supplier.id, formData)
+      result = await updateSupplier(supplier.id, payload)
     } else {
-      result = await createSupplier(formData)
+      result = await createSupplier(payload)
     }
 
     if (result.success) {
@@ -117,15 +122,27 @@ export function SupplierForm({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="website">Website</Label>
-              <Input
-                id="website"
-                type="url"
-                value={formData.website}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                placeholder="https://www.example.dk"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="website">Website</Label>
+                <Input
+                  id="website"
+                  type="url"
+                  value={formData.website}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  placeholder="https://www.example.dk"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vat_number">CVR-nr.</Label>
+                <Input
+                  id="vat_number"
+                  value={formData.vat_number}
+                  onChange={(e) => setFormData({ ...formData, vat_number: e.target.value })}
+                  placeholder="F.eks. 12345678"
+                  maxLength={20}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

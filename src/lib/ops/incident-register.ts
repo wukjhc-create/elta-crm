@@ -16,6 +16,10 @@ export interface IncidentEntry {
 
 export const INCIDENT_REGISTER: IncidentEntry[] = [
   { id: 'P-007', severity: 'S3', area: 'Leverandørfaktura-RLS', title: 'Fakturalinjer og audit-log åbne for alle indloggede (audit kan manipuleres)', closed: true },
+  { id: 'P-008', severity: 'S2', area: 'Leverandør-RLS', title: 'suppliers skrivbar/slettelig for alle indloggede (CASCADE til ~324k priser)', closed: false,
+    pending: 'Migration 00168 i prod' },
+  { id: 'P-009', severity: 'S2', area: 'RLS-skrivemodel', title: '109 tabeller med åbne skrive-policies for indloggede (RBAC kun i app-laget)', closed: false,
+    pending: 'Domæne-vise lockdown-migrationer (plan i backlog)' },
   { id: 'P-006', severity: 'S3', area: 'Server-action-RBAC', title: 'Mange skrivende server-actions uden rettighedstjek — alle gatet eller bevist undtaget; CI-blokerende audit', closed: true },
   { id: 'P-005', severity: 'S3', area: 'Pris/leverandør-RBAC', title: 'Pris-/leverandør-actions uden rettighedstjek; supplier_settings skrivbar for alle indloggede', closed: true },
   { id: 'P-004', severity: 'S1', area: 'Anon-eksponering', title: 'Anon kunne læse leverandørpriser via views og kalde audit-/rolle-funktioner', closed: true },
