@@ -59,6 +59,7 @@
     "prod:pilot-health": "tsx scripts/prod-pilot-health.ts",
     "prod:role-policies": "tsx scripts/prod-role-policies.ts",
     "prod:db-audit": "tsx scripts/prod-db-audit.ts",
+    "prod:verify-00163": "tsx scripts/prod-verify-00163.ts",
     "prod:verify-00162": "tsx scripts/prod-verify-00162.ts",
     "prod:verify-00161": "tsx scripts/prod-verify-00161.ts",
     "prod:verify-00160": "tsx scripts/prod-verify-00160.ts",

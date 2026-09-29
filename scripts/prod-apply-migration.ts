@@ -22,6 +22,10 @@ const APPROVED: Record<string, string> = {
   '00159': '2026-09-27',
   '00161': '2026-09-27', // R1–R4, godkendt af Henrik i chat 2026-09-27
   '00162': '2026-09-28', // P-004 anon-eksponering, godkendt af Henrik i chat 2026-09-28
+  '00163': '2026-09-29', // agent capability-guard, godkendt af Henrik i chat 2026-09-29
+  '00164': '2026-09-29', // supplier_settings lockdown (P-005), godkendt af Henrik i chat 2026-09-29
+  '00165': '2026-09-29', // price_history change_source (ftp_sync), godkendt af Henrik i chat 2026-09-29
+  '00166': '2026-09-29', // incoming_invoice_lines + audit RLS (P-007), godkendt af Henrik i chat 2026-09-29
 }
 
 async function main() {

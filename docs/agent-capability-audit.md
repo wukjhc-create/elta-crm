@@ -26,7 +26,7 @@ Alle registrerede capabilities er gennemgået mod approval/executor-modellen. Te
 | A8 | Handler-funktioner kaldes kun fra registeret (ingen genvej uden om Executor). | – | Verificeret. | S3 |
 
 ## DB-side hærdning (P2-rest A) — migration 00163
-`agent_capabilities` (spejl af registeret) + triggeren `trg_agent_actions_capability_guard` gør DB'en fail-closed uafhængigt af koden. Se [runbook](runbooks/00163-agent-capability-guard.md). Status: **staging ✅, prod afventer gate.** Test: `harness:agent-gating` 13/13.
+`agent_capabilities` (spejl af registeret) + triggeren `trg_agent_actions_capability_guard` gør DB'en fail-closed uafhængigt af koden. Se [runbook](runbooks/00163-agent-capability-guard.md). Status: **staging ✅, prod ✅ (2026-09-29, `prod:verify-00163`).** Test: `harness:agent-gating` 13/13.
 
 ## P2 #12 — stale-state / idempotens / samtidighed pr. capability
 

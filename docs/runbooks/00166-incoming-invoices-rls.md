@@ -1,6 +1,6 @@
 # Runbook — prod-migration 00166: RLS på leverandørfaktura-linjer og audit-log (P-007)
 
-**Status:** anvendt og verificeret på staging (2026-09-29) · **IKKE kørt i production** — kræver Henriks godkendelse.
+**Status:** ✅ **KØRT i production 2026-09-29** (godkendt af Henrik). Pre-check og read-only post-check er grønne. Den afsluttende suite er grøn: `prod:db-audit` HØJ/MIDDEL 0 (LAV 109), `prod:role-policies` 0·0·0, `prod:storage-audit` ingen huller, `prod:verify-00161/00162/00163` grønne, `prod:pilot-health` 🟢, agents 7/7 disabled/suggest, AUTO_CREATE og AGENT_LIVE_SEND OFF, 0 kundemails og 0 finance-writes (`scripts/prod-safety-confirm.ts`). Verifikation: `npx tsx scripts/prod-verify-00166.ts post`. 0 åbne policies, 00160-policies uændrede, audit er append-only og anon har ingen adgang. **Admin ser 9/9 linjer og 117/117 audit, montør ser 0/0.**
 
 ## Fund (prod read-only, 2026-09-29)
 00160 låste `incoming_invoices`, men de to undertabeller har stadig `FOR ALL TO authenticated USING (true)`:

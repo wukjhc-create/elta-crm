@@ -1,6 +1,6 @@
 # Runbook — prod-migration 00163: DB-side capability-guard for Agent Core
 
-**Status:** anvendt og verificeret på staging (2026-09-28) · **IKKE kørt i production** — kræver Henriks godkendelse.
+**Status:** ✅ **KØRT i production 2026-09-29** (godkendt af Henrik). Pre-check og read-only post-check er grønne. Den afsluttende suite er grøn: `prod:db-audit` HØJ/MIDDEL 0 (LAV 109), `prod:role-policies` 0·0·0, `prod:storage-audit` ingen huller, `prod:verify-00161/00162/00163` grønne, `prod:pilot-health` 🟢, agents 7/7 disabled/suggest, AUTO_CREATE og AGENT_LIVE_SEND OFF, 0 kundemails og 0 finance-writes (`scripts/prod-safety-confirm.ts`). Verifikation: `npm run prod:verify-00163` (8 capabilities = register, trigger aktiv/SECURITY DEFINER/search_path låst). Trigger-adfærd er bevist på staging (`harness:agent-gating` 13/13).
 **Prioritet:** middel. Det er defense-in-depth. Executor lukker allerede hullet i koden (2784b5d), og kun service-role skriver `agent_actions`. Ingen agent er aktiveret i prod.
 
 ## Hvad
