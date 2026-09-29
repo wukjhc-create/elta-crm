@@ -75,6 +75,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-29: død kode fjernet: src/lib/actions/files.ts + src/components/shared/file-upload.tsx (tabellen files findes ikke i prod; komponenten blev ikke importeret).
 - 2026-09-29: prod-migrationer 00163→00164→00165→00166 kørt (godkendt), alle pre/post-checks grønne; P-005 + P-007 lukket.
 - 2026-09-29: fakturapipeline F-d: 00166 (linjer + audit RLS) på staging; P-007 registreret.
 - 2026-09-29: fakturapipeline F-a/F-b/F-c (hoveddata bevares, linje→produkt, reel dækning).
