@@ -52,7 +52,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | Opgave | Status | Mangler |
 |---|---|---|
 | Prod-migrationer 00164 (supplier_settings, P-005) + 00165 (prishistorik) | BLOCKED | Henriks godkendelse. Runbook: docs/runbooks/00164-00165-supplier-domain.md |
-| RBAC app-lag (P-006): skrivende server-actions uden rettighedstjek | IN_PROGRESS | **Runde 1:** portal-/partner-tokens, integrationer/webhooks, tilbudsmail, hurtigsvar, integrations-eksport, globale kalkulationsindstillinger, Kalkia-faktorer og sags-/tilbudsforslag (27). **Runde 2 (modul-paritet: samme rettighed som modulets side, så legitim brug ikke brydes):** kalkulationer, Kalkia, rumberegner, quick jobs, AI-prisforklaringer (`tools.calculations`); AI-projekt (`tools.ai_project`); komponent-/materiale-/Kalkia-stamdata, solcelleprodukter og global kalibrering (`settings.view`); pakker (`tools.packages`, `offers.edit`) — 84 actions. Verificeret, at kalkulations-UI'et kun bruger læse-funktioner fra stamdatafilerne. **92 tilbage** (opgaver, projekter, beskeder, dokumenter, mail-ops, token-portal) → runde 3 + begrundet undtagelsesliste. |
+| RBAC app-lag (P-006): skrivende server-actions uden rettighedstjek | DONE | Runde 1: 27 actions med ekstern effekt/globale indstillinger. Runde 2: 84 (modul-paritet). **Runde 3:** 46 gatet (opgaver, projekter/tid, mail-ops, besigtigelse, fuldmagt, dokumenter, tagtegning, advarsler, mailskabeloner, filer). **46 bevist undtaget** (`scripts/action-gate-exemptions.ts`): 28 server-only (auditten fejler, hvis de importeres i klientkode), 8 token-validerede kunde-actions (dynamisk bevist: `harness:exemption-proofs` 11/11, alle afviser 4 slags ugyldige tokens og kryds-kunde, positiv kontrol) og 10 egne data (bevist: bundet til den indloggede bruger). **`npm run check:rbac` er blokerende i CI:** en ny ugatet skrivende action, en falsk undtagelse eller en stale undtagelse fejler. Audit-negativtests 11/11. Resultat: 363 skrivende actions, 317 gatet, 46 bevist undtaget, 0 fejl. Fund: `files`-tabellen findes ikke i prod, så `files.ts`/`file-upload.tsx` er død kode. |
 | Prod-migration 00163 (agent capability-guard) | BLOCKED | Henriks godkendelse (defense-in-depth; ikke akut — ingen agenter aktive) |
 | P1-gate: prod-migration 00162 (anon-eksponering, P-004) | DONE | Kørt i prod 2026-09-28 (godkendt). db-audit HØJ 21→0; prod:verify-00162 grøn; P-004 lukket. |
 | P0-gate: prod-migration 00161 (R1–R4) | DONE | Kørt i prod 2026-09-27 (godkendt). prod:role-policies 0·0·0; prod:verify-00161 struktur + adfærd (admin/montør) grøn. |
@@ -66,6 +66,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-29: RBAC runde 3 færdig — 0 ugatede skrivende actions; streng audit blokerende i CI.
 - 2026-09-28: RBAC runde 2 (modul-paritet): 84 actions i kalkulations-/stamdata-/pakkedomænet gatet; 176 → 92.
 - 2026-09-28: RBAC app-lag runde 1 (P-006): 27 actions med ekstern effekt/globale indstillinger gatet.
 - 2026-09-28: P3 #19 fakturakontrol (motor + design) + 3 e-conomic-vejfejl rettet. **P3 komplet.**

@@ -1,7 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): modul-paritet — skrivende actions kraever samme rettighed som modulets side.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { ActionResult } from '@/types/common.types'
 import { logger } from '@/lib/utils/logger'
@@ -41,7 +51,7 @@ export async function createFuldmagt(
   serviceCaseId: string
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('service.edit')
 
     const { data: customer, error: custErr } = await supabase
       .from('customers')

@@ -1032,7 +1032,7 @@ export async function sendEmployeeMessage(
   attachments?: PortalAttachment[]
 ): Promise<ActionResult<PortalMessage>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('customers.view')
 
     // Get employee name
     const { data: profile } = await supabase
@@ -1348,7 +1348,7 @@ export async function markCustomerMessagesAsRead(
   messageIds: string[]
 ): Promise<ActionResult> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('customers.view')
 
     const { error } = await supabase
       .from('portal_messages')

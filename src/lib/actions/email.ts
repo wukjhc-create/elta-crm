@@ -202,7 +202,7 @@ export async function createEmailTemplate(
   input: EmailTemplateCreate
 ): Promise<{ success: boolean; data?: EmailTemplate; error?: string }> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('settings.view')
 
     const { data, error } = await supabase
       .from('email_templates')
@@ -231,7 +231,7 @@ export async function updateEmailTemplate(
   input: EmailTemplateUpdate
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'skabelon ID')
 
     const { error } = await supabase
@@ -254,7 +254,7 @@ export async function updateEmailTemplate(
 
 export async function deleteEmailTemplate(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.view')
     validateUUID(id, 'skabelon ID')
 
     const { error } = await supabase

@@ -17,7 +17,21 @@
  * Alle modes kobler mailen til betaler-kunden (og evt. sagen).
  */
 
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
+ * (null = tilladt), saa hver action kan svare i sin egen returtype. Kaster aldrig.
+ */
+async function gateDenied(permission: Permission): Promise<string | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    return ctx.hasPermission(permission) ? null : `Manglende tilladelse: ${permission}`
+  } catch {
+    return 'Ikke logget ind'
+  }
+}
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
@@ -125,6 +139,8 @@ async function findOrCreateCustomerByEmail(
 export async function createCustomerAndCaseFromEmail(
   input: CreateFromEmailInput
 ): Promise<CreateFromEmailResult> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, error: denied }
   validateUUID(input.emailId, 'emailId')
 
   const { supabase, userId } = await getAuthenticatedClient()

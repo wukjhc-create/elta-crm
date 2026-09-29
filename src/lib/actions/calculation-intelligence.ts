@@ -377,7 +377,7 @@ export async function getSystemAlerts(
 export async function markAlertRead(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'advarsel ID')
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations')
 
     const { error } = await supabase
       .from('system_alerts')
@@ -394,7 +394,7 @@ export async function markAlertRead(id: string): Promise<ActionResult> {
 export async function dismissAlert(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'advarsel ID')
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tools.calculations')
 
     const { error } = await supabase
       .from('system_alerts')

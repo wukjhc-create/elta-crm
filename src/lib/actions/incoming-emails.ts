@@ -8,6 +8,29 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+
+/**
+ * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
+ * (null = tilladt), saa hver action kan svare i sin egen returtype. Kaster aldrig.
+ */
+async function gateDenied(permission: Permission): Promise<string | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    return ctx.hasPermission(permission) ? null : `Manglende tilladelse: ${permission}`
+  } catch {
+    return 'Ikke logget ind'
+  }
+}
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): modul-paritet — skrivende actions kraever samme rettighed som modulets side.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
@@ -250,6 +273,8 @@ export async function getLeadsForEmails(
 // =====================================================
 
 export async function markEmailAsRead(id: string): Promise<void> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return // RBAC: stille afvisning (void)
   const supabase = await createClient()
   const { error } = await supabase
     .from('incoming_emails')
@@ -261,6 +286,8 @@ export async function markEmailAsRead(id: string): Promise<void> {
 }
 
 export async function markEmailAsUnread(id: string): Promise<void> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return // RBAC: stille afvisning (void)
   const supabase = await createClient()
   const { error } = await supabase
     .from('incoming_emails')
@@ -272,6 +299,8 @@ export async function markEmailAsUnread(id: string): Promise<void> {
 }
 
 export async function archiveEmail(id: string): Promise<void> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return // RBAC: stille afvisning (void)
   const supabase = await createClient()
   const { error } = await supabase
     .from('incoming_emails')
@@ -413,7 +442,7 @@ export async function linkEmailToCase(
   if (serviceCaseId) validateUUID(serviceCaseId, 'serviceCaseId')
 
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('inbox.view')
 
     // 1. Hent mailen for at få thread-id og customer-id
     const { data: email, error: fetchErr } = await supabase
@@ -670,6 +699,8 @@ async function copyAttachmentsToLead(
 export async function createCustomerFromEmail(
   emailId: string
 ): Promise<{ success: boolean; customerId?: string; leadId?: string; isExisting?: boolean; customerName?: string; error?: string }> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, error: denied }
   validateUUID(emailId, 'emailId')
   const { supabase, userId } = await getAuthenticatedClient()
 
@@ -1649,6 +1680,8 @@ export async function runSyncDiagnostic(): Promise<SyncDiagnostic> {
  * This is the "fix it" button — resets stale delta, syncs, and reports.
  */
 export async function runSyncAndDiagnose(): Promise<SyncDiagnostic> {
+  const denied = await gateDenied('settings.manage')
+  if (denied) throw new Error(denied)
   const { getMailboxes } = await import('@/lib/services/microsoft-graph')
   const mailboxes = getMailboxes().map(m => m.email)
   const supabase = await createClient()
@@ -1690,6 +1723,8 @@ export async function runSyncAndDiagnose(): Promise<SyncDiagnostic> {
  * Forces the next sync to do a full initial poll instead of incremental.
  */
 export async function resetDeltaLink(): Promise<{ success: boolean; mailbox: string }> {
+  const denied = await gateDenied('settings.manage')
+  if (denied) return { success: false, mailbox: '' }
   const { getMailbox } = await import('@/lib/services/microsoft-graph')
   const mailbox = getMailbox()
   const supabase = await createClient()
@@ -1719,6 +1754,8 @@ export async function fastForwardAllMailboxes(): Promise<{
   success: boolean
   results: Array<{ mailbox: string; pagesScanned: number; messagesScanned: number; deltaLinkSaved: boolean; error?: string }>
 }> {
+  const denied = await gateDenied('settings.manage')
+  if (denied) return { success: false, results: [] }
   const { getMailboxes, fastForwardDelta } = await import('@/lib/services/microsoft-graph')
   const supabase = await createClient()
   const mailboxes = getMailboxes()

@@ -45,6 +45,11 @@ jobs:
       - name: Check offers→customers FK disambiguation
         run: npm run check:offers-embeds
 
+      # P-006: hver skrivende server-action skal vaere gatet eller en BEVIST undtagelse
+      # (scripts/action-gate-exemptions.ts). Ingen DB/secrets — kun statisk kodescanning.
+      - name: RBAC — server-action gate audit
+        run: npm run check:rbac
+
       - name: Build application
         run: npm run build
         env:

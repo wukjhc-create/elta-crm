@@ -82,6 +82,17 @@ function clientReferencedNames(root: string): Set<string> {
   return (clientNameCache = names)
 }
 
+/** Uden cache (til fixtures i tests). */
+function freshClientNames(root: string): Set<string> {
+  const names = new Set<string>()
+  for (const path of walk(root, /\.(ts|tsx)$/)) {
+    const src = readFileSync(path, 'utf8')
+    if (!/^\s*['"]use client['"]/.test(src)) continue
+    for (const m of src.matchAll(/\b([a-z][A-Za-z0-9]+)\b/g)) names.add(m[1])
+  }
+  return names
+}
+
 export interface UnauthAction { file: string; fn: string; writes: boolean; exposed: boolean; intentionallyPublic: boolean }
 
 export function runUnauthenticatedAdminAudit(root = join(process.cwd(), 'src')): UnauthAction[] {
@@ -99,7 +110,61 @@ export function runUnauthenticatedAdminAudit(root = join(process.cwd(), 'src')):
   return out
 }
 
-if (process.argv[1] && /action-gate-audit/.test(process.argv[1])) {
+// ---------------------------------------------------------------------------------------------------------------
+// STRICT (CI): hver skrivende action er enten gatet eller en BEVIST undtagelse (scripts/action-gate-exemptions.ts)
+// ---------------------------------------------------------------------------------------------------------------
+const TOKEN_PROOF = /validatePortalToken\(|validatePartnerToken\(|\.eq\(\s*['"]token['"]/
+const SELF_PROOF = /\.eq\(\s*['"](id|to_user_id|user_id|profile_id)['"]\s*,\s*userId\s*\)|from_user_id:\s*userId/
+
+export function runStrictAudit(
+  dir = join(process.cwd(), 'src', 'lib', 'actions'),
+  exemptions?: Record<string, { kind: 'server-only' | 'token' | 'self'; reason: string }>,
+  clientRoot = join(process.cwd(), 'src'),
+): { failures: string[]; gated: number; exempt: number; scanned: number } {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ACTION_GATE_EXEMPTIONS = exemptions ?? (require('./action-gate-exemptions') as typeof import('./action-gate-exemptions')).ACTION_GATE_EXEMPTIONS
+  const clientNames = exemptions ? freshClientNames(clientRoot) : clientReferencedNames(clientRoot)
+  const failures: string[] = []
+  const seen = new Set<string>()
+  let scanned = 0
+  let gated = 0
+  let exempt = 0
+  for (const path of walk(dir, /\.ts$/)) {
+    const src = readFileSync(path, 'utf8')
+    if (!/^\s*['"]use server['"]/.test(src)) continue
+    const helpers = localGateHelpers(src)
+    const file = path.slice(dir.length + 1).split('\\').join('/')
+    for (const f of exportedFunctions(src)) {
+      if (!WRITE_RE.test(f.body)) continue
+      scanned++
+      const key = `${file}:${f.name}`
+      const isGated = GATE_RE.test(f.body) || (helpers !== null && helpers.test(f.body))
+      const ex = ACTION_GATE_EXEMPTIONS[key]
+      if (ex) seen.add(key)
+      if (isGated) {
+        gated++
+        if (ex) failures.push(`${key}: undtaget men nu gatet — fjern undtagelsen (stale)`)
+        continue
+      }
+      if (!ex) { failures.push(`${key}: skrivende action uden rettighedstjek og uden begrundet undtagelse`); continue }
+      if (!ex.reason.trim()) failures.push(`${key}: undtagelse uden begrundelse`)
+      if (ex.kind === 'server-only' && clientNames.has(f.name)) failures.push(`${key}: markeret server-only, men refereres fra klientkode`)
+      if (ex.kind === 'token' && !TOKEN_PROOF.test(f.body)) failures.push(`${key}: markeret token, men validerer intet token`)
+      if (ex.kind === 'self' && !SELF_PROOF.test(f.body)) failures.push(`${key}: markeret self, men er ikke bundet til den indloggede bruger`)
+      exempt++
+    }
+  }
+  for (const key of Object.keys(ACTION_GATE_EXEMPTIONS)) if (!seen.has(key)) failures.push(`${key}: undtagelse for en action der ikke (længere) findes/skriver — fjern den (stale)`)
+  return { failures, gated, exempt, scanned }
+}
+
+if (process.argv[1] && /action-gate-audit/.test(process.argv[1]) && process.argv.includes('--strict')) {
+  const r = runStrictAudit()
+  console.log(`ACTION-GATE STRICT: ${r.scanned} skrivende actions · ${r.gated} gatet · ${r.exempt} bevist undtaget · ${r.failures.length} fejl`)
+  for (const f of r.failures) console.log(`  ❌ ${f}`)
+  if (!r.failures.length) console.log('  ✅ alle skrivende server-actions er gatet eller bevist undtaget')
+  process.exitCode = r.failures.length ? 2 : 0
+} else if (process.argv[1] && /action-gate-audit/.test(process.argv[1])) {
   if (process.argv.includes('--unauth')) {
     const u = runUnauthenticatedAdminAudit()
     const risky = u.filter((x) => x.exposed && !x.intentionallyPublic)
@@ -113,7 +178,12 @@ if (process.argv[1] && /action-gate-audit/.test(process.argv[1])) {
     const byFile = new Map<string, string[]>()
     for (const u of shown) byFile.set(u.file, [...(byFile.get(u.file) ?? []), u.fn])
     console.log(`ACTION-GATE-AUDIT${domain ? ` (domæne: ${domain})` : ''}: ${scanned} skrivende actions scannet · ${shown.length} uden rettighedstjek`)
-    for (const [f, fns] of [...byFile.entries()].sort()) console.log(`  ${f}: ${fns.join(', ')}`)
+    if (process.argv.includes('--exposure')) {
+      const clientNames = clientReferencedNames(join(process.cwd(), 'src'))
+      for (const u of shown) console.log(`  ${clientNames.has(u.fn) ? 'KLIENT' : 'server'}  ${u.file}: ${u.fn}`)
+    } else {
+      for (const [f, fns] of [...byFile.entries()].sort()) console.log(`  ${f}: ${fns.join(', ')}`)
+    }
     process.exitCode = domain && shown.length ? 2 : 0
   }
 }

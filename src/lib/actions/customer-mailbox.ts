@@ -8,7 +8,21 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
+ * (null = tilladt), saa hver action kan svare i sin egen returtype. Kaster aldrig.
+ */
+async function gateDenied(permission: Permission): Promise<string | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    return ctx.hasPermission(permission) ? null : `Manglende tilladelse: ${permission}`
+  } catch {
+    return 'Ikke logget ind'
+  }
+}
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 
@@ -277,6 +291,8 @@ export async function getCustomerEmailBody(emailId: string): Promise<{
  * Mark a customer email as read
  */
 export async function markCustomerEmailRead(emailId: string): Promise<void> {
+  const denied = await gateDenied('customers.view')
+  if (denied) return // RBAC: stille afvisning (void)
   const supabase = await createClient()
   await supabase
     .from('incoming_emails')

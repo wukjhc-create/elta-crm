@@ -1,7 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): modul-paritet — skrivende actions kraever samme rettighed som modulets side.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import type { ActionResult } from '@/types/common.types'
 
@@ -213,7 +223,7 @@ export async function uploadCustomerDocument(
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('customers.view')
 
     const file = formData.get('file') as File
     if (!file || file.size === 0) {

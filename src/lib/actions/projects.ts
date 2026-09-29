@@ -1,7 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): modul-paritet — skrivende actions kraever samme rettighed som modulets side.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import {
   createProjectSchema,
   updateProjectSchema,
@@ -215,7 +225,7 @@ async function generateProjectNumber(): Promise<string> {
 // Create project
 export async function createProject(formData: FormData): Promise<ActionResult<Project>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('projects.edit')
 
     const rawData = {
       name: formData.get('name') as string,
@@ -276,7 +286,7 @@ export async function createProject(formData: FormData): Promise<ActionResult<Pr
 // Update project
 export async function updateProject(formData: FormData): Promise<ActionResult<Project>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('projects.edit')
 
     const id = formData.get('id') as string
     if (!id) {
@@ -333,7 +343,7 @@ export async function updateProject(formData: FormData): Promise<ActionResult<Pr
 // Delete project
 export async function deleteProject(id: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('projects.delete')
     validateUUID(id, 'projekt ID')
 
     const { error } = await supabase.from('projects').delete().eq('id', id)
@@ -357,7 +367,7 @@ export async function updateProjectStatus(
   status: ProjectStatus
 ): Promise<ActionResult<Project>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('projects.edit')
     validateUUID(id, 'projekt ID')
 
     // Fetch current status for transition validation
@@ -426,7 +436,7 @@ export async function updateProjectStatus(
 // Create task
 export async function createTask(formData: FormData): Promise<ActionResult<ProjectTask>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('tasks.edit')
 
     const rawData = {
       project_id: formData.get('project_id') as string,
@@ -474,7 +484,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<Proje
 // Update task
 export async function updateTask(formData: FormData): Promise<ActionResult<ProjectTask>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tasks.edit')
 
     const id = formData.get('id') as string
     const projectId = formData.get('project_id') as string
@@ -539,7 +549,7 @@ export async function updateTaskStatus(
   projectId: string
 ): Promise<ActionResult<ProjectTask>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tasks.edit')
     validateUUID(id, 'opgave ID')
     validateUUID(projectId, 'projekt ID')
 
@@ -573,7 +583,7 @@ export async function updateTaskStatus(
 // Delete task
 export async function deleteTask(id: string, projectId: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tasks.delete')
     validateUUID(id, 'opgave ID')
     validateUUID(projectId, 'projekt ID')
 
@@ -599,7 +609,7 @@ export async function createTimeEntry(
   formData: FormData
 ): Promise<ActionResult<TimeEntry>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('time.log')
 
     const rawData = {
       project_id: formData.get('project_id') as string,
@@ -644,7 +654,7 @@ export async function updateTimeEntry(
   formData: FormData
 ): Promise<ActionResult<TimeEntry>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('time.edit_own')
 
     const id = formData.get('id') as string
     const projectId = formData.get('project_id') as string
@@ -696,7 +706,7 @@ export async function deleteTimeEntry(
   projectId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('time.edit_own')
     validateUUID(id, 'tidsregistrering ID')
     validateUUID(projectId, 'projekt ID')
 

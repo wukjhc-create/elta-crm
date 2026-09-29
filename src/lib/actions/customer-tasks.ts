@@ -12,6 +12,20 @@ import { sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { generateBesigtigelseICS } from '@/lib/utils/ics'
 import { APP_URL } from '@/lib/constants'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
+ * (null = tilladt), saa hver action kan svare i sin egen returtype. Kaster aldrig.
+ */
+async function gateDenied(permission: Permission): Promise<string | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    return ctx.hasPermission(permission) ? null : `Manglende tilladelse: ${permission}`
+  } catch {
+    return 'Ikke logget ind'
+  }
+}
 import type {
   CustomerTaskWithRelations,
   CreateCustomerTaskInput,
@@ -347,6 +361,8 @@ export async function getActiveProfiles(): Promise<
 export async function createCustomerTask(
   input: CreateCustomerTaskInput
 ): Promise<{ success: boolean; error?: string }> {
+  const denied = await gateDenied('customers.view')
+  if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -378,6 +394,8 @@ export async function createCustomerTask(
 export async function updateCustomerTask(
   input: UpdateCustomerTaskInput
 ): Promise<{ success: boolean; error?: string }> {
+  const denied = await gateDenied('customers.view')
+  if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -409,6 +427,8 @@ export async function updateCustomerTask(
 export async function completeCustomerTask(
   taskId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const denied = await gateDenied('customers.view')
+  if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
   const { error } = await supabase
@@ -433,6 +453,8 @@ export async function completeCustomerTask(
 export async function deleteCustomerTask(
   taskId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const denied = await gateDenied('customers.view')
+  if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
   const { error } = await supabase
@@ -454,6 +476,8 @@ export async function snoozeTask(
   taskId: string,
   until: string
 ): Promise<{ success: boolean; error?: string }> {
+  const denied = await gateDenied('customers.view')
+  if (denied) return { success: false, error: denied }
   const supabase = await createClient()
 
   const { error } = await supabase
@@ -486,6 +510,8 @@ export async function bookBesigtigelse(
   time: string,
   notes?: string
 ): Promise<{ success: boolean; error?: string }> {
+  const denied = await gateDenied('customers.view')
+  if (denied) return { success: false, error: denied }
   try {
     const supabase = await createClient()
 
@@ -730,6 +756,8 @@ export async function getUnreadPriceAlerts(): Promise<PriceAlert[]> {
 export async function dismissPriceAlert(
   alertId: string
 ): Promise<{ success: boolean }> {
+  const denied = await gateDenied('tools.pricing')
+  if (denied) return { success: false }
   try {
     const supabase = await createClient()
 

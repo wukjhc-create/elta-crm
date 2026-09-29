@@ -1,7 +1,17 @@
 'use server'
 
 import { randomUUID } from 'crypto'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): modul-paritet — skrivende actions kraever samme rettighed som modulets side.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
@@ -33,7 +43,7 @@ export async function createRoofDrawing(
   input: CreateRoofDrawingInput,
 ): Promise<ActionResult<RoofDrawingWithUrl>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('customers.view')
 
     validateUUID(input.customerId, 'kunde-ID')
     if (input.serviceCaseId) validateUUID(input.serviceCaseId, 'sags-ID')
@@ -133,7 +143,7 @@ export async function saveRoofDrawing(
   input: SaveRoofDrawingInput,
 ): Promise<ActionResult<RoofDrawing>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('customers.view')
     validateUUID(input.id, 'tegnings-ID')
 
     const patch: Record<string, unknown> = {
@@ -164,7 +174,7 @@ export async function saveRoofDrawing(
 /** Slet en tagtegning. Billedet i storage ryddes ikke (kan gøres senere). */
 export async function deleteRoofDrawing(id: string): Promise<ActionResult<void>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('customers.view')
     validateUUID(id, 'tegnings-ID')
 
     const { error } = await supabase.from('roof_drawings').delete().eq('id', id)

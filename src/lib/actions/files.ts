@@ -1,6 +1,16 @@
 'use server'
 
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): modul-paritet — skrivende actions kraever samme rettighed som modulets side.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { revalidatePath } from 'next/cache'
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES, FILE_SIGNED_URL_EXPIRY_SECONDS } from '@/lib/constants'
 import type { ActionResult } from '@/types/common.types'
@@ -41,7 +51,7 @@ export async function uploadFile(
   formData: FormData
 ): Promise<ActionResult<UploadedFile>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('customers.view')
 
     const file = formData.get('file') as File
     const entityType = formData.get('entityType') as UploadedFile['entity_type']
@@ -146,7 +156,7 @@ export async function getFiles(
 // Delete a file
 export async function deleteFile(fileId: string): Promise<ActionResult> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('customers.view')
 
     // Get file record first
     const { data: file, error: fetchError } = await supabase

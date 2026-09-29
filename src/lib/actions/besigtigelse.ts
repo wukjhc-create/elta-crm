@@ -1,7 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): modul-paritet — skrivende actions kraever samme rettighed som modulets side.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
 import type { ActionResult } from '@/types/common.types'
@@ -93,7 +103,7 @@ export async function saveBesigtigelsesnotat(
   })
 
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('service.edit')
 
     // Fase 2a — sag-kobling er obligatorisk. Kræv en sag og verificér (via
     // den fælles resolver) at den hører til denne kunde, samt resolv
@@ -932,7 +942,7 @@ export async function sendExistingBesigtigelsesreport(
       return { success: false, error: 'Ingen modtagere valgt' }
     }
 
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('service.edit')
 
     const { data: doc, error: docErr } = await supabase
       .from('customer_documents')

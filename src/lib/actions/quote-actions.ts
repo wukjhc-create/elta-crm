@@ -1,7 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/**
+ * RBAC app-lag (P-006, runde 3): modul-paritet — skrivende actions kraever samme rettighed som modulets side.
+ */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import { generateAndSendQuote } from '@/lib/services/quote-generator'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -151,7 +161,7 @@ export async function shareQuoteToPortal(
   sentQuoteId: string
 ): Promise<ActionResult<{ documentId: string }>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('offers.send')
 
     // Get the sent quote
     const { data: quote, error: quoteError } = await supabase

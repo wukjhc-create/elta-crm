@@ -424,6 +424,14 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'exemption-proofs') {
+    const { runExemptionProofs, formatExemptionProofs } = await import('./exemption-proofs')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runExemptionProofs({ admin, sql: stagingSql, ownerUid: actors.ownerUid })
+    log(formatExemptionProofs(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'invoice-pipeline') {
     const { runInvoicePipeline, formatInvoicePipeline } = await import('./invoice-pipeline')
     const actors = await ensureActors(admin, seedBase)

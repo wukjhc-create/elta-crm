@@ -500,7 +500,7 @@ export async function recordCalculationFeedback(
   feedback: Partial<CalculationFeedback>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('projects.view')
 
     const { data, error } = await supabase
       .from('calculation_feedback')
