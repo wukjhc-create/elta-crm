@@ -15,6 +15,8 @@ export interface IncidentEntry {
 }
 
 export const INCIDENT_REGISTER: IncidentEntry[] = [
+  { id: 'P-007', severity: 'S3', area: 'Leverandørfaktura-RLS', title: 'Fakturalinjer og audit-log åbne for alle indloggede (audit kan manipuleres)', closed: false,
+    pending: 'Migration 00166 i prod' },
   { id: 'P-006', severity: 'S3', area: 'Server-action-RBAC', title: 'Mange skrivende server-actions uden rettighedstjek — alle gatet eller bevist undtaget; CI-blokerende audit', closed: true },
   { id: 'P-005', severity: 'S3', area: 'Pris/leverandør-RBAC', title: 'Pris-/leverandør-actions uden rettighedstjek; supplier_settings skrivbar for alle indloggede', closed: false,
     pending: 'Migration 00164 i prod (kode-gates er deployet)' },

@@ -31,6 +31,7 @@
     "harness:pilot": "tsx scripts/test-harness/cli.ts pilot",
     "harness:pilot-health": "tsx scripts/test-harness/cli.ts pilot-health",
     "harness:pilot-roles": "tsx scripts/test-harness/cli.ts pilot-roles",
+    "harness:invoice-rls": "tsx scripts/test-harness/cli.ts invoice-rls",
     "harness:exemption-proofs": "tsx scripts/test-harness/cli.ts exemption-proofs",
     "harness:invoice-pipeline": "tsx scripts/test-harness/cli.ts invoice-pipeline",
     "harness:supplier-lockdown": "tsx scripts/test-harness/cli.ts supplier-lockdown",

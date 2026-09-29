@@ -71,7 +71,7 @@ export function matchLines(lines: LineToMatch[], products: ProductRef[]): LineMa
 }
 
 /** Hent kandidat-produkter for leverandoeren i to batch-opslag (sku + ean) og match. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export async function resolveLineProducts(admin: any, supplierId: string | null, lines: LineToMatch[]): Promise<LineMatch[]> {
   const codes = codesToLookup(lines)
   if (!supplierId || codes.length === 0) return matchLines(lines, [])

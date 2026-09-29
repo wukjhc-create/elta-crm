@@ -78,7 +78,7 @@ export function measureCoverage(invoices: CoverageInvoice[], productsBySupplier:
 }
 
 /** Hent input via en Supabase-klient (admin, efter admin-tjek i kalderen) og maal daekningen. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export async function loadAndMeasureCoverage(admin: any): Promise<CoverageReport> {
   const { codesToLookup } = await import('@/lib/invoice-control/line-matcher')
   const { data: invs } = await admin.from('incoming_invoices').select('id, supplier_id').neq('status', 'cancelled').limit(5000)

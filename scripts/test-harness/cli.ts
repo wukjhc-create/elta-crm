@@ -424,6 +424,13 @@ async function main() {
     process.exitCode = holes ? 2 : 0
     return
   }
+  if (SUB === 'invoice-rls') {
+    const { runInvoiceRls, formatInvoiceRls } = await import('./invoice-rls')
+    const checks = await runInvoiceRls({ admin, sql: stagingSql, url: runtime.url, anonKey: runtime.anonKey })
+    log(formatInvoiceRls(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'exemption-proofs') {
     const { runExemptionProofs, formatExemptionProofs } = await import('./exemption-proofs')
     const actors = await ensureActors(admin, seedBase)
