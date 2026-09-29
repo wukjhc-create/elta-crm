@@ -50,6 +50,13 @@ export async function fakeSelf(id: string) {
 export async function realSelf() {
   const { userId } = await getAuthenticatedClient()
   await supabase.from('profiles').update({ a: 1 }).eq('id', userId)
+}
+export async function indirectServiceWrite(id: string) {
+  const { processEmailAttachments } = await import('@/lib/services/email-attachment-storage')
+  await processEmailAttachments(id, 'g')
+}
+export async function storageUpload(p: string) {
+  await supabase.storage.from('attachments').upload(p, new Blob())
 }`)
   client('c.tsx', `import { helperOnly } from '@/lib/actions/a'\nexport default function C() { return helperOnly }`)
 
@@ -65,6 +72,8 @@ export async function realSelf() {
   const has = (re: RegExp) => r.failures.some((f) => re.test(f))
 
   assert(has(/a\.ts:ungatedWrite: skrivende action uden rettighedstjek/), 'ny ugatet skrivende action fejler')
+  assert(has(/a\.ts:indirectServiceWrite: skrivende action uden rettighedstjek/), 'ugatet indirekte skrivning via service fejler')
+  assert(has(/a\.ts:storageUpload: skrivende action uden rettighedstjek/), 'ugatet storage-upload fejler')
   assert(has(/a\.ts:helperOnly: markeret server-only, men refereres fra klientkode/), 'server-only der bruges i klientkode fejler')
   assert(has(/a\.ts:fakeToken: markeret token, men validerer intet token/), 'falsk token-påstand fejler')
   assert(!has(/a\.ts:realToken/), 'ægte token-validering godkendes')
@@ -73,7 +82,7 @@ export async function realSelf() {
   assert(has(/a\.ts:gatedWrite: undtaget men nu gatet/), 'overflødig undtagelse på gatet action fejler (stale)')
   assert(has(/a\.ts:doesNotExist: undtagelse for en action der ikke/), 'undtagelse for ikke-eksisterende action fejler (stale)')
   assert(!has(/readOnly/), 'ren læsning ignoreres')
-  assert(r.scanned === 7, 'skrivende actions tælles korrekt', String(r.scanned))
+  assert(r.scanned === 9, 'skrivende actions tælles korrekt', String(r.scanned))
 } finally {
   rmSync(root, { recursive: true, force: true })
 }

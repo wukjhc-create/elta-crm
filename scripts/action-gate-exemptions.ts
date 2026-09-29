@@ -52,6 +52,7 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'portal.ts:acceptOffer': T('kunden accepterer via portal-token'),
   'portal.ts:rejectOffer': T('kunden afviser via portal-token'),
   'portal.ts:sendPortalMessage': T('kundens chatbesked via portal-token'),
+  'portal.ts:uploadPortalAttachment': T('kundens fil-upload via portal-token; sti bygges af token-kundens id'),
   'portal.ts:markPortalMessagesAsRead': T('kundens læst-status via portal-token'),
   'portal.ts:portalConfirmBesigtigelse': T('kunden bekræfter besigtigelse via portal-token'),
   'portal.ts:portalRequestReschedule': T('kunden beder om ny tid via portal-token'),

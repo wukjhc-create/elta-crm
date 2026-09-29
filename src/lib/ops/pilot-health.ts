@@ -139,6 +139,7 @@ async function agentItems(admin: Admin, stuckMinutes: number): Promise<HealthIte
     { label: 'Sikkerhedstilstand', level: notSuggest.length ? 'red' : 'green', detail: notSuggest.length ? `ikke 'suggest': ${notSuggest.join(', ')}` : `alle ${rows.length} i 'suggest'` },
     { label: 'AUTO_CREATE_CASES_ENABLED', level: autoCreate ? 'red' : 'green', detail: autoCreate ? 'TIL (pilot-kontrakt: OFF)' : 'OFF' },
     { label: 'AGENT_LIVE_SEND_ENABLED', level: isLiveSendEnabled() ? 'red' : 'green', detail: isLiveSendEnabled() ? 'TIL — agenter kan sende mail efter godkendelse (pilot-kontrakt: OFF)' : 'OFF (ingen agent-afsendelse mulig)' },
+    { label: 'INVOICE_ATTACHMENT_FETCH_ENABLED', level: process.env.INVOICE_ATTACHMENT_FETCH_ENABLED === 'true' ? 'yellow' : 'green', detail: process.env.INVOICE_ATTACHMENT_FETCH_ENABLED === 'true' ? 'TIL — faktura-mails henter vedhæftninger via Graph' : 'OFF (fakturaer parses fra mailtekst)' },
     { label: 'Forslag afventer review', level: 'green', detail: `${awaiting.count ?? 0}` },
     { label: 'Fejlede handlinger 7 d', level: (failed.count ?? 0) > 0 ? 'yellow' : 'green', detail: `${failed.count ?? 0}` },
     { label: 'Afventer verifikation', level: (verify.count ?? 0) > 0 ? 'yellow' : 'green', detail: `${verify.count ?? 0}` },

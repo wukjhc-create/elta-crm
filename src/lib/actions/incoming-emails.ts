@@ -903,6 +903,9 @@ export async function backfillEmailAttachments(
   emailId: string
 ): Promise<{ success: boolean; count: number; error?: string }> {
   validateUUID(emailId, 'emailId')
+  // Skriver via service (Graph-hent + storage + attachment_urls) — derfor saa RBAC-auditten den ikke direkte.
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, count: 0, error: denied }
   const supabase = await createClient()
 
   // Fetch the email to get graph_message_id

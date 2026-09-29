@@ -1471,7 +1471,7 @@ export async function uploadEmployeeAttachment(
   formData: FormData
 ): Promise<ActionResult<UploadAttachmentResult>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId } = await requireGate('customers.view')
 
     const file = formData.get('file') as File | null
 

@@ -327,14 +327,17 @@ async function status() {
         + (SELECT count(*) FROM product_categories WHERE slug LIKE 'hsec-%')
         + (SELECT count(*) FROM project_templates WHERE name LIKE 'HARNESS-SEC%')
         + (SELECT count(*) FROM supplier_products WHERE supplier_sku LIKE 'HSEC-%')
-        + (SELECT count(*) FROM integration_logs WHERE log_type LIKE 'harness_anon_probe_%') AS role_probes`))[0]
+        + (SELECT count(*) FROM integration_logs WHERE log_type LIKE 'harness_anon_probe_%') AS role_probes,
+      (SELECT count(*) FROM incoming_invoices WHERE invoice_number LIKE 'HARN-%' OR file_hash LIKE 'harness-%')
+        + (SELECT count(*) FROM incoming_emails WHERE sender_email LIKE 'faktura-%@harness.test')
+        + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSINV%') AS invoice_probes`))[0]
   const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n
     FROM agent_actions a JOIN agent_runs r ON r.id = a.run_id WHERE a.created_at > now() - interval '24 hours' GROUP BY 1,2,3 ORDER BY 1,2`)
   const cases24 = await stagingSql(`SELECT source, (title LIKE '[HARNESS %') AS harness_title, is_proposal, count(*) AS n
     FROM service_cases WHERE created_at > now() - interval '24 hours' GROUP BY 1,2,3 ORDER BY 1`)
   log(`[status] agent-actions 24t: ${act24.map((x: any) => `${x.capability}/${x.status}${x.tagged ? '(harness-run)' : '(UTAGGET)'}=${x.n}`).join(' ') || '0'}`)
   log(`[status] sager 24t: ${cases24.map((x: any) => `${x.source}${x.harness_title ? '[HARNESS]' : ''}${x.is_proposal ? '(forslag)' : ''}=${x.n}`).join(' ') || '0'}`)
-  log(`[status] probe-rester: tilbud=${lo.probe_offers} utaggede runs=${lo.untagged_runs} opfoelgningsopgaver=${lo.followup_tasks} probe-actions=${lo.probe_actions} rolle-probes=${lo.role_probes}`)
+  log(`[status] probe-rester: tilbud=${lo.probe_offers} utaggede runs=${lo.untagged_runs} opfoelgningsopgaver=${lo.followup_tasks} probe-actions=${lo.probe_actions} rolle-probes=${lo.role_probes} faktura-probes=${lo.invoice_probes}`)
   return { customers: Number(c), agent_runs: Number(a), offers: Number(o) }
 }
 

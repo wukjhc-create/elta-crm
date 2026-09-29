@@ -8,7 +8,7 @@
 import { loadEnvConfig } from '@next/env'
 
 // Flag der SKAL vaere OFF. ON = vaerdien er praecis 'true' (samme semantik som appen).
-const MUST_BE_OFF = ['AUTO_CREATE_CASES_ENABLED', 'AGENT_LIVE_SEND_ENABLED'] as const
+const MUST_BE_OFF = ['AUTO_CREATE_CASES_ENABLED', 'AGENT_LIVE_SEND_ENABLED', 'INVOICE_ATTACHMENT_FETCH_ENABLED'] as const
 
 let anyOn = false
 for (const mode of ['development', 'production'] as const) {

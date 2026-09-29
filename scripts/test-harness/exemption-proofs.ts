@@ -53,6 +53,10 @@ export async function runExemptionProofs(c: { admin: SupabaseClient; sql: Sql; o
       portalRequestReschedule: (t) => portal.portalRequestReschedule(t, taskId, 'probe'),
       submitSignedFuldmagt: (t) => submitSignedFuldmagt(t, taskId, { foedselsdato_cvr: '010101', marketing_samtykke: false, signature_data: 'x' } as never),
       submitConfirmation: (t) => submitConfirmation({ token: t, confirmerName: 'Probe' } as never),
+      uploadPortalAttachment: (t) => {
+        const fd = new FormData(); fd.append('file', new File([`[HARNESS-EX] ${stamp}`], `harness-ex-${stamp}.txt`, { type: 'text/plain' }))
+        return portal.uploadPortalAttachment(t, fd)
+      },
     }
     for (const [name, call] of Object.entries(calls)) {
       const accepted: string[] = []

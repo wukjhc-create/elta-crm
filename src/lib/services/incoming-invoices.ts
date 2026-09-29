@@ -95,7 +95,7 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
 
   const { data: email, error: readErr } = await supabase
     .from('incoming_emails')
-    .select('id, sender_email, sender_name, subject, body_text, body_preview, attachment_urls, has_attachments')
+    .select('id, sender_email, sender_name, subject, body_text, body_preview, attachment_urls, has_attachments, graph_message_id')
     .eq('id', emailId)
     .maybeSingle()
   if (readErr || !email) {
@@ -103,7 +103,23 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
     return result
   }
 
-  const attachments: EmailAttachment[] = parseAttachments(email.attachment_urls)
+  // Vedhaeftninger hentes KUN naar INVOICE_ATTACHMENT_FETCH_ENABLED er TIL (default OFF = uaendret adfaerd).
+  // Fejl ved hentning -> fallback til broedtekst som i dag. Se src/lib/invoice-control/attachment-gate.ts.
+  let attachmentUrls: unknown = email.attachment_urls
+  const { isInvoiceAttachmentFetchEnabled, shouldFetchAttachments } = await import('@/lib/invoice-control/attachment-gate')
+  if (shouldFetchAttachments(email, isInvoiceAttachmentFetchEnabled())) {
+    try {
+      const { processEmailAttachments } = await import('@/lib/services/email-attachment-storage')
+      await processEmailAttachments(emailId, email.graph_message_id as string)
+      const { data: fresh } = await supabase.from('incoming_emails').select('attachment_urls').eq('id', emailId).maybeSingle()
+      attachmentUrls = (fresh as { attachment_urls?: unknown } | null)?.attachment_urls ?? attachmentUrls
+    } catch (err) {
+      logger.warn('ingestFromEmail: attachment fetch failed — falling back to body', { entityId: emailId, error: err })
+      result.errors.push(`attachment fetch failed (fallback til brødtekst): ${err instanceof Error ? err.message.slice(0, 80) : 'ukendt'}`)
+    }
+  }
+
+  const attachments: EmailAttachment[] = parseAttachments(attachmentUrls)
   const candidates = attachments.filter(isLikelyInvoiceAttachment)
 
   // No attachments: still ingest the email body as a single record (some
@@ -195,7 +211,8 @@ function parseAttachments(raw: unknown): EmailAttachment[] {
       const o = r as Record<string, unknown>
       return {
         url: typeof o.url === 'string' ? o.url : undefined,
-        name: typeof o.name === 'string' ? o.name : undefined,
+        // email-attachment-storage gemmer {filename, contentType, url, storagePath}
+        name: typeof o.name === 'string' ? o.name : (typeof o.filename === 'string' ? o.filename : undefined),
         mime: typeof o.mime === 'string' ? o.mime : (typeof o.contentType === 'string' ? o.contentType : undefined),
         size: typeof o.size === 'number' ? o.size : undefined,
       }

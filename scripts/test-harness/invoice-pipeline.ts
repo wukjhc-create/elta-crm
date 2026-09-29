@@ -9,6 +9,9 @@
  *   I5  API-faktura: strukturerede hoveddata overlever parse (foer: regex paa JSON-tekst satte dem til null)
  *   I6  linje -> produkt: sku / ean / varenr. i tekst / intet match (deterministisk, kun samme leverandoer)
  *   I7  reel daekningsgrad + merbetaling maales paa probe-fakturaen
+ *   I8  vedhaeftnings-gate (ren funktion): kun ved flag TIL + has_attachments + graph-id + ingen gemte URL'er
+ *   I9  flag OFF: ingen Graph-hentning, faktura indlaeses fra broedtekst (uaendret prod-adfaerd)
+ *   I10 flag TIL + Graph-fejl (ukendt message-id): sikker fallback — faktura indlaeses stadig fra broedtekst
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -96,6 +99,38 @@ export async function runInvoicePipeline(c: { admin: SupabaseClient; ownerUid: s
     ]]]), new Map([[pSku, { id: pSku, supplier_sku: null, ean: null, cost_price: 100 }]]))
     out.push({ id: 'I7 reel dækning + merbetaling', ok: cov.coveragePct === 75 && cov.controllableLines === 3 && cov.overchargeAmount === 100 && cov.verdicts.deviation === 1 && cov.byMethod.stored === 1,
       note: `dækning=${cov.coveragePct}% (${cov.controllableLines}/${cov.lines}) · merbetaling=${cov.overchargeAmount} kr · metoder=${JSON.stringify(cov.byMethod)}` })
+
+    // I8 — ren gate-funktion
+    const { shouldFetchAttachments } = await import('../../src/lib/invoice-control/attachment-gate')
+    const g = (has: boolean, urls: unknown, gid: string | null, on: boolean) => shouldFetchAttachments({ has_attachments: has, attachment_urls: urls, graph_message_id: gid }, on)
+    const gateOk = g(true, null, 'x', true) && g(true, [], 'x', true) && g(true, [{ url: '' }], 'x', true)
+      && !g(true, null, 'x', false) && !g(false, null, 'x', true) && !g(true, null, null, true) && !g(true, [{ url: 'https://s/x.pdf' }], 'x', true)
+    out.push({ id: 'I8 vedhæftnings-gate', ok: gateOk, note: gateOk ? 'kun flag TIL + vedhæftning + graph-id + ingen URL → hent' : 'forkert gate-logik' })
+
+    // I9/I10 — ingestFromEmail med probe-mails (broedtekst >= 200 tegn, has_attachments, falsk graph-id)
+    const { ingestFromEmail } = await import('../../src/lib/services/incoming-invoices')
+    const body = (n: string) => `Faktura ${n}
+Fakturanummer: ${n}
+Fakturadato: 01-09-2026
+Forfaldsdato: 01-10-2026
+Beløb i alt inkl. moms: 1.250,00 DKK
+` + 'Tak for handlen. '.repeat(12)
+    const prev = process.env.INVOICE_ATTACHMENT_FETCH_ENABLED
+    const probe = async (tag: string, flag: 'true' | undefined) => {
+      const n = `${invNo}-${tag}`
+      const mail = await ins('incoming_emails', { sender_email: `faktura-${tag.toLowerCase()}-${stamp}@harness.test`, sender_name: supplierName, subject: `[HARNESS] Faktura ${n}`,
+        body_text: body(n), has_attachments: true, graph_message_id: `harness-missing-${tag}-${stamp}` })
+      if (flag) process.env.INVOICE_ATTACHMENT_FETCH_ENABLED = flag; else delete process.env.INVOICE_ATTACHMENT_FETCH_ENABLED
+      try { return await ingestFromEmail(mail) } finally {
+        if (prev === undefined) delete process.env.INVOICE_ATTACHMENT_FETCH_ENABLED; else process.env.INVOICE_ATTACHMENT_FETCH_ENABLED = prev
+      }
+    }
+    const track = (ids: string[]) => ids.forEach((id) => created.unshift({ table: 'incoming_invoices', id }))
+    const off = await probe('OFF', undefined); track(off.invoiceIds)
+    const tried = (r: { errors: string[] }) => r.errors.some((e) => /attachment fetch failed/.test(e))
+    out.push({ id: 'I9 flag OFF: ingen hentning', ok: off.ingested === 1 && !tried(off), note: `indlæst=${off.ingested} · hentforsøg=${tried(off) ? 'JA' : 'nej'} · fejl=${off.errors.length}` })
+    const on = await probe('ON', 'true'); track(on.invoiceIds)
+    out.push({ id: 'I10 flag TIL + Graph-fejl: fallback', ok: on.ingested === 1 && tried(on), note: `indlæst=${on.ingested} · hentforsøg=${tried(on) ? 'ja (fejlede → brødtekst)' : 'NEJ'}` })
   } finally {
     for (const x of created) {
       if (x.table === 'incoming_invoices') await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', x.id)

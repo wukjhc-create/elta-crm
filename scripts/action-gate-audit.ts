@@ -17,7 +17,10 @@ import { join } from 'path'
 
 const GATE_RE = /requirePermission\(|hasPermission\(|requireAdmin\w*\(|requireSupplier[A-Za-z]*\(|requireRole\(|assertPermission\(|pageHasPermission\(/
 // rpc('get_*'/'calculate_*') er rene laese-funktioner og taeller ikke som skrivning.
-const WRITE_RE = /\.(insert|update|upsert|delete)\(|\.rpc\(\s*['"](?!get_|calculate_)/
+// Direkte DB-/storage-skrivning + kendte services der skriver paa actionens vegne (indirekte skrivning var et hul:
+// backfillEmailAttachments skrev via processEmailAttachments uden gate).
+const INDIRECT_WRITERS = ['processEmailAttachments', 'ingestFromEmail', 'parseAndMatch', 'archiveAttachmentsToCustomerDocuments']
+const WRITE_RE = new RegExp(String.raw`\.(insert|update|upsert|delete)\(|\.rpc\(\s*['"](?!get_|calculate_)|\.storage\s*\.from\([^)]*\)\s*\.(upload|remove|move)\(|\b(` + INDIRECT_WRITERS.join('|') + String.raw`)\(`)
 const AUTH_RE = /getAuthenticatedClient|getUser\(|auth\.getUser|requirePermission|require[A-Z]\w*\(|pageHasPermission|getUserRoleForPage|[Tt]oken|timingSafeEqual/
 /** Bevidst offentlige actions (glemt-password begraenser selv sit svar). */
 const INTENTIONALLY_PUBLIC = new Set(['requestPasswordReset'])
