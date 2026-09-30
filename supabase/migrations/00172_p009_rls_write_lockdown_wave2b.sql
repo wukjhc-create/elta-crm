@@ -15,7 +15,7 @@
 BEGIN;
 
 -- supplier_products: ~324k priser: kun settings.suppliers (admin); API-cache/prisopdatering skrives som service-role
--- anon-grants BEVARES midlertidigt: supplier-sync-cron bruger anon-klient (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "Authenticated users can create supplier products" ON public.supplier_products;
 DROP POLICY IF EXISTS "Authenticated users can update supplier products" ON public.supplier_products;
 DROP POLICY IF EXISTS "Authenticated users can delete supplier products" ON public.supplier_products;
@@ -37,7 +37,7 @@ DROP POLICY IF EXISTS supplier_product_cache_delete_role ON public.supplier_prod
 DROP POLICY IF EXISTS supplier_product_cache_select_authenticated ON public.supplier_product_cache;
 
 -- price_history: prishistorik: import/sync (settings.suppliers); ellers system; append-only
--- anon-grants BEVARES midlertidigt: supplier-sync-cron bruger anon-klient (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "Authenticated users can create price history" ON public.price_history;
 DROP POLICY IF EXISTS price_history_insert_role ON public.price_history;
 DROP POLICY IF EXISTS price_history_update_role ON public.price_history;
@@ -46,7 +46,7 @@ DROP POLICY IF EXISTS price_history_select_authenticated ON public.price_history
 CREATE POLICY price_history_insert_role ON public.price_history FOR INSERT TO authenticated WITH CHECK (public.user_role() IN ('admin'));
 
 -- supplier_sync_logs: sync-log (settings.suppliers)
--- anon-grants BEVARES midlertidigt: supplier-sync-cron bruger anon-klient (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "Authenticated users can create sync logs" ON public.supplier_sync_logs;
 DROP POLICY IF EXISTS "Authenticated users can update sync logs" ON public.supplier_sync_logs;
 DROP POLICY IF EXISTS supplier_sync_logs_insert_role ON public.supplier_sync_logs;
@@ -70,7 +70,7 @@ CREATE POLICY supplier_sync_jobs_update_role ON public.supplier_sync_jobs FOR UP
 CREATE POLICY supplier_sync_jobs_delete_role ON public.supplier_sync_jobs FOR DELETE TO authenticated USING (public.user_role() IN ('admin'));
 
 -- supplier_sync_schedules: sync-planer (settings.suppliers)
--- anon-grants BEVARES midlertidigt: supplier-sync-cron bruger anon-klient (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "Authenticated users can manage sync schedules" ON public.supplier_sync_schedules;
 DROP POLICY IF EXISTS "Authenticated users can update sync schedules" ON public.supplier_sync_schedules;
 DROP POLICY IF EXISTS "Authenticated users can delete sync schedules" ON public.supplier_sync_schedules;

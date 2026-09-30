@@ -7,10 +7,11 @@
  *   1. en rolle skriver (insert/update/delete) til en matrix-tabel via app-kode, men matrixen ikke tillader den
  *      (= lockdown ville bryde et legitimt flow). Betingede slet-roller (fx forslag) taeller som tilladt.
  *   2. en genereret migrationsfil ikke er identisk med hvad matrixen genererer i dag.
+ *   3. en tabel som en anon-cron (P-003) naar, mister sine anon-grants (cron-adfaerd ville aendres).
  * ADVARSEL (ikke fejl): skrivestier hvis klient/gate ikke kunne oploeses statisk (vurderet manuelt i matrixens `why`).
  */
 import { readFileSync, existsSync } from 'fs'
-import { scanWriteSites, derivedRoles } from '../rls-write-sites'
+import { scanWriteSites, derivedRoles, anonCronTables } from '../rls-write-sites'
 import * as M from './write-matrix'
 import { buildMigration } from './build-migration'
 
@@ -30,6 +31,9 @@ export function checkMatrix(): { failures: string[]; warnings: string[] } {
       if (d.unresolved.length) warnings.push(`${p.table}.${op}: ${d.unresolved.length} statisk uafklarede stier (manuelt vurderet)`)
     }
   }
+  // Tabeller som anon-crons (P-003) naar: anon-grants SKAL bevares (ellers aendres cron-adfaerd).
+  const anonCron = anonCronTables()
+  for (const p of all) if (anonCron.has(p.table) && !p.keepAnonGrants) failures.push(`${p.table}: laeses/skrives af anon-cron (${anonCron.get(p.table)!.slice(0, 2).join(', ')}) — saet keepAnonGrants`)
   for (const { nr, wave } of WAVES) {
     const { file, sql } = buildMigration(nr, wave)
     if (!existsSync(file)) failures.push(`${nr}: migrationsfil mangler (${file})`)

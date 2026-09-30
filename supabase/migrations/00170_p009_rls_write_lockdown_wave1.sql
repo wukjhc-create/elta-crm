@@ -15,7 +15,7 @@
 BEGIN;
 
 -- customers: opret: customers.create + offers.create + opret-fra-mail (inbox.view, inkl. montør) · ret: customers.edit/tools.pricing · slet: customers.delete
-REVOKE ALL ON public.customers FROM anon;
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "Users can create customers" ON public.customers;
 DROP POLICY IF EXISTS "Users can update customers" ON public.customers;
 DROP POLICY IF EXISTS "Users can delete customers" ON public.customers;
@@ -28,7 +28,7 @@ CREATE POLICY customers_update_role ON public.customers FOR UPDATE TO authentica
 CREATE POLICY customers_delete_role ON public.customers FOR DELETE TO authenticated USING (public.user_role() IN ('admin'));
 
 -- customer_contacts: customers.edit + opret-fra-mail (inbox.view) + sags-kontakt (cases.edit)
-REVOKE ALL ON public.customer_contacts FROM anon;
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "Users can manage customer contacts" ON public.customer_contacts;
 DROP POLICY IF EXISTS customer_contacts_insert_role ON public.customer_contacts;
 DROP POLICY IF EXISTS customer_contacts_update_role ON public.customer_contacts;
@@ -40,7 +40,7 @@ CREATE POLICY customer_contacts_update_role ON public.customer_contacts FOR UPDA
 CREATE POLICY customer_contacts_delete_role ON public.customer_contacts FOR DELETE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder', 'salg'));
 
 -- offers: offers.create/edit/send, tools.calculations, cases.create · slet: offers.delete (admin) + afvis forslag
-REVOKE ALL ON public.offers FROM anon;
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "Users can create offers" ON public.offers;
 DROP POLICY IF EXISTS "Users can update offers" ON public.offers;
 DROP POLICY IF EXISTS "Users can delete offers" ON public.offers;
@@ -65,7 +65,7 @@ CREATE POLICY offer_line_items_update_role ON public.offer_line_items FOR UPDATE
 CREATE POLICY offer_line_items_delete_role ON public.offer_line_items FOR DELETE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder', 'salg'));
 
 -- portal_access_tokens: offers.send (opret/deaktivér portal-adgang); validering sker med service-role
-REVOKE ALL ON public.portal_access_tokens FROM anon;
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "Employees can create portal tokens" ON public.portal_access_tokens;
 DROP POLICY IF EXISTS "Employees can update portal tokens" ON public.portal_access_tokens;
 DROP POLICY IF EXISTS "Employees can delete portal tokens" ON public.portal_access_tokens;
@@ -91,7 +91,7 @@ CREATE POLICY customer_documents_update_role ON public.customer_documents FOR UP
 CREATE POLICY customer_documents_delete_role ON public.customer_documents FOR DELETE TO authenticated USING (public.user_role() IN ('admin'));
 
 -- incoming_emails: indsaet: sendte mails (inbox.send, offers.send, tasks.edit, customers.edit) · ret: laest/kobling (inbox.view, cases.create, customers.view) · slet: kun service-role i appen
-REVOKE ALL ON public.incoming_emails FROM anon;
+-- anon-grants BEVARES midlertidigt: anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl (RLS blokerer stadig al anon-skrivning — ingen anon-policies)
 DROP POLICY IF EXISTS "incoming_emails_insert" ON public.incoming_emails;
 DROP POLICY IF EXISTS "incoming_emails_update" ON public.incoming_emails;
 DROP POLICY IF EXISTS "incoming_emails_delete" ON public.incoming_emails;

@@ -38,9 +38,15 @@ export interface TableWritePolicy {
   why: string
 }
 
+/** Anon-crons (P-003-familien: supplier-sync, unanswered-mails, rykker-resolvere, learning-feedback) laeser med
+ *  cookie-klient = anon. En anon-revoke ville skifte tom laesning til fejl (fejllog/cron-status) — derfor bevares grants
+ *  paa de tabeller de naar, indtil P-003 er besluttet. RLS blokerer alligevel al anon-skrivning (ingen anon-policies). */
+export const P003 = 'anon-cron (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl'
+
 export const WAVE1: TableWritePolicy[] = [
   {
     table: 'customers',
+    keepAnonGrants: P003,
     insert: ['admin', 'serviceleder', 'salg', 'montør'],
     update: ['admin', 'serviceleder', 'salg'],
     delete: ['admin'],
@@ -50,6 +56,7 @@ export const WAVE1: TableWritePolicy[] = [
   },
   {
     table: 'customer_contacts',
+    keepAnonGrants: P003,
     insert: ['admin', 'serviceleder', 'salg', 'montør'],
     update: ['admin', 'serviceleder', 'salg'],
     delete: ['admin', 'serviceleder', 'salg'],
@@ -59,6 +66,7 @@ export const WAVE1: TableWritePolicy[] = [
   },
   {
     table: 'offers',
+    keepAnonGrants: P003,
     insert: ['admin', 'serviceleder', 'salg'],
     insertExtraSql: 'created_by = auth.uid()',
     update: ['admin', 'serviceleder', 'salg'],
@@ -79,6 +87,7 @@ export const WAVE1: TableWritePolicy[] = [
   },
   {
     table: 'portal_access_tokens',
+    keepAnonGrants: P003,
     insert: ['admin', 'serviceleder', 'salg'],
     insertExtraSql: 'created_by = auth.uid()',
     update: ['admin', 'serviceleder', 'salg'],
@@ -98,6 +107,7 @@ export const WAVE1: TableWritePolicy[] = [
   },
   {
     table: 'incoming_emails',
+    keepAnonGrants: P003,
     insert: ['admin', 'serviceleder', 'montør', 'salg'],
     update: ['admin', 'serviceleder', 'montør', 'salg', 'bogholderi'],
     delete: ['admin'],
@@ -157,8 +167,6 @@ export const WAVE2A: TableWritePolicy[] = [
   { table: 'sms_templates', insert: [], update: [], delete: [], dropPolicies: ['sms_templates_insert', 'sms_templates_update', 'sms_templates_delete'], recreateOpenSelect: false,
     why: 'SMS-skabeloner skrives KUN af service-role' },
 ]
-
-const P003 = 'supplier-sync-cron bruger anon-klient (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl'
 
 /** Runde 2B: leverandoerprisdata. Forudsaetning (kode): system-skrivninger fra leverandoer-API er flyttet til service-role. */
 export const WAVE2B: TableWritePolicy[] = [

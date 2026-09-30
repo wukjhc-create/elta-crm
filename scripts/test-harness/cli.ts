@@ -490,6 +490,18 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'rls-anon-parity') {
+    // STAGING-ONLY: genskab anon-tabel-grants (som i prod) paa tabeller hvor matrixen bevarer dem (P-003 anon-crons).
+    const M = await import('../rls/write-matrix')
+    const kept = Object.keys(M).filter((k) => /^WAVE/.test(k)).flatMap((k) => (M as unknown as Record<string, import('../rls/write-matrix').TableWritePolicy[]>)[k])
+      .filter((p) => p.keepAnonGrants).map((p) => p.table)
+    const req = process.argv.slice(3).filter((t) => /^[a-z_0-9]+$/.test(t))
+    const bad = req.filter((t) => !kept.includes(t))
+    if (!req.length || bad.length) { log(`brug: rls-anon-parity <tabel...> (kun keepAnonGrants-tabeller; ugyldige: ${bad.join(',') || '-'})`); process.exit(2) }
+    for (const t of req) await stagingSql(`GRANT SELECT, INSERT, UPDATE, DELETE, REFERENCES, TRIGGER, TRUNCATE ON public.${t} TO anon`)
+    log(`✅ anon-grants genskabt paa staging: ${req.join(', ')}`)
+    return
+  }
   if (SUB === 'rls-lockdown') {
     const { runRlsLockdown, formatRlsLockdown } = await import('./rls-lockdown')
     const M = await import('../rls/write-matrix')

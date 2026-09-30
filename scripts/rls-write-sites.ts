@@ -53,7 +53,8 @@ function fnName(n: ts.Node): string {
   return '(anon)'
 }
 
-export function scanWriteSites(root = join(process.cwd(), 'src'), tables?: string[]): WriteSite[] {
+export function scanWriteSites(root = join(process.cwd(), 'src'), tables?: string[], opts: { includeReads?: boolean } = {}): WriteSite[] {
+  const ops = opts.includeReads ? new Set([...OPS, 'select']) : OPS
   const files = walk(root)
   const program = ts.createProgram(files, { allowJs: false, jsx: ts.JsxEmit.Preserve, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, baseUrl: process.cwd(), paths: { '@/*': ['src/*'] }, noEmit: true, skipLibCheck: true })
   const checker = program.getTypeChecker()
@@ -133,7 +134,7 @@ export function scanWriteSites(root = join(process.cwd(), 'src'), tables?: strin
         && n.arguments.length === 1 && ts.isStringLiteralLike(n.arguments[0])) {
         const table = n.arguments[0].text
         const parent = n.parent
-        if ((!tables || tables.includes(table)) && ts.isPropertyAccessExpression(parent) && OPS.has(parent.name.text) && ts.isCallExpression(parent.parent)) {
+        if ((!tables || tables.includes(table)) && ts.isPropertyAccessExpression(parent) && ops.has(parent.name.text) && ts.isCallExpression(parent.parent)) {
           const receiver = n.expression.expression
           const recvText = receiver.getText(sf)
           if (!/\.storage$|^storage$/.test(recvText)) {
@@ -200,8 +201,32 @@ export function derivedRoles(sites: WriteSite[], table: string, op: string): { r
   return { roles: [...roles].sort(), unresolved }
 }
 
+/**
+ * Tabeller som cron-ruter naar via en bruger-/cookie-klient (= anon under cron, P-003-familien), inkl. LAESNINGER.
+ * En anon-revoke paa disse aendrer cron'ens adfaerd (tom laesning -> permission denied), selv om RLS i forvejen
+ * blokerer — derfor skal lockdown-runder bevare anon-grants her, indtil P-003 er besluttet.
+ */
+export function anonCronTables(): Map<string, string[]> {
+  const out = new Map<string, string[]>()
+  for (const s of scanWriteSites(undefined, undefined, { includeReads: true })) {
+    if (s.client === 'admin') continue
+    const viaCron = s.file.includes('/api/cron/') || s.fn.includes('/api/cron/')
+    if (!viaCron) continue
+    const arr = out.get(s.table) ?? []
+    const tag = `${s.op}@${s.file.split('/').slice(-2).join('/')}:${s.line}`
+    if (!arr.includes(tag)) arr.push(tag)
+    out.set(s.table, arr)
+  }
+  return out
+}
+
 if (require.main === module) {
   const args = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+  if (process.argv.includes('--anon-crons')) {
+    const m = anonCronTables()
+    for (const [t, tags] of [...m.entries()].sort()) console.log(`${t.padEnd(32)} ${tags.slice(0, 4).join('  ')}${tags.length > 4 ? ` (+${tags.length - 4})` : ''}`)
+    process.exit(0)
+  }
   const tables = args.length ? args : WAVE1
   const sites = scanWriteSites(undefined, tables)
   if (process.argv.includes('--json')) { console.log(JSON.stringify(sites, null, 2)); process.exit(0) }
