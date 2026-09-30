@@ -193,9 +193,15 @@ function logIngest(emailId: string, result: IngestEmailResult): IngestEmailResul
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
+/** Egne maildomaener (samme liste som 00169 / prod-preview-customer-mail-invoices.ts). */
+export const INTERNAL_MAIL_DOMAINS = ['eltasolar.dk']
+
 /** IC13: afsender er praecis den e-mail der staar paa mailens koblede kunde. */
 export async function isCustomerOwnMail(supabase: AdminClient, email: { customer_id?: string | null; sender_email?: string | null }): Promise<boolean> {
   if (!email.customer_id || !email.sender_email) return false
+  // Eget domaene frasorteres aldrig automatisk: en medarbejder kan videresende en aegte leverandoerfaktura fra en
+  // adresse der ogsaa staar paa en (test)kunde. Ingen gaet — den slags vurderes manuelt.
+  if (INTERNAL_MAIL_DOMAINS.includes(email.sender_email.trim().toLowerCase().split('@')[1] ?? '')) return false
   const { data: customer } = await supabase.from('customers').select('email').eq('id', email.customer_id).maybeSingle()
   const custEmail = ((customer as { email?: string | null } | null)?.email || '').trim().toLowerCase()
   return !!custEmail && custEmail === email.sender_email.trim().toLowerCase()

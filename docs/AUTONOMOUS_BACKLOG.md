@@ -71,7 +71,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | Beslutning: kundemail-crons (offer-/invoice-reminders) aktive under pilot? | BLOCKED | Henrik. Ingen sendt seneste 30 d, men kan sende uden varsel; invoice-reminders har ingen kill-switch (CRON_DISCOVERY F6/F7) |
 | Beslutning: ret anon-crons (supplier-sync, learning-feedback, unanswered-mails, email-linker) | BLOCKED | Henrik — rettelse aktiverer adfærd i prod; supplier-sync = integration-gate (CRON_DISCOVERY F1–F4) |
 | Aktivér `INVOICE_ATTACHMENT_FETCH_ENABLED` i prod (GODKENDT 2026-09-29) | BLOCKED (adgang) | Henrik sætter env i Vercel + redeploy (ingen Vercel-adgang her). Derefter kører backfill automatisk. Efter-måling: runbook invoice-attachment-backfill |
-| Beslutning: de 20 eksisterende 'fakturaer' der er kundens egne mails (IC13) — afvis i bulk? | BLOCKED | Henrik |
+| IC13-oprydning: kundens egne mails i fakturakøen | DONE (prod 2026-09-30) | Read-only preview → 18 deterministiske rækker afvist samlet via data-migration 00169 (regel genverificeret i transaktionen, abort ved afvigelse; testet abort-sti på staging). Intet slettet; audit pr. række. 2 med intern afsender (eltasolar.dk) bevidst udeladt → manuel vurdering. Kø: 51 → 33 åbne |
 | Prod-migrationer 00167 (CVR) + 00168 (suppliers skrivelås, P-008 S2) | DONE | Kørt i prod 2026-09-30 (godkendt). Alle pre/post-checks + persona-checks grønne; P-008 lukket |
 | P-009 (S2 systemisk): 109 tabeller med åbne skrive-policies | BLOCKED (plan) | Henrik: godkend retning (domæne-vis lockdown, staging først). Første bølge foreslået: supplier_products, customers, offers(+line_items), customer_documents, portal_access_tokens, incoming_emails, work_orders/time_entries |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
@@ -82,6 +82,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-30: 00169 (IC13) kørt i prod: 18 kundemails afvist som ikke-faktura, 2 interne til manuel vurdering. IC13-reglen i koden udelader nu også interne afsendere.
 - 2026-09-30: 00167 + 00168 kørt i prod (godkendt), alle checks grønne; P-008 lukket. Vercel-flag INVOICE_ATTACHMENT_FETCH_ENABLED: godkendt, men ikke sat (ingen Vercel-adgang) — backfill afventer.
 - 2026-09-29: npm audit fix (ikke-breaking): 27 sårbarheder (3 kritiske: basic-ftp path traversal i LM-FTP, next, fast-xml-parser) → 1 high (nodemailer, kræver major-opgradering, åben). Harness-fund: harness:smoke blokeres fail-closed af env-guard (sammenligner staging med sig selv efter app-env-genbinding) — åben, lav.
 - 2026-09-29: IC10/00167 (CVR) + 00168 (P-008) på staging, 8/8. Nyt read-only audit `prod-write-policies` → P-009: 109 tabeller åbne for skrivning (S2 systemisk).

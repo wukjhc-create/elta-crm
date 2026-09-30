@@ -3,6 +3,7 @@
  * attachment_urls saettes paa probe-mailen (samme form som email-attachment-storage skriver).
  *
  *   A1  kundens egen mail (afsender = kobl. kundes e-mail) frasorteres — ingen faktura
+ *   A1b afsender paa eget domaene (eltasolar.dk) frasorteres ALDRIG automatisk (manuel vurdering)
  *   A2  flag OFF: broedtekst-faktura oprettes (uaendret adfaerd)
  *   A3  flag TIL + PDF: SAMME faktura opgraderes (ingen ny raekke), PDF-fakturanummer/beloeb, audit-spor
  *   A4  genkoersel er idempotent: ingen ny raekke, ingen ny opgradering
@@ -59,6 +60,14 @@ export async function runInvoiceAttachments(c: { admin: SupabaseClient; ownerUid
     const r1 = await ingestFromEmail(own); track(r1.invoiceIds)
     out.push({ id: 'A1 kundens egen mail frasorteres', ok: r1.ingested === 0 && !!r1.skipped?.includes('customer_mail') && (await invoicesFor(own)).length === 0,
       note: `skipped=${(r1.skipped ?? []).join(',') || '-'} · fakturaer=${(await invoicesFor(own)).length}` })
+
+    // A1b — intern afsender paa en (test)kunde frasorteres IKKE automatisk
+    const intEmail = `harness-${stamp}@eltasolar.dk`
+    const intCust = await ins('customers', { customer_number: `HARNESS-ATT-I-${stamp}`, company_name: '[HARNESS] att-intern', contact_person: 'I', email: intEmail, created_by: c.ownerUid, custom_fields: { harness: 'invoice-attachments' } })
+    const intMail = await mail('INT', { sender_email: intEmail, customer_id: intCust })
+    const r1b = await ingestFromEmail(intMail); track(r1b.invoiceIds)
+    out.push({ id: 'A1b intern afsender: ingen auto-frasortering', ok: !r1b.skipped?.includes('customer_mail') && r1b.ingested === 1,
+      note: `skipped=${(r1b.skipped ?? []).join(',') || '-'} · indlæst=${r1b.ingested}` })
 
     // A2 — flag OFF: broedtekst-faktura
     const m = await mail('UPG')
