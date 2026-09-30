@@ -21,6 +21,9 @@ withProdReadOnly('prod-trigger-writes', async (run, masked) => {
   console.log(`--- trigger-skrivninger mod låste tabeller (${waves.join(',')}) @ prod:${masked} ---`)
   const fns = (await run(`SELECT p.proname fn, p.prosecdef definer, pg_get_functiondef(p.oid) src FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.prokind = 'f'`)) as Array<{ fn: string; definer: boolean; src: string }>
+  // Funktioner som matrixens extraSql goer til SECURITY DEFINER (planlagt i samme migration) regnes som definer.
+  const plannedDefiner = new Set(policies.flatMap((p) => (p.extraSql ?? []).map((x) => /ALTER FUNCTION public\.(\w+)\(\)\s+SECURITY DEFINER/i.exec(x)?.[1]).filter(Boolean) as string[]))
+  for (const f of fns) if (plannedDefiner.has(f.fn)) f.definer = true
   const fnMap = new Map(fns.map((f) => [f.fn, f]))
   const trg = (await run(`SELECT c.relname tbl, t.tgname, p.proname fn, t.tgtype::int tgtype FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_proc p ON p.oid = t.tgfoid WHERE n.nspname = 'public' AND NOT t.tgisinternal`)) as Array<{ tbl: string; tgname: string; fn: string; tgtype: number }>

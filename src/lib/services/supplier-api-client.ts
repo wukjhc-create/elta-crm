@@ -297,7 +297,10 @@ export abstract class BaseSupplierAPIClient {
     if (prices.length === 0) return
 
     try {
-      const supabase = await createClient()
+      // P-009: systemdata fra leverandoer-API skrives som service-role (actionen er allerede gatet); RLS laaser
+      // supplier_products/supplier_product_cache til admin/service-role.
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const supabase = createAdminClient()
 
       // Get supplier product IDs for these SKUs
       const { data: products } = await supabase

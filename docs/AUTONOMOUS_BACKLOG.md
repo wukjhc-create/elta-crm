@@ -75,7 +75,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | Prod-migrationer 00167 (CVR) + 00168 (suppliers skrivelås, P-008 S2) | DONE | Kørt i prod 2026-09-30 (godkendt). Alle pre/post-checks + persona-checks grønne; P-008 lukket |
 | P-009 runde 1 (00170): customers, customer_contacts, offers, offer_line_items, portal_access_tokens, customer_documents, incoming_emails | DONE (staging) · prod-gate | Matrix → genereret SQL; CI check:rls-matrix; harness:rls-lockdown 7/7 (172 checks, rigtige sessioner); regression grøn. Runbook: docs/runbooks/p009-rls-write-lockdown.md |
 | P-009 runde 2A (00171): finance/arbejdsordrer, integrationer/webhooks, automation, skabeloner (15 tabeller) | DONE (staging) · prod-gate | 339 persona-checks grønne. Trigger-fund: profit-snapshot skrev som brugeren → trigger-funktioner SECURITY DEFINER + revoke. App: egne timer håndhæves nu. db-audit LAV 101→86 |
-| P-009 runde 2B: leverandørprisdata (supplier_products 323k, sync-/import-tabeller, kundepriser, price_history) | TODO | Kræver kode: cache-/prisopdatering fra søgning og kalkulation flyttes til service-role (gatet action), før tabellen kan låses til admin |
+| P-009 runde 2B (00172): leverandørprisdata (10 tabeller) | DONE (staging) · prod-gate | Kode: API-drevne system-skrivninger → service-role i gatede actions; supplier_products kun admin. 210 persona-checks. Anon-grants bevaret på 4 cron-tabeller (P-003) — RLS blokerer stadig |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
 
 ## Fund registreret undervejs
@@ -84,6 +84,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-30: P-009 runde 2B (00172) på staging: 10 leverandørpris-tabeller låst (supplier_products kun admin); 210 checks; db-audit LAV 76.
 - 2026-09-30: P-009 runde 2A (00171) på staging: 15 tabeller, 339 checks; nyt transitivt trigger-audit (prod-trigger-writes) fangede 2 brud → rettet.
 - 2026-09-30: P-009 runde 1 (00170) på staging: 7 tabeller låst til appens roller, 172 persona-checks grønne; prod afventer gate.
 - 2026-09-30: RBAC-audit tæller nu også mail/SMS/e-conomic-effekter og hjælpere i action-filer → 24 ugatede actions gatet (AI-mailassistent, besigtigelses-/kundemails, test-mail uden login [S3: åben relay med fast indhold], indstillinger, sager, sync); 9 token-/public-undtagelser dynamisk bevist (exemption-proofs 20/20, action-auth 6/6). check:rbac: 442 skrivende, 386 gatet, 56 undtaget, 0 fejl.

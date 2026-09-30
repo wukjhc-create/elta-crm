@@ -782,6 +782,9 @@ export async function refreshSupplierPricesForCalculation(
         if (!client) {
           return { refreshed: 0, failed: supplierMaterials.length, changes: 0 }
         }
+        // P-009: priser fra leverandoer-API'et skrives som service-role (supplier_products/price_history = admin)
+        const { createAdminClient } = await import('@/lib/supabase/admin')
+        const sys = createAdminClient()
 
         const skus = supplierMaterials.map((m) => m.sku)
         const prices = await client.getProductPrices(skus)
@@ -800,7 +803,7 @@ export async function refreshSupplierPricesForCalculation(
 
           if (material.oldPrice !== newPrice.costPrice) {
             productUpdates.push(async () => {
-              await supabase
+              await sys
                 .from('supplier_products')
                 .update({
                   cost_price: newPrice.costPrice,
@@ -831,7 +834,7 @@ export async function refreshSupplierPricesForCalculation(
         await Promise.all([
           ...productUpdates.map((fn) => fn()),
           historyRecords.length > 0
-            ? supabase.from('price_history').insert(historyRecords)
+            ? sys.from('price_history').insert(historyRecords)
             : Promise.resolve(),
         ])
 

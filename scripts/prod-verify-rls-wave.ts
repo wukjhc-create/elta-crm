@@ -38,7 +38,9 @@ async function main() {
       return
     }
     expect(open.length === 0, `ingen åbne skrive-policies (${open.map((o) => `${o.tablename}.${o.policyname}`).join(', ') || '0'})`)
-    expect(anon.length === 0, `anon uden grants (${anon.map((a) => a.table_name).join(',') || 'ingen'})`)
+    const kept = new Set(policies.filter((p) => p.keepAnonGrants).map((p) => p.table))
+    const unexpectedAnon = anon.filter((a) => !kept.has(a.table_name))
+    expect(unexpectedAnon.length === 0, `anon uden grants (${unexpectedAnon.map((a) => a.table_name).join(',') || 'ingen'})${kept.size ? ` · bevidst bevaret (P-003): ${[...kept].join(',')}` : ''}`)
     for (const p of policies) {
       const n = M.policyNames(p.table)
       const have = ((await run(`SELECT policyname FROM pg_policies WHERE schemaname='public' AND tablename='${p.table}'`)) as any[]).map((x) => x.policyname)

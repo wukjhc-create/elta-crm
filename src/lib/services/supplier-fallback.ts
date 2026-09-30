@@ -206,7 +206,9 @@ export class SupplierFallbackService {
     source: 'api' | 'import' | 'manual' = 'api'
   ): Promise<void> {
     try {
-      const supabase = await createClient()
+      // P-009: systemcache skrives som service-role (RLS: kun service-role)
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const supabase = createAdminClient()
       const now = new Date()
       const expiresAt = new Date(now.getTime() + this.maxCacheAge)
 
@@ -236,7 +238,9 @@ export class SupplierFallbackService {
    */
   async markCacheStale(supplierProductIds?: string[]): Promise<void> {
     try {
-      const supabase = await createClient()
+      // P-009: systemcache skrives som service-role (RLS: kun service-role)
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const supabase = createAdminClient()
 
       let query = supabase.from('supplier_product_cache').update({ is_stale: true })
 

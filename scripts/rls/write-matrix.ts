@@ -24,6 +24,11 @@ export interface TableWritePolicy {
    * (default alle), checkSql = hvordan raekken skal se ud bagefter (default uaendret krav).
    */
   updateConditional?: { roles: Role[]; usingSql?: string; checkSql?: string; desc: string }
+  /**
+   * Bevar anon-tabel-grants (begrundelse). Kun naar en eksisterende (godkendelses-blokeret) proces bruger anon-klienten
+   * og en revoke ville aendre dens adfaerd; RLS blokerer alligevel anon (ingen anon-policies).
+   */
+  keepAnonGrants?: string
   /** Ekstra DDL der skal med for at laasen ikke bryder DB-triggere (scripts/prod-trigger-writes.ts). */
   extraSql?: string[]
   /** Eksisterende skrive-/ALL-policies der erstattes (praecise navne fra prod 2026-09-30). */
@@ -153,6 +158,42 @@ export const WAVE2A: TableWritePolicy[] = [
     why: 'SMS-skabeloner skrives KUN af service-role' },
 ]
 
+const P003 = 'supplier-sync-cron bruger anon-klient (P-003, rettelse afventer Henrik) — revoke ville skifte tom laesning til fejl'
+
+/** Runde 2B: leverandoerprisdata. Forudsaetning (kode): system-skrivninger fra leverandoer-API er flyttet til service-role. */
+export const WAVE2B: TableWritePolicy[] = [
+  { table: 'supplier_products', insert: ['admin'], update: ['admin'], delete: ['admin'], keepAnonGrants: P003,
+    dropPolicies: ['Authenticated users can create supplier products', 'Authenticated users can update supplier products', 'Authenticated users can delete supplier products'],
+    recreateOpenSelect: false, why: '~324k priser: kun settings.suppliers (admin); API-cache/prisopdatering skrives som service-role' },
+  { table: 'supplier_product_cache', insert: [], update: [], delete: [],
+    dropPolicies: ['Authenticated users can manage product cache', 'Authenticated users can update product cache'],
+    recreateOpenSelect: false, why: 'offline-prisscache skrives KUN af system (service-role)' },
+  { table: 'price_history', insert: ['admin'], update: [], delete: [], keepAnonGrants: P003,
+    dropPolicies: ['Authenticated users can create price history'], recreateOpenSelect: false,
+    why: 'prishistorik: import/sync (settings.suppliers); ellers system; append-only' },
+  { table: 'supplier_sync_logs', insert: ['admin'], update: ['admin'], delete: [], keepAnonGrants: P003,
+    dropPolicies: ['Authenticated users can create sync logs', 'Authenticated users can update sync logs'], recreateOpenSelect: false,
+    why: 'sync-log (settings.suppliers)' },
+  { table: 'supplier_sync_jobs', insert: ['admin'], update: ['admin'], delete: ['admin'],
+    dropPolicies: ['Authenticated users can manage sync jobs', 'Authenticated users can update sync jobs', 'Authenticated users can delete sync jobs'],
+    recreateOpenSelect: false, why: 'sync-jobs (settings.suppliers)' },
+  { table: 'supplier_sync_schedules', insert: ['admin'], update: ['admin'], delete: ['admin'], keepAnonGrants: P003,
+    dropPolicies: ['Authenticated users can manage sync schedules', 'Authenticated users can update sync schedules', 'Authenticated users can delete sync schedules'],
+    recreateOpenSelect: false, why: 'sync-planer (settings.suppliers)' },
+  { table: 'supplier_margin_rules', insert: ['admin'], update: ['admin'], delete: ['admin'],
+    dropPolicies: ['Authenticated users can manage margin rules', 'Authenticated users can update margin rules', 'Authenticated users can delete margin rules'],
+    recreateOpenSelect: false, why: 'prisregler (settings.suppliers)' },
+  { table: 'customer_supplier_prices', insert: ['admin', 'serviceleder'], update: ['admin', 'serviceleder'], delete: ['admin', 'serviceleder'],
+    dropPolicies: ['Authenticated users can manage customer supplier prices', 'Authenticated users can update customer supplier prices', 'Authenticated users can delete customer supplier prices'],
+    recreateOpenSelect: false, why: 'kundeaftaler (tools.pricing)' },
+  { table: 'customer_product_prices', insert: ['admin', 'serviceleder'], update: ['admin', 'serviceleder'], delete: [],
+    dropPolicies: ['Authenticated users can manage customer product prices', 'Authenticated users can update customer product prices', 'Authenticated users can delete customer product prices'],
+    recreateOpenSelect: false, why: 'kundepriser (tools.pricing); ingen sletning i appen' },
+  { table: 'import_batches', insert: ['admin'], update: ['admin'], delete: [],
+    dropPolicies: ['Authenticated users can create import batches', 'Authenticated users can update import batches'], recreateOpenSelect: false,
+    why: 'CSV-import (settings.suppliers)' },
+]
+
 const q = (s: string) => `"${s.replace(/"/g, '""')}"`
 const roleList = (r: Role[]) => r.map((x) => `'${x}'`).join(', ')
 const inRoles = (r: Role[]) => `public.user_role() IN (${roleList(r)})`
@@ -170,7 +211,8 @@ export function generateSql(policies: TableWritePolicy[]): string {
       ? `(${inRoles(p.delete)}) OR (${inRoles(p.deleteConditional.roles)} AND ${p.deleteConditional.sql})`
       : inRoles(p.delete)
     out.push(`-- ${p.table}: ${p.why}`)
-    out.push(`REVOKE ALL ON public.${p.table} FROM anon;`)
+    if (p.keepAnonGrants) out.push(`-- anon-grants BEVARES midlertidigt: ${p.keepAnonGrants} (RLS blokerer stadig al anon-skrivning — ingen anon-policies)`)
+    else out.push(`REVOKE ALL ON public.${p.table} FROM anon;`)
     for (const d of p.dropPolicies) out.push(`DROP POLICY IF EXISTS ${q(d)} ON public.${p.table};`)
     for (const d of [n.ins, n.upd, n.del, n.sel]) out.push(`DROP POLICY IF EXISTS ${d} ON public.${p.table};`)
     if (p.recreateOpenSelect) out.push(`CREATE POLICY ${n.sel} ON public.${p.table} FOR SELECT TO authenticated USING (true);  -- laesning uaendret`)

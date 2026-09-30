@@ -59,10 +59,23 @@ const SPECS: Record<string, Spec> = {
   automation_executions: { payload: (_u, c) => ({ rule_id: c.s.rule, entity_type: 'offer', entity_id: c.s.offer, status: 'dry_run' }), update: { status: 'skipped' } },
   email_templates: { payload: (_u, c) => ({ code: `harn_rls_${c.stamp}_${c.n()}`, name: '[HARNESS] rls', subject_template: 'x', body_html_template: 'x', is_active: false }), update: { name: '[HARNESS] rls-update' } },
   sms_templates: { payload: (_u, c) => ({ code: `harn_rls_${c.stamp}_${c.n()}`, name: '[HARNESS] rls', message_template: 'x', is_active: false }), update: { name: '[HARNESS] rls-update' } },
+  // ---- runde 2B (leverandoerprisdata) — unikke par/noegler via puljer ----
+  supplier_products: { payload: (_u, c) => ({ supplier_id: c.s.supplier, supplier_sku: `HRLS-${c.stamp}-${c.n()}`, supplier_name: '[HARNESS] rls', cost_price: 1 }), update: { cost_price: 2 } },
+  supplier_product_cache: { payload: (_u, c) => ({ supplier_product_id: c.s[`sp${c.n() % 80}`], cached_cost_price: 1, cache_source: 'manual' }), update: { is_stale: true } },
+  price_history: { payload: (_u, c) => ({ supplier_product_id: c.s.sp0, old_cost_price: 1, new_cost_price: 2, change_percentage: 100, change_source: 'manual' }), update: { change_percentage: 1 } },
+  supplier_sync_logs: { payload: (_u, c) => ({ supplier_id: c.s.supplier, job_type: 'price_update', status: 'completed', trigger_type: 'manual' }), update: { status: 'failed' } },
+  supplier_sync_jobs: { payload: (_u, c) => ({ supplier_id: c.s.supplier, job_type: 'custom', name: `[HARNESS] rls ${c.n()}`, is_active: false }), update: { name: '[HARNESS] rls-update' } },
+  supplier_sync_schedules: { payload: (_u, c) => ({ supplier_id: c.s[`su${c.n() % 60}`], schedule_name: `[HARNESS] rls ${c.n()}`, sync_type: 'price_update', cron_expression: '0 0 1 1 *', is_enabled: false }), update: { schedule_name: '[HARNESS] rls-update' } },
+  supplier_margin_rules: { payload: (_u, c) => ({ supplier_id: c.s.supplier, rule_type: 'supplier', margin_percentage: 10, is_active: false }), update: { margin_percentage: 11 } },
+  customer_supplier_prices: { payload: (_u, c) => ({ customer_id: c.s[`cu${c.n() % 80}`], supplier_id: c.s.supplier, discount_percentage: 1, is_active: false }), update: { discount_percentage: 2 } },
+  customer_product_prices: { payload: (_u, c) => ({ customer_id: c.s.customer, supplier_product_id: c.s[`sp${c.n() % 80}`], custom_cost_price: 1, source: 'manual', is_active: false }), update: { custom_cost_price: 2 } },
+  import_batches: { payload: (_u, c) => ({ supplier_id: c.s.supplier, filename: 'harness-rls.csv', status: 'dry_run', is_dry_run: true }), update: { status: 'failed' } },
 }
 
 /** Oprydningsraekkefoelge (boern foer foraeldre). */
-const CLEANUP = ['offer_line_items', 'customer_documents', 'portal_access_tokens', 'customer_contacts', 'incoming_emails', 'external_references',
+const CLEANUP = ['price_history', 'supplier_product_cache', 'customer_product_prices', 'customer_supplier_prices', 'supplier_margin_rules',
+  'supplier_sync_logs', 'supplier_sync_jobs', 'supplier_sync_schedules', 'import_batches', 'supplier_products', 'suppliers',
+  'offer_line_items', 'customer_documents', 'portal_access_tokens', 'customer_contacts', 'incoming_emails', 'external_references',
   'automation_executions', 'automation_rules', 'integration_logs', 'integration_queue', 'integration_webhooks', 'integration_endpoints', 'integrations',
   'invoice_predecessors', 'invoice_lines', 'invoices', 'work_order_profit', 'work_orders', 'time_entries', 'projects', 'email_templates', 'sms_templates',
   'offers', 'customers']
@@ -99,6 +112,12 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
     if (tables.has('time_entries')) ctx.s.project = await seed('projects', { project_number: `HARN-RLS-P-${stamp}`, name: '[HARNESS] rls', customer_id: ctx.s.customer, created_by: c.ownerUid })
     if ([...tables].some((t) => ['integration_endpoints', 'integration_webhooks', 'integration_queue', 'external_references'].includes(t)))
       ctx.s.integration = await seed('integrations', { name: `[HARNESS] rls-base ${stamp}`, is_active: false })
+    if (policies.some((p) => p.table.startsWith('supplier_') || ['price_history', 'customer_supplier_prices', 'customer_product_prices', 'import_batches'].includes(p.table))) {
+      ctx.s.supplier = await seed('suppliers', { name: `HARNESS RLS Leverandør ${stamp}`, code: `HSRLS${stamp}` })
+      for (let i = 0; i < 80; i++) ctx.s[`sp${i}`] = await seed('supplier_products', { supplier_id: ctx.s.supplier, supplier_sku: `HRLS-P-${stamp}-${i}`, supplier_name: '[HARNESS] rls-pool', cost_price: 1 })
+      if (tables.has('supplier_sync_schedules')) for (let i = 0; i < 60; i++) ctx.s[`su${i}`] = await seed('suppliers', { name: `HARNESS RLS Lev ${stamp}-${i}`, code: `HSRLS${stamp}${i}` })
+      if (tables.has('customer_supplier_prices')) for (let i = 0; i < 80; i++) ctx.s[`cu${i}`] = await seed('customers', SPECS.customers.payload(c.ownerUid, ctx))
+    }
     if (tables.has('automation_executions')) ctx.s.rule = await seed('automation_rules', { name: `[HARNESS] rls-base ${stamp}`, trigger: 'harness.rls', action: 'harness.noop', active: false, dry_run: true })
 
     for (const p of policies) {

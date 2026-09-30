@@ -1,7 +1,7 @@
 # Runbook — P-009 RLS-skrivelås (runde for runde)
 
 **Status:**
-- **Runde 1 (00170)** og **runde 2A (00171):** anvendt og verificeret på staging (2026-09-30). **IKKE kørt i production.** Kræver Henriks godkendelse.
+- **Runde 1 (00170)**, **runde 2A (00171)** og **runde 2B (00172):** anvendt og verificeret på staging (2026-09-30). **IKKE kørt i production.** Kræver Henriks godkendelse.
 
 ## Model
 - **Én kilde:** `scripts/rls/write-matrix.ts`. Pr. tabel står de roller, der må INSERT/UPDATE/DELETE, plus evt. ekstra betingelser (fx `created_by = auth.uid()`, forslag-sletning).
@@ -72,6 +72,36 @@
 **Pre-check prod:** `npx tsx scripts/prod-verify-rls-wave.ts WAVE2A pre`
 - 19 åbne skrive-policies på 15/15 tabeller, og alle droppes af migrationen.
 - Anon-grants på 15 tabeller.
+
+## Runde 2B — 00172 (leverandørprisdata)
+| Tabel | INSERT | UPDATE | DELETE |
+|---|---|---|---|
+| supplier_products (~324k) | admin | admin | admin |
+| supplier_product_cache | — | — | — |
+| price_history | admin | — | — |
+| supplier_sync_logs | admin | admin | — |
+| supplier_sync_jobs, supplier_sync_schedules, supplier_margin_rules | admin | admin | admin |
+| customer_supplier_prices | admin, serviceleder | admin, serviceleder | admin, serviceleder |
+| customer_product_prices | admin, serviceleder | admin, serviceleder | — |
+| import_batches | admin | admin | — |
+
+**Forudsætning, kode (deployet først):** system-skrivninger med data fra leverandør-API'et kører nu som service-role inde i de allerede gatede actions:
+- tilbudssøgningens auto-import,
+- prisopdatering fra kalkulation,
+- AO-mail-prishistorik,
+- API-cache og fallback-cache.
+
+Salg og serviceleder kan dermed ikke længere ændre de ~324k priser direkte via REST.
+
+**Anon-grants bevares midlertidigt** på `supplier_products`, `price_history`, `supplier_sync_logs` og `supplier_sync_schedules`. Grunden er, at supplier-sync-cron'en bruger anon-klienten (P-003, rettelse afventer Henrik), og en revoke ville ændre cron'ens adfærd fra tom læsning til fejl. RLS blokerer stadig al anon-skrivning (ingen anon-policies). Det er testet.
+
+**Målt på staging:**
+- `harness:rls-lockdown -- WAVE2B`: 10/10 tabeller, 210 checks.
+- `prod-trigger-writes`: ingen brud.
+- `db-audit`: LAV 86→76.
+- Regression grøn.
+
+**Pre-check prod:** 25 åbne skrive-policies på 10/10 tabeller, og alle droppes af migrationen.
 
 ## Udførelse (efter godkendelse)
 1. Tilføj `'00170'` (og `'00171'`) til allowlist i `scripts/prod-apply-migration.ts`. Kør én runde ad gangen, og efter hver runde: `npx tsx scripts/prod-trigger-writes.ts` → ✅.

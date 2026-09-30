@@ -1885,7 +1885,11 @@ export async function searchSupplierProductsForOffer(
           const liveResults = (await Promise.allSettled(liveSearches))
             .flatMap((r) => r.status === 'fulfilled' ? r.value : [])
 
-          // Auto-import live results into supplier_products so they get a DB id
+          // Auto-import live results into supplier_products so they get a DB id.
+          // P-009: priserne kommer fra leverandoer-API'et (ikke brugeren) -> skrives som service-role; RLS laaser
+          // supplier_products til admin. Laesning sker stadig med brugerens klient.
+          const { createAdminClient } = await import('@/lib/supabase/admin')
+          const sys = createAdminClient()
           for (const lp of liveResults.slice(0, 15)) {
             const { data: existing } = await supabase
               .from('supplier_products')
@@ -1897,7 +1901,7 @@ export async function searchSupplierProductsForOffer(
             let productId: string
             if (existing) {
               productId = existing.id
-              await supabase.from('supplier_products').update({
+              await sys.from('supplier_products').update({
                 cost_price: lp.costPrice,
                 list_price: lp.listPrice,
                 is_available: lp.isAvailable,
@@ -1905,7 +1909,7 @@ export async function searchSupplierProductsForOffer(
                 last_synced_at: new Date().toISOString(),
               }).eq('id', existing.id)
             } else {
-              const { data: inserted } = await supabase.from('supplier_products').insert({
+              const { data: inserted } = await sys.from('supplier_products').insert({
                 supplier_id: lp._supplierId,
                 supplier_sku: lp.sku,
                 supplier_name: lp.name,

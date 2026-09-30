@@ -342,7 +342,9 @@ export async function applyKalkiaPriceUpdates(
       ? ((suggestion.currentSupplierPrice - material.cost_price) / material.cost_price) * 100
       : 0
 
-    const { error: historyError } = await supabase.from('price_history').insert({
+    // P-009: prishistorik er systemdata (price_history laases til admin/service-role)
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { error: historyError } = await createAdminClient().from('price_history').insert({
       supplier_product_id: suggestion.supplierProductId,
       old_cost_price: material.cost_price,
       new_cost_price: suggestion.currentSupplierPrice,

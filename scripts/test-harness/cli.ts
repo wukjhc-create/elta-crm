@@ -343,6 +343,8 @@ async function status() {
         + (SELECT count(*) FROM email_templates WHERE code LIKE 'harn_rls_%')
         + (SELECT count(*) FROM sms_templates WHERE code LIKE 'harn_rls_%')
         + (SELECT count(*) FROM integration_logs WHERE log_type LIKE 'harness_rls%')
+        + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSRLS%')
+        + (SELECT count(*) FROM supplier_products WHERE supplier_sku LIKE 'HRLS-%')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HV%' AND name LIKE 'HARNESS%')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSINV%') AS invoice_probes`))[0]
   const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n
