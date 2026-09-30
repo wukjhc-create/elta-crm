@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Server-action gate-audit (P3 #17 / P-005). Statisk, ingen DB.
  *
  * Server actions ('use server') kan kaldes direkte af ENHVER indlogget bruger — et skjult menupunkt eller en
@@ -16,7 +16,7 @@ import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { scanWriteSites, lastWriterClosure } from './rls-write-sites'
 
-const GATE_RE = /requirePermission\(|hasPermission\(|requireAdmin\w*\(|requireSupplier[A-Za-z]*\(|requireRole\(|assertPermission\(|pageHasPermission\(/
+const GATE_RE = /permissionDenied\(|requirePermission\(|hasPermission\(|requireAdmin\w*\(|requireSupplier[A-Za-z]*\(|requireRole\(|assertPermission\(|pageHasPermission\(/
 // rpc('get_*'/'calculate_*') er rene laese-funktioner og taeller ikke som skrivning.
 // Direkte DB-/storage-skrivning + kendte services der skriver paa actionens vegne (indirekte skrivning var et hul:
 // backfillEmailAttachments skrev via processEmailAttachments uden gate).
@@ -37,7 +37,7 @@ function computeServiceWriters(): string[] {
 const GENERIC_FN_NAMES = new Set(['handler', 'POST', 'GET', 'PUT', 'PATCH', 'DELETE', 'execute', 'main', 'default', 'modul'])
 export const INDIRECT_WRITERS = [...new Set([...STATIC_INDIRECT_WRITERS, ...computeServiceWriters()])]
 const WRITE_RE = new RegExp(String.raw`\.(insert|update|upsert|delete)\(|\.rpc\(\s*['"](?!get_|calculate_)|\.storage\s*\.from\([^)]*\)\s*\.(upload|remove|move)\(|\b(` + INDIRECT_WRITERS.join('|') + String.raw`)\(`)
-const AUTH_RE = /gateDenied\(|requireGate\(|getAuthenticatedClient|getUser\(|auth\.getUser|requirePermission|require[A-Z]\w*\(|pageHasPermission|getUserRoleForPage|[Tt]oken|timingSafeEqual/
+const AUTH_RE = /permissionDenied\(|gateDenied\(|requireGate\(|getAuthenticatedClient|getUser\(|auth\.getUser|requirePermission|require[A-Z]\w*\(|pageHasPermission|getUserRoleForPage|[Tt]oken|timingSafeEqual/
 /** Bevidst offentlige actions (glemt-password begraenser selv sit svar). */
 const INTENTIONALLY_PUBLIC = new Set(['requestPasswordReset'])
 
@@ -138,7 +138,7 @@ const SELF_PROOF = /\.eq\(\s*['"](id|to_user_id|user_id|profile_id)['"]\s*,\s*us
 
 export function runStrictAudit(
   dir = join(process.cwd(), 'src', 'lib', 'actions'),
-  exemptions?: Record<string, { kind: 'server-only' | 'token' | 'self'; reason: string }>,
+  exemptions?: Record<string, { kind: 'server-only' | 'token' | 'self' | 'public'; reason: string }>,
   clientRoot = join(process.cwd(), 'src'),
 ): { failures: string[]; gated: number; exempt: number; scanned: number } {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -169,6 +169,7 @@ export function runStrictAudit(
       if (!ex) { failures.push(`${key}: skrivende action uden rettighedstjek og uden begrundet undtagelse`); continue }
       if (!ex.reason.trim()) failures.push(`${key}: undtagelse uden begrundelse`)
       if (ex.kind === 'server-only' && clientNames.has(f.name)) failures.push(`${key}: markeret server-only, men refereres fra klientkode`)
+      if (ex.kind === 'public' && !INTENTIONALLY_PUBLIC.has(f.name)) failures.push(`${key}: markeret public, men staar ikke i INTENTIONALLY_PUBLIC`)
       if (ex.kind === 'token' && !TOKEN_PROOF.test(f.body)) failures.push(`${key}: markeret token, men validerer intet token`)
       if (ex.kind === 'self' && !SELF_PROOF.test(f.body)) failures.push(`${key}: markeret self, men er ikke bundet til den indloggede bruger`)
       exempt++

@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
@@ -223,6 +224,8 @@ export async function updateHourlyRate(
   type: 'electrician' | 'apprentice' | 'master' | 'helper',
   rate: number
 ): Promise<ActionResult<void>> {
+  const __denied = await permissionDenied('settings.manage')
+  if (__denied) return { success: false, error: __denied }
   if (typeof rate !== 'number' || rate < 0) {
     return { success: false, error: 'Ugyldig timesats' }
   }
@@ -249,6 +252,8 @@ export async function updateMargin(
   type: 'materials' | 'products' | 'subcontractor' | 'default_db_target' | 'minimum_db' | 'db_green_threshold' | 'db_yellow_threshold' | 'db_red_threshold',
   percentage: number
 ): Promise<ActionResult<void>> {
+  const __denied = await permissionDenied('settings.manage')
+  if (__denied) return { success: false, error: __denied }
   if (typeof percentage !== 'number' || percentage < 0 || percentage > 100) {
     return { success: false, error: 'Ugyldig procentværdi (0-100)' }
   }

@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { revalidatePath } from 'next/cache'
 import {
@@ -500,6 +501,8 @@ export async function savePackageBuilderCalculation(
 export async function cloneCalculationAsTemplate(
   input: Omit<PackageBuilderSaveInput, 'result' | 'buildingProfileId' | 'customerId'>
 ): Promise<ActionResult<KalkiaCalculation>> {
+  const __denied = await permissionDenied('tools.calculations')
+  if (__denied) return { success: false, error: __denied }
   return savePackageBuilderCalculation({
     ...input,
     buildingProfileId: null,

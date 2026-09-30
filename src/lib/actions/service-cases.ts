@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { revalidatePath } from 'next/cache'
 import {
@@ -645,6 +646,8 @@ export async function updateChecklist(
 }
 
 export async function initializeChecklist(id: string): Promise<ActionResult<ServiceCase>> {
+  const __denied = await permissionDenied('cases.edit')
+  if (__denied) return { success: false, error: __denied }
   return updateChecklist(id, DEFAULT_CHECKLIST)
 }
 
@@ -1471,6 +1474,8 @@ export async function setServiceCaseStatus(
 }
 
 export async function markServiceCaseDone(id: string): Promise<ActionResult<ServiceCase>> {
+  const __denied = await permissionDenied('cases.close')
+  if (__denied) return { success: false, error: __denied }
   return setServiceCaseStatus(id, 'closed', 'Markeret som afsluttet')
 }
 

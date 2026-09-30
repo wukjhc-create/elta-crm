@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 /**
  * Server Actions — Customer Mailbox (Smart Indbakke pr. kunde)
@@ -308,6 +309,8 @@ export async function sendEmailToCustomer(
   subject: string,
   message: string
 ): Promise<{ success: boolean; error?: string }> {
+  const __denied = await permissionDenied('customers.edit')
+  if (__denied) return { success: false, error: __denied }
   try {
     const { userId } = await getAuthenticatedClient()
 
@@ -400,6 +403,8 @@ export async function replyToCustomerEmail(
   emailId: string,
   message: string
 ): Promise<{ success: boolean; error?: string }> {
+  const __denied = await permissionDenied('customers.edit')
+  if (__denied) return { success: false, error: __denied }
   try {
     const { userId } = await getAuthenticatedClient()
     const supabase = await createClient()

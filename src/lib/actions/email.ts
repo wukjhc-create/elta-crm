@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 /**
  * EMAIL SERVER ACTIONS
@@ -528,6 +529,8 @@ export async function trackEmailOpen(trackingId: string, metadata?: {
 export async function generateEmailPreview(
   input: GenerateEmailPreviewInput
 ): Promise<{ success: boolean; data?: EmailPreview; error?: string }> {
+  const __denied = await permissionDenied('offers.send')
+  if (__denied) return { success: false, error: __denied }
   try {
     const { supabase } = await getAuthenticatedClient()
 
@@ -991,6 +994,8 @@ export async function resendEmail(
   messageId: string,
   updates?: { subject?: string; body_html?: string }
 ): Promise<SendOfferEmailResult> {
+  const __denied = await permissionDenied('offers.send')
+  if (__denied) return { success: false, error: __denied }
   try {
     const { supabase } = await getAuthenticatedClient()
     validateUUID(messageId, 'besked ID')
@@ -1263,6 +1268,8 @@ export async function testEmailConnectionAction(): Promise<{ success: boolean; e
 export async function sendTestEmailAction(
   toEmail: string
 ): Promise<{ success: boolean; error?: string }> {
+  const __denied = await permissionDenied('settings.manage')
+  if (__denied) return { success: false, error: __denied }
   try {
     if (!isGraphConfigured()) {
       return { success: false, error: 'Microsoft Graph er ikke konfigureret.' }

@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
@@ -420,6 +421,8 @@ export async function sendBesigtigelsePdf(
   documentId: string,
   customerId: string
 ): Promise<ActionResult> {
+  const __denied = await permissionDenied('service.edit')
+  if (__denied) return { success: false, error: __denied }
   try {
     const { supabase } = await getAuthenticatedClient()
 
@@ -1520,6 +1523,8 @@ export async function sendBesigtigelseSequential(input: {
   documentId: string
   message?: string | null
 }): Promise<ActionResult<{ sentTo: string; steps: number; sequential: boolean }>> {
+  const __denied = await permissionDenied('service.edit')
+  if (__denied) return { success: false, error: __denied }
   try {
     validateUUID(input.documentId, 'documentId')
     const { supabase } = await getAuthenticatedClient()
@@ -1619,6 +1624,8 @@ export async function sendBesigtigelseSequential(input: {
 export async function sendReadyChainStep(
   confirmationId: string,
 ): Promise<ActionResult<{ sentTo: string }>> {
+  const __denied = await permissionDenied('service.edit')
+  if (__denied) return { success: false, error: __denied }
   try {
     validateUUID(confirmationId, 'confirmationId')
     const { supabase } = await getAuthenticatedClient()

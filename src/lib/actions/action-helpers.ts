@@ -92,6 +92,19 @@ export async function getAuthenticatedClientWithRole(): Promise<{
   }
 }
 
+/**
+ * P-009: rettighedstjek der ikke kaster — returnerer en fejltekst ('Ikke logget ind' / 'Manglende tilladelse: x')
+ * eller null. Passer til alle action-returtyper (early return), og RBAC-auditten genkender den som gate.
+ */
+export async function permissionDenied(permission: Permission): Promise<string | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    return ctx.hasPermission(permission) ? null : `Manglende tilladelse: ${permission}`
+  } catch {
+    return 'Ikke logget ind'
+  }
+}
+
 // =====================================================
 // Error Handling
 // =====================================================

@@ -13,6 +13,7 @@ type Sql = (sql: string) => Promise<any[]>
 export async function runExemptionProofs(c: { admin: SupabaseClient; sql: Sql; ownerUid: string }): Promise<ProofCheck[]> {
   const out: ProofCheck[] = []
   const portal = await import('../../src/lib/actions/portal')
+  const partner = await import('../../src/lib/actions/partner-portal')
   const { submitConfirmation } = await import('../../src/lib/actions/document-confirmations')
   const { submitSignedFuldmagt } = await import('../../src/lib/actions/fuldmagt')
   const cust = (await c.sql(`SELECT id, email FROM customers WHERE custom_fields->>'harness' IS NOT NULL AND email IS NOT NULL LIMIT 1`))[0]
@@ -53,6 +54,14 @@ export async function runExemptionProofs(c: { admin: SupabaseClient; sql: Sql; o
       portalRequestReschedule: (t) => portal.portalRequestReschedule(t, taskId, 'probe'),
       submitSignedFuldmagt: (t) => submitSignedFuldmagt(t, taskId, { foedselsdato_cvr: '010101', marketing_samtykke: false, signature_data: 'x' } as never),
       submitConfirmation: (t) => submitConfirmation({ token: t, confirmerName: 'Probe' } as never),
+      getPortalOffers: (t) => portal.getPortalOffers(t),
+      getPortalMessages: (t) => portal.getPortalMessages(t),
+      getAttachmentUrl: (t) => portal.getAttachmentUrl(t, `portal-attachments/${cust.id}/x.pdf`),
+      getPortalInvoices: (t) => portal.getPortalInvoices(t),
+      getPortalDocuments: (t) => portal.getPortalDocuments(t),
+      getPortalBesigtigelser: (t) => portal.getPortalBesigtigelser(t),
+      getPartnerServiceCases: (t) => partner.getPartnerServiceCases(t),
+      getPartnerDocuments: (t) => partner.getPartnerDocuments(t),
       uploadPortalAttachment: (t) => {
         const fd = new FormData(); fd.append('file', new File([`[HARNESS-EX] ${stamp}`], `harness-ex-${stamp}.txt`, { type: 'text/plain' }))
         return portal.uploadPortalAttachment(t, fd)

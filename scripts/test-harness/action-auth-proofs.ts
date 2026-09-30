@@ -5,6 +5,7 @@
  *   D2  cleanupOutboundAttachments sletter IKKE et almindeligt kundedokument (kun outbound-attachments/-stier)
  *   D3  positiv kontrol: cleanupOutboundAttachments sletter en outbound-vedhaeftning (raekke + fil)
  *   D4  bank-actions uden login afvises; ingen bank_transactions oprettet
+ *   D6  sendTestEmailAction/sendEmailToCustomer uden login afvises FOER afsendelse (foer: aaben relay)
  *   D5  permission-matrix: bank.edit kun admin/bogholderi; inbox.view ikke salg/bogholderi (gates matcher modulerne)
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -74,6 +75,14 @@ export async function runActionAuthProofs(c: { admin: SupabaseClient; ownerUid: 
     ])
     const { count: after } = await c.admin.from('bank_transactions').select('id', { count: 'exact', head: true })
     out.push({ id: 'D4 bank-actions uden login afvises', ok: tries.every((t) => t !== 'ACCEPTERET') && before === after, note: `${tries.join(' · ')} · bank_transactions ${before}→${after}` })
+
+    // D6 — test-mail uden login (foer: aaben mail-relay via firmapostkassen). Ikke-leverbar modtager for en sikkerheds skyld.
+    const { sendTestEmailAction } = await import('../../src/lib/actions/email')
+    const r6 = await sendTestEmailAction('harness-noreply@example.invalid')
+    const { sendEmailToCustomer } = await import('../../src/lib/actions/customer-mailbox')
+    const r6b = await sendEmailToCustomer('harness-noreply@example.invalid', '[HARNESS]', 'afvises')
+    out.push({ id: 'D6 mail-afsendelse uden login afvises', ok: !r6.success && r6.error === 'Ikke logget ind' && !r6b.success && r6b.error === 'Ikke logget ind',
+      note: `testmail=${r6.success ? 'SENDT' : r6.error} · kundemail=${r6b.success ? 'SENDT' : r6b.error}` })
 
     // D5 — permission-matrix
     const m = (r: string, p: string) => hasPermission(r as never, p as never)

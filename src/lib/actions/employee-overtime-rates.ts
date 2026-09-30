@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 /**
  * Sprint Ø2.6 — overtidssatser pr. medarbejder (employee_overtime_rates).
@@ -192,5 +193,7 @@ export async function setOvertimeRateActive(
   rateId: string,
   active: boolean
 ): Promise<ActionResult<void>> {
+  const __denied = await permissionDenied('employees.payroll.edit')
+  if (__denied) return { success: false, error: __denied }
   return updateOvertimeRate(rateId, { is_active: active })
 }

@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
@@ -241,6 +242,8 @@ export async function toggleSyncSchedule(id: string): Promise<ActionResult<Suppl
  * Run a sync schedule manually
  */
 export async function runSyncNow(scheduleId: string): Promise<ActionResult<{ message: string }>> {
+  const __denied = await permissionDenied('settings.suppliers')
+  if (__denied) return { success: false, error: __denied }
   try {
     const { supabase, userId } = await getAuthenticatedClient()
     validateUUID(scheduleId, 'plan ID')

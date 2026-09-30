@@ -11,11 +11,13 @@
  *                from_user_id: userId) — brugeren kan kun aendre egne data.
  * Nye undtagelser kraever en konkret grund. Stale undtagelser (funktion fjernet eller nu gatet) FEJLER audit.
  */
-export type ExemptionKind = 'server-only' | 'token' | 'self'
+export type ExemptionKind = 'server-only' | 'token' | 'self' | 'public'
 export interface Exemption { kind: ExemptionKind; reason: string }
 
 const S = (reason: string): Exemption => ({ kind: 'server-only', reason })
 const T = (reason: string): Exemption => ({ kind: 'token', reason })
+/** Bevidst offentlig (uden login) — skal ogsaa staa i INTENTIONALLY_PUBLIC i action-gate-audit.ts. */
+const P = (reason: string): Exemption => ({ kind: 'public', reason })
 const U = (reason: string): Exemption => ({ kind: 'self', reason })
 
 export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
@@ -52,6 +54,15 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'portal.ts:acceptOffer': T('kunden accepterer via portal-token'),
   'portal.ts:rejectOffer': T('kunden afviser via portal-token'),
   'portal.ts:sendPortalMessage': T('kundens chatbesked via portal-token'),
+  'portal.ts:getPortalOffers': T('kundens tilbudsliste via portal-token (validering opdaterer last_accessed_at)'),
+  'portal.ts:getPortalMessages': T('kundens chat via portal-token'),
+  'portal.ts:getAttachmentUrl': T('signeret fil-URL til kundens egne vedhaeftninger via portal-token'),
+  'portal.ts:getPortalInvoices': T('kundens fakturaer via portal-token'),
+  'portal.ts:getPortalDocuments': T('kundens dokumenter via portal-token (scopet til token-kunden)'),
+  'portal.ts:getPortalBesigtigelser': T('kundens besigtigelser via portal-token'),
+  'partner-portal.ts:getPartnerServiceCases': T('partnerens sager via partner-token'),
+  'partner-portal.ts:getPartnerDocuments': T('partnerens dokumenter via partner-token'),
+  'password-reset.ts:requestPasswordReset': P('glemt-password: bevidst uden login; svaret afsloerer ikke om kontoen findes'),
   'portal.ts:uploadPortalAttachment': T('kundens fil-upload via portal-token; sti bygges af token-kundens id'),
   'portal.ts:markPortalMessagesAsRead': T('kundens læst-status via portal-token'),
   'portal.ts:portalConfirmBesigtigelse': T('kunden bekræfter besigtigelse via portal-token'),

@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
@@ -448,6 +449,8 @@ export async function updateSolarAssumption(
 export async function updateSolarAssumptions(
   updates: Partial<SolarAssumptions>
 ): Promise<ActionResult<void>> {
+  const __denied = await permissionDenied('settings.view')
+  if (__denied) return { success: false, error: __denied }
   try {
     await getAuthenticatedClient()
 

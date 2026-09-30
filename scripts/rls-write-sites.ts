@@ -26,9 +26,12 @@ const OPS = new Set(['insert', 'update', 'upsert', 'delete'])
 const ADMIN_RE = /createAdminClient|getServiceClient|createServiceClient|createServiceRoleClient|SERVICE_ROLE|getAdminClient|supabaseAdmin|adminFor\(|\bctx\.admin\b|^admin$/
 const USER_RE = /\bcreateClient\(\)|getAuthenticatedClient\w*|requireGate|require\w*Write|requireAuth\w*|require\w*Permission\w*|createServerClient|getSupabase\w*/
 const BROWSER_RE = /createBrowserClient|lib\/supabase\/client/
-const PERM_RE = /(?:requireGate|gateDenied|requirePermission|hasPermission|assertPermission|pageHasPermission)\(\s*['"]([a-z_.]+)['"]/g
+const PERM_RE = /(?:permissionDenied|requireGate|gateDenied|requirePermission|hasPermission|assertPermission|pageHasPermission)\(\s*['"]([a-z_.]+)['"]/g
 const ADMIN_GATE_RE = /requireAdmin\w*\(|['"]admin['"]\s*!==?\s*\w*role|role\s*!==?\s*['"]admin['"]/
 
+/** Funktioner med ekstern effekt (sender mail/SMS, skubber til e-conomic). */
+export const EFFECT_SEEDS = ['sendEmailViaGraph', 'sendInvoiceEmail', 'sendInvoiceReminder', 'sendAdminAlert', 'sendSms', 'sendSmsMessage',
+  'sendExportErrorNotification', 'sendPaymentReport', 'pushInvoiceToEconomic', 'createCustomerInEconomic']
 const GENERIC_NAMES = new Set(['handler', 'POST', 'GET', 'PUT', 'PATCH', 'DELETE', 'execute', 'run', 'main', '(anon)', 'default'])
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -159,8 +162,10 @@ export function scanWriteSites(root = join(process.cwd(), 'src'), tables?: strin
   }
   // Transitiv lukning: bibliotek-funktioner (uden for actions/app) der skriver, ELLER kalder en saadan. Bruges af
   // RBAC-auditten som "indirekte skrivere" (fx bank-payments.autoMatchTransactions -> applyMatch -> invoices).
-  const isLib = (f: string) => !/[\\/]src[\\/](lib[\\/]actions|app)[\\/]/.test(f) && /[\\/]src[\\/]/.test(f)
-  const writers = new Set(sites.filter((s) => isLib(s.file.startsWith('src') ? `/${s.file}` : s.file)).map((s) => s.fn.split(' ⇐ ')[0].split('>')[0]).filter((n) => !GENERIC_NAMES.has(n)))
+  // Alle src-filer (ogsaa hjaelpere i action-filer, fx customer-mailbox.recordOutgoingEmail). Seedes desuden med
+  // funktioner der har EKSTERN effekt (mail/SMS/e-conomic) — en action der sender mail uden gate er lige saa kritisk.
+  const isLib = (f: string) => /[\\/]src[\\/]/.test(f)
+  const writers = new Set([...EFFECT_SEEDS, ...sites.map((s) => s.fn.split(' ⇐ ')[0].split('>')[0]).filter((n) => !GENERIC_NAMES.has(n))])
   let changed = true
   while (changed) {
     changed = false

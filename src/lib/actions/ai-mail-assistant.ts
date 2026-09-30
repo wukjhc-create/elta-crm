@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 /**
  * Sprint 8E-3 — AI mail-assistant (forslag/rettelser, ALDRIG send).
@@ -156,6 +157,8 @@ function stripHtml(html: string): string {
 // =====================================================
 
 export async function suggestReplyToEmail(emailId: string): Promise<AiTextResult> {
+  const __denied = await permissionDenied('inbox.view')
+  if (__denied) return { ok: false, text: null, error: __denied }
   validateUUID(emailId, 'emailId')
   const supabase = await createClient()
 
@@ -224,6 +227,8 @@ INSTRUKTION: Skriv et passende svar. Ingen overskrift eller "Hej X" hvis det fø
 // =====================================================
 
 export async function proofreadText(text: string): Promise<AiTextResult> {
+  const __denied = await permissionDenied('inbox.view')
+  if (__denied) return { ok: false, text: null, error: __denied }
   if (!text || text.trim().length === 0) {
     return { ok: false, text: null, error: 'Tom tekst — intet at rette' }
   }
@@ -245,6 +250,8 @@ ${truncate(text)}
 // =====================================================
 
 export async function makeProfessional(text: string): Promise<AiTextResult> {
+  const __denied = await permissionDenied('inbox.view')
+  if (__denied) return { ok: false, text: null, error: __denied }
   if (!text || text.trim().length === 0) {
     return { ok: false, text: null, error: 'Tom tekst' }
   }
@@ -266,6 +273,8 @@ ${truncate(text)}
 // =====================================================
 
 export async function makeShorter(text: string): Promise<AiTextResult> {
+  const __denied = await permissionDenied('inbox.view')
+  if (__denied) return { ok: false, text: null, error: __denied }
   if (!text || text.trim().length === 0) {
     return { ok: false, text: null, error: 'Tom tekst' }
   }
@@ -300,6 +309,8 @@ export async function generateDraftFromInstruction(
   emailId: string,
   instruction: string
 ): Promise<AiTextResult> {
+  const __denied = await permissionDenied('inbox.view')
+  if (__denied) return { ok: false, text: null, error: __denied }
   validateUUID(emailId, 'emailId')
   if (!instruction || instruction.trim().length === 0) {
     return { ok: false, text: null, error: 'Skriv en instruktion først' }
@@ -388,6 +399,8 @@ export async function translateText(
   text: string,
   targetLanguage: SupportedLang
 ): Promise<AiTextResult> {
+  const __denied = await permissionDenied('inbox.view')
+  if (__denied) return { ok: false, text: null, error: __denied }
   if (!text || text.trim().length === 0) {
     return { ok: false, text: null, error: 'Tom tekst — intet at oversætte' }
   }
@@ -420,6 +433,8 @@ Returnér KUN selve oversættelsen.`
 // =====================================================
 
 export async function makeFriendlier(text: string): Promise<AiTextResult> {
+  const __denied = await permissionDenied('inbox.view')
+  if (__denied) return { ok: false, text: null, error: __denied }
   if (!text || text.trim().length === 0) {
     return { ok: false, text: null, error: 'Tom tekst' }
   }

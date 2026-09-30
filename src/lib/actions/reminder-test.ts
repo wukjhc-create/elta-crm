@@ -1,4 +1,5 @@
 'use server'
+import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
@@ -7,6 +8,8 @@ import { generateReminderEmailHtml, generateReminderEmailText } from '@/lib/emai
 import { APP_URL } from '@/lib/constants'
 
 export async function sendTestReminder(): Promise<{ success: boolean; error?: string; to?: string }> {
+  const __denied = await permissionDenied('settings.manage')
+  if (__denied) return { success: false, error: __denied }
   try {
     if (!isGraphConfigured()) {
       return { success: false, error: 'Microsoft Graph er ikke konfigureret. Sæt AZURE_TENANT_ID, AZURE_CLIENT_ID og AZURE_CLIENT_SECRET i Vercel env vars.' }
