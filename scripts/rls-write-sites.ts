@@ -19,7 +19,9 @@ import { join, relative } from 'path'
 import { PERMISSIONS } from '../src/lib/auth/permissions'
 
 export type ClientKind = 'admin' | 'user' | 'browser' | 'param' | 'unknown'
-export interface WriteSite { table: string; op: string; file: string; line: number; fn: string; client: ClientKind; clientExpr: string; perms: string[]; adminOnlyGate: boolean }
+export interface WriteSite { table: string; op: string; file: string; line: number; fn: string; client: ClientKind; clientExpr: string; perms: string[]; adminOnlyGate: boolean
+  /** Funktionen kraever login foer DB-adgang (kaster/returnerer uden session) — kan ikke naas anonymt. */
+  requiresAuth?: boolean }
 
 export const WAVE1 = ['customers', 'customer_contacts', 'offers', 'offer_line_items', 'portal_access_tokens', 'customer_documents', 'incoming_emails']
 const OPS = new Set(['insert', 'update', 'upsert', 'delete'])
@@ -145,7 +147,8 @@ export function scanWriteSites(root = join(process.cwd(), 'src'), tables?: strin
             while (p) { if (isFn(p)) { inner ??= p; outer = p } p = p.parent }
             const body = outer ? outer.getText(sf) : ''
             const perms = [...new Set([...body.matchAll(PERM_RE)].map((m) => m[1]))]
-            const base = { table, op: parent.name.text, file: relative(process.cwd(), sf.fileName).split('\\').join('/'),
+            const requiresAuth = /getAuthenticatedClient\w*\(|requireAuth\(|requireGate\(|gateDenied\(|permissionDenied\(|require\w*Write\(/.test(body)
+            const base = { requiresAuth, table, op: parent.name.text, file: relative(process.cwd(), sf.fileName).split('\\').join('/'),
               line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, fn: outer ? fnName(outer) + (inner && inner !== outer ? `>${fnName(inner)}` : '') : '(modul)' }
             const needsCallers = outer && (kind === 'param' || ((kind === 'user' || kind === 'unknown') && perms.length === 0 && !ADMIN_GATE_RE.test(body)))
             const via = needsCallers ? resolveCallers(fnName(outer!), 4) : []
@@ -209,8 +212,10 @@ export function derivedRoles(sites: WriteSite[], table: string, op: string): { r
 export function anonCronTables(): Map<string, string[]> {
   const out = new Map<string, string[]>()
   for (const s of scanWriteSites(undefined, undefined, { includeReads: true })) {
-    if (s.client === 'admin') continue
-    const viaCron = s.file.includes('/api/cron/') || s.fn.includes('/api/cron/')
+    if (s.client === 'admin' || s.requiresAuth) continue
+    // Anon-kontekster: cron-ruter, offentlige/portal-sider og token-actions (kunde-/partnerportal) koerer uden session.
+    const ANON_CTX = /\/api\/cron\/|\/api\/public\/|src\/app\/portal\/|src\/app\/partner|actions\/portal\.ts:\d+ (accept|reject|getPortal|sendPortal|markPortal|portal)|actions\/partner-portal\.ts:\d+ (getPartner|validatePartner)|document-confirmations\.ts:\d+ submitConfirmation|fuldmagt\.ts:\d+ submitSignedFuldmagt/
+    const viaCron = ANON_CTX.test(s.file) || ANON_CTX.test(s.fn)
     if (!viaCron) continue
     const arr = out.get(s.table) ?? []
     const tag = `${s.op}@${s.file.split('/').slice(-2).join('/')}:${s.line}`

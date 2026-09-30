@@ -1,4 +1,4 @@
-/**
+﻿/**
  * P-009 CI-check (ingen DB): RLS-skrivematrixen skal daekke ALLE appens bruger-session-skrivestier, og de
  * genererede migrationer maa ikke drive fra matrixen.
  *   npm run check:rls-matrix
@@ -15,7 +15,7 @@ import { scanWriteSites, derivedRoles, anonCronTables } from '../rls-write-sites
 import * as M from './write-matrix'
 import { buildMigration } from './build-migration'
 
-export const WAVES: Array<{ nr: string; wave: string }> = [{ nr: '00170', wave: 'WAVE1' }, { nr: '00171', wave: 'WAVE2A' }, { nr: '00172', wave: 'WAVE2B' }]
+export const WAVES: Array<{ nr: string; wave: string }> = [{ nr: '00170', wave: 'WAVE1' }, { nr: '00171', wave: 'WAVE2A' }, { nr: '00172', wave: 'WAVE2B' }, { nr: '00173', wave: 'WAVE3A' }]
 
 export function checkMatrix(): { failures: string[]; warnings: string[] } {
   const failures: string[] = []

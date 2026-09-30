@@ -70,10 +70,36 @@ const SPECS: Record<string, Spec> = {
   customer_supplier_prices: { payload: (_u, c) => ({ customer_id: c.s[`cu${c.n() % 80}`], supplier_id: c.s.supplier, discount_percentage: 1, is_active: false }), update: { discount_percentage: 2 } },
   customer_product_prices: { payload: (_u, c) => ({ customer_id: c.s.customer, supplier_product_id: c.s[`sp${c.n() % 80}`], custom_cost_price: 1, source: 'manual', is_active: false }), update: { custom_cost_price: 2 } },
   import_batches: { payload: (_u, c) => ({ supplier_id: c.s.supplier, filename: 'harness-rls.csv', status: 'dry_run', is_dry_run: true }), update: { status: 'failed' } },
+  // ---- runde 3A ----
+  service_cases: { payload: (uid, c) => ({ title: '[HARNESS] rls', customer_id: c.s.customer, created_by: uid }), update: { title: '[HARNESS] rls-update' }, ownRow: () => ({ is_proposal: true }) },
+  case_notes: { payload: (uid, c) => ({ case_id: c.s.case, content: '[HARNESS] rls', created_by: uid }), update: { content: '[HARNESS] rls-update' }, ownRow: (uid) => ({ created_by: uid }) },
+  case_materials: { payload: (_u, c) => ({ case_id: c.s.case, description: '[HARNESS] rls', quantity: 1 }), update: { description: '[HARNESS] rls-update' } },
+  case_other_costs: { payload: (_u, c) => ({ case_id: c.s.case, category: 'andet', description: '[HARNESS] rls', quantity: 1 }), update: { description: '[HARNESS] rls-update' } },
+  customer_tasks: { payload: (uid, c) => ({ customer_id: c.s.customer, title: '[HARNESS] rls', created_by: uid }), update: { title: '[HARNESS] rls-update' } },
+  document_confirmations: { payload: (_u, c) => ({ customer_document_id: c.s.document, recipient_type: 'manual', recipient_email: `rls-${c.stamp}@harness.test`, recipient_role: 'manual', expires_at: new Date(Date.now() + 3600e3).toISOString() }), update: { recipient_email: 'rls-upd@harness.test' } },
+  roof_drawings: { payload: (uid, c) => ({ customer_id: c.s.customer, image_storage_path: 'harness/rls.png', image_width: 1, image_height: 1, created_by: uid }), update: { title: '[HARNESS] rls-update' } },
+  service_case_attachments: { payload: (_u, c) => ({ service_case_id: c.s.case, file_name: 'rls.txt', file_url: '' }), update: { file_name: 'rls2.txt' } },
+  projects: { payload: (uid, c) => ({ project_number: `HARN-RLS-P-${c.stamp}-${c.n()}`, name: '[HARNESS] rls', customer_id: c.s.customer, created_by: uid }), update: { name: '[HARNESS] rls-update' } },
+  project_tasks: { payload: (uid, c) => ({ project_id: c.s.project, title: '[HARNESS] rls', created_by: uid }), update: { title: '[HARNESS] rls-update' } },
+  quick_jobs: { payload: (_u, c) => ({ code: `harn_rls_${c.stamp}_${c.n()}`, name: '[HARNESS] rls' }), update: { name: '[HARNESS] rls-update' } },
+  leads: { payload: (uid, c) => ({ company_name: '[HARNESS] rls', contact_person: 'R', email: `rls-${c.stamp}-${c.n()}@harness.test`, created_by: uid }), update: { notes: '[HARNESS] rls-update' } },
+  lead_activities: { payload: (uid, c) => ({ lead_id: c.s.lead, activity_type: 'note', description: '[HARNESS] rls', performed_by: uid }), update: { description: '[HARNESS] rls-update' } },
+  // modtager = en profil der IKKE er en af personaerne (sink), saa probe-raekker ikke tilhoerer den testede persona
+  messages: { payload: (uid, c) => ({ subject: '[HARNESS] rls', body: 'x', from_user_id: uid, to_user_id: c.s.sinkUid }), update: { read_at: new Date().toISOString() }, ownRow: (uid) => ({ to_user_id: uid }) },
+  sent_quotes: { payload: (_u, c) => ({ quote_reference: `HARN-RLS-Q-${c.stamp}-${c.n()}`, template_type: 'sales', customer_email: `rls-${c.stamp}@harness.test`, title: '[HARNESS] rls' }), update: { title: '[HARNESS] rls-update' } },
+  offer_signatures: { payload: (_u, c) => ({ offer_id: c.s[`of${c.n() % 40}`], signer_name: '[HARNESS] rls', signer_email: `rls-${c.stamp}@harness.test` }), update: { signer_name: '[HARNESS] rls-update' } },
+  offer_packages: { payload: (_u, c) => ({ slug: `harn-rls-${c.stamp}-${c.n()}`, name: '[HARNESS] rls', job_type: 'harness', is_active: false }), update: { name: '[HARNESS] rls-update' } },
+  offer_package_items: { payload: (_u, c) => ({ package_id: c.s.package, material_id: c.s[`mat${c.n() % 40}`] }), update: { quantity: 2 } },
+  offer_text_templates: { payload: (_u, c) => ({ template_key: `harn_rls_${c.stamp}_${c.n()}`, content: 'x', is_active: false }), update: { content: 'y' } },
+  offer_generation_log: { payload: () => ({ generation_type: 'harness', generated_content: {} }), update: { generation_type: 'harness2' } },
+  partner_access_tokens: { payload: (uid, c) => ({ partner_customer_id: c.s.customer, token: randomBytes(24).toString('hex'), email: `rls-${c.stamp}@harness.test`, created_by: uid, is_active: false }), update: { email: 'rls-upd@harness.test' } },
 }
 
 /** Oprydningsraekkefoelge (boern foer foraeldre). */
-const CLEANUP = ['price_history', 'supplier_product_cache', 'customer_product_prices', 'customer_supplier_prices', 'supplier_margin_rules',
+const CLEANUP = ['case_notes', 'case_materials', 'case_other_costs', 'service_case_attachments', 'document_confirmations', 'lead_activities', 'leads',
+  'project_tasks', 'messages', 'sent_quotes', 'offer_signatures', 'offer_package_items', 'offer_packages', 'materials', 'offer_text_templates',
+  'offer_generation_log', 'partner_access_tokens', 'customer_tasks', 'roof_drawings', 'quick_jobs', 'service_cases',
+  'price_history', 'supplier_product_cache', 'customer_product_prices', 'customer_supplier_prices', 'supplier_margin_rules',
   'supplier_sync_logs', 'supplier_sync_jobs', 'supplier_sync_schedules', 'import_batches', 'supplier_products', 'suppliers',
   'offer_line_items', 'customer_documents', 'portal_access_tokens', 'customer_contacts', 'incoming_emails', 'external_references',
   'automation_executions', 'automation_rules', 'integration_logs', 'integration_queue', 'integration_webhooks', 'integration_endpoints', 'integrations',
@@ -117,6 +143,23 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
       for (let i = 0; i < 80; i++) ctx.s[`sp${i}`] = await seed('supplier_products', { supplier_id: ctx.s.supplier, supplier_sku: `HRLS-P-${stamp}-${i}`, supplier_name: '[HARNESS] rls-pool', cost_price: 1 })
       if (tables.has('supplier_sync_schedules')) for (let i = 0; i < 60; i++) ctx.s[`su${i}`] = await seed('suppliers', { name: `HARNESS RLS Lev ${stamp}-${i}`, code: `HSRLS${stamp}${i}` })
       if (tables.has('customer_supplier_prices')) for (let i = 0; i < 80; i++) ctx.s[`cu${i}`] = await seed('customers', SPECS.customers.payload(c.ownerUid, ctx))
+    }
+    if ([...tables].some((t) => ['case_notes', 'case_materials', 'case_other_costs', 'service_case_attachments'].includes(t)))
+      ctx.s.case = await seed('service_cases', { title: '[HARNESS] rls-base', customer_id: ctx.s.customer, created_by: c.ownerUid })
+    if (tables.has('project_tasks') && !ctx.s.project) ctx.s.project = await seed('projects', { project_number: `HARN-RLS-P-${stamp}-base`, name: '[HARNESS] rls', customer_id: ctx.s.customer, created_by: c.ownerUid })
+    if (tables.has('lead_activities')) ctx.s.lead = await seed('leads', { company_name: '[HARNESS] rls-base', contact_person: 'R', email: `rls-base-${stamp}@harness.test`, created_by: c.ownerUid })
+    if (tables.has('document_confirmations')) ctx.s.document = await seed('customer_documents', { customer_id: ctx.s.customer, title: '[HARNESS] rls-base', file_url: '', file_name: 'rls.txt', document_type: 'other' })
+    if (tables.has('offer_package_items')) {
+      ctx.s.package = await seed('offer_packages', { slug: `harn-rls-base-${stamp}`, name: '[HARNESS] rls-base', job_type: 'harness', is_active: false })
+      for (let i = 0; i < 40; i++) ctx.s[`mat${i}`] = await seed('materials', { name: `[HARNESS] rls-base ${i}`, category: 'harness' })
+    }
+    if (tables.has('offer_signatures')) for (let i = 0; i < 40; i++) ctx.s[`of${i}`] = await seed('offers', SPECS.offers.payload(c.ownerUid, ctx))
+    if (tables.has('messages')) {
+      const personaIds = new Set(uids.values())
+      const { data: profs } = await c.admin.from('profiles').select('id').limit(50)
+      const sink = ((profs ?? []) as Array<{ id: string }>).map((p) => p.id).find((id) => !personaIds.has(id))
+      if (!sink) throw new Error('ingen ikke-persona-profil til messages-test')
+      ctx.s.sinkUid = sink
     }
     if (tables.has('automation_executions')) ctx.s.rule = await seed('automation_rules', { name: `[HARNESS] rls-base ${stamp}`, trigger: 'harness.rls', action: 'harness.noop', active: false, dry_run: true })
 

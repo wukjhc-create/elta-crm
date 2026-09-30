@@ -1,7 +1,7 @@
 # Runbook — P-009 RLS-skrivelås (runde for runde)
 
 **Status:**
-- **Runde 1 (00170)**, **runde 2A (00171)** og **runde 2B (00172):** anvendt og verificeret på staging (2026-09-30). **IKKE kørt i production.** Kræver Henriks godkendelse.
+- **Runde 1 (00170)**, **2A (00171)**, **2B (00172)** og **3A (00173):** anvendt og verificeret på staging (2026-09-30). **IKKE kørt i production.** Kræver Henriks godkendelse.
 
 ## Model
 - **Én kilde:** `scripts/rls/write-matrix.ts`. Pr. tabel står de roller, der må INSERT/UPDATE/DELETE, plus evt. ekstra betingelser (fx `created_by = auth.uid()`, forslag-sletning).
@@ -102,6 +102,33 @@ Salg og serviceleder kan dermed ikke længere ændre de ~324k priser direkte via
 - Regression grøn.
 
 **Pre-check prod:** 25 åbne skrive-policies på 10/10 tabeller, og alle droppes af migrationen.
+
+## Anon-kontekster (P-003) — bevarede anon-grants
+Nogle processer kører med cookie-klienten uden session, altså som anon: supplier-sync, unanswered-mails, rykker-resolverne og learning-feedback. De ser i dag 0 rækker. En anon-revoke på en tabel, de læser, ville skifte tom læsning til `permission denied` og dermed ændre cron-adfærd (fejllog, cron-status).
+- `scripts/rls-write-sites.ts --anon-crons` kortlægger disse tabeller, inklusive læsninger.
+- Tabellerne får `keepAnonGrants` i matrixen, og CI fejler, hvis en af dem mister anon-grants.
+- RLS blokerer stadig al anon-skrivning, for der findes ingen anon-policies (testet i hver runde).
+- Når P-003 er besluttet og crons bruger service-role, kan en afsluttende runde revoke anon overalt.
+
+## Runde 3A — 00173 (sager, projekter, leads, tilbudstilbehør, underskrifter, beskeder, partner-tokens)
+- **service_cases:** slet kun admin. Serviceleder og salg kun forslag (`is_proposal`).
+- **case_notes:** montør kun egne noter (`created_by`), som `cases.edit.own`.
+- **messages:** send som sig selv, og kun modtageren kan markere læst og slette. DELETE var åben for alle.
+- **offer_signatures, sent_quotes, offer_package_items:** kun service-role. Medarbejdere kan ikke forfalske en digital underskrift via REST.
+- **Trigger-fund:** `time_entries` opdaterer `projects.actual_hours` som brugeren, så montørs timeregistrering ville bryde. Derfor er `update_project_actual_hours()` nu SECURITY DEFINER, og EXECUTE er revoked.
+- **Målt på staging:**
+  - `harness:rls-lockdown -- WAVE3A`: 21/21, 489 checks.
+  - `db-audit`: LAV 76→55.
+  - Regression grøn.
+
+## Læse-side (opfølgning, ikke i disse runder)
+SELECT er bevidst uændret. Men disse tabeller har hemmeligheder eller private data, der kan læses af alle indloggede:
+- `portal_access_tokens.token`,
+- `partner_access_tokens.token`,
+- `integrations.api_key/api_secret/oauth_*` (0 rækker i prod),
+- `messages` (alle interne beskeder).
+
+Det kræver en separat læse-runde med kolonne-grants og ejer-policies.
 
 ## Udførelse (efter godkendelse)
 1. Tilføj `'00170'` (og `'00171'`) til allowlist i `scripts/prod-apply-migration.ts`. Kør én runde ad gangen, og efter hver runde: `npx tsx scripts/prod-trigger-writes.ts` → ✅.
