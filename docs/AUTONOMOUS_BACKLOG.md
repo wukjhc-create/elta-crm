@@ -57,7 +57,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | F-d | RLS på incoming_invoices* | DONE (prod 2026-09-29) | `incoming_invoices` var allerede låst af 00160, men **linjer + audit-log var åbne i prod (P-007, S3)**. Migration 00166 giver dem samme model, og audit-loggen bliver append-only. `harness:invoice-rls` 5/5 med rigtige rolle-sessioner. Runbook: docs/runbooks/00166-incoming-invoices-rls.md |
 | F-e | Faktura-PDF læses aldrig (IC11) | DONE (kode, flag OFF) | `INVOICE_ATTACHMENT_FETCH_ENABLED` (default OFF, i `safety:flags` + Pilot Health). Når flaget er TIL: Graph-hent af vedhæftninger før parsing, sikker fallback til brødtekst. `harness:invoice-pipeline` 10/10 (I8–I10). `backfillEmailAttachments` var ugatet (skrev via service, så auditten så den ikke). Nu gatet med `inbox.view`. **RBAC-auditten fanger nu også indirekte skrivning** (kendte skrivende services + storage upload/remove/move). Nyt fund i samme ombæring: `uploadEmployeeAttachment` var ugatet → `customers.view`. `uploadPortalAttachment` er token-undtaget. |
 | F-f | Backfill + PDF-parse + klassifikation (IC11–IC14) | DONE (kode) · afventer Vercel-flag | Opgradering af SAMME brødtekst-faktura (ingen dubletter), backfill i faktura-cron'en (8/kørsel, idempotent, audit pr. mail), pdf-parse v2-fejl rettet (IC12), kundens egne mails frasorteres (IC13), ingen portal-arkivering (IC14). `harness:invoice-attachments` 7/7, `harness:invoice-pipeline` 10/10. Runbook: docs/runbooks/invoice-attachment-backfill.md |
-| IC10 | Leverandørmatch på CVR (00167) | DONE (staging) · prod-gate | Kolonne + trigger-normalisering (samme regel som parser) + CHECK + indeks, bevidst ingen UNIQUE (0 data; tvetydig = intet gæt). CVR-felt i leverandørformularen. `harness:supplier-vat` 8/8. Runbook: docs/runbooks/00167-00168-suppliers-vat-lockdown.md |
+| IC10 | Leverandørmatch på CVR (00167) | DONE (prod 2026-09-30) | Kolonne + trigger-normalisering (samme regel som parser) + CHECK + indeks, bevidst ingen UNIQUE (0 data; tvetydig = intet gæt). CVR-felt i leverandørformularen. `harness:supplier-vat` 8/8. Runbook: docs/runbooks/00167-00168-suppliers-vat-lockdown.md |
 
 ## Blokerede opgaver uden for nummerering
 | Opgave | Status | Mangler |
@@ -72,7 +72,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | Beslutning: ret anon-crons (supplier-sync, learning-feedback, unanswered-mails, email-linker) | BLOCKED | Henrik — rettelse aktiverer adfærd i prod; supplier-sync = integration-gate (CRON_DISCOVERY F1–F4) |
 | Aktivér `INVOICE_ATTACHMENT_FETCH_ENABLED` i prod (GODKENDT 2026-09-29) | BLOCKED (adgang) | Henrik sætter env i Vercel + redeploy (ingen Vercel-adgang her). Derefter kører backfill automatisk. Efter-måling: runbook invoice-attachment-backfill |
 | Beslutning: de 20 eksisterende 'fakturaer' der er kundens egne mails (IC13) — afvis i bulk? | BLOCKED | Henrik |
-| Prod-migrationer 00167 (CVR) + 00168 (suppliers skrivelås, P-008 S2) | BLOCKED | Henriks godkendelse. Runbook: docs/runbooks/00167-00168-suppliers-vat-lockdown.md |
+| Prod-migrationer 00167 (CVR) + 00168 (suppliers skrivelås, P-008 S2) | DONE | Kørt i prod 2026-09-30 (godkendt). Alle pre/post-checks + persona-checks grønne; P-008 lukket |
 | P-009 (S2 systemisk): 109 tabeller med åbne skrive-policies | BLOCKED (plan) | Henrik: godkend retning (domæne-vis lockdown, staging først). Første bølge foreslået: supplier_products, customers, offers(+line_items), customer_documents, portal_access_tokens, incoming_emails, work_orders/time_entries |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
 
@@ -82,6 +82,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-30: 00167 + 00168 kørt i prod (godkendt), alle checks grønne; P-008 lukket. Vercel-flag INVOICE_ATTACHMENT_FETCH_ENABLED: godkendt, men ikke sat (ingen Vercel-adgang) — backfill afventer.
 - 2026-09-29: npm audit fix (ikke-breaking): 27 sårbarheder (3 kritiske: basic-ftp path traversal i LM-FTP, next, fast-xml-parser) → 1 high (nodemailer, kræver major-opgradering, åben). Harness-fund: harness:smoke blokeres fail-closed af env-guard (sammenligner staging med sig selv efter app-env-genbinding) — åben, lav.
 - 2026-09-29: IC10/00167 (CVR) + 00168 (P-008) på staging, 8/8. Nyt read-only audit `prod-write-policies` → P-009: 109 tabeller åbne for skrivning (S2 systemisk).
 - 2026-09-29: F-f: faktura-backfill-design (opgradering, idempotent, ingen portal-arkivering), IC12 pdf-parse v2-fejl, IC13 kundens egne mails. Prod-baseline taget (read-only).

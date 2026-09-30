@@ -1,6 +1,6 @@
 # Runbook — prod-migrationer 00167 + 00168 (leverandører: CVR + skrivelås)
 
-**Status:** anvendt og verificeret på staging (2026-09-29) · **IKKE kørt i production.** Kræver Henriks godkendelse.
+**Status:** ✅ **KØRT i production 2026-09-30** (godkendt af Henrik). Rækkefølge: pre → 00167 → post-00167 → 00168 → post-00168, alle grønne. Persona-check: admin og montør læser 2/2 leverandører inkl. CVR, skrive-prædikatet er sandt kun for admin. Den afsluttende suite er grøn: `prod:db-audit` HØJ/MIDDEL 0 (LAV 108), `prod:role-policies` 0·0·0, `prod:pilot-health` 🟢, `prod-write-policies` 109→108, agents 7/0/0, 0 kundemails og 0 finance-writes.
 
 | Migration | Hvad | Hvorfor |
 |---|---|---|

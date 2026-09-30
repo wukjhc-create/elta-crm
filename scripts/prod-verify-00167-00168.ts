@@ -50,6 +50,26 @@ withProdReadOnly('prod-verify-00167-00168', async (run, masked) => {
   if (mode === 'post-00167') {
     expect(openWrite.length === 3, 'skrive-policies uændrede indtil 00168 (00167 rører dem ikke)')
   }
+}).then(async () => {
+  if (mode !== 'post-00168') return
+  // Persona-adfaerd (separate read-only sessioner): alle laeser leverandoerer + CVR; skrive-praedikatet
+  // (user_role() = 'admin') er sandt KUN for admin. Selve skrivningen kan ikke proeves read-only (bevist paa staging V7).
+  const personas = await withProdReadOnly('prod-verify-00168-personas', async (run) =>
+    (await run(`SELECT DISTINCT ON (role) id, role::text role FROM profiles WHERE role IN ('admin','montør') AND coalesce(is_active,true) ORDER BY role, created_at`)) as Array<{ id: string; role: string }>)
+  expect(personas.length === 2, `personaer til adfærdstest: ${personas.map((p) => p.role).join(', ') || 'INGEN'}`)
+  const total = await withProdReadOnly('prod-verify-00168-total', async (run) => Number((await run(`SELECT count(*)::int n FROM suppliers`))[0].n))
+  for (const p of personas) {
+    const r = await withProdReadOnly(`prod-verify-00168-${p.role}`, async (run) => {
+      await run(`SELECT set_config('request.jwt.claims', '${JSON.stringify({ sub: p.id, role: 'authenticated' })}', true)`)
+      await run(`SELECT set_config('role', 'authenticated', true)`)
+      const n = Number((await run(`SELECT count(*)::int n FROM suppliers`))[0].n)
+      const vat = (await run(`SELECT vat_number FROM suppliers LIMIT 1`)).length
+      const canWrite = (await run(`SELECT (public.user_role() = 'admin') w`))[0].w as boolean
+      return { n, vat, canWrite }
+    })
+    expect(r.n === total && r.vat === (total > 0 ? 1 : 0), `${p.role} læser leverandører inkl. CVR (${r.n}/${total})`)
+    expect(r.canWrite === (p.role === 'admin'), `${p.role}: skrive-prædikat = ${r.canWrite} (forventet ${p.role === 'admin'})`)
+  }
 }).then(() => {
   console.log(problems.length ? `\n❌ ${problems.length} afvigelse(r) — STOP` : '\n✅ som forventet')
   process.exitCode = problems.length ? 2 : 0
