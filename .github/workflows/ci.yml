@@ -51,6 +51,10 @@ jobs:
         run: npm run check:rbac
 
       # IC12: faktura-PDF-tekstudtraek (pdf-parse v2). Lokal, ingen DB/secrets.
+      # P-009: RLS-skrivematrixen skal daekke alle app-skrivestier; migrationer maa ikke drive fra matrixen.
+      - name: RLS - skrivematrix
+        run: npm run check:rls-matrix
+
       - name: Fakturakontrol - PDF-tekst
         run: npm run test:invoice-pdf
 

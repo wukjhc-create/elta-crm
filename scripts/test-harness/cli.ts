@@ -332,6 +332,9 @@ async function status() {
         + (SELECT count(*) FROM incoming_emails WHERE sender_email LIKE 'faktura-%@harness.test')
         + (SELECT count(*) FROM customers WHERE customer_number LIKE 'HARNESS-ATT-%')
         + (SELECT count(*) FROM customers WHERE customer_number LIKE 'HARNESS-AUTH-%')
+        + (SELECT count(*) FROM customers WHERE customer_number LIKE 'HARN-RLS-%')
+        + (SELECT count(*) FROM offers WHERE offer_number LIKE 'HARN-RLS-%')
+        + (SELECT count(*) FROM incoming_emails WHERE graph_message_id LIKE 'harness-rls-%')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HV%' AND name LIKE 'HARNESS%')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSINV%') AS invoice_probes`))[0]
   const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n
@@ -474,6 +477,19 @@ async function main() {
     const actors = await ensureActors(admin, seedBase)
     const checks = await runActionAuthProofs({ admin, ownerUid: actors.ownerUid })
     log(formatActionAuthProofs(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
+  if (SUB === 'rls-lockdown') {
+    const { runRlsLockdown, formatRlsLockdown } = await import('./rls-lockdown')
+    const M = await import('../rls/write-matrix')
+    const wave = String(process.argv[3] || 'WAVE1')
+    const policies = (M as unknown as Record<string, import('../rls/write-matrix').TableWritePolicy[]>)[wave]
+    if (!Array.isArray(policies)) { log(`ukendt wave: ${wave}`); process.exit(2) }
+    const actors = await ensureActors(admin, seedBase)
+    const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
+    const checks = await runRlsLockdown({ admin, anon: anonClient, url: runtime.url, anonKey: runtime.anonKey, ownerUid: actors.ownerUid }, policies)
+    log(formatRlsLockdown(checks))
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
