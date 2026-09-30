@@ -22,6 +22,8 @@ type Spec = {
   condUpdate?: Record<string, unknown>
   /** raekke-felter der goer raekken "egen" for personaen (usingSql/delete-betingelse) */
   ownRow?: (uid: string) => Record<string, unknown>
+  /** primaernoegle hvis ikke 'id' */
+  pk?: string
 }
 
 const SPECS: Record<string, Spec> = {
@@ -93,10 +95,24 @@ const SPECS: Record<string, Spec> = {
   offer_text_templates: { payload: (_u, c) => ({ template_key: `harn_rls_${c.stamp}_${c.n()}`, content: 'x', is_active: false }), update: { content: 'y' } },
   offer_generation_log: { payload: () => ({ generation_type: 'harness', generated_content: {} }), update: { generation_type: 'harness2' } },
   partner_access_tokens: { payload: (uid, c) => ({ partner_customer_id: c.s.customer, token: randomBytes(24).toString('hex'), email: `rls-${c.stamp}@harness.test`, created_by: uid, is_active: false }), update: { email: 'rls-upd@harness.test' } },
+  // ---- runde 3B ----
+  email_messages: { payload: (_u, c) => ({ thread_id: c.s.thread, direction: 'outbound', from_email: 'rls@harness.test', to_email: 'rls-to@harness.test', subject: '[HARNESS] rls' }), update: { subject: '[HARNESS] rls-update' } },
+  email_threads: { payload: () => ({ subject: '[HARNESS] rls' }), update: { subject: '[HARNESS] rls-update' } },
+  email_events: { payload: (_u, c) => ({ message_id: c.s.emailMessage, event_type: 'opened' }), update: { event_type: 'clicked' } },
+  sms_messages: { payload: () => ({ to_phone: '+4500000000', message: '[HARNESS] rls' }), update: { message: '[HARNESS] rls-update' } },
+  sms_events: { payload: (_u, c) => ({ message_id: c.s.sms, event_type: 'sent' }), update: { event_type: 'failed' } },
+  graph_sync_state: { payload: (_u, c) => ({ mailbox: `harness-rls-${c.stamp}-${c.n()}@harness.test` }), update: { last_sync_status: 'harness' } },
+  email_intelligence_logs: { payload: () => ({ action: 'harness_rls' }), update: { action: 'harness_rls2' } },
+  email_intelligence_daily_summary: { payload: (_u, c) => ({ summary_date: new Date(Date.UTC(1990, 0, 1) + (c.n() + (c.stamp % 5000)) * 864e5).toISOString().slice(0, 10) }), update: { total_processed: 1 } },
+  ai_suggestions: { payload: () => ({ type: 'harness_rls', message: '[HARNESS] rls' }), update: { message: '[HARNESS] rls-update' } },
+  ai_usage_daily: { pk: 'day', payload: (_u, c) => ({ day: new Date(Date.UTC(1980, 0, 1) + (c.n() + (c.stamp % 3000)) * 864e5).toISOString().slice(0, 10), call_count: 0 }), update: { call_count: 1 } },
+  ai_prompt_templates: { payload: (_u, c) => ({ code: `harn_rls_${c.stamp}_${c.n()}`, name: '[HARNESS] rls', system_prompt: 'x', user_prompt_template: 'x', purpose: 'harness', is_active: false }), update: { name: '[HARNESS] rls-update' } },
 }
 
 /** Oprydningsraekkefoelge (boern foer foraeldre). */
-const CLEANUP = ['case_notes', 'case_materials', 'case_other_costs', 'service_case_attachments', 'document_confirmations', 'lead_activities', 'leads',
+const CLEANUP = ['email_events', 'email_messages', 'email_threads', 'sms_events', 'sms_messages', 'graph_sync_state', 'email_intelligence_logs',
+  'email_intelligence_daily_summary', 'ai_suggestions', 'ai_usage_daily', 'ai_prompt_templates',
+  'case_notes', 'case_materials', 'case_other_costs', 'service_case_attachments', 'document_confirmations', 'lead_activities', 'leads',
   'project_tasks', 'messages', 'sent_quotes', 'offer_signatures', 'offer_package_items', 'offer_packages', 'materials', 'offer_text_templates',
   'offer_generation_log', 'partner_access_tokens', 'customer_tasks', 'roof_drawings', 'quick_jobs', 'service_cases',
   'price_history', 'supplier_product_cache', 'customer_product_prices', 'customer_supplier_prices', 'supplier_margin_rules',
@@ -115,14 +131,16 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
   const stamp = Date.now()
   let counter = 0
   const created: Array<{ table: string; id: string }> = []
+  const pkOf = (table: string) => SPECS[table]?.pk ?? 'id'
   const seed = async (table: string, row: Record<string, unknown>) => {
-    const { data, error } = await c.admin.from(table).insert([row]).select('id')
-    const id = (data?.[0] as { id?: string } | undefined)?.id
+    const pk = pkOf(table)
+    const { data, error } = await c.admin.from(table).insert([row]).select(pk)
+    const id = (data?.[0] as Record<string, string> | undefined)?.[pk]
     if (error || !id) throw new Error(`seed ${table}: ${error?.message}`)
     created.push({ table, id })
     return id
   }
-  const track = (table: string, data: unknown) => { const id = (Array.isArray(data) ? (data[0] as { id?: string })?.id : undefined); if (id) created.push({ table, id }); return !!id }
+  const track = (table: string, data: unknown) => { const id = (Array.isArray(data) ? (data[0] as Record<string, string>)?.[pkOf(table)] : undefined); if (id) created.push({ table, id }); return !!id }
   const has = (roles: M.Role[] | undefined, r: string) => (roles ?? []).includes(r as M.Role)
   try {
     const ctx: Ctx = { stamp, ownerUid: c.ownerUid, n: () => ++counter, s: {} }
@@ -154,6 +172,9 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
       for (let i = 0; i < 40; i++) ctx.s[`mat${i}`] = await seed('materials', { name: `[HARNESS] rls-base ${i}`, category: 'harness' })
     }
     if (tables.has('offer_signatures')) for (let i = 0; i < 40; i++) ctx.s[`of${i}`] = await seed('offers', SPECS.offers.payload(c.ownerUid, ctx))
+    if (tables.has('email_messages') || tables.has('email_events')) ctx.s.thread = await seed('email_threads', { subject: '[HARNESS] rls-base' })
+    if (tables.has('email_events')) ctx.s.emailMessage = await seed('email_messages', { thread_id: ctx.s.thread, direction: 'outbound', from_email: 'rls@harness.test', to_email: 'rls-to@harness.test', subject: '[HARNESS] rls-base' })
+    if (tables.has('sms_events')) ctx.s.sms = await seed('sms_messages', { to_phone: '+4500000000', message: '[HARNESS] rls-base' })
     if (tables.has('messages')) {
       const personaIds = new Set(uids.values())
       const { data: profs } = await c.admin.from('profiles').select('id').limit(50)
@@ -166,6 +187,7 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
     for (const p of policies) {
       const spec = SPECS[p.table]
       if (!spec) { out.push({ id: `${p.table}`, ok: false, note: 'ingen test-spec' }); continue }
+      const pk = spec.pk ?? 'id'
       const mismatches: string[] = []
       let checks = 0
       const expect = (label: string, actual: boolean, expected: boolean) => { checks++; if (actual !== expected) mismatches.push(`${label}=${actual ? 'ja' : 'nej'}`) }
@@ -173,48 +195,48 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
         const uid = uids.get(role)!
         const other = [...uids.values()].find((u) => u !== uid)!
         // INSERT (egen uid i payload)
-        const ins = await cl.from(p.table).insert([spec.payload(uid, ctx)]).select('id')
+        const ins = await cl.from(p.table).insert([spec.payload(uid, ctx)]).select(pk)
         expect(`${role}:insert`, !ins.error && track(p.table, ins.data), has(p.insert, role) || has(p.insertConditional?.roles, role))
         // INSERT med fremmed uid (ekstra betingelse / betinget gren)
         if ((p.insertExtraSql && has(p.insert, role)) || (p.insertConditional && has(p.insertConditional.roles, role) && !has(p.insert, role))) {
-          const bad = await cl.from(p.table).insert([spec.payload(other, ctx)]).select('id')
+          const bad = await cl.from(p.table).insert([spec.payload(other, ctx)]).select(pk)
           expect(`${role}:insert(fremmed)`, !bad.error && track(p.table, bad.data), false)
         }
         // UPDATE paa en andens raekke
         const target = await seed(p.table, spec.payload(c.ownerUid === uid ? other : c.ownerUid, ctx))
-        const upd = await cl.from(p.table).update(spec.update).eq('id', target).select('id')
+        const upd = await cl.from(p.table).update(spec.update).eq(pk, target).select(pk)
         expect(`${role}:update`, !upd.error && (upd.data ?? []).length === 1, has(p.update, role))
         // laesning uaendret
-        const sel = await cl.from(p.table).select('id').eq('id', target)
+        const sel = await cl.from(p.table).select(pk).eq(pk, target)
         expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, true)
         // betinget UPDATE (fx montør -> done)
         if (p.updateConditional && spec.condUpdate) {
           const t2 = await seed(p.table, spec.payload(c.ownerUid, ctx))
-          const u2 = await cl.from(p.table).update(spec.condUpdate).eq('id', t2).select('id')
+          const u2 = await cl.from(p.table).update(spec.condUpdate).eq(pk, t2).select(pk)
           expect(`${role}:update(${p.updateConditional.desc})${u2.error ? `[${u2.error.message.slice(0, 80)}]` : ''}`, !u2.error && (u2.data ?? []).length === 1, has(p.update, role) || has(p.updateConditional.roles, role))
         }
         // egne raekker (usingSql / betinget delete)
         if (spec.ownRow && (p.updateConditional?.usingSql || p.deleteConditional)) {
           if (p.updateConditional?.usingSql) {
             const own = await seed(p.table, { ...spec.payload(uid, ctx), ...spec.ownRow(uid) })
-            const u3 = await cl.from(p.table).update(spec.update).eq('id', own).select('id')
+            const u3 = await cl.from(p.table).update(spec.update).eq(pk, own).select(pk)
             expect(`${role}:update(egen)`, !u3.error && (u3.data ?? []).length === 1, has(p.update, role) || has(p.updateConditional.roles, role))
           }
           if (p.deleteConditional) {
             const own = await seed(p.table, { ...spec.payload(c.ownerUid, ctx), ...spec.ownRow(uid) })
-            const d3 = await cl.from(p.table).delete().eq('id', own).select('id')
+            const d3 = await cl.from(p.table).delete().eq(pk, own).select(pk)
             expect(`${role}:delete(${p.deleteConditional.desc})`, !d3.error && (d3.data ?? []).length === 1, has(p.delete, role) || has(p.deleteConditional.roles, role))
           }
         }
         // DELETE paa en andens / almindelig raekke
-        const del = await cl.from(p.table).delete().eq('id', target).select('id')
+        const del = await cl.from(p.table).delete().eq(pk, target).select(pk)
         expect(`${role}:delete`, !del.error && (del.data ?? []).length === 1, has(p.delete, role))
       }
       // anon
-      const aIns = await c.anon.from(p.table).insert([spec.payload(c.ownerUid, ctx)]).select('id')
+      const aIns = await c.anon.from(p.table).insert([spec.payload(c.ownerUid, ctx)]).select(pk)
       const aTarget = await seed(p.table, spec.payload(c.ownerUid, ctx))
-      const aUpd = await c.anon.from(p.table).update(spec.update).eq('id', aTarget).select('id')
-      const aDel = await c.anon.from(p.table).delete().eq('id', aTarget).select('id')
+      const aUpd = await c.anon.from(p.table).update(spec.update).eq(pk, aTarget).select(pk)
+      const aDel = await c.anon.from(p.table).delete().eq(pk, aTarget).select(pk)
       expect('anon:skriv', (!aIns.error && track(p.table, aIns.data)) || (!aUpd.error && (aUpd.data ?? []).length > 0) || (!aDel.error && (aDel.data ?? []).length > 0), false)
       const summary = `I:${p.insert.length}${p.insertConditional ? '+b' : ''}/U:${p.update.length}${p.updateConditional ? '+b' : ''}/D:${p.delete.length}${p.deleteConditional ? '+b' : ''}`
       out.push({ id: p.table, ok: mismatches.length === 0 && personas.size === 5, note: mismatches.length ? `AFVIGER: ${mismatches.join(', ')}` : `${checks} checks · ${summary} · ${personas.size} personaer + anon` })
@@ -223,7 +245,7 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
     for (const t of CLEANUP) {
       const ids = created.filter((x) => x.table === t).map((x) => x.id)
       if (ids.length) {
-        const { error } = await c.admin.from(t).delete().in('id', ids)
+        const { error } = await c.admin.from(t).delete().in(pkOf(t), ids)
         if (error) console.error(`[rls-lockdown] oprydning ${t}: ${error.message}`)
       }
     }

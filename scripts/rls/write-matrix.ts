@@ -270,6 +270,38 @@ export const WAVE3A: TableWritePolicy[] = [
     why: 'partnerportal-adgang (settings.manage); validering med service-role. NB: laesning af tokens er aaben — laese-opfoelgning' },
 ]
 
+/** Runde 3B: mail-/SMS-log, mail-synk-tilstand, AI-log/-forbrug/-prompts, mail-intelligens. */
+export const WAVE3B: TableWritePolicy[] = [
+  { table: 'email_messages', insert: ['admin', 'serviceleder', 'salg', 'montør'], update: ['admin', 'serviceleder', 'salg', 'montør'], delete: [],
+    dropPolicies: ['email_messages_insert', 'email_messages_update'], recreateOpenSelect: false, why: 'udgaaende tilbuds-/opgavemails (offers.send, tasks.edit)' },
+  { table: 'email_threads', insert: ['admin', 'serviceleder', 'salg', 'montør'], update: ['admin', 'serviceleder', 'montør'], delete: [],
+    // email_messages-triggere opdaterer traad-statistik SOM brugeren (salg sender tilbudsmails) -> afledt data:
+    // trigger-funktionerne koerer som ejer (EXECUTE revoked; kan ikke kaldes direkte).
+    extraSql: [
+      'ALTER FUNCTION public.update_thread_on_message_status() SECURITY DEFINER SET search_path = public, pg_temp;',
+      'ALTER FUNCTION public.update_thread_stats() SECURITY DEFINER SET search_path = public, pg_temp;',
+      'REVOKE ALL ON FUNCTION public.update_thread_on_message_status() FROM PUBLIC, anon, authenticated;',
+      'REVOKE ALL ON FUNCTION public.update_thread_stats() FROM PUBLIC, anon, authenticated;',
+    ],
+    dropPolicies: ['email_threads_insert', 'email_threads_update'], recreateOpenSelect: false, why: 'mailtraade (offers.send, tasks.edit)' },
+  { table: 'email_events', insert: [], update: [], delete: [], dropPolicies: ['email_events_insert'], recreateOpenSelect: false,
+    why: 'aabnings-/klik-events skrives KUN af tracking-ruten (service-role)' },
+  { table: 'sms_messages', insert: [], update: [], delete: [], dropPolicies: ['sms_messages_insert', 'sms_messages_update'], recreateOpenSelect: false,
+    why: 'SMS skrives KUN af service-role' },
+  { table: 'sms_events', insert: [], update: [], delete: [], dropPolicies: ['sms_events_insert_authenticated'], recreateOpenSelect: false,
+    why: 'SMS-events skrives KUN af service-role' },
+  { table: 'graph_sync_state', insert: ['admin'], update: ['admin'], delete: ['admin'], dropPolicies: ['graph_sync_state_insert', 'graph_sync_state_update'], recreateOpenSelect: false,
+    why: 'mail-synk delta-links (settings.manage); cron-synk med service-role' },
+  { table: 'email_intelligence_logs', insert: [], update: [], delete: [], dropPolicies: ['eil_insert'], recreateOpenSelect: false, why: 'mail-intelligens-log (service-role)' },
+  { table: 'email_intelligence_daily_summary', insert: [], update: [], delete: [], dropPolicies: ['eids_insert', 'eids_update'], recreateOpenSelect: false,
+    why: 'daglig opsummering (service-role)' },
+  { table: 'ai_suggestions', insert: [], update: [], delete: [], dropPolicies: ['ai_suggestions_all_auth'], recreateOpenSelect: true, why: 'AI-forslag (service-role)' },
+  { table: 'ai_usage_daily', insert: [], update: [], delete: [], dropPolicies: ['ai_usage_insert', 'ai_usage_update'], recreateOpenSelect: false,
+    why: 'AI-forbrugstaeller/budgetloft — maa ikke kunne nulstilles via REST (service-role)' },
+  { table: 'ai_prompt_templates', insert: [], update: [], delete: [], dropPolicies: ['ai_prompt_templates_insert', 'ai_prompt_templates_update'], recreateOpenSelect: false,
+    why: 'AI-promptskabeloner (service-role/migrationer) — prompt-injektion via REST lukket' },
+]
+
 const q = (s: string) => `"${s.replace(/"/g, '""')}"`
 const roleList = (r: Role[]) => r.map((x) => `'${x}'`).join(', ')
 const inRoles = (r: Role[]) => `public.user_role() IN (${roleList(r)})`

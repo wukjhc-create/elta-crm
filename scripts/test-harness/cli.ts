@@ -351,6 +351,14 @@ async function status() {
         + (SELECT count(*) FROM offer_packages WHERE slug LIKE 'harn-rls-%')
         + (SELECT count(*) FROM materials WHERE name LIKE '[HARNESS] rls%')
         + (SELECT count(*) FROM customer_documents WHERE title LIKE '[HARNESS] rls%')
+        + (SELECT count(*) FROM email_threads WHERE subject LIKE '[HARNESS] rls%')
+        + (SELECT count(*) FROM sms_messages WHERE message LIKE '[HARNESS] rls%')
+        + (SELECT count(*) FROM graph_sync_state WHERE mailbox LIKE 'harness-rls-%')
+        + (SELECT count(*) FROM ai_prompt_templates WHERE code LIKE 'harn_rls_%')
+        + (SELECT count(*) FROM ai_suggestions WHERE type = 'harness_rls')
+        + (SELECT count(*) FROM email_intelligence_logs WHERE action LIKE 'harness_rls%')
+        + (SELECT count(*) FROM ai_usage_daily WHERE day < '2000-01-01')
+        + (SELECT count(*) FROM email_intelligence_daily_summary WHERE summary_date < '2010-01-01')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HV%' AND name LIKE 'HARNESS%')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSINV%') AS invoice_probes`))[0]
   const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n

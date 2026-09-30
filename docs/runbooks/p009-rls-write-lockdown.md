@@ -1,7 +1,7 @@
 # Runbook — P-009 RLS-skrivelås (runde for runde)
 
 **Status:**
-- **Runde 1 (00170)**, **2A (00171)**, **2B (00172)** og **3A (00173):** anvendt og verificeret på staging (2026-09-30). **IKKE kørt i production.** Kræver Henriks godkendelse.
+- **Runde 1 (00170)**, **2A (00171)**, **2B (00172)**, **3A (00173)** og **3B (00174):** anvendt og verificeret på staging (2026-09-30). 64 tabeller i alt. **IKKE kørt i production.** Kræver Henriks godkendelse.
 
 ## Model
 - **Én kilde:** `scripts/rls/write-matrix.ts`. Pr. tabel står de roller, der må INSERT/UPDATE/DELETE, plus evt. ekstra betingelser (fx `created_by = auth.uid()`, forslag-sletning).
@@ -120,6 +120,19 @@ Nogle processer kører med cookie-klienten uden session, altså som anon: suppli
   - `harness:rls-lockdown -- WAVE3A`: 21/21, 489 checks.
   - `db-audit`: LAV 76→55.
   - Regression grøn.
+
+## Runde 3B — 00174 (mail/SMS-log, mail-synk-tilstand, AI, mail-intelligens)
+- **email_messages og email_threads:** tilbuds- og opgavemails (`offers.send`, `tasks.edit`).
+- **graph_sync_state:** admin (mail-synkens delta-links).
+- **Kun service-role:** events, SMS, AI-forslag, AI-forbrugstæller (budgetloftet kunne nulstilles via REST), AI-promptskabeloner (prompt-injektion via REST er lukket) og intelligens-log.
+- **Trigger-fund:** `email_messages` opdaterer tråd-statistik som brugeren, så salgs tilbudsmails ville bryde. Derfor er `update_thread_stats()` og `update_thread_on_message_status()` nu SECURITY DEFINER, og EXECUTE er revoked.
+- **Målt på staging:**
+  - `harness:rls-lockdown -- WAVE3B`: 11/11.
+  - Alle 5 runder grønne samlet.
+  - `db-audit`: LAV 55→44.
+
+## Tilbage (ikke låst endnu)
+Kalkulation, katalog og konfiguration: `calc_*`, `kalkia_*`, `calculation_*`, `packages/package_*`, `product_*`, `materials*`, `solar_products`, `room_*`, `project_*`-skabeloner, `risk_*` m.fl. (~44 tabeller). Det er næste runde (4).
 
 ## Læse-side (opfølgning, ikke i disse runder)
 SELECT er bevidst uændret. Men disse tabeller har hemmeligheder eller private data, der kan læses af alle indloggede:

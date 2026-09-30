@@ -77,6 +77,8 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | P-009 runde 2A (00171): finance/arbejdsordrer, integrationer/webhooks, automation, skabeloner (15 tabeller) | DONE (staging) · prod-gate | 339 persona-checks grønne. Trigger-fund: profit-snapshot skrev som brugeren → trigger-funktioner SECURITY DEFINER + revoke. App: egne timer håndhæves nu. db-audit LAV 101→86 |
 | P-009 runde 2B (00172): leverandørprisdata (10 tabeller) | DONE (staging) · prod-gate | Kode: API-drevne system-skrivninger → service-role i gatede actions; supplier_products kun admin. 210 persona-checks. Anon-grants bevaret på 4 cron-tabeller (P-003) — RLS blokerer stadig |
 | P-009 runde 3A (00173): sager/projekter/leads/tilbudstilbehør/underskrifter/beskeder/partner-tokens (21 tabeller) | DONE (staging) · prod-gate | 489 persona-checks. Trigger-fund: timer → projects.actual_hours som brugeren → SECURITY DEFINER. Underskrifter kan ikke længere forfalskes via REST |
+| P-009 runde 3B (00174): mail/SMS-log, mail-synk-tilstand, AI-forbrug/-prompts, mail-intelligens (11 tabeller) | DONE (staging) · prod-gate | 231 checks. Trigger-fund: tråd-statistik som brugeren → SECURITY DEFINER. AI-budgetloft og promptskabeloner kan ikke længere ændres via REST |
+| P-009 runde 4: kalkulation/katalog/konfiguration (~44 tabeller) | TODO | Samme værktøjskæde |
 | P-009 anon-kontekst-korrektion | DONE | Anon-crons (P-003) læser tabeller som ellers ville skifte fra tom til fejl → keepAnonGrants + CI-check; 00170 rettet (customer_contacts, incoming_emails) |
 | P-009 læse-side: tokens/hemmeligheder/beskeder læsbare for alle indloggede | TODO | portal/partner-tokens, integrations-secrets, messages → kolonne-grants/ejer-policies |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
@@ -87,6 +89,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-09-30: P-009 runde 3B (00174) på staging: 11 tabeller; alle 5 runder (64 tabeller) grønne samlet; db-audit LAV 44.
 - 2026-09-30: P-009 runde 3A (00173) på staging: 21 tabeller, 489 checks; trigger-fund (projekttimer) rettet; db-audit LAV 55. Anon-kontekst-regel (P-003) indført.
 - 2026-09-30: P-009 runde 2B (00172) på staging: 10 leverandørpris-tabeller låst (supplier_products kun admin); 210 checks; db-audit LAV 76.
 - 2026-09-30: P-009 runde 2A (00171) på staging: 15 tabeller, 339 checks; nyt transitivt trigger-audit (prod-trigger-writes) fangede 2 brud → rettet.
