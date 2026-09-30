@@ -14,14 +14,30 @@
  */
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
+import { scanWriteSites, lastWriterClosure } from './rls-write-sites'
 
 const GATE_RE = /requirePermission\(|hasPermission\(|requireAdmin\w*\(|requireSupplier[A-Za-z]*\(|requireRole\(|assertPermission\(|pageHasPermission\(/
 // rpc('get_*'/'calculate_*') er rene laese-funktioner og taeller ikke som skrivning.
 // Direkte DB-/storage-skrivning + kendte services der skriver paa actionens vegne (indirekte skrivning var et hul:
 // backfillEmailAttachments skrev via processEmailAttachments uden gate).
-const INDIRECT_WRITERS = ['processEmailAttachments', 'ingestFromEmail', 'parseAndMatch', 'archiveAttachmentsToCustomerDocuments']
+const STATIC_INDIRECT_WRITERS = ['processEmailAttachments', 'ingestFromEmail', 'parseAndMatch', 'archiveAttachmentsToCustomerDocuments']
+/**
+ * P-009: ALLE funktioner uden for src/lib/actions og src/app der skriver til en tabel (AST-scan, scripts/rls-write-sites.ts)
+ * taeller som indirekte skrivere — saa en action der kalder fx email-linker.manuallyLinkEmail uden gate fanges
+ * automatisk (den haandholdte liste overså linkEmailToCustomer/unlinkEmailFromCustomer/ignoreIncomingEmail).
+ */
+function computeServiceWriters(): string[] {
+  try {
+    scanWriteSites()
+    return lastWriterClosure.filter((n) => /^[A-Za-z_]\w{3,}$/.test(n) && !GENERIC_FN_NAMES.has(n))
+  } catch {
+    return []
+  }
+}
+const GENERIC_FN_NAMES = new Set(['handler', 'POST', 'GET', 'PUT', 'PATCH', 'DELETE', 'execute', 'main', 'default', 'modul'])
+export const INDIRECT_WRITERS = [...new Set([...STATIC_INDIRECT_WRITERS, ...computeServiceWriters()])]
 const WRITE_RE = new RegExp(String.raw`\.(insert|update|upsert|delete)\(|\.rpc\(\s*['"](?!get_|calculate_)|\.storage\s*\.from\([^)]*\)\s*\.(upload|remove|move)\(|\b(` + INDIRECT_WRITERS.join('|') + String.raw`)\(`)
-const AUTH_RE = /getAuthenticatedClient|getUser\(|auth\.getUser|requirePermission|require[A-Z]\w*\(|pageHasPermission|getUserRoleForPage|[Tt]oken|timingSafeEqual/
+const AUTH_RE = /gateDenied\(|requireGate\(|getAuthenticatedClient|getUser\(|auth\.getUser|requirePermission|require[A-Z]\w*\(|pageHasPermission|getUserRoleForPage|[Tt]oken|timingSafeEqual/
 /** Bevidst offentlige actions (glemt-password begraenser selv sit svar). */
 const INTENTIONALLY_PUBLIC = new Set(['requestPasswordReset'])
 
@@ -105,7 +121,8 @@ export function runUnauthenticatedAdminAudit(root = join(process.cwd(), 'src')):
     const src = readFileSync(path, 'utf8')
     if (!/^\s*['"]use server['"]/.test(src)) continue
     for (const f of exportedFunctions(src)) {
-      if (!/createAdminClient\(/.test(f.body) || AUTH_RE.test(f.body)) continue
+      // P-009: ogsaa INDIREKTE skrivning (service-role inde i en service) uden login-tjek taeller.
+      if (!(/createAdminClient\(/.test(f.body) || WRITE_RE.test(f.body)) || AUTH_RE.test(f.body)) continue
       out.push({ file: path.slice(root.length + 1).split('\\').join('/'), fn: f.name, writes: WRITE_RE.test(f.body),
         exposed: clientNames.has(f.name), intentionallyPublic: INTENTIONALLY_PUBLIC.has(f.name) })
     }

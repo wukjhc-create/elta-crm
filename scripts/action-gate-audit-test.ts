@@ -6,7 +6,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { runStrictAudit } from './action-gate-audit'
+import { runStrictAudit, runUnauthenticatedAdminAudit } from './action-gate-audit'
 
 let fails = 0
 const assert = (cond: boolean, label: string, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`); if (!cond) fails++ }
@@ -73,6 +73,22 @@ export async function storageUpload(p: string) {
 
   assert(has(/a\.ts:ungatedWrite: skrivende action uden rettighedstjek/), 'ny ugatet skrivende action fejler')
   assert(has(/a\.ts:indirectServiceWrite: skrivende action uden rettighedstjek/), 'ugatet indirekte skrivning via service fejler')
+
+  // P-009-fund: action UDEN login-tjek der sletter via en service (service-role) og bruges i klientkode
+  action('u.ts', `
+export async function deleteDocNoLogin(id: string) {
+  await cleanupOutboundAttachments([id])
+}
+export async function deleteDocWithGate(id: string) {
+  if (await gateDenied('inbox.view')) return
+  await cleanupOutboundAttachments([id])
+}`)
+  client('u.tsx', `import { deleteDocNoLogin, deleteDocWithGate } from '@/lib/actions/u'
+export default function U() { return [deleteDocNoLogin, deleteDocWithGate] }`)
+  const un = runUnauthenticatedAdminAudit(root)
+  const noLogin = un.find((x) => x.fn === 'deleteDocNoLogin')
+  assert(!!noLogin && noLogin.exposed && noLogin.writes, 'eksponeret action uden login med indirekte service-sletning fanges', JSON.stringify(noLogin ?? null))
+  assert(!un.some((x) => x.fn === 'deleteDocWithGate'), 'samme action med gateDenied godkendes')
   assert(has(/a\.ts:storageUpload: skrivende action uden rettighedstjek/), 'ugatet storage-upload fejler')
   assert(has(/a\.ts:helperOnly: markeret server-only, men refereres fra klientkode/), 'server-only der bruges i klientkode fejler')
   assert(has(/a\.ts:fakeToken: markeret token, men validerer intet token/), 'falsk token-påstand fejler')

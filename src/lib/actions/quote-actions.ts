@@ -127,7 +127,7 @@ export async function sendQuoteAction(
   incomingEmailId?: string
 ): Promise<ActionResult<GenerateQuoteResult>> {
   try {
-    const { userId } = await getAuthenticatedClient()
+    const { userId } = await requireGate('offers.send')
 
     // Validate required fields
     if (!input.customer.email) {

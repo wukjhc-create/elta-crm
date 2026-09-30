@@ -233,7 +233,7 @@ export async function searchSupplierAPI(
   options?: { limit?: number }
 ): Promise<ActionResult<ProductPrice[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(supplierId, 'leverandør ID')
 
     // Get supplier info
@@ -273,7 +273,7 @@ export async function getLiveProductPrice(
   sku: string
 ): Promise<ActionResult<ProductPrice>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(supplierId, 'leverandør ID')
 
     // Get supplier info
@@ -312,7 +312,7 @@ export async function testSupplierAPIConnection(
   supplierId: string
 ): Promise<ActionResult<{ success: boolean; message: string }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
     validateUUID(supplierId, 'leverandør ID')
 
     // Get supplier info
@@ -415,7 +415,7 @@ export async function getProductPriceComparison(
   productName: string
 ): Promise<ActionResult<Array<{ supplierId: string; supplierName: string; supplierCode: string; price: ProductPrice }>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('settings.suppliers')
 
     // Get all active suppliers with API credentials
     const { data: suppliers } = await supabase

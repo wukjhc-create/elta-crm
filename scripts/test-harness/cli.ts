@@ -331,6 +331,7 @@ async function status() {
       (SELECT count(*) FROM incoming_invoices WHERE invoice_number LIKE 'HARN-%' OR file_hash LIKE 'harness-%')
         + (SELECT count(*) FROM incoming_emails WHERE sender_email LIKE 'faktura-%@harness.test')
         + (SELECT count(*) FROM customers WHERE customer_number LIKE 'HARNESS-ATT-%')
+        + (SELECT count(*) FROM customers WHERE customer_number LIKE 'HARNESS-AUTH-%')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HV%' AND name LIKE 'HARNESS%')
         + (SELECT count(*) FROM suppliers WHERE code LIKE 'HSINV%') AS invoice_probes`))[0]
   const act24 = await stagingSql(`SELECT a.capability, a.status, (r.input_context->>'harness' IS NOT NULL) AS tagged, count(*) AS n
@@ -465,6 +466,14 @@ async function main() {
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
     const checks = await runSupplierVat({ admin, anon: anonClient, url: runtime.url, anonKey: runtime.anonKey, sql: stagingSql })
     log(formatSupplierVat(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
+  if (SUB === 'action-auth') {
+    const { runActionAuthProofs, formatActionAuthProofs } = await import('./action-auth-proofs')
+    const actors = await ensureActors(admin, seedBase)
+    const checks = await runActionAuthProofs({ admin, ownerUid: actors.ownerUid })
+    log(formatActionAuthProofs(checks))
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }

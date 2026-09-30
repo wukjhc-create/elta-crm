@@ -430,10 +430,12 @@ export async function cleanupOutboundAttachments(
   const supabase = createAdminClient()
 
   // Hent storage_paths før vi sletter rows
+  // Kun raekker der ER outbound-vedhaeftninger (sti-praefiks) — aldrig andre kundedokumenter (P-009-fund).
   const { data: docs } = await supabase
     .from('customer_documents')
     .select('id, storage_path')
     .in('id', documentIds)
+    .like('storage_path', `${STORAGE_PREFIX}/%`)
 
   const paths = (docs || [])
     .map((d) => d.storage_path as string | null)
@@ -445,10 +447,12 @@ export async function cleanupOutboundAttachments(
     })
   }
 
+  const outboundIds = (docs || []).map((d) => d.id as string)
+  if (outboundIds.length === 0) return
   await supabase
     .from('customer_documents')
     .delete()
-    .in('id', documentIds)
+    .in('id', outboundIds)
     .then((res) => {
       if (res.error) {
         logger.warn('cleanupOutboundAttachments db delete failed', {

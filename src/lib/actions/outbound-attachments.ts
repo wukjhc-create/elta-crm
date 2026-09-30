@@ -11,7 +11,7 @@
  * at vedhæfte filer. Mennesket trykker fortsat Send.
  */
 
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -42,7 +42,8 @@ export async function uploadOutboundAttachmentsAction(
 ): Promise<UploadAttachmentsResult> {
   let userId: string | null = null
   try {
-    const auth = await getAuthenticatedClient()
+    const auth = await getAuthenticatedClientWithRole()
+    if (!auth.hasPermission('inbox.view')) return { success: false, error: 'Manglende tilladelse: inbox.view' }
     userId = auth.userId
   } catch {
     return { success: false, error: 'Ikke logget ind' }
@@ -132,6 +133,13 @@ export async function uploadOutboundAttachmentsAction(
 export async function deleteOutboundAttachmentAction(
   documentId: string
 ): Promise<{ success: boolean; error?: string }> {
+  // P-009-fund (S2): denne action havde INGEN login-tjek og kunne slette et vilkaarligt kundedokument via service-role.
+  try {
+    const auth = await getAuthenticatedClientWithRole()
+    if (!auth.hasPermission('inbox.view')) return { success: false, error: 'Manglende tilladelse: inbox.view' }
+  } catch {
+    return { success: false, error: 'Ikke logget ind' }
+  }
   try {
     validateUUID(documentId, 'documentId')
   } catch (err) {

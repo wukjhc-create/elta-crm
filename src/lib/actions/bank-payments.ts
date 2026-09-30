@@ -4,7 +4,15 @@
  * Bank payment server actions for the minimal UI.
  */
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+
+/** RBAC (P-009-fund, S2): bankimport/-match markerer fakturaer betalt -> kun bank.edit (admin, bogholderi). */
+async function requireGate(permission: Permission) {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission(permission)
+  return ctx
+}
 import {
   importBankTransactions,
   parseBankCSV,
@@ -30,7 +38,7 @@ export interface BankTxListRow {
 }
 
 export async function listUnmatchedBankTransactions(limit = 200): Promise<BankTxListRow[]> {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase } = await requireGate('bank.view')
   const { data, error } = await supabase
     .from('bank_transactions')
     .select('id, date, amount, reference_text, sender_name, match_status, match_confidence, matched_invoice_id, candidate_invoice_ids, created_at')
@@ -42,13 +50,13 @@ export async function listUnmatchedBankTransactions(limit = 200): Promise<BankTx
 }
 
 export async function importBankCsvAction(csv: string): Promise<ImportResult> {
-  await getAuthenticatedClient()
+  await requireGate('bank.edit')
   const rows = parseBankCSV(csv)
   return importBankTransactions(rows)
 }
 
 export async function runAutoMatchAction(): Promise<AutoMatchSummary> {
-  await getAuthenticatedClient()
+  await requireGate('bank.edit')
   const summary = await autoMatchTransactions()
   revalidatePath('/dashboard/bank')
   return summary
@@ -58,14 +66,14 @@ export async function manualMatchAction(
   bankTxId: string,
   invoiceId: string
 ): Promise<MatchOutcome> {
-  await getAuthenticatedClient()
+  await requireGate('bank.edit')
   const outcome = await manualMatchTransaction(bankTxId, invoiceId)
   revalidatePath('/dashboard/bank')
   return outcome
 }
 
 export async function searchInvoicesForMatchAction(query: string, limit = 20) {
-  const { supabase } = await getAuthenticatedClient()
+  const { supabase } = await requireGate('bank.view')
   const q = (query || '').trim()
   let req = supabase
     .from('invoices')

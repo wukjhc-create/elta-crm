@@ -315,6 +315,7 @@ export async function linkEmailToCustomer(
   emailId: string,
   customerId: string
 ): Promise<void> {
+  if (await gateDenied('inbox.view')) return
   const { manuallyLinkEmail } = await import('@/lib/services/email-linker')
   await manuallyLinkEmail(emailId, customerId)
   revalidatePath('/dashboard/mail')
@@ -414,12 +415,14 @@ export async function quickCreateCustomerFromEmail(
 }
 
 export async function unlinkEmailFromCustomer(emailId: string): Promise<void> {
+  if (await gateDenied('inbox.view')) return
   const { unlinkEmail } = await import('@/lib/services/email-linker')
   await unlinkEmail(emailId)
   revalidatePath('/dashboard/mail')
 }
 
 export async function ignoreIncomingEmail(emailId: string): Promise<void> {
+  if (await gateDenied('inbox.view')) return
   const { ignoreEmail } = await import('@/lib/services/email-linker')
   await ignoreEmail(emailId)
   revalidatePath('/dashboard/mail')
@@ -1023,6 +1026,8 @@ export async function getAllGraphSyncStates(): Promise<GraphSyncState[]> {
  * Returns sync result summary.
  */
 export async function triggerEmailSync(): Promise<EmailSyncResult> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) throw new Error(denied)
   const { runEmailSync } = await import('@/lib/services/email-sync-orchestrator')
   const result = await runEmailSync()
   revalidatePath('/dashboard/mail')
@@ -1805,6 +1810,7 @@ export async function autoRelinkEmail(
   emailId: string
 ): Promise<{ linked: boolean; customerId?: string; customerName?: string }> {
   validateUUID(emailId, 'emailId')
+  if (await gateDenied('inbox.view')) return { linked: false }
 
   const email = await getIncomingEmail(emailId)
   if (!email) return { linked: false }
