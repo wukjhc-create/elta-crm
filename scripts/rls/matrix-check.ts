@@ -14,7 +14,7 @@ import { scanWriteSites, derivedRoles } from '../rls-write-sites'
 import * as M from './write-matrix'
 import { buildMigration } from './build-migration'
 
-export const WAVES: Array<{ nr: string; wave: string }> = [{ nr: '00170', wave: 'WAVE1' }]
+export const WAVES: Array<{ nr: string; wave: string }> = [{ nr: '00170', wave: 'WAVE1' }, { nr: '00171', wave: 'WAVE2A' }]
 
 export function checkMatrix(): { failures: string[]; warnings: string[] } {
   const failures: string[] = []
@@ -24,7 +24,8 @@ export function checkMatrix(): { failures: string[]; warnings: string[] } {
   for (const p of all) {
     for (const op of ['insert', 'update', 'delete'] as const) {
       const d = derivedRoles(sites, p.table, op)
-      const allowed = new Set<string>([...p[op], ...(op === 'delete' ? p.deleteConditional?.roles ?? [] : [])])
+      const cond = op === 'delete' ? p.deleteConditional : op === 'insert' ? p.insertConditional : p.updateConditional
+      const allowed = new Set<string>([...p[op], ...(cond?.roles ?? [])])
       for (const r of d.roles ?? []) if (!allowed.has(r)) failures.push(`${p.table}.${op}: appen skriver som '${r}', men matrixen tillader kun ${[...allowed].join(',')}`)
       if (d.unresolved.length) warnings.push(`${p.table}.${op}: ${d.unresolved.length} statisk uafklarede stier (manuelt vurderet)`)
     }

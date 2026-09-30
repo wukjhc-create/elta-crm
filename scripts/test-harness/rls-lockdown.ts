@@ -2,38 +2,70 @@
  * P-009 — RLS-skrivelås verificeret med RIGTIGE rolle-sessioner (pilot-personaer) mod staging, drevet af
  * scripts/rls/write-matrix.ts. Pr. tabel og rolle: INSERT/UPDATE/DELETE paa probe-raekker skal lykkes praecis naar
  * matrixen tillader det (positive + negative checks). Derudover:
- *   - ekstra betingelser: INSERT med fremmed created_by afvises; forslag-sletning (offers) kun paa is_proposal
+ *   - betingede grene: forslag-sletning (is_proposal), montør kun -> status 'done', egne timer (user_id = uid),
+ *     INSERT med fremmed created_by/user_id afvises
  *   - anon: ingen skrivning
  *   - laesning uaendret: alle personaer kan stadig laese probe-raekken
  * Alle probe-raekker ryddes i finally (service-role).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { randomBytes } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 import * as M from '../rls/write-matrix'
 
 export interface RlsCheck { id: string; ok: boolean; note: string }
 
-type Ctx = { stamp: number; customerId: string; offerId: string; ownerUid: string; n: () => number }
-type Spec = { payload: (uid: string, c: Ctx) => Record<string, unknown>; update: Record<string, unknown> }
+type Ctx = { stamp: number; ownerUid: string; n: () => number; s: Record<string, string> }
+type Spec = {
+  payload: (uid: string, c: Ctx) => Record<string, unknown>
+  update: Record<string, unknown>
+  /** betinget UPDATE der SKAL lykkes for updateConditional-roller */
+  condUpdate?: Record<string, unknown>
+  /** raekke-felter der goer raekken "egen" for personaen (usingSql/delete-betingelse) */
+  ownRow?: (uid: string) => Record<string, unknown>
+}
 
 const SPECS: Record<string, Spec> = {
   customers: {
     payload: (uid, c) => { const k = c.n(); return { customer_number: `HARN-RLS-${c.stamp}-${k}`, company_name: '[HARNESS] rls', contact_person: 'R', email: `rls-${c.stamp}-${k}@harness.test`, created_by: uid, custom_fields: { harness: 'rls' } } },
     update: { notes: '[HARNESS] rls-update' },
   },
-  customer_contacts: { payload: (_u, c) => ({ customer_id: c.customerId, name: '[HARNESS] rls' }), update: { notes: '[HARNESS] rls-update' } },
+  customer_contacts: { payload: (_u, c) => ({ customer_id: c.s.customer, name: '[HARNESS] rls' }), update: { notes: '[HARNESS] rls-update' } },
   offers: {
-    payload: (uid, c) => ({ offer_number: `HARN-RLS-${c.stamp}-${c.n()}`, title: '[HARNESS] rls', created_by: uid, customer_id: c.customerId }),
+    payload: (uid, c) => ({ offer_number: `HARN-RLS-${c.stamp}-${c.n()}`, title: '[HARNESS] rls', created_by: uid, customer_id: c.s.customer }),
     update: { notes: '[HARNESS] rls-update' },
+    ownRow: () => ({ is_proposal: true }),
   },
-  offer_line_items: { payload: (_u, c) => ({ offer_id: c.offerId, position: 900 + c.n(), description: '[HARNESS] rls', unit_price: 1, total: 1 }), update: { notes: '[HARNESS] rls-update' } },
+  offer_line_items: { payload: (_u, c) => ({ offer_id: c.s.offer, position: 900 + c.n(), description: '[HARNESS] rls', unit_price: 1, total: 1 }), update: { notes: '[HARNESS] rls-update' } },
   portal_access_tokens: {
-    payload: (uid, c) => ({ customer_id: c.customerId, token: randomBytes(24).toString('hex'), email: `rls-${c.stamp}@harness.test`, created_by: uid, expires_at: new Date(Date.now() + 3600e3).toISOString() }),
-    update: { email: `rls-upd@harness.test` },
+    payload: (uid, c) => ({ customer_id: c.s.customer, token: randomBytes(24).toString('hex'), email: `rls-${c.stamp}@harness.test`, created_by: uid, expires_at: new Date(Date.now() + 3600e3).toISOString() }),
+    update: { email: 'rls-upd@harness.test' },
   },
-  customer_documents: { payload: (_u, c) => ({ customer_id: c.customerId, title: '[HARNESS] rls', file_url: '', file_name: 'rls.txt', document_type: 'other' }), update: { description: '[HARNESS] rls-update' } },
+  customer_documents: { payload: (_u, c) => ({ customer_id: c.s.customer, title: '[HARNESS] rls', file_url: '', file_name: 'rls.txt', document_type: 'other' }), update: { description: '[HARNESS] rls-update' } },
   incoming_emails: { payload: (_u, c) => ({ sender_email: `rls-${c.stamp}-${c.n()}@harness.test`, subject: '[HARNESS] rls', graph_message_id: `harness-rls-${c.stamp}-${c.n()}` }), update: { is_read: true } },
+  // ---- runde 2A ----
+  invoice_lines: { payload: (_u, c) => ({ invoice_id: c.s.invoice, description: '[HARNESS] rls' }), update: { description: '[HARNESS] rls-update' } },
+  // unik (invoice_id, predecessor_invoice_id) -> ny faktura fra puljen pr. raekke
+  invoice_predecessors: { payload: (_u, c) => ({ invoice_id: c.s[`inv${c.n() % 60}`], predecessor_invoice_id: c.s.invoice2, deduction_amount: 1 }), update: { deduction_amount: 2 } },
+  work_orders: { payload: () => ({ title: '[HARNESS] rls', status: 'planned' }), update: { title: '[HARNESS] rls-update' }, condUpdate: { status: 'done' } },
+  work_order_profit: { payload: (_u, c) => ({ work_order_id: c.s.workOrder, source: 'manual' }), update: { source: 'recompute' } },
+  time_entries: { payload: (uid, c) => ({ project_id: c.s.project, user_id: uid, hours: 1, description: '[HARNESS] rls' }), update: { hours: 2 }, ownRow: (uid) => ({ user_id: uid }) },
+  integrations: { payload: (_u, c) => ({ name: `[HARNESS] rls ${c.n()}`, is_active: false }), update: { description: '[HARNESS] rls-update' } },
+  integration_endpoints: { payload: (_u, c) => ({ integration_id: c.s.integration, name: '[HARNESS] rls', endpoint_path: '/harness', operation: 'harness' }), update: { name: '[HARNESS] rls-update' } },
+  integration_webhooks: { payload: (_u, c) => ({ integration_id: c.s.integration, name: '[HARNESS] rls', url: 'https://example.invalid/h', event_type: 'harness.rls', is_active: false }), update: { success_count: 1 } },
+  integration_queue: { payload: (_u, c) => ({ integration_id: c.s.integration, operation: 'harness', payload: {} }), update: { operation: 'harness2' } },
+  integration_logs: { payload: () => ({ log_type: 'harness_rls' }), update: { log_type: 'harness_rls2' } },
+  external_references: { payload: (_u, c) => ({ integration_id: c.s.integration, entity_type: 'offer', entity_id: randomUUID(), external_id: `harness-${c.n()}` }), update: { external_id: 'harness-upd' } },
+  automation_rules: { payload: (_u, c) => ({ name: `[HARNESS] rls ${c.n()}`, trigger: 'harness.rls', action: 'harness.noop', active: false, dry_run: true }), update: { name: '[HARNESS] rls-update' } },
+  automation_executions: { payload: (_u, c) => ({ rule_id: c.s.rule, entity_type: 'offer', entity_id: c.s.offer, status: 'dry_run' }), update: { status: 'skipped' } },
+  email_templates: { payload: (_u, c) => ({ code: `harn_rls_${c.stamp}_${c.n()}`, name: '[HARNESS] rls', subject_template: 'x', body_html_template: 'x', is_active: false }), update: { name: '[HARNESS] rls-update' } },
+  sms_templates: { payload: (_u, c) => ({ code: `harn_rls_${c.stamp}_${c.n()}`, name: '[HARNESS] rls', message_template: 'x', is_active: false }), update: { name: '[HARNESS] rls-update' } },
 }
+
+/** Oprydningsraekkefoelge (boern foer foraeldre). */
+const CLEANUP = ['offer_line_items', 'customer_documents', 'portal_access_tokens', 'customer_contacts', 'incoming_emails', 'external_references',
+  'automation_executions', 'automation_rules', 'integration_logs', 'integration_queue', 'integration_webhooks', 'integration_endpoints', 'integrations',
+  'invoice_predecessors', 'invoice_lines', 'invoices', 'work_order_profit', 'work_orders', 'time_entries', 'projects', 'email_templates', 'sms_templates',
+  'offers', 'customers']
 
 export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseClient; url: string; anonKey: string; ownerUid: string }, policies: M.TableWritePolicy[] = M.WAVE1): Promise<RlsCheck[]> {
   const out: RlsCheck[] = []
@@ -52,65 +84,86 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
     return id
   }
   const track = (table: string, data: unknown) => { const id = (Array.isArray(data) ? (data[0] as { id?: string })?.id : undefined); if (id) created.push({ table, id }); return !!id }
+  const has = (roles: M.Role[] | undefined, r: string) => (roles ?? []).includes(r as M.Role)
   try {
-    const ctx: Ctx = { stamp, customerId: '', offerId: '', ownerUid: c.ownerUid, n: () => ++counter }
-    ctx.customerId = await seed('customers', SPECS.customers.payload(c.ownerUid, ctx))
-    ctx.offerId = await seed('offers', SPECS.offers.payload(c.ownerUid, ctx))
+    const ctx: Ctx = { stamp, ownerUid: c.ownerUid, n: () => ++counter, s: {} }
+    ctx.s.customer = await seed('customers', SPECS.customers.payload(c.ownerUid, ctx))
+    ctx.s.offer = await seed('offers', SPECS.offers.payload(c.ownerUid, ctx))
+    const tables = new Set(policies.map((p) => p.table))
+    if (tables.has('invoice_lines') || tables.has('invoice_predecessors')) {
+      ctx.s.invoice = await seed('invoices', { invoice_number: `HARN-RLS-INV-${stamp}-1`, customer_id: ctx.s.customer })
+      ctx.s.invoice2 = await seed('invoices', { invoice_number: `HARN-RLS-INV-${stamp}-2`, customer_id: ctx.s.customer })
+      if (tables.has('invoice_predecessors')) for (let i = 0; i < 60; i++) ctx.s[`inv${i}`] = await seed('invoices', { invoice_number: `HARN-RLS-INV-${stamp}-p${i}`, customer_id: ctx.s.customer })
+    }
+    if (tables.has('work_order_profit')) ctx.s.workOrder = await seed('work_orders', { title: '[HARNESS] rls-base', status: 'planned' })
+    if (tables.has('time_entries')) ctx.s.project = await seed('projects', { project_number: `HARN-RLS-P-${stamp}`, name: '[HARNESS] rls', customer_id: ctx.s.customer, created_by: c.ownerUid })
+    if ([...tables].some((t) => ['integration_endpoints', 'integration_webhooks', 'integration_queue', 'external_references'].includes(t)))
+      ctx.s.integration = await seed('integrations', { name: `[HARNESS] rls-base ${stamp}`, is_active: false })
+    if (tables.has('automation_executions')) ctx.s.rule = await seed('automation_rules', { name: `[HARNESS] rls-base ${stamp}`, trigger: 'harness.rls', action: 'harness.noop', active: false, dry_run: true })
 
     for (const p of policies) {
       const spec = SPECS[p.table]
       if (!spec) { out.push({ id: `${p.table}`, ok: false, note: 'ingen test-spec' }); continue }
       const mismatches: string[] = []
       let checks = 0
+      const expect = (label: string, actual: boolean, expected: boolean) => { checks++; if (actual !== expected) mismatches.push(`${label}=${actual ? 'ja' : 'nej'}`) }
       for (const [role, cl] of personas) {
         const uid = uids.get(role)!
-        // INSERT
+        const other = [...uids.values()].find((u) => u !== uid)!
+        // INSERT (egen uid i payload)
         const ins = await cl.from(p.table).insert([spec.payload(uid, ctx)]).select('id')
-        const insOk = !ins.error && track(p.table, ins.data)
-        checks++; if (insOk !== p.insert.includes(role as M.Role)) mismatches.push(`${role}:insert=${insOk ? 'ja' : 'nej'}`)
-        // UPDATE
-        const target = await seed(p.table, spec.payload(c.ownerUid, ctx))
+        expect(`${role}:insert`, !ins.error && track(p.table, ins.data), has(p.insert, role) || has(p.insertConditional?.roles, role))
+        // INSERT med fremmed uid (ekstra betingelse / betinget gren)
+        if ((p.insertExtraSql && has(p.insert, role)) || (p.insertConditional && has(p.insertConditional.roles, role) && !has(p.insert, role))) {
+          const bad = await cl.from(p.table).insert([spec.payload(other, ctx)]).select('id')
+          expect(`${role}:insert(fremmed)`, !bad.error && track(p.table, bad.data), false)
+        }
+        // UPDATE paa en andens raekke
+        const target = await seed(p.table, spec.payload(c.ownerUid === uid ? other : c.ownerUid, ctx))
         const upd = await cl.from(p.table).update(spec.update).eq('id', target).select('id')
-        const updOk = !upd.error && (upd.data ?? []).length === 1
-        checks++; if (updOk !== p.update.includes(role as M.Role)) mismatches.push(`${role}:update=${updOk ? 'ja' : 'nej'}`)
+        expect(`${role}:update`, !upd.error && (upd.data ?? []).length === 1, has(p.update, role))
         // laesning uaendret
         const sel = await cl.from(p.table).select('id').eq('id', target)
-        checks++; if (sel.error || (sel.data ?? []).length !== 1) mismatches.push(`${role}:select=nej`)
-        // DELETE (almindelig raekke)
+        expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, true)
+        // betinget UPDATE (fx montør -> done)
+        if (p.updateConditional && spec.condUpdate) {
+          const t2 = await seed(p.table, spec.payload(c.ownerUid, ctx))
+          const u2 = await cl.from(p.table).update(spec.condUpdate).eq('id', t2).select('id')
+          expect(`${role}:update(${p.updateConditional.desc})${u2.error ? `[${u2.error.message.slice(0, 80)}]` : ''}`, !u2.error && (u2.data ?? []).length === 1, has(p.update, role) || has(p.updateConditional.roles, role))
+        }
+        // egne raekker (usingSql / betinget delete)
+        if (spec.ownRow && (p.updateConditional?.usingSql || p.deleteConditional)) {
+          if (p.updateConditional?.usingSql) {
+            const own = await seed(p.table, { ...spec.payload(uid, ctx), ...spec.ownRow(uid) })
+            const u3 = await cl.from(p.table).update(spec.update).eq('id', own).select('id')
+            expect(`${role}:update(egen)`, !u3.error && (u3.data ?? []).length === 1, has(p.update, role) || has(p.updateConditional.roles, role))
+          }
+          if (p.deleteConditional) {
+            const own = await seed(p.table, { ...spec.payload(c.ownerUid, ctx), ...spec.ownRow(uid) })
+            const d3 = await cl.from(p.table).delete().eq('id', own).select('id')
+            expect(`${role}:delete(${p.deleteConditional.desc})`, !d3.error && (d3.data ?? []).length === 1, has(p.delete, role) || has(p.deleteConditional.roles, role))
+          }
+        }
+        // DELETE paa en andens / almindelig raekke
         const del = await cl.from(p.table).delete().eq('id', target).select('id')
-        const delOk = !del.error && (del.data ?? []).length === 1
-        checks++; if (delOk !== p.delete.includes(role as M.Role)) mismatches.push(`${role}:delete=${delOk ? 'ja' : 'nej'}`)
-        // betinget sletning
-        if (p.deleteConditional) {
-          const cond = await seed(p.table, { ...spec.payload(c.ownerUid, ctx), is_proposal: true })
-          const d2 = await cl.from(p.table).delete().eq('id', cond).select('id')
-          const d2Ok = !d2.error && (d2.data ?? []).length === 1
-          const exp = p.delete.includes(role as M.Role) || p.deleteConditional.roles.includes(role as M.Role)
-          checks++; if (d2Ok !== exp) mismatches.push(`${role}:delete(${p.deleteConditional.desc})=${d2Ok ? 'ja' : 'nej'}`)
-        }
-        // ekstra insert-betingelse: fremmed created_by afvises
-        if (p.insertExtraSql && p.insert.includes(role as M.Role)) {
-          const other = [...uids.values()].find((u) => u !== uid)!
-          const bad = await cl.from(p.table).insert([spec.payload(other, ctx)]).select('id')
-          const badOk = !bad.error && track(p.table, bad.data)
-          checks++; if (badOk) mismatches.push(`${role}:insert(fremmed created_by)=ja`)
-        }
+        expect(`${role}:delete`, !del.error && (del.data ?? []).length === 1, has(p.delete, role))
       }
       // anon
       const aIns = await c.anon.from(p.table).insert([spec.payload(c.ownerUid, ctx)]).select('id')
       const aTarget = await seed(p.table, spec.payload(c.ownerUid, ctx))
       const aUpd = await c.anon.from(p.table).update(spec.update).eq('id', aTarget).select('id')
       const aDel = await c.anon.from(p.table).delete().eq('id', aTarget).select('id')
-      const anonWrote = (!aIns.error && track(p.table, aIns.data)) || (!aUpd.error && (aUpd.data ?? []).length > 0) || (!aDel.error && (aDel.data ?? []).length > 0)
-      checks += 3; if (anonWrote) mismatches.push('anon:skrev')
-      const note = `${checks} checks · I:${p.insert.length}/U:${p.update.length}/D:${p.delete.length}${p.deleteConditional ? '+betinget' : ''} roller`
-      out.push({ id: p.table, ok: mismatches.length === 0 && personas.size === 5, note: mismatches.length ? `AFVIGER: ${mismatches.join(', ')}` : `${note} · ${personas.size} personaer + anon` })
+      expect('anon:skriv', (!aIns.error && track(p.table, aIns.data)) || (!aUpd.error && (aUpd.data ?? []).length > 0) || (!aDel.error && (aDel.data ?? []).length > 0), false)
+      const summary = `I:${p.insert.length}${p.insertConditional ? '+b' : ''}/U:${p.update.length}${p.updateConditional ? '+b' : ''}/D:${p.delete.length}${p.deleteConditional ? '+b' : ''}`
+      out.push({ id: p.table, ok: mismatches.length === 0 && personas.size === 5, note: mismatches.length ? `AFVIGER: ${mismatches.join(', ')}` : `${checks} checks · ${summary} · ${personas.size} personaer + anon` })
     }
   } finally {
-    const order = ['offer_line_items', 'customer_documents', 'portal_access_tokens', 'customer_contacts', 'incoming_emails', 'offers', 'customers']
-    for (const t of order) {
+    for (const t of CLEANUP) {
       const ids = created.filter((x) => x.table === t).map((x) => x.id)
-      if (ids.length) await c.admin.from(t).delete().in('id', ids)
+      if (ids.length) {
+        const { error } = await c.admin.from(t).delete().in('id', ids)
+        if (error) console.error(`[rls-lockdown] oprydning ${t}: ${error.message}`)
+      }
     }
   }
   return out

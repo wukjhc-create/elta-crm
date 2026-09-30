@@ -654,7 +654,7 @@ export async function updateTimeEntry(
   formData: FormData
 ): Promise<ActionResult<TimeEntry>> {
   try {
-    const { supabase } = await requireGate('time.edit_own')
+    const { supabase, userId, hasPermission } = await requireGate('time.edit_own')
 
     const id = formData.get('id') as string
     const projectId = formData.get('project_id') as string
@@ -680,12 +680,10 @@ export async function updateTimeEntry(
 
     const { id: entryId, ...updateData } = validated.data
 
-    const { data, error } = await supabase
-      .from('time_entries')
-      .update(updateData)
-      .eq('id', entryId)
-      .select()
-      .single()
+    // time.edit_own = kun EGNE timer; andres kraever time.edit_all (P-009: haandhaeves ogsaa af RLS, 00171).
+    let q = supabase.from('time_entries').update(updateData).eq('id', entryId)
+    if (!hasPermission('time.edit_all')) q = q.eq('user_id', userId)
+    const { data, error } = await q.select().single()
 
     if (error) {
       logger.error('Error updating time entry', { error: error })
@@ -706,11 +704,15 @@ export async function deleteTimeEntry(
   projectId: string
 ): Promise<ActionResult> {
   try {
-    const { supabase } = await requireGate('time.edit_own')
+    const { supabase, userId, hasPermission } = await requireGate('time.edit_own')
     validateUUID(id, 'tidsregistrering ID')
     validateUUID(projectId, 'projekt ID')
 
-    const { error } = await supabase.from('time_entries').delete().eq('id', id)
+    // time.edit_own = kun EGNE timer (P-009); admin (time.edit_all) maa slette alle.
+    let dq = supabase.from('time_entries').delete().eq('id', id)
+    if (!hasPermission('time.edit_all')) dq = dq.eq('user_id', userId)
+    const { data: deleted, error } = await dq.select('id')
+    if (!error && (deleted ?? []).length === 0) return { success: false, error: 'Tidsregistreringen findes ikke eller er ikke din' }
 
     if (error) {
       logger.error('Error deleting time entry', { error: error })
