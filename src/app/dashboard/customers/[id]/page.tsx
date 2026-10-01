@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getCustomer } from '@/lib/actions/customers'
 import { getPortalTokens } from '@/lib/actions/portal'
 import { getPartnerTokens } from '@/lib/actions/partner-portal'
-import { getCompanySettings } from '@/lib/actions/settings'
+import { getDocumentCompanySettings } from '@/lib/actions/company-public'
 import { CustomerDetailClient } from './customer-detail-client'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,7 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
     getCustomer(id),
     getPortalTokens(id),
     getPartnerTokens(id),
-    getCompanySettings(),
+    getDocumentCompanySettings(),
   ])
 
   if (!customerResult.success || !customerResult.data) {

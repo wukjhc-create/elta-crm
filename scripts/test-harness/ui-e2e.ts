@@ -87,6 +87,7 @@
  *   U53 go-live: "Opsætning før pilot" (firma, bank, montør-logins koblet, e-conomic-kunder) vises for admin; montør-status = DB
  *   U54 salg: lead → "Opret tilbud" → tilbud koblet til leadet med firmaets standard-gyldighed og -betingelser
  *       (før: salg fik ingen gyldighedsdato — firmaindstillinger krævede settings.view)
+ *   U55 salg: "Print" på eget tilbud viser firmaets navn og CVR (før: "Virksomhed" uden oplysninger)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -1680,6 +1681,7 @@ ${m.text()}`) })
         if (want('U21')) {
           const u21: Record<string, boolean> = {}
           await gotoSafe(m.page, `${base}/dashboard/service-cases/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await m.page.waitForURL(new RegExp(`/dashboard/orders/${jobCaseId}`), { timeout: 30_000 }).catch(() => {})
           u21.service_link_viderestilles = new RegExp(`/dashboard/orders/${jobCaseId}`).test(m.page.url())
           await m.page.setViewportSize({ width: 390, height: 844 })
           await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
@@ -1909,6 +1911,30 @@ ${m.text()}`) })
         if (seededCs) await c.admin.from('company_settings').delete().eq('id', seededCs)
         if (restoreCs) await c.admin.from('company_settings').update({ default_offer_validity_days: restoreCs.days, default_terms_and_conditions: restoreCs.terms }).eq('id', restoreCs.id)
         out.push({ id: 'U54 salg: lead → tilbud m. standarder', ok: !!leadId && Object.values(g).every(Boolean), note: `${Object.entries(g).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · gyldig=${o?.valid_until}/${expectIso}` })
+      }
+      // U55 salg: tilbuds-print viser firmaets navn/CVR (før: "Virksomhed" uden oplysninger — settings.view krævet)
+      if (want('U55') && sp.ok && salgOfferId) {
+        const g: Record<string, boolean> = {}
+        const cs = ((await c.admin.from('company_settings').select('id, company_name, company_vat_number')).data ?? []) as Array<{ id: string; company_name: string | null; company_vat_number: string | null }>
+        let seededCs: string | undefined
+        let restoreCs: { id: string; name: string | null; vat: string | null } | undefined
+        const name = `[HARNESS] Elta Solar ${stamp}`, vat = '87654321'
+        if (cs.length === 0) {
+          const ci = await c.admin.from('company_settings').insert([{ company_name: name, company_vat_number: vat }]).select('id')
+          seededCs = (ci.data?.[0] as { id?: string } | undefined)?.id
+        } else {
+          restoreCs = { id: cs[0].id, name: cs[0].company_name, vat: cs[0].company_vat_number }
+          await c.admin.from('company_settings').update({ company_name: name, company_vat_number: vat }).eq('id', cs[0].id)
+        }
+        await gotoSafe(sp.page, `${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await sp.page.getByRole('button', { name: /^Print$/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        await sp.page.getByText(name).first().waitFor({ timeout: 30_000 }).catch(() => {})
+        const body = await sp.page.locator('body').innerText().catch(() => '')
+        g.firmanavn_paa_print = body.includes(name)
+        g.cvr_paa_print = body.includes(vat)
+        if (seededCs) await c.admin.from('company_settings').delete().eq('id', seededCs)
+        if (restoreCs) await c.admin.from('company_settings').update({ company_name: restoreCs.name, company_vat_number: restoreCs.vat }).eq('id', restoreCs.id)
+        out.push({ id: 'U55 salg: tilbuds-print m. firmaoplysninger', ok: Object.values(g).every(Boolean), note: Object.entries(g).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
       out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 6 && Object.values(r).every(Boolean),
         note: `${!sp.ok ? `salg-login fejlede (${loginFailures.join(' | ')}) · ` : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })

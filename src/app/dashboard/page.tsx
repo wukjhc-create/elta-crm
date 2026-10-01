@@ -21,7 +21,7 @@ import {
 } from '@/lib/actions/dashboard'
 import { getDashboardOverview } from '@/lib/actions/dashboard-overview'
 import { getRejectionStats, getRecentRejections } from '@/lib/actions/reports'
-import { getCompanySettings } from '@/lib/actions/settings'
+import { getDocumentCompanySettings } from '@/lib/actions/company-public'
 import { formatCurrency } from '@/lib/utils/format'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -87,7 +87,7 @@ export default async function DashboardPage() {
     getRecentActivity(8),
     getUpcomingTasks(5),
     getPendingOffers(5),
-    getCompanySettings(),
+    getDocumentCompanySettings(),
     getDashboardOverview(),
     getRejectionStats(),
     getRecentRejections(5),

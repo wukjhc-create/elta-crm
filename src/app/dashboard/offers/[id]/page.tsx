@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getOffer } from '@/lib/actions/offers'
-import { getCompanySettings } from '@/lib/actions/settings'
+import { getDocumentCompanySettings } from '@/lib/actions/company-public'
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { getServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { getOfferParties } from '@/lib/actions/offer-parties'
@@ -18,7 +18,7 @@ export default async function OfferDetailPage({ params }: OfferDetailPageProps) 
   const [offerResult, settingsResult, calcSettingsResult, linkedCaseResult, partiesResult] =
     await Promise.all([
       getOffer(id),
-      getCompanySettings(),
+      getDocumentCompanySettings(),
       getCalculationSettings(),
       getServiceCaseFromOffer(id),
       getOfferParties(id),

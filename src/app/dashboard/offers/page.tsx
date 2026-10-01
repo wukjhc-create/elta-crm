@@ -1,6 +1,6 @@
 import { Metadata } from 'next'
 import { getOffers } from '@/lib/actions/offers'
-import { getCompanySettings } from '@/lib/actions/settings'
+import { getDocumentCompanySettings } from '@/lib/actions/company-public'
 import { OffersPageClient } from '@/components/modules/offers/offers-page-client'
 import type { OfferStatus } from '@/types/offers.types'
 
@@ -45,7 +45,7 @@ export default async function OffersPage({ searchParams }: PageProps) {
       sortBy,
       sortOrder,
     }),
-    getCompanySettings(),
+    getDocumentCompanySettings(),
   ])
 
   if (!offersResult.success || !offersResult.data) {
