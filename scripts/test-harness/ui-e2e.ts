@@ -81,6 +81,8 @@
  *   U49 dashboard-API: forfaldne = forfald før i dag (dansk), uden kreditnotaer og annullerede (som fakturalisten)
  *   U50 kundeportal: tilbudsdetalje + oversigt indeholder IKKE linjernes kostpris/leverandørkost/interne noter i sidens data
  *       (før: select('*') sendte dem til kundens browser)
+ *   U51 tilbudslinje fra grossistkatalog: "Fra leverandør" → søg varenr. → klik → linje med leverandørspor, kostpris gemt,
+ *       salgspris over kost
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -113,7 +115,15 @@ async function gotoSafe(page: import('playwright').Page, url: string, opts: { wa
   try {
     return await page.goto(url, opts)
   } catch (e) {
-    if (!/Timeout/i.test(String(e))) throw e
+    const msg = String(e)
+    // `next dev` genstarter sig selv ved hukommelsespres ("approaching the used memory threshold, restarting")
+    // — vent til serveren svarer igen og prøv én gang til.
+    if (/ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE/.test(msg)) {
+      console.warn(`[ui-e2e] dev-server utilgængelig (genstart?) — venter: ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
+      await waitForHttp(`${new URL(url).origin}/login`, 240_000)
+      return await page.goto(url, opts).catch(() => null)
+    }
+    if (!/Timeout/i.test(msg)) throw e
     console.warn(`[ui-e2e] goto-timeout, prøver igen (load): ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
     return await page.goto(url, { ...opts, waitUntil: 'load' }).catch(() => null)
   }
@@ -217,6 +227,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u48CaseId: string | null = null
   const u49Ids: string[] = []
   let u50: { tokenId?: string; offerId?: string } = {}
+  let u51: { supplierId?: string; offerId?: string } = {}
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1438,6 +1449,38 @@ ${m.text()}`) })
         out.push({ id: 'U50 portal: ingen kost/noter til kunden', ok: !!u50.offerId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U51 tilbudslinje fra grossistkatalog (søg varenr. → tilføj)
+      if (want('U51') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U51 grossist ${stamp}`, code: `HU51${stamp}` }]).select('id')
+        u51.supplierId = (sup.data?.[0] as { id?: string } | undefined)?.id
+        const sku = `H51-${stamp}`
+        const sp = u51.supplierId ? await c.admin.from('supplier_products').insert([{ supplier_id: u51.supplierId, supplier_sku: sku, supplier_name: `Harness stikkontakt ${stamp}`,
+          cost_price: 40, unit: 'stk', is_available: true }]).select('id') : null
+        const spId = (sp?.data?.[0] as { id?: string } | undefined)?.id
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-GL-${stamp}`, title: `[HARNESS] grossistlinje ${stamp}`, customer_id: profitCustomerId,
+          status: 'draft', created_by: adminUser.id }]).select('id')
+        u51.offerId = (off.data?.[0] as { id?: string } | undefined)?.id
+        const seedErr = spId && u51.offerId ? '' : `SEED: ${sp?.error?.message ?? off.error?.message ?? sup.error?.message ?? '?'} · `
+        await gotoSafe(a.page, `${base}/dashboard/offers/${u51.offerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /Fra leverandør/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByPlaceholder(/Indtast varenummer eller produktnavn/).fill(sku).catch(() => {})
+        const hit = a.page.getByText(`Harness stikkontakt ${stamp}`).first()
+        await hit.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.fundet = (await hit.count()) > 0
+        // resultatets "+ Tilføj" (exact — ikke "Tilføj linje" nederst, der laver en tom linje)
+        await a.page.getByRole('button', { name: 'Tilføj', exact: true }).first().click({ timeout: 30_000 }).catch(() => {})
+        type L = { supplier_product_id: string | null; supplier_cost_price_at_creation: number | null; unit_price: number; quantity: number }
+        const readL = async (): Promise<L[]> => ((await c.admin.from('offer_line_items').select('supplier_product_id, supplier_cost_price_at_creation, unit_price, quantity').eq('offer_id', u51.offerId ?? '')).data ?? []) as L[]
+        let lines = await readL()
+        for (let i = 0; i < 20 && lines.length === 0; i++) { await new Promise((res) => setTimeout(res, 1000)); lines = await readL() }
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u51-grossistlinje.png'), fullPage: false }).catch(() => {})
+        r.linje_tilfoejet = lines.length === 1 && lines[0].supplier_product_id === spId
+        r.kost_gemt = Number(lines[0]?.supplier_cost_price_at_creation) === 40
+        r.salgspris_over_kost = Number(lines[0]?.unit_price) > 40
+        out.push({ id: 'U51 tilbudslinje fra grossist', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · stk-pris=${lines[0]?.unit_price}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1795,7 +1838,15 @@ ${m.text()}`) })
         note: `${!sp.ok ? `salg-login fejlede (${loginFailures.join(' | ')}) · ` : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
     }
 
-    out.push({ id: 'U5 ingen side-/konsolfejl', ok: pageErrors.length === 0, note: pageErrors.length ? pageErrors.slice(0, 3).join(' | ') : `0 fejl · skærmbilleder: ${shots}` })
+    // Dev-serveren kan genstarte ved hukommelsespres (maskinen har ~6 GB). Netværksfejl i browseren
+    // under en sådan genstart er miljø, ikke app-fejl — de vises i noten, men fejler ikke U5.
+    // Alle andre side-/konsolfejl fejler stadig.
+    const restarts = (serverLog.join('').match(/memory threshold, restarting/g) ?? []).length
+    const envRe = /network error|Failed to fetch|WebSocket is already in CLOSING or CLOSED state|ERR_CONNECTION/
+    const envErrors = restarts > 0 ? pageErrors.filter((x) => envRe.test(x)) : []
+    const realErrors = pageErrors.filter((x) => !envErrors.includes(x))
+    const envNote = restarts > 0 ? ` · dev-server genstartet ${restarts}× (hukommelse); ${envErrors.length} netværksfejl under genstart henført til miljø${envErrors.length ? `: ${envErrors.slice(0, 2).join(' | ').slice(0, 300)}` : ''}` : ''
+    out.push({ id: 'U5 ingen side-/konsolfejl', ok: realErrors.length === 0, note: `${realErrors.length ? realErrors.slice(0, 3).join(' | ') : `0 fejl · skærmbilleder: ${shots}`}${envNote}` })
   } finally {
     await browser.close().catch(() => {})
     // Dev-serverens log (hale) til diagnose af side-/netværksfejl — kun i den lokale skærmbillede-mappe
@@ -1937,6 +1988,8 @@ ${m.text()}`) })
     for (const id of u49Ids) await c.admin.from('invoices').delete().eq('id', id)
     if (u50.offerId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u50.offerId); await c.admin.from('offers').delete().eq('id', u50.offerId) }
     if (u50.tokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u50.tokenId)
+    if (u51.offerId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u51.offerId); await c.admin.from('offers').delete().eq('id', u51.offerId) }
+    if (u51.supplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u51.supplierId); await c.admin.from('suppliers').delete().eq('id', u51.supplierId) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)
