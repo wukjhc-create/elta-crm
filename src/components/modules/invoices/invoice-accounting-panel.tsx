@@ -29,6 +29,7 @@ const STATUS_SKIN: Record<
 > = {
   not_exported: { label: 'Ikke eksporteret', cls: 'bg-gray-100 text-gray-700 ring-gray-300' },
   ready: { label: 'Klar til eksport', cls: 'bg-blue-100 text-blue-800 ring-blue-300' },
+  needs_fix: { label: 'Kræver rettelse før eksport', cls: 'bg-amber-100 text-amber-900 ring-amber-300' },
   exported: { label: 'Eksporteret', cls: 'bg-emerald-100 text-emerald-800 ring-emerald-300' },
   error: { label: 'Fejl ved eksport', cls: 'bg-red-100 text-red-800 ring-red-300' },
 }
@@ -110,7 +111,7 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
 
   const skin = STATUS_SKIN[state.status]
   const showExport =
-    canExport && state.integration_ready && state.status !== 'exported'
+    canExport && state.integration_ready && state.status !== 'exported' && state.status !== 'needs_fix'
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-hidden">
@@ -145,6 +146,15 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
         {state.status === 'error' && state.error && (
           <div className="rounded ring-1 ring-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-800 flex items-start gap-1">
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /> {state.error}
+          </div>
+        )}
+
+        {state.status === 'needs_fix' && state.blocking_issues.length > 0 && (
+          <div className="rounded ring-1 ring-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 space-y-0.5" data-testid="economic-blocking">
+            {state.blocking_issues.map((m, i) => (
+              <div key={i} className="flex items-start gap-1"><AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /> {m}</div>
+            ))}
+            <div className="text-amber-800">Ret fakturaen (eller kreditér og genudsted) før den kan eksporteres.</div>
           </div>
         )}
 

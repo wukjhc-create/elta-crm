@@ -23,7 +23,7 @@ import {
   type AccountingHealthSummary,
 } from '@/lib/services/accounting-health'
 
-export type InvoiceAccountingStatus = 'not_exported' | 'ready' | 'exported' | 'error'
+export type InvoiceAccountingStatus = 'not_exported' | 'ready' | 'needs_fix' | 'exported' | 'error'
 
 export interface InvoiceAccountingState {
   ok: boolean
@@ -34,6 +34,8 @@ export interface InvoiceAccountingState {
   error: string | null
   provider: string
   integration_ready: boolean
+  /** Fakturaspecifikke fejl der ville få eksporten afvist (beløbsafvigelse, ingen linjer/kunde). */
+  blocking_issues: string[]
 }
 
 const PROVIDER = 'economic'
@@ -49,6 +51,7 @@ export async function getInvoiceAccountingStatusAction(
     error: null,
     provider: PROVIDER,
     integration_ready: false,
+    blocking_issues: [],
   }
   try {
     validateUUID(invoiceId, 'id')
@@ -95,6 +98,24 @@ export async function getInvoiceAccountingStatusAction(
   else if ((inv.status === 'sent' || inv.status === 'paid') && !inv.voided_at) status = 'ready'
   else status = 'not_exported'
 
+  // "Klar" kun hvis eksporten faktisk ville gå igennem for netop denne faktura
+  // (samme kontrol som eksporten). Manglende opsætning er global → vises som banner.
+  let blockingIssues: string[] = []
+  if (status === 'ready') {
+    try {
+      const { previewInvoiceForEconomic } = await import('@/lib/services/economic-client')
+      const pv = await previewInvoiceForEconomic(invoiceId)
+      if (pv.ok) {
+        blockingIssues = pv.data.draft.issues
+          .filter((i) => i.severity === 'error' && i.code !== 'missing_config')
+          .map((i) => i.message)
+        if (blockingIssues.length > 0) status = 'needs_fix'
+      }
+    } catch (e) {
+      logger.error('getInvoiceAccountingStatusAction: preview failed', { error: e })
+    }
+  }
+
   return {
     ok: true,
     status,
@@ -103,6 +124,7 @@ export async function getInvoiceAccountingStatusAction(
     error: status === 'error' ? ((log?.error_message as string | null) ?? null) : null,
     provider: PROVIDER,
     integration_ready: integrationReady,
+    blocking_issues: blockingIssues,
   }
 }
 

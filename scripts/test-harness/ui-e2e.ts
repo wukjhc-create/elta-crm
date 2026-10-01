@@ -174,6 +174,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u35CaseId: string | null = null
   let u36CaseId: string | null = null
   let u37InvoiceId: string | null = null
+  let u37CleanId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1103,6 +1104,9 @@ ${m.text()}`) })
         ])
         const seedErr = u37InvoiceId ? '' : `SEED: ${ins.error?.message ?? '?'} · `
         await a.page.goto(`${base}/dashboard/invoices/${u37InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText('Kræver rettelse før eksport').waitFor({ timeout: 90_000 }).catch(() => {})
+        r.status_kraever_rettelse = (await a.page.getByText('Kræver rettelse før eksport').count()) > 0
+        r.blokering_forklaret = (await a.page.getByTestId('economic-blocking').getByText(/fakturaen er på 1\.173,25 kr/).count()) > 0
         await a.page.getByRole('button', { name: /Vis hvad der sendes til e-conomic/ }).click({ timeout: 90_000 }).catch(() => {})
         const pv = a.page.getByTestId('economic-preview')
         await pv.getByTestId('economic-preview-net').waitFor({ timeout: 60_000 }).catch(() => {})
@@ -1112,6 +1116,14 @@ ${m.text()}`) })
         r.intet_sendes = (await pv.getByText(/intet sendes til e-conomic herfra/).count()) > 0
         const logs = ((await c.admin.from('accounting_sync_log').select('id').eq('entity_id', u37InvoiceId ?? '')).data ?? []) as unknown[]
         r.ingen_sync_forsoeg = logs.length === 0
+        // ren faktura (antal × pris = total) forbliver "Klar til eksport"
+        const ok2 = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-EC2-${stamp}`, customer_id: profitCustomerId, status: 'sent',
+          total_amount: 1000, tax_amount: 250, final_amount: 1250, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
+        u37CleanId = (ok2.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u37CleanId) await c.admin.from('invoice_lines').insert([{ invoice_id: u37CleanId, position: 1, description: 'Montage', quantity: 2, unit: 't', unit_price: 500, total_price: 1000 }])
+        await a.page.goto(`${base}/dashboard/invoices/${u37CleanId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText('Klar til eksport').waitFor({ timeout: 90_000 }).catch(() => {})
+        r.ren_faktura_klar = (await a.page.getByText('Klar til eksport').count()) > 0 && (await a.page.getByText('Kræver rettelse før eksport').count()) === 0
         await a.page.screenshot({ path: join(shots, 'u37-economic-preview.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U37 e-conomic-forhåndsvisning', ok: !seedErr && Object.values(r).every(Boolean),
           note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
@@ -1471,6 +1483,7 @@ ${m.text()}`) })
       for (const t of ['credit', 'progress', 'deposit']) for (const iv of invs.filter((x) => x.invoice_type === t)) await c.admin.from('invoices').delete().eq('id', iv.id)
       listCaseIds.push(u36CaseId)
     }
+    if (u37CleanId) { await c.admin.from('invoice_lines').delete().eq('invoice_id', u37CleanId); await c.admin.from('invoices').delete().eq('id', u37CleanId) }
     if (u37InvoiceId) { await c.admin.from('invoice_lines').delete().eq('invoice_id', u37InvoiceId); await c.admin.from('audit_logs').delete().eq('entity_id', u37InvoiceId); await c.admin.from('invoices').delete().eq('id', u37InvoiceId) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
