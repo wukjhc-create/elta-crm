@@ -654,6 +654,15 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'ambiguous-fks') {
+    // Read-only: tabelpar med FLERE FK'er imellem sig — embeds uden "!fk" fejler (PGRST201), jf. D28.
+    const rows = await stagingSql(`SELECT a, b, count(*)::int n, string_agg(fk, ', ' ORDER BY fk) fks FROM (
+      SELECT least(conrelid::regclass::text, confrelid::regclass::text) a, greatest(conrelid::regclass::text, confrelid::regclass::text) b, conname fk
+      FROM pg_constraint WHERE contype = 'f' AND connamespace = 'public'::regnamespace AND conrelid <> confrelid
+    ) x GROUP BY a, b HAVING count(*) > 1 ORDER BY a, b`)
+    for (const r of rows) log(`${String(r.a).padEnd(28)} ${String(r.b).padEnd(28)} ${r.n}  ${r.fks}`)
+    return
+  }
   if (SUB === 'columns') {
     // Read-only: faktisk skema for en tabel på staging (CLAUDE.md: tjek skema før kode). Brug: columns <tabel>
     const table = String(process.argv[3] ?? '')
