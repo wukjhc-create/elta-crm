@@ -21,6 +21,7 @@
  *    authenticated users to INSERT/SELECT.
  */
 
+import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
   getAuthenticatedClient,
@@ -232,7 +233,7 @@ export async function createTimeLog(
     if (!/^\d{2}:\d{2}$/.test(startClock)) {
       return { success: false, error: 'Starttid skal være i formatet HH:mm' }
     }
-    const startTimeIso = new Date(`${input.date}T${startClock}:00+02:00`).toISOString()
+    const startTimeIso = copenhagenLocalToIso(input.date, startClock)
 
     let endTimeIso: string | null = null
     if (input.end_clock && input.end_clock.trim().length > 0) {
@@ -240,7 +241,7 @@ export async function createTimeLog(
       if (!/^\d{2}:\d{2}$/.test(endClock)) {
         return { success: false, error: 'Sluttid skal være i formatet HH:mm' }
       }
-      endTimeIso = new Date(`${input.date}T${endClock}:00+02:00`).toISOString()
+      endTimeIso = copenhagenLocalToIso(input.date, endClock)
       if (new Date(endTimeIso).getTime() <= new Date(startTimeIso).getTime()) {
         return { success: false, error: 'Sluttid skal være efter starttid' }
       }
@@ -350,29 +351,23 @@ export async function updateTimeLog(
       input.end_clock !== undefined ||
       input.hours !== undefined
     ) {
-      const curStart = new Date(cur.start_time as string)
-      const dateStr =
-        input.date ??
-        `${curStart.getFullYear()}-${String(curStart.getMonth() + 1).padStart(2, '0')}-${String(
-          curStart.getDate()
-        ).padStart(2, '0')}`
+      const curLocal = copenhagenParts(cur.start_time as string)
+      const dateStr = input.date ?? curLocal.date
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return { success: false, error: 'Dato skal være YYYY-MM-DD' }
       }
 
-      const startClock =
-        input.start_clock ??
-        `${String(curStart.getHours()).padStart(2, '0')}:${String(curStart.getMinutes()).padStart(2, '0')}`
+      const startClock = input.start_clock ?? curLocal.clock
       if (!/^\d{2}:\d{2}$/.test(startClock)) {
         return { success: false, error: 'Starttid skal være HH:mm' }
       }
-      const startTimeIso = new Date(`${dateStr}T${startClock}:00+02:00`).toISOString()
+      const startTimeIso = copenhagenLocalToIso(dateStr, startClock)
       patch.start_time = startTimeIso
 
       let endTimeIso: string | null = null
       if (input.end_clock !== undefined) {
         if (input.end_clock && /^\d{2}:\d{2}$/.test(input.end_clock)) {
-          endTimeIso = new Date(`${dateStr}T${input.end_clock}:00+02:00`).toISOString()
+          endTimeIso = copenhagenLocalToIso(dateStr, input.end_clock)
         } else {
           return { success: false, error: 'Sluttid skal være HH:mm' }
         }
