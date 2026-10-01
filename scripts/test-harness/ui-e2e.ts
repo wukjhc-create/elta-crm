@@ -18,6 +18,7 @@
  *   U5  ingen browser-konsolfejl / sidefejl under forløbet
  *   U7  admin: lønsomhedskort på tilbud (Profit Engine) — realistisk DB, dom og timekost-advarsel
  *   U8  admin: grossist-sammenligning på tilbud (samme EAN billigere hos anden leverandør)
+ *   U9  admin: fakturakontrol på leverandørfaktura (overpris mod katalog-kostpris via varenr.)
  *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -93,6 +94,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let profitOfferId: string | null = null
   let profitCustomerId: string | null = null
   let cmpSupplierIds: string[] = []
+  let ctrlInvoiceId: string | null = null
 
   try {
     const adminUser = await mkUser('admin')
@@ -185,6 +187,29 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         out.push({ id: 'U8 grossist-sammenligning', ok: Object.values(cmp).every(Boolean), note: Object.entries(cmp).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U9 fakturakontrol: faktura fra AO-probe-leverandøren; linje 1 med varenr. HU-AO (katalog 100) faktureret 110 x 10
+      // -> Overpris 100 kr; linje 2 uden match -> ikke kontrollerbar. Dom = Prisafvigelse. Faktura ryddes i finally.
+      {
+        const inv = cmpSupplierIds[0] ? await c.admin.from('incoming_invoices').insert([{ source: 'manual', supplier_id: cmpSupplierIds[0],
+          invoice_number: `UI-E2E-IC-${stamp}`, parse_status: 'parsed', status: 'awaiting_approval', amount_excl_vat: 1200 }]).select('id') : null
+        ctrlInvoiceId = (inv?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const lr = ctrlInvoiceId ? await c.admin.from('incoming_invoice_lines').insert([
+          { incoming_invoice_id: ctrlInvoiceId, line_number: 1, description: 'Stikkontakt', quantity: 10, unit: 'stk', unit_price: 110, total_price: 1100,
+            supplier_product_id: null, raw_line: JSON.stringify({ supplier_product_code: `HU-AO-${stamp}` }) },
+          { incoming_invoice_id: ctrlInvoiceId, line_number: 2, description: 'Diverse kørsel', quantity: 1, unit: 'stk', unit_price: 100, total_price: 100,
+            supplier_product_id: null, raw_line: null },
+        ]) : null
+        const seedErr = !ctrlInvoiceId ? `faktura ikke oprettet${inv?.error ? `: ${inv.error.message.slice(0, 80)}` : ''}` : lr?.error ? `linjer: ${lr.error.message.slice(0, 80)}` : ''
+        await a.page.goto(`${base}/dashboard/incoming-invoices/${ctrlInvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('invoice-control-verdict').waitFor({ timeout: 60_000 }).catch(() => {})
+        const pc = a.page.getByTestId('invoice-control-panel')
+        const ptxt = (await pc.count()) ? await pc.innerText() : ''
+        await a.page.screenshot({ path: join(shots, 'u9-fakturakontrol.png'), fullPage: true }).catch(() => {})
+        const ic = { panel: /Fakturakontrol/.test(ptxt), dom: /Prisafvigelse/.test(ptxt), overpris: /100,00 kr/.test(ptxt) && /Overpris\b/.test(ptxt),
+          match: ptxt.includes(`HU-AO-${stamp}`), daekning: /1 \/ 2 \(50 %\)/.test(ptxt) }
+        out.push({ id: 'U9 fakturakontrol (admin)', ok: !seedErr && Object.values(ic).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(ic).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -210,6 +235,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     if (server) killTree(server)
     if (profitOfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', profitOfferId); await c.admin.from('offers').delete().eq('id', profitOfferId) }
     if (profitCustomerId) await c.admin.from('customers').delete().eq('id', profitCustomerId)
+    if (ctrlInvoiceId) { await c.admin.from('incoming_invoice_lines').delete().eq('incoming_invoice_id', ctrlInvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', ctrlInvoiceId) }
     for (const sid of cmpSupplierIds) { await c.admin.from('supplier_products').delete().eq('supplier_id', sid); await c.admin.from('suppliers').delete().eq('id', sid) }
     for (const u of users) {
       await c.admin.from('profiles').delete().eq('id', u.id)

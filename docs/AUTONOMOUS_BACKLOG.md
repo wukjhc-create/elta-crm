@@ -100,6 +100,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `BLOCKED_APPROVAL` (kun prod-gat
 | F1 | Lønsomhedsanalyse på tilbud (Profit Engine i brug) | DONE | Fund (prod): 7/14 tilbudslinjer uden kostpris → eksisterende DB-visning regner timer som 0 kr (staging-eksempel: 90 % vist, realistisk 31,7 %). Ny ren analyse (offer-analysis.ts: kendt/estimeret/ukendt kost, realistisk DB, kostdækning, advarsler, dom) + action (offers.view.cost_prices; timekost efter firmaets kostbasis, aggregeret) + kort på tilbudssiden. test:profit (CI) 11/11, ui-e2e U7 |
 | F2 | Grossist-prissammenligning på tilbud (KlarPris-foundation) | DONE | Prod: 564 EAN hos både AO og LM, 460 med >5 % forskel (gns. spænd 16,7 %). Ren sammenligning (EAN-13/GTIN-14-normalisering, tærskel, deterministisk) + action (offers.view.cost_prices) + kort "Billigere hos anden grossist" med besparelse pr. linje. test:profit (CI) + ui-e2e U8 |
 | F2b | Indkøbsoversigt: største prisforskelle på tværs af kataloget | BLOCKED_APPROVAL | Kræver DB-view/RPC over 323k varer (migration). Forberedes til næste migrationsbatch |
+| F3 | Fakturakontrol på leverandørfaktura | DONE | Kontrolmotor (controlInvoice) + samme matching som dækningsmålingen (gemt link → varenr. → EAN → varenr. i tekst) vist som panel på /dashboard/incoming-invoices/[id]: dom, dækning, overpris, match og forventet pris pr. linje. Kun læsning, gate incoming_invoices.view (linjer RLS 00166). ui-e2e U9 |
 
 ## Fund registreret undervejs
 - P-004 (S1) anon kunne læse 310k leverandørpriser via view + forfalske audit (→ 00162).

@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { IncomingInvoiceCasePicker } from './incoming-invoice-case-picker'
 import { ApprovePreviewDialog, type LinePlan } from './approve-preview-dialog'
 import { ConversionPreviewPanel } from './conversion-preview-panel'
+import { InvoiceControlPanel } from './invoice-control-panel'
 
 const fmtAmount = (n: number | null | undefined, ccy = 'DKK') =>
   n == null
@@ -477,6 +478,8 @@ export function IncomingInvoiceDetailClient({
           </div>
         )}
       </Panel>
+
+      <InvoiceControlPanel invoiceId={inv.id} lineCount={detail.lines.length} />
 
       {!terminal && (
         <ConversionPreviewPanel invoiceId={inv.id} />
