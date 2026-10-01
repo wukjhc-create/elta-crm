@@ -1,5 +1,6 @@
 'use client'
 
+import { useHydrated } from '@/lib/hooks/use-hydrated'
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -12,6 +13,9 @@ import authTranslations from '@/locales/da/auth.json'
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // S2-fund: klik før hydrering gav native GET-submit med adgangskoden i URL'en
+  const hydrated = useHydrated()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -91,7 +95,7 @@ export function LoginForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
           <label htmlFor="email" className="text-sm font-medium">
             {authTranslations.login.email}
@@ -136,7 +140,7 @@ export function LoginForm() {
 
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || !hydrated}
           className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
         >
           {isLoading ? authTranslations.login.submitting : authTranslations.login.submit}

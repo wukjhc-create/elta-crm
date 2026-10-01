@@ -1,5 +1,6 @@
 'use client'
 
+import { useHydrated } from '@/lib/hooks/use-hydrated'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -12,6 +13,9 @@ import { ENABLE_EMAIL_VERIFICATION } from '@/lib/constants'
 
 export function RegisterForm() {
   const router = useRouter()
+
+  // S2-fund: klik før hydrering gav native GET-submit med adgangskoden i URL'en
+  const hydrated = useHydrated()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -117,7 +121,7 @@ export function RegisterForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
           <label htmlFor="fullName" className="text-sm font-medium">
             {authTranslations.register.fullName}
@@ -188,7 +192,7 @@ export function RegisterForm() {
 
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || !hydrated}
           className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
         >
           {isLoading ? authTranslations.register.submitting : authTranslations.register.submit}

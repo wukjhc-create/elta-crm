@@ -1,5 +1,6 @@
 'use client'
 
+import { useHydrated } from '@/lib/hooks/use-hydrated'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
@@ -9,6 +10,9 @@ import { requestPasswordReset } from '@/lib/actions/password-reset'
 import authTranslations from '@/locales/da/auth.json'
 
 export default function ForgotPasswordPage() {
+
+  // S2-fund: klik før hydrering gav native GET-submit med adgangskoden i URL'en
+  const hydrated = useHydrated()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -88,7 +92,7 @@ export default function ForgotPasswordPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
           <label htmlFor="email" className="text-sm font-medium">
             {authTranslations.forgotPassword.email}
@@ -108,7 +112,7 @@ export default function ForgotPasswordPage() {
 
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || !hydrated}
           className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
         >
           {isLoading ? authTranslations.forgotPassword.submitting : authTranslations.forgotPassword.submit}

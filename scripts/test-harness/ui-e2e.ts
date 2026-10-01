@@ -34,6 +34,7 @@
  *   U20 admin: sagslisten — type-filter filtrerer (før: ignoreret), "Haster"-mærke, statustællere i filteret (N9c)
  *   U21 montør (mobil): bundmenu = Opgaver/Kalender/Sager (ingen Indbakke); gamle Service-links viderestilles til
  *       ordresiden (N9d)
+ *   U22 login uden JavaScript (= før hydrering): adgangskoden ender aldrig i URL'en (S2-fund: native GET-submit)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -175,6 +176,25 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         await page.screenshot({ path: join(shots, `login-fejl-${Date.now()}.png`), fullPage: true }).catch(() => {})
       }
       return { ctx, page, ok }
+    }
+
+    // U22 — S2: login-formularen før hydrering. JS slået fra = værste fald; hverken klik eller Enter må give GET med adgangskoden.
+    {
+      const nojs = await browser.newContext({ viewport: { width: 1400, height: 1000 }, javaScriptEnabled: false })
+      const np = await nojs.newPage()
+      const secret = `Ikke-i-url-${stamp}`
+      await np.goto(`${base}/login`, { waitUntil: 'domcontentloaded', timeout: 180_000 })
+      await np.locator('input[type="email"]').fill('nojs@harness.test').catch(() => {})
+      await np.locator('input[type="password"]').fill(secret).catch(() => {})
+      await np.locator('button[type="submit"]').click({ timeout: 5_000, force: true }).catch(() => {})
+      await np.waitForTimeout(1500)
+      await np.locator('input[type="password"]').press('Enter').catch(() => {})
+      await np.waitForTimeout(1500)
+      const url = np.url()
+      const method = (await np.locator('form').first().getAttribute('method').catch(() => null)) ?? ''
+      out.push({ id: 'U22 login før hydrering: adgangskode aldrig i URL', ok: !url.includes(secret) && !/password=/.test(url) && method.toLowerCase() === 'post',
+        note: `url=${new URL(url).pathname}${new URL(url).search ? '?…' : ''} · form method=${method || '(ingen)'}` })
+      await nojs.close().catch(() => {})
     }
 
     // ---- admin

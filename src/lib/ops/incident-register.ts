@@ -20,6 +20,7 @@ export const INCIDENT_REGISTER: IncidentEntry[] = [
   { id: 'P-009', severity: 'S2', area: 'RLS-skrivemodel', title: 'Åbne skrive-policies for indloggede (RBAC kun i app-laget) — 64 af 108 låst i prod', closed: false,
     pending: 'Runde 4: ~44 kalkulations-/katalogtabeller (staging først)' },
   { id: 'P-010', severity: 'S2', area: 'Kundedokumenter', title: 'Uautentificeret sletning af kundedokumenter via outbound-attachment-action', closed: true },
+  { id: 'P-012', severity: 'S2', area: 'Login/auth-formularer', title: 'Klik før hydrering gav native GET-submit med adgangskoden i URL (historik/request-logs)', closed: true },
   { id: 'P-011', severity: 'S2', area: 'Bank/finance', title: 'Bankimport/-match (markér faktura betalt) uden rettighedstjek', closed: true },
   { id: 'P-006', severity: 'S3', area: 'Server-action-RBAC', title: 'Mange skrivende server-actions uden rettighedstjek — alle gatet eller bevist undtaget; CI-blokerende audit', closed: true },
   { id: 'P-005', severity: 'S3', area: 'Pris/leverandør-RBAC', title: 'Pris-/leverandør-actions uden rettighedstjek; supplier_settings skrivbar for alle indloggede', closed: true },
