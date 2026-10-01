@@ -244,6 +244,10 @@ export async function validatePortalToken(
 }
 
 // Get offers for customer (portal view)
+/** Kunde-sikre tilbudslinjefelter (= PortalOfferLineItem). ALDRIG select('*') mod kunden: linjerne har
+ *  kostpris, leverandørkost, margin og interne noter, som ellers sendes med til kundens browser. */
+const PORTAL_LINE_ITEM_COLUMNS = 'id, offer_id, position, description, quantity, unit, unit_price, discount_percentage, total'
+
 export async function getPortalOffers(
   token: string
 ): Promise<ActionResult<PortalOffer[]>> {
@@ -288,7 +292,7 @@ export async function getPortalOffers(
     const [lineItemsResult, signaturesResult] = await Promise.all([
       supabase
         .from('offer_line_items')
-        .select('*')
+        .select(PORTAL_LINE_ITEM_COLUMNS)
         .in('offer_id', offerIds)
         .order('position'),
       supabase
@@ -408,7 +412,7 @@ export async function getPortalOffer(
     // Get line items — offer_id er allerede customer-scoped via offer-SELECT
     const { data: lineItems } = await admin
       .from('offer_line_items')
-      .select('*')
+      .select(PORTAL_LINE_ITEM_COLUMNS)
       .eq('offer_id', offerId)
       .order('position')
 

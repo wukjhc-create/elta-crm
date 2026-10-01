@@ -9,6 +9,7 @@
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { copenhagenParts, copenhagenLocalToIso, calendarDaysSince } from '@/lib/utils/copenhagen-time'
 import { logger } from '@/lib/utils/logger'
 
 export const dynamic = 'force-dynamic'
@@ -74,9 +75,12 @@ export async function GET() {
     const now = new Date()
     const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
     const sinceHour = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
-    const todayDateIso = now.toISOString().slice(0, 10)
-    const todayStart = todayDateIso + 'T00:00:00.000Z'
-    const todayEnd = todayDateIso + 'T23:59:59.999Z'
+    // Dansk kalenderdag (før: UTC-dato → betalinger 00–02 dansk tid på forkert dag)
+    const todayDateIso = copenhagenParts(now).date
+    const tomorrow = new Date(`${todayDateIso}T12:00:00Z`)
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+    const todayStart = copenhagenLocalToIso(todayDateIso, '00:00')
+    const todayEnd = new Date(new Date(copenhagenLocalToIso(tomorrow.toISOString().slice(0, 10), '00:00')).getTime() - 1).toISOString()
 
     // All counts run in parallel; each one falls back to 0 on error
     // so a single missing table never breaks the whole dashboard.
@@ -112,10 +116,13 @@ export async function GET() {
         .eq('is_proposal', false)),
       safe(supabase.from('invoices').select('id', { count: 'exact', head: true })
         .eq('status', 'sent')),
+      // Forfalden = forfaldsdato FØR i dag, ikke kreditnota/annulleret (samme regel som fakturalisten)
       safe(supabase.from('invoices').select('id', { count: 'exact', head: true })
         .eq('status', 'sent')
         .neq('payment_status', 'paid')
-        .lte('due_date', todayDateIso)),
+        .neq('invoice_type', 'credit')
+        .is('voided_at', null)
+        .lt('due_date', todayDateIso)),
       safe(supabase.from('invoice_payments').select('id', { count: 'exact', head: true })
         .gte('recorded_at', todayStart)
         .lte('recorded_at', todayEnd)),
@@ -141,16 +148,15 @@ export async function GET() {
         .select('id, invoice_number, final_amount, currency, due_date, customer_id')
         .eq('status', 'sent')
         .neq('payment_status', 'paid')
-        .lte('due_date', todayDateIso)
+        .neq('invoice_type', 'credit')
+        .is('voided_at', null)
+        .lt('due_date', todayDateIso)
         .order('due_date', { ascending: true })
         .limit(10),
     ])
 
     const overdue_invoices = (overdueRes.data ?? []).map((r) => {
-      const due = r.due_date ? new Date(r.due_date) : null
-      const daysOverdue = due
-        ? Math.max(0, Math.floor((now.getTime() - due.getTime()) / (24 * 60 * 60 * 1000)))
-        : 0
+      const daysOverdue = r.due_date ? Math.max(0, calendarDaysSince(String(r.due_date), now)) : 0
       return {
         id: r.id,
         invoice_number: r.invoice_number,

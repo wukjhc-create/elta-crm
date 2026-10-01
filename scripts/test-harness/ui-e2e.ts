@@ -78,6 +78,9 @@
  *   U47 salg: PDF for eget tilbud downloades (før: 500, firmaindstillinger krævede settings.view)
  *   U48 lukke-værn: "Markér afsluttet" på sag med ufaktureret materiale → advarsel med beløb; fortryd = forbliver åben;
  *       bekræft = lukket + audit "lukket trods"
+ *   U49 dashboard-API: forfaldne = forfald før i dag (dansk), uden kreditnotaer og annullerede (som fakturalisten)
+ *   U50 kundeportal: tilbudsdetalje + oversigt indeholder IKKE linjernes kostpris/leverandørkost/interne noter i sidens data
+ *       (før: select('*') sendte dem til kundens browser)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -212,6 +215,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u43: { employeeIds?: string[]; caseId?: string; woId?: string } = {}
   let u46: { invoiceId?: string; companySettingsId?: string; offerId?: string } = {}
   let u48CaseId: string | null = null
+  const u49Ids: string[] = []
+  let u50: { tokenId?: string; offerId?: string } = {}
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1374,6 +1379,60 @@ ${m.text()}`) })
         out.push({ id: 'U48 lukke-værn (ufaktureret)', ok: !!u48CaseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · dialog="${dialogText.slice(0, 90)}"` })
       }
 
+      // U49 dashboard: forfaldne fakturaer = samme regel som fakturalisten (dansk dato, ingen kreditnota/annulleret)
+      if (want('U49') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
+        // alle rækker samme nøgler (PostgREST-bulk-insert sætter manglende nøgler til NULL, ikke default)
+        const base0 = { customer_id: profitCustomerId, status: 'sent', total_amount: 80, tax_amount: 20, final_amount: 100, invoice_type: 'standard', voided_at: null as string | null }
+        const rows = [
+          { ...base0, invoice_number: `UI-E2E-DO-${stamp}`, due_date: '2000-01-01' },
+          { ...base0, invoice_number: `UI-E2E-DK-${stamp}`, due_date: '2000-01-01', invoice_type: 'credit', total_amount: -80, tax_amount: -20, final_amount: -100 },
+          { ...base0, invoice_number: `UI-E2E-DV-${stamp}`, due_date: '2000-01-01', voided_at: new Date().toISOString() },
+          { ...base0, invoice_number: `UI-E2E-DT-${stamp}`, due_date: today },
+        ]
+        const ins = await c.admin.from('invoices').insert(rows).select('id')
+        u49Ids.push(...((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id))
+        const resp = await gotoSafe(a.page, `${base}/api/dashboard/stats`, { waitUntil: 'load', timeout: 180_000 })
+        let json: { overdue_invoices?: Array<{ invoice_number: string; days_overdue: number }> } = {}
+        try { json = (await resp?.json()) ?? {} } catch { json = {} }
+        const nums = (json.overdue_invoices ?? []).map((x) => x.invoice_number)
+        r.forfalden_med = nums.includes(`UI-E2E-DO-${stamp}`)
+        r.kreditnota_udeladt = !nums.includes(`UI-E2E-DK-${stamp}`)
+        r.annulleret_udeladt = !nums.includes(`UI-E2E-DV-${stamp}`)
+        r.forfald_i_dag_ikke_forfalden = !nums.includes(`UI-E2E-DT-${stamp}`)
+        out.push({ id: 'U49 dashboard: forfaldne', ok: u49Ids.length === 4 && Object.values(r).every(Boolean),
+          note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · seed=${u49Ids.length} ${ins.error?.message ?? ''}` })
+      }
+
+      // U50 kundeportal: tilbudslinjer sendes uden kostpris/margin/interne noter til kundens browser
+      if (want('U50') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u50.tokenId = (pt.data?.[0] as { id?: string } | undefined)?.id
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-PL-${stamp}`, title: `[HARNESS] portal-linjer ${stamp}`, customer_id: profitCustomerId,
+          status: 'sent', sent_at: new Date().toISOString(), created_by: adminUser.id, valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10) }]).select('id')
+        u50.offerId = (off.data?.[0] as { id?: string } | undefined)?.id
+        const note = `INTERNNOTE${stamp}`
+        if (u50.offerId) await c.admin.from('offer_line_items').insert([{ offer_id: u50.offerId, position: 1, description: `Solpanel ${stamp}`, quantity: 1, unit: 'stk',
+          unit_price: 1000, total: 1000, cost_price: 777777.77, supplier_cost_price_at_creation: 666666.66, notes: note }])
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        const kp = await kctx.newPage()
+        kp.on('pageerror', (e) => pageErrors.push(`kunde-linjer: ${e.message.slice(0, 120)}`))
+        for (const path of [`/portal/${tok}/offers/${u50.offerId}`, `/portal/${tok}`]) {
+          await gotoSafe(kp, `${base}${path}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const html = await kp.content().catch(() => '')
+          const key = path.includes('/offers/') ? 'detalje' : 'oversigt'
+          r[`${key}_viser_linje`] = key === 'oversigt' ? true : html.includes(`Solpanel ${stamp}`)
+          r[`${key}_ingen_kostpris`] = !html.includes('777777') && !html.includes('666666')
+          r[`${key}_ingen_intern_note`] = !html.includes(note)
+        }
+        await kctx.close().catch(() => {})
+        out.push({ id: 'U50 portal: ingen kost/noter til kunden', ok: !!u50.offerId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1725,6 +1784,8 @@ ${m.text()}`) })
     out.push({ id: 'U5 ingen side-/konsolfejl', ok: pageErrors.length === 0, note: pageErrors.length ? pageErrors.slice(0, 3).join(' | ') : `0 fejl · skærmbilleder: ${shots}` })
   } finally {
     await browser.close().catch(() => {})
+    // Dev-serverens log (hale) til diagnose af side-/netværksfejl — kun i den lokale skærmbillede-mappe
+    try { writeFileSync(join(shots, 'dev-server.log'), serverLog.join('').slice(-400_000)) } catch { /* best-effort */ }
     if (server) killTree(server)
     if (profitOfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', profitOfferId); await c.admin.from('offers').delete().eq('id', profitOfferId) }
     if (portalOfferId) {
@@ -1859,6 +1920,9 @@ ${m.text()}`) })
     if (u46.offerId) { await c.admin.from('offer_activities').delete().eq('offer_id', u46.offerId); await c.admin.from('offers').delete().eq('id', u46.offerId) }
     if (u46.companySettingsId) await c.admin.from('company_settings').delete().eq('id', u46.companySettingsId)
     if (u48CaseId) { await c.admin.from('case_materials').delete().eq('case_id', u48CaseId); await c.admin.from('audit_logs').delete().eq('entity_id', u48CaseId); listCaseIds.push(u48CaseId) }
+    for (const id of u49Ids) await c.admin.from('invoices').delete().eq('id', id)
+    if (u50.offerId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u50.offerId); await c.admin.from('offers').delete().eq('id', u50.offerId) }
+    if (u50.tokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u50.tokenId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)
