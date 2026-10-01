@@ -1,7 +1,19 @@
 # Runbook — P-009 RLS-skrivelås (runde for runde)
 
-**Status:**
-- **Runde 1 (00170)**, **2A (00171)**, **2B (00172)**, **3A (00173)** og **3B (00174):** anvendt og verificeret på staging (2026-09-30). 64 tabeller i alt. **IKKE kørt i production.** Kræver Henriks godkendelse.
+**Status:** ✅ **Runde 1–3B (00170–00174) KØRT i production 2026-10-01** (godkendt af Henrik). Rækkefølge 00170 → 00174.
+- Pr. migration:
+  - read-only pre-check,
+  - trigger-audit med præcis de aktive runder,
+  - apply,
+  - post-check: ingen åbne skrive-policies, præcis de genererede policies, anon som designet, trigger-funktioner SECURITY DEFINER uden klient-EXECUTE, rolle-prædikater pr. prod-persona.
+- **Effektiv skriveadgang** (`scripts/prod-rls-effective.ts`): de faktiske policy-udtryk er evalueret mod de rigtige rækker pr. persona (admin, montør) på 64 tabeller, og resultatet er som matrixen.
+- **Afsluttende suite:**
+  - `prod:db-audit` HØJ/MIDDEL 0 (LAV 44),
+  - `prod:role-policies` 0·0·0, storage OK, pilot-health 🟢,
+  - åbne skrive-tabeller 108→44,
+  - verify-00161/62/63/66/67-68 grønne.
+- **Sikkerhed:** agents 7/0/0, alle flag OFF, 0 kundemails, 0 finance-writes.
+- **Note:** 00171-post-checket gav først 7 falske afvigelser. Fejlen lå i verifikationsscriptet, som forventede policies på tabeller, der bevidst kun skrives af service-role. Prod blev tjekket direkte og var som designet. Checket er rettet og nu strengere: policy skal mangle, når der ikke er roller.
 
 ## Model
 - **Én kilde:** `scripts/rls/write-matrix.ts`. Pr. tabel står de roller, der må INSERT/UPDATE/DELETE, plus evt. ekstra betingelser (fx `created_by = auth.uid()`, forslag-sletning).

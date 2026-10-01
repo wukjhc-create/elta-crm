@@ -44,7 +44,21 @@ async function main() {
     for (const p of policies) {
       const n = M.policyNames(p.table)
       const have = ((await run(`SELECT policyname FROM pg_policies WHERE schemaname='public' AND tablename='${p.table}'`)) as any[]).map((x) => x.policyname)
-      expect([n.ins, n.upd, n.del].every((x) => have.includes(x)) && (!p.recreateOpenSelect || have.includes(n.sel)), `${p.table}: genererede policies findes`)
+      // Policy SKAL findes for operationer med roller/betingelse — og maa IKKE findes for tomme (= kun service-role).
+      const want = { [n.ins]: p.insert.length > 0 || !!p.insertConditional, [n.upd]: p.update.length > 0 || !!p.updateConditional, [n.del]: p.delete.length > 0 || !!p.deleteConditional }
+      const wrong = Object.entries(want).filter(([name, should]) => have.includes(name) !== should).map(([name, should]) => `${name} ${should ? 'mangler' : 'burde ikke findes'}`)
+      const writePols = ((await run(`SELECT policyname FROM pg_policies WHERE schemaname='public' AND tablename='${p.table}' AND cmd IN ('INSERT','UPDATE','DELETE','ALL')
+        AND (roles @> ARRAY['authenticated']::name[] OR roles @> ARRAY['public']::name[])`)) as any[]).map((x) => x.policyname)
+      const foreign = writePols.filter((x) => ![n.ins, n.upd, n.del].includes(x))
+      if (foreign.length) wrong.push(`fremmede skrive-policies: ${foreign.join(',')}`)
+      if (p.recreateOpenSelect && !have.includes(n.sel)) wrong.push(`${n.sel} mangler`)
+      expect(wrong.length === 0, `${p.table}: præcis de genererede skrive-policies${wrong.length ? ` (${wrong.join('; ')})` : ''}`)
+      // extraSql: trigger-funktioner skal vaere SECURITY DEFINER, have laast search_path og ingen EXECUTE for klienter
+      for (const fn of (p.extraSql ?? []).map((x) => /ALTER FUNCTION public\.(\w+)\(\)\s+SECURITY DEFINER/i.exec(x)?.[1]).filter(Boolean) as string[]) {
+        const f = (await run(`SELECT p.prosecdef d, coalesce(p.proconfig::text,'') cfg, has_function_privilege('authenticated', p.oid, 'EXECUTE') auth_x,
+          has_function_privilege('anon', p.oid, 'EXECUTE') anon_x FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='${fn}'`))[0]
+        expect(!!f && f.d && /search_path=/.test(f.cfg) && !f.auth_x && !f.anon_x, `${fn}(): SECURITY DEFINER, search_path låst, ingen EXECUTE for klienter`)
+      }
     }
   })
   if (mode !== 'post') return

@@ -29,6 +29,11 @@ const APPROVED: Record<string, string> = {
   '00167': '2026-09-30', // suppliers.vat_number (IC10), godkendt af Henrik i chat 2026-09-30
   '00168': '2026-09-30', // suppliers admin-only skrivning (P-008), godkendt af Henrik i chat 2026-09-30
   '00169': '2026-09-30', // DATA: afvis 18 kundemails i leverandoerfaktura-koeen (IC13), godkendt af Henrik i chat 2026-09-30
+  '00170': '2026-10-01', // P-009 RLS-skrivelaas runde 1, godkendt af Henrik i chat 2026-10-01
+  '00171': '2026-10-01', // P-009 RLS-skrivelaas runde 2A, godkendt af Henrik i chat 2026-10-01
+  '00172': '2026-10-01', // P-009 RLS-skrivelaas runde 2B, godkendt af Henrik i chat 2026-10-01
+  '00173': '2026-10-01', // P-009 RLS-skrivelaas runde 3A, godkendt af Henrik i chat 2026-10-01
+  '00174': '2026-10-01', // P-009 RLS-skrivelaas runde 3B, godkendt af Henrik i chat 2026-10-01
 }
 
 async function main() {
