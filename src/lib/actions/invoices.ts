@@ -609,7 +609,12 @@ export async function sendInvoiceEmailAction(
       suffix: r.recipient ? `til ${r.recipient}` : null,
       changes: { recipient: r.recipient ?? null },
     })
-    return { ok: true, message: `Faktura sendt til ${r.recipient}` }
+    return {
+      ok: true,
+      message: r.pdfAttached === false
+        ? `Faktura sendt til ${r.recipient} — UDEN PDF (PDF kunne ikke dannes; send PDF manuelt eller prøv igen)`
+        : `Faktura sendt til ${r.recipient}`,
+    }
   }
   if (r.status === 'already_sent') {
     return { ok: false, message: `Allerede sendt — ${r.reason ?? 'status er ikke draft'}` }
@@ -2254,6 +2259,7 @@ export async function getInvoicePaymentInfoStatusAction(): Promise<{ ok: boolean
     .select('bank_reg_no, bank_account')
     .limit(1)
     .maybeSingle()
-  const row = data as { bank_reg_no?: string | null; bank_account?: string | null } | null
-  return { ok: true, bankConfigured: !!row?.bank_reg_no?.trim() && !!row?.bank_account?.trim() }
+  // Samme kilde som fakturaens PDF/mail (env først, firmaindstillinger som fallback)
+  const { invoiceBankInfo } = await import('@/lib/invoices/bank-info')
+  return { ok: true, bankConfigured: invoiceBankInfo(data as { bank_reg_no?: string | null; bank_account?: string | null } | null).configured }
 }

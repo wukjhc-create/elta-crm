@@ -9,6 +9,7 @@ import {
 import { formatCurrency, formatDateLongDK } from '@/lib/utils/format'
 import type { CompanySettings } from '@/types/company-settings.types'
 import type { InvoicePdfPayload, InvoiceLineRow } from '@/types/invoice.types'
+import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 
 const BRAND = '#2D8A2D'
 const BRAND_LIGHT = '#E6F4E6'
@@ -380,8 +381,10 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
     0
   )
 
-  const bankRegNo = process.env.INVOICE_BANK_REG_NO || null
-  const bankAccount = process.env.INVOICE_BANK_ACCOUNT || null
+  // env først (som altid), firmaindstillingernes bank som fallback — se bank-info.ts
+  const bank = invoiceBankInfo(cs as { bank_reg_no?: string | null; bank_account?: string | null })
+  const bankRegNo = bank.regNo
+  const bankAccount = bank.account
   const paymentReference = invoice.payment_reference || invoice.invoice_number
 
   return (

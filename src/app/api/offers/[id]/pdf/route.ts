@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer, DocumentProps } from '@react-pdf/renderer'
 import { createClient, getUser } from '@/lib/supabase/server'
 import { OfferPdfDocument } from '@/lib/pdf/offer-pdf-template'
-import { getCompanySettings } from '@/lib/actions/settings'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
+import type { CompanySettings } from '@/types/company-settings.types'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import type { OfferWithRelations } from '@/types/offers.types'
 import type { ReactElement, JSXElementConstructor } from 'react'
@@ -25,6 +28,13 @@ export async function GET(
     }
 
     const { id } = await params
+
+    // Adgang: kræver offers.view (før: kun login — offers-RLS er åben, så fx
+    // montør kunne hente tilbuds-PDF'er). 404 så eksistens ikke afsløres.
+    const { hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) {
+      return NextResponse.json({ error: 'Tilbud ikke fundet' }, { status: 404 })
+    }
 
     // Get offer with relations
     const supabase = await createClient()
@@ -53,9 +63,14 @@ export async function GET(
       )
     }
 
-    // Get company settings
-    const settingsResult = await getCompanySettings()
-    if (!settingsResult.success || !settingsResult.data) {
+    // Firmaoplysninger (offentlige kolonner) via service-role efter adgangstjekket —
+    // før krævede getCompanySettings settings.view, så salg fik 500 på egne tilbud.
+    const { data: companyData } = await createAdminClient()
+      .from('company_settings')
+      .select(COMPANY_SETTINGS_PUBLIC_COLUMNS)
+      .limit(1)
+      .maybeSingle()
+    if (!companyData) {
       return NextResponse.json(
         { error: 'Kunne ikke hente virksomhedsindstillinger' },
         { status: 500 }
@@ -65,7 +80,7 @@ export async function GET(
     // Generate PDF
     const pdfDocument = OfferPdfDocument({
       offer: offer as OfferWithRelations,
-      companySettings: settingsResult.data,
+      companySettings: companyData as unknown as CompanySettings,
     }) as ReactElement<DocumentProps, string | JSXElementConstructor<DocumentProps>>
 
     const pdfBuffer = await renderToBuffer(pdfDocument)

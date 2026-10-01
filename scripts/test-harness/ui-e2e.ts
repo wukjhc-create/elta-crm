@@ -74,6 +74,8 @@
  *       stadig planlagt, vist på ny dag
  *   U44 montør: "Mine timer" på landingssiden viser ugens egne timer (= DB-sum for U11's registrering) + sagen (kræver U11)
  *   U45 salg: "Kun mine" på leadlisten viser kun leads tildelt sælgeren (kollegas lead skjult), filter vist som "Tildelt mig"
+ *   U46 faktura-PDF (/api/invoices/[id]/pdf): admin får PDF, montør får 404 (før: kun login-tjek → alle indloggede)
+ *   U47 salg: PDF for eget tilbud downloades (før: 500, firmaindstillinger krævede settings.view)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -206,6 +208,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u41: { tokenId?: string; otherCustomerId?: string; invoiceIds?: string[]; companySettingsId?: string; restoreBank?: { id: string; reg: string | null; acc: string | null } } = {}
   let u42: { sourceId?: string; copyId?: string } = {}
   let u43: { employeeIds?: string[]; caseId?: string; woId?: string } = {}
+  let u46: { invoiceId?: string; companySettingsId?: string; offerId?: string } = {}
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1535,6 +1538,8 @@ ${m.text()}`) })
         for (let i = 0; i < 20 && !mr; i++) { await new Promise((res) => setTimeout(res, 1000)); mr = await readM() }
         r.registreret = Number(mr?.quantity) === 3 && mr?.created_by === montor.id
         r.uden_priser = Number(mr?.unit_cost) === 0 && Number(mr?.unit_sales_price) === 0
+        // lad montør-siden falde til ro (router.refresh efter gem) før næste navigation — ellers afbrudte fetch/WebSocket i U5
+        await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         // kontoret ser stadig priser og kan prissætte
         await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('columnheader', { name: 'Kostpris' }).waitFor({ timeout: 60_000 }).catch(() => {})
@@ -1557,6 +1562,33 @@ ${m.text()}`) })
         r.sag_vist = ((await card.innerText().catch(() => '')) ?? '').includes('montørjob')
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u44-mine-timer.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U44 montør: Mine timer', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · total=${totalTxt} forventet=${expected}` })
+      }
+
+      // U46 faktura-PDF (medarbejder-route): admin må, montør må ikke (før: kun login-tjek)
+      if (want('U46') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-PDF-${stamp}`, customer_id: profitCustomerId, status: 'sent',
+          total_amount: 400, tax_amount: 100, final_amount: 500, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
+        u46.invoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id
+        if (u46.invoiceId) await c.admin.from('invoice_lines').insert([{ invoice_id: u46.invoiceId, position: 1, description: 'Service', quantity: 1, unit: 'stk', unit_price: 400, total_price: 400 }])
+        const cs = ((await c.admin.from('company_settings').select('id')).data ?? []) as Array<{ id: string }>
+        if (cs.length === 0) {
+          const ci = await c.admin.from('company_settings').insert([{ company_name: '[HARNESS] Elta Solar', bank_reg_no: '1234', bank_account: '0001234567' }]).select('id')
+          u46.companySettingsId = (ci.data?.[0] as { id?: string } | undefined)?.id
+        }
+        const url = `${base}/api/invoices/${u46.invoiceId}/pdf`
+        const adm = await a.page.context().request.get(url, { timeout: 180_000 }).catch(() => null)
+        const ab = adm ? await adm.body().catch(() => Buffer.from('')) : Buffer.from('')
+        r.admin_pdf = adm?.status() === 200 && ab.subarray(0, 4).toString() === '%PDF'
+        const mon = await m.page.context().request.get(url, { timeout: 120_000 }).catch(() => null)
+        r.montoer_404 = mon?.status() === 404
+        // tilbuds-PDF: montør har ikke offers.view
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OP-${stamp}`, title: '[HARNESS] pdf-adgang', customer_id: profitCustomerId,
+          status: 'draft', created_by: adminUser.id }]).select('id')
+        u46.offerId = (off.data?.[0] as { id?: string } | undefined)?.id
+        const monOffer = u46.offerId ? await m.page.context().request.get(`${base}/api/offers/${u46.offerId}/pdf`, { timeout: 120_000 }).catch(() => null) : null
+        r.montoer_tilbud_404 = monOffer?.status() === 404
+        out.push({ id: 'U46 faktura-PDF: adgangskontrol', ok: !!u46.invoiceId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · admin=${adm?.status()} montør=${mon?.status()}` })
       }
     } else out.push({ id: 'U4 montør: ingen adgang', ok: false, note: 'montør-login fejlede' })
 
@@ -1638,6 +1670,21 @@ ${m.text()}`) })
         g.kun_eget_lead = body1.includes(mine) && !body1.includes(other)
         g.filter_vist = body1.includes('Tildelt mig')
         out.push({ id: 'U45 salg: Kun mine (leads)', ok: (ins.data ?? []).length === 2 && Object.values(g).every(Boolean), note: Object.entries(g).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+      // U47 salg: download af PDF for eget tilbud (før: 500 — firmaindstillinger krævede settings.view)
+      if (want('U47') && sp.ok && salgOfferId) {
+        const g: Record<string, boolean> = {}
+        const cs = ((await c.admin.from('company_settings').select('id')).data ?? []) as Array<{ id: string }>
+        let seededCs: string | undefined
+        if (cs.length === 0) {
+          const ci = await c.admin.from('company_settings').insert([{ company_name: '[HARNESS] Elta Solar', bank_reg_no: '1234', bank_account: '0001234567' }]).select('id')
+          seededCs = (ci.data?.[0] as { id?: string } | undefined)?.id
+        }
+        const res = await sp.page.context().request.get(`${base}/api/offers/${salgOfferId}/pdf`, { timeout: 180_000 }).catch(() => null)
+        const b = res ? await res.body().catch(() => Buffer.from('')) : Buffer.from('')
+        g.salg_tilbuds_pdf = res?.status() === 200 && b.subarray(0, 4).toString() === '%PDF'
+        if (seededCs) await c.admin.from('company_settings').delete().eq('id', seededCs)
+        out.push({ id: 'U47 salg: tilbuds-PDF', ok: Object.values(g).every(Boolean), note: `${Object.entries(g).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · status=${res?.status()}` })
       }
       out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 6 && Object.values(r).every(Boolean),
         note: `${!sp.ok ? `salg-login fejlede (${loginFailures.join(' | ')}) · ` : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
@@ -1776,6 +1823,9 @@ ${m.text()}`) })
       await c.admin.from('offers').delete().eq('id', oid)
     }
     if (u43.caseId) { await c.admin.from('work_orders').delete().eq('case_id', u43.caseId); listCaseIds.push(u43.caseId) }
+    if (u46.invoiceId) { await c.admin.from('invoice_lines').delete().eq('invoice_id', u46.invoiceId); await c.admin.from('invoices').delete().eq('id', u46.invoiceId) }
+    if (u46.offerId) { await c.admin.from('offer_activities').delete().eq('offer_id', u46.offerId); await c.admin.from('offers').delete().eq('id', u46.offerId) }
+    if (u46.companySettingsId) await c.admin.from('company_settings').delete().eq('id', u46.companySettingsId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)

@@ -8,6 +8,7 @@
  * transaction.
  */
 
+import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { getStandardSaleRate } from '@/lib/services/rates'
@@ -934,6 +935,8 @@ export interface SendInvoiceEmailResult {
   recipient?: string
   error?: string
   reason?: string
+  /** false = mailen gik ud UDEN faktura-PDF (render fejlede) — vises for brugeren */
+  pdfAttached?: boolean
 }
 
 /**
@@ -993,10 +996,19 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   // client, IKKE getCompanySettings-action, så cron uden bruger ikke fejler
   // på settings.view-permission). NULL config → fallback til kodestandard.
   const { parseInvoiceEmailConfig } = await import('@/lib/email/invoice-email-config')
-  const { data: companyRow } = await supabase
+  // Offentlige firmakolonner (navn, kontakt, bank, logo, mail-config) via
+  // service-role efter action-gaten — bruges til både mailtekst og PDF, så
+  // alle roller med invoices.send får PDF'en med (før: getCompanySettings
+  // krævede settings.view → bogholderi sendte fakturaer UDEN PDF).
+  const { COMPANY_SETTINGS_PUBLIC_COLUMNS } = await import('@/lib/settings/company-columns')
+  const { data: companyData } = await supabase
     .from('company_settings')
-    .select('company_name, company_email, company_phone, invoice_email_config')
+    .select(COMPANY_SETTINGS_PUBLIC_COLUMNS)
+    .limit(1)
     .maybeSingle()
+  const companyRow = companyData as unknown as (import('@/types/company-settings.types').CompanySettings & {
+    invoice_email_config?: unknown
+  }) | null
   const emailCfg = parseInvoiceEmailConfig(companyRow?.invoice_email_config)
   let caseNumber: string | null = null
   if (invoice.case_id) {
@@ -1047,8 +1059,9 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
         })
       : '',
     paymentReference,
-    bankRegNo: process.env.INVOICE_BANK_REG_NO || null,
-    bankAccount: process.env.INVOICE_BANK_ACCOUNT || null,
+    // Samme kilde som PDF'en (env, firmaindstillinger som fallback) — bank-info.ts
+    bankRegNo: invoiceBankInfo(companyRow as { bank_reg_no?: string | null; bank_account?: string | null } | null).regNo,
+    bankAccount: invoiceBankInfo(companyRow as { bank_reg_no?: string | null; bank_account?: string | null } | null).account,
     isCreditNote,
     creditOfInvoiceNumber,
     companyName: companyRow?.company_name ?? null,
@@ -1064,13 +1077,11 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   let pdfAttachment: { filename: string; content: Buffer; contentType: string } | null = null
   try {
     const payload = await getInvoicePdfPayload(invoiceId)
-    const { getCompanySettings } = await import('@/lib/actions/settings')
-    const companyResult = await getCompanySettings()
-    if (payload && companyResult.success && companyResult.data) {
+    if (payload && companyRow) {
       const { renderToBuffer } = await import('@react-pdf/renderer')
       const { InvoicePdfDocument } = await import('@/lib/pdf/invoice-pdf-template')
       const buffer = await renderToBuffer(
-        InvoicePdfDocument({ payload, companySettings: companyResult.data }) as Parameters<typeof renderToBuffer>[0]
+        InvoicePdfDocument({ payload, companySettings: companyRow }) as Parameters<typeof renderToBuffer>[0]
       )
       pdfAttachment = {
         filename: `${invoice.invoice_number}.pdf`,
@@ -1136,7 +1147,7 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   // refund-flow er bygget; ellers risikerer vi at booke negative bilag
   // forkert i bogføringen. Skip guard.
   if (isCreditNote) {
-    return { invoiceId, status: 'sent', recipient }
+    return { invoiceId, status: 'sent', recipient, pdfAttached: !!pdfAttachment }
   }
   try {
     const { createInvoiceInEconomic } = await import('@/lib/services/economic-client')
@@ -1158,7 +1169,7 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     } catch { /* never crash */ }
   }
 
-  return { invoiceId, status: 'sent', recipient }
+  return { invoiceId, status: 'sent', recipient, pdfAttached: !!pdfAttachment }
 }
 
 /**
