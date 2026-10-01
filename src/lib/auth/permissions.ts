@@ -21,7 +21,8 @@ export const PERMISSIONS = {
   'leads.delete': ['admin'],
 
   // Inbox / mail permissions
-  'inbox.view': ['admin', 'serviceleder', 'montør'],
+  // G9 (Henrik 2026-10-01): montør ser IKKE virksomhedens postkasse — kun mails på egne sager (ordrens Mails-fane, scope-tjekket)
+  'inbox.view': ['admin', 'serviceleder'],
   'inbox.send': ['admin', 'serviceleder'],
   'inbox.delete': ['admin'],
 

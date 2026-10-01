@@ -809,10 +809,12 @@ export async function getEmailsForCase(
   serviceCaseId: string
 ): Promise<CaseEmail[]> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
       return []
     }
+    // G9: uden cases.view.all kun sager i brugerens scope (montør ser kun mails på egne sager/job)
+    if (!hasPermission('cases.view.all') && !(await userCanViewCase(serviceCaseId, { role, userId, supabase }))) return []
 
     const { data, error } = await supabase
       .from('incoming_emails')
@@ -867,10 +869,11 @@ export async function getCaseEmailDetail(
   serviceCaseId: string
 ): Promise<CaseEmailDetail | null> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
       return null
     }
+    if (!hasPermission('cases.view.all') && !(await userCanViewCase(serviceCaseId, { role, userId, supabase }))) return null
 
     const { data, error } = await supabase
       .from('incoming_emails')
@@ -1037,10 +1040,11 @@ export async function getDocumentsForCase(
   serviceCaseId: string
 ): Promise<CaseDocument[]> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
       return []
     }
+    if (!hasPermission('cases.view.all') && !(await userCanViewCase(serviceCaseId, { role, userId, supabase }))) return []
 
     const { data, error } = await supabase
       .from('customer_documents')

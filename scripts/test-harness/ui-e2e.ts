@@ -108,6 +108,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let jobEmployeeId: string | null = null
   let jobCaseId: string | null = null
   const uploadedInvoiceIds: string[] = []
+  const seededEmailIds: string[] = []
+  let otherCaseId: string | null = null
   let salgOfferId: string | null = null
 
   try {
@@ -321,12 +323,12 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     const m = await login(montor)
     if (m.ok) {
       const denied: string[] = []
-      for (const path of ['/dashboard/agents', '/dashboard/pilot-health']) {
+      for (const path of ['/dashboard/agents', '/dashboard/pilot-health', '/dashboard/mail']) { // mail: G9
         await m.page.goto(`${base}${path}`, { waitUntil: 'networkidle', timeout: 180_000 })
         if ((await m.page.getByText('Du har ikke adgang').count()) > 0) denied.push(path)
       }
       await m.page.screenshot({ path: join(shots, 'pilot-health-montoer.png'), fullPage: true })
-      out.push({ id: 'U4 montør: ingen adgang', ok: denied.length === 2, note: `NoAccess på ${denied.length}/2 (${denied.join(', ') || '-'})` })
+      out.push({ id: 'U4 montør: ingen adgang', ok: denied.length === 3, note: `NoAccess på ${denied.length}/3 (${denied.join(', ') || '-'})` })
 
       // U11 montør-dagen (G4). Seed: medarbejder koblet til montør-login, sag + planlagt arbejdsordre i dag.
       {
@@ -341,6 +343,15 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         const wo = jobCaseId && jobEmployeeId ? await c.admin.from('work_orders').insert([{ case_id: jobCaseId, title: woTitle,
           scheduled_date: today, assigned_employee_id: jobEmployeeId, status: 'planned' }]).select('id') : null
         const woId = (wo?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        // G9: én mail på montørens sag, én på en anden sag (må ikke kunne ses)
+        const oc = profitCustomerId ? await c.admin.from('service_cases').insert([{ title: '[HARNESS] fremmed sag', customer_id: profitCustomerId,
+          status: 'new', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id') : null
+        otherCaseId = (oc?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const mails = jobCaseId && otherCaseId ? await c.admin.from('incoming_emails').insert([
+          { sender_email: `kunde-${stamp}@harness.test`, subject: `[HARNESS] egen sagsmail ${stamp}`, service_case_id: jobCaseId, received_at: new Date().toISOString(), is_archived: false },
+          { sender_email: `fremmed-${stamp}@harness.test`, subject: `[HARNESS] fremmed sagsmail ${stamp}`, service_case_id: otherCaseId, received_at: new Date().toISOString(), is_archived: false },
+        ]).select('id') : null
+        for (const m0 of (mails?.data ?? []) as Array<{ id: string }>) seededEmailIds.push(m0.id)
         const seedErr = !jobEmployeeId ? `medarbejder: ${emp.error?.message?.slice(0, 80)}` : !jobCaseId ? `sag: ${sc?.error?.message?.slice(0, 80)}`
           : !woId ? `arbejdsordre: ${wo?.error?.message?.slice(0, 80)}` : ''
 
@@ -364,8 +375,19 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         r.foto_upload = /1 fil uploadet/.test(upMsg) && docs === 1
         await m.page.screenshot({ path: join(shots, 'u11-montoer-dokumenter.png'), fullPage: true }).catch(() => {})
 
+        // Sagens Mails-fane: egen sagsmail synlig (G9) — postkassen er lukket, men sagens mails ses stadig
+        await m.page.getByRole('button', { name: /^Mails/ }).first().click().catch(() => {})
+        await m.page.getByText(`[HARNESS] egen sagsmail ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.sagsmail_synlig = (await m.page.getByText(`[HARNESS] egen sagsmail ${stamp}`).count()) > 0
+        // Fremmed sag via direkte URL: ingen mails/indhold
+        if (otherCaseId) {
+          await m.page.goto(`${base}/dashboard/orders/${otherCaseId}?tab=mails`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await m.page.waitForTimeout(3000)
+          r.fremmed_sagsmail_skjult = (await m.page.getByText(`[HARNESS] fremmed sagsmail ${stamp}`).count()) === 0
+        }
+
         // Afslut jobbet
-        await m.page.getByRole('button', { name: /^Planlægning \/ Timer/ }).click().catch(() => {}) // navnet inkl. antal-badge
+        await m.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 }) // tilbage til egen sag
         await m.page.getByRole('button', { name: '✓ Afslut' }).first().click({ timeout: 30_000 }).catch(() => {})
         let woStatus = ''
         for (let i = 0; i < 15 && woStatus !== 'done'; i++) {
@@ -457,6 +479,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       await c.admin.from('offer_activities').delete().eq('offer_id', salgOfferId)
       await c.admin.from('offers').delete().eq('id', salgOfferId)
     }
+    if (seededEmailIds.length) await c.admin.from('incoming_emails').delete().in('id', seededEmailIds)
+    if (otherCaseId) { await c.admin.from('case_notes').delete().eq('case_id', otherCaseId); await c.admin.from('service_cases').delete().eq('id', otherCaseId) }
     for (const id of uploadedInvoiceIds) {
       const { data: row } = await c.admin.from('incoming_invoices').select('file_url').eq('id', id).maybeSingle()
       const fu = (row as { file_url?: string } | null)?.file_url
