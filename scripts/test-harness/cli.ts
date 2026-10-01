@@ -654,6 +654,16 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'columns') {
+    // Read-only: faktisk skema for en tabel på staging (CLAUDE.md: tjek skema før kode). Brug: columns <tabel>
+    const table = String(process.argv[3] ?? '')
+    if (!/^[a-z_][a-z0-9_]*$/.test(table)) { log('Brug: columns <tabel>'); process.exitCode = 1; return }
+    const rows = await stagingSql(`SELECT column_name, data_type, is_nullable, is_generated, column_default
+      FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' ORDER BY ordinal_position`)
+    for (const r of rows) log(`${String(r.column_name).padEnd(36)} ${String(r.data_type).padEnd(28)} null=${r.is_nullable} gen=${r.is_generated}${r.column_default ? ` default=${String(r.column_default).slice(0, 40)}` : ''}`)
+    if (!rows.length) { log(`ingen kolonner — findes tabellen ${table}?`); process.exitCode = 1 }
+    return
+  }
   if (SUB === 'db-audit') {
     const { runDbAudit, formatDbAudit } = await import('./db-audit')
     const r = await runDbAudit(stagingSql)
