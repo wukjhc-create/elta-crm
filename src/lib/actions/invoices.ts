@@ -43,6 +43,7 @@ import {
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import {
   computePaymentHealth,
   type HealthInvoice,
@@ -159,6 +160,8 @@ export async function listUnbilledForCaseAction(
     billable: boolean
     description: string | null
     invoice_line_id: string | null
+    sale_amount: number | string | null
+    sale_rate_snapshot: number | string | null
     employee:
       | { name: string | null; hourly_rate: number | string | null }
       | { name: string | null; hourly_rate: number | string | null }[]
@@ -170,11 +173,15 @@ export async function listUnbilledForCaseAction(
       : supabase
           .from('time_logs')
           .select(
-            'id, employee_id, work_order_id, start_time, end_time, hours, billable, description, invoice_line_id, employee:employees(name, hourly_rate)'
+            'id, employee_id, work_order_id, start_time, end_time, hours, billable, description, invoice_line_id, ' +
+              'sale_amount, sale_rate_snapshot, employee:employees(name, hourly_rate)'
           )
           .in('work_order_id', woIds)
           .is('invoice_line_id', null)
           .not('end_time', 'is', null)
+          // Samme regel som materialer/øvrige — og som createInvoiceDraftFromCase,
+          // der springer ikke-fakturerbare timer over.
+          .eq('billable', true)
           .order('start_time', { ascending: true }),
     supabase
       .from('case_materials')
@@ -200,19 +207,31 @@ export async function listUnbilledForCaseAction(
   const timeRows = (timeLogsRes.data ?? []) as unknown as TimeLogRow[]
   const time_logs: UnbilledTimeLogRow[] = timeRows.map((t) => {
     const emp = Array.isArray(t.employee) ? t.employee[0] ?? null : t.employee
-    const rateRaw = emp?.hourly_rate
-    const rate = rateRaw == null ? null : Number(rateRaw)
-    const has_rate = rate != null && Number.isFinite(rate) && rate > 0
     const hours = Number(t.hours ?? 0)
+    // Samme prisregel som createInvoiceDraftFromCase: frosset salgssnapshot
+    // (rate engine) før live medarbejdersats — ellers viser kladden et andet
+    // beløb end fakturaen (overtid, satsændringer).
+    const saleSnap = t.sale_amount == null ? null : Number(t.sale_amount)
+    const rateSnap = t.sale_rate_snapshot == null ? null : Number(t.sale_rate_snapshot)
+    const liveRaw = emp?.hourly_rate
+    const liveRate = liveRaw == null ? null : Number(liveRaw)
+    const hasSnap = saleSnap != null && Number.isFinite(saleSnap)
+    const rate = hasSnap && rateSnap != null && Number.isFinite(rateSnap) ? rateSnap : liveRate
+    const has_rate = hasSnap || (rate != null && Number.isFinite(rate) && rate > 0)
+    const total = hasSnap
+      ? Math.round((saleSnap as number) * 100) / 100
+      : has_rate
+        ? Math.round(hours * (rate as number) * 100) / 100
+        : 0
     return {
       id: t.id,
-      date: (t.start_time ?? '').slice(0, 10),
+      date: t.start_time ? copenhagenParts(t.start_time).date : '',
       employee_id: t.employee_id,
       employee_name: emp?.name ?? null,
       work_order_id: t.work_order_id,
       hours,
-      hourly_rate: has_rate ? (rate as number) : null,
-      total_sales_price: has_rate ? Math.round(hours * (rate as number) * 100) / 100 : 0,
+      hourly_rate: rate != null && Number.isFinite(rate) && rate > 0 ? rate : null,
+      total_sales_price: total,
       billable: !!t.billable,
       description: t.description,
       has_rate,
