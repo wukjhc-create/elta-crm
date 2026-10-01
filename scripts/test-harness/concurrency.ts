@@ -8,6 +8,8 @@
  *   C4  8x insertOfferWithNumber samtidigt                -> 8 forskellige tilbudsnumre (retry ved kollision)
  *   C5  3x runFollowupAgent paa samme tilbud              -> forslag kun én gang pr. afsendelses-cyklus
  *   C6  8x insertCustomerWithRetry samtidigt              -> 8 forskellige kundenumre
+ *   C7  4x del-faktura paa samme sag (time + materiale)   -> hver kilde-raekke paa praecis 1 fakturalinje (ingen dobbelt-fakturering)
+ *   C8  slutfaktura + 2x del-faktura samtidigt            -> hver kilde-raekke paa praecis 1 linje; ingen halv slutfaktura
  * Agenten 'offer'/'followup' aktiveres KUN paa staging inden for scenariet og deaktiveres i finally.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -28,6 +30,9 @@ export async function runConcurrency(c: { admin: SupabaseClient; sql: Sql; owner
   const { getCapability } = await import('../../src/lib/agents/capability-registry')
   const { insertOfferWithNumber } = await import('../../src/lib/services/offer-number')
   const { insertCustomerWithRetry } = await import('../../src/lib/customers/customer-number')
+  const { createInvoiceDraftFromCase } = await import('../../src/lib/services/invoice-from-case')
+  const { createFinalInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
+  const billCases: Array<{ caseId: string; woId: string; empId: string }> = []
 
   const cases = await c.sql(`SELECT s.id, s.customer_id FROM service_cases s WHERE s.title LIKE '[HARNESS %' AND s.is_proposal = false
     AND s.status NOT IN ('closed','converted') AND s.customer_id IS NOT NULL AND s.source_offer_id IS NULL
@@ -104,9 +109,54 @@ export async function runConcurrency(c: { admin: SupabaseClient; sql: Sql; owner
     }), { selectClause: 'id, customer_number', label: 'harness-race' })))
     for (const r of r6) if (r.data?.id) customerIds.add(r.data.id)
     const cnums = r6.map((r) => r.data?.customer_number).filter(Boolean) as string[]
+    // C7/C8 — samtidig fakturering af samme sag
+    const billCustomer = [...customerIds][0]
+    const seedBillCase = async (tag: string) => {
+      const { data: emp } = await c.admin.from('employees').insert([{ name: `[HARNESS] race-${tag}`, email: `race-${tag}-${Date.now()}@harness.test`, role: 'montør', active: true, hourly_rate: 500 }]).select('id').single()
+      const { data: sc } = await c.admin.from('service_cases').insert([{ title: `[HARNESS] race-faktura ${tag}`, customer_id: billCustomer, status: 'in_progress', priority: 'medium', source: 'manual', created_by: c.ownerUid }]).select('id').single()
+      const { data: wo } = await c.admin.from('work_orders').insert([{ case_id: sc!.id, title: 'race', status: 'done', assigned_employee_id: emp!.id }]).select('id').single()
+      billCases.push({ caseId: sc!.id, woId: wo!.id, empId: emp!.id })
+      const t0 = Date.now() - 86400_000
+      const { data: tl } = await c.admin.from('time_logs').insert([{ employee_id: emp!.id, work_order_id: wo!.id, start_time: new Date(t0).toISOString(), end_time: new Date(t0 + 3600_000).toISOString(), billable: true }]).select('id').single()
+      const { data: m } = await c.admin.from('case_materials').insert([{ case_id: sc!.id, description: 'race-materiale', quantity: 1, unit: 'stk', unit_cost: 10, unit_sales_price: 20, billable: true, source: 'manual', created_by: c.ownerUid }]).select('id').single()
+      return { caseId: sc!.id as string, tlId: tl!.id as string, mId: m!.id as string }
+    }
+    const lineCounts = async (caseId: string, tlId: string, mId: string) => {
+      const rows = await c.sql(`SELECT il.source_time_log_id t, il.source_case_material_id m FROM invoice_lines il JOIN invoices i ON i.id = il.invoice_id WHERE i.case_id = ${lit(caseId)}`)
+      return { t: rows.filter((r) => r.t === tlId).length, m: rows.filter((r) => r.m === mId).length,
+        invoices: Number((await c.sql(`SELECT count(*) n FROM invoices WHERE case_id = ${lit(caseId)}`))[0].n) }
+    }
+    if (billCustomer) {
+      const s7 = await seedBillCase('c7')
+      const r7 = await Promise.all(Array.from({ length: 4 }, () => createInvoiceDraftFromCase(s7.caseId, c.ownerUid, { time_log_ids: [s7.tlId], case_material_ids: [s7.mId] }).catch((e) => ({ ok: false, message: String(e) }))))
+      const n7 = await lineCounts(s7.caseId, s7.tlId, s7.mId)
+      out.push({ id: 'C7 4x parallel del-faktura samme sag', ok: n7.t === 1 && n7.m === 1, note: `time på ${n7.t} linje(r) · materiale på ${n7.m} linje(r) · fakturaer=${n7.invoices} · ok=${r7.filter((r) => r.ok).length}/4` })
+
+      const s8 = await seedBillCase('c8')
+      const r8 = await Promise.all([
+        createFinalInvoiceForCase({ case_id: s8.caseId }, c.ownerUid).catch((e) => ({ ok: false, message: String(e) })),
+        createInvoiceDraftFromCase(s8.caseId, c.ownerUid, { time_log_ids: [s8.tlId], case_material_ids: [s8.mId] }).catch((e) => ({ ok: false, message: String(e) })),
+        createInvoiceDraftFromCase(s8.caseId, c.ownerUid, { time_log_ids: [s8.tlId], case_material_ids: [s8.mId] }).catch((e) => ({ ok: false, message: String(e) })),
+      ])
+      const n8 = await lineCounts(s8.caseId, s8.tlId, s8.mId)
+      const finals = await c.sql(`SELECT i.id, (SELECT count(*) FROM invoice_lines il WHERE il.invoice_id = i.id) n FROM invoices i WHERE i.case_id = ${lit(s8.caseId)} AND i.invoice_type = 'final'`)
+      const halfFinal = finals.some((f) => Number(f.n) === 0)
+      out.push({ id: 'C8 slutfaktura + 2x del-faktura samtidigt', ok: n8.t === 1 && n8.m === 1 && !halfFinal, note: `time på ${n8.t} · materiale på ${n8.m} · slutfakturaer=${finals.length}${halfFinal ? ' (TOM!)' : ''} · fakturaer=${n8.invoices} · ok=[${r8.map((r) => (r.ok ? 'ja' : 'nej')).join(',')}]` })
+    }
+
     out.push({ id: 'C6 8x parallel kundenummer', ok: cnums.length === 8 && new Set(cnums).size === 8, note: `oprettet=${cnums.length}/8 · unikke=${new Set(cnums).size} · fejl=${r6.filter((r) => r.error).map((r) => r.error?.code).join(',') || '-'}` })
   } finally {
     await disable('offer'); await disable('followup')
+    for (const b of billCases) {
+      const cid = lit(b.caseId), wid = lit(b.woId)
+      await c.sql(`UPDATE time_logs SET invoice_line_id = NULL WHERE work_order_id = ${wid}; UPDATE case_materials SET invoice_line_id = NULL WHERE case_id = ${cid};
+        DELETE FROM invoice_predecessors WHERE invoice_id IN (SELECT id FROM invoices WHERE case_id = ${cid});
+        DELETE FROM audit_logs WHERE entity_id IN (SELECT id FROM invoices WHERE case_id = ${cid});
+        DELETE FROM invoice_lines WHERE invoice_id IN (SELECT id FROM invoices WHERE case_id = ${cid});
+        DELETE FROM invoices WHERE case_id = ${cid};
+        DELETE FROM time_logs WHERE work_order_id = ${wid}; DELETE FROM work_orders WHERE id = ${wid};
+        DELETE FROM case_materials WHERE case_id = ${cid}; DELETE FROM service_cases WHERE id = ${cid}; DELETE FROM employees WHERE id = ${lit(b.empId)};`)
+    }
     for (const id of customerIds) await c.sql(`DELETE FROM customers WHERE id=${lit(id)}`)
     await track()
     for (const id of offerIds) await c.sql(`DELETE FROM customer_tasks WHERE offer_id=${lit(id)}; DELETE FROM offers WHERE id=${lit(id)};`)
