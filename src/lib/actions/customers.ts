@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import {
   createCustomerSchema,
@@ -98,7 +99,7 @@ export async function getCustomers(filters?: {
     // Apply filters with sanitized search
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `company_name.ilike.%${sanitized}%,contact_person.ilike.%${sanitized}%,email.ilike.%${sanitized}%,customer_number.ilike.%${sanitized}%`
+      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)},customer_number.ilike.${pgQuote(`%${sanitized}%`)}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -214,7 +215,7 @@ export async function getCustomersWithPaymentState(
     const searchFilter = input?.search
       ? (() => {
           const s = sanitizeSearchTerm(input.search!)
-          return `company_name.ilike.%${s}%,contact_person.ilike.%${s}%,email.ilike.%${s}%,customer_number.ilike.%${s}%`
+          return `company_name.ilike.${pgQuote(`%${s}%`)},contact_person.ilike.${pgQuote(`%${s}%`)},email.ilike.${pgQuote(`%${s}%`)},customer_number.ilike.${pgQuote(`%${s}%`)}`
         })()
       : null
 
@@ -355,7 +356,7 @@ export async function checkDuplicateCustomer(
     let query = supabase
       .from('customers')
       .select('id, company_name, customer_number, email')
-      .or(`email.ilike.${sanitizeSearchTerm(email)},company_name.ilike.${sanitizeSearchTerm(companyName)}`)
+      .or(`email.ilike.${pgQuote(sanitizeSearchTerm(email))},company_name.ilike.${pgQuote(sanitizeSearchTerm(companyName))}`)
       .limit(5)
 
     if (excludeId) {

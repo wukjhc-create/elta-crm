@@ -1,4 +1,5 @@
 'use server'
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { revalidatePath } from 'next/cache'
@@ -69,7 +70,7 @@ export async function getKalkiaCalculations(
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
       if (sanitized) {
-        const searchFilter = `name.ilike.%${sanitized}%,description.ilike.%${sanitized}%`
+        const searchFilter = `name.ilike.${pgQuote(`%${sanitized}%`)},description.ilike.${pgQuote(`%${sanitized}%`)}`
         countQuery = countQuery.or(searchFilter)
         dataQuery = dataQuery.or(searchFilter)
       }

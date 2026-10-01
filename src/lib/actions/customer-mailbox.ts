@@ -1,4 +1,5 @@
 'use server'
+import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
 /**
@@ -167,7 +168,7 @@ export async function getCustomerMailbox(
       service_case:service_cases (id, case_number, title, status)
     `)
     .eq('is_archived', false)
-    .or(`sender_email.ilike.${emailLower},original_sender_email.ilike.${emailLower},to_email.ilike.${emailLower},customer_id.eq.${customerId}`)
+    .or(`sender_email.ilike.${pgQuote(escapeLike(emailLower))},original_sender_email.ilike.${pgQuote(escapeLike(emailLower))},to_email.ilike.${pgQuote(escapeLike(emailLower))},customer_id.eq.${customerId}`)
     .order('received_at', { ascending: false })
     .limit(200)
 

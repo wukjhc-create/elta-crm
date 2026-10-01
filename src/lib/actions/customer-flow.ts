@@ -7,6 +7,7 @@
  * Lead → Besigtigelse → Rapport → Tilbud → Fuldmagt → Montage
  */
 
+import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 
@@ -71,7 +72,7 @@ export async function getCustomerFlow(
         .from('incoming_emails')
         .select('id, is_read, received_at, sender_email')
         .eq('is_archived', false)
-        .or(`sender_email.ilike.${emailLower},to_email.ilike.${emailLower}`)
+        .or(`sender_email.ilike.${pgQuote(escapeLike(emailLower))},to_email.ilike.${pgQuote(escapeLike(emailLower))}`)
         .order('received_at', { ascending: false })
         .limit(5),
     ])

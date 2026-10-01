@@ -11,6 +11,7 @@
  * Used by email-sync-orchestrator after each email is inserted.
  */
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -535,7 +536,7 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
     const { data: byName } = await supabase
       .from('customers')
       .select('id')
-      .or(`company_name.ilike.${safeName},contact_person.ilike.${safeName}`)
+      .or(`company_name.ilike.${pgQuote(safeName)},contact_person.ilike.${pgQuote(safeName)}`)
       .eq('is_active', true)
       .limit(1)
       .maybeSingle()

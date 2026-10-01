@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import type { ActionResult } from '@/types/common.types'
 import {
   calculatePrice,
@@ -102,7 +103,7 @@ export async function compareProductPrices(
           name
         )
       `)
-      .or(`name.ilike.%${safeTerm}%,supplier_sku.ilike.%${safeTerm}%`)
+      .or(`name.ilike.${pgQuote(`%${safeTerm}%`)},supplier_sku.ilike.${pgQuote(`%${safeTerm}%`)}`)
       .eq('is_active', true)
       .limit(50)
 

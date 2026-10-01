@@ -63,8 +63,8 @@ jobs:
       - name: Tid - Europe/Copenhagen + tilbudsgyldighed
         run: npm run test:time
 
-      # Grossist-CSV: ISO-8859-1/UTF-8-dekodning (æøå i AO-filer)
-      - name: Import - tekstdekodning
+      # Grossist-CSV-dekodning (æøå) + sikre PostgREST-søgefiltre (komma/parentes/citat)
+      - name: Import-dekodning og søgefiltre
         run: npm run test:decode
 
       - name: Fakturakontrol - PDF-tekst

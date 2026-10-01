@@ -7,6 +7,7 @@
  * Each function returns flat data arrays ready for CSV generation.
  */
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
@@ -108,7 +109,7 @@ export async function exportCustomers(filters?: {
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
-      query = query.or(`company_name.ilike.${term},contact_person.ilike.${term},email.ilike.${term}`)
+      query = query.or(`company_name.ilike.${pgQuote(term)},contact_person.ilike.${pgQuote(term)},email.ilike.${pgQuote(term)}`)
     }
 
     if (filters?.is_active !== undefined) {
@@ -143,7 +144,7 @@ export async function exportLeads(filters?: {
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
-      query = query.or(`company_name.ilike.${term},contact_person.ilike.${term},email.ilike.${term}`)
+      query = query.or(`company_name.ilike.${pgQuote(term)},contact_person.ilike.${pgQuote(term)},email.ilike.${pgQuote(term)}`)
     }
 
     if (filters?.status) {
@@ -196,7 +197,7 @@ export async function exportOffers(filters?: {
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
-      query = query.or(`title.ilike.${term},offer_number.ilike.${term}`)
+      query = query.or(`title.ilike.${pgQuote(term)},offer_number.ilike.${pgQuote(term)}`)
     }
 
     if (filters?.status) {
@@ -248,7 +249,7 @@ export async function exportProjects(filters?: {
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
-      query = query.or(`name.ilike.${term},project_number.ilike.${term}`)
+      query = query.or(`name.ilike.${pgQuote(term)},project_number.ilike.${pgQuote(term)}`)
     }
 
     if (filters?.status) {
@@ -307,7 +308,7 @@ export async function exportCalculations(filters?: {
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
-      query = query.or(`name.ilike.${term}`)
+      query = query.or(`name.ilike.${pgQuote(term)}`)
     }
 
     if (filters?.calculation_type) {

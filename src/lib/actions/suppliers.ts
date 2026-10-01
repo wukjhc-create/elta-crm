@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { SUPPLIER_SETTINGS_PUBLIC_COLUMNS } from '@/lib/services/supplier-settings-columns'
 import { revalidatePath } from 'next/cache'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
@@ -84,7 +85,7 @@ export async function getSuppliers(
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
       if (sanitized) {
-        query = query.or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`)
+        query = query.or(`name.ilike.${pgQuote(`%${sanitized}%`)},code.ilike.${pgQuote(`%${sanitized}%`)}`)
       }
     }
 
@@ -340,7 +341,7 @@ export async function getSupplierProducts(
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
       if (sanitized) {
-        const searchFilter = `supplier_sku.ilike.%${sanitized}%,supplier_name.ilike.%${sanitized}%,manufacturer.ilike.%${sanitized}%,ean.ilike.%${sanitized}%`
+        const searchFilter = `supplier_sku.ilike.${pgQuote(`%${sanitized}%`)},supplier_name.ilike.${pgQuote(`%${sanitized}%`)},manufacturer.ilike.${pgQuote(`%${sanitized}%`)},ean.ilike.${pgQuote(`%${sanitized}%`)}`
         countQuery = countQuery.or(searchFilter)
         dataQuery = dataQuery.or(searchFilter)
       }
@@ -420,7 +421,7 @@ export async function searchSupplierProducts(
       .from('v_supplier_products_with_supplier')
       .select('*')
       .eq('is_available', true)
-      .or(`supplier_sku.ilike.%${sanitized}%,supplier_name.ilike.%${sanitized}%,ean.ilike.%${sanitized}%`)
+      .or(`supplier_sku.ilike.${pgQuote(`%${sanitized}%`)},supplier_name.ilike.${pgQuote(`%${sanitized}%`)},ean.ilike.${pgQuote(`%${sanitized}%`)}`)
 
     if (options?.supplier_id) {
       validateUUID(options.supplier_id, 'leverandør ID')
@@ -564,7 +565,7 @@ export async function getSupplierOptionsForMaterial(
       `)
       .eq('is_available', true)
       .eq('supplier_is_active', true)
-      .or(`supplier_name.ilike.%${sanitized}%,supplier_sku.ilike.%${sanitized}%`)
+      .or(`supplier_name.ilike.${pgQuote(`%${sanitized}%`)},supplier_sku.ilike.${pgQuote(`%${sanitized}%`)}`)
       .order('is_preferred', { ascending: false })
       .order('cost_price', { ascending: true })
       .limit(20)

@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import {
   createSupplierSchema,
@@ -276,7 +277,7 @@ export async function getProducts(
     // Apply filters with sanitized search
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `name.ilike.%${sanitized}%,sku.ilike.%${sanitized}%,description.ilike.%${sanitized}%`
+      const searchFilter = `name.ilike.${pgQuote(`%${sanitized}%`)},sku.ilike.${pgQuote(`%${sanitized}%`)},description.ilike.${pgQuote(`%${sanitized}%`)}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -547,7 +548,7 @@ export async function getSuppliers(
     // Apply filters with sanitized search
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`
+      const searchFilter = `name.ilike.${pgQuote(`%${sanitized}%`)},code.ilike.${pgQuote(`%${sanitized}%`)}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -811,7 +812,7 @@ export async function getSupplierProducts(
     // Apply search with sanitization
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `supplier_name.ilike.%${sanitized}%,supplier_sku.ilike.%${sanitized}%`
+      const searchFilter = `supplier_name.ilike.${pgQuote(`%${sanitized}%`)},supplier_sku.ilike.${pgQuote(`%${sanitized}%`)}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }

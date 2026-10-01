@@ -677,6 +677,46 @@ COMMIT;`)
     log(formatViews(await analyseViews(stagingSql)))
     return
   }
+  if (SUB === 'or-filter') {
+    // Bevis for pgQuote/ilikeContains mod staging-PostgREST: gammel stil fejler på komma, ny stil matcher bogstaveligt.
+    const { orIlikeContains, escapeLike } = await import('../../src/lib/validations/postgrest-filter')
+    const stamp = Date.now()
+    const { OR_FILTER_NAMES } = await import('./or-filter-probes')
+    const names = OR_FILTER_NAMES.map((n) => `ORF ${stamp} ${n}`)
+    const ids: string[] = []
+    const owner = ((await admin.from('profiles').select('id').limit(1)).data as Array<{ id: string }> | null)?.[0]?.id
+    for (const n of names) {
+      const { data, error } = await admin.from('customers').insert([{ customer_number: `ORF-${stamp}-${ids.length}`, company_name: n, contact_person: 'x', email: `orf-${stamp}-${ids.length}@harness.test`, created_by: owner }]).select('id')
+      if (error) throw new Error(error.message)
+      ids.push((data as Array<{ id: string }>)[0].id)
+    }
+    if (process.argv[3] === '--explore') {
+      const { OR_FILTER_PROBES } = await import('./or-filter-probes')
+      for (const f of OR_FILTER_PROBES) {
+        const r = await admin.from('customers').select('company_name').or(f).in('id', ids)
+        log(`  ${f.padEnd(44)} → ${r.error ? 'FEJL ' + r.error.message.slice(0, 50) : JSON.stringify((r.data ?? []).map((x: { company_name: string }) => x.company_name.replace(/^ORF \d+ /, '')))}`)
+      }
+      await admin.from('customers').delete().in('id', ids)
+      return
+    }
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    try {
+      const old = await admin.from('customers').select('id').or(`company_name.ilike.%${escapeLike('3x1,5')}%,contact_person.ilike.%${escapeLike('3x1,5')}%`).in('id', ids)
+      check('gammel stil fejler/rammer forkert på komma (fundet bekræftet)', !!old.error || (old.data ?? []).length !== 1, old.error ? old.error.message.slice(0, 60) : `${(old.data ?? []).length} træf`)
+      const { OR_FILTER_CASES } = await import('./or-filter-probes')
+      for (const [term, want] of OR_FILTER_CASES) {
+        const r = await admin.from('customers').select('id').or(orIlikeContains(['company_name', 'contact_person'], term)).in('id', ids)
+        const got = (r.data ?? []).map((x: { id: string }) => ids.indexOf(x.id)).sort()
+        check(`søg ${JSON.stringify(term)}`, !r.error && JSON.stringify(got) === JSON.stringify(want), r.error ? r.error.message.slice(0, 80) : `træf ${JSON.stringify(got)} (forventet ${JSON.stringify(want)})`)
+      }
+    } finally {
+      await admin.from('customers').delete().in('id', ids)
+    }
+    log(fails ? `❌ ${fails} afvigelse(r)` : '✅ alle or-filter-checks som forventet')
+    if (fails) process.exitCode = 1
+    return
+  }
   if (SUB === 'search-plan') {
     // N4: produktsøgningens plan + tid på staging (samme ILIKE-mønster som searchSupplierProducts). Kun læsning.
     const arg = process.argv[3] || ''

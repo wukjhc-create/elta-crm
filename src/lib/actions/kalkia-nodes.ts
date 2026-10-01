@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import {
   createKalkiaNodeSchema,
@@ -45,7 +46,7 @@ export async function getKalkiaNodes(
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
       if (sanitized) {
-        query = query.or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%,description.ilike.%${sanitized}%`)
+        query = query.or(`name.ilike.${pgQuote(`%${sanitized}%`)},code.ilike.${pgQuote(`%${sanitized}%`)},description.ilike.${pgQuote(`%${sanitized}%`)}`)
       }
     }
 
@@ -422,7 +423,7 @@ export async function searchKalkiaNodes(
       .not('path', 'like', 'legacy%')
       .not('code', 'like', 'LEG_%')
       .not('code', 'like', 'CAT_%')
-      .or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%,description.ilike.%${sanitized}%`)
+      .or(`name.ilike.${pgQuote(`%${sanitized}%`)},code.ilike.${pgQuote(`%${sanitized}%`)},description.ilike.${pgQuote(`%${sanitized}%`)}`)
 
     // Filter out group nodes unless explicitly requested
     if (!includeGroups) {

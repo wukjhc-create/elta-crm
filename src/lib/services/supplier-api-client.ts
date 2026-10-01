@@ -5,6 +5,7 @@
  * Handles authentication, rate limiting, token caching, and fallback.
  */
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import type { CredentialInput } from '@/lib/actions/credentials'
 import { loadDecryptedSupplierCredentials } from '@/lib/services/supplier-credential-secrets'
@@ -707,7 +708,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
         .limit(params.limit || 50)
 
       if (params.query) {
-        query = query.or(`supplier_sku.ilike.%${sanitizeSearchTerm(params.query)}%,supplier_name.ilike.%${sanitizeSearchTerm(params.query)}%`)
+        query = query.or(`supplier_sku.ilike.${pgQuote(`%${sanitizeSearchTerm(params.query)}%`)},supplier_name.ilike.${pgQuote(`%${sanitizeSearchTerm(params.query)}%`)}`)
       }
       if (params.sku) {
         query = query.eq('supplier_sku', params.sku)
@@ -855,7 +856,7 @@ export class LMClassicClient extends BaseSupplierAPIClient {
         query = query.eq('ean', params.ean)
       } else if (params.query) {
         const term = sanitizeSearchTerm(params.query)
-        query = query.or(`supplier_sku.ilike.%${term}%,supplier_name.ilike.%${term}%,ean.ilike.%${term}%`)
+        query = query.or(`supplier_sku.ilike.${pgQuote(`%${term}%`)},supplier_name.ilike.${pgQuote(`%${term}%`)},ean.ilike.${pgQuote(`%${term}%`)}`)
       }
 
       if (params.category) {

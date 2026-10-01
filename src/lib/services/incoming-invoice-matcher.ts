@@ -13,6 +13,7 @@
  * Pure read; never mutates anything.
  */
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { MatchBreakdown } from '@/types/incoming-invoices.types'
 import { normalizeVatNumber } from '@/lib/invoice-control/vat'
@@ -100,7 +101,7 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
     const { data: byCode } = await supabase
       .from('suppliers')
       .select('id, code, name')
-      .or(`code.ilike.${escapeIlike(name)},name.ilike.%${escapeIlike(name)}%`)
+      .or(`code.ilike.${pgQuote(escapeIlike(name))},name.ilike.${pgQuote(`%${escapeIlike(name)}%`)}`)
       .limit(5)
     if (byCode && byCode.length === 1) {
       supplierId = byCode[0].id

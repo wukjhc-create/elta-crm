@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
@@ -53,7 +54,7 @@ export async function getLeads(filters?: {
     // Apply filters with sanitized search
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `company_name.ilike.%${sanitized}%,contact_person.ilike.%${sanitized}%,email.ilike.%${sanitized}%`
+      const searchFilter = `company_name.ilike.${pgQuote(`%${sanitized}%`)},contact_person.ilike.${pgQuote(`%${sanitized}%`)},email.ilike.${pgQuote(`%${sanitized}%`)}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }
@@ -157,7 +158,7 @@ export async function checkDuplicateLead(
     let query = supabase
       .from('leads')
       .select('id, company_name, email, status')
-      .or(`email.ilike.${sanitizeSearchTerm(email)},company_name.ilike.${sanitizeSearchTerm(companyName)}`)
+      .or(`email.ilike.${pgQuote(sanitizeSearchTerm(email))},company_name.ilike.${pgQuote(sanitizeSearchTerm(companyName))}`)
       .limit(5)
 
     if (excludeId) {

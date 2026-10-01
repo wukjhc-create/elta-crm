@@ -1,4 +1,5 @@
 'use server'
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { secretTokenReader } from '@/lib/portal/token-reader'
 
 import { revalidatePath } from 'next/cache'
@@ -95,10 +96,10 @@ export async function getOffers(filters?: {
       const { data: matchingCustomers } = await supabase
         .from('customers')
         .select('id')
-        .or(`company_name.ilike.%${sanitized}%,customer_number.ilike.%${sanitized}%`)
+        .or(`company_name.ilike.${pgQuote(`%${sanitized}%`)},customer_number.ilike.${pgQuote(`%${sanitized}%`)}`)
         .limit(100)
 
-      const orParts = [`title.ilike.%${sanitized}%`, `offer_number.ilike.%${sanitized}%`]
+      const orParts = [`title.ilike.${pgQuote(`%${sanitized}%`)}`, `offer_number.ilike.${pgQuote(`%${sanitized}%`)}`]
       if (matchingCustomers && matchingCustomers.length > 0) {
         const ids = matchingCustomers.map((c) => c.id).join(',')
         orParts.push(`customer_id.in.(${ids})`)
@@ -1745,7 +1746,7 @@ export async function searchSupplierProductsForOffer(
         )
       `)
       .eq('suppliers.is_active', true)
-      .or(`supplier_sku.ilike.%${sanitizeSearchTerm(query)}%,supplier_name.ilike.%${sanitizeSearchTerm(query)}%,ean.ilike.%${sanitizeSearchTerm(query)}%`)
+      .or(`supplier_sku.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},supplier_name.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)},ean.ilike.${pgQuote(`%${sanitizeSearchTerm(query)}%`)}`)
       .order('cost_price', { ascending: true })
       .limit(searchLimit)
 

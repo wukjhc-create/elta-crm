@@ -30,6 +30,7 @@
  *   U17 admin: AO-prisfil (ISO-8859-1) via import-guiden → varer oprettet med korrekte æøå og kostpris; 2. fil med ny pris
  *       → pris opdateret + prishistorik (grossist/prisdata)
  *   U18 admin: sagens stedinfo på ordresiden — ugyldigt KSR afvises, gyldigt KSR/EAN/telefon gemmes; Naviger-link (N9b)
+ *   U19 admin: kundesøgning med komma/parentes ("Hansen, Jens (VVS)", "3x1,5") finder kunden — før: PostgREST-parsefejl
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -124,6 +125,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let draftCustomerId: string | null = null
   let aoSupplierId: string | null = null
   let siteCaseId: string | null = null
+  let searchCustomerId: string | null = null
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
   let salgOfferId: string | null = null
@@ -485,6 +487,20 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         out.push({ id: 'U18 stedinfo på ordresiden (admin)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U19 søgning med komma/parentes (sikre PostgREST-filtre)
+      {
+        const r: Record<string, boolean> = {}
+        const name = `Hansen, Jens (VVS) 3x1,5 ${stamp}`
+        const ins = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-S-${stamp}`, company_name: name, contact_person: 'Søg',
+          email: `soeg-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        searchCustomerId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        for (const [k, q] of [['komma_parentes', `Hansen, Jens (VVS)`], ['kabeldimension', `3x1,5 ${stamp}`]] as const) {
+          await a.page.goto(`${base}/dashboard/customers?search=${encodeURIComponent(q)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r[k] = (await a.page.getByText(name).count()) > 0
+        }
+        out.push({ id: 'U19 søgning med komma/parentes', ok: !!searchCustomerId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -740,6 +756,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     }
     if (seededEmailIds.length) await c.admin.from('incoming_emails').delete().in('id', seededEmailIds)
     if (otherCaseId) { await c.admin.from('case_notes').delete().eq('case_id', otherCaseId); await c.admin.from('service_cases').delete().eq('id', otherCaseId) }
+    if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (siteCaseId) { await c.admin.from('case_notes').delete().eq('case_id', siteCaseId); await c.admin.from('service_cases').delete().eq('id', siteCaseId) }
     if (aoSupplierId) {
       const { data: ps } = await c.admin.from('supplier_products').select('id').eq('supplier_id', aoSupplierId)

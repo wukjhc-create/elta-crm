@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { KalkiaVariantMaterial } from '@/types/kalkia.types'
@@ -161,7 +162,7 @@ export async function getSupplierOptionsForMaterial(
       `)
       .eq('is_available', true)
       .eq('supplier_is_active', true)
-      .or(`supplier_name.ilike.%${sanitized}%,supplier_sku.ilike.%${sanitized}%`)
+      .or(`supplier_name.ilike.${pgQuote(`%${sanitized}%`)},supplier_sku.ilike.${pgQuote(`%${sanitized}%`)}`)
       .order('is_preferred', { ascending: false })
       .order('cost_price', { ascending: true })
       .limit(20)

@@ -1,4 +1,5 @@
 'use server'
+import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { secretTokenReader } from '@/lib/portal/token-reader'
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
@@ -91,7 +92,7 @@ export async function getServiceCases(filters?: {
       query = query.eq('priority', filters.priority)
     }
     if (filters?.search) {
-      query = query.or(`title.ilike.%${filters.search}%,case_number.ilike.%${filters.search}%,description.ilike.%${filters.search}%`)
+      query = query.or(`title.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},case_number.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},description.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)}`)
     }
 
     const { data, error, count } = await query

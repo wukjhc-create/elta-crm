@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult, PaginatedResponse } from '@/types/common.types'
 import type {
@@ -121,7 +122,7 @@ export async function getPackages(filters?: {
     if (filters?.is_active !== undefined) countQuery = countQuery.eq('is_active', filters.is_active)
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      if (sanitized) countQuery = countQuery.or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`)
+      if (sanitized) countQuery = countQuery.or(`name.ilike.${pgQuote(`%${sanitized}%`)},code.ilike.${pgQuote(`%${sanitized}%`)}`)
     }
 
     const { count } = await countQuery
@@ -139,7 +140,7 @@ export async function getPackages(filters?: {
     if (filters?.is_active !== undefined) dataQuery = dataQuery.eq('is_active', filters.is_active)
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      if (sanitized) dataQuery = dataQuery.or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%`)
+      if (sanitized) dataQuery = dataQuery.or(`name.ilike.${pgQuote(`%${sanitized}%`)},code.ilike.${pgQuote(`%${sanitized}%`)}`)
     }
 
     const { data, error } = await dataQuery

@@ -4,6 +4,7 @@
  * Material → Supplier binding (Phase 4.1) + admin overview (Phase 4.2).
  */
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 
@@ -245,7 +246,7 @@ export async function listMaterialsForAdmin(
   if (options.unboundOnly) query = query.is('supplier_product_id', null)
   if (options.search && options.search.trim()) {
     const safe = options.search.trim().replace(/[%,()]/g, ' ')
-    query = query.or(`name.ilike.%${safe}%,slug.ilike.%${safe}%`)
+    query = query.or(`name.ilike.${pgQuote(`%${safe}%`)},slug.ilike.${pgQuote(`%${safe}%`)}`)
   }
 
   const { data, error } = await query.limit(500)
@@ -396,7 +397,7 @@ export async function searchSupplierProductsForBinding(
       'id, supplier_id, supplier_sku, supplier_name, category, sub_category, cost_price, is_available, suppliers!inner(name, code, is_active)'
     )
     .eq('suppliers.is_active', true)
-    .or(`supplier_name.ilike.%${safe}%,supplier_sku.ilike.%${safe}%`)
+    .or(`supplier_name.ilike.${pgQuote(`%${safe}%`)},supplier_sku.ilike.${pgQuote(`%${safe}%`)}`)
     .order('cost_price', { ascending: true })
     .limit(limit)
 

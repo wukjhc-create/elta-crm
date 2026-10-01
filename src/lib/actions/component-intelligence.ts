@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type {
@@ -337,7 +338,7 @@ export async function getMaterials(options?: {
 
     if (options?.search) {
       const sanitized = sanitizeSearchTerm(options.search)
-      query = query.or(`name.ilike.%${sanitized}%,sku.ilike.%${sanitized}%,description.ilike.%${sanitized}%`)
+      query = query.or(`name.ilike.${pgQuote(`%${sanitized}%`)},sku.ilike.${pgQuote(`%${sanitized}%`)},description.ilike.${pgQuote(`%${sanitized}%`)}`)
     }
 
     if (options?.limit) {

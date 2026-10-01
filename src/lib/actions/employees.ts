@@ -9,6 +9,7 @@
  * back-calculation works.
  */
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import {
@@ -107,7 +108,7 @@ export async function listEmployeesAction(filter: ListFilter = {}): Promise<Empl
   if (filter.q && filter.q.trim().length > 0) {
     const term = `%${filter.q.trim().replace(/[%_]/g, '\\$&')}%`
     q = q.or(
-      `name.ilike.${term},first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},employee_number.ilike.${term},phone.ilike.${term}`
+      `name.ilike.${pgQuote(term)},first_name.ilike.${pgQuote(term)},last_name.ilike.${pgQuote(term)},email.ilike.${pgQuote(term)},employee_number.ilike.${pgQuote(term)},phone.ilike.${pgQuote(term)}`
     )
   }
 

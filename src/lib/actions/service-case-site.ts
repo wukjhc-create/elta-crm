@@ -13,6 +13,7 @@
  * Begge er guard-belagt med permission 'cases.edit' og UUID-validering.
  */
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
@@ -435,7 +436,7 @@ export async function searchCustomersForSite(
       // Sanitér så bruger ikke kan injecte ',' i .or()
       const safe = trimmed.replace(/[,()]/g, ' ').substring(0, 100)
       q = q.or(
-        `company_name.ilike.%${safe}%,customer_number.ilike.%${safe}%,email.ilike.%${safe}%`
+        `company_name.ilike.${pgQuote(`%${safe}%`)},customer_number.ilike.${pgQuote(`%${safe}%`)},email.ilike.${pgQuote(`%${safe}%`)}`
       )
     }
 

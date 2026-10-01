@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
@@ -85,7 +86,7 @@ export async function getProjects(filters?: {
     // Apply filters to both queries with sanitization
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
-      const searchFilter = `name.ilike.%${sanitized}%,project_number.ilike.%${sanitized}%`
+      const searchFilter = `name.ilike.${pgQuote(`%${sanitized}%`)},project_number.ilike.${pgQuote(`%${sanitized}%`)}`
       countQuery = countQuery.or(searchFilter)
       dataQuery = dataQuery.or(searchFilter)
     }

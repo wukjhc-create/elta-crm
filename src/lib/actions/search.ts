@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
 import type { SearchResultType, SearchResult, SearchResponse } from '@/types/search.types'
@@ -19,22 +20,22 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
       supabase
         .from('leads')
         .select('id, contact_person, email, company_name, status', { count: 'exact' })
-        .or(`contact_person.ilike.${searchTerm},email.ilike.${searchTerm},company_name.ilike.${searchTerm}`)
+        .or(`contact_person.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},company_name.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
       supabase
         .from('customers')
         .select('id, company_name, email, customer_number', { count: 'exact' })
-        .or(`company_name.ilike.${searchTerm},email.ilike.${searchTerm},customer_number.ilike.${searchTerm}`)
+        .or(`company_name.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},customer_number.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
       supabase
         .from('offers')
         .select('id, offer_number, title, status', { count: 'exact' })
-        .or(`offer_number.ilike.${searchTerm},title.ilike.${searchTerm}`)
+        .or(`offer_number.ilike.${pgQuote(searchTerm)},title.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
       supabase
         .from('projects')
         .select('id, project_number, name, status', { count: 'exact' })
-        .or(`project_number.ilike.${searchTerm},name.ilike.${searchTerm}`)
+        .or(`project_number.ilike.${pgQuote(searchTerm)},name.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
     ])
 

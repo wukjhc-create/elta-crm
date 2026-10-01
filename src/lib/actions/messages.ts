@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { createMessageSchema } from '@/lib/validations/messages'
@@ -59,7 +60,7 @@ export async function getMessages(
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
       query = query.or(
-        `subject.ilike.%${sanitized}%,body.ilike.%${sanitized}%`
+        `subject.ilike.${pgQuote(`%${sanitized}%`)},body.ilike.${pgQuote(`%${sanitized}%`)}`
       )
     }
 

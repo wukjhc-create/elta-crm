@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { DEFAULT_TAX_RATE, CALC_DEFAULTS } from '@/lib/constants'
 import { getStandardSaleRate } from '@/lib/services/rates'
@@ -71,7 +72,7 @@ export async function getCalculations(
     if (filters?.search) {
       const sanitized = sanitizeSearchTerm(filters.search)
       if (sanitized) {
-        const searchFilter = `name.ilike.%${sanitized}%,description.ilike.%${sanitized}%`
+        const searchFilter = `name.ilike.${pgQuote(`%${sanitized}%`)},description.ilike.${pgQuote(`%${sanitized}%`)}`
         countQuery = countQuery.or(searchFilter)
         dataQuery = dataQuery.or(searchFilter)
       }

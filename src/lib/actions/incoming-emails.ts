@@ -6,6 +6,7 @@
  * CRUD operations + sync trigger + manual link for incoming emails.
  */
 
+import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 
@@ -120,9 +121,9 @@ export async function getIncomingEmails(options?: {
 
   // Apply search
   if (options?.search) {
-    const term = `%${options.search}%`
+    const term = `%${escapeLike(options.search)}%`
     query = query.or(
-      `subject.ilike.${term},sender_email.ilike.${term},sender_name.ilike.${term},original_sender_email.ilike.${term}`
+      `subject.ilike.${pgQuote(term)},sender_email.ilike.${pgQuote(term)},sender_name.ilike.${pgQuote(term)},original_sender_email.ilike.${pgQuote(term)}`
     )
   }
 
@@ -1385,7 +1386,7 @@ export async function findCustomerSuggestions(
     const { data: phoneMatches } = await supabase
       .from('customers')
       .select('id, company_name, customer_number, email')
-      .or(`phone.ilike.%${cleanPhone}%,phone.ilike.%${phone}%`)
+      .or(`phone.ilike.${pgQuote(`%${cleanPhone}%`)},phone.ilike.${pgQuote(`%${escapeLike(phone)}%`)}`)
       .limit(3)
 
     if (phoneMatches) {

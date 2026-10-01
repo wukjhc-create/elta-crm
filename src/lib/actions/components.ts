@@ -1,5 +1,6 @@
 'use server'
 
+import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import { validateUUID } from '@/lib/validations/common'
@@ -801,7 +802,7 @@ export async function searchCalcComponents(
       .from('v_calc_components_summary')
       .select('*')
       .eq('is_active', true)
-      .or(`name.ilike.%${sanitized}%,code.ilike.%${sanitized}%,description.ilike.%${sanitized}%,category_name.ilike.%${sanitized}%`)
+      .or(`name.ilike.${pgQuote(`%${sanitized}%`)},code.ilike.${pgQuote(`%${sanitized}%`)},description.ilike.${pgQuote(`%${sanitized}%`)},category_name.ilike.${pgQuote(`%${sanitized}%`)}`)
       .order('name')
       .limit(limit)
 
