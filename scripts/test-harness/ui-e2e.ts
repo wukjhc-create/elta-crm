@@ -37,6 +37,8 @@
  *   U22 login uden JavaScript (= før hydrering): adgangskoden ender aldrig i URL'en (S2-fund: native GET-submit)
  *   U23 portal-chat: kunde UDEN login skriver + vedhæfter PDF → sælger ser den på kundekortet og svarer → kunden ser
  *       svaret (kundeportal, GO-LIVE)
+ *   U24 nyt tilbud fra bunden: formular (titel + kunde) → tilbudssiden → "Tilføj linje" (4 × 250) → linjen gemt og
+ *       tilbuddets totaler opdateret (1.000 ekskl. / 1.250 inkl. moms)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -133,6 +135,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let siteCaseId: string | null = null
   let searchCustomerId: string | null = null
   let chatTokenId: string | null = null
+  let newOfferId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -600,6 +603,41 @@ ${m.text()}`) })
         out.push({ id: 'U23 portal-chat kunde ↔ sælger', ok: !!chatTokenId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U24 nyt tilbud fra bunden (salgets kerneflow)
+      if (profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const title = `[HARNESS] nyt tilbud ${stamp}`
+        await a.page.goto(`${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /Nyt Tilbud/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.locator('#title').fill(title).catch(() => {})
+        await a.page.locator('#customer_id').selectOption(profitCustomerId).catch(() => {})
+        await a.page.getByRole('button', { name: 'Opret tilbud' }).click().catch(() => {})
+        await a.page.waitForURL(/\/dashboard\/offers\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
+        newOfferId = (a.page.url().match(/offers\/([0-9a-f-]{36})/) ?? [])[1] ?? null
+        r.oprettet = !!newOfferId
+        await a.page.getByRole('button', { name: 'Tilføj linje' }).first().click({ timeout: 60_000 }).catch(() => {})
+        const desc = a.page.locator('input[placeholder="Beskrivelse..."]').last()
+        await desc.waitFor({ timeout: 30_000 }).catch(() => {})
+        const row = desc.locator('xpath=ancestor::tr[1]')
+        await desc.fill('Stikkontakt montage').catch(() => {})
+        await row.locator('input[type="number"]').first().fill('4').catch(() => {})
+        await row.locator('input[type="number"]').last().fill('250').catch(() => {})
+        await row.locator('input[type="number"]').last().press('Tab').catch(() => {})
+        let line: Record<string, number | string> | null = null
+        let off: Record<string, number> | null = null
+        for (let i = 0; i < 20; i++) {
+          line = ((await c.admin.from('offer_line_items').select('description, quantity, unit_price, total').eq('offer_id', newOfferId).maybeSingle()).data as Record<string, number | string> | null)
+          off = ((await c.admin.from('offers').select('total_amount, final_amount').eq('id', newOfferId).maybeSingle()).data as Record<string, number> | null)
+          if (line && Number(line.total) === 1000 && Number(off?.total_amount) === 1000) break
+          await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.linje_gemt = line?.description === 'Stikkontakt montage' && Number(line?.quantity) === 4 && Number(line?.unit_price) === 250 && Number(line?.total) === 1000
+        r.totaler = Number(off?.total_amount) === 1000 && Number(off?.final_amount) === 1250
+        await a.page.screenshot({ path: join(shots, 'u24-nyt-tilbud.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U24 nyt tilbud fra bunden', ok: Object.values(r).every(Boolean),
+          note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · total=${off?.total_amount}/${off?.final_amount}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -864,6 +902,7 @@ ${m.text()}`) })
       await c.admin.from('service_cases').delete().eq('id', jobCaseId)
     }
     if (jobEmployeeId) await c.admin.from('employees').delete().eq('id', jobEmployeeId)
+    if (newOfferId) { for (const t of ['offer_activities', 'offer_line_items']) await c.admin.from(t).delete().eq('offer_id', newOfferId); await c.admin.from('offers').delete().eq('id', newOfferId) }
     for (const id of followupOfferIds) { await c.admin.from('offer_activities').delete().eq('offer_id', id); await c.admin.from('offers').delete().eq('id', id) }
     if (salgOfferId) {
       await c.admin.from('offers').update({ converted_case_id: null }).eq('id', salgOfferId)
