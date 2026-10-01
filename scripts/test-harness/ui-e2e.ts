@@ -958,7 +958,7 @@ ${m.text()}`) })
       // U33 kreditnota på sendt faktura (faktura, GO-LIVE)
       if (want('U33') && profitCustomerId) {
         const r: Record<string, boolean> = {}
-        const ins = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-K-${stamp}`, customer_id: profitCustomerId, status: 'sent',
+        const ins = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-KN-${stamp}`, customer_id: profitCustomerId, status: 'sent',
           total_amount: 2000, tax_amount: 500, final_amount: 2500, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
         u33InvoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
         const seed33 = u33InvoiceId ? '' : `SEED: ${ins.error?.message ?? '?'} · `

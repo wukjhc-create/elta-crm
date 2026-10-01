@@ -1,5 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { createClient as createJsClient } from '@supabase/supabase-js'
+import { createClient as createJsClient, isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 type CookieToSet = { name: string; value: string; options: CookieOptions }
@@ -54,10 +54,25 @@ export async function getSession() {
 
 export async function getUser() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let { data: { user }, error } = await supabase.auth.getUser()
+  // Forbigående Auth-fejl (netværk/429/5xx) må ikke ligne "ikke logget ind" —
+  // før gav det AUTH_REQUIRED og en tom side uden besked. Ét nyt forsøg; ægte
+  // session-fejl (udløbet/manglende) prøves ikke igen.
+  if (!user && error && isTransientAuthError(error)) {
+    console.warn('[auth] getUser transient error, retrying', { name: error.name, status: error.status })
+    await new Promise((res) => setTimeout(res, 250))
+    ;({ data: { user }, error } = await supabase.auth.getUser())
+    if (!user && error) {
+      console.warn('[auth] getUser failed after retry', { name: error.name, status: error.status })
+    }
+  }
   return user
+}
+
+function isTransientAuthError(error: { status?: number }): boolean {
+  if (isAuthRetryableFetchError(error)) return true
+  const status = error.status ?? 0
+  return status === 0 || status === 429 || status >= 500
 }
 
 export async function getUserProfile() {
