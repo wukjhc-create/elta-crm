@@ -20,6 +20,7 @@ import {
   setOvertimeRateActive,
 } from '@/lib/actions/employee-overtime-rates'
 import type { EmployeeOvertimeRate } from '@/types/employees.types'
+import { toNumberDa } from '@/lib/utils/danish-number'
 
 const fmt = (n: number | null) =>
   n == null ? '—' : new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2 }).format(n)
@@ -76,7 +77,7 @@ export function EmployeeOvertimeRatesPanel({
   }
 
   const addRate = () => {
-    const mult = parseFloat(newMult.replace(',', '.'))
+    const mult = newMult.trim() ? toNumberDa(newMult) : NaN
     if (!newName.trim() || !Number.isFinite(mult)) {
       setError('Udfyld satsnavn og en gyldig multiplikator')
       return
@@ -86,8 +87,8 @@ export function EmployeeOvertimeRatesPanel({
       return
     }
     // Ø2.12B — bekræft usædvanligt høje kost-/salgssatser (taste-fejl).
-    const cN = newCost ? parseFloat(newCost.replace(',', '.')) : null
-    const sN = newSale ? parseFloat(newSale.replace(',', '.')) : null
+    const cN = newCost ? toNumberDa(newCost) : null
+    const sN = newSale ? toNumberDa(newSale) : null
     if (((cN ?? 0) > 5000 || (sN ?? 0) > 5000) &&
         !window.confirm('Kost-/salgssats over 5000 kr/t er usædvanligt højt. Gem alligevel?')) {
       return
@@ -96,8 +97,8 @@ export function EmployeeOvertimeRatesPanel({
       const res = await createOvertimeRate(employeeId, {
         name: newName.trim(),
         multiplier: mult,
-        cost_rate: newCost ? parseFloat(newCost.replace(',', '.')) : null,
-        sale_rate: newSale ? parseFloat(newSale.replace(',', '.')) : null,
+        cost_rate: newCost ? toNumberDa(newCost) : null,
+        sale_rate: newSale ? toNumberDa(newSale) : null,
       })
       if (res.success) {
         setNewName(''); setNewMult('1.5'); setNewCost(''); setNewSale(''); setShowAdd(false)
@@ -197,13 +198,13 @@ export function EmployeeOvertimeRatesPanel({
 
     // Ø2.14 — inline-validering ved Gem (samme regler som opret-formen).
     const saveRow = () => {
-      const m = parseFloat(mult.replace(',', '.'))
+      const m = mult.trim() ? toNumberDa(mult) : NaN
       if (!Number.isFinite(m) || m < 0 || m > 10) {
         window.alert('Multiplikator skal være mellem 0 og 10')
         return
       }
-      const c = cost ? parseFloat(cost.replace(',', '.')) : null
-      const s = sale ? parseFloat(sale.replace(',', '.')) : null
+      const c = cost ? toNumberDa(cost) : null
+      const s = sale ? toNumberDa(sale) : null
       if ((c != null && (!Number.isFinite(c) || c < 0)) || (s != null && (!Number.isFinite(s) || s < 0))) {
         window.alert('Satser kan ikke være negative')
         return

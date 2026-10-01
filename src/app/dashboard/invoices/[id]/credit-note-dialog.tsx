@@ -23,6 +23,7 @@ import {
 } from '@/lib/actions/invoices'
 import { formatCurrency } from '@/lib/utils/format'
 import type { InvoiceLineRow } from '@/types/invoice.types'
+import { toNumberDa } from '@/lib/utils/danish-number'
 
 type Mode = 'full' | 'partial-lines' | 'partial-amount'
 
@@ -83,7 +84,7 @@ export function CreditNoteDialog({
   }, [open, submitting, onClose])
 
   const customAmount = useMemo(() => {
-    const n = Number(customAmountStr.replace(',', '.'))
+    const n = toNumberDa(customAmountStr)
     return Number.isFinite(n) ? n : 0
   }, [customAmountStr])
 

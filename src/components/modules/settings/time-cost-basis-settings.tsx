@@ -13,6 +13,7 @@ import { Clock, AlertTriangle } from 'lucide-react'
 import { updateCompanySettings, getCompanySettings } from '@/lib/actions/settings'
 import { TIME_COST_BASIS_OPTIONS, type TimeCostBasis } from '@/types/company-settings.types'
 import { useToast } from '@/components/ui/toast'
+import { toNumberDa } from '@/lib/utils/danish-number'
 
 const HIGH_RATE_WARN = 5000 // kr/t — over dette spørges der bekræftelse
 
@@ -40,7 +41,7 @@ export function TimeCostBasisSettings() {
         showError('Angiv en standard intern timekost')
         return
       }
-      rateNum = Number(rate.replace(',', '.'))
+      rateNum = toNumberDa(rate)
       if (!Number.isFinite(rateNum) || rateNum < 0) {
         showError('Standardkost skal være et positivt tal')
         return

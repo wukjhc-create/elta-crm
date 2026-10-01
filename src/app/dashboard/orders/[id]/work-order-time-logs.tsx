@@ -24,6 +24,7 @@ import {
 } from '@/lib/actions/time-logs'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
 import { PAY_RATE_TYPE_OPTIONS, PAY_RATE_TYPE_LABEL, type PayRateType } from '@/types/workforce.types'
+import { toNumberDa } from '@/lib/utils/danish-number'
 
 const fmtAmount = (n: number | null | undefined) =>
   n == null
@@ -129,7 +130,7 @@ export function WorkOrderTimeLogs({
     }
 
     const hoursParsed = hoursStr.trim().length > 0
-      ? Number(hoursStr.replace(',', '.'))
+      ? toNumberDa(hoursStr)
       : null
 
     if (!endClock && (hoursParsed == null || !Number.isFinite(hoursParsed) || hoursParsed <= 0)) {

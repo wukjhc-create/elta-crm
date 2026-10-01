@@ -40,6 +40,7 @@ import { formatCurrency } from '@/lib/utils/format'
 import type { StageInvoiceSummary } from '@/lib/services/invoice-stage'
 import { CaseInvoiceHistory } from '@/components/modules/orders/case-invoice-history'
 import { CaseInvoicesList } from '@/components/modules/orders/case-invoices-list'
+import { toNumberDa } from '@/lib/utils/danish-number'
 
 const VAT_RATE = 0.25
 
@@ -592,7 +593,7 @@ function BillingPercentMode({
     basis === 'contract_sum' ? contractSum : revisedSum
 
   const pctNum = useMemo(() => {
-    const n = Number(String(percent).replace(',', '.'))
+    const n = toNumberDa(String(percent))
     return Number.isFinite(n) ? n : 0
   }, [percent])
 

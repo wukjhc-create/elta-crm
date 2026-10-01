@@ -21,6 +21,7 @@ import {
   type CaseOtherCostCategory,
   type CaseOtherCostRow,
 } from '@/types/case-other-costs.types'
+import { toNumberDa } from '@/lib/utils/danish-number'
 
 interface FormState {
   category: CaseOtherCostCategory
@@ -112,9 +113,9 @@ export function CaseOtherCostDialog({
 
   if (!open) return null
 
-  const parsedQty = Number(form.quantity.replace(',', '.'))
-  const parsedCost = Number(form.unit_cost.replace(',', '.'))
-  const parsedSale = Number(form.unit_sales_price.replace(',', '.'))
+  const parsedQty = toNumberDa(form.quantity)
+  const parsedCost = toNumberDa(form.unit_cost)
+  const parsedSale = toNumberDa(form.unit_sales_price)
   const totalCost = Number.isFinite(parsedQty) && Number.isFinite(parsedCost) ? parsedQty * parsedCost : 0
   const totalSale = Number.isFinite(parsedQty) && Number.isFinite(parsedSale) ? parsedQty * parsedSale : 0
   const db = totalSale - totalCost

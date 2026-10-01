@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { Pencil, Trash2, Plus, Check, X } from 'lucide-react'
 import { editDraftInvoiceLineAction, addDraftInvoiceLineAction, deleteDraftInvoiceLineAction } from '@/lib/actions/invoices'
+import { toNumberDa } from '@/lib/utils/danish-number'
 
 export interface DraftLine {
   id: string
@@ -21,7 +22,7 @@ export interface DraftLine {
   source_case_other_cost_id?: string | null
 }
 
-const num = (s: string) => Number(String(s).replace(/\./g, '').replace(',', '.'))
+const num = (s: string) => toNumberDa(String(s))
 const fmt = (n: number | string) => Number(n).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const sourced = (l: DraftLine) => !!(l.source_time_log_id || l.source_case_material_id || l.source_case_other_cost_id)
 
