@@ -60,6 +60,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | D4 | S2 (opgraderet → P-012) | Login-formularen: klik før hydrering gav native GET-submit med e-mail + adgangskode i URL'en (historik/request-logs); samme i opret-konto, nulstil og glemt-adgangskode | DONE — method="post" + submit deaktiveret indtil hydreret (useHydrated); ui-e2e U22 (login uden JS). Henrik: tjek Vercel-request-logs for `password=` |
 | D6 | S3 | Chat (portal + medarbejder): Enter/send mens en fil uploadede → beskeden gik uden bilaget, og bilaget røg med NÆSTE besked | DONE — send blokeret under upload (knap + Enter); ui-e2e U23 (portal-chat kunde uden login ↔ sælger m. PDF) |
 | D7 | S3 | Kundekortet: portal-/partnerlinks havde absolut href i browseren men relativ på serveren → hydreringsfejl | DONE — relativ href, absolut URL kun ved kopiering |
+| D8 | S3 | Godkendelse af leverandørfaktura: varelinjer uden produktmatch ("Kabel 3x1,5") blev som standard foreslået som ØVRIG omkostning i stedet for materiale (Sprint 5E-2-fallback) → forkert i sagens økonomi/fakturering | DONE — varelinjer (antal + stk-pris, ingen service-nøgleord) foreslås som materiale; nøgleord (kørsel, fragt, lift, gebyr…) stadig øvrig; bruger kan ændre pr. linje. ui-e2e U28 (godkendt, 2 materialer, kobling begge veje, ingen bogføring) |
 | D3 | S3 | Kunde-/lead-/tilbudslister beregnede relativ tid på server og klient → hydreringsfejl ved minutskifte | DONE (SmartDate) |
 
 ## LATER

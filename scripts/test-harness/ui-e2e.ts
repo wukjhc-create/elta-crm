@@ -44,6 +44,8 @@
  *       materialet låst til fakturalinjen (ingen dobbeltfakturering)
  *   U27 lead → kunde: "Opret som kunde" → kundesiden; leadet viser "Gå til kunde"; 2. lead med samme mail kobles til
  *       SAMME kunde (ingen dublet)
+ *   U28 leverandørfaktura → sag: "Forhåndsvis & godkend" → godkendt, linjer konverteret til sagsmaterialer (kobling
+ *       begge veje), INGEN e-conomic-bogføring
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -148,6 +150,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let billCaseId: string | null = null
   const u27LeadIds: string[] = []
   let u27CustomerId: string | null = null
+  let u28: { supplierId?: string; caseId?: string; invoiceId?: string } = {}
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -734,6 +737,43 @@ ${m.text()}`) })
         out.push({ id: 'U27 lead → kunde', ok: u27LeadIds.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U28 leverandørfaktura godkendt med konvertering til sagens materialer (indkøb, GO-LIVE)
+      if (want('U28') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U28 grossist ${stamp}`, code: `HU28${stamp}` }]).select('id')
+        u28.supplierId = (sup.data?.[0] as { id?: string } | undefined)?.id
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] indkøb ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        u28.caseId = (sc.data?.[0] as { id?: string } | undefined)?.id
+        const inv = u28.supplierId && u28.caseId ? await c.admin.from('incoming_invoices').insert([{ source: 'manual', supplier_id: u28.supplierId,
+          invoice_number: `UI-E2E-U28-${stamp}`, parse_status: 'parsed', status: 'awaiting_approval', amount_excl_vat: 160, matched_case_id: u28.caseId }]).select('id') : null
+        u28.invoiceId = (inv?.data?.[0] as { id?: string } | undefined)?.id
+        if (u28.invoiceId) await c.admin.from('incoming_invoice_lines').insert([
+          { incoming_invoice_id: u28.invoiceId, line_number: 1, description: 'Kabel 3x1,5', quantity: 10, unit: 'm', unit_price: 12, total_price: 120 },
+          { incoming_invoice_id: u28.invoiceId, line_number: 2, description: 'Dåse', quantity: 5, unit: 'stk', unit_price: 8, total_price: 40 },
+        ])
+        const seedErr = !u28.invoiceId ? `seed: ${inv?.error?.message ?? sc.error?.message ?? sup.error?.message ?? '?'}` : ''
+        await a.page.goto(`${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /Forhåndsvis & godkend/ }).click({ timeout: 60_000 }).catch(() => {})
+        const ack = a.page.locator('input[type="checkbox"]').last()
+        if (await ack.isVisible().catch(() => false)) await ack.check().catch(() => {})
+        await a.page.getByRole('button', { name: /^(Godkend|Konvertér linjer)$/ }).last().click({ timeout: 60_000 }).catch(() => {})
+        let st = ''
+        for (let i = 0; i < 20 && st !== 'approved'; i++) {
+          st = String(((await c.admin.from('incoming_invoices').select('status').eq('id', u28.invoiceId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+          if (st !== 'approved') await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.godkendt = st === 'approved'
+        const mats = ((await c.admin.from('case_materials').select('id, source, source_incoming_invoice_line_id, quantity, unit_cost').eq('case_id', u28.caseId)).data ?? []) as Array<{ id: string; source: string; source_incoming_invoice_line_id: string | null; quantity: number; unit_cost: number }>
+        r.materialer = mats.length === 2 && mats.every((m0) => m0.source === 'supplier_invoice' && !!m0.source_incoming_invoice_line_id)
+        const lines = ((await c.admin.from('incoming_invoice_lines').select('converted_case_material_id').eq('incoming_invoice_id', u28.invoiceId)).data ?? []) as Array<{ converted_case_material_id: string | null }>
+        r.kobling_begge_veje = lines.length === 2 && lines.every((l) => !!l.converted_case_material_id && mats.some((m0) => m0.id === l.converted_case_material_id))
+        const ext = ((await c.admin.from('incoming_invoices').select('external_invoice_id, posted_at').eq('id', u28.invoiceId).maybeSingle()).data as { external_invoice_id?: string | null; posted_at?: string | null } | null)
+        r.ingen_bogfoering = !ext?.external_invoice_id && !ext?.posted_at
+        await a.page.screenshot({ path: join(shots, 'u28-godkend-faktura.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U28 leverandørfaktura → sag', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1041,6 +1081,14 @@ ${m.text()}`) })
       await c.admin.from('case_materials').delete().eq('case_id', billCaseId)
       listCaseIds.push(billCaseId)
     }
+    if (u28.invoiceId) {
+      await c.admin.from('incoming_invoice_lines').update({ converted_case_material_id: null }).eq('incoming_invoice_id', u28.invoiceId)
+      if (u28.caseId) await c.admin.from('case_materials').delete().eq('case_id', u28.caseId)
+      for (const t of ['incoming_invoice_lines', 'incoming_invoice_audit_log']) await c.admin.from(t).delete().eq('incoming_invoice_id', u28.invoiceId)
+      await c.admin.from('incoming_invoices').delete().eq('id', u28.invoiceId)
+    }
+    if (u28.caseId) listCaseIds.push(u28.caseId)
+    if (u28.supplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u28.supplierId); await c.admin.from('suppliers').delete().eq('id', u28.supplierId) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     for (const id of u27LeadIds) { await c.admin.from('lead_activities').delete().eq('lead_id', id); await c.admin.from('leads').delete().eq('id', id) }

@@ -47,6 +47,8 @@ const KEYWORDS: Array<{ re: RegExp; category: CaseOtherCostCategory }> = [
 function suggestLine(line: {
   description: string | null
   supplier_product_id: string | null
+  quantity?: number | null
+  unit_price?: number | null
 }): { disposition: LineDisposition; category: CaseOtherCostCategory } {
   // 1. Strong material signal: matched supplier product id
   if (line.supplier_product_id) {
@@ -59,7 +61,12 @@ function suggestLine(line: {
       return { disposition: 'other_cost', category: k.category }
     }
   }
-  // 3. Default fallback: other_cost / 'andet' per Sprint 5E-2 spec
+  // 3. Varelinje (antal + stk-pris, ingen service-nøgleord) → materiale. På en grossistfaktura er det normalen
+  //    ("Kabel 3x1,5", "Dåse"); Sprint 5E-2's fallback (øvrig omkostning) lagde dem forkert i sagens økonomi.
+  if (Number(line.quantity) > 0 && Number(line.unit_price) > 0) {
+    return { disposition: 'material', category: 'andet' }
+  }
+  // 4. Ellers forsigtigt: other_cost / 'andet' (beløbslinjer uden antal/stk-pris)
   return { disposition: 'other_cost', category: 'andet' }
 }
 
