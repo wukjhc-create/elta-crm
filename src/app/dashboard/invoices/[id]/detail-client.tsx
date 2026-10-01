@@ -24,6 +24,7 @@ import {
   markInvoiceSentAction,
   sendInvoiceEmailAction,
   getInvoiceRecipientAction,
+  getInvoicePaymentInfoStatusAction,
   type InvoiceDetail,
 } from '@/lib/actions/invoices'
 import type { CreditSummary } from '@/lib/services/invoice-credit'
@@ -125,6 +126,12 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
   const isPaid = status === 'paid'
   const isLocked = isPaid
   const isCreditNote = inv.invoice_type === 'credit'
+  // G12: uden bankoplysninger får kunden ingen betalingsinfo på fakturaen
+  const [bankConfigured, setBankConfigured] = useState(true)
+  useEffect(() => {
+    if (isCreditNote || (status !== 'draft' && status !== 'sent')) return
+    getInvoicePaymentInfoStatusAction().then((r) => { if (r.ok) setBankConfigured(r.bankConfigured) }).catch(() => {})
+  }, [isCreditNote, status])
   const isVoided = !!inv.voided_at
 
   // Sprint 7D — UI gates per rolle
@@ -237,6 +244,12 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
 
   return (
     <div className="p-6 space-y-4 max-w-5xl">
+      {!bankConfigured && (
+        <div className="rounded-md ring-1 ring-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" data-testid="bank-missing">
+          <strong>Bankoplysninger mangler.</strong> Fakturaen viser ikke reg.nr./konto — kunden kan ikke se hvordan der skal betales.{' '}
+          <Link href="/dashboard/settings/company" className="underline">Udfyld under Indstillinger → Firma</Link>.
+        </div>
+      )}
       {/* Breadcrumb */}
       <div className="flex items-center gap-3 text-xs text-gray-500">
         <Link href="/dashboard/invoices" className="text-emerald-700 hover:underline inline-flex items-center gap-1">

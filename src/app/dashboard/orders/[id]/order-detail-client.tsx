@@ -80,6 +80,8 @@ export function OrderDetailClient({
   canSeeBilling = false,
   canCreateInvoice = false,
   canAddNote = false,
+  canEditCase = false,
+  materialPerms = { seePrices: false, add: false, edit: false, del: false },
   canManageAllNotes = false,
 }: {
   sag: ServiceCaseWithRelations
@@ -94,6 +96,9 @@ export function OrderDetailClient({
   canCreateInvoice?: boolean
   /** Sprint Ø7.2 — cases.edit/edit.own: styrer om note-form vises. */
   canAddNote?: boolean
+  /** cases.edit — Handlinger-fanen (status, afslut, DB-flag) */
+  canEditCase?: boolean
+  materialPerms?: { seePrices: boolean; add: boolean; edit: boolean; del: boolean }
   /** Sprint Ø7.4 — cases.edit: må redigere/slette ALLE noter (ikke kun egne). */
   canManageAllNotes?: boolean
 }) {
@@ -196,7 +201,13 @@ export function OrderDetailClient({
       {/* Tabs nav */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
         <div className="flex border-b min-w-max">
-          {TABS.filter((t) => t.id !== 'oekonomi' || canSeeCost).map((t) => (
+          {TABS.filter(
+            (t) =>
+              (t.id !== 'oekonomi' || canSeeCost) &&
+              // Montør: ingen fakturering/kontorhandlinger (serveren afviser dem alligevel)
+              (t.id !== 'fakturakladde' || canSeeBilling || canCreateInvoice) &&
+              (t.id !== 'handlinger' || canEditCase)
+          ).map((t) => (
             <button
               key={t.id}
               onClick={() => setActive(t.id)}
@@ -242,7 +253,15 @@ export function OrderDetailClient({
             />
           )}
           {active === 'aflevering' && <OrderHandoverTab caseId={sag.id} />}
-          {active === 'materialer' && <OrderMaterialsTab caseId={sag.id} />}
+          {active === 'materialer' && (
+            <OrderMaterialsTab
+              caseId={sag.id}
+              canSeePrices={materialPerms.seePrices}
+              canAdd={materialPerms.add}
+              canEdit={materialPerms.edit}
+              canDelete={materialPerms.del}
+            />
+          )}
           {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} />}
           {active === 'mails' && <OrderMailsTab caseId={sag.id} />}
           {active === 'dokumenter' && (
@@ -264,10 +283,10 @@ export function OrderDetailClient({
               <CaseUnconvertedSupplierLinesCard caseId={sag.id} />
             </div>
           )}
-          {active === 'fakturakladde' && (
+          {active === 'fakturakladde' && (canSeeBilling || canCreateInvoice) && (
             <OrderBillingDraftTab caseId={sag.id} canCreate={canCreateInvoice} />
           )}
-          {active === 'handlinger' && <OrderActionsTab sag={sag} />}
+          {active === 'handlinger' && canEditCase && <OrderActionsTab sag={sag} />}
           {active === 'opgaver' && <OrderTasksTab caseId={sag.id} canComplete={canAddNote} />}
           {active === 'noter' && <OrderNotesTab caseId={sag.id} canAddNote={canAddNote} canManageAllNotes={canManageAllNotes} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}

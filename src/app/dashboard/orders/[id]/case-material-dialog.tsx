@@ -50,12 +50,15 @@ export function CaseMaterialDialog({
   editing,
   onClose,
   onSaved,
+  showPrices = true,
 }: {
   open: boolean
   caseId: string
   editing: CaseMaterialRow | null
   onClose: () => void
   onSaved: () => void
+  /** Uden kost-ret (montør): ingen prisfelter — serveren gemmer 0, kontoret prissætter. */
+  showPrices?: boolean
 }) {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [submitting, setSubmitting] = useState(false)
@@ -259,6 +262,8 @@ export function CaseMaterialDialog({
             </div>
           </div>
 
+          {showPrices ? (
+          <>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -318,6 +323,12 @@ export function CaseMaterialDialog({
               </div>
             </div>
           </div>
+          </>
+          ) : (
+            <p className="text-xs text-gray-500 rounded bg-gray-50 ring-1 ring-gray-200 px-3 py-2" data-testid="material-price-note">
+              Registrér hvad der er brugt — priser sættes af kontoret.
+            </p>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Note</label>

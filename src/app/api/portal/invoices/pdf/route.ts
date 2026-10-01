@@ -9,6 +9,7 @@ import { InvoicePdfDocument } from '@/lib/pdf/invoice-pdf-template'
 import type { CompanySettings } from '@/types/company-settings.types'
 import type { ReactElement, JSXElementConstructor } from 'react'
 import { logger } from '@/lib/utils/logger'
+import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 
 /**
  * Portal faktura-PDF — token-baseret auth (ingen bruger-session).
@@ -65,10 +66,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Faktura ikke fundet' }, { status: 404 })
     }
 
-    // Company settings (singleton — hentet via admin)
+    // Company settings (singleton — hentet via admin). Kun offentlige kolonner
+    // (navn, adresse, CVR, bank, logo) — aldrig SMTP/SMS-hemmeligheder.
     const { data: companySettings, error: settingsError } = await supabase
       .from('company_settings')
-      .select('*')
+      .select(COMPANY_SETTINGS_PUBLIC_COLUMNS)
       .maybeSingle()
 
     if (settingsError || !companySettings) {
@@ -80,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     const document = InvoicePdfDocument({
       payload,
-      companySettings: companySettings as CompanySettings,
+      companySettings: companySettings as unknown as CompanySettings,
     }) as ReactElement<DocumentProps, string | JSXElementConstructor<DocumentProps>>
 
     const pdfBuffer = await renderToBuffer(document)

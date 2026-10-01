@@ -664,6 +664,13 @@ async function main() {
     if (!rows.length) { log(`ingen kolonner — findes tabellen ${table}?`); process.exitCode = 1 }
     return
   }
+  if (SUB === 'company-columns-probe') {
+    // Read-only: kører præcis de offentlige firmakolonner via PostgREST (service-role) — viser kun fejl/antal, aldrig værdier.
+    const { COMPANY_SETTINGS_PUBLIC_COLUMNS } = await import('../../src/lib/settings/company-columns')
+    const { data, error } = await admin.from('company_settings').select(COMPANY_SETTINGS_PUBLIC_COLUMNS)
+    log(error ? `FEJL: ${error.code} ${error.message} ${error.details ?? ''} ${error.hint ?? ''}` : `ok rækker=${(data ?? []).length}`)
+    return
+  }
   if (SUB === 'db-audit') {
     const { runDbAudit, formatDbAudit } = await import('./db-audit')
     const r = await runDbAudit(stagingSql)

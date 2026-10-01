@@ -2478,3 +2478,86 @@ export async function getOfferConversionSummaryAction(): Promise<OfferConversion
 
   return { ok: true, ready_count: readyCount, converted_30d: converted30d, latest_ready: latestReady }
 }
+
+// =====================================================
+// Kopiér tilbud — ny kladde med samme kunde og linjer
+// =====================================================
+
+/** Header-felter der følger med en kopi. Status, nummer, tidsstempler, signatur-/afvisnings-
+ *  data, sags-kobling og påmindelser følger IKKE med — kopien er en ny, ren kladde. */
+const DUPLICATE_HEADER_FIELDS = [
+  'description', 'scope', 'customer_id', 'lead_id', 'discount_percentage', 'tax_percentage', 'currency',
+  'terms_and_conditions', 'notes', 'orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'billing_mode',
+] as const
+
+/** Linjefelter der kopieres (inkl. kostpris/leverandørspor; total beregnes af trigger). */
+const DUPLICATE_LINE_FIELDS = [
+  'position', 'description', 'quantity', 'unit', 'unit_price', 'discount_percentage', 'total', 'line_type',
+  'product_id', 'calculation_id', 'section', 'cost_price', 'notes', 'supplier_product_id',
+  'supplier_cost_price_at_creation', 'supplier_margin_applied', 'supplier_name_at_creation', 'image_url',
+  'material_id', 'margin_percentage', 'sale_price',
+] as const
+
+export async function duplicateOfferAction(offerId: string): Promise<ActionResult<{ id: string; offer_number: string }>> {
+  try {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.create') || !hasPermission('offers.view')) {
+      return { success: false, error: 'Manglende tilladelse: offers.create' }
+    }
+    validateUUID(offerId, 'tilbud ID')
+
+    const { data: src, error: srcErr } = await supabase
+      .from('offers')
+      .select(['id', 'title', 'offer_number', ...DUPLICATE_HEADER_FIELDS].join(', '))
+      .eq('id', offerId)
+      .maybeSingle()
+    if (srcErr || !src) return { success: false, error: 'Tilbud ikke fundet' }
+    const source = src as unknown as Record<string, unknown> & { title: string; offer_number: string }
+
+    const { data: lines, error: linesErr } = await supabase
+      .from('offer_line_items')
+      .select(DUPLICATE_LINE_FIELDS.join(', '))
+      .eq('offer_id', offerId)
+      .order('position', { ascending: true })
+    if (linesErr) return { success: false, error: 'Kunne ikke læse tilbudslinjer' }
+
+    // Gyldighed fra firmaets standard (ikke den gamle dato, der typisk er udløbet)
+    const { data: cs } = await supabase.from('company_settings').select('default_offer_validity_days').maybeSingle()
+    const days = Number((cs as { default_offer_validity_days?: number | null } | null)?.default_offer_validity_days ?? 30) || 30
+    const validUntil = new Date(Date.now() + days * 86400_000).toISOString().slice(0, 10)
+
+    const insertData: Record<string, unknown> = {
+      title: `${source.title} (kopi)`.slice(0, 200),
+      status: 'draft',
+      valid_until: validUntil,
+      created_by: userId,
+    }
+    for (const f of DUPLICATE_HEADER_FIELDS) {
+      if (source[f] !== null && source[f] !== undefined) insertData[f] = source[f]
+    }
+
+    const { data: created, error: insErr } = await insertOfferWithNumber<Offer>(supabase, insertData, '*')
+    if (insErr || !created) {
+      logger.error('duplicateOffer: insert failed', { error: insErr, entityId: offerId })
+      return { success: false, error: 'Kunne ikke oprette kopien' }
+    }
+
+    const lineRows = ((lines ?? []) as unknown as Array<Record<string, unknown>>).map((l) => ({ ...l, offer_id: created.id }))
+    if (lineRows.length > 0) {
+      const { error: lineErr } = await supabase.from('offer_line_items').insert(lineRows)
+      if (lineErr) {
+        // Ingen halv kopi: ryd den nye kladde op igen
+        await supabase.from('offers').delete().eq('id', created.id)
+        logger.error('duplicateOffer: line insert failed', { error: lineErr, entityId: offerId })
+        return { success: false, error: 'Kunne ikke kopiere tilbudslinjerne' }
+      }
+    }
+
+    await logOfferActivity(created.id, 'created', `Kopieret fra ${source.offer_number}`, userId)
+    await logCreate('offer', created.id, created.title, { offer_number: created.offer_number, duplicated_from: offerId })
+    revalidatePath('/dashboard/offers')
+    return { success: true, data: { id: created.id, offer_number: created.offer_number } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke kopiere tilbud') }
+  }
+}

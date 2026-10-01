@@ -64,6 +64,14 @@
  *       (differencelinje 400; før: 600 bogført), leverandør nr. 12; intet sendes, status uændret
  *   U39 kunde → eksisterende e-conomic-debitor: ugyldigt nr. afvist, gyldigt gemt + audit, samme nr. på anden kunde afvist,
  *       kobling fjernet igen (undgår dublet-debitorer ved første eksport)
+ *   U40 montør på egen sag: ingen Fakturakladde/Handlinger/Økonomi-faner, ingen kostkolonne; registrerer 3 stk materiale
+ *       uden prisfelter → gemt med 0-priser (kontoret prissætter); admin ser stadig priser + Handlinger (kræver U11)
+ *   U41 kundeportal (kunde uden login): sendt faktura vises + PDF downloades (%PDF); kladde skjult og PDF 404; anden
+ *       kundes faktura-PDF 404
+ *   U42 kopiér tilbud: sendt tilbud m. 2 linjer → "Kopiér" → ny kladde (nyt nr., "(kopi)", ny gyldighed, ikke sendt), linjer inkl.
+ *       kostpris kopieret, samme total; kilden uændret
+ *   U43 omplanlægning: kalender → klik job → ny dato (+2 dage) og anden montør → "Gem ændringer" → arbejdsordre flyttet,
+ *       stadig planlagt, vist på ny dag
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -181,6 +189,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u37CleanId: string | null = null
   let u38: { supplierId?: string; invoiceId?: string } = {}
   const u39Ids: string[] = []
+  let u41: { tokenId?: string; otherCustomerId?: string; invoiceIds?: string[]; companySettingsId?: string; restoreBank?: { id: string; reg: string | null; acc: string | null } } = {}
+  let u42: { sourceId?: string; copyId?: string } = {}
+  let u43: { employeeIds?: string[]; caseId?: string; woId?: string } = {}
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1195,6 +1206,125 @@ ${m.text()}`) })
         out.push({ id: 'U39 kunde → e-conomic-debitor', ok: u39Ids.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U41 kundeportal: fakturaer (kundekommunikation, GO-LIVE)
+      if (want('U41') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u41.tokenId = (pt.data?.[0] as { id?: string } | undefined)?.id
+        const mkInv = async (row: Record<string, unknown>) => ((await c.admin.from('invoices').insert([{ due_date: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10), ...row }]).select('id')).data?.[0] as { id?: string } | undefined)?.id
+        const sentNo = `UI-E2E-PS-${stamp}`, draftNo = `UI-E2E-PD-${stamp}`
+        const sentId = await mkInv({ invoice_number: sentNo, customer_id: profitCustomerId, status: 'sent', total_amount: 800, tax_amount: 200, final_amount: 1000 })
+        const draftId = await mkInv({ invoice_number: draftNo, customer_id: profitCustomerId, status: 'draft', total_amount: 100, tax_amount: 25, final_amount: 125 })
+        const oc = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-PO-${stamp}`, company_name: '[HARNESS] anden kunde', contact_person: 'X', email: '', created_by: adminUser.id }]).select('id')
+        u41.otherCustomerId = (oc.data?.[0] as { id?: string } | undefined)?.id
+        const otherId = u41.otherCustomerId ? await mkInv({ invoice_number: `UI-E2E-PX-${stamp}`, customer_id: u41.otherCustomerId, status: 'sent', total_amount: 80, tax_amount: 20, final_amount: 100 }) : undefined
+        u41.invoiceIds = [sentId, draftId, otherId].filter((x): x is string => !!x)
+        if (sentId) await c.admin.from('invoice_lines').insert([{ invoice_id: sentId, position: 1, description: 'Installation', quantity: 1, unit: 'stk', unit_price: 800, total_price: 800 }])
+        const seedErr = u41.tokenId && sentId && draftId && otherId ? '' : `SEED: ${pt.error?.message ?? 'faktura/kunde'} · `
+        // G12: uden bankoplysninger advarer fakturasiden (staging har ingen firmarække)
+        const csRows = ((await c.admin.from('company_settings').select('id, bank_reg_no, bank_account')).data ?? []) as Array<{ id: string; bank_reg_no: string | null; bank_account: string | null }>
+        const hasBank = csRows.some((x) => !!x.bank_reg_no?.trim() && !!x.bank_account?.trim())
+        if (!hasBank) {
+          await a.page.goto(`${base}/dashboard/invoices/${sentId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('bank-missing').waitFor({ timeout: 60_000 }).catch(() => {})
+          r.advarsel_uden_bank = (await a.page.getByTestId('bank-missing').count()) > 0
+          if (csRows.length === 0) {
+            const ins = await c.admin.from('company_settings').insert([{ company_name: '[HARNESS] Elta Solar', bank_reg_no: '1234', bank_account: '0001234567' }]).select('id')
+            u41.companySettingsId = (ins.data?.[0] as { id?: string } | undefined)?.id
+          } else {
+            u41.restoreBank = { id: csRows[0].id, reg: csRows[0].bank_reg_no, acc: csRows[0].bank_account }
+            await c.admin.from('company_settings').update({ bank_reg_no: '1234', bank_account: '0001234567' }).eq('id', csRows[0].id)
+          }
+        }
+        await a.page.goto(`${base}/dashboard/invoices/${sentId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText(sentNo).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.ingen_advarsel_med_bank = (await a.page.getByTestId('bank-missing').count()) === 0
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        const kp = await kctx.newPage()
+        kp.on('pageerror', (e) => pageErrors.push(`kunde-faktura: ${e.message.slice(0, 120)}`))
+        await kp.goto(`${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const body = await kp.locator('body').innerText().catch(() => '')
+        r.sendt_faktura_vist = body.includes(sentNo)
+        r.kladde_skjult = !body.includes(draftNo)
+        const pdf = await kctx.request.get(`${base}/api/portal/invoices/pdf?token=${tok}&invoiceId=${sentId}`, { timeout: 180_000 }).catch(() => null)
+        const buf = pdf ? await pdf.body().catch(() => Buffer.from('')) : Buffer.from('')
+        r.pdf_download = !!pdf && pdf.status() === 200 && (pdf.headers()['content-type'] ?? '').includes('pdf') && buf.subarray(0, 4).toString() === '%PDF'
+        const draftPdf = await kctx.request.get(`${base}/api/portal/invoices/pdf?token=${tok}&invoiceId=${draftId}`, { timeout: 120_000 }).catch(() => null)
+        r.kladde_pdf_404 = draftPdf?.status() === 404
+        const otherPdf = await kctx.request.get(`${base}/api/portal/invoices/pdf?token=${tok}&invoiceId=${otherId}`, { timeout: 120_000 }).catch(() => null)
+        r.anden_kundes_pdf_404 = otherPdf?.status() === 404
+        await kp.screenshot({ caret: 'initial', path: join(shots, 'u41-portal-fakturaer.png'), fullPage: true }).catch(() => {})
+        await kctx.close().catch(() => {})
+        out.push({ id: 'U41 kundeportal: fakturaer', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · pdf=${pdf?.status()} ${(pdf?.headers()['content-type'] ?? '').slice(0, 30)} ${r.pdf_download ? '' : buf.subarray(0, 120).toString()}` })
+      }
+
+      // U42 kopiér tilbud (tilbud/salg)
+      if (want('U42') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const src = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OK-${stamp}`, title: `[HARNESS] kopikilde ${stamp}`, customer_id: profitCustomerId,
+          status: 'sent', sent_at: new Date().toISOString(), created_by: adminUser.id, valid_until: '2026-01-01', tax_percentage: 25 }]).select('id')
+        u42.sourceId = (src.data?.[0] as { id?: string } | undefined)?.id
+        if (u42.sourceId) await c.admin.from('offer_line_items').insert([
+          { offer_id: u42.sourceId, position: 1, description: 'Inverter', quantity: 1, unit: 'stk', unit_price: 9000, total: 9000, cost_price: 6000 },
+          { offer_id: u42.sourceId, position: 2, description: 'Montage', quantity: 8, unit: 't', unit_price: 550, total: 4400, cost_price: 400 },
+        ])
+        type O = { id: string; offer_number: string; title: string; status: string; valid_until: string | null; customer_id: string | null; final_amount: number; sent_at: string | null }
+        const readO = async (id: string) => ((await c.admin.from('offers').select('id, offer_number, title, status, valid_until, customer_id, final_amount, sent_at').eq('id', id).maybeSingle()).data as O | null)
+        const before = u42.sourceId ? await readO(u42.sourceId) : null
+        await a.page.goto(`${base}/dashboard/offers/${u42.sourceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /^Kopiér$/ }).click({ timeout: 90_000 }).catch(() => {})
+        await a.page.waitForURL((u) => /\/dashboard\/offers\/[0-9a-f-]{36}/.test(u.pathname) && !u.pathname.includes(u42.sourceId ?? 'x'), { timeout: 120_000 }).catch(() => {})
+        u42.copyId = (a.page.url().match(/offers\/([0-9a-f-]{36})/) ?? [])[1]
+        const copy = u42.copyId && u42.copyId !== u42.sourceId ? await readO(u42.copyId) : null
+        r.kopi_oprettet = !!copy && copy.offer_number !== before?.offer_number
+        r.kladde_uden_sendt = copy?.status === 'draft' && !copy?.sent_at
+        r.titel_kopi = !!copy?.title?.endsWith('(kopi)') && copy?.customer_id === profitCustomerId
+        r.ny_gyldighed = !!copy?.valid_until && copy.valid_until > new Date().toISOString().slice(0, 10)
+        const lines = copy ? ((await c.admin.from('offer_line_items').select('description, quantity, unit_price, cost_price').eq('offer_id', copy.id).order('position')).data ?? []) as Array<{ description: string; quantity: number; unit_price: number; cost_price: number }> : []
+        r.linjer_kopieret = lines.length === 2 && lines[0].description === 'Inverter' && Number(lines[0].cost_price) === 6000 && Number(lines[1].quantity) === 8 && Number(lines[1].unit_price) === 550
+        r.samme_total = !!copy && Number(copy.final_amount) === Number(before?.final_amount) && Number(before?.final_amount) > 0
+        const after = u42.sourceId ? await readO(u42.sourceId) : null
+        r.kilde_uaendret = after?.status === 'sent' && after?.title === before?.title
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u42-kopier-tilbud.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U42 kopiér tilbud', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · total=${copy?.final_amount}/${before?.final_amount}` })
+      }
+
+      // U43 omplanlægning fra kalenderen (montør/planlægning)
+      if (want('U43') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const mkEmp = async (n: string) => ((await c.admin.from('employees').insert([{ name: `Harness ${n} ${stamp}`, email: `${n.toLowerCase()}-${stamp}@harness.test`, role: 'montør', active: true }]).select('id')).data?.[0] as { id?: string } | undefined)?.id
+        const empA = await mkEmp('Anders'), empB = await mkEmp('Bente')
+        u43.employeeIds = [empA, empB].filter((x): x is string => !!x)
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] omplan ${stamp}`, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        u43.caseId = (sc.data?.[0] as { id?: string } | undefined)?.id
+        const dayKey = (offset: number) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + offset * 86400_000))
+        const d1 = dayKey(1), d3 = dayKey(3)
+        const woTitle = `Omplan ${stamp}`
+        const wo = u43.caseId && empA ? await c.admin.from('work_orders').insert([{ case_id: u43.caseId, title: woTitle, status: 'planned', scheduled_date: d1, assigned_employee_id: empA }]).select('id') : null
+        u43.woId = (wo?.data?.[0] as { id?: string } | undefined)?.id
+        const seedErr = u43.woId && empB ? '' : `SEED: ${wo?.error?.message ?? sc.error?.message ?? 'medarbejder'} · `
+        await a.page.goto(`${base}/dashboard/calendar?date=${d1}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText(woTitle).first().click({ timeout: 90_000 }).catch(() => {})
+        const dlg = a.page.locator('[aria-labelledby="edit-wo-title"]')
+        await dlg.waitFor({ timeout: 30_000 }).catch(() => {})
+        await dlg.locator('input[type="date"]').fill(d3).catch(() => {})
+        await dlg.locator('select').first().selectOption(empB ?? '').catch(() => {})
+        await dlg.getByRole('button', { name: /Gem ændringer/ }).click({ timeout: 30_000 }).catch(() => {})
+        type W = { scheduled_date?: string; assigned_employee_id?: string; status?: string }
+        const readW = async (): Promise<W | null> => ((await c.admin.from('work_orders').select('scheduled_date, assigned_employee_id, status').eq('id', u43.woId ?? '').maybeSingle()).data as W | null)
+        let w: W | null = await readW()
+        for (let i = 0; i < 20 && w?.scheduled_date !== d3; i++) { await new Promise((res) => setTimeout(res, 1000)); w = await readW() }
+        r.ny_dato = w?.scheduled_date === d3
+        r.ny_montoer = w?.assigned_employee_id === empB
+        r.stadig_planlagt = w?.status === 'planned'
+        await a.page.goto(`${base}/dashboard/calendar?date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.vist_paa_ny_dag = (await a.page.getByText(woTitle).count()) > 0
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u43-omplanlaegning.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1369,6 +1499,34 @@ ${m.text()}`) })
         out.push({ id: 'U11 montør-dagen (job, foto, afslut, kalender)', ok: !seedErr && Object.values(r).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
+
+      // U40 montør på egen sag: kun relevante faner, materialer uden priser (kontoret prissætter)
+      if (want('U40') && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        await m.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await m.page.getByRole('button', { name: /Tilføj (første )?materiale/ }).first().waitFor({ timeout: 90_000 }).catch(() => {})
+        const tabNames = (await m.page.locator('button').allInnerTexts().catch(() => [] as string[])).map((t) => t.trim())
+        r.ingen_kontorfaner = !tabNames.some((t) => /^(Fakturakladde|Handlinger|Økonomi)/.test(t))
+        r.ingen_kostkolonne = (await m.page.getByRole('columnheader', { name: 'Kostpris' }).count()) === 0
+        await m.page.getByRole('button', { name: /Tilføj (første )?materiale/ }).first().click({ timeout: 30_000 }).catch(() => {})
+        const dlg = m.page.locator('[aria-labelledby="case-material-dialog-title"]')
+        await dlg.getByPlaceholder('F.eks. Solpanel 425W LR4-72HPH').fill(`Kabel brugt ${stamp}`).catch(() => {})
+        r.ingen_prisfelter = (await dlg.locator('input[inputmode="decimal"]').count()) === 1 && (await dlg.getByTestId('material-price-note').count()) === 1
+        await dlg.locator('input[inputmode="decimal"]').first().fill('3').catch(() => {})
+        await dlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+        type MRow = { quantity?: number; unit_cost?: number; unit_sales_price?: number; created_by?: string }
+        const readM = async (): Promise<MRow | null> => ((await c.admin.from('case_materials').select('quantity, unit_cost, unit_sales_price, created_by').eq('case_id', jobCaseId ?? '').ilike('description', `Kabel brugt ${stamp}`).maybeSingle()).data as MRow | null)
+        let mr: MRow | null = await readM()
+        for (let i = 0; i < 20 && !mr; i++) { await new Promise((res) => setTimeout(res, 1000)); mr = await readM() }
+        r.registreret = Number(mr?.quantity) === 3 && mr?.created_by === montor.id
+        r.uden_priser = Number(mr?.unit_cost) === 0 && Number(mr?.unit_sales_price) === 0
+        // kontoret ser stadig priser og kan prissætte
+        await a.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('columnheader', { name: 'Kostpris' }).waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kontor_ser_priser = (await a.page.getByRole('columnheader', { name: 'Kostpris' }).count()) > 0 && (await a.page.getByRole('button', { name: /^Handlinger/ }).count()) > 0
+        await m.page.screenshot({ caret: 'initial', path: join(shots, 'u40-montor-materialer.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U40 montør: egen sag uden priser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
     } else out.push({ id: 'U4 montør: ingen adgang', ok: false, note: 'montør-login fejlede' })
 
     // ---- salg (G6): egen sag fra eget tilbud skal kunne ses
@@ -1476,6 +1634,7 @@ ${m.text()}`) })
       for (const w of (wos ?? []) as Array<{ id: string }>) { await c.admin.from('work_order_profit').delete().eq('work_order_id', w.id); await c.admin.from('time_logs').delete().eq('work_order_id', w.id) }
       await c.admin.from('work_orders').delete().eq('case_id', jobCaseId)
       await c.admin.from('case_notes').delete().eq('case_id', jobCaseId)
+      await c.admin.from('case_materials').delete().eq('case_id', jobCaseId)
       await c.admin.from('service_cases').delete().eq('id', jobCaseId)
     }
     if (jobEmployeeId) await c.admin.from('employees').delete().eq('id', jobEmployeeId)
@@ -1554,10 +1713,23 @@ ${m.text()}`) })
     if (u38.invoiceId) { for (const t of ['incoming_invoice_lines', 'incoming_invoice_audit_log']) await c.admin.from(t).delete().eq('incoming_invoice_id', u38.invoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u38.invoiceId) }
     if (u38.supplierId) await c.admin.from('suppliers').delete().eq('id', u38.supplierId)
     for (const id of u39Ids) { await c.admin.from('audit_logs').delete().eq('entity_id', id); await c.admin.from('customers').delete().eq('id', id) }
+    for (const iv of u41.invoiceIds ?? []) { await c.admin.from('invoice_lines').delete().eq('invoice_id', iv); await c.admin.from('invoices').delete().eq('id', iv) }
+    if (u41.otherCustomerId) await c.admin.from('customers').delete().eq('id', u41.otherCustomerId)
+    if (u41.tokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u41.tokenId)
+    if (u41.companySettingsId) await c.admin.from('company_settings').delete().eq('id', u41.companySettingsId)
+    if (u41.restoreBank) await c.admin.from('company_settings').update({ bank_reg_no: u41.restoreBank.reg, bank_account: u41.restoreBank.acc }).eq('id', u41.restoreBank.id)
+    for (const oid of [u42.copyId, u42.sourceId]) {
+      if (!oid) continue
+      for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', oid)
+      await c.admin.from('audit_logs').delete().eq('entity_id', oid)
+      await c.admin.from('offers').delete().eq('id', oid)
+    }
+    if (u43.caseId) { await c.admin.from('work_orders').delete().eq('case_id', u43.caseId); listCaseIds.push(u43.caseId) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)
     if (u31.employeeId) await c.admin.from('employees').delete().eq('id', u31.employeeId)
+    for (const e of u43.employeeIds ?? []) await c.admin.from('employees').delete().eq('id', e)
     if (u32.employeeId) await c.admin.from('employees').delete().eq('id', u32.employeeId)
     for (const id of u27LeadIds) { await c.admin.from('lead_activities').delete().eq('lead_id', id); await c.admin.from('leads').delete().eq('id', id) }
     if (u27CustomerId) await c.admin.from('customers').delete().eq('id', u27CustomerId)

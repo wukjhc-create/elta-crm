@@ -210,8 +210,9 @@ export async function createCaseMaterial(
         supplier_name_snapshot: input.supplier_name_snapshot?.trim() || null,
         unit: (input.unit ?? 'stk').trim() || 'stk',
         quantity,
-        unit_cost,
-        unit_sales_price,
+        // Uden kost-ret (montør) prissætter kontoret — klientens priser ignoreres.
+        unit_cost: hasPermission('materials.view.cost_prices') ? unit_cost : 0,
+        unit_sales_price: hasPermission('materials.view.cost_prices') ? unit_sales_price : 0,
         source: input.source ?? 'manual',
         source_offer_line_id: input.source_offer_line_id || null,
         source_incoming_invoice_line_id: input.source_incoming_invoice_line_id || null,

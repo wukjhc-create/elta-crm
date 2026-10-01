@@ -99,6 +99,12 @@ export default async function OrderDetailPage({
   // Sprint Ø7.2 — må brugeren tilføje noter? (serveren håndhæver alligevel).
   const canManageAllNotes = await pageHasPermission('cases.edit')
   const canAddNote = canManageAllNotes || (await pageHasPermission('cases.edit.own'))
+  const materialPerms = {
+    seePrices: await pageHasPermission('materials.view.cost_prices'),
+    add: await pageHasPermission('materials.add_to_case'),
+    edit: await pageHasPermission('materials.edit'),
+    del: await pageHasPermission('materials.delete'),
+  }
 
   return (
     <OrderDetailClient
@@ -111,6 +117,8 @@ export default async function OrderDetailPage({
       canCreateInvoice={canCreateInvoice}
       canAddNote={canAddNote}
       canManageAllNotes={canManageAllNotes}
+      canEditCase={canManageAllNotes}
+      materialPerms={materialPerms}
     />
   )
 }

@@ -2238,3 +2238,22 @@ export async function deleteDraftInvoiceLineAction(invoiceId: string, lineId: st
     return { ok: false, message: err instanceof Error ? err.message : 'Uventet fejl' }
   }
 }
+
+/**
+ * G12 — er firmaets bankoplysninger udfyldt? Uden dem viser faktura-PDF'en
+ * "Bankoplysninger er ikke konfigureret" i stedet for reg.nr./konto (prod
+ * 2026-10-01: mangler). Kun et ja/nej — ingen værdier.
+ */
+export async function getInvoicePaymentInfoStatusAction(): Promise<{ ok: boolean; bankConfigured: boolean }> {
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('invoices.view.all')) return { ok: false, bankConfigured: true }
+  // Firmaindstillinger læses via service-role efter gaten (kræver ellers settings.view).
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { data } = await createAdminClient()
+    .from('company_settings')
+    .select('bank_reg_no, bank_account')
+    .limit(1)
+    .maybeSingle()
+  const row = data as { bank_reg_no?: string | null; bank_account?: string | null } | null
+  return { ok: true, bankConfigured: !!row?.bank_reg_no?.trim() && !!row?.bank_account?.trim() }
+}

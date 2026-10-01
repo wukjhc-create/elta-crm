@@ -53,7 +53,20 @@ function fmtPct(n: number): string {
   }).format(n)} %`
 }
 
-export function OrderMaterialsTab({ caseId }: { caseId: string }) {
+export function OrderMaterialsTab({
+  caseId,
+  canSeePrices = true,
+  canAdd = true,
+  canEdit = true,
+  canDelete = true,
+}: {
+  caseId: string
+  /** materials.view.cost_prices — uden: ingen pris-/DB-kolonner (montør) */
+  canSeePrices?: boolean
+  canAdd?: boolean
+  canEdit?: boolean
+  canDelete?: boolean
+}) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -108,9 +121,12 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Materialer på sagen</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Faktisk forbrug. Snapshot-priser — ændringer i katalog påvirker ikke historik.
+            {canSeePrices
+              ? 'Faktisk forbrug. Snapshot-priser — ændringer i katalog påvirker ikke historik.'
+              : 'Faktisk forbrug på sagen. Priser sættes af kontoret.'}
           </p>
         </div>
+        {canAdd && (
         <button
           type="button"
           onClick={() => {
@@ -122,6 +138,7 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
           <Plus className="w-4 h-4" />
           Tilføj materiale
         </button>
+        )}
       </div>
 
       {loadError && (
@@ -160,9 +177,11 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
             Ingen materialer registreret
           </h3>
           <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-            Når der bookes en vare på sagen, vises kost- og salgspris her med
-            samlet DB-beregning.
+            {canSeePrices
+              ? 'Når der bookes en vare på sagen, vises kost- og salgspris her med samlet DB-beregning.'
+              : 'Registrér de materialer der er brugt på sagen.'}
           </p>
+          {canAdd && (
           <button
             type="button"
             onClick={() => {
@@ -174,6 +193,7 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
             <Plus className="w-4 h-4" />
             Tilføj første materiale
           </button>
+          )}
         </div>
       )}
 
@@ -188,12 +208,16 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
                 <th className="px-2 py-2 text-left">Leverandør</th>
                 <th className="px-2 py-2 text-right">Antal</th>
                 <th className="px-2 py-2 text-left">Enhed</th>
-                <th className="px-2 py-2 text-right">Kostpris</th>
-                <th className="px-2 py-2 text-right">Salgspris</th>
-                <th className="px-2 py-2 text-right">Sum kost</th>
-                <th className="px-2 py-2 text-right">Sum salg</th>
+                {canSeePrices && (
+                  <>
+                    <th className="px-2 py-2 text-right">Kostpris</th>
+                    <th className="px-2 py-2 text-right">Salgspris</th>
+                    <th className="px-2 py-2 text-right">Sum kost</th>
+                    <th className="px-2 py-2 text-right">Sum salg</th>
+                  </>
+                )}
                 <th className="px-2 py-2 text-center">Kilde</th>
-                <th className="px-2 py-2 text-center w-20">Handling</th>
+                {(canEdit || canDelete) && <th className="px-2 py-2 text-center w-20">Handling</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -229,18 +253,22 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
                       {fmtNum(r.quantity, 2)}
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-600">{r.unit}</td>
-                    <td className="px-2 py-2 text-right tabular-nums">
-                      {formatCurrency(r.unit_cost, 'DKK', 2)}
-                    </td>
-                    <td className="px-2 py-2 text-right tabular-nums">
-                      {formatCurrency(r.unit_sales_price, 'DKK', 2)}
-                    </td>
-                    <td className="px-2 py-2 text-right tabular-nums font-medium">
-                      {formatCurrency(r.total_cost, 'DKK', 2)}
-                    </td>
-                    <td className="px-2 py-2 text-right tabular-nums font-medium">
-                      {formatCurrency(r.total_sales_price, 'DKK', 2)}
-                    </td>
+                    {canSeePrices && (
+                      <>
+                        <td className="px-2 py-2 text-right tabular-nums">
+                          {formatCurrency(r.unit_cost, 'DKK', 2)}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums">
+                          {formatCurrency(r.unit_sales_price, 'DKK', 2)}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums font-medium">
+                          {formatCurrency(r.total_cost, 'DKK', 2)}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums font-medium">
+                          {formatCurrency(r.total_sales_price, 'DKK', 2)}
+                        </td>
+                      </>
+                    )}
                     <td className="px-2 py-2 text-center">
                       <span
                         className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
@@ -250,8 +278,10 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
                         {SOURCE_LABEL[r.source] ?? r.source}
                       </span>
                     </td>
+                    {(canEdit || canDelete) && (
                     <td className="px-2 py-2 text-center">
                       <div className="inline-flex items-center gap-1">
+                        {canEdit && (
                         <button
                           type="button"
                           onClick={() => {
@@ -264,6 +294,8 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
+                        )}
+                        {canDelete && (
                         <button
                           type="button"
                           onClick={() => handleDelete(r)}
@@ -277,13 +309,15 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
                             <Trash2 className="w-3.5 h-3.5" />
                           )}
                         </button>
+                        )}
                       </div>
                     </td>
+                    )}
                   </tr>
                 )
               })}
             </tbody>
-            {summary && (
+            {summary && canSeePrices && (
               <tfoot className="bg-gray-50 text-sm">
                 <tr className="border-t-2 border-gray-200">
                   <td colSpan={7} className="px-3 py-2 text-right text-xs text-gray-600 uppercase tracking-wide">
@@ -338,6 +372,7 @@ export function OrderMaterialsTab({ caseId }: { caseId: string }) {
         open={dialogOpen}
         caseId={caseId}
         editing={editing}
+        showPrices={canSeePrices}
         onClose={() => {
           setDialogOpen(false)
           setEditing(null)

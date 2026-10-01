@@ -403,6 +403,26 @@ async function economicReadiness(credentials: boolean, testOk: boolean | null, c
     admin.from('suppliers').select('id', { count: 'exact', head: true }),
     admin.from('suppliers').select('id', { count: 'exact', head: true }).eq('external_provider', 'economic').not('external_supplier_id', 'is', null),
   ])
+  // Kunder med sendte/betalte (ikke-eksporterede) fakturaer uden e-conomic-kobling
+  // — de ville blive oprettet som NYE debitorer ved eksport.
+  const { data: billed } = await admin
+    .from('invoices')
+    .select('customer_id')
+    .in('status', ['sent', 'paid'])
+    .is('external_invoice_id', null)
+    .not('customer_id', 'is', null)
+    .limit(5000)
+  const billedIds = [...new Set(((billed ?? []) as Array<{ customer_id: string }>).map((b) => b.customer_id))]
+  let unlinkedCustomers = 0
+  for (let i = 0; i < billedIds.length; i += 200) {
+    const chunk = billedIds.slice(i, i + 200)
+    const { count } = await admin
+      .from('customers')
+      .select('id', { count: 'exact', head: true })
+      .in('id', chunk)
+      .or('external_provider.is.null,external_provider.neq.economic,external_customer_id.is.null')
+    unlinkedCustomers += count ?? 0
+  }
   const items: EconomicReadinessItem[] = [
     { key: 'credentials', label: 'Nøgler gemt', ok: credentials, hint: 'App-hemmelighed og aftale-token fra e-conomic' },
     { key: 'connection', label: 'Forbindelse testet', ok: testOk === true, hint: testOk === false ? 'Seneste test fejlede — tjek nøglerne' : 'Klik "Test forbindelse"' },
@@ -414,6 +434,14 @@ async function economicReadiness(credentials: boolean, testOk: boolean | null, c
     { key: 'costAccount', label: 'Omkostningskonto (leverandørfakturaer)', ok: cfg.costAccountNumber != null, hint: 'Konto som leverandørfakturaer bogføres på' },
     { key: 'cashbook', label: 'Kassekladde + bankkonto (betalinger)', ok: cfg.cashbookNumber != null && cfg.bankContraAccountNumber != null, hint: 'Kassekladde-nr. og bankens modkonto' },
     { key: 'suppliers', label: 'Leverandører koblet til e-conomic', ok: (total ?? 0) > 0 && (mapped ?? 0) === (total ?? 0), hint: `${mapped ?? 0} af ${total ?? 0} har e-conomic-leverandørnr. (sættes på leverandøren)` },
+    {
+      key: 'customers',
+      label: 'Fakturerede kunder koblet til e-conomic',
+      ok: unlinkedCustomers === 0,
+      hint: unlinkedCustomers === 0
+        ? 'Alle kunder med sendte fakturaer er koblet'
+        : `${unlinkedCustomers} kunde${unlinkedCustomers === 1 ? '' : 'r'} med sendte fakturaer er ikke koblet — findes de i e-conomic, så kobl kundenr. (kundekort → Fakturaer), ellers oprettes nye debitorer ved eksport`,
+    },
   ]
   const ok = (k: string) => items.find((i) => i.key === k)!.ok
   const base = ok('credentials') && ok('connection')

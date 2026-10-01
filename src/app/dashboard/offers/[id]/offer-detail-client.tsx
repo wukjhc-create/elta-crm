@@ -34,6 +34,7 @@ import {
   Save,
   Zap,
   Star,
+  Copy,
 } from 'lucide-react'
 import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
@@ -62,6 +63,7 @@ import {
   createLineItemFromSupplierProduct,
   searchSupplierProductsForOffer,
   optimizeOfferPrices,
+  duplicateOfferAction,
   type OptimizationResult,
 } from '@/lib/actions/offers'
 import { getIntegrations, exportOfferToIntegration } from '@/lib/actions/integrations'
@@ -98,6 +100,18 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   const router = useRouter()
   const toast = useToast()
   const { role } = useUserRole()
+  const [isDuplicating, setIsDuplicating] = useState(false)
+  const handleDuplicate = async () => {
+    setIsDuplicating(true)
+    const res = await duplicateOfferAction(offer.id)
+    setIsDuplicating(false)
+    if (!res.success || !res.data) {
+      toast.error(res.error || 'Kunne ikke kopiere tilbud')
+      return
+    }
+    toast.success(`Kopi oprettet: ${res.data.offer_number}`)
+    router.push(`/dashboard/offers/${res.data.id}`)
+  }
   const showFinancials = canSeeFinancials(role)
   const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
@@ -618,6 +632,17 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <ClipboardCheck className="w-4 h-4" />
               Opret Opgave
             </button>
+            {hasPermission(role, 'offers.create') && (
+              <button
+                onClick={() => void handleDuplicate()}
+                disabled={isDuplicating}
+                title="Ny kladde med samme kunde og linjer"
+                className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                {isDuplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                Kopiér
+              </button>
+            )}
             <button
               onClick={() => setShowEditForm(true)}
               className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50"
