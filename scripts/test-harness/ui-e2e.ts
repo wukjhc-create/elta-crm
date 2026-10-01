@@ -98,6 +98,18 @@ const NEUTRALIZE = [
   'AGENT_LIVE_SEND_ENABLED', 'AUTO_CREATE_CASES_ENABLED',
 ]
 
+/** Navigation der ikke vælter hele suiten ved en kold kompilering: ét nyt forsøg med 'load' ved timeout.
+ *  En side der reelt fejler, fejler stadig i testens egne tjek. */
+async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
+  try {
+    return await page.goto(url, opts)
+  } catch (e) {
+    if (!/Timeout/i.test(String(e))) throw e
+    console.warn(`[ui-e2e] goto-timeout, prøver igen (load): ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
+    return await page.goto(url, { ...opts, waitUntil: 'load' }).catch(() => null)
+  }
+}
+
 async function waitForHttp(url: string, timeoutMs: number): Promise<boolean> {
   const until = Date.now() + timeoutMs
   while (Date.now() < until) {
@@ -265,7 +277,7 @@ ${m.text()}`) })
     const a = await login(adminUser)
     out.push({ id: 'U1 admin-login (staging)', ok: a.ok, note: a.ok ? `landede på ${new URL(a.page.url()).pathname}` : `login fejlede (url=${a.page.url()})` })
     if (a.ok) {
-      await a.page.goto(`${base}/dashboard/agents`, { waitUntil: 'networkidle', timeout: 180_000 })
+      await gotoSafe(a.page, `${base}/dashboard/agents`, { waitUntil: 'networkidle', timeout: 180_000 })
       await a.page.screenshot({ caret: 'initial', path: join(shots, 'agent-inbox-admin.png'), fullPage: true })
       const inbox = {
         heading: await a.page.getByRole('heading', { name: 'Agent Inbox' }).isVisible(),
@@ -278,7 +290,7 @@ ${m.text()}`) })
       out.push({ id: 'U2 Agent Inbox (admin)', ok: inbox.heading && inbox.planBtn && inbox.followBtn && inbox.disabledBadge && !inbox.errorBoundary && !inbox.noAccess,
         note: Object.entries(inbox).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
 
-      await a.page.goto(`${base}/dashboard/pilot-health`, { waitUntil: 'networkidle', timeout: 180_000 })
+      await gotoSafe(a.page, `${base}/dashboard/pilot-health`, { waitUntil: 'networkidle', timeout: 180_000 })
       await a.page.screenshot({ caret: 'initial', path: join(shots, 'pilot-health-admin.png'), fullPage: true })
       const titles = ['System', 'Crons', 'Brugere', 'Agenter & sikkerhedsflag', 'Incidents', 'Integrationer', 'DB-/sikkerhed (live anon-prober)']
       const seen: string[] = []
@@ -300,7 +312,7 @@ ${m.text()}`) })
           { offer_id: profitOfferId, position: 2, description: 'Montage', quantity: 8, unit: 'time', unit_price: 600, total: 4800, cost_price: 0 },
         ]) : null
         const seedErr = !profitOfferId ? 'tilbud ikke oprettet' : linesRes?.error ? `linjer: ${linesRes.error.message.slice(0, 80)}` : ''
-        await a.page.goto(`${base}/dashboard/offers/${profitOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/offers/${profitOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByTestId('offer-profit-card').waitFor({ timeout: 60_000 }).catch(() => {})
         const card = a.page.getByTestId('offer-profit-card')
         const txt = (await card.count()) ? await card.innerText() : ''
@@ -320,7 +332,7 @@ ${m.text()}`) })
         await c.admin.from('supplier_products').insert([{ supplier_id: cmpSupplierIds[1], supplier_sku: `HU-LM-${stamp}`, supplier_name: 'Stikkontakt', cost_price: 80, ean: `0${ean}` }])
         if (profitOfferId && pAO.data?.[0]?.id) await c.admin.from('offer_line_items').insert([{ offer_id: profitOfferId, position: 3, description: 'Stikkontakt', quantity: 10,
           unit: 'stk', unit_price: 150, total: 1500, cost_price: 100, supplier_product_id: pAO.data[0].id, supplier_cost_price_at_creation: 100 }])
-        await a.page.goto(`${base}/dashboard/offers/${profitOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/offers/${profitOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByTestId('offer-supplier-savings-card').waitFor({ timeout: 60_000 }).catch(() => {})
         const sc = a.page.getByTestId('offer-supplier-savings-card')
         const stxt = (await sc.count()) ? await sc.innerText() : ''
@@ -342,7 +354,7 @@ ${m.text()}`) })
             supplier_product_id: null, raw_line: null },
         ]) : null
         const seedErr = !ctrlInvoiceId ? `faktura ikke oprettet${inv?.error ? `: ${inv.error.message.slice(0, 80)}` : ''}` : lr?.error ? `linjer: ${lr.error.message.slice(0, 80)}` : ''
-        await a.page.goto(`${base}/dashboard/incoming-invoices/${ctrlInvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${ctrlInvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByTestId('invoice-control-verdict').waitFor({ timeout: 60_000 }).catch(() => {})
         const pc = a.page.getByTestId('invoice-control-panel')
         const ptxt = (await pc.count()) ? await pc.innerText() : ''
@@ -411,7 +423,7 @@ ${m.text()}`) })
         const pdf = makeTextPdf(['HARNESS Upload-grossist A/S', `Faktura ${invNo}`, `Fakturanummer: ${invNo}`, 'Fakturadato: 01-10-2026',
           'Forfaldsdato: 31-10-2026', 'Beloeb i alt inkl. moms: 1.875,00 DKK', 'Varenr 7654321 Stikkontakt 5 stk'])
         const r: Record<string, boolean> = {}
-        await a.page.goto(`${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByTestId('invoice-upload-input').setInputFiles({ name: `faktura-${invNo}.pdf`, mimeType: 'application/pdf', buffer: pdf }).catch(() => {})
         await a.page.waitForURL(/\/dashboard\/incoming-invoices\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
         const firstId = (a.page.url().match(/incoming-invoices\/([0-9a-f-]{36})/) ?? [])[1] ?? null
@@ -428,7 +440,7 @@ ${m.text()}`) })
         // Samme fil igen -> dublet: åbner den eksisterende, ingen ny række, ingen ekstra fil
         const before = (await c.admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('invoice_number', invNo)).count ?? 0
         const filesBefore = ((await c.admin.storage.from('attachments').list(filePath ? filePath.split('/').slice(0, -1).join('/') : 'supplier-invoices', { limit: 1000 })).data ?? []).length
-        await a.page.goto(`${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByTestId('invoice-upload-input').setInputFiles({ name: `faktura-${invNo}-kopi.pdf`, mimeType: 'application/pdf', buffer: pdf }).catch(() => {})
         await a.page.waitForURL(/dublet=1/, { timeout: 120_000 }).catch(() => {})
         const after = (await c.admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('invoice_number', invNo)).count ?? 0
@@ -451,7 +463,7 @@ ${m.text()}`) })
         if (draftInvoiceId) await c.admin.from('invoice_lines').insert([{ invoice_id: draftInvoiceId, position: 1, description: 'Montage', quantity: 2, unit: 'stk', unit_price: 500, total_price: 1000 }])
         const seedErr = !draftInvoiceId ? `faktura: ${di?.error?.message ?? dc.error?.message ?? '?'}` : ''
 
-        await a.page.goto(`${base}/dashboard/invoices/${draftInvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/invoices/${draftInvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         const sendBtn = a.page.getByRole('button', { name: /Send faktura på mail/ }).first()
         await a.page.waitForFunction(() => !!document.querySelector('[title*="faktura-kontakt"]'), null, { timeout: 60_000 }).catch(() => {})
         r.modtager_fakturakontakt = (await sendBtn.count()) > 0 && (await sendBtn.isEnabled()) && /faktura-kontakt/.test((await sendBtn.getAttribute('title')) ?? '')
@@ -494,7 +506,7 @@ ${m.text()}`) })
         const r: Record<string, boolean> = {}
         const supId = cmpSupplierIds[0]
         const saveNo = async (value: string) => {
-          await a.page.goto(`${base}/dashboard/settings/suppliers/${supId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(a.page, `${base}/dashboard/settings/suppliers/${supId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByRole('button', { name: 'Rediger' }).first().click({ timeout: 60_000 }).catch(() => {})
           await a.page.locator('#economic_supplier_number').fill(value).catch(() => {})
           await a.page.getByRole('button', { name: 'Gem ændringer' }).click().catch(() => {})
@@ -505,7 +517,7 @@ ${m.text()}`) })
         r.leverandoernr_gemt = ok1.external_supplier_id === '1001' && ok1.external_provider === 'economic'
         const bad = await saveNo('abc')
         r.ugyldigt_afvist = bad.external_supplier_id === '1001'
-        await a.page.goto(`${base}/dashboard/settings/economic`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/settings/economic`, { waitUntil: 'networkidle', timeout: 180_000 })
         const card = a.page.getByTestId('economic-readiness')
         await card.waitFor({ timeout: 60_000 }).catch(() => {})
         const txt = (await card.count()) ? await card.innerText() : ''
@@ -527,7 +539,7 @@ ${m.text()}`) })
           const csv = (price: string) => Buffer.from(['Varenummer;Beskrivelse;Indkøbspris;Vejl. udsalgspris;Enhed;Varegruppe;EAN;Leverandør',
             `${sku};Kabel 3x1,5 mørkegrå Ærø;${price};19,95;M;Kabler;5790000${String(stamp).slice(-6)};Nexans`].join('\r\n') + '\r\n', 'latin1')
           const runImport = async (price: string, name: string) => {
-            await a.page.goto(`${base}/dashboard/settings/suppliers/${aoSupplierId}/import`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await gotoSafe(a.page, `${base}/dashboard/settings/suppliers/${aoSupplierId}/import`, { waitUntil: 'networkidle', timeout: 180_000 })
             await a.page.locator('input[type="file"]').first().setInputFiles({ name, mimeType: 'text/csv', buffer: csv(price) }).catch(() => {})
             await a.page.getByRole('button', { name: 'Kør import' }).waitFor({ timeout: 90_000 }).catch(() => {})
             await a.page.getByRole('button', { name: 'Kør import' }).click().catch(() => {})
@@ -557,7 +569,7 @@ ${m.text()}`) })
           source: 'manual', created_by: adminUser.id, address: 'Odinsvej 10', postal_code: '4100', city: 'Ringsted' }]).select('id')
         siteCaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
         const openAndSave = async (ksr: string) => {
-          await a.page.goto(`${base}/dashboard/orders/${siteCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(a.page, `${base}/dashboard/orders/${siteCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByTestId('edit-site-info').click({ timeout: 60_000 }).catch(() => {})
           await a.page.getByTestId('site-ksr').fill(ksr).catch(() => {})
           await a.page.getByTestId('site-ean').fill('5790000000001').catch(() => {})
@@ -570,7 +582,7 @@ ${m.text()}`) })
         r.ugyldigt_ksr_afvist = bad.ksr_number == null && (await a.page.getByText('KSR-nummer skal være 6-10 cifre').count()) > 0
         const good = await openAndSave('1234 567')
         r.gemt = good.ksr_number === '1234567' && good.ean_number === '5790000000001' && good.contact_phone === '+45 22 33 44 55'
-        await a.page.goto(`${base}/dashboard/orders/${siteCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${siteCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         const nav = a.page.getByTestId('order-navigate')
         r.naviger = (await nav.count()) === 1 && /google\.com\/maps\/dir\/.*destination=/.test((await nav.getAttribute('href')) ?? '')
         out.push({ id: 'U18 stedinfo på ordresiden (admin)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
@@ -584,7 +596,7 @@ ${m.text()}`) })
           email: `soeg-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
         searchCustomerId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
         for (const [k, q] of [['komma_parentes', `Hansen, Jens (VVS)`], ['kabeldimension', `3x1,5 ${stamp}`]] as const) {
-          await a.page.goto(`${base}/dashboard/customers?search=${encodeURIComponent(q)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(a.page, `${base}/dashboard/customers?search=${encodeURIComponent(q)}`, { waitUntil: 'networkidle', timeout: 180_000 })
           r[k] = (await a.page.getByText(name).count()) > 0
         }
         out.push({ id: 'U19 søgning med komma/parentes', ok: !!searchCustomerId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
@@ -600,7 +612,7 @@ ${m.text()}`) })
           const id = (ins.data?.[0] as { id?: string } | undefined)?.id
           if (id) listCaseIds.push(id)
         }
-        await a.page.goto(`${base}/dashboard/orders?search=${tag}&type=installation`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders?search=${tag}&type=installation`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.type_filtrerer = (await a.page.getByText(`[HARNESS] ${tag} installation`).count()) > 0 && (await a.page.getByText(`[HARNESS] ${tag} service`).count()) === 0
         r.haster_maerke = (await a.page.getByTestId('order-priority').filter({ hasText: 'Haster' }).count()) > 0
         const opts = await a.page.locator('select').first().locator('option').allInnerTexts()
@@ -636,7 +648,7 @@ ${m.text()}`) })
         r.kunde_bilag = Array.isArray(msgRow?.attachments) && (msgRow!.attachments as unknown[]).length === 1
 
         // Sælger på kundekortet
-        await a.page.goto(`${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: 'Åbn chat' }).first().click({ timeout: 60_000 }).catch(() => {})
         await a.page.getByText(kundeTekst).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.saelger_ser_besked = (await a.page.getByText(kundeTekst).count()) > 0
@@ -664,7 +676,7 @@ ${m.text()}`) })
       if (want('U24') && (profitCustomerId)) {
         const r: Record<string, boolean> = {}
         const title = `[HARNESS] nyt tilbud ${stamp}`
-        await a.page.goto(`${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Nyt Tilbud/ }).first().click({ timeout: 60_000 }).catch(() => {})
         await a.page.locator('#title').fill(title).catch(() => {})
         // N14: søgbar kundevælger — søg på kundenummer og vælg træffet
@@ -705,7 +717,7 @@ ${m.text()}`) })
           body_text: 'Inverteren viser fejl 41. Kan I komme forbi?', customer_id: profitCustomerId, link_status: 'linked', received_at: new Date().toISOString(),
           is_archived: false }]).select('id')
         u25EmailId = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
-        await a.page.goto(`${base}/dashboard/mail?emailId=${u25EmailId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${u25EmailId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: 'Opret sag', exact: true }).first().click({ timeout: 60_000 }).catch(() => {})
         await a.page.waitForURL(/\/dashboard\/orders\/[0-9a-f-]{36}\?tab=mails/, { timeout: 120_000 }).catch(() => {})
         const caseId = (a.page.url().match(/orders\/([0-9a-f-]{36})/) ?? [])[1] ?? null
@@ -729,7 +741,7 @@ ${m.text()}`) })
           unit_cost: 5, unit_sales_price: 12, billable: true /* totaler er genererede kolonner */, source: 'manual', created_by: adminUser.id }]).select('id') : null
         const matId = (mat?.data?.[0] as { id?: string } | undefined)?.id ?? null
         const seedErr = !billCaseId ? `sag: ${sc.error?.message}` : !matId ? `materiale: ${mat?.error?.message}` : ''
-        await a.page.goto(`${base}/dashboard/orders/${billCaseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${billCaseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
         const btn = a.page.getByRole('button', { name: /Opret del-faktura/ }).first()
         await btn.waitFor({ timeout: 90_000 }).catch(() => {})
         await btn.click({ timeout: 30_000 }).catch(() => {})
@@ -763,7 +775,7 @@ ${m.text()}`) })
           if (id) u27LeadIds.push(id)
         }
         const convert = async (leadId: string) => {
-          await a.page.goto(`${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByTestId('lead-convert').click({ timeout: 60_000 }).catch(() => {})
           await a.page.waitForURL(/\/dashboard\/customers\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
           return (a.page.url().match(/customers\/([0-9a-f-]{36})/) ?? [])[1] ?? null
@@ -774,7 +786,7 @@ ${m.text()}`) })
         r.kunde_oprettet = !!cust && cust.email === mail && !!cust.customer_number
         const l1 = ((await c.admin.from('leads').select('custom_fields').eq('id', u27LeadIds[0]).maybeSingle()).data as { custom_fields?: Record<string, unknown> } | null)
         r.lead_koblet = l1?.custom_fields?.customer_id === c1
-        await a.page.goto(`${base}/dashboard/leads/${u27LeadIds[0]}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/leads/${u27LeadIds[0]}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.gaa_til_kunde = (await a.page.getByTestId('lead-go-customer').count()) === 1
         const c2 = u27LeadIds[1] ? await convert(u27LeadIds[1]) : null
         const dupCount = (await c.admin.from('customers').select('id', { count: 'exact', head: true }).ilike('email', mail)).count ?? 0
@@ -798,7 +810,7 @@ ${m.text()}`) })
           { incoming_invoice_id: u28.invoiceId, line_number: 2, description: 'Dåse', quantity: 5, unit: 'stk', unit_price: 8, total_price: 40 },
         ])
         const seedErr = !u28.invoiceId ? `seed: ${inv?.error?.message ?? sc.error?.message ?? sup.error?.message ?? '?'}` : ''
-        await a.page.goto(`${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${u28.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Forhåndsvis & godkend/ }).click({ timeout: 60_000 }).catch(() => {})
         const ack = a.page.locator('input[type="checkbox"]').last()
         if (await ack.isVisible().catch(() => false)) await ack.check().catch(() => {})
@@ -825,7 +837,7 @@ ${m.text()}`) })
         const ins = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-B-${stamp}`, customer_id: profitCustomerId, status: 'sent',
           total_amount: 800, tax_amount: 200, final_amount: 1000, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
         u29InvoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
-        await a.page.goto(`${base}/dashboard/invoices/${u29InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/invoices/${u29InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         a.page.once('dialog', (d) => d.accept(`REF-${stamp}`).catch(() => {}))
         await a.page.getByRole('button', { name: /Markér som betalt/ }).first().click({ timeout: 60_000 }).catch(() => {})
         type InvRow = { status?: string; payment_status?: string }
@@ -853,7 +865,7 @@ ${m.text()}`) })
         const caseNo = (sc.data?.[0] as { case_number?: string } | undefined)?.case_number ?? ''
         const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + 86400_000))
         const woTitle = `Montage ${stamp}`
-        await a.page.goto(`${base}/dashboard/calendar?date=${day}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/calendar?date=${day}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Planlæg opgave/ }).first().click({ timeout: 60_000 }).catch(() => {})
         await a.page.getByPlaceholder('Søg på sagsnr, titel eller kunde…').fill(caseNo || caseTitle).catch(() => {})
         await a.page.getByRole('button', { name: new RegExp(caseNo || 'planlægning') }).first().click({ timeout: 30_000 }).catch(() => {})
@@ -867,7 +879,7 @@ ${m.text()}`) })
           if (!wo) await new Promise((res) => setTimeout(res, 1000))
         }
         r.arbejdsordre = !!wo && wo.assigned_employee_id === u30.employeeId && wo.scheduled_date === day && wo.status === 'planned'
-        await a.page.goto(`${base}/dashboard/calendar?date=${day}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/calendar?date=${day}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.i_kalenderen = (await a.page.getByText(woTitle).count()) > 0
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u30-planlaegning.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U30 planlægning fra kalenderen', ok: !!u30.caseId && !!u30.employeeId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
@@ -894,13 +906,13 @@ ${m.text()}`) })
         const billable = tls.find((x) => x.description === 'fakturerbar')
         const expected = billable?.sale_amount != null ? Number(billable.sale_amount) : 1000
         const seedErr = !u31.caseId ? `sag: ${sc.error?.message}` : !u31.woId ? `ordre: ${wo?.error?.message}` : tls.length !== 3 ? `timer: ${tl?.error?.message}` : ''
-        await a.page.goto(`${base}/dashboard/orders/${u31.caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${u31.caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Opret del-faktura/ }).first().waitFor({ timeout: 90_000 }).catch(() => {})
         r.aaben_timer_advarer = (await a.page.getByText(/åben timer/i).count()) > 0
         r.intern_ikke_vist = (await a.page.getByText('intern', { exact: true }).count()) === 0
         // montøren stopper timeren: her fjernes den åbne række (stop ville give en ny fakturerbar række)
         await c.admin.from('time_logs').delete().eq('work_order_id', u31.woId ?? '').is('end_time', null)
-        await a.page.goto(`${base}/dashboard/orders/${u31.caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${u31.caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
         const btn = a.page.getByRole('button', { name: /Opret del-faktura/ }).first()
         await btn.waitFor({ timeout: 90_000 }).catch(() => {})
         await btn.click({ timeout: 30_000 }).catch(() => {})
@@ -946,7 +958,7 @@ ${m.text()}`) })
         const dep = u32.caseId ? await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-F-${stamp}`, customer_id: profitCustomerId, case_id: u32.caseId,
           invoice_type: 'deposit', status: 'sent', total_amount: 300, tax_amount: 75, final_amount: 375 }]).select('id') : null
         const seedErr = !u32.caseId ? `sag: ${sc.error?.message}` : !u32.woId ? `ordre: ${wo?.error?.message}` : !tlRow?.id ? `timer: ${tl?.error?.message}` : !dep?.data?.length ? `forskud: ${dep?.error?.message}` : ''
-        await a.page.goto(`${base}/dashboard/orders/${u32.caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${u32.caseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Slutfaktura/ }).first().click({ timeout: 90_000 }).catch(() => {})
         await a.page.getByRole('button', { name: /Opret slutfaktura/ }).click({ timeout: 60_000 }).catch(() => {})
         let fin: { id?: string; status?: string; total_amount?: number } | null = null
@@ -986,7 +998,7 @@ ${m.text()}`) })
         if (u33InvoiceId) await c.admin.from('invoice_lines').insert([{ invoice_id: u33InvoiceId, position: 1, description: 'Installation', quantity: 1, unit: 'stk', unit_price: 2000, total_price: 2000 }])
         const credits = async () => ((await c.admin.from('invoices').select('id, total_amount, final_amount, status').eq('credit_of_invoice_id', u33InvoiceId ?? '')).data ?? []) as Array<{ id: string; total_amount: number; final_amount: number; status: string }>
         const openDialog = async () => {
-          await a.page.goto(`${base}/dashboard/invoices/${u33InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(a.page, `${base}/dashboard/invoices/${u33InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByRole('button', { name: /Krediter faktura/ }).click({ timeout: 60_000 }).catch(() => {})
         }
         a.page.on('dialog', (d) => { d.accept().catch(() => {}) })
@@ -1024,7 +1036,7 @@ ${m.text()}`) })
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] materiale ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
           priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
         u34CaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
-        await a.page.goto(`${base}/dashboard/orders/${u34CaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${u34CaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Tilføj materiale/ }).first().click({ timeout: 60_000 }).catch(() => {})
         const dlg = a.page.locator('[aria-labelledby="case-material-dialog-title"]')
         await dlg.getByPlaceholder('F.eks. Solpanel 425W LR4-72HPH').fill(`Inverter 10 kW ${stamp}`).catch(() => {})
@@ -1061,7 +1073,7 @@ ${m.text()}`) })
         const mat = u35CaseId ? await c.admin.from('case_materials').insert([{ case_id: u35CaseId, description: `Anlæg ${stamp}`, quantity: 1, unit: 'stk',
           unit_cost: 600, unit_sales_price: 1000, billable: true, source: 'manual', created_by: adminUser.id }]).select('id') : null
         const seedErr = !u35CaseId ? `sag: ${sc.error?.message}` : !depId || !rateId ? 'forskud/rate' : !cr1 || !cr2 ? 'kreditnotaer' : !mat?.data?.length ? `materiale: ${mat?.error?.message}` : ''
-        await a.page.goto(`${base}/dashboard/orders/${u35CaseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${u35CaseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Slutfaktura/ }).first().click({ timeout: 90_000 }).catch(() => {})
         await a.page.getByRole('button', { name: /Opret slutfaktura/ }).waitFor({ timeout: 60_000 }).catch(() => {})
         r.visning_netto_fradrag = (await a.page.getByText(/krediteret/).count()) > 0
@@ -1092,7 +1104,7 @@ ${m.text()}`) })
         const cr = oldId ? await c.admin.from('invoices').insert([{ customer_id: profitCustomerId, case_id: u36CaseId, invoice_number: `UI-E2E-RFK-${stamp}`, invoice_type: 'credit',
           credit_of_invoice_id: oldId, status: 'sent', total_amount: -10000, tax_amount: -2500, final_amount: -12500 }]).select('id') : null
         const seedErr = !u36CaseId ? `sag: ${sc.error?.message}` : !oldId ? `rate: ${old?.error?.message}` : !cr?.data?.length ? `kredit: ${cr?.error?.message}` : ''
-        await a.page.goto(`${base}/dashboard/orders/${u36CaseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${u36CaseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /A conto \/ rate/ }).first().click({ timeout: 90_000 }).catch(() => {})
         await a.page.locator('input[inputmode="decimal"]').first().fill('50').catch(() => {})
         const btn = a.page.getByRole('button', { name: /Opret a conto-faktura/ })
@@ -1120,7 +1132,7 @@ ${m.text()}`) })
           { invoice_id: u37InvoiceId, position: 2, description: 'Timer (0,33 t)', quantity: 0.33, unit: 't', unit_price: 525.1, total_price: 173.25 },
         ])
         const seedErr = u37InvoiceId ? '' : `SEED: ${ins.error?.message ?? '?'} · `
-        await a.page.goto(`${base}/dashboard/invoices/${u37InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/invoices/${u37InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByText('Kræver rettelse før eksport').waitFor({ timeout: 90_000 }).catch(() => {})
         r.status_kraever_rettelse = (await a.page.getByText('Kræver rettelse før eksport').count()) > 0
         r.blokering_forklaret = (await a.page.getByTestId('economic-blocking').getByText(/fakturaen er på 1\.173,25 kr/).count()) > 0
@@ -1138,7 +1150,7 @@ ${m.text()}`) })
           total_amount: 1000, tax_amount: 250, final_amount: 1250, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
         u37CleanId = (ok2.data?.[0] as { id?: string } | undefined)?.id ?? null
         if (u37CleanId) await c.admin.from('invoice_lines').insert([{ invoice_id: u37CleanId, position: 1, description: 'Montage', quantity: 2, unit: 't', unit_price: 500, total_price: 1000 }])
-        await a.page.goto(`${base}/dashboard/invoices/${u37CleanId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/invoices/${u37CleanId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByText('Klar til eksport').waitFor({ timeout: 90_000 }).catch(() => {})
         r.ren_faktura_klar = (await a.page.getByText('Klar til eksport').count()) > 0 && (await a.page.getByText('Kræver rettelse før eksport').count()) === 0
         await a.page.screenshot({ path: join(shots, 'u37-economic-preview.png'), fullPage: true }).catch(() => {})
@@ -1156,7 +1168,7 @@ ${m.text()}`) })
         u38.invoiceId = (inv?.data?.[0] as { id?: string } | undefined)?.id
         if (u38.invoiceId) await c.admin.from('incoming_invoice_lines').insert([{ incoming_invoice_id: u38.invoiceId, line_number: 1, description: 'Kabel', quantity: 10, unit: 'm', unit_price: 60, total_price: 600 }])
         const seedErr = u38.invoiceId ? '' : `SEED: ${inv?.error?.message ?? sup.error?.message ?? '?'} · `
-        await a.page.goto(`${base}/dashboard/incoming-invoices/${u38.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${u38.invoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Vis hvad der bogføres i e-conomic/ }).click({ timeout: 90_000 }).catch(() => {})
         const pv = a.page.getByTestId('supplier-economic-preview')
         await pv.getByTestId('supplier-economic-net').waitFor({ timeout: 60_000 }).catch(() => {})
@@ -1178,7 +1190,7 @@ ${m.text()}`) })
         u39Ids.push(...[await mk(1), await mk(2)].filter((x): x is string => !!x))
         const debNo = String(9000000 + (Number(stamp) % 900000))
         const setNo = async (custId: string, v: string) => {
-          await a.page.goto(`${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(a.page, `${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByRole('button', { name: /^Fakturaer/ }).first().click({ timeout: 60_000 }).catch(() => {})
           const box = a.page.getByTestId('customer-economic-link')
           await box.waitFor({ timeout: 60_000 }).catch(() => {})
@@ -1227,7 +1239,7 @@ ${m.text()}`) })
         const csRows = ((await c.admin.from('company_settings').select('id, bank_reg_no, bank_account')).data ?? []) as Array<{ id: string; bank_reg_no: string | null; bank_account: string | null }>
         const hasBank = csRows.some((x) => !!x.bank_reg_no?.trim() && !!x.bank_account?.trim())
         if (!hasBank) {
-          await a.page.goto(`${base}/dashboard/invoices/${sentId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(a.page, `${base}/dashboard/invoices/${sentId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByTestId('bank-missing').waitFor({ timeout: 60_000 }).catch(() => {})
           r.advarsel_uden_bank = (await a.page.getByTestId('bank-missing').count()) > 0
           if (csRows.length === 0) {
@@ -1238,7 +1250,7 @@ ${m.text()}`) })
             await c.admin.from('company_settings').update({ bank_reg_no: '1234', bank_account: '0001234567' }).eq('id', csRows[0].id)
           }
         }
-        await a.page.goto(`${base}/dashboard/invoices/${sentId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/invoices/${sentId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByText(sentNo).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.ingen_advarsel_med_bank = (await a.page.getByTestId('bank-missing').count()) === 0
         const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
@@ -1273,7 +1285,7 @@ ${m.text()}`) })
         type O = { id: string; offer_number: string; title: string; status: string; valid_until: string | null; customer_id: string | null; final_amount: number; sent_at: string | null }
         const readO = async (id: string) => ((await c.admin.from('offers').select('id, offer_number, title, status, valid_until, customer_id, final_amount, sent_at').eq('id', id).maybeSingle()).data as O | null)
         const before = u42.sourceId ? await readO(u42.sourceId) : null
-        await a.page.goto(`${base}/dashboard/offers/${u42.sourceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/offers/${u42.sourceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /^Kopiér$/ }).click({ timeout: 90_000 }).catch(() => {})
         await a.page.waitForURL((u) => /\/dashboard\/offers\/[0-9a-f-]{36}/.test(u.pathname) && !u.pathname.includes(u42.sourceId ?? 'x'), { timeout: 120_000 }).catch(() => {})
         u42.copyId = (a.page.url().match(/offers\/([0-9a-f-]{36})/) ?? [])[1]
@@ -1305,7 +1317,7 @@ ${m.text()}`) })
         const wo = u43.caseId && empA ? await c.admin.from('work_orders').insert([{ case_id: u43.caseId, title: woTitle, status: 'planned', scheduled_date: d1, assigned_employee_id: empA }]).select('id') : null
         u43.woId = (wo?.data?.[0] as { id?: string } | undefined)?.id
         const seedErr = u43.woId && empB ? '' : `SEED: ${wo?.error?.message ?? sc.error?.message ?? 'medarbejder'} · `
-        await a.page.goto(`${base}/dashboard/calendar?date=${d1}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/calendar?date=${d1}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByText(woTitle).first().click({ timeout: 90_000 }).catch(() => {})
         const dlg = a.page.locator('[aria-labelledby="edit-wo-title"]')
         await dlg.waitFor({ timeout: 30_000 }).catch(() => {})
@@ -1319,14 +1331,14 @@ ${m.text()}`) })
         r.ny_dato = w?.scheduled_date === d3
         r.ny_montoer = w?.assigned_employee_id === empB
         r.stadig_planlagt = w?.status === 'planned'
-        await a.page.goto(`${base}/dashboard/calendar?date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/calendar?date=${d3}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.vist_paa_ny_dag = (await a.page.getByText(woTitle).count()) > 0
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u43-omplanlaegning.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
-      await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
+      await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
         unknown: (await a.page.getByText('Ukendt nummer').count()) > 0 }
       out.push({ id: 'U6 opkalds-opslag (admin)', ok: cti.heading && cti.formatted && cti.unknown, note: Object.entries(cti).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
@@ -1337,7 +1349,7 @@ ${m.text()}`) })
     if (m.ok) {
       const denied: string[] = []
       for (const path of ['/dashboard/agents', '/dashboard/pilot-health', '/dashboard/mail']) { // mail: G9
-        await m.page.goto(`${base}${path}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(m.page, `${base}${path}`, { waitUntil: 'networkidle', timeout: 180_000 })
         if ((await m.page.getByText('Du har ikke adgang').count()) > 0) denied.push(path)
       }
       await m.page.screenshot({ caret: 'initial', path: join(shots, 'pilot-health-montoer.png'), fullPage: true })
@@ -1369,7 +1381,7 @@ ${m.text()}`) })
           : !woId ? `arbejdsordre: ${wo?.error?.message?.slice(0, 80)}` : ''
 
         const r: Record<string, boolean> = {}
-        await m.page.goto(`${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
         const card = m.page.getByTestId('my-jobs-card')
         r.mine_job = (await card.count()) > 0 && (await card.innerText()).includes(woTitle)
         await m.page.getByTestId('my-job').filter({ hasText: woTitle }).first().click({ timeout: 30_000 }).catch(() => {})
@@ -1420,7 +1432,7 @@ ${m.text()}`) })
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-dokumenter.png'), fullPage: true }).catch(() => {})
 
         // N9a Aflevering på ordresiden: tjekliste → foto til første påkrævede punkt → kundens underskrift (montør, egen sag)
-        await m.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=aflevering`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=aflevering`, { waitUntil: 'networkidle', timeout: 180_000 })
         await m.page.getByTestId('handover-start').click({ timeout: 60_000 }).catch(() => {})
         const hov = m.page.getByTestId('order-handover-tab')
         await hov.locator('input[type="file"]').first().waitFor({ state: 'attached', timeout: 60_000 }).catch(() => {})
@@ -1456,13 +1468,13 @@ ${m.text()}`) })
         r.sagsmail_synlig = (await m.page.getByText(`[HARNESS] egen sagsmail ${stamp}`).count()) > 0
         // Fremmed sag via direkte URL: ingen mails/indhold
         if (otherCaseId) {
-          await m.page.goto(`${base}/dashboard/orders/${otherCaseId}?tab=mails`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(m.page, `${base}/dashboard/orders/${otherCaseId}?tab=mails`, { waitUntil: 'networkidle', timeout: 180_000 })
           await m.page.waitForTimeout(3000)
           r.fremmed_sagsmail_skjult = (await m.page.getByText(`[HARNESS] fremmed sagsmail ${stamp}`).count()) === 0
         }
 
         // Afslut jobbet
-        await m.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 }) // tilbage til egen sag
+        await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'networkidle', timeout: 180_000 }) // tilbage til egen sag
         await m.page.getByRole('button', { name: '✓ Afslut' }).first().click({ timeout: 30_000 }).catch(() => {})
         let woStatus = ''
         for (let i = 0; i < 15 && woStatus !== 'done'; i++) {
@@ -1479,10 +1491,10 @@ ${m.text()}`) })
         // U21 (N9d): Service-link viderestilles; mobil-bundmenu for montør
         if (want('U21')) {
           const u21: Record<string, boolean> = {}
-          await m.page.goto(`${base}/dashboard/service-cases/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(m.page, `${base}/dashboard/service-cases/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           u21.service_link_viderestilles = new RegExp(`/dashboard/orders/${jobCaseId}`).test(m.page.url())
           await m.page.setViewportSize({ width: 390, height: 844 })
-          await m.page.goto(`${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
           const nav = m.page.locator('nav.md\\:hidden a')
           const labels = (await nav.allInnerTexts()).map((t) => t.trim())
           u21.bundmenu = JSON.stringify(labels) === JSON.stringify(['Opgaver', 'Kalender', 'Sager'])
@@ -1492,7 +1504,7 @@ ${m.text()}`) })
         }
 
         // Kalender: eget job, ingen planlæg-knap, ingen tom-tilstand
-        await m.page.goto(`${base}/dashboard/calendar?date=${today}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(m.page, `${base}/dashboard/calendar?date=${today}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.kalender = (await m.page.getByText(woTitle).count()) > 0 && (await m.page.getByText('Ingen aktive medarbejdere').count()) === 0
           && (await m.page.getByRole('button', { name: /Planlæg opgave/ }).count()) === 0
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-kalender.png'), fullPage: true }).catch(() => {})
@@ -1503,7 +1515,7 @@ ${m.text()}`) })
       // U40 montør på egen sag: kun relevante faner, materialer uden priser (kontoret prissætter)
       if (want('U40') && jobCaseId) {
         const r: Record<string, boolean> = {}
-        await m.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
         await m.page.getByRole('button', { name: /Tilføj (første )?materiale/ }).first().waitFor({ timeout: 90_000 }).catch(() => {})
         const tabNames = (await m.page.locator('button').allInnerTexts().catch(() => [] as string[])).map((t) => t.trim())
         r.ingen_kontorfaner = !tabNames.some((t) => /^(Fakturakladde|Handlinger|Økonomi)/.test(t))
@@ -1521,7 +1533,7 @@ ${m.text()}`) })
         r.registreret = Number(mr?.quantity) === 3 && mr?.created_by === montor.id
         r.uden_priser = Number(mr?.unit_cost) === 0 && Number(mr?.unit_sales_price) === 0
         // kontoret ser stadig priser og kan prissætte
-        await a.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('columnheader', { name: 'Kostpris' }).waitFor({ timeout: 60_000 }).catch(() => {})
         r.kontor_ser_priser = (await a.page.getByRole('columnheader', { name: 'Kostpris' }).count()) > 0 && (await a.page.getByRole('button', { name: /^Handlinger/ }).count()) > 0
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u40-montor-materialer.png'), fullPage: true }).catch(() => {})
@@ -1539,7 +1551,7 @@ ${m.text()}`) })
       const sp = await login(salg)
       if (sp.ok && salgOfferId) {
         r.menu_sager = (await sp.page.getByRole('link', { name: 'Sager / Ordrer' }).count()) > 0
-        await sp.page.goto(`${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(sp.page, `${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await sp.page.getByRole('button', { name: 'Opret sag fra tilbud' }).first().click({ timeout: 60_000 }).catch(() => {})
         await sp.page.waitForURL(/\/dashboard\/orders\//, { timeout: 120_000 }).catch(() => {})
         await sp.page.waitForLoadState('networkidle').catch(() => {})
@@ -1550,10 +1562,10 @@ ${m.text()}`) })
         const sag = ((await c.admin.from('service_cases').select('created_by').eq('source_offer_id', salgOfferId).maybeSingle()).data as { created_by?: string } | null)
         r.sag_ejet_af_salg = sag?.created_by === salg.id
         // N5: salg (ingen invoices.create) ser ikke "Fakturér på sagen"; admin gør og lander på sagens fakturakladde
-        await sp.page.goto(`${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(sp.page, `${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await sp.page.getByRole('link', { name: 'Åbn sag' }).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.salg_ingen_fakturer = (await sp.page.getByTestId('offer-invoice-on-case').count()) === 0
-        await a.page.goto(`${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(a.page, `${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByTestId('offer-invoice-on-case').first().click({ timeout: 60_000 }).catch(() => {})
         await a.page.waitForURL(/tab=fakturakladde/, { timeout: 60_000 }).catch(() => {})
         await a.page.getByText(/Stage-fakturaer på sagen|Fakturakladde|Forskudsfaktura|Slutfaktura/).first().waitFor({ timeout: 90_000 }).catch(() => {})
@@ -1575,7 +1587,7 @@ ${m.text()}`) })
         await mk(`UI-E2E-F2-${stamp}`, `[HARNESS] følg op nyt ${stamp}`, salg.id, daysAgo(0), 'sent', null)
         await mk(`UI-E2E-F3-${stamp}`, `[HARNESS] følg op kollega ${stamp}`, adminUser.id, daysAgo(6), 'viewed', daysAgo(5))
         const f: Record<string, boolean> = {}
-        await sp.page.goto(`${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await gotoSafe(sp.page, `${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
         const card = sp.page.getByTestId('offer-followup-card')
         await card.waitFor({ timeout: 60_000 }).catch(() => {})
         const txt = (await card.count()) ? await card.innerText() : ''
