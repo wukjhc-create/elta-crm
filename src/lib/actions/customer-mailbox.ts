@@ -150,6 +150,9 @@ export async function getCustomerMailbox(
   customerId: string,
   customerEmail: string
 ): Promise<{ emails: CustomerMailboxEmail[]; unreadCount: number; conversations: CustomerConversation[] }> {
+  // Kundens mails: kun dem der ejer kunderelationen (customers.edit — ikke montør jf. G9).
+  // Før: ingen gate (kun RLS, og incoming_emails er åben i prod indtil 00180/G10).
+  if (await gateDenied('customers.edit')) return { emails: [], unreadCount: 0, conversations: [] }
   const supabase = await createClient()
 
   const emailLower = customerEmail.toLowerCase()
@@ -165,7 +168,7 @@ export async function getCustomerMailbox(
       id, subject, sender_email, sender_name, to_email, body_html, body_text,
       body_preview, has_attachments, is_read, received_at, reply_to,
       original_sender_email, conversation_id, customer_id, service_case_id,
-      service_case:service_cases (id, case_number, title, status)
+      service_case:service_cases!incoming_emails_service_case_id_fkey (id, case_number, title, status)
     `)
     .eq('is_archived', false)
     .or(`sender_email.ilike.${pgQuote(escapeLike(emailLower))},original_sender_email.ilike.${pgQuote(escapeLike(emailLower))},to_email.ilike.${pgQuote(escapeLike(emailLower))},customer_id.eq.${customerId}`)
@@ -274,6 +277,7 @@ export async function getCustomerEmailBody(emailId: string): Promise<{
   html: string | null
   text: string | null
 }> {
+  if (await gateDenied('customers.edit')) return { html: null, text: null }
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -521,6 +525,7 @@ export async function replyToCustomerEmail(
  * Get unread customer email count for dashboard
  */
 export async function getUnreadCustomerEmailCount(): Promise<number> {
+  if (await gateDenied('customers.edit')) return 0
   const supabase = await createClient()
 
   const { count, error } = await supabase

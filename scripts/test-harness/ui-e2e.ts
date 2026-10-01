@@ -83,6 +83,7 @@
  *       (før: select('*') sendte dem til kundens browser)
  *   U51 tilbudslinje fra grossistkatalog: "Fra leverandør" → søg varenr. → klik → linje med leverandørspor, kostpris gemt,
  *       salgspris over kost
+ *   U52 kundekort: mail koblet til kunden vises i kundens mail-tidslinje (før: PGRST201 tvetydig join → tom)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -1479,6 +1480,20 @@ ${m.text()}`) })
         r.kost_gemt = Number(lines[0]?.supplier_cost_price_at_creation) === 40
         r.salgspris_over_kost = Number(lines[0]?.unit_price) > 40
         out.push({ id: 'U51 tilbudslinje fra grossist', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · stk-pris=${lines[0]?.unit_price}` })
+      }
+
+      // U52 kundekort: kundens mails vises (før: PGRST201 — tvetydig join incoming_emails↔service_cases)
+      if (want('U52') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const subj = `[HARNESS] kundemail ${stamp}`
+        const em = await c.admin.from('incoming_emails').insert([{ sender_email: `ui-profit-${stamp}@harness.test`, subject: subj, customer_id: profitCustomerId,
+          received_at: new Date().toISOString(), is_archived: false, link_status: 'linked' }]).select('id')
+        const emId = (em.data?.[0] as { id?: string } | undefined)?.id
+        if (emId) seededEmailIds.push(emId)
+        await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText(subj).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.mail_vist = (await a.page.getByText(subj).count()) > 0
+        out.push({ id: 'U52 kundekort: kundens mails', ok: !!emId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${emId ? '' : ` · SEED: ${em.error?.message}`}` })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
