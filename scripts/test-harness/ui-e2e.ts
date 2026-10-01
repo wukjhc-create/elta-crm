@@ -623,7 +623,9 @@ ${m.text()}`) })
         await a.page.goto(`${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('button', { name: /Nyt Tilbud/ }).first().click({ timeout: 60_000 }).catch(() => {})
         await a.page.locator('#title').fill(title).catch(() => {})
-        await a.page.locator('#customer_id').selectOption(profitCustomerId).catch(() => {})
+        // N14: søgbar kundevælger — søg på kundenummer og vælg træffet
+        await a.page.locator('#customer_id').fill(`UI-E2E-P-${stamp}`).catch(() => {})
+        await a.page.getByTestId('customer-picker-option').first().click({ timeout: 30_000 }).catch(() => {})
         await a.page.getByRole('button', { name: 'Opret tilbud' }).click().catch(() => {})
         await a.page.waitForURL(/\/dashboard\/offers\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
         newOfferId = (a.page.url().match(/offers\/([0-9a-f-]{36})/) ?? [])[1] ?? null

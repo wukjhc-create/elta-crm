@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
+import { CustomerPicker } from '@/components/shared/customer-picker'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X } from 'lucide-react'
 import { useConfirm } from '@/components/shared/confirm-dialog'
@@ -10,7 +11,6 @@ import { createOfferSchema, type CreateOfferInput } from '@/lib/validations/offe
 import {
   createOffer,
   updateOffer,
-  getCustomersForSelect,
   getLeadsForSelect,
 } from '@/lib/actions/offers'
 import type { Offer } from '@/types/offers.types'
@@ -36,9 +36,6 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [customers, setCustomers] = useState<
-    { id: string; company_name: string; customer_number: string }[]
-  >([])
   const [leads, setLeads] = useState<{ id: string; company_name: string }[]>([])
 
   const isEditing = !!offer
@@ -77,6 +74,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
     register,
     handleSubmit,
     watch,
+    setValue,
     setFocus,
     formState: { errors, isDirty },
   } = useForm<CreateOfferInput>({
@@ -130,14 +128,8 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
 
   useEffect(() => {
     async function loadData() {
-      const [customersResult, leadsResult] = await Promise.all([
-        getCustomersForSelect(),
-        getLeadsForSelect(),
-      ])
+      const leadsResult = await getLeadsForSelect()
 
-      if (customersResult.success && customersResult.data) {
-        setCustomers(customersResult.data)
-      }
       if (leadsResult.success && leadsResult.data) {
         setLeads(leadsResult.data)
       }
@@ -234,19 +226,14 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
               <label htmlFor="customer_id" className="text-sm font-medium">
                 Kunde
               </label>
-              <select
-                {...register('customer_id')}
+              {/* N14: søgbar kundevælger (serversøgning) — værdien bor stadig i formularens customer_id */}
+              <input type="hidden" {...register('customer_id')} />
+              <CustomerPicker
                 id="customer_id"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                value={customerId || null}
+                onChange={(id) => setValue('customer_id', id ?? '', { shouldDirty: true })}
                 disabled={isLoading}
-              >
-                <option value="">Vælg kunde...</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.company_name} ({customer.customer_number})
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div className="space-y-1">

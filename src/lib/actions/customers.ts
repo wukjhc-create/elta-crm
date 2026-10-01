@@ -982,3 +982,41 @@ export async function deleteCustomerContact(
     return { success: false, error: formatError(err, 'Kunne ikke slette kontakt') }
   }
 }
+
+// =====================================================
+// Søgbar kundevælger (N14) — serversøgning i stedet for at hente ALLE kunder til en <select>
+// (Supabase-loft på 1.000 rækker ville stille skjule kunder; en lang liste er også tung at bruge).
+// =====================================================
+
+export interface CustomerPickerItem { id: string; customer_number: string | null; company_name: string; contact_person: string | null; email: string | null }
+
+export async function searchCustomersForPickerAction(query: string): Promise<ActionResult<CustomerPickerItem[]>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
+    const term = String(query ?? '').trim().slice(0, 100)
+    let q = supabase.from('customers').select('id, customer_number, company_name, contact_person, email')
+      .eq('is_active', true).order('company_name').limit(12)
+    if (term) {
+      const { orIlikeContains } = await import('@/lib/validations/postgrest-filter')
+      q = q.or(orIlikeContains(['company_name', 'contact_person', 'email', 'customer_number'], term))
+    }
+    const { data, error } = await q
+    if (error) return { success: false, error: 'Søgning fejlede' }
+    return { success: true, data: (data ?? []) as CustomerPickerItem[] }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Søgning fejlede') }
+  }
+}
+
+export async function getCustomerPickerItemAction(id: string): Promise<ActionResult<CustomerPickerItem | null>> {
+  try {
+    validateUUID(id, 'kunde ID')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
+    const { data } = await supabase.from('customers').select('id, customer_number, company_name, contact_person, email').eq('id', id).maybeSingle()
+    return { success: true, data: (data as CustomerPickerItem | null) ?? null }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente kunde') }
+  }
+}
