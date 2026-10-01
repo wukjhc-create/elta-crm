@@ -14,6 +14,7 @@ verificerbart, og så intet flag tændes før dets migration er i prod.
 | 4b | Vercel-env `MONTOR_START_JOB_ENABLED=true` + redeploy (EFTER 4) | montør får "→ Start" på sine job | — | ui: montør ser Start | p009 § Runde 5 |
 | 5 | **00182** audit-identitet kan ikke forfalskes | ingen synlig ændring | `prod-verify-00182.ts pre` ✅ | `... post` | migrationens header |
 | 6 | **00183** trigram-indeks (produktsøgning 2–7 s → ms) — **kør uden for 02:00-sync** (bygning blokerer skrivning til supplier_products) | hurtig søgning i tilbudslinjer | `prod-verify-00183.ts pre` ✅ | `... post` + `prod-search-timing.ts` | migrationens header |
+| 7 | **00184** customer_documents: dokumenttype `internal` (CHECK-udvidelse, ingen data ændres) — **kræver først produktbeslutning** (skal sagsfotos være synlige for kunden som standard?) + staging-kørsel og kode (upload-valg + portal-filter) | sagsfotos kan holdes interne | — (ren CHECK-udvidelse; kør på staging først) | `columns customer_documents` + upload/portal-test | migrationens header |
 | 7 | Vercel-env `INVOICE_ATTACHMENT_FETCH_ENABLED=true` (fakturabilag fra mail) | PDF-bilag hentes til leverandørfakturaer; backfill af ~43 mails | baseline: `prod-invoice-attachment-baseline.ts` | `prod-backfill-status.ts` | invoice-attachment-backfill.md |
 
 **Separate beslutninger (ikke en del af batchen):** aktivering af døde crons (unanswered-mails, offer-reminders =
