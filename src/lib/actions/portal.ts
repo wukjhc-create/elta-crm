@@ -62,11 +62,20 @@ export async function createPortalToken(
 
     // Idempotens: bloker en ny adgang hvis kunden allerede har en aktiv.
     // Forhindrer dublet-tokens ved gentagne klik ("Opret adgang").
+    // Udløbne-men-aktive tokens tæller ikke: de deaktiveres, så kunden kan få et nyt link (G3).
+    const nowIso = new Date().toISOString()
+    await supabase
+      .from('portal_access_tokens')
+      .update({ is_active: false })
+      .eq('customer_id', data.customer_id)
+      .eq('is_active', true)
+      .lte('expires_at', nowIso)
     const { data: existing } = await supabase
       .from('portal_access_tokens')
       .select('id')
       .eq('customer_id', data.customer_id)
       .eq('is_active', true)
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
       .limit(1)
       .maybeSingle()
     if (existing) {

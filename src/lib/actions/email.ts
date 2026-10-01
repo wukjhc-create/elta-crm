@@ -560,7 +560,10 @@ export async function generateEmailPreview(
       .select('token')
       .eq('customer_id', offer.customer_id)
       .eq('is_active', true)
-      .gt('expires_at', new Date().toISOString())
+      // Samme regel som portal-link.ts/view-offer: uden udløb (NULL) ELLER fremtidigt; nyeste ved flere aktive.
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
 
     if (existingToken) {
