@@ -55,6 +55,10 @@ jobs:
       - name: RLS - skrivematrix
         run: npm run check:rls-matrix
 
+      # Profit Engine + lønsomhedsanalyse af tilbud (rene funktioner, ingen DB)
+      - name: Profit - motor og tilbudsanalyse
+        run: npm run test:profit
+
       - name: Fakturakontrol - PDF-tekst
         run: npm run test:invoice-pdf
 

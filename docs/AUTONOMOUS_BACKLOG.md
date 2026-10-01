@@ -4,7 +4,17 @@ Arbejdsregel: en blocker stopper kun sin egen opgave (→ `BLOCKED` med præcist
 med næste ikke-blokerede opgave. Cyklus pr. opgave: INSPECT → PLAN → IMPLEMENT → TEST → FIX → REGRESSION → COMMIT →
 PUSH → DONE. Prod-migrationer kræver altid Henriks gate (forberedes, køres ikke). Floorplan/3D: PARKERET.
 
-Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
+Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `BLOCKED_APPROVAL` (kun prod-gate; arbejdet fortsætter) · `DONE`
+
+**Arbejdsmode (Henrik 2026-10-01):** en prod-gate stopper KUN sin egen opgave → `BLOCKED_APPROVAL`, alt forberedes færdigt, næste sikre opgave tages straks. Stop kun ved ny S1/S2, alt blokeret, eller 8–10 væsentlige opgaver.
+
+## Ventende godkendelser (BLOCKED_APPROVAL)
+| Gate | Forberedt | Runbook |
+|---|---|---|
+| Prod 00175–00177 + 00179 (læse-side: tokens, hemmeligheder, beskeder, underskrifter) | kode deployet; staging + rls-read 8/8 | docs/runbooks/p009-rls-write-lockdown.md |
+| Prod 00178 (runde 4: 44 kalkulations-/katalogtabeller) | staging 44/44, pre-check grøn | samme |
+| Vercel: INVOICE_ATTACHMENT_FETCH_ENABLED=true (faktura-backfill) | kode deployet, baseline taget | docs/runbooks/invoice-attachment-backfill.md |
+| Opfølgning: prod-cron-status efter 00170–00174 (første kørsler) | `scripts/prod-cron-status-since.ts "2026-10-01 05:10"` | — |
 
 ## P0 — Sikkerhed
 | # | Opgave | Status | Note / blocker |
@@ -83,6 +93,11 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | P-009 læse-side A1–A3 (00175–00177): portal-/partner-tokens, integrationshemmeligheder, bekræftelses-tokens, underskrifter, beskeder | DONE (staging) · prod-gate | harness:rls-read 7/7, bevist FØR/EFTER. Følsom-kolonne-scan (prod-sensitive-columns) → resten: company_settings-hemmeligheder (0 værdier) + e-conomic-tokens = A4 |
 | P-009 læse-side A4 (00179): company_settings-hemmeligheder + e-conomic-tokens | DONE (staging) · prod-gate | Fund: getCompanySettings sendte SMTP-password/SMS-nøgler til browseren for settings.view. Nu eksplicitte offentlige kolonner; hemmeligheder kun via service-role i gatede stier. rls-read L8, bevist FØR/EFTER |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
+
+## Feature delivery (efter P-009)
+| # | Opgave | Status | Note |
+|---|---|---|---|
+| F1 | Lønsomhedsanalyse på tilbud (Profit Engine i brug) | DONE | Fund (prod): 7/14 tilbudslinjer uden kostpris → eksisterende DB-visning regner timer som 0 kr (staging-eksempel: 90 % vist, realistisk 31,7 %). Ny ren analyse (offer-analysis.ts: kendt/estimeret/ukendt kost, realistisk DB, kostdækning, advarsler, dom) + action (offers.view.cost_prices; timekost efter firmaets kostbasis, aggregeret) + kort på tilbudssiden. test:profit (CI) 11/11, ui-e2e U7 |
 
 ## Fund registreret undervejs
 - P-004 (S1) anon kunne læse 310k leverandørpriser via view + forfalske audit (→ 00162).

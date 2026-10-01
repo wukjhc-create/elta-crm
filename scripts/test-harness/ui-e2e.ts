@@ -1,4 +1,4 @@
-/**
+﻿/**
  * P2-rest C — reproducerbar UI-test af Agent Inbox + Pilot Health mod STAGING med syntetiske brugere.
  *
  * Ingen rigtige logins, ingen manuel browser, ingen eksterne credentials:
@@ -16,6 +16,7 @@
  *   U3  admin: Pilot Health renderer alle 7 sektioner, ingen sektion "Kunne ikke hentes", live-send OFF
  *   U4  montør: Agent Inbox og Pilot Health viser "Du har ikke adgang"
  *   U5  ingen browser-konsolfejl / sidefejl under forløbet
+ *   U7  admin: lønsomhedskort på tilbud (Profit Engine) — realistisk DB, dom og timekost-advarsel
  *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -88,6 +89,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ headless: true })
   const pageErrors: string[] = []
+  let profitOfferId: string | null = null
+  let profitCustomerId: string | null = null
 
   try {
     const adminUser = await mkUser('admin')
@@ -139,6 +142,28 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       const liveOff = (await a.page.getByText('OFF (ingen agent-afsendelse mulig)').count()) > 0
       out.push({ id: 'U3 Pilot Health (admin)', ok: seen.length === 7 && failedSections === 0 && liveOff,
         note: `sektioner=${seen.length}/7 · fejlede sektioner=${failedSections} · live-send OFF vist=${liveOff ? 'ja' : 'nej'}` })
+      // U7 lønsomhed (Profit Engine): tilbud med timelinje UDEN kost + materiale MED kost -> kortet viser realistisk DB,
+      // dom og advarsel om timekost; ingen fejl. Probe-tilbud ryddes i finally.
+      {
+        const { data: cust } = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-P-${stamp}`, company_name: '[HARNESS] ui-profit', contact_person: 'P', email: `ui-profit-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        profitCustomerId = (cust?.[0] as { id?: string } | undefined)?.id ?? null
+        const { data: off } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-P-${stamp}`, title: '[HARNESS] lønsomhed', created_by: adminUser.id, customer_id: profitCustomerId }]).select('id')
+        profitOfferId = (off?.[0] as { id?: string } | undefined)?.id ?? null
+        const linesRes = profitOfferId ? await c.admin.from('offer_line_items').insert([
+          { offer_id: profitOfferId, position: 1, description: 'Kabel', quantity: 10, unit: 'm', unit_price: 100, total: 1000, cost_price: 60 },
+          { offer_id: profitOfferId, position: 2, description: 'Montage', quantity: 8, unit: 'time', unit_price: 600, total: 4800, cost_price: 0 },
+        ]) : null
+        const seedErr = !profitOfferId ? 'tilbud ikke oprettet' : linesRes?.error ? `linjer: ${linesRes.error.message.slice(0, 80)}` : ''
+        await a.page.goto(`${base}/dashboard/offers/${profitOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('offer-profit-card').waitFor({ timeout: 60_000 }).catch(() => {})
+        const card = a.page.getByTestId('offer-profit-card')
+        const txt = (await card.count()) ? await card.innerText() : ''
+        await a.page.screenshot({ path: join(shots, 'u7-loensomhed.png'), fullPage: true }).catch(() => {})
+        const profit = { kort: /Lønsomhed/.test(txt), realistisk: /Realistisk DB/.test(txt), dom: /(Sund lønsomhed|Under mål-DB|Under minimum-DB|Usikker)/.test(txt),
+          timekost: /timekost/i.test(txt) }
+        out.push({ id: 'U7 lønsomhed på tilbud (admin)', ok: !seedErr && Object.values(profit).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(profit).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -162,6 +187,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   } finally {
     await browser.close().catch(() => {})
     if (server) killTree(server)
+    if (profitOfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', profitOfferId); await c.admin.from('offers').delete().eq('id', profitOfferId) }
+    if (profitCustomerId) await c.admin.from('customers').delete().eq('id', profitCustomerId)
     for (const u of users) {
       await c.admin.from('profiles').delete().eq('id', u.id)
       await c.admin.auth.admin.deleteUser(u.id)

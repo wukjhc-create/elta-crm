@@ -44,6 +44,7 @@ import { OfferToCaseCard } from './offer-to-case-card'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
 import { REJECTION_REASON_LABELS, type RejectionReasonCode } from '@/types/offers.types'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
+import { OfferProfitCard } from '@/components/modules/offers/offer-profit-card'
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
 import { OfferTaskForm } from '@/components/modules/offers/offer-task-form'
 import { insertPackageIntoOffer } from '@/lib/actions/packages'
@@ -1159,6 +1160,15 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
             {/* Phase 12A — Afvisningsdetaljer (kun naar status='rejected') */}
             {offer.status === 'rejected' && (
               <OfferRejectionDetailsCard offer={offer} />
+            )}
+
+            {/* Lønsomhed (Profit Engine) — kun roller med kostpris-adgang */}
+            {showFinancials && lineItems.length > 0 && (
+              <OfferProfitCard
+                offerId={offer.id}
+                lineItems={lineItems}
+                discountPercentage={Number(offer.discount_percentage ?? 0)}
+              />
             )}
 
             {/* Price Explanation */}
