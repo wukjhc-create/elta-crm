@@ -48,6 +48,7 @@ import { BesigtigelsesNotat } from '@/components/modules/customers/besigtigelse-
 import { CustomerDocumentsTab } from '@/components/modules/customers/customer-documents-tab'
 import { CustomerCasesTab } from '@/components/modules/customers/customer-cases-tab'
 import { CustomerInvoiceOverview } from '@/components/modules/customers/customer-invoice-overview'
+import { CustomerEconomicLink } from '@/components/modules/customers/customer-economic-link'
 import { CustomerPaymentBadge } from '@/components/modules/customers/customer-payment-badge'
 import { CustomerStatusFlow } from '@/components/modules/customers/customer-status-flow'
 import {
@@ -345,10 +346,13 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
 
         {/* Sprint Ø4.3: Tab: Fakturaer (cost-free) */}
         {activeTab === 'fakturaer' && (
-          <CustomerInvoiceOverview
-            customerId={customer.id}
-            customerName={customer.company_name}
-          />
+          <>
+            <CustomerEconomicLink customerId={customer.id} />
+            <CustomerInvoiceOverview
+              customerId={customer.id}
+              customerName={customer.company_name}
+            />
+          </>
         )}
 
         {/* Tab: Besigtigelse */}

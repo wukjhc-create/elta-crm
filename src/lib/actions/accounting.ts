@@ -1076,3 +1076,111 @@ export async function getAccountingHealthSummaryAction(): Promise<AccountingHeal
   }
   return computeAccountingHealthSummary(supabase)
 }
+
+// =====================================================
+// N12 — kobling af kunde til eksisterende e-conomic-debitor
+// =====================================================
+//
+// Eksporten opretter en NY debitor i e-conomic når kunden ikke er koblet →
+// dubletter af kunder Elta allerede har i e-conomic. Her kobles kunden til
+// det eksisterende debitornr. før første eksport. Kun regnskabsroller
+// (settings.economic); ét debitornr. kan kun kobles til én kunde.
+
+export interface CustomerEconomicLink {
+  ok: boolean
+  message?: string
+  can_edit: boolean
+  customer_number: string | null
+}
+
+export async function getCustomerEconomicLinkAction(customerId: string): Promise<CustomerEconomicLink> {
+  try {
+    validateUUID(customerId, 'kunde ID')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id', can_edit: false, customer_number: null }
+  }
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ok: false, message: 'Manglende tilladelse: settings.economic', can_edit: false, customer_number: null }
+  }
+  const { data } = await supabase
+    .from('customers')
+    .select('external_customer_id, external_provider')
+    .eq('id', customerId)
+    .maybeSingle()
+  if (!data) return { ok: false, message: 'Kunde ikke fundet', can_edit: false, customer_number: null }
+  return {
+    ok: true,
+    can_edit: true,
+    customer_number: data.external_provider === PROVIDER ? ((data.external_customer_id as string | null) ?? null) : null,
+  }
+}
+
+export async function setCustomerEconomicNumberAction(
+  customerId: string,
+  rawNumber: string
+): Promise<{ ok: boolean; message: string; customer_number?: string | null }> {
+  try {
+    validateUUID(customerId, 'kunde ID')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ok: false, message: 'Manglende tilladelse: settings.economic' }
+  }
+  const v = (rawNumber ?? '').trim()
+  if (v && !/^[1-9]\d{0,8}$/.test(v)) {
+    return { ok: false, message: 'Ugyldigt e-conomic-kundenr. — kun tal (fx 1042)' }
+  }
+
+  const { data: cust } = await supabase
+    .from('customers')
+    .select('id, company_name, external_customer_id, external_provider')
+    .eq('id', customerId)
+    .maybeSingle()
+  if (!cust) return { ok: false, message: 'Kunde ikke fundet' }
+  const before = cust.external_provider === PROVIDER ? (cust.external_customer_id as string | null) : null
+
+  if (v) {
+    const { data: other } = await supabase
+      .from('customers')
+      .select('id, company_name')
+      .eq('external_provider', PROVIDER)
+      .eq('external_customer_id', v)
+      .neq('id', customerId)
+      .limit(1)
+      .maybeSingle()
+    if (other) {
+      return { ok: false, message: `e-conomic-kundenr. ${v} er allerede koblet til ${other.company_name ?? 'en anden kunde'}` }
+    }
+  }
+
+  const patch = v
+    ? { external_customer_id: v, external_provider: PROVIDER }
+    : { external_customer_id: null, external_provider: null }
+  // bogholderi har ikke UPDATE på customers i RLS (WAVE1) → service-role efter
+  // app-gaten ovenfor (settings.economic); kun de to e-conomic-felter skrives.
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { data: updated, error } = await createAdminClient()
+    .from('customers')
+    .update(patch)
+    .eq('id', customerId)
+    .select('id')
+  if (error || !updated || updated.length !== 1) {
+    logger.error('setCustomerEconomicNumberAction failed', { error, entityId: customerId })
+    return { ok: false, message: 'Kunne ikke gemme e-conomic-kundenr.' }
+  }
+
+  await insertAuditRow({
+    user_id: userId,
+    entity_type: 'customer',
+    entity_id: customerId,
+    entity_name: (cust.company_name as string | null) ?? null,
+    action: 'economic_customer_linked',
+    action_description: v ? `Koblet til e-conomic-kundenr. ${v}` : 'e-conomic-kobling fjernet',
+    changes: { external_customer_id: { from: before, to: v || null } },
+    metadata: { provider: PROVIDER },
+  })
+  return { ok: true, message: v ? `Koblet til e-conomic-kundenr. ${v}` : 'Kobling fjernet', customer_number: v || null }
+}

@@ -62,6 +62,8 @@
  *       1.173,28 mod fakturaens 1.173,25 + afvigelsen; intet sendes (ingen sync-log)
  *   U38 leverandørfaktura 1.000 ekskl. moms, kun én linje (600) udlæst → forhåndsvisning før godkendelse: omkostning 1.000
  *       (differencelinje 400; før: 600 bogført), leverandør nr. 12; intet sendes, status uændret
+ *   U39 kunde → eksisterende e-conomic-debitor: ugyldigt nr. afvist, gyldigt gemt + audit, samme nr. på anden kunde afvist,
+ *       kobling fjernet igen (undgår dublet-debitorer ved første eksport)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -178,6 +180,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u37InvoiceId: string | null = null
   let u37CleanId: string | null = null
   let u38: { supplierId?: string; invoiceId?: string } = {}
+  const u39Ids: string[] = []
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1156,6 +1159,42 @@ ${m.text()}`) })
         out.push({ id: 'U38 leverandørfaktura → e-conomic-forhåndsvisning', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U39 kunde → eksisterende e-conomic-debitor (e-conomic foundation, ingen bogføring)
+      if (want('U39')) {
+        const r: Record<string, boolean> = {}
+        const mk = async (n: number) => ((await c.admin.from('customers').insert([{ customer_number: `HU39${n}${String(stamp).slice(-6)}`, company_name: `[HARNESS] U39 kunde ${n} ${stamp}`,
+          contact_person: 'Test', email: '', created_by: adminUser.id }]).select('id')).data?.[0] as { id?: string } | undefined)?.id ?? null
+        u39Ids.push(...[await mk(1), await mk(2)].filter((x): x is string => !!x))
+        const debNo = String(9000000 + (Number(stamp) % 900000))
+        const setNo = async (custId: string, v: string) => {
+          await a.page.goto(`${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: /^Fakturaer/ }).first().click({ timeout: 60_000 }).catch(() => {})
+          const box = a.page.getByTestId('customer-economic-link')
+          await box.waitFor({ timeout: 60_000 }).catch(() => {})
+          await box.getByLabel('e-conomic-kundenr.').fill(v).catch(() => {})
+          await box.getByRole('button', { name: 'Gem' }).click({ timeout: 30_000 }).catch(() => {})
+          await new Promise((res) => setTimeout(res, 1500))
+          return ((await box.locator('.ring-red-200, .ring-emerald-200').last().textContent().catch(() => '')) ?? '')
+        }
+        const linkOf = async (id: string) => ((await c.admin.from('customers').select('external_customer_id, external_provider').eq('id', id).maybeSingle()).data as { external_customer_id?: string | null; external_provider?: string | null } | null)
+        if (u39Ids.length === 2) {
+          const bad = await setNo(u39Ids[0], '10x42')
+          r.ugyldigt_afvist = /Ugyldigt e-conomic-kundenr/.test(bad) && !(await linkOf(u39Ids[0]))?.external_customer_id
+          const good = await setNo(u39Ids[0], debNo)
+          const l1 = await linkOf(u39Ids[0])
+          r.koblet = /Koblet til/.test(good) && l1?.external_customer_id === debNo && l1?.external_provider === 'economic'
+          const audit = ((await c.admin.from('audit_logs').select('action, user_id').eq('entity_id', u39Ids[0])).data ?? []) as Array<{ action: string; user_id: string | null }>
+          r.audit = audit.some((x) => x.action === 'economic_customer_linked' && x.user_id === adminUser.id)
+          const dup = await setNo(u39Ids[1], debNo)
+          r.dublet_afvist = /allerede koblet/.test(dup) && !(await linkOf(u39Ids[1]))?.external_customer_id
+          await setNo(u39Ids[0], '')
+          const l3 = await linkOf(u39Ids[0])
+          r.kobling_fjernet = !l3?.external_customer_id && !l3?.external_provider
+        }
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u39-economic-kunde.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U39 kunde → e-conomic-debitor', ok: u39Ids.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1514,6 +1553,7 @@ ${m.text()}`) })
     if (u37InvoiceId) { await c.admin.from('invoice_lines').delete().eq('invoice_id', u37InvoiceId); await c.admin.from('audit_logs').delete().eq('entity_id', u37InvoiceId); await c.admin.from('invoices').delete().eq('id', u37InvoiceId) }
     if (u38.invoiceId) { for (const t of ['incoming_invoice_lines', 'incoming_invoice_audit_log']) await c.admin.from(t).delete().eq('incoming_invoice_id', u38.invoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u38.invoiceId) }
     if (u38.supplierId) await c.admin.from('suppliers').delete().eq('id', u38.supplierId)
+    for (const id of u39Ids) { await c.admin.from('audit_logs').delete().eq('entity_id', id); await c.admin.from('customers').delete().eq('id', id) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)
