@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { GoLiveClient } from './go-live-client'
 import { getGoLiveStatus } from '@/lib/actions/go-live'
+import { PilotSetupCard } from './pilot-setup-card'
 
 export const metadata: Metadata = {
   title: 'Go-Live Admin',
@@ -11,5 +12,12 @@ export const dynamic = 'force-dynamic'
 
 export default async function GoLivePage() {
   const status = await getGoLiveStatus()
-  return <GoLiveClient initialStatus={status} />
+  return (
+    <>
+      <div className="p-4 sm:p-6 pb-0">
+        <PilotSetupCard />
+      </div>
+      <GoLiveClient initialStatus={status} />
+    </>
+  )
 }

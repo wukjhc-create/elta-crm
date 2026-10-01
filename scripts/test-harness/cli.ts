@@ -654,6 +654,14 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'test-users') {
+    // Read-only: profiler pr. rolle og e-mail-mønster på staging (efterladte testbrugere?) — kun antal.
+    const rows = await stagingSql(`SELECT p.role, split_part(coalesce(u.email, ''), '@', 2) dom,
+        CASE WHEN u.email ~ '^ui-e2e-' THEN 'ui-e2e' WHEN u.email ~ 'harness' THEN 'harness' WHEN u.id IS NULL THEN 'uden-auth' ELSE 'andet' END kilde, count(*)::int n
+      FROM profiles p LEFT JOIN auth.users u ON u.id = p.id GROUP BY 1, 2, 3 ORDER BY n DESC LIMIT 30`)
+    for (const r of rows) log(`${String(r.role).padEnd(12)} ${String(r.kilde).padEnd(8)} ${String(r.dom).padEnd(28)} ${r.n}`)
+    return
+  }
   if (SUB === 'ambiguous-fks') {
     // Read-only: tabelpar med FLERE FK'er imellem sig — embeds uden "!fk" fejler (PGRST201), jf. D28.
     const rows = await stagingSql(`SELECT a, b, count(*)::int n, string_agg(fk, ', ' ORDER BY fk) fks FROM (

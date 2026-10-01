@@ -84,6 +84,7 @@
  *   U51 tilbudslinje fra grossistkatalog: "Fra leverandør" → søg varenr. → klik → linje med leverandørspor, kostpris gemt,
  *       salgspris over kost
  *   U52 kundekort: mail koblet til kunden vises i kundens mail-tidslinje (før: PGRST201 tvetydig join → tom)
+ *   U53 go-live: "Opsætning før pilot" (firma, bank, montør-logins koblet, e-conomic-kunder) vises for admin; montør-status = DB
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -1494,6 +1495,22 @@ ${m.text()}`) })
         await a.page.getByText(subj).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.mail_vist = (await a.page.getByText(subj).count()) > 0
         out.push({ id: 'U52 kundekort: kundens mails', ok: !!emId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${emId ? '' : ` · SEED: ${em.error?.message}`}` })
+      }
+
+      // U53 go-live: "Opsætning før pilot" (kun admin) stemmer med databasen
+      if (want('U53')) {
+        const r: Record<string, boolean> = {}
+        const profs = ((await c.admin.from('profiles').select('id').eq('role', 'montør')).data ?? []) as Array<{ id: string }>
+        const emps = ((await c.admin.from('employees').select('profile_id').not('profile_id', 'is', null)).data ?? []) as Array<{ profile_id: string }>
+        const linked = new Set(emps.map((e) => e.profile_id))
+        const expectMontorsOk = profs.every((p) => linked.has(p.id))
+        await gotoSafe(a.page, `${base}/dashboard/go-live`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const card = a.page.getByTestId('pilot-setup')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kort_vist = (await card.count()) > 0
+        r.fire_punkter = (await card.locator('li').count()) === 4
+        r.montoer_status_korrekt = (await a.page.getByTestId('pilot-setup-montors').getAttribute('data-ok').catch(() => null)) === (expectMontorsOk ? 'ja' : 'nej')
+        out.push({ id: 'U53 go-live: opsætning før pilot', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · montører=${profs.length} koblede=${profs.filter((p) => linked.has(p.id)).length}` })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
