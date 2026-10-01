@@ -24,6 +24,7 @@ import { IncomingInvoiceCasePicker } from './incoming-invoice-case-picker'
 import { ApprovePreviewDialog, type LinePlan } from './approve-preview-dialog'
 import { ConversionPreviewPanel } from './conversion-preview-panel'
 import { InvoiceControlPanel } from './invoice-control-panel'
+import { SupplierEconomicPreview } from './supplier-economic-preview'
 
 const fmtAmount = (n: number | null | undefined, ccy = 'DKK') =>
   n == null
@@ -283,6 +284,9 @@ export function IncomingInvoiceDetailClient({
           <Row label="Modtaget"         value={fmtDate(inv.created_at)} />
           {inv.posted_at && <Row label="Bogført" value={fmtDate(inv.posted_at)} />}
           {inv.external_invoice_id && <Row label="e-conomic ID" value={<code className="text-xs">{inv.external_invoice_id}</code>} />}
+          {canPost && !alreadyPosted && inv.status !== 'rejected' && inv.status !== 'cancelled' && (
+            <SupplierEconomicPreview invoiceId={inv.id} />
+          )}
           {canShowPost && (
             <div className="mt-3 pt-3 border-t border-gray-100">
               {economicReady ? (

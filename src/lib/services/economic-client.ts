@@ -19,6 +19,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { encrypt, decrypt } from '@/lib/utils/encryption'
 import { buildEconomicInvoiceDraft, type EconomicInvoiceDraft } from '@/lib/economic/invoice-draft'
+import { buildEconomicSupplierInvoiceDraft, type SupplierInvoiceDraft } from '@/lib/economic/supplier-invoice-draft'
 import type {
   AccountingAction,
   AccountingEntityType,
@@ -568,6 +569,49 @@ export async function previewInvoiceForEconomic(
   }
 }
 
+export interface EconomicSupplierInvoicePreview {
+  integration_ready: boolean
+  external_id: string | null
+  draft: SupplierInvoiceDraft
+}
+
+/** Hvad pushSupplierInvoiceToEconomic ville bogføre — ingen netværk/skrivning, ingen nøgler læst ud. */
+export async function previewSupplierInvoiceForEconomic(
+  incomingInvoiceId: string
+): Promise<{ ok: true; data: EconomicSupplierInvoicePreview } | { ok: false; error: string }> {
+  const supabase = createAdminClient()
+  const { data: inv } = await supabase
+    .from('incoming_invoices')
+    .select('id, supplier_id, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat, payment_reference, external_invoice_id, external_provider')
+    .eq('id', incomingInvoiceId)
+    .maybeSingle()
+  if (!inv) return { ok: false, error: 'Faktura ikke fundet' }
+  const [{ data: settingsRow }, { data: sup }, { data: lineRows }] = await Promise.all([
+    supabase.from('accounting_integration_settings').select('active, config, api_token, agreement_grant_token').eq('provider', PROVIDER).maybeSingle(),
+    inv.supplier_id
+      ? supabase.from('suppliers').select('external_supplier_id, external_provider').eq('id', inv.supplier_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from('incoming_invoice_lines').select('line_number, description, quantity, unit_price, total_price').eq('incoming_invoice_id', incomingInvoiceId).order('line_number', { ascending: true }),
+  ])
+  const s = settingsRow as { active?: boolean; config?: EconomicConfig | null; api_token?: string | null; agreement_grant_token?: string | null } | null
+  const sp = sup as { external_supplier_id?: string | null; external_provider?: string | null } | null
+  const n = sp?.external_supplier_id && sp.external_provider === PROVIDER ? Number(sp.external_supplier_id) : NaN
+  const draft = buildEconomicSupplierInvoiceDraft({
+    invoice: inv,
+    supplierNumber: Number.isFinite(n) ? n : null,
+    lines: lineRows ?? [],
+    config: { costAccountNumber: (s?.config as { costAccountNumber?: number } | null)?.costAccountNumber ?? null },
+  })
+  return {
+    ok: true,
+    data: {
+      integration_ready: Boolean(s?.active && s?.api_token && s?.agreement_grant_token),
+      external_id: inv.external_provider === PROVIDER ? inv.external_invoice_id : null,
+      draft,
+    },
+  }
+}
+
 // =====================================================
 // Mark paid (cashbook entry)
 // =====================================================
@@ -808,42 +852,26 @@ export async function pushSupplierInvoiceToEconomic(
     return { ok: false, status: 'skipped', reason }
   }
 
-  // Pull lines (best-effort).
+  // Lines (best-effort udlæsning) + body via fælles mapping (samme som
+  // forhåndsvisningen): bogført omkostning = fakturaens beløb ekskl. moms.
   const { data: lineRows } = await supabase
     .from('incoming_invoice_lines')
     .select('line_number, description, quantity, unit_price, total_price')
     .eq('incoming_invoice_id', incomingInvoiceId)
     .order('line_number', { ascending: true })
 
-  const lines = (lineRows ?? []).map((l, i) => ({
-    lineNumber: l.line_number || i + 1,
-    description: (l.description || `Linje ${i + 1}`).slice(0, 1000),
-    quantity: Number(l.quantity ?? 1) || 1,
-    amount: Number(l.total_price ?? l.unit_price ?? 0) || 0,
-    costAccount: { accountNumber: costAccount },
-  }))
-
-  // If no lines were extracted, post the total as a single line so the
-  // draft is still bookable in e-conomic.
-  if (lines.length === 0) {
-    lines.push({
-      lineNumber: 1,
-      description: `Faktura ${inv.invoice_number ?? ''}`.trim() || 'Leverandørfaktura',
-      quantity: 1,
-      amount: Number(inv.amount_excl_vat ?? inv.amount_incl_vat ?? 0) || 0,
-      costAccount: { accountNumber: costAccount },
-    })
+  const draft = buildEconomicSupplierInvoiceDraft({
+    invoice: inv,
+    supplierNumber: economicSupplierNumber,
+    lines: lineRows ?? [],
+    config: { costAccountNumber: costAccount },
+  })
+  if (!draft.canPost) {
+    const reason = draft.issues.filter((i) => i.severity === 'error').map((i) => i.message).join('; ')
+    await logAttempt({ entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'create', status: 'failed', error_message: reason })
+    return { ok: false, status: 'failed', error: reason }
   }
-
-  const body = {
-    currency: inv.currency || 'DKK',
-    date: inv.invoice_date || new Date().toISOString().slice(0, 10),
-    dueDate: inv.due_date || undefined,
-    supplier: { supplierNumber: economicSupplierNumber },
-    supplierInvoiceNumber: inv.invoice_number || undefined,
-    paymentReference: inv.payment_reference || undefined,
-    lines,
-  }
+  const body = draft.body
 
   const res = await economicFetch<{ draftSupplierInvoiceNumber: number }>(
     ready,

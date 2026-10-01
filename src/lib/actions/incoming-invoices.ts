@@ -793,6 +793,23 @@ export interface PostEconomicOutcome {
   external_id?: string | null
 }
 
+/** Forhåndsvisning af hvad godkendelse/bogføring ville sende til e-conomic — intet sendes. */
+export async function getSupplierInvoiceEconomicPreviewAction(
+  id: string
+): Promise<
+  | { ok: true; data: import('@/lib/services/economic-client').EconomicSupplierInvoicePreview }
+  | { ok: false; message: string }
+> {
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.approve')) {
+    return { ok: false, message: 'Manglende tilladelse: incoming_invoices.approve' }
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, message: 'Ugyldigt id' }
+  const { previewSupplierInvoiceForEconomic } = await import('@/lib/services/economic-client')
+  const res = await previewSupplierInvoiceForEconomic(id)
+  return res.ok ? { ok: true, data: res.data } : { ok: false, message: res.error }
+}
+
 export async function postIncomingInvoiceToEconomicAction(id: string): Promise<PostEconomicOutcome> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.approve')) {
