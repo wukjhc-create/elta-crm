@@ -32,7 +32,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 ## NEXT
 | # | Område | Opgave |
 |---|---|---|
-| N1 | Tilbudsopfølgning | Opfølgning synlig for sælger (påmindelser/reminder_count på tilbud, "Følg op"-opgaver for salg) |
+| N1 | Tilbudsopfølgning | Opfølgning synlig for sælger | DONE — kort "Opfølgning" på Tilbud: sendte tilbud prioriteret efter næste skridt (udløber snart → set/ubesvaret → ikke åbnet → afventer), Ring/Åbn, salg ser egne, admin/serviceleder alle; ærlig om at auto-påmindelser er slået fra. Ren regel (followup/offer-followup.ts, dansk kalender) 14 tests i CI; ui-e2e U14. Fundet+rettet undervejs: hydreringsfejl i kunde-/lead-/tilbudslister (relativ tid beregnet på server og klient) → SmartDate |
 | N2 | Tid | Godkendelse af timer (time_logs.approve findes kun som permission) |
 | N3 | Grossist | AO manuel sync-knap (stub), SupplierStatusCard ikke monteret, syncSupplierPrices per-SKU/timeout |
 | N4 | Grossist | Produktsøgning ilike på 324k rækker uden trigram-indeks (migration) |

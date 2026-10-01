@@ -1,5 +1,6 @@
 'use client'
 
+import { OfferFollowupCard } from '@/components/modules/offers/offer-followup-card'
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Search, X } from 'lucide-react'
@@ -166,6 +167,9 @@ export function OffersPageClient({ offers, pagination, filters, sort, companySet
             </button>
           </div>
         </div>
+
+        {/* GO-LIVE N1: sendte tilbud der venter på kunden — hvad bør sælgeren gøre nu */}
+        <OfferFollowupCard />
 
         {/* Filters */}
         <div className="bg-white rounded-lg border p-4">

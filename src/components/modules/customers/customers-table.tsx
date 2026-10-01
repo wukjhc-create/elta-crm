@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { formatSmartDate } from '@/lib/utils/format'
+import { SmartDate } from '@/components/shared/smart-date'
 import {
   MoreHorizontal,
   Pencil,
@@ -375,7 +375,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
-                    {formatSmartDate(customer.created_at)}
+                    <SmartDate date={customer.created_at} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="relative">

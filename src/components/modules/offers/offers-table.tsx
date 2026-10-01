@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
-import { formatSmartDate, formatCurrency } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/utils/format'
+import { SmartDate } from '@/components/shared/smart-date'
 import {
   MoreHorizontal,
   Pencil,
@@ -307,7 +308,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                       : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
-                    {formatSmartDate(offer.created_at)}
+                    <SmartDate date={offer.created_at} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="relative">

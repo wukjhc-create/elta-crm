@@ -26,13 +26,15 @@
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
+ *   U14 salg: Opfølgning på tilbudssiden — eget tilbud set for 5 dage siden vises som "Set — ikke besvaret" med Ring;
+ *       nyt tilbud ligger under "afventer"; kollegas tilbud vises ikke (N1)
  *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { spawn, execSync, type ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
 import { makeTextPdf } from './pdf-fixture'
-import { mkdirSync } from 'fs'
+import { mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
@@ -111,6 +113,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
   let salgOfferId: string | null = null
+  const followupOfferIds: string[] = []
 
   try {
     const adminUser = await mkUser('admin')
@@ -127,7 +130,11 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     const login = async (u: { email: string; password: string }) => {
       const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
       const page = await ctx.newPage()
-      page.on('pageerror', (e) => pageErrors.push(`${u.email.split('@')[0]}: ${e.message.slice(0, 120)}`))
+      page.on('pageerror', (e) => {
+        pageErrors.push(`${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${e.message.replace(/\s+/g, ' ').slice(0, 700)}`)
+        // Hydration-fejl: fuld besked (inkl. React-diff) til fil, så årsagen kan findes uden gæt
+        if (/Hydration/.test(e.message)) writeFileSync(join(shots, `hydration-${Date.now()}.txt`), `${page.url()}\n${e.message}\n${e.stack ?? ''}`)
+      })
       page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Download the React DevTools|\[HMR\]|Failed to load resource/.test(m.text())) pageErrors.push(`${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${m.text().replace(/%c/g, '').replace(/background:[^;]*;|color:[^;]*;|border-radius:[^;]*;|light-dark\([^)]*\)\)?;?/g, '').replace(/\s+/g, ' ').trim().slice(0, 260)}`) })
       await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded', timeout: 180_000 })
       await page.locator('input[type="email"]').fill(u.email)
@@ -433,6 +440,34 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         r.sag_ejet_af_salg = sag?.created_by === salg.id
         await sp.page.screenshot({ path: join(shots, 'u13-salg-sag.png'), fullPage: true }).catch(() => {})
       }
+      // U14 opfølgning (N1)
+      if (sp.ok && profitCustomerId) {
+        const daysAgo = (n: number) => new Date(Date.now() - n * 86400_000).toISOString()
+        const validTo = new Date(Date.now() + 20 * 86400_000).toISOString().slice(0, 10)
+        const mk = async (num: string, title: string, by: string, sentAt: string, status: string, viewedAt: string | null) => {
+          const r0 = await c.admin.from('offers').insert([{ offer_number: num, title, created_by: by, customer_id: profitCustomerId, status, sent_at: sentAt,
+            viewed_at: viewedAt, valid_until: validTo }]).select('id')
+          const id = (r0.data?.[0] as { id?: string } | undefined)?.id
+          if (id) followupOfferIds.push(id)
+        }
+        await c.admin.from('customers').update({ phone: '+45 12 34 56 78' }).eq('id', profitCustomerId)
+        await mk(`UI-E2E-F1-${stamp}`, `[HARNESS] følg op set ${stamp}`, salg.id, daysAgo(5), 'viewed', daysAgo(4))
+        await mk(`UI-E2E-F2-${stamp}`, `[HARNESS] følg op nyt ${stamp}`, salg.id, daysAgo(0), 'sent', null)
+        await mk(`UI-E2E-F3-${stamp}`, `[HARNESS] følg op kollega ${stamp}`, adminUser.id, daysAgo(6), 'viewed', daysAgo(5))
+        const f: Record<string, boolean> = {}
+        await sp.page.goto(`${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const card = sp.page.getByTestId('offer-followup-card')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        const txt = (await card.count()) ? await card.innerText() : ''
+        const row = card.getByTestId('offer-followup-row').filter({ hasText: `følg op set ${stamp}` })
+        const rowTxt = (await row.count()) ? await row.first().innerText() : ''
+        f.set_ikke_besvaret = /Set — ikke besvaret/.test(rowTxt) && /5 dage/.test(rowTxt)
+        f.ring_knap = (await row.getByRole('link', { name: /Ring/ }).count()) === 1
+        f.nyt_under_afventer = !txt.includes(`følg op nyt ${stamp}`) && /afventer stadig kunden/.test(txt)
+        f.kollega_skjult = !txt.includes(`følg op kollega ${stamp}`)
+        await sp.page.screenshot({ path: join(shots, 'u14-opfoelgning.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U14 salg: tilbudsopfølgning', ok: Object.values(f).every(Boolean), note: Object.entries(f).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
       out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 4 && Object.values(r).every(Boolean),
         note: `${!sp.ok ? 'salg-login fejlede · ' : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
     }
@@ -468,6 +503,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       await c.admin.from('service_cases').delete().eq('id', jobCaseId)
     }
     if (jobEmployeeId) await c.admin.from('employees').delete().eq('id', jobEmployeeId)
+    for (const id of followupOfferIds) { await c.admin.from('offer_activities').delete().eq('offer_id', id); await c.admin.from('offers').delete().eq('id', id) }
     if (salgOfferId) {
       await c.admin.from('offers').update({ converted_case_id: null }).eq('id', salgOfferId)
       const { data: scs } = await c.admin.from('service_cases').select('id').eq('source_offer_id', salgOfferId)
