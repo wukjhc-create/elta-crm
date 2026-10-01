@@ -39,6 +39,7 @@
  *       svaret (kundeportal, GO-LIVE)
  *   U24 nyt tilbud fra bunden: formular (titel + kunde) → tilbudssiden → "Tilføj linje" (4 × 250) → linjen gemt og
  *       tilbuddets totaler opdateret (1.000 ekskl. / 1.250 inkl. moms)
+ *   U25 mail → sag: kundemail i indbakken → "Opret sag" → lander på den nye sags Mails-fane med mailen; mail koblet i DB
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -136,6 +137,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let searchCustomerId: string | null = null
   let chatTokenId: string | null = null
   let newOfferId: string | null = null
+  let u25EmailId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -638,6 +640,28 @@ ${m.text()}`) })
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · total=${off?.total_amount}/${off?.final_amount}` })
       }
 
+      // U25 mail → sag (mail/indbakke, GO-LIVE)
+      if (profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const subject = `[HARNESS] Fejl på inverter ${stamp}`
+        const em = await c.admin.from('incoming_emails').insert([{ sender_email: `ui-profit-${stamp}@harness.test`, sender_name: 'Harness Kunde', subject,
+          body_text: 'Inverteren viser fejl 41. Kan I komme forbi?', customer_id: profitCustomerId, link_status: 'linked', received_at: new Date().toISOString(),
+          is_archived: false }]).select('id')
+        u25EmailId = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await a.page.goto(`${base}/dashboard/mail?emailId=${u25EmailId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: 'Opret sag', exact: true }).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.waitForURL(/\/dashboard\/orders\/[0-9a-f-]{36}\?tab=mails/, { timeout: 120_000 }).catch(() => {})
+        const caseId = (a.page.url().match(/orders\/([0-9a-f-]{36})/) ?? [])[1] ?? null
+        r.lander_paa_sag = !!caseId
+        await a.page.getByText(subject).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.mail_vist_paa_sag = (await a.page.getByText(subject).count()) > 0
+        const linked = u25EmailId ? ((await c.admin.from('incoming_emails').select('service_case_id').eq('id', u25EmailId).maybeSingle()).data as { service_case_id?: string } | null) : null
+        r.mail_koblet = !!caseId && linked?.service_case_id === caseId
+        await a.page.screenshot({ path: join(shots, 'u25-mail-til-sag.png'), fullPage: true }).catch(() => {})
+        if (caseId) listCaseIds.push(caseId) // ryddes sammen med U20's sager
+        out.push({ id: 'U25 mail → sag', ok: !!u25EmailId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -917,8 +941,10 @@ ${m.text()}`) })
     }
     if (seededEmailIds.length) await c.admin.from('incoming_emails').delete().in('id', seededEmailIds)
     if (otherCaseId) { await c.admin.from('case_notes').delete().eq('case_id', otherCaseId); await c.admin.from('service_cases').delete().eq('id', otherCaseId) }
+    if (u25EmailId) await c.admin.from('incoming_emails').update({ service_case_id: null }).eq('id', u25EmailId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
+    if (u25EmailId) await c.admin.from('incoming_emails').delete().eq('id', u25EmailId)
     if (siteCaseId) { await c.admin.from('case_notes').delete().eq('case_id', siteCaseId); await c.admin.from('service_cases').delete().eq('id', siteCaseId) }
     if (aoSupplierId) {
       const { data: ps } = await c.admin.from('supplier_products').select('id').eq('supplier_id', aoSupplierId)

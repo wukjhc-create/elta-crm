@@ -453,7 +453,7 @@ export function MailDetail({
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
             >
               {isCreatingServiceCase ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-              Opret Service-sag
+              Opret sag
             </button>
           )}
 

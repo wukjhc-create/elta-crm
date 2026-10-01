@@ -666,8 +666,9 @@ export function MailClient() {
     try {
       const result = await createServiceCaseFromEmail(emailId)
       if (result.success && result.data) {
-        toast.success('Serviceopgave oprettet', `${result.data.case_number}: ${result.data.title}`)
-        router.push(`/dashboard/orders`)
+        toast.success('Sag oprettet', `${result.data.case_number}: ${result.data.title}`)
+        // Direkte til den nye sags mails (mailen og tråden er koblet til sagen)
+        router.push(`/dashboard/orders/${result.data.id}?tab=mails`)
       } else {
         toast.error('Fejl', result.error || 'Kunne ikke oprette serviceopgave')
       }
