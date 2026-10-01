@@ -28,6 +28,7 @@ import {
   FileCheck,
   Package,
 } from 'lucide-react'
+import { decodeTextFile } from '@/lib/utils/decode-text-file'
 import { previewImport, executeImport } from '@/lib/actions/import'
 import type { ImportPreview, ImportResult, PriceChange } from '@/types/suppliers.types'
 import { formatCurrency } from '@/lib/utils/format'
@@ -88,14 +89,8 @@ export function ImportWizard({
     setIsLoading(false)
   }, [supplierId])
 
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (e) => resolve(e.target?.result as string)
-      reader.onerror = reject
-      reader.readAsText(file)
-    })
-  }
+  // AO leverer ISO-8859-1: dekod bytes selv (UTF-8 hvis gyldig, ellers windows-1252) — readAsText ødelagde æ/ø/å
+  const readFileContent = async (file: File): Promise<string> => decodeTextFile(await file.arrayBuffer()).text
 
   const handleImport = async (dryRun: boolean = false) => {
     if (!file || !fileContent) return

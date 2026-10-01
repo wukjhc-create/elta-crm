@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Package, Wifi, WifiOff, Clock, Server } from 'lucide-react'
 import { getAllSupplierSyncStatuses, triggerLemuSync, type SupplierSyncOverview } from '@/lib/actions/lemu-sync'
 import { useToast } from '@/components/ui/toast'
@@ -164,6 +165,17 @@ export function SupplierSyncOverviewPanel() {
                 </div>
               </div>
 
+              {s.code !== 'LM' && s.supplier_id ? (
+                // Ingen automatisk sync for denne grossist: prisfilen importeres manuelt (preview → import, prishistorik)
+                <Link
+                  href={`/dashboard/settings/suppliers/${s.supplier_id}/import`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  data-testid={`supplier-import-${s.code}`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  Importér prisfil
+                </Link>
+              ) : (
               <button
                 onClick={() => handleSync(s.code)}
                 disabled={syncingCode === s.code || !s.connection_configured}
@@ -176,6 +188,7 @@ export function SupplierSyncOverviewPanel() {
                 )}
                 Synk
               </button>
+              )}
             </div>
           </div>
         ))}

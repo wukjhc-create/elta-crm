@@ -27,6 +27,8 @@
  *       manuel linje -> totaler + 25 % moms genberegnet i DB (N5)
  *   U16 admin: e-conomic-opsætning — leverandørnr. sættes på leverandøren (ugyldigt afvises), tjeklisten "Klar til
  *       bogføring?" vises med alle punkter; intet bogføres (N12)
+ *   U17 admin: AO-prisfil (ISO-8859-1) via import-guiden → varer oprettet med korrekte æøå og kostpris; 2. fil med ny pris
+ *       → pris opdateret + prishistorik (grossist/prisdata)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -107,6 +109,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ headless: true })
   const pageErrors: string[] = []
+  const loginFailures: string[] = []
   let profitOfferId: string | null = null
   let profitCustomerId: string | null = null
   let cmpSupplierIds: string[] = []
@@ -118,6 +121,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const uploadedInvoiceIds: string[] = []
   let draftInvoiceId: string | null = null
   let draftCustomerId: string | null = null
+  let aoSupplierId: string | null = null
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
   let salgOfferId: string | null = null
@@ -149,6 +153,12 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       await page.locator('input[type="password"]').fill(u.password)
       await page.locator('button[type="submit"]').click()
       const ok = await page.waitForURL(/\/dashboard/, { timeout: 120_000 }).then(() => true).catch(() => false)
+      if (!ok) {
+        // Årsag i stedet for gæt: loginsidens fejltekst + skærmbillede
+        const why = (await page.locator('[role="alert"], .text-red-600, .text-destructive').allInnerTexts().catch(() => [] as string[])).join(' / ').slice(0, 200)
+        loginFailures.push(`${u.email.split('@')[0].replace(/-\d+$/, '')}: url=${new URL(page.url()).pathname} ${why || '(ingen fejltekst)'}`)
+        await page.screenshot({ path: join(shots, `login-fejl-${Date.now()}.png`), fullPage: true }).catch(() => {})
+      }
       return { ctx, page, ok }
     }
 
@@ -404,6 +414,42 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         out.push({ id: 'U16 e-conomic-opsætning (admin)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U17 AO-prisfil-import (ISO-8859-1). Kræver en leverandør med kode 'AO' (AO-konfiguration vælges på koden).
+      {
+        const r: Record<string, boolean> = {}
+        const existingAo = (await c.admin.from('suppliers').select('id').ilike('code', 'AO').maybeSingle()).data as { id?: string } | null
+        let note = ''
+        if (existingAo?.id) note = 'staging har allerede en AO-leverandør — springer over for ikke at røre dens data'
+        else {
+          const ins = await c.admin.from('suppliers').insert([{ name: `[HARNESS] AO ${stamp}`, code: 'AO' }]).select('id')
+          aoSupplierId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+          const sku = `HAO${String(stamp).slice(-7)}`
+          const csv = (price: string) => Buffer.from(['Varenummer;Beskrivelse;Indkøbspris;Vejl. udsalgspris;Enhed;Varegruppe;EAN;Leverandør',
+            `${sku};Kabel 3x1,5 mørkegrå Ærø;${price};19,95;M;Kabler;5790000${String(stamp).slice(-6)};Nexans`].join('\r\n') + '\r\n', 'latin1')
+          const runImport = async (price: string, name: string) => {
+            await a.page.goto(`${base}/dashboard/settings/suppliers/${aoSupplierId}/import`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await a.page.locator('input[type="file"]').first().setInputFiles({ name, mimeType: 'text/csv', buffer: csv(price) }).catch(() => {})
+            await a.page.getByRole('button', { name: 'Kør import' }).waitFor({ timeout: 90_000 }).catch(() => {})
+            await a.page.getByRole('button', { name: 'Kør import' }).click().catch(() => {})
+            for (let i = 0; i < 30; i++) {
+              const p0 = (await c.admin.from('supplier_products').select('id, supplier_name, cost_price').eq('supplier_id', aoSupplierId).eq('supplier_sku', sku).maybeSingle()).data as { id?: string; supplier_name?: string; cost_price?: number } | null
+              if (p0 && Number(p0.cost_price) === Number(price.replace(',', '.'))) return p0
+              await new Promise((res) => setTimeout(res, 1000))
+            }
+            return (await c.admin.from('supplier_products').select('id, supplier_name, cost_price').eq('supplier_id', aoSupplierId).eq('supplier_sku', sku).maybeSingle()).data as { id?: string; supplier_name?: string; cost_price?: number } | null
+          }
+          const p1 = await runImport('12,50', 'ao-pris-1.csv')
+          r.oprettet = !!p1?.id && Number(p1.cost_price) === 12.5
+          r.aeoeaa_korrekt = p1?.supplier_name === 'Kabel 3x1,5 mørkegrå Ærø'
+          await a.page.screenshot({ path: join(shots, 'u17-ao-import.png'), fullPage: true }).catch(() => {})
+          const p2 = await runImport('13,75', 'ao-pris-2.csv')
+          r.pris_opdateret = Number(p2?.cost_price) === 13.75
+          const hist = p1?.id ? (await c.admin.from('price_history').select('id', { count: 'exact', head: true }).eq('supplier_product_id', p1.id)).count ?? 0 : 0
+          r.prishistorik = hist >= 1
+        }
+        out.push({ id: 'U17 AO-prisfil-import (ISO-8859-1)', ok: !note && Object.values(r).every(Boolean), note: note || Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -574,7 +620,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         out.push({ id: 'U14 salg: tilbudsopfølgning', ok: Object.values(f).every(Boolean), note: Object.entries(f).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
       out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 6 && Object.values(r).every(Boolean),
-        note: `${!sp.ok ? 'salg-login fejlede · ' : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+        note: `${!sp.ok ? `salg-login fejlede (${loginFailures.join(' | ')}) · ` : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
     }
 
     out.push({ id: 'U5 ingen side-/konsolfejl', ok: pageErrors.length === 0, note: pageErrors.length ? pageErrors.slice(0, 3).join(' | ') : `0 fejl · skærmbilleder: ${shots}` })
@@ -622,6 +668,15 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     }
     if (seededEmailIds.length) await c.admin.from('incoming_emails').delete().in('id', seededEmailIds)
     if (otherCaseId) { await c.admin.from('case_notes').delete().eq('case_id', otherCaseId); await c.admin.from('service_cases').delete().eq('id', otherCaseId) }
+    if (aoSupplierId) {
+      const { data: ps } = await c.admin.from('supplier_products').select('id').eq('supplier_id', aoSupplierId)
+      const pids = ((ps ?? []) as Array<{ id: string }>).map((x) => x.id)
+      if (pids.length) await c.admin.from('price_history').delete().in('supplier_product_id', pids)
+      await c.admin.from('supplier_products').delete().eq('supplier_id', aoSupplierId)
+      await c.admin.from('import_batches').delete().eq('supplier_id', aoSupplierId)
+      await c.admin.from('supplier_settings').delete().eq('supplier_id', aoSupplierId)
+      await c.admin.from('suppliers').delete().eq('id', aoSupplierId)
+    }
     if (draftInvoiceId) { await c.admin.from('audit_logs').delete().eq('entity_id', draftInvoiceId); await c.admin.from('invoice_lines').delete().eq('invoice_id', draftInvoiceId); await c.admin.from('invoices').delete().eq('id', draftInvoiceId) }
     if (draftCustomerId) { await c.admin.from('customer_contacts').delete().eq('customer_id', draftCustomerId); await c.admin.from('customers').delete().eq('id', draftCustomerId) }
     for (const id of uploadedInvoiceIds) {
