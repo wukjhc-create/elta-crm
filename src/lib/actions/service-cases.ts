@@ -344,7 +344,8 @@ interface UpdateServiceCaseInput {
 
 export async function updateServiceCase(
   id: string,
-  input: UpdateServiceCaseInput
+  input: UpdateServiceCaseInput,
+  opts?: { acknowledgeUnbilled?: boolean }
 ): Promise<ActionResult<ServiceCase>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -360,9 +361,15 @@ export async function updateServiceCase(
     // Lukning kræver cases.close — samme regel som setServiceCaseStatus (Service-listens status-dropdown gik udenom)
     if (payload.status === 'closed') {
       if (!hasPermission('cases.close')) return { success: false, error: 'Manglende tilladelse: cases.close' }
-      if (payload.closed_at === undefined) {
-        const { data: prior } = await supabase.from('service_cases').select('status, closed_at').eq('id', id).maybeSingle()
-        if (prior && prior.status !== 'closed') payload.closed_at = new Date().toISOString()
+      const { data: prior } = await supabase.from('service_cases').select('status, closed_at').eq('id', id).maybeSingle()
+      if (prior && prior.status !== 'closed') {
+        // Lukke-værn (samme som setServiceCaseStatus)
+        const block = await unbilledCloseBlock(supabase, id)
+        if (block && !opts?.acknowledgeUnbilled) {
+          const { UNBILLED_PREFIX } = await import('@/lib/cases/close-guard')
+          return { success: false, error: `${UNBILLED_PREFIX}${block}` }
+        }
+        if (payload.closed_at === undefined) payload.closed_at = new Date().toISOString()
       }
     }
 
@@ -1440,10 +1447,37 @@ async function logServiceCaseAudit(
   }
 }
 
+
+/**
+ * Lukke-værn: besked hvis sagen har ufaktureret arbejde (timer/materialer/øvrige)
+ * eller en kørende timer — ellers null. Samme regler som fakturakladden.
+ */
+async function unbilledCloseBlock(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+  caseId: string
+): Promise<string | null> {
+  const { summarizeUnbilled, unbilledCloseMessage } = await import('@/lib/invoices/unbilled')
+  const { data: wos } = await supabase.from('work_orders').select('id').eq('case_id', caseId)
+  const woIds = (wos ?? []).map((w) => w.id as string)
+  const [tl, mat, oth] = await Promise.all([
+    woIds.length
+      ? supabase.from('time_logs').select('end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds)
+      : Promise.resolve({ data: [] }),
+    supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
+    supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
+  ])
+  return unbilledCloseMessage(summarizeUnbilled({
+    timeLogs: (tl.data ?? []) as never[],
+    materials: (mat.data ?? []) as never[],
+    otherCosts: (oth.data ?? []) as never[],
+  }))
+}
+
 export async function setServiceCaseStatus(
   id: string,
   status: ServiceCaseStatus,
-  note?: string | null
+  note?: string | null,
+  opts?: { acknowledgeUnbilled?: boolean }
 ): Promise<ActionResult<ServiceCase>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -1462,7 +1496,15 @@ export async function setServiceCaseStatus(
 
     const update: Record<string, unknown> = { status }
     if (note != null) update.status_note = note
+    let closedDespite: string | null = null
     if (status === 'closed' && !prior?.status?.toString()?.includes('closed')) {
+      // Lukke-værn: ikke stille lukning med ufaktureret arbejde
+      const block = await unbilledCloseBlock(supabase, id)
+      if (block && !opts?.acknowledgeUnbilled) {
+        const { UNBILLED_PREFIX } = await import('@/lib/cases/close-guard')
+        return { success: false, error: `${UNBILLED_PREFIX}${block}` }
+      }
+      closedDespite = block
       update.closed_at = new Date().toISOString()
     }
 
@@ -1482,8 +1524,8 @@ export async function setServiceCaseStatus(
       id,
       (data?.case_number as string) ?? id,
       'status_change',
-      `Status ændret: ${prior?.status ?? '—'} → ${status}${note ? ` (${note})` : ''}`,
-      { status: { old: prior?.status ?? null, new: status } }
+      `Status ændret: ${prior?.status ?? '—'} → ${status}${note ? ` (${note})` : ''}${closedDespite ? ` — lukket trods: ${closedDespite}` : ''}`,
+      { status: { old: prior?.status ?? null, new: status }, ...(closedDespite ? { unbilled_at_close: { old: null, new: closedDespite } } : {}) }
     )
 
     revalidatePath('/dashboard/orders')
@@ -1496,10 +1538,13 @@ export async function setServiceCaseStatus(
   }
 }
 
-export async function markServiceCaseDone(id: string): Promise<ActionResult<ServiceCase>> {
+export async function markServiceCaseDone(
+  id: string,
+  opts?: { acknowledgeUnbilled?: boolean }
+): Promise<ActionResult<ServiceCase>> {
   const __denied = await permissionDenied('cases.close')
   if (__denied) return { success: false, error: __denied }
-  return setServiceCaseStatus(id, 'closed', 'Markeret som afsluttet')
+  return setServiceCaseStatus(id, 'closed', 'Markeret som afsluttet', opts)
 }
 
 export async function setServiceCaseLowProfit(

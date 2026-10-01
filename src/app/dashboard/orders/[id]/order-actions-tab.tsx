@@ -14,6 +14,7 @@ import {
   type ServiceCaseStatus,
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
+import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
 
 export function OrderActionsTab({ sag }: { sag: ServiceCaseWithRelations }) {
   const router = useRouter()
@@ -45,7 +46,11 @@ export function OrderActionsTab({ sag }: { sag: ServiceCaseWithRelations }) {
       handleError('Vælg en anden status, eller skriv en note.')
       return
     }
-    const res = await setServiceCaseStatus(sag.id, nextStatus, statusNote.trim() || null)
+    let res = await setServiceCaseStatus(sag.id, nextStatus, statusNote.trim() || null)
+    if (!res.success && isUnbilledCloseError(res.error)) {
+      if (!confirmCloseDespiteUnbilled(res.error)) return
+      res = await setServiceCaseStatus(sag.id, nextStatus, statusNote.trim() || null, { acknowledgeUnbilled: true })
+    }
     if (!res.success) {
       handleError(res.error || 'Kunne ikke ændre status')
       return
@@ -56,7 +61,11 @@ export function OrderActionsTab({ sag }: { sag: ServiceCaseWithRelations }) {
   }
 
   const onMarkDone = async () => {
-    const res = await markServiceCaseDone(sag.id)
+    let res = await markServiceCaseDone(sag.id)
+    if (!res.success && isUnbilledCloseError(res.error)) {
+      if (!confirmCloseDespiteUnbilled(res.error)) return
+      res = await markServiceCaseDone(sag.id, { acknowledgeUnbilled: true })
+    }
     if (!res.success) {
       handleError(res.error || 'Kunne ikke afslutte sag')
       return

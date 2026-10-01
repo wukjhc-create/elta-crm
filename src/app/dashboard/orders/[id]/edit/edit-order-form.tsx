@@ -21,6 +21,7 @@ import {
   SERVICE_CASE_TYPE_LABELS,
   type ServiceCaseWithRelations,
 } from '@/types/service-cases.types'
+import { isUnbilledCloseError, confirmCloseDespiteUnbilled } from '@/lib/cases/close-guard'
 
 interface CustomerOption {
   id: string
@@ -107,7 +108,7 @@ export function EditOrderForm({
     setError(null)
     setIsSubmitting(true)
     try {
-      const result = await updateServiceCase(sag.id, {
+      const payload = {
         title: data.title,
         project_name: data.project_name,
         type: data.type ?? null,
@@ -126,7 +127,12 @@ export function EditOrderForm({
         contract_sum: data.contract_sum,
         revised_sum: data.revised_sum,
         budget: data.budget,
-      })
+      }
+      let result = await updateServiceCase(sag.id, payload)
+      if (!result.success && isUnbilledCloseError(result.error)) {
+        if (!confirmCloseDespiteUnbilled(result.error)) return
+        result = await updateServiceCase(sag.id, payload, { acknowledgeUnbilled: true })
+      }
 
       if (!result.success || !result.data) {
         setError(result.error || 'Kunne ikke gemme ændringer')

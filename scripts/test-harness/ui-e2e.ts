@@ -76,6 +76,8 @@
  *   U45 salg: "Kun mine" på leadlisten viser kun leads tildelt sælgeren (kollegas lead skjult), filter vist som "Tildelt mig"
  *   U46 faktura-PDF (/api/invoices/[id]/pdf): admin får PDF, montør får 404 (før: kun login-tjek → alle indloggede)
  *   U47 salg: PDF for eget tilbud downloades (før: 500, firmaindstillinger krævede settings.view)
+ *   U48 lukke-værn: "Markér afsluttet" på sag med ufaktureret materiale → advarsel med beløb; fortryd = forbliver åben;
+ *       bekræft = lukket + audit "lukket trods"
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -209,6 +211,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u42: { sourceId?: string; copyId?: string } = {}
   let u43: { employeeIds?: string[]; caseId?: string; woId?: string } = {}
   let u46: { invoiceId?: string; companySettingsId?: string; offerId?: string } = {}
+  let u48CaseId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1343,6 +1346,34 @@ ${m.text()}`) })
         out.push({ id: 'U43 omplanlægning fra kalenderen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U48 lukke-værn: sag med ufaktureret materiale lukkes ikke stille
+      if (want('U48') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] lukkeværn ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        u48CaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u48CaseId) await c.admin.from('case_materials').insert([{ case_id: u48CaseId, description: `Kabel ${stamp}`, quantity: 2, unit: 'stk',
+          unit_cost: 100, unit_sales_price: 150, billable: true, source: 'manual', created_by: adminUser.id }])
+        const statusOf = async () => String(((await c.admin.from('service_cases').select('status').eq('id', u48CaseId ?? '').maybeSingle()).data as { status?: string } | null)?.status ?? '')
+        let dialogText = ''
+        // 1) brugeren fortryder → sagen forbliver åben
+        a.page.once('dialog', (d) => { dialogText = d.message(); d.dismiss().catch(() => {}) })
+        await gotoSafe(a.page, `${base}/dashboard/orders/${u48CaseId}?tab=handlinger`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: 'Markér afsluttet' }).click({ timeout: 60_000 }).catch(() => {})
+        await a.page.waitForTimeout(3000)
+        r.advaret = /1 materiale for i alt 300,00 kr ekskl\. moms er ikke faktureret/.test(dialogText)
+        r.forbliver_aaben = (await statusOf()) === 'in_progress'
+        // 2) brugeren bekræfter → lukket + audit
+        a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+        await a.page.getByRole('button', { name: 'Markér afsluttet' }).click({ timeout: 60_000 }).catch(() => {})
+        let st = ''
+        for (let i = 0; i < 20 && st !== 'closed'; i++) { st = await statusOf(); if (st !== 'closed') await new Promise((res) => setTimeout(res, 1000)) }
+        r.lukket_efter_bekraeftelse = st === 'closed'
+        const aud = ((await c.admin.from('audit_logs').select('action_description').eq('entity_id', u48CaseId ?? '')).data ?? []) as Array<{ action_description: string | null }>
+        r.audit_noterer = aud.some((x) => (x.action_description ?? '').includes('lukket trods'))
+        out.push({ id: 'U48 lukke-værn (ufaktureret)', ok: !!u48CaseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · dialog="${dialogText.slice(0, 90)}"` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1580,13 +1611,14 @@ ${m.text()}`) })
         const adm = await a.page.context().request.get(url, { timeout: 180_000 }).catch(() => null)
         const ab = adm ? await adm.body().catch(() => Buffer.from('')) : Buffer.from('')
         r.admin_pdf = adm?.status() === 200 && ab.subarray(0, 4).toString() === '%PDF'
-        const mon = await m.page.context().request.get(url, { timeout: 120_000 }).catch(() => null)
+        // som brugeren: åbn linket i siden (ikke en parallel context-request mens en anden side er åben)
+        const mon = await gotoSafe(m.page, url, { waitUntil: 'load', timeout: 120_000 }).catch(() => null)
         r.montoer_404 = mon?.status() === 404
         // tilbuds-PDF: montør har ikke offers.view
         const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OP-${stamp}`, title: '[HARNESS] pdf-adgang', customer_id: profitCustomerId,
           status: 'draft', created_by: adminUser.id }]).select('id')
         u46.offerId = (off.data?.[0] as { id?: string } | undefined)?.id
-        const monOffer = u46.offerId ? await m.page.context().request.get(`${base}/api/offers/${u46.offerId}/pdf`, { timeout: 120_000 }).catch(() => null) : null
+        const monOffer = u46.offerId ? await gotoSafe(m.page, `${base}/api/offers/${u46.offerId}/pdf`, { waitUntil: 'load', timeout: 120_000 }).catch(() => null) : null
         r.montoer_tilbud_404 = monOffer?.status() === 404
         out.push({ id: 'U46 faktura-PDF: adgangskontrol', ok: !!u46.invoiceId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · admin=${adm?.status()} montør=${mon?.status()}` })
       }
@@ -1826,6 +1858,7 @@ ${m.text()}`) })
     if (u46.invoiceId) { await c.admin.from('invoice_lines').delete().eq('invoice_id', u46.invoiceId); await c.admin.from('invoices').delete().eq('id', u46.invoiceId) }
     if (u46.offerId) { await c.admin.from('offer_activities').delete().eq('offer_id', u46.offerId); await c.admin.from('offers').delete().eq('id', u46.offerId) }
     if (u46.companySettingsId) await c.admin.from('company_settings').delete().eq('id', u46.companySettingsId)
+    if (u48CaseId) { await c.admin.from('case_materials').delete().eq('case_id', u48CaseId); await c.admin.from('audit_logs').delete().eq('entity_id', u48CaseId); listCaseIds.push(u48CaseId) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)
