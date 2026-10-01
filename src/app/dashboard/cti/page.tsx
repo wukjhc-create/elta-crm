@@ -70,7 +70,7 @@ export default async function CtiPage({ searchParams }: { searchParams: Promise<
               <ul className="divide-y">
                 {res.openCases.map((c) => (
                   <li key={c.id} className="px-4 py-2 text-sm">
-                    <Link href={`/dashboard/service-cases/${c.id}`} className="text-blue-600 hover:underline">{c.case_number ?? 'Sag'}</Link> {c.title} <span className="text-gray-400">· {c.status}</span>
+                    <Link href={`/dashboard/orders/${c.id}`} className="text-blue-600 hover:underline">{c.case_number ?? 'Sag'}</Link> {c.title} <span className="text-gray-400">· {c.status}</span>
                   </li>
                 ))}
               </ul>

@@ -32,6 +32,8 @@
  *   U18 admin: sagens stedinfo på ordresiden — ugyldigt KSR afvises, gyldigt KSR/EAN/telefon gemmes; Naviger-link (N9b)
  *   U19 admin: kundesøgning med komma/parentes ("Hansen, Jens (VVS)", "3x1,5") finder kunden — før: PostgREST-parsefejl
  *   U20 admin: sagslisten — type-filter filtrerer (før: ignoreret), "Haster"-mærke, statustællere i filteret (N9c)
+ *   U21 montør (mobil): bundmenu = Opgaver/Kalender/Sager (ingen Indbakke); gamle Service-links viderestilles til
+ *       ordresiden (N9d)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -650,6 +652,21 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
           await m.page.screenshot({ path: join(shots, 'u11-montoer-afslut.png'), fullPage: true }).catch(() => {})
           const errTxt = await m.page.locator('.text-red-700, .text-red-600, .bg-red-50').allInnerTexts().catch(() => [] as string[])
           r[`afslut_fejl(${woStatus}|${errTxt.join(' / ').replace(/\s+/g, ' ').slice(0, 160)})`] = false
+        }
+
+        // U21 (N9d): Service-link viderestilles; mobil-bundmenu for montør
+        {
+          const u21: Record<string, boolean> = {}
+          await m.page.goto(`${base}/dashboard/service-cases/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          u21.service_link_viderestilles = new RegExp(`/dashboard/orders/${jobCaseId}`).test(m.page.url())
+          await m.page.setViewportSize({ width: 390, height: 844 })
+          await m.page.goto(`${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const nav = m.page.locator('nav.md\\:hidden a')
+          const labels = (await nav.allInnerTexts()).map((t) => t.trim())
+          u21.bundmenu = JSON.stringify(labels) === JSON.stringify(['Opgaver', 'Kalender', 'Sager'])
+          await m.page.screenshot({ path: join(shots, 'u21-montoer-mobil.png'), fullPage: false }).catch(() => {})
+          await m.page.setViewportSize({ width: 1400, height: 1000 })
+          out.push({ id: 'U21 montør mobil + Service-redirect', ok: Object.values(u21).every(Boolean), note: `${Object.entries(u21).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · menu=${JSON.stringify(labels)}` })
         }
 
         // Kalender: eget job, ingen planlæg-knap, ingen tom-tilstand

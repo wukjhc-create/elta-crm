@@ -296,7 +296,7 @@ export function AgentInboxClient({ items, liveSendEnabled = false }: { items: Ag
                         {a.payload?.case_id ? (
                           <>
                             {' · '}
-                            <a href={`/dashboard/service-cases/${String(a.payload.case_id)}`} className="text-blue-600 hover:underline">
+                            <a href={`/dashboard/orders/${String(a.payload.case_id)}`} className="text-blue-600 hover:underline">
                               sag {String(a.payload?.case_number ?? '')}
                             </a>
                           </>
@@ -320,7 +320,7 @@ export function AgentInboxClient({ items, liveSendEnabled = false }: { items: Ag
                         {a.payload?.case_id ? (
                           <>
                             {' · '}
-                            <a href={`/dashboard/service-cases/${String(a.payload.case_id)}`} className="text-blue-600 hover:underline">
+                            <a href={`/dashboard/orders/${String(a.payload.case_id)}`} className="text-blue-600 hover:underline">
                               sag {String(a.payload?.case_number ?? '')}
                             </a>
                           </>
@@ -329,7 +329,7 @@ export function AgentInboxClient({ items, liveSendEnabled = false }: { items: Ag
                       </p>
                     )}
                     {a.status === 'executed' && typeof a.result?.work_order_id === 'string' && (
-                      <a href={`/dashboard/service-cases/${String(a.payload?.case_id ?? '')}`} className="mt-1 inline-block text-xs font-medium text-green-700 underline">
+                      <a href={`/dashboard/orders/${String(a.payload?.case_id ?? '')}`} className="mt-1 inline-block text-xs font-medium text-green-700 underline">
                         ✓ {a.result.created ? 'Arbejdsordre oprettet' : 'Arbejdsordren fandtes allerede'} — åbn sag
                       </a>
                     )}
@@ -354,7 +354,7 @@ export function AgentInboxClient({ items, liveSendEnabled = false }: { items: Ag
                     )}
                     {a.status === 'executed' && typeof a.result?.case_id === 'string' && (
                       <a
-                        href={`/dashboard/service-cases/${a.result.case_id}`}
+                        href={`/dashboard/orders/${a.result.case_id}`}
                         className="mt-1 inline-block text-xs font-medium text-green-700 underline"
                       >
                         ✓ {a.result.created ? 'Sagsforslag oprettet' : 'Sagen fandtes allerede'} — åbn sag

@@ -193,7 +193,7 @@ function CasesCard({ overview }: { overview: DashboardOverview }) {
       title="Sager kræver handling"
       icon={<Wrench className="h-4 w-4" />}
       tone={newCases > 0 || pending > 0 ? 'amber' : 'green'}
-      href="/dashboard/service-cases"
+      href="/dashboard/orders"
       headline={total}
       headlineLabel="aktive i alt"
       error={err}

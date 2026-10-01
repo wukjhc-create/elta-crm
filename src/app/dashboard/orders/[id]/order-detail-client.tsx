@@ -38,6 +38,7 @@ import { OrderNotesTab } from './order-notes-tab'
 import { OrderTasksTab } from './order-tasks-tab'
 import { InlineStatusChanger } from './inline-status-changer'
 import { OfferAgentButton } from '@/components/modules/agents/offer-agent-button'
+import { WeatherWidget } from '@/components/shared/weather-widget'
 
 const TABS = [
   { id: 'overblik',     label: 'Overblik',           ready: true },
@@ -438,6 +439,10 @@ function OverblikTab({
               </a>
             }
           />
+        )}
+        {/* N9d: vejr på adressen (vind/regn ved montage) — før kun i Service-modulet */}
+        {sag.latitude != null && sag.longitude != null && (
+          <div className="py-2"><WeatherWidget latitude={sag.latitude} longitude={sag.longitude} compact /></div>
         )}
         <Row label="KSR-nummer" value={sag.ksr_number ?? '—'} />
         <Row label="EAN-nummer" value={sag.ean_number ?? '—'} />

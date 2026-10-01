@@ -216,7 +216,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
           {serviceCases.map((sc) => (
             <Link
               key={sc.id}
-              href="/dashboard/service-cases"
+              href="/dashboard/orders"
               className="flex items-center justify-between py-2 px-3 text-sm bg-gray-50 rounded hover:bg-purple-50 transition-colors group"
             >
               <div className="min-w-0 flex-1">

@@ -667,7 +667,7 @@ export function MailClient() {
       const result = await createServiceCaseFromEmail(emailId)
       if (result.success && result.data) {
         toast.success('Serviceopgave oprettet', `${result.data.case_number}: ${result.data.title}`)
-        router.push(`/dashboard/service-cases`)
+        router.push(`/dashboard/orders`)
       } else {
         toast.error('Fejl', result.error || 'Kunne ikke oprette serviceopgave')
       }

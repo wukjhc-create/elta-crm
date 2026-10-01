@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
-import { ModuleGuard } from '@/components/auth/module-guard'
 
-// P1 #8: direkte URL-adgang uden rettighed -> "Du har ikke adgang" (samme gate som menupunktet).
+// N9d: ruterne her viderestiller kun til /dashboard/orders, som selv håndhæver adgang (cases.view.*).
+// En ModuleGuard her (service.view) ville afvise roller som salg FØR viderestillingen.
 export default function Layout({ children }: { children: ReactNode }) {
-  return <ModuleGuard permission="service.view">{children}</ModuleGuard>
+  return <>{children}</>
 }

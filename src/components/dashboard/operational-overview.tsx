@@ -247,7 +247,7 @@ function StatGrid({ data }: { data: DashboardPayload | null }) {
       <StatCard icon={<Users className="h-4 w-4" />} label="Nye kunder (24t)"
         value={c?.new_customers_last_24h} tone="neutral" href="/dashboard/customers" />
       <StatCard icon={<Wrench className="h-4 w-4" />} label="Åbne cases"
-        value={c?.open_cases} tone="neutral" href="/dashboard/service-cases" />
+        value={c?.open_cases} tone="neutral" href="/dashboard/orders" />
       <StatCard icon={<FileText className="h-4 w-4" />} label="Tilbud i kladde"
         value={c?.offers_draft} tone="neutral" href="/dashboard/offers" />
       <StatCard icon={<Send className="h-4 w-4" />} label="Sendte fakturaer"
