@@ -50,6 +50,12 @@ interface EditSiteInfoDialogProps {
     city: string | null
     floor_door: string | null
     access_notes: string | null
+    /** N9b — før kun redigerbare i Service-modulet */
+    contact_phone?: string | null
+    ksr_number?: string | null
+    ean_number?: string | null
+    latitude?: number | null
+    longitude?: number | null
     site_customer: {
       id: string
       company_name: string
@@ -78,6 +84,12 @@ export function EditSiteInfoDialog({
   const [city, setCity] = useState(initial.city || '')
   const [floorDoor, setFloorDoor] = useState(initial.floor_door || '')
   const [accessNotes, setAccessNotes] = useState(initial.access_notes || '')
+  const [contactPhone, setContactPhone] = useState(initial.contact_phone || '')
+  const [ksr, setKsr] = useState(initial.ksr_number || '')
+  const [ean, setEan] = useState(initial.ean_number || '')
+  // Koordinater kun fra adresseopslaget; ryddes hvis adressen derefter rettes i hånden (ellers peger kortet forkert)
+  const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: initial.latitude ?? null, lng: initial.longitude ?? null })
+  const [coordsTouched, setCoordsTouched] = useState(false)
 
   // Section B — site_customer
   const [siteCustomerId, setSiteCustomerId] = useState<string | null>(
@@ -180,6 +192,10 @@ export function EditSiteInfoDialog({
         city: city.trim() || null,
         floor_door: floorDoor.trim() || null,
         access_notes: accessNotes.trim() || null,
+        contact_phone: contactPhone.trim() || null,
+        ksr_number: ksr.trim() || null,
+        ean_number: ean.trim() || null,
+        ...(coordsTouched ? { latitude: coords.lat, longitude: coords.lng } : {}),
         site_customer_id: siteCustomerId,
         site_contact_id: resolvedSiteContactId,
       })
@@ -257,8 +273,10 @@ export function EditSiteInfoDialog({
               <div className="sm:col-span-2">
                 <AddressAutocomplete
                   value={address}
-                  onChange={setAddress}
+                  onChange={(v: string) => { setAddress(v); setCoords({ lat: null, lng: null }); setCoordsTouched(true) }}
                   onSelect={(s: AddressSuggestion) => {
+                    setCoords({ lat: s.latitude ?? null, lng: s.longitude ?? null })
+                    setCoordsTouched(true)
                     // Saml gade + husnr til ét adressefelt, og udfyld
                     // postnr/by + etage/doer automatisk. floor/door overskrives
                     // KUN hvis DAWA returnerer en vaerdi, saa eksisterende
@@ -309,6 +327,20 @@ export function EditSiteInfoDialog({
               disabled={saving}
               className="w-full px-2.5 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 resize-y"
             />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {([
+                ['Telefon på stedet', contactPhone, setContactPhone, 'tel', 'site-phone'],
+                ['KSR-nr. (6–10 cifre)', ksr, setKsr, 'text', 'site-ksr'],
+                ['EAN-nr. (13 cifre)', ean, setEan, 'text', 'site-ean'],
+              ] as const).map(([ph, val, set, type, tid]) => (
+                <input key={tid} type={type} value={val} onChange={(e) => (set as (v: string) => void)(e.target.value)} placeholder={ph}
+                  disabled={saving} inputMode={type === 'text' ? 'numeric' : undefined} data-testid={tid}
+                  className="px-2.5 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400" />
+              ))}
+            </div>
+            {coords.lat != null && coords.lng != null && (
+              <p className="text-[11px] text-gray-500">Koordinater fra adresseopslag: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</p>
+            )}
           </section>
 
           {/* B — Leveringskunde */}

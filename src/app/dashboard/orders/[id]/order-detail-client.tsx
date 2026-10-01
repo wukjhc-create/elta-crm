@@ -399,7 +399,28 @@ function OverblikTab({
             )
           }
         />
-        <Row label="Adresse" value={fullAddress || '—'} />
+        <Row
+          label="Adresse"
+          value={
+            fullAddress ? (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                {fullAddress}
+                {/* N9b: rutevejledning — koordinater hvis kendt, ellers adressen */}
+                <a
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+                    sag.latitude != null && sag.longitude != null ? `${sag.latitude},${sag.longitude}` : fullAddress
+                  )}`}
+                  className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                  data-testid="order-navigate"
+                >
+                  Naviger
+                </a>
+              </span>
+            ) : '—'
+          }
+        />
         {sag.latitude != null && sag.longitude != null && (
           <Row
             label="GPS"
@@ -476,6 +497,7 @@ function OverblikTab({
             type="button"
             onClick={() => setEditingSite(true)}
             className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border bg-white text-gray-700 border-gray-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+            data-testid="edit-site-info"
           >
             <Pencil className="w-3 h-3" />
             Rediger
@@ -659,6 +681,11 @@ function OverblikTab({
           city: sag.city,
           floor_door: sag.floor_door,
           access_notes: sag.access_notes,
+          contact_phone: sag.contact_phone,
+          ksr_number: sag.ksr_number,
+          ean_number: sag.ean_number,
+          latitude: sag.latitude,
+          longitude: sag.longitude,
           site_customer: sag.site_customer
             ? { id: sag.site_customer.id, company_name: sag.site_customer.company_name }
             : null,

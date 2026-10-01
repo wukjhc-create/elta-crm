@@ -38,6 +38,12 @@ export interface UpdateSiteInfoInput {
   contact_phone?: string | null
   /** Adgangsnoter (parkering, hund, kode etc.). */
   access_notes?: string | null
+  /** N9b: installationsdata (før kun redigerbare i Service-modulet) */
+  ksr_number?: string | null
+  ean_number?: string | null
+  /** Koordinater fra adresseopslag (DAWA) — til kort/navigation */
+  latitude?: number | null
+  longitude?: number | null
   /** Leveringskunde — null = samme som betaler. */
   site_customer_id?: string | null
   /** Kontaktperson på stedet — peger på customer_contacts.id. */
@@ -107,8 +113,22 @@ export async function updateServiceCaseSiteInfo(
       }
     }
 
+    // N9b: samme regler som Service-modulet (KSR 6–10 cifre, EAN præcis 13 cifre); mellemrum fjernes
+    const digits = (v: string | null | undefined) => (v == null ? v : v.replace(/\s/g, '') || null)
+    const ksr = digits(input.ksr_number)
+    const ean = digits(input.ean_number)
+    if (ksr && !/^\d{6,10}$/.test(ksr)) return { success: false, error: 'KSR-nummer skal være 6-10 cifre' }
+    if (ean && !/^\d{13}$/.test(ean)) return { success: false, error: 'EAN-nummer skal være præcis 13 cifre' }
+    for (const [k, v, min, max] of [['latitude', input.latitude, 54, 58], ['longitude', input.longitude, 7, 16]] as const) {
+      if (v != null && !(typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max)) return { success: false, error: `Ugyldig ${k === 'latitude' ? 'breddegrad' : 'længdegrad'}` }
+    }
+
     // Byg payload — kun de felter caller eksplicit har sat
     const payload: Record<string, unknown> = {}
+    if (input.ksr_number !== undefined) payload.ksr_number = ksr
+    if (input.ean_number !== undefined) payload.ean_number = ean
+    if (input.latitude !== undefined) payload.latitude = input.latitude
+    if (input.longitude !== undefined) payload.longitude = input.longitude
     if (input.address !== undefined) payload.address = input.address
     if (input.postal_code !== undefined) payload.postal_code = input.postal_code
     if (input.city !== undefined) payload.city = input.city

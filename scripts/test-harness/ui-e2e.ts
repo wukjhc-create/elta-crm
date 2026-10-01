@@ -29,6 +29,7 @@
  *       bogføring?" vises med alle punkter; intet bogføres (N12)
  *   U17 admin: AO-prisfil (ISO-8859-1) via import-guiden → varer oprettet med korrekte æøå og kostpris; 2. fil med ny pris
  *       → pris opdateret + prishistorik (grossist/prisdata)
+ *   U18 admin: sagens stedinfo på ordresiden — ugyldigt KSR afvises, gyldigt KSR/EAN/telefon gemmes; Naviger-link (N9b)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -122,6 +123,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let draftInvoiceId: string | null = null
   let draftCustomerId: string | null = null
   let aoSupplierId: string | null = null
+  let siteCaseId: string | null = null
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
   let salgOfferId: string | null = null
@@ -148,9 +150,16 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         if (/Hydration/.test(e.message)) writeFileSync(join(shots, `hydration-${Date.now()}.txt`), `${page.url()}\n${e.message}\n${e.stack ?? ''}`)
       })
       page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Download the React DevTools|\[HMR\]|Failed to load resource/.test(m.text())) pageErrors.push(`${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${m.text().replace(/%c/g, '').replace(/background:[^;]*;|color:[^;]*;|border-radius:[^;]*;|light-dark\([^)]*\)\)?;?/g, '').replace(/\s+/g, ' ').trim().slice(0, 260)}`) })
-      await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded', timeout: 180_000 })
-      await page.locator('input[type="email"]').fill(u.email)
-      await page.locator('input[type="password"]').fill(u.password)
+      await page.goto(`${base}/login`, { waitUntil: 'networkidle', timeout: 180_000 })
+      // Udfyld EFTER hydrering: React nulstiller kontrollerede felter der blev udfyldt før hydrering (set som tomme
+      // felter på login-fejl-skærmbilledet). Verificér værdierne og udfyld igen hvis de er nulstillet.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await page.locator('input[type="email"]').fill(u.email)
+        await page.locator('input[type="password"]').fill(u.password)
+        await page.waitForTimeout(300)
+        if ((await page.locator('input[type="email"]').inputValue()) === u.email && (await page.locator('input[type="password"]').inputValue()) === u.password) break
+        await page.waitForTimeout(1000)
+      }
       await page.locator('button[type="submit"]').click()
       const ok = await page.waitForURL(/\/dashboard/, { timeout: 120_000 }).then(() => true).catch(() => false)
       if (!ok) {
@@ -450,6 +459,32 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         out.push({ id: 'U17 AO-prisfil-import (ISO-8859-1)', ok: !note && Object.values(r).every(Boolean), note: note || Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U18 stedinfo (N9b)
+      if (profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: '[HARNESS] stedinfo', customer_id: profitCustomerId, status: 'new', priority: 'medium',
+          source: 'manual', created_by: adminUser.id, address: 'Odinsvej 10', postal_code: '4100', city: 'Ringsted' }]).select('id')
+        siteCaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const openAndSave = async (ksr: string) => {
+          await a.page.goto(`${base}/dashboard/orders/${siteCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('edit-site-info').click({ timeout: 60_000 }).catch(() => {})
+          await a.page.getByTestId('site-ksr').fill(ksr).catch(() => {})
+          await a.page.getByTestId('site-ean').fill('5790000000001').catch(() => {})
+          await a.page.getByTestId('site-phone').fill('+45 22 33 44 55').catch(() => {})
+          await a.page.getByRole('button', { name: 'Gem', exact: true }).click().catch(() => {})
+          await a.page.waitForTimeout(2500)
+          return ((await c.admin.from('service_cases').select('ksr_number, ean_number, contact_phone').eq('id', siteCaseId).maybeSingle()).data ?? {}) as Record<string, string | null>
+        }
+        const bad = await openAndSave('12')
+        r.ugyldigt_ksr_afvist = bad.ksr_number == null && (await a.page.getByText('KSR-nummer skal være 6-10 cifre').count()) > 0
+        const good = await openAndSave('1234 567')
+        r.gemt = good.ksr_number === '1234567' && good.ean_number === '5790000000001' && good.contact_phone === '+45 22 33 44 55'
+        await a.page.goto(`${base}/dashboard/orders/${siteCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const nav = a.page.getByTestId('order-navigate')
+        r.naviger = (await nav.count()) === 1 && /google\.com\/maps\/dir\/.*destination=/.test((await nav.getAttribute('href')) ?? '')
+        out.push({ id: 'U18 stedinfo på ordresiden (admin)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -705,6 +740,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     }
     if (seededEmailIds.length) await c.admin.from('incoming_emails').delete().in('id', seededEmailIds)
     if (otherCaseId) { await c.admin.from('case_notes').delete().eq('case_id', otherCaseId); await c.admin.from('service_cases').delete().eq('id', otherCaseId) }
+    if (siteCaseId) { await c.admin.from('case_notes').delete().eq('case_id', siteCaseId); await c.admin.from('service_cases').delete().eq('id', siteCaseId) }
     if (aoSupplierId) {
       const { data: ps } = await c.admin.from('supplier_products').select('id').eq('supplier_id', aoSupplierId)
       const pids = ((ps ?? []) as Array<{ id: string }>).map((x) => x.id)
