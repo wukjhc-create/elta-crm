@@ -33,12 +33,12 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | # | Område | Opgave |
 |---|---|---|
 | N1 | Tilbudsopfølgning | Opfølgning synlig for sælger | DONE — kort "Opfølgning" på Tilbud: sendte tilbud prioriteret efter næste skridt (udløber snart → set/ubesvaret → ikke åbnet → afventer), Ring/Åbn, salg ser egne, admin/serviceleder alle; ærlig om at auto-påmindelser er slået fra. Ren regel (followup/offer-followup.ts, dansk kalender) 14 tests i CI; ui-e2e U14. Fundet+rettet undervejs: hydreringsfejl i kunde-/lead-/tilbudslister (relativ tid beregnet på server og klient) → SmartDate |
-| N2 | Tid | Godkendelse af timer (time_logs.approve findes kun som permission) |
+| N2 | Tid | Godkendelse af timer (time_logs.approve findes kun som permission) | BESLUTNING (Henrik): skal godkendelse styre fakturering og/eller løn? Kræver kolonner approved_by/approved_at (migration) + regel for hvad ikke-godkendte timer må. Prod: 1 timeregistrering i dag |
 | N3 | Grossist | AO manuel sync-knap (stub), SupplierStatusCard ikke monteret, syncSupplierPrices per-SKU/timeout | DELVIST — DONE: AO-prisopdatering virker end-to-end via prisfil: knappen "Importér prisfil" (før: "ikke implementeret"-fejl); FUND rettet: import-guiden læste filen som UTF-8 → AO's ISO-8859-1 mistede æøå og kolonnen "Indkøbspris" matchede ikke (kostpris tom) → bytes dekodes nu (UTF-8 strict, ellers windows-1252; test:decode i CI). ui-e2e U17: ISO-8859-1-fil → varer m. korrekt æøå + kostpris, ny fil → pris opdateret + prishistorik. Rest: automatisk AO-sync kræver AO-adgang (API/FTP — Henrik) |
 | N4 | Grossist | Produktsøgning ilike på 324k rækker uden trigram-indeks | BLOCKED_APPROVAL — målt i prod (read-only): søgninger uden træf 2,1–6,8 s (EAN-del 6.816 ms). 00183 (pg_trgm + 3 GIN-indeks) på staging med 200k syntetiske rækker: ~1.100 ms → 0,3–18 ms (index scan). Prod pre ✅ (`scripts/prod-verify-00183.ts`). Kør uden for natlig sync (indeksbygning blokerer skrivning til supplier_products) |
 | N5 | Faktura | Faktura direkte fra tilbud i UI; kladde-redigering; "Markér som sendt" → e-conomic; kreditnotaer → e-conomic; betalinger → e-conomic | DELVIST — DONE: modtager efter samme routing som afsendelsen (faktura-kontakt før kundens mail; før: knap deaktiveret uden kunde-mail), redigering af kladder (beskrivelse/stk-pris; antal kun manuelle linjer; tilføj/slet manuelle; totaler + momssats genberegnet; kun status draft) — ui-e2e U15. "Fakturér på sagen" fra accepteret/konverteret tilbud (direkte til sagens fakturakladde; bevidst INGEN separat faktura-fra-tilbud-knap: create_invoice_from_offer kender ikke sagsfakturaer → dobbeltfakturering) — U13. Rest (e-conomic-dele) → N12 |
 | N6 | Faktura | /dashboard/bank i sidebar | DONE — menupunkt "Bankafstemning" (bank.view) + ModuleGuard (før: fejlside uden rettighed) |
-| N7 | Profit | Arbejdsordre-profit-snapshot skrives/vises aldrig (profitability.ts ukaldt) |
+| N7 | Profit | Arbejdsordre-profit-snapshot skrives/vises aldrig (profitability.ts ukaldt) | VERIFICERET, ingen handling — snapshot skrives af DB-triggeren trg_work_orders_done_snapshot (00088) ved status done og bruges af AI-indsigter; sagsniveau-DB vises på sagens Økonomi-fane (economy.cost_prices) |
 | N8 | Tilbud | acceptOffer håndhæver ikke status/udløb; send uden DB-tjek; portal viser tom sælger | DELVIST — DONE: accept-guard + gyldighedsregel, sælger vises i portalen (navn/mail/telefon fra tilbuddets opretter; U10). BESLUTNING (Henrik): DB-tjek ved afsendelse — hård blokering eller advarsel? (send-gatens DB regner timer uden kostpris som 0 kr → overvurderer DB, jf. F1) |
 | N9 | Sager | To parallelle sags-UI'er (Sager/Ordrer + Service) på samme tabel |
 | N12 | e-conomic | Opsætning før kobling | DELVIST — DONE (foundation, ingen bogføring): alle krævede konti i opsætningen (omkostningskonto, kassekladde + bankkonto, kundegruppe, varenr. — før kun layout/betaling/moms; resten faldt stille til "1" eller blokerede), "Klar til bogføring?"-tjekliste pr. flow (kunde-/leverandørfakturaer, betalinger), e-conomic-leverandørnr. på leverandøren (validering, ryddes ved tom). ui-e2e U16. Rest: faktura direkte fra tilbud, "Markér som sendt"/kreditnota/betaling → e-conomic (kræver tilkoblet konto at teste mod — Henrik: nøgler) |
@@ -56,6 +56,9 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · generelle audits/refactors · Relatel trin 1–5 (ekstern aktivering gated)
 
 ## Ventende godkendelser (BLOCKED_APPROVAL)
+
+**Samlet køreplan i rækkefølge:** docs/runbooks/PROD-GATE-BATCH-2026-10.md
+
 | Gate | Forberedt | Runbook |
 |---|---|---|
 | Prod 00175–00177 + 00179 (læse-side: tokens, hemmeligheder, beskeder, underskrifter) | kode deployet; staging + rls-read 8/8 | docs/runbooks/p009-rls-write-lockdown.md |
