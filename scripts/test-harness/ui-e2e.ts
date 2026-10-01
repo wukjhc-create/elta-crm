@@ -762,6 +762,26 @@ ${m.text()}`) })
         }
         r.startet = started === 'in_progress'
 
+        // Tidsregistrering (medarbejdere/tid): 07:30–11:45 i dag, dansk tid → præcis UTC i DB og 4,25 t (G0-sommertidsfix)
+        {
+          const { copenhagenLocalToIso } = await import('../../src/lib/utils/copenhagen-time')
+          await m.page.getByRole('button', { name: /Registrér timer/ }).first().click({ timeout: 30_000 }).catch(() => {})
+          await m.page.locator('input[type="time"]').first().fill('07:30').catch(() => {})
+          await m.page.locator('input[type="time"]').nth(1).fill('11:45').catch(() => {})
+          await m.page.getByPlaceholder('Hvad blev der lavet?').fill('Montage af stikkontakter').catch(() => {})
+          await m.page.getByRole('button', { name: 'Gem timer' }).click({ timeout: 30_000 }).catch(() => {})
+          type TL = { start_time?: string; end_time?: string; hours?: number; employee_id?: string }
+          let tl = null as TL | null
+          for (let i = 0; i < 20 && !tl; i++) {
+            tl = ((await c.admin.from('time_logs').select('start_time, end_time, hours, employee_id').eq('work_order_id', woId).maybeSingle()).data as TL | null)
+            if (!tl) await new Promise((res) => setTimeout(res, 1000))
+          }
+          const expStart = new Date(copenhagenLocalToIso(today, '07:30')).getTime()
+          const expEnd = new Date(copenhagenLocalToIso(today, '11:45')).getTime()
+          r.timer_registreret = !!tl && tl.employee_id === jobEmployeeId && Number(tl.hours) === 4.25
+          r.timer_dansk_tid = !!tl && new Date(tl.start_time!).getTime() === expStart && new Date(tl.end_time!).getTime() === expEnd
+        }
+
         // Foto-upload på Dokumenter-fanen
         await m.page.getByRole('button', { name: 'Dokumenter', exact: true }).click().catch(() => {})
         const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
