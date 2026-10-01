@@ -32,8 +32,11 @@ async function main() {
       expect(missing.length === 0, `alle ${tables.length} tabeller har åbne skrive-policies før migrationen${missing.length ? ` (mangler: ${missing.join(',')})` : ''}`)
       for (const p of policies) {
         const names = ((await run(`SELECT policyname FROM pg_policies WHERE schemaname='public' AND tablename='${p.table}'`)) as any[]).map((x) => x.policyname)
-        const unknownOpen = open.filter((o) => o.tablename === p.table && !p.dropPolicies.includes(o.policyname))
-        expect(unknownOpen.length === 0, `${p.table}: alle åbne skrive-policies droppes af migrationen${unknownOpen.length ? ` (IKKE DÆKKET: ${unknownOpen.map((o) => o.policyname).join(',')})` : ''} [${names.length} policies]`)
+        // ALLE skrive-policies (ogsaa betingede, fx created_by = auth.uid()) skal erstattes — permissive policies OR'es.
+        const allWrite = ((await run(`SELECT policyname FROM pg_policies WHERE schemaname='public' AND tablename='${p.table}' AND cmd IN ('INSERT','UPDATE','DELETE','ALL')
+          AND (roles @> ARRAY['authenticated']::name[] OR roles @> ARRAY['public']::name[])`)) as any[]).map((x) => x.policyname)
+        const notCovered = allWrite.filter((x) => !p.dropPolicies.includes(x))
+        expect(notCovered.length === 0, `${p.table}: alle skrive-policies droppes af migrationen${notCovered.length ? ` (IKKE DÆKKET: ${notCovered.join(',')})` : ''} [${names.length} policies]`)
       }
       return
     }

@@ -78,9 +78,10 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | P-009 runde 2B (00172): leverandørprisdata (10 tabeller) | DONE (prod 2026-10-01) | Kode: API-drevne system-skrivninger → service-role i gatede actions; supplier_products kun admin. 210 persona-checks. Anon-grants bevaret på 4 cron-tabeller (P-003) — RLS blokerer stadig |
 | P-009 runde 3A (00173): sager/projekter/leads/tilbudstilbehør/underskrifter/beskeder/partner-tokens (21 tabeller) | DONE (prod 2026-10-01) | 489 persona-checks. Trigger-fund: timer → projects.actual_hours som brugeren → SECURITY DEFINER. Underskrifter kan ikke længere forfalskes via REST |
 | P-009 runde 3B (00174): mail/SMS-log, mail-synk-tilstand, AI-forbrug/-prompts, mail-intelligens (11 tabeller) | DONE (prod 2026-10-01) | 231 checks. Trigger-fund: tråd-statistik som brugeren → SECURITY DEFINER. AI-budgetloft og promptskabeloner kan ikke længere ændres via REST |
-| P-009 runde 4: kalkulation/katalog/konfiguration (~44 tabeller) | TODO | Samme værktøjskæde |
+| P-009 runde 4 (00178): kalkulation/katalog/master data (44 tabeller) | DONE (staging) · prod-gate | Auto-specs fra metadata; FØR 44/44 huller, EFTER 44/44 som matrixen. Fund: betingede policies blev ikke droppet → rettet + strengere pre-check |
 | P-009 anon-kontekst-korrektion | DONE | Anon-crons (P-003) læser tabeller som ellers ville skifte fra tom til fejl → keepAnonGrants + CI-check; 00170 rettet (customer_contacts, incoming_emails) |
-| P-009 læse-side: tokens/hemmeligheder/beskeder læsbare for alle indloggede | TODO | portal/partner-tokens, integrations-secrets, messages → kolonne-grants/ejer-policies |
+| P-009 læse-side A1–A3 (00175–00177): portal-/partner-tokens, integrationshemmeligheder, bekræftelses-tokens, underskrifter, beskeder | DONE (staging) · prod-gate | harness:rls-read 7/7, bevist FØR/EFTER. Følsom-kolonne-scan (prod-sensitive-columns) → resten: company_settings-hemmeligheder (0 værdier) + e-conomic-tokens = A4 |
+| P-009 læse-side A4: company_settings (smtp/sms/bank) + accounting_integration_settings-tokens | TODO | 0 værdier i prod (forebyggende); ~10 select('*')-læsninger skal omlægges |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
 
 ## Fund registreret undervejs
@@ -89,6 +90,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-10-01: P-009 læse-side A1–A3 (00175–00177) + runde 4 (00178) på staging; prod afventer gate.
 - 2026-10-01: P-009 runde 1–3B (00170–00174) kørt i prod (godkendt); alle pre/post/trigger/effektiv-adgang-checks grønne; åbne skrive-tabeller 108→44.
 - 2026-09-30: P-009 runde 3B (00174) på staging: 11 tabeller; alle 5 runder (64 tabeller) grønne samlet; db-audit LAV 44.
 - 2026-09-30: P-009 runde 3A (00173) på staging: 21 tabeller, 489 checks; trigger-fund (projekttimer) rettet; db-audit LAV 55. Anon-kontekst-regel (P-003) indført.

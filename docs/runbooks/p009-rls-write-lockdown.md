@@ -15,6 +15,32 @@
 - **Sikkerhed:** agents 7/0/0, alle flag OFF, 0 kundemails, 0 finance-writes.
 - **Note:** 00171-post-checket gav først 7 falske afvigelser. Fejlen lå i verifikationsscriptet, som forventede policies på tabeller, der bevidst kun skrives af service-role. Prod blev tjekket direkte og var som designet. Checket er rettet og nu strengere: policy skal mangle, når der ikke er roller.
 
+## Næste gate: læse-side A1–A3 (00175–00177) + runde 4 (00178) — anvendt og verificeret på staging, IKKE i prod
+| Migration | Hvad | Bevis (staging) |
+|---|---|---|
+| 00175 | `portal_access_tokens.token` og `partner_access_tokens.token` skjult (kolonne-grants). `messages` kun afsender og modtager | `harness:rls-read` FØR: alle 5 roller læste alle tokens og alle beskeder. EFTER: ingen. Status er stadig læsbar, og salg kan stadig oprette adgang |
+| 00176 | `integrations.api_key/api_secret/oauth_*` skjult | FØR: alle læste. EFTER: ingen. Offentlige kolonner er læsbare |
+| 00177 | `document_confirmations.token` skjult, så kundesamtykke ikke kan forfalskes. `offer_signatures` er ikke læsbar for bruger-sessionen | FØR: alle læste token og underskrift. EFTER: ingen |
+| 00178 | Runde 4: 44 kalkulations-, katalog- og master data-tabeller | Metadata-genererede probe-rækker (`auto-spec.ts`). FØR: 44/44 med huller. EFTER: 44/44 som matrixen |
+
+**Forudsætning, kode (pushet først, virker før og efter):**
+- Token-læsning sker via service-role i gatede actions (`src/lib/portal/token-reader.ts`).
+- Tokens returneres kun til `offers.send` (portal) og `settings.manage` (partner).
+- Integrations-forespørgsler går via service-role.
+- Bekræftelses-token hentes via service-role.
+
+**Fund under runde 4:** generatoren droppede kun policies med betingelsen `true`. Betingede policies (fx `calculations` INSERT `created_by = auth.uid()`) ville derfor blive stående og åbne igen, fordi permissive policies OR'es. Rettet tre steder:
+- `calculations` er dækket.
+- Pre-checket kræver nu, at ALLE skrive-policies er dækket.
+- Generatoren bruger `prod-all-write-policies-json`.
+
+For runde 1–3B beviste prod-post-checket ("ingen fremmede skrive-policies"), at intet er efterladt.
+
+**Udførelse:**
+- Hver migration køres for sig med det samme mønster: pre, apply, post.
+- Til 00178 bruges `prod-verify-rls-wave.ts WAVE4`.
+- Til 00175–00177 bruges `prod:role-policies` (de hemmelige kolonner er nu med i auditten) og `prod-sensitive-columns.ts`.
+
 ## Model
 - **Én kilde:** `scripts/rls/write-matrix.ts`. Pr. tabel står de roller, der må INSERT/UPDATE/DELETE, plus evt. ekstra betingelser (fx `created_by = auth.uid()`, forslag-sletning).
 - **Least privilege** betyder præcis de roller, som appen skriver med via bruger-sessionen:

@@ -144,11 +144,12 @@ CREATE POLICY calculation_snapshots_insert_role ON public.calculation_snapshots 
 REVOKE ALL ON public.calculations FROM anon;
 DROP POLICY IF EXISTS "Users can delete own calculations" ON public.calculations;
 DROP POLICY IF EXISTS "Users can update own calculations" ON public.calculations;
+DROP POLICY IF EXISTS "Users can create calculations" ON public.calculations;
 DROP POLICY IF EXISTS calculations_insert_role ON public.calculations;
 DROP POLICY IF EXISTS calculations_update_role ON public.calculations;
 DROP POLICY IF EXISTS calculations_delete_role ON public.calculations;
 DROP POLICY IF EXISTS calculations_select_authenticated ON public.calculations;
-CREATE POLICY calculations_insert_role ON public.calculations FOR INSERT TO authenticated WITH CHECK (public.user_role() IN ('admin', 'serviceleder', 'salg'));
+CREATE POLICY calculations_insert_role ON public.calculations FOR INSERT TO authenticated WITH CHECK (public.user_role() IN ('admin', 'serviceleder', 'salg') AND created_by = auth.uid());
 CREATE POLICY calculations_update_role ON public.calculations FOR UPDATE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder', 'salg')) WITH CHECK (public.user_role() IN ('admin', 'serviceleder', 'salg'));
 CREATE POLICY calculations_delete_role ON public.calculations FOR DELETE TO authenticated USING (public.user_role() IN ('admin', 'serviceleder', 'salg'));
 

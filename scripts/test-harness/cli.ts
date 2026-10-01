@@ -525,6 +525,17 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'rls-table-stats') {
+    // STAGING read-only: raekker + unikke kolonner pr. tabel (til auto-specs i rls-lockdown)
+    const tables = process.argv.slice(3).filter((t) => /^[a-z_0-9]+$/.test(t))
+    for (const t of tables) {
+      const n = (await stagingSql(`SELECT count(*)::int n FROM public.${t}`))[0].n
+      const uq = await stagingSql(`SELECT string_agg(a.attname, '+' ORDER BY a.attnum) cols FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+        WHERE i.indrelid = 'public.${t}'::regclass AND i.indisunique AND NOT i.indisprimary GROUP BY i.indexrelid`)
+      log(`${t.padEnd(36)} rækker=${String(n).padEnd(5)} unikke=${uq.map((u: any) => u.cols).join(' | ') || '-'}`)
+    }
+    return
+  }
   if (SUB === 'rls-lockdown') {
     const { runRlsLockdown, formatRlsLockdown } = await import('./rls-lockdown')
     const M = await import('../rls/write-matrix')
@@ -533,7 +544,7 @@ async function main() {
     if (!Array.isArray(policies)) { log(`ukendt wave: ${wave}`); process.exit(2) }
     const actors = await ensureActors(admin, seedBase)
     const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
-    const checks = await runRlsLockdown({ admin, anon: anonClient, url: runtime.url, anonKey: runtime.anonKey, ownerUid: actors.ownerUid }, policies)
+    const checks = await runRlsLockdown({ admin, anon: anonClient, url: runtime.url, anonKey: runtime.anonKey, ownerUid: actors.ownerUid, sql: stagingSql }, policies)
     log(formatRlsLockdown(checks))
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return

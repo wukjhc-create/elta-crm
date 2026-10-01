@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomBytes, randomUUID } from 'crypto'
 import * as M from '../rls/write-matrix'
+import { AutoSpecs } from './auto-spec'
 
 export interface RlsCheck { id: string; ok: boolean; note: string }
 
@@ -124,7 +125,7 @@ const CLEANUP = ['email_events', 'email_messages', 'email_threads', 'sms_events'
   'invoice_predecessors', 'invoice_lines', 'invoices', 'work_order_profit', 'work_orders', 'time_entries', 'projects', 'email_templates', 'sms_templates',
   'offers', 'customers']
 
-export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseClient; url: string; anonKey: string; ownerUid: string }, policies: M.TableWritePolicy[] = M.WAVE1): Promise<RlsCheck[]> {
+export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseClient; url: string; anonKey: string; ownerUid: string; sql?: (q: string) => Promise<any[]> }, policies: M.TableWritePolicy[] = M.WAVE1): Promise<RlsCheck[]> {
   const out: RlsCheck[] = []
   const { loginPersonas } = await import('./role-matrix')
   const personas = await loginPersonas({ url: c.url, anonKey: c.anonKey, admin: c.admin })
@@ -149,6 +150,7 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
     ctx.s.customer = await seed('customers', SPECS.customers.payload(c.ownerUid, ctx))
     ctx.s.offer = await seed('offers', SPECS.offers.payload(c.ownerUid, ctx))
     const tables = new Set(policies.map((p) => p.table))
+    const auto = c.sql ? new AutoSpecs(c.sql, stamp, seed) : null
     if (tables.has('invoice_lines') || tables.has('invoice_predecessors')) {
       ctx.s.invoice = await seed('invoices', { invoice_number: `HARN-RLS-INV-${stamp}-1`, customer_id: ctx.s.customer })
       ctx.s.invoice2 = await seed('invoices', { invoice_number: `HARN-RLS-INV-${stamp}-2`, customer_id: ctx.s.customer })
@@ -187,9 +189,13 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
     if (tables.has('automation_executions')) ctx.s.rule = await seed('automation_rules', { name: `[HARNESS] rls-base ${stamp}`, trigger: 'harness.rls', action: 'harness.noop', active: false, dry_run: true })
 
     for (const p of policies) {
-      const spec = SPECS[p.table]
-      if (!spec) { out.push({ id: `${p.table}`, ok: false, note: 'ingen test-spec' }); continue }
-      const pk = spec.pk ?? 'id'
+      const spec: Spec | undefined = SPECS[p.table]
+      if (!spec && !auto) { out.push({ id: `${p.table}`, ok: false, note: 'ingen test-spec (og ingen sql til auto-spec)' }); continue }
+      // Haandskrevet spec hvis den findes, ellers metadata-genereret probe (auto-spec.ts)
+      const P = async (uid: string): Promise<Record<string, unknown>> => (spec ? spec.payload(uid, ctx) : auto!.payload(p.table, uid))
+      let U: Record<string, unknown> = {}
+      try { U = spec ? spec.update : await auto!.update(p.table) } catch (e) { out.push({ id: p.table, ok: false, note: `auto-spec: ${(e as Error).message}` }); continue }
+      const pk = spec?.pk ?? 'id'
       const mismatches: string[] = []
       let checks = 0
       const expect = (label: string, actual: boolean, expected: boolean) => { checks++; if (actual !== expected) mismatches.push(`${label}=${actual ? 'ja' : 'nej'}`) }
@@ -197,35 +203,35 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
         const uid = uids.get(role)!
         const other = [...uids.values()].find((u) => u !== uid)!
         // INSERT (egen uid i payload)
-        const ins = await cl.from(p.table).insert([spec.payload(uid, ctx)]).select(pk)
+        const ins = await cl.from(p.table).insert([await P(uid)]).select(pk)
         expect(`${role}:insert`, !ins.error && track(p.table, ins.data), has(p.insert, role) || has(p.insertConditional?.roles, role))
         // INSERT med fremmed uid (ekstra betingelse / betinget gren)
         if ((p.insertExtraSql && has(p.insert, role)) || (p.insertConditional && has(p.insertConditional.roles, role) && !has(p.insert, role))) {
-          const bad = await cl.from(p.table).insert([spec.payload(other, ctx)]).select(pk)
+          const bad = await cl.from(p.table).insert([await P(other)]).select(pk)
           expect(`${role}:insert(fremmed)`, !bad.error && track(p.table, bad.data), false)
         }
         // UPDATE paa en andens raekke
-        const target = await seed(p.table, spec.payload(c.ownerUid === uid ? other : c.ownerUid, ctx))
-        const upd = await cl.from(p.table).update(spec.update).eq(pk, target).select(pk)
+        const target = await seed(p.table, await P(c.ownerUid === uid ? other : c.ownerUid))
+        const upd = await cl.from(p.table).update(U).eq(pk, target).select(pk)
         expect(`${role}:update`, !upd.error && (upd.data ?? []).length === 1, has(p.update, role))
         // laesning uaendret
         const sel = await cl.from(p.table).select(pk).eq(pk, target)
-        if (!spec.readRestricted) expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, true)
+        if (!spec?.readRestricted) expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, true)
         // betinget UPDATE (fx montør -> done)
-        if (p.updateConditional && spec.condUpdate) {
-          const t2 = await seed(p.table, spec.payload(c.ownerUid, ctx))
-          const u2 = await cl.from(p.table).update(spec.condUpdate).eq(pk, t2).select(pk)
+        if (p.updateConditional && spec?.condUpdate) {
+          const t2 = await seed(p.table, await P(c.ownerUid))
+          const u2 = await cl.from(p.table).update(spec?.condUpdate).eq(pk, t2).select(pk)
           expect(`${role}:update(${p.updateConditional.desc})${u2.error ? `[${u2.error.message.slice(0, 80)}]` : ''}`, !u2.error && (u2.data ?? []).length === 1, has(p.update, role) || has(p.updateConditional.roles, role))
         }
         // egne raekker (usingSql / betinget delete)
-        if (spec.ownRow && (p.updateConditional?.usingSql || p.deleteConditional)) {
+        if (spec?.ownRow && (p.updateConditional?.usingSql || p.deleteConditional)) {
           if (p.updateConditional?.usingSql) {
-            const own = await seed(p.table, { ...spec.payload(uid, ctx), ...spec.ownRow(uid) })
-            const u3 = await cl.from(p.table).update(spec.update).eq(pk, own).select(pk)
+            const own = await seed(p.table, { ...await P(uid), ...spec!.ownRow!(uid) })
+            const u3 = await cl.from(p.table).update(U).eq(pk, own).select(pk)
             expect(`${role}:update(egen)`, !u3.error && (u3.data ?? []).length === 1, has(p.update, role) || has(p.updateConditional.roles, role))
           }
           if (p.deleteConditional) {
-            const own = await seed(p.table, { ...spec.payload(c.ownerUid, ctx), ...spec.ownRow(uid) })
+            const own = await seed(p.table, { ...await P(c.ownerUid), ...spec!.ownRow!(uid) })
             const d3 = await cl.from(p.table).delete().eq(pk, own).select(pk)
             expect(`${role}:delete(${p.deleteConditional.desc})`, !d3.error && (d3.data ?? []).length === 1, has(p.delete, role) || has(p.deleteConditional.roles, role))
           }
@@ -235,15 +241,21 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
         expect(`${role}:delete`, !del.error && (del.data ?? []).length === 1, has(p.delete, role))
       }
       // anon
-      const aIns = await c.anon.from(p.table).insert([spec.payload(c.ownerUid, ctx)]).select(pk)
-      const aTarget = await seed(p.table, spec.payload(c.ownerUid, ctx))
-      const aUpd = await c.anon.from(p.table).update(spec.update).eq(pk, aTarget).select(pk)
+      const aIns = await c.anon.from(p.table).insert([await P(c.ownerUid)]).select(pk)
+      const aTarget = await seed(p.table, await P(c.ownerUid))
+      const aUpd = await c.anon.from(p.table).update(U).eq(pk, aTarget).select(pk)
       const aDel = await c.anon.from(p.table).delete().eq(pk, aTarget).select(pk)
       expect('anon:skriv', (!aIns.error && track(p.table, aIns.data)) || (!aUpd.error && (aUpd.data ?? []).length > 0) || (!aDel.error && (aDel.data ?? []).length > 0), false)
       const summary = `I:${p.insert.length}${p.insertConditional ? '+b' : ''}/U:${p.update.length}${p.updateConditional ? '+b' : ''}/D:${p.delete.length}${p.deleteConditional ? '+b' : ''}`
       out.push({ id: p.table, ok: mismatches.length === 0 && personas.size === 5, note: mismatches.length ? `AFVIGER: ${mismatches.join(', ')}` : `${checks} checks · ${summary} · ${personas.size} personaer + anon` })
     }
   } finally {
+    // Auto-spec-tabeller (ikke i CLEANUP) + deres foraeldre: omvendt oprettelsesraekkefoelge (boern foer foraeldre)
+    for (const x of [...created].reverse()) {
+      if (CLEANUP.includes(x.table)) continue
+      const { error } = await c.admin.from(x.table).delete().eq(pkOf(x.table), x.id)
+      if (error) console.error(`[rls-lockdown] oprydning ${x.table}: ${error.message}`)
+    }
     for (const t of CLEANUP) {
       const ids = created.filter((x) => x.table === t).map((x) => x.id)
       if (ids.length) {
