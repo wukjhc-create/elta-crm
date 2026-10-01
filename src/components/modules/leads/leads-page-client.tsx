@@ -22,6 +22,7 @@ interface Filters {
   search?: string
   status?: LeadStatus
   source?: LeadSource
+  mine?: boolean
 }
 
 interface SortData {
@@ -64,7 +65,7 @@ export function LeadsPageClient({ leads, pagination, filters, sort, initialView 
       // Reset to page 1 when filters change (except when changing page)
       if (!updates.page && !params.has('page')) {
         params.delete('page')
-      } else if (updates.search !== undefined || updates.status !== undefined || updates.source !== undefined) {
+      } else if (updates.search !== undefined || updates.status !== undefined || updates.source !== undefined || updates.mine !== undefined) {
         params.delete('page')
       }
 
@@ -108,7 +109,7 @@ export function LeadsPageClient({ leads, pagination, filters, sort, initialView 
     router.push('/dashboard/leads')
   }
 
-  const hasActiveFilters = filters.search || filters.status || filters.source
+  const hasActiveFilters = filters.search || filters.status || filters.source || filters.mine
 
   return (
     <>
@@ -209,6 +210,16 @@ export function LeadsPageClient({ leads, pagination, filters, sort, initialView 
                 </option>
               ))}
             </select>
+
+            {/* Kun mine (tildelt mig) */}
+            <button
+              type="button"
+              onClick={() => updateURL({ mine: filters.mine ? undefined : '1' })}
+              aria-pressed={!!filters.mine}
+              className={`px-3 py-2 rounded-md border text-sm ${filters.mine ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-gray-50'}`}
+            >
+              Kun mine
+            </button>
           </div>
 
           {/* Active filters display */}
@@ -227,6 +238,14 @@ export function LeadsPageClient({ leads, pagination, filters, sort, initialView 
                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
                   Status: {LEAD_STATUS_LABELS[filters.status]}
                   <button onClick={() => handleStatusFilter('')} className="hover:text-red-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {filters.mine && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full text-sm">
+                  Tildelt mig
+                  <button onClick={() => updateURL({ mine: undefined })} aria-label="Ryd Kun mine" className="hover:text-red-600">
                     <X className="w-3 h-3" />
                   </button>
                 </span>

@@ -10,6 +10,7 @@
  *   late_payer         : gennemsnitligt > 7 dage efter forfald (≥2 betalte)
  *   on_time            : gennemsnitligt ≤ 7 dage efter forfald, ingen forfaldne
  */
+import { calendarDaysSince } from '../utils/copenhagen-time'
 
 export type PaymentHealthStatus = 'no_data' | 'on_time' | 'late_payer' | 'requires_attention'
 
@@ -46,7 +47,8 @@ const DAY = 1000 * 60 * 60 * 24
 const r2 = (n: number) => Math.round(n * 100) / 100
 
 function daysBetween(fromIso: string, toMs: number): number {
-  return Math.floor((toMs - new Date(fromIso.slice(0, 10) + 'T00:00:00').getTime()) / DAY)
+  // Danske kalenderdage (uafhængigt af serverens tidszone)
+  return calendarDaysSince(fromIso, toMs)
 }
 
 /** Beregn cost-free betalings-metrics fra en liste af fakturaer. */

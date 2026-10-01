@@ -1,5 +1,5 @@
 /** Unit: dansk lokaltid <-> UTC (sommertid). Kør: npx tsx scripts/copenhagen-time-test.ts */
-import { copenhagenLocalToIso, copenhagenParts } from '../src/lib/utils/copenhagen-time'
+import { copenhagenLocalToIso, copenhagenParts, calendarDaysSince } from '../src/lib/utils/copenhagen-time'
 
 let fail = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -19,5 +19,11 @@ eq('parts vinter', copenhagenParts('2026-10-26T07:00:00.000Z'), { date: '2026-10
 eq('parts dato-skift (23:30Z = næste dag lokalt)', copenhagenParts('2026-11-30T23:30:00.000Z'), { date: '2026-12-01', clock: '00:30' })
 for (const [d, c] of [['2026-07-01', '07:15'], ['2026-11-11', '13:45'], ['2026-10-25', '03:00']] as const)
   eq(`round-trip ${d} ${c}`, copenhagenParts(copenhagenLocalToIso(d, c)), { date: d, clock: c })
+eq('forfald: 14/10 er 1 dag over 15/10 kl. 00:30 dansk (22:30Z dagen før)', calendarDaysSince('2026-10-14', new Date('2026-10-14T22:30:00Z')), 1)
+eq('forfald: samme dag kl. 23:59 dansk = 0', calendarDaysSince('2026-10-14', new Date('2026-10-14T21:59:00Z')), 0)
+eq('forfald: vintertid 1/11 kl. 00:30 dansk (23:30Z) = 1', calendarDaysSince('2026-10-31', new Date('2026-10-31T23:30:00Z')), 1)
+eq('forfald over sommertids-skifte (25/10): 20/10 → 30/10 = 10', calendarDaysSince('2026-10-20', new Date('2026-10-30T12:00:00Z')), 10)
+eq('ISO-tidsstempel som fra-dato', calendarDaysSince('2026-10-10T00:00:00+00:00', new Date('2026-10-12T12:00:00Z')), 2)
+eq('fremtidig dato = negativ', calendarDaysSince('2026-10-20', new Date('2026-10-14T12:00:00Z')), -6)
 console.log(fail ? `\n❌ ${fail} fejl` : '\n✅ alle copenhagen-time tests PASS')
 process.exitCode = fail ? 1 : 0

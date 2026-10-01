@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { getLeads } from '@/lib/actions/leads'
+import { getUser } from '@/lib/supabase/server'
 import { LeadsPageClient } from '@/components/modules/leads/leads-page-client'
 import type { LeadStatus, LeadSource } from '@/types/leads.types'
 
@@ -20,6 +21,7 @@ interface PageProps {
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
     view?: 'table' | 'kanban'
+    mine?: string
   }>
 }
 
@@ -33,6 +35,9 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const source = params.source || undefined
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
+  // "Kun mine": leads tildelt den indloggede bruger
+  const mine = params.mine === '1'
+  const assigned_to = mine ? (await getUser())?.id : undefined
 
   const result = await getLeads({
     page,
@@ -42,6 +47,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     source,
     sortBy,
     sortOrder,
+    assigned_to,
   })
 
   if (!result.success || !result.data) {
@@ -63,7 +69,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         totalItems: result.data.total,
         pageSize: result.data.pageSize,
       }}
-      filters={{ search, status, source }}
+      filters={{ search, status, source, mine }}
       sort={{ sortBy, sortOrder }}
       initialView={isKanban ? 'kanban' : 'table'}
     />

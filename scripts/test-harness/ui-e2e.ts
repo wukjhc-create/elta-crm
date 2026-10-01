@@ -72,6 +72,8 @@
  *       kostpris kopieret, samme total; kilden uændret
  *   U43 omplanlægning: kalender → klik job → ny dato (+2 dage) og anden montør → "Gem ændringer" → arbejdsordre flyttet,
  *       stadig planlagt, vist på ny dag
+ *   U44 montør: "Mine timer" på landingssiden viser ugens egne timer (= DB-sum for U11's registrering) + sagen (kræver U11)
+ *   U45 salg: "Kun mine" på leadlisten viser kun leads tildelt sælgeren (kollegas lead skjult), filter vist som "Tildelt mig"
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -579,6 +581,7 @@ ${m.text()}`) })
           return ((await c.admin.from('service_cases').select('ksr_number, ean_number, contact_phone').eq('id', siteCaseId).maybeSingle()).data ?? {}) as Record<string, string | null>
         }
         const bad = await openAndSave('12')
+        await a.page.getByText('KSR-nummer skal være 6-10 cifre').waitFor({ timeout: 20_000 }).catch(() => {})
         r.ugyldigt_ksr_afvist = bad.ksr_number == null && (await a.page.getByText('KSR-nummer skal være 6-10 cifre').count()) > 0
         const good = await openAndSave('1234 567')
         r.gemt = good.ksr_number === '1234567' && good.ean_number === '5790000000001' && good.contact_phone === '+45 22 33 44 55'
@@ -1539,6 +1542,22 @@ ${m.text()}`) })
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u40-montor-materialer.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U40 montør: egen sag uden priser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
+
+      // U44 montør: "Mine timer" viser ugens egne timer (efter U11's tidsregistrering)
+      if (want('U44') && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const own = ((await c.admin.from('time_logs').select('hours, end_time, work_order:work_orders!inner(case_id)').eq('work_order.case_id', jobCaseId)).data ?? []) as Array<{ hours: number | null; end_time: string | null }>
+        const expected = Math.round(own.filter((x) => x.end_time).reduce((s0, x) => s0 + Number(x.hours ?? 0), 0) * 100) / 100
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const card = m.page.getByTestId('my-hours-card')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kort_vist = (await card.count()) > 0
+        const totalTxt = ((await m.page.getByTestId('my-hours-total').textContent().catch(() => '')) ?? '').replace(/\s*t$/, '').trim()
+        r.total_matcher = expected > 0 && Number(totalTxt.replace(/\./g, '').replace(',', '.')) === expected
+        r.sag_vist = ((await card.innerText().catch(() => '')) ?? '').includes('montørjob')
+        await m.page.screenshot({ caret: 'initial', path: join(shots, 'u44-mine-timer.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U44 montør: Mine timer', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · total=${totalTxt} forventet=${expected}` })
+      }
     } else out.push({ id: 'U4 montør: ingen adgang', ok: false, note: 'montør-login fejlede' })
 
     // ---- salg (G6): egen sag fra eget tilbud skal kunne ses
@@ -1599,6 +1618,26 @@ ${m.text()}`) })
         f.kollega_skjult = !txt.includes(`følg op kollega ${stamp}`)
         await sp.page.screenshot({ caret: 'initial', path: join(shots, 'u14-opfoelgning.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U14 salg: tilbudsopfølgning', ok: Object.values(f).every(Boolean), note: Object.entries(f).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+      // U45 salg: "Kun mine" på leadlisten (tildelt mig)
+      if (want('U45') && sp.ok) {
+        const g: Record<string, boolean> = {}
+        const mine = `[HARNESS] Mit lead ${stamp}`, other = `[HARNESS] Kollegas lead ${stamp}`
+        const ins = await c.admin.from('leads').insert([
+          { company_name: mine, contact_person: 'A', email: `mine-${stamp}@harness.test`, status: 'new', source: 'website', created_by: adminUser.id, assigned_to: salg.id },
+          { company_name: other, contact_person: 'B', email: `andet-${stamp}@harness.test`, status: 'new', source: 'website', created_by: adminUser.id, assigned_to: adminUser.id },
+        ]).select('id')
+        for (const x of (ins.data ?? []) as Array<{ id: string }>) u27LeadIds.push(x.id)
+        await gotoSafe(sp.page, `${base}/dashboard/leads?search=${encodeURIComponent(String(stamp))}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const body0 = await sp.page.locator('main').innerText().catch(() => '')
+        g.alle_vist_foer = body0.includes(mine) && body0.includes(other)
+        await sp.page.getByRole('button', { name: 'Kun mine' }).click({ timeout: 60_000 }).catch(() => {})
+        await sp.page.waitForURL(/mine=1/, { timeout: 60_000 }).catch(() => {})
+        await sp.page.getByText(mine).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        const body1 = await sp.page.locator('main').innerText().catch(() => '')
+        g.kun_eget_lead = body1.includes(mine) && !body1.includes(other)
+        g.filter_vist = body1.includes('Tildelt mig')
+        out.push({ id: 'U45 salg: Kun mine (leads)', ok: (ins.data ?? []).length === 2 && Object.values(g).every(Boolean), note: Object.entries(g).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
       out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 6 && Object.values(r).every(Boolean),
         note: `${!sp.ok ? `salg-login fejlede (${loginFailures.join(' | ')}) · ` : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })

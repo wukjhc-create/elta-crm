@@ -36,3 +36,16 @@ export function copenhagenParts(value: string | Date): { date: string; clock: st
   const z = (n: number) => String(n).padStart(2, '0')
   return { date: `${p.y}-${z(p.mo)}-${z(p.d)}`, clock: `${z(p.h)}:${z(p.mi)}` }
 }
+
+/**
+ * Hele kalenderdage fra en dato (YYYY-MM-DD eller ISO) til "nu" — i DANSK
+ * kalender, uafhængigt af serverens tidszone. Forfald: faktura med forfald
+ * 14/10 er 1 dag over forfald fra 15/10 kl. 00:00 dansk tid (før: først kl.
+ * 02:00, fordi "T00:00:00" blev tolket som UTC på Vercel).
+ */
+export function calendarDaysSince(dateIso: string, now: Date | number = new Date()): number {
+  const from = dateIso.slice(0, 10)
+  const today = copenhagenParts(new Date(now)).date
+  const toUtc = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)))
+  return Math.round((toUtc(today) - toUtc(from)) / 86_400_000)
+}

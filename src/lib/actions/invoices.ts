@@ -43,7 +43,7 @@ import {
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
-import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { copenhagenParts, calendarDaysSince } from '@/lib/utils/copenhagen-time'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import {
   computePaymentHealth,
@@ -1464,7 +1464,7 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
     let isOverdue = false
     let daysOverdue: number | null = null
     if (dueIso && r.status === 'sent' && !r.voided_at && !isCredit) {
-      const diff = Math.floor((todayMs - new Date(dueIso + 'T00:00:00').getTime()) / DAY)
+      const diff = calendarDaysSince(dueIso, todayMs) // dansk kalenderdag (ikke serverens UTC-midnat)
       if (diff > 0) {
         isOverdue = true
         daysOverdue = diff
@@ -1620,7 +1620,7 @@ export async function getInvoiceDashboardAction(
       paidThisMonth += Number(r.final_amount ?? 0)
     }
     if (r.due_date && r.status === 'sent' && active) {
-      const days = Math.floor((todayMs - new Date(String(r.due_date) + 'T00:00:00').getTime()) / DAY)
+      const days = calendarDaysSince(String(r.due_date), todayMs)
       if (days > 0) {
         overdueTotal += Number(r.final_amount ?? 0)
         overdueRaw.push({ ...r, _days: days })
@@ -1918,7 +1918,7 @@ export async function getCustomerInvoiceOverviewAction(
     let isOverdue = false
     let daysOverdue: number | null = null
     if (r.due_date && r.status === 'sent' && active) {
-      const days = Math.floor((todayMs - new Date(String(r.due_date) + 'T00:00:00').getTime()) / DAY)
+      const days = calendarDaysSince(String(r.due_date), todayMs)
       if (days > 0) {
         isOverdue = true
         daysOverdue = days
