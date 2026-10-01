@@ -10,6 +10,7 @@
  *   L6  integrationshemmeligheder (00176): ingen persona kan laese api_key m.fl.; offentlige kolonner laesbare
  *   L9  mail (00180, G9/G10): montør ser KUN mails på egne sager/job; admin/serviceleder/salg/bogholderi ser alle
  *   L10 medarbejdere (00180, G5): planlæggere (admin, serviceleder) ser alle; montør/salg kun egen række
+ *   L11 audit-identitet (00182, D2): log_audit_event med en ANDENS p_user_id fra en bruger-session skrives som kalderen selv
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
@@ -153,6 +154,23 @@ export async function runRlsRead(c: { admin: SupabaseClient; anon: SupabaseClien
       const badEmp = Object.entries(expectEmp).filter(([r, e]) => empSeen[r] !== e)
       out.push({ id: 'L10 medarbejdere: planlæggere ser alle', ok: badEmp.length === 0 && Object.keys(expectEmp).every((r) => r in empSeen),
         note: `egen-montør/anden pr. rolle: ${Object.entries(empSeen).map(([r, v]) => `${r}=${v}`).join(' ')}${badEmp.length ? ` · AFVIGER: ${badEmp.map(([r]) => r).join(',')}` : ''}` })
+    }
+
+    // L11 — D2: forsøg at forfalske audit-identitet via direkte RPC (salg udgiver sig for admin)
+    {
+      const salgCl = personas.get('salg')!
+      const adminUid = uids.get('admin')!
+      const salgUid = uids.get('salg')!
+      const marker = `harness-l11-${stamp}`
+      const { data: logId, error } = await salgCl.rpc('log_audit_event', {
+        p_user_id: adminUid, p_user_email: 'forfalsket@harness.test', p_user_name: 'Forfalsket', p_entity_type: 'harness',
+        p_entity_id: null, p_entity_name: marker, p_action: 'harness_l11', p_action_description: 'L11 probe',
+      })
+      const row = logId ? ((await c.admin.from('audit_logs').select('user_id, user_email').eq('id', logId as string).maybeSingle()).data as { user_id?: string; user_email?: string } | null) : null
+      if (logId) await c.admin.from('audit_logs').delete().eq('id', logId as string)
+      const ok = !error && row?.user_id === salgUid && row?.user_email !== 'forfalsket@harness.test'
+      out.push({ id: 'L11 audit-identitet kan ikke forfalskes', ok,
+        note: error ? `rpc-fejl: ${error.message.slice(0, 80)}` : `skrevet som: ${row?.user_id === salgUid ? 'kalderen selv (korrekt)' : row?.user_id === adminUid ? 'ADMIN (forfalsket!)' : 'ukendt'}` })
     }
 
     out.push({ id: 'L5 anon læser intet', ok: !anonSaw, note: anonSaw ? 'LÆSTE' : 'afvist/tom' })

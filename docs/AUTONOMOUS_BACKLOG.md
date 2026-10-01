@@ -36,7 +36,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | N2 | Tid | Godkendelse af timer (time_logs.approve findes kun som permission) |
 | N3 | Grossist | AO manuel sync-knap (stub), SupplierStatusCard ikke monteret, syncSupplierPrices per-SKU/timeout |
 | N4 | Grossist | Produktsøgning ilike på 324k rækker uden trigram-indeks (migration) |
-| N5 | Faktura | Faktura direkte fra tilbud i UI; kladde-redigering; "Markér som sendt" → e-conomic; kreditnotaer → e-conomic; betalinger → e-conomic | DELVIST — DONE: modtager efter samme routing som afsendelsen (faktura-kontakt før kundens mail; før: knap deaktiveret uden kunde-mail), redigering af kladder (beskrivelse/stk-pris; antal kun manuelle linjer; tilføj/slet manuelle; totaler + momssats genberegnet; kun status draft) — ui-e2e U15. Rest (e-conomic-dele + faktura fra tilbud) → N12 |
+| N5 | Faktura | Faktura direkte fra tilbud i UI; kladde-redigering; "Markér som sendt" → e-conomic; kreditnotaer → e-conomic; betalinger → e-conomic | DELVIST — DONE: modtager efter samme routing som afsendelsen (faktura-kontakt før kundens mail; før: knap deaktiveret uden kunde-mail), redigering af kladder (beskrivelse/stk-pris; antal kun manuelle linjer; tilføj/slet manuelle; totaler + momssats genberegnet; kun status draft) — ui-e2e U15. "Fakturér på sagen" fra accepteret/konverteret tilbud (direkte til sagens fakturakladde; bevidst INGEN separat faktura-fra-tilbud-knap: create_invoice_from_offer kender ikke sagsfakturaer → dobbeltfakturering) — U13. Rest (e-conomic-dele) → N12 |
 | N6 | Faktura | /dashboard/bank i sidebar | DONE — menupunkt "Bankafstemning" (bank.view) + ModuleGuard (før: fejlside uden rettighed) |
 | N7 | Profit | Arbejdsordre-profit-snapshot skrives/vises aldrig (profitability.ts ukaldt) |
 | N8 | Tilbud | acceptOffer håndhæver ikke status/udløb; send uden DB-tjek; portal viser tom sælger | DELVIST — DONE: accept-guard + gyldighedsregel, sælger vises i portalen (navn/mail/telefon fra tilbuddets opretter; U10). BESLUTNING (Henrik): DB-tjek ved afsendelse — hård blokering eller advarsel? (send-gatens DB regner timer uden kostpris som 0 kr → overvurderer DB, jf. F1) |
@@ -49,7 +49,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | # | Sev | Fund | Status |
 |---|---|---|---|
 | D1 | S3 | audit_logs har ingen INSERT-policy for authenticated → 15 direkte audit-inserts med bruger-session (fakturaer sendt/betalt/krediteret, materialer, øvrige omk., indstillinger, regnskab) fejlede stille; prod: 0 sådanne rækker | DONE — insertAuditRow (service-role, user_id fra serversession); U15 verificerer at audits lander |
-| D2 | S3 | log_audit_event (SECURITY DEFINER, authenticated EXECUTE) tager p_user_id som parameter → en bruger kan forfalske user_id i en audit-række via direkte RPC | TODO (næste migrationsbatch: brug auth.uid() i funktionen) |
+| D2 | S3 | log_audit_event (SECURITY DEFINER, authenticated EXECUTE) tager p_user_id som parameter → en bruger kan forfalske user_id i en audit-række via direkte RPC | BLOCKED_APPROVAL — 00182 på staging: bruger-session tvinges til auth.uid() + profil, kun service-role angiver identitet (agent-audit uændret). rls-read L11: før=ADMIN (forfalsket), efter=kalderen. Prod pre ✅ (`scripts/prod-verify-00182.ts pre|post`) |
 | D3 | S3 | Kunde-/lead-/tilbudslister beregnede relativ tid på server og klient → hydreringsfejl ved minutskifte | DONE (SmartDate) |
 
 ## LATER
@@ -62,6 +62,7 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 | Prod 00178 (runde 4: 44 kalkulations-/katalogtabeller) | staging 44/44, pre-check grøn | samme |
 | Prod 00180 (G10: montør kun mails på egne sager + serviceleder ser medarbejdere) | staging grøn, prod pre ✅ | docs/runbooks/00180-g10-mail-scope-employees.md |
 | Prod 00181 (WAVE5: montør starter/afslutter kun egne arbejdsordrer) + derefter Vercel MONTOR_START_JOB_ENABLED=true | staging grøn, prod pre ✅ | docs/runbooks/p009-rls-write-lockdown.md § Runde 5 |
+| Prod 00182 (D2: audit-identitet kan ikke forfalskes via RPC) | staging grøn (L11), prod pre ✅ | migrationens header + scripts/prod-verify-00182.ts |
 | Vercel: INVOICE_ATTACHMENT_FETCH_ENABLED=true (faktura-backfill) | kode deployet, baseline taget | docs/runbooks/invoice-attachment-backfill.md |
 | Aktivering af hidtil døde crons (cookie-klient → service-role): unanswered-mails (interne opgaver), offer-reminders (KUNDEMAIL), supplier-sync | analyse færdig; ændrer cron-adfærd → kræver separat godkendelse | — |
 | Opfølgning: prod-cron-status efter 00170–00174 | DELVIST VERIFICERET 08:23 UTC: bank-match, export-error-notification, invoice-reminders, offer-reminders, payment-report = ok. Udestår: unanswered-mails (12:00 UTC), natlige crons — `scripts/prod-cron-status-since.ts "2026-10-01 05:10"` | — |

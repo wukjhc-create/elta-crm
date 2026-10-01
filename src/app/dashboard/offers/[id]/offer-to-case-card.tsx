@@ -11,6 +11,8 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import {
   ArrowRight, Briefcase, FilePlus2, FileText, Loader2, AlertTriangle, Info, CheckCircle2,
 } from 'lucide-react'
@@ -45,6 +47,8 @@ export function OfferToCaseCard({
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [linkedCase, setLinkedCase] = useState<LinkedCase | null>(initialLinkedCase)
+  const { role } = useUserRole()
+  const canInvoice = hasPermission(role, 'invoices.create')
   const [isWorking, setIsWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<OfferConversionPreview | null>(null)
@@ -74,12 +78,24 @@ export function OfferToCaseCard({
             <div className="text-sm text-emerald-800 font-mono truncate">{linkedCase.case_number}</div>
           </div>
         </div>
-        <Link
-          href={`/dashboard/orders/${linkedCase.case_number}`}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-emerald-700 text-white rounded-md hover:bg-emerald-800 shrink-0"
-        >
-          Åbn sag <ArrowRight className="w-4 h-4" />
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* N5: fakturering sker på sagen (a conto/slutfaktura, timer og materialer) — ét spor, ingen dobbeltfakturering */}
+          {canInvoice && (
+            <Link
+              href={`/dashboard/orders/${linkedCase.case_number}?tab=fakturakladde`}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-white text-emerald-800 ring-1 ring-emerald-300 rounded-md hover:bg-emerald-100"
+              data-testid="offer-invoice-on-case"
+            >
+              Fakturér på sagen
+            </Link>
+          )}
+          <Link
+            href={`/dashboard/orders/${linkedCase.case_number}`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-emerald-700 text-white rounded-md hover:bg-emerald-800"
+          >
+            Åbn sag <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
     )
   }
