@@ -17,6 +17,7 @@
  *   U4  montør: Agent Inbox og Pilot Health viser "Du har ikke adgang"
  *   U5  ingen browser-konsolfejl / sidefejl under forløbet
  *   U7  admin: lønsomhedskort på tilbud (Profit Engine) — realistisk DB, dom og timekost-advarsel
+ *   U8  admin: grossist-sammenligning på tilbud (samme EAN billigere hos anden leverandør)
  *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -91,6 +92,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const pageErrors: string[] = []
   let profitOfferId: string | null = null
   let profitCustomerId: string | null = null
+  let cmpSupplierIds: string[] = []
 
   try {
     const adminUser = await mkUser('admin')
@@ -164,6 +166,25 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         out.push({ id: 'U7 lønsomhed på tilbud (admin)', ok: !seedErr && Object.values(profit).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(profit).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U8 grossist-sammenligning: samme EAN billigere hos anden leverandør -> kort med besparelse 200 kr
+      {
+        const ean = `57${String(stamp).slice(-11)}`
+        const sAO = await c.admin.from('suppliers').insert([{ name: `HARNESS UI AO ${stamp}`, code: `HUAO${stamp}` }]).select('id')
+        const sLM = await c.admin.from('suppliers').insert([{ name: `HARNESS UI LM ${stamp}`, code: `HULM${stamp}` }]).select('id')
+        cmpSupplierIds = [sAO.data?.[0]?.id, sLM.data?.[0]?.id].filter(Boolean) as string[]
+        const pAO = await c.admin.from('supplier_products').insert([{ supplier_id: cmpSupplierIds[0], supplier_sku: `HU-AO-${stamp}`, supplier_name: 'Stikkontakt', cost_price: 100, ean }]).select('id')
+        await c.admin.from('supplier_products').insert([{ supplier_id: cmpSupplierIds[1], supplier_sku: `HU-LM-${stamp}`, supplier_name: 'Stikkontakt', cost_price: 80, ean: `0${ean}` }])
+        if (profitOfferId && pAO.data?.[0]?.id) await c.admin.from('offer_line_items').insert([{ offer_id: profitOfferId, position: 3, description: 'Stikkontakt', quantity: 10,
+          unit: 'stk', unit_price: 150, total: 1500, cost_price: 100, supplier_product_id: pAO.data[0].id, supplier_cost_price_at_creation: 100 }])
+        await a.page.goto(`${base}/dashboard/offers/${profitOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('offer-supplier-savings-card').waitFor({ timeout: 60_000 }).catch(() => {})
+        const sc = a.page.getByTestId('offer-supplier-savings-card')
+        const stxt = (await sc.count()) ? await sc.innerText() : ''
+        await a.page.screenshot({ path: join(shots, 'u8-grossist.png'), fullPage: true }).catch(() => {})
+        const cmp = { kort: /Billigere hos anden grossist/.test(stxt), lm: stxt.includes(`HARNESS UI LM ${stamp}`), besparelse: /200,00 kr/.test(stxt) }
+        out.push({ id: 'U8 grossist-sammenligning', ok: Object.values(cmp).every(Boolean), note: Object.entries(cmp).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -189,6 +210,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     if (server) killTree(server)
     if (profitOfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', profitOfferId); await c.admin.from('offers').delete().eq('id', profitOfferId) }
     if (profitCustomerId) await c.admin.from('customers').delete().eq('id', profitCustomerId)
+    for (const sid of cmpSupplierIds) { await c.admin.from('supplier_products').delete().eq('supplier_id', sid); await c.admin.from('suppliers').delete().eq('id', sid) }
     for (const u of users) {
       await c.admin.from('profiles').delete().eq('id', u.id)
       await c.admin.auth.admin.deleteUser(u.id)

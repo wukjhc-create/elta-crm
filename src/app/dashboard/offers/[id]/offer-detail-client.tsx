@@ -45,6 +45,7 @@ import { OfferActivityTimeline } from '@/components/modules/offers/offer-activit
 import { REJECTION_REASON_LABELS, type RejectionReasonCode } from '@/types/offers.types'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
 import { OfferProfitCard } from '@/components/modules/offers/offer-profit-card'
+import { OfferSupplierSavingsCard } from '@/components/modules/offers/offer-supplier-savings-card'
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
 import { OfferTaskForm } from '@/components/modules/offers/offer-task-form'
 import { insertPackageIntoOffer } from '@/lib/actions/packages'
@@ -1169,6 +1170,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 lineItems={lineItems}
                 discountPercentage={Number(offer.discount_percentage ?? 0)}
               />
+            )}
+            {showFinancials && lineItems.some((l) => l.supplier_product_id) && (
+              <OfferSupplierSavingsCard offerId={offer.id} lineItems={lineItems} />
             )}
 
             {/* Price Explanation */}

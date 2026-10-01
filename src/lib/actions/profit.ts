@@ -69,3 +69,40 @@ export async function getOfferProfitAnalysis(offerId: string): Promise<ActionRes
     return { success: false, error: formatError(err, 'Kunne ikke beregne lønsomhed') }
   }
 }
+
+/**
+ * Billigere leverandør pr. tilbudslinje (samme EAN hos en anden grossist). Kun LÆSNING; samme gate som lønsomhed
+ * (kostpriser vises). Kun linjer der stammer fra en leverandørvare (supplier_product_id).
+ */
+export async function getCheaperAlternativesForOffer(offerId: string): Promise<ActionResult<import('@/lib/pricing/supplier-compare').CheaperAlternative[]>> {
+  try {
+    validateUUID(offerId, 'tilbud-ID')
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('offers.view.cost_prices')) return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
+    const { supabase } = ctx
+    const { findCheaperAlternatives, normalizeEan } = await import('@/lib/pricing/supplier-compare')
+
+    const { data: items } = await supabase.from('offer_line_items')
+      .select('id, description, quantity, supplier_product_id, supplier_cost_price_at_creation, cost_price')
+      .eq('offer_id', offerId).not('supplier_product_id', 'is', null)
+    const lines = (items ?? []).map((i) => ({ lineId: i.id as string, description: String(i.description ?? ''), quantity: Number(i.quantity ?? 0),
+      supplierProductId: i.supplier_product_id as string,
+      unitCost: Number(i.supplier_cost_price_at_creation ?? 0) > 0 ? Number(i.supplier_cost_price_at_creation) : Number(i.cost_price ?? 0) > 0 ? Number(i.cost_price) : null }))
+    if (!lines.length) return { success: true, data: [] }
+
+    const cols = 'id, supplier_id, supplier_sku, supplier_name, ean, cost_price, supplier:suppliers(name)'
+    const toRef = (p: Record<string, unknown>) => ({ id: p.id as string, supplierId: p.supplier_id as string,
+      supplierName: ((p.supplier as { name?: string } | null)?.name) ?? '', sku: String(p.supplier_sku ?? ''), name: String(p.supplier_name ?? ''),
+      ean: (p.ean as string | null) ?? null, costPrice: p.cost_price != null ? Number(p.cost_price) : null })
+    const { data: own } = await supabase.from('supplier_products').select(cols).in('id', [...new Set(lines.map((l) => l.supplierProductId))])
+    const eans = [...new Set(((own ?? []) as Array<Record<string, unknown>>).map((p) => normalizeEan(p.ean as string | null)).filter(Boolean) as string[])]
+    if (!eans.length) return { success: true, data: [] }
+    // EAN-13 og GTIN-14 (foranstillet 0) gemmes forskelligt hos grossisterne -> slå begge former op
+    const variants = [...new Set(eans.flatMap((e) => [e, `0${e}`]))]
+    const { data: alts } = await supabase.from('supplier_products').select(cols).in('ean', variants).gt('cost_price', 0)
+    const products = [...((own ?? []) as Array<Record<string, unknown>>), ...((alts ?? []) as Array<Record<string, unknown>>)].map(toRef)
+    return { success: true, data: findCheaperAlternatives(lines, products) }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke sammenligne leverandørpriser') }
+  }
+}
