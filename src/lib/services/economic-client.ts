@@ -20,6 +20,7 @@ import { logger } from '@/lib/utils/logger'
 import { encrypt, decrypt } from '@/lib/utils/encryption'
 import { buildEconomicInvoiceDraft, type EconomicInvoiceDraft } from '@/lib/economic/invoice-draft'
 import { buildEconomicSupplierInvoiceDraft, type SupplierInvoiceDraft } from '@/lib/economic/supplier-invoice-draft'
+import { buildEconomicPaymentEntry } from '@/lib/economic/payment-entry'
 import type {
   AccountingAction,
   AccountingEntityType,
@@ -629,7 +630,7 @@ export async function markInvoicePaidInEconomic(
   const supabase = createAdminClient()
   const { data: inv } = await supabase
     .from('invoices')
-    .select('id, currency, final_amount, amount_paid, payment_status, external_invoice_id, external_provider, payment_reference')
+    .select('id, currency, final_amount, amount_paid, payment_status, paid_at, external_invoice_id, external_provider, payment_reference')
     .eq('id', invoiceId)
     .maybeSingle()
   if (!inv) {
@@ -686,20 +687,22 @@ export async function markInvoicePaidInEconomic(
     }
   }
 
-  // Post a customer payment voucher entry to the cashbook.
-  // amount is the customer side (debit on receivables → credited here).
-  const amount = Number(inv.amount_paid) || Number(inv.final_amount)
-  const today = new Date().toISOString().slice(0, 10)
-
-  const body = {
-    text: `Indbetaling faktura ${inv.external_invoice_id}`,
-    amount: -Math.abs(amount), // negative = customer payment in (reduces receivables)
-    currency: { code: inv.currency || 'DKK' },
-    date: today,
-    contraAccount: { accountNumber: cfg.bankContraAccountNumber },
-    customer: undefined as { customerNumber: number } | undefined, // resolved below if we have it
-    customerInvoice: { bookedInvoiceNumber: Number(inv.external_invoice_id) },
+  // Kundebetaling i kassekladden via fælles mapping (betalingsdato i dansk
+  // tid, afviser kladde-faktura og kreditnota) — se lib/economic/payment-entry.ts.
+  const entry = buildEconomicPaymentEntry({ invoice: inv, config: cfg })
+  if (!entry.canPost) {
+    const reason = entry.issues.filter((i) => i.severity === 'error').map((i) => i.message).join('; ')
+    await logAttempt({
+      entity_type: 'invoice',
+      entity_id: invoiceId,
+      action: 'mark_paid',
+      status: 'failed',
+      external_id: inv.external_invoice_id,
+      error_message: reason,
+    })
+    return { ok: false, status: 'failed', error: reason }
   }
+  const body = entry.body
 
   const res = await economicFetch<{ voucherNumber: number; entryNumber?: number }>(
     ready,
