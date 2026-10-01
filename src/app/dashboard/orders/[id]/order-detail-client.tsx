@@ -22,6 +22,7 @@ import {
 import { OrderActionsTab } from './order-actions-tab'
 import { OrderActivityTab } from './order-activity-tab'
 import { OrderPlanningTab } from './order-planning-tab'
+import { OrderHandoverTab } from './order-handover-tab'
 import { OrderMaterialsTab } from './order-materials-tab'
 import { OrderOtherCostsTab } from './order-other-costs-tab'
 import { OrderEconomyTab } from './order-economy-tab'
@@ -40,6 +41,7 @@ import { InlineStatusChanger } from './inline-status-changer'
 const TABS = [
   { id: 'overblik',     label: 'Overblik',           ready: true },
   { id: 'planlaegning', label: 'Planlægning / Timer', ready: true },
+  { id: 'aflevering',   label: 'Aflevering',         ready: true },
   { id: 'materialer',   label: 'Materialer',         ready: true },
   { id: 'oevrige',      label: 'Øvrige omkostninger', ready: true },
   // Sprint 8D-1: Mails + Dokumenter pr. sag
@@ -235,6 +237,7 @@ export function OrderDetailClient({
               canSeeCost={canSeeCost}
             />
           )}
+          {active === 'aflevering' && <OrderHandoverTab caseId={sag.id} />}
           {active === 'materialer' && <OrderMaterialsTab caseId={sag.id} />}
           {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} />}
           {active === 'mails' && <OrderMailsTab caseId={sag.id} />}

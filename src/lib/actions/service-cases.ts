@@ -351,6 +351,14 @@ export async function updateServiceCase(
     for (const [k, v] of Object.entries(input)) {
       if (v !== undefined) payload[k] = v
     }
+    // Lukning kræver cases.close — samme regel som setServiceCaseStatus (Service-listens status-dropdown gik udenom)
+    if (payload.status === 'closed') {
+      if (!hasPermission('cases.close')) return { success: false, error: 'Manglende tilladelse: cases.close' }
+      if (payload.closed_at === undefined) {
+        const { data: prior } = await supabase.from('service_cases').select('status, closed_at').eq('id', id).maybeSingle()
+        if (prior && prior.status !== 'closed') payload.closed_at = new Date().toISOString()
+      }
+    }
 
     const { data, error } = await supabase
       .from('service_cases')

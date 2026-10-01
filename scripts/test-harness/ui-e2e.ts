@@ -524,6 +524,37 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         r.foto_upload = /1 fil uploadet/.test(upMsg) && docs === 1
         await m.page.screenshot({ path: join(shots, 'u11-montoer-dokumenter.png'), fullPage: true }).catch(() => {})
 
+        // N9a Aflevering på ordresiden: tjekliste → foto til første påkrævede punkt → kundens underskrift (montør, egen sag)
+        await m.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=aflevering`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await m.page.getByTestId('handover-start').click({ timeout: 60_000 }).catch(() => {})
+        const hov = m.page.getByTestId('order-handover-tab')
+        await hov.locator('input[type="file"]').first().waitFor({ state: 'attached', timeout: 60_000 }).catch(() => {})
+        await hov.locator('input[type="file"]').first().setInputFiles({ name: 'inverter.png', mimeType: 'image/png', buffer: png }).catch(() => {})
+        let photoOk = false
+        for (let i = 0; i < 20 && !photoOk; i++) {
+          const sc = (await c.admin.from('service_cases').select('checklist').eq('id', jobCaseId).maybeSingle()).data as { checklist?: Array<{ key: string; completed: boolean }> } | null
+          const att = (await c.admin.from('service_case_attachments').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId).eq('category', 'inverter_photo')).count ?? 0
+          photoOk = att === 1 && !!sc?.checklist?.find((x) => x.key === 'inverter_photo')?.completed
+          if (!photoOk) await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.aflevering_foto = photoOk
+        await m.page.getByTestId('handover-open-signature').click({ timeout: 30_000 }).catch(() => {})
+        await m.page.getByPlaceholder('Fulde navn').fill('Kunde Harness').catch(() => {})
+        const sbox = await m.page.getByTestId('handover-signature').locator('canvas').boundingBox().catch(() => null)
+        if (sbox) {
+          await m.page.mouse.move(sbox.x + 20, sbox.y + 20); await m.page.mouse.down()
+          await m.page.mouse.move(sbox.x + 140, sbox.y + 50, { steps: 8 }); await m.page.mouse.move(sbox.x + 240, sbox.y + 25, { steps: 8 }); await m.page.mouse.up()
+        }
+        await m.page.getByRole('button', { name: /Bekræft underskrift/ }).click({ timeout: 30_000 }).catch(() => {})
+        let signedName = ''
+        for (let i = 0; i < 15 && !signedName; i++) {
+          signedName = String(((await c.admin.from('service_cases').select('customer_signature_name, customer_signature, status').eq('id', jobCaseId).maybeSingle()).data as { customer_signature_name?: string } | null)?.customer_signature_name ?? '')
+          if (!signedName) await new Promise((res) => setTimeout(res, 1000))
+        }
+        const stillOpen = ((await c.admin.from('service_cases').select('status').eq('id', jobCaseId).maybeSingle()).data as { status?: string } | null)?.status !== 'closed'
+        r.aflevering_underskrift = signedName === 'Kunde Harness' && stillOpen
+        await m.page.screenshot({ path: join(shots, 'u11-montoer-aflevering.png'), fullPage: true }).catch(() => {})
+
         // Sagens Mails-fane: egen sagsmail synlig (G9) — postkassen er lukket, men sagens mails ses stadig
         await m.page.getByRole('button', { name: /^Mails/ }).first().click().catch(() => {})
         await m.page.getByText(`[HARNESS] egen sagsmail ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
@@ -642,6 +673,12 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       await c.admin.from('offers').delete().eq('id', portalOfferId)
     }
     if (portalTokenId) await c.admin.from('portal_access_tokens').delete().eq('id', portalTokenId)
+    if (jobCaseId) {
+      const { data: hatt } = await c.admin.from('service_case_attachments').select('storage_path').eq('service_case_id', jobCaseId)
+      const hp = ((hatt ?? []) as Array<{ storage_path: string | null }>).map((x) => x.storage_path).filter(Boolean) as string[]
+      if (hp.length) await c.admin.storage.from('service-case-files').remove(hp)
+      await c.admin.from('service_case_attachments').delete().eq('service_case_id', jobCaseId)
+    }
     if (jobCaseId) {
       const { data: docs } = await c.admin.from('customer_documents').select('id, storage_path').eq('service_case_id', jobCaseId)
       const paths = ((docs ?? []) as Array<{ storage_path: string | null }>).map((d) => d.storage_path).filter(Boolean) as string[]
