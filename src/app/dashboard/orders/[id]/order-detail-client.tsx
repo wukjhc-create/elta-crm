@@ -37,6 +37,7 @@ import { OrderInspectionTab } from './order-inspection-tab'
 import { OrderNotesTab } from './order-notes-tab'
 import { OrderTasksTab } from './order-tasks-tab'
 import { InlineStatusChanger } from './inline-status-changer'
+import { OfferAgentButton } from '@/components/modules/agents/offer-agent-button'
 
 const TABS = [
   { id: 'overblik',     label: 'Overblik',           ready: true },
@@ -133,6 +134,8 @@ export function OrderDetailClient({
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* N9c: "Foreslå tilbud (agent)" — før kun i Service-modulet; knappen viser sig selv kun for admin */}
+            <OfferAgentButton caseId={sag.id} />
             <InlineStatusChanger caseId={sag.id} current={sag.status} />
             <span
               className={`inline-block px-3 py-1 rounded text-xs font-medium ${SERVICE_CASE_PRIORITY_COLORS[sag.priority]}`}

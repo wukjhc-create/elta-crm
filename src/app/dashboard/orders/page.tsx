@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { getServiceCases } from '@/lib/actions/service-cases'
+import { getServiceCases, getServiceCaseStats } from '@/lib/actions/service-cases'
 import { getServiceCaseEconomyBatch, type CaseEconomyBatchEntry } from '@/lib/actions/service-case-economy'
 import { caseMatchesBillingFilter, type CaseBillingFilter } from '@/lib/invoices/case-billing-status'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
@@ -52,6 +52,9 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // Sprint Ø8.1/Ø8.2 — billing-gate. Faktureringsstatus/-tal + -filter kræver
   // invoices.view.own_cases; uden adgang ignoreres billing helt (ingen payload).
   const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
+  // N9c: antal sager pr. status (som Service-listen) — kun for roller der ser alle sager (tællerne er ikke scope-filtrerede)
+  const statsRes = canViewAll ? await getServiceCaseStats() : null
+  const statusCounts: Record<string, number> | null = statsRes?.success && statsRes.data ? { ...statsRes.data } : null
   const billingFilter: CaseBillingFilter | undefined =
     canSeeBilling && params.billing && VALID_BILLING.has(params.billing as CaseBillingFilter)
       ? (params.billing as CaseBillingFilter)
@@ -68,6 +71,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     search: params.search,
     status: params.status,
     priority: params.priority,
+    type: params.type, // N9c: filteret blev aldrig sendt videre
   })
 
   // Pull employees for formand name lookup (small set, cached per request).
@@ -144,6 +148,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       employees={Array.from(employeeMap.values())}
       economy={economy}
       canSeeBilling={canSeeBilling}
+      statusCounts={statusCounts}
       pagination={pag}
       filters={{
         search: params.search,

@@ -43,6 +43,8 @@ export async function getServiceCases(filters?: {
   search?: string
   status?: ServiceCaseStatus
   priority?: ServiceCasePriority
+  /** N9c: sagstype (ordrelistens filter sendte den aldrig videre) */
+  type?: ServiceCaseType
   page?: number
   pageSize?: number
   /** Staging-model B: vis kun is_proposal=true. Default vises kun is_proposal=false. */
@@ -90,6 +92,9 @@ export async function getServiceCases(filters?: {
     }
     if (filters?.priority) {
       query = query.eq('priority', filters.priority)
+    }
+    if (filters?.type) {
+      query = query.eq('type', filters.type)
     }
     if (filters?.search) {
       query = query.or(`title.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},case_number.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},description.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)}`)
@@ -601,13 +606,14 @@ export async function getServiceCaseStats(): Promise<ActionResult<{
       return { success: false, error: 'Manglende tilladelse: cases.view.all' }
     }
 
+    // Samme mængde som listerne: sags-forslag (is_proposal) tælles ikke med
     const [totalRes, newRes, progressRes, pendingRes, closedRes, convertedRes] = await Promise.all([
-      supabase.from('service_cases').select('*', { count: 'exact', head: true }),
-      supabase.from('service_cases').select('*', { count: 'exact', head: true }).eq('status', 'new'),
-      supabase.from('service_cases').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
-      supabase.from('service_cases').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('service_cases').select('*', { count: 'exact', head: true }).eq('status', 'closed'),
-      supabase.from('service_cases').select('*', { count: 'exact', head: true }).eq('status', 'converted'),
+      supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false),
+      supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', 'new'),
+      supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', 'in_progress'),
+      supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', 'pending'),
+      supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', 'closed'),
+      supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).eq('status', 'converted'),
     ])
 
     return {

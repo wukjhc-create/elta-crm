@@ -60,6 +60,7 @@ export function OrdersListClient({
   filters,
   economy = {},
   canSeeBilling = false,
+  statusCounts = null,
 }: {
   cases: ServiceCaseWithRelations[]
   employees: EmployeeOption[]
@@ -67,6 +68,8 @@ export function OrdersListClient({
   filters: FiltersState
   economy?: Record<string, CaseEconomyBatchEntry>
   canSeeBilling?: boolean
+  /** N9c: antal sager pr. status (kun roller med cases.view.all) */
+  statusCounts?: Record<string, number> | null
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -137,9 +140,11 @@ export function OrdersListClient({
             value={filters.status ?? ''}
             onChange={(e) => updateParam('status', e.target.value || null)}
           >
-            <option value="">Alle</option>
+            <option value="">Alle{statusCounts?.total != null ? ` (${statusCounts.total})` : ''}</option>
             {SERVICE_CASE_STATUSES.map((s) => (
-              <option key={s} value={s}>{SERVICE_CASE_STATUS_LABELS[s]}</option>
+              <option key={s} value={s}>
+                {SERVICE_CASE_STATUS_LABELS[s]}{statusCounts?.[s] != null ? ` (${statusCounts[s]})` : ''}
+              </option>
             ))}
           </select>
         </div>
@@ -227,14 +232,21 @@ export function OrdersListClient({
                   return (
                     <tr key={c.id} className="border-t hover:bg-gray-50 transition">
                       <td className="px-3 py-2 font-mono text-xs">
-                        <Link href={`/dashboard/orders/${c.id}`} className="text-emerald-700 hover:underline">
+                        <Link href={`/dashboard/orders/${c.id}`} className="text-emerald-700 hover:underline"
+                          title={c.created_at ? `Oprettet ${new Date(c.created_at).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Copenhagen' })}` : undefined}>
                           {c.case_number}
                         </Link>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${SERVICE_CASE_STATUS_COLORS[c.status]}`}>
                           {SERVICE_CASE_STATUS_LABELS[c.status]}
                         </span>
+                        {/* N9c: kun prioriteter der kræver opmærksomhed (som i Service-listen) */}
+                        {(c.priority === 'urgent' || c.priority === 'high') && (
+                          <span className={`ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${c.priority === 'urgent' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`} data-testid="order-priority">
+                            {c.priority === 'urgent' ? 'Haster' : 'Høj'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 max-w-xs truncate" title={c.project_name || c.title}>
                         <Link href={`/dashboard/orders/${c.id}`} className="font-medium hover:underline">

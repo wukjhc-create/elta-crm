@@ -23,7 +23,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
-import { OfferAgentButton } from './offer-agent-button'
+import { OfferAgentButton } from '@/components/modules/agents/offer-agent-button'
 import { DawaAddressInput, lookupPostalCode, type DawaAddress } from '@/components/shared/dawa-address-input'
 import { WeatherWidget } from '@/components/shared/weather-widget'
 import { CompletionChecklist } from '@/components/shared/completion-checklist'
