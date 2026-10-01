@@ -44,6 +44,7 @@ import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import {
   computePaymentHealth,
   type HealthInvoice,
@@ -207,22 +208,17 @@ export async function listUnbilledForCaseAction(
   const timeRows = (timeLogsRes.data ?? []) as unknown as TimeLogRow[]
   const time_logs: UnbilledTimeLogRow[] = timeRows.map((t) => {
     const emp = Array.isArray(t.employee) ? t.employee[0] ?? null : t.employee
-    const hours = Number(t.hours ?? 0)
-    // Samme prisregel som createInvoiceDraftFromCase: frosset salgssnapshot
-    // (rate engine) før live medarbejdersats — ellers viser kladden et andet
-    // beløb end fakturaen (overtid, satsændringer).
-    const saleSnap = t.sale_amount == null ? null : Number(t.sale_amount)
-    const rateSnap = t.sale_rate_snapshot == null ? null : Number(t.sale_rate_snapshot)
-    const liveRaw = emp?.hourly_rate
-    const liveRate = liveRaw == null ? null : Number(liveRaw)
-    const hasSnap = saleSnap != null && Number.isFinite(saleSnap)
-    const rate = hasSnap && rateSnap != null && Number.isFinite(rateSnap) ? rateSnap : liveRate
-    const has_rate = hasSnap || (rate != null && Number.isFinite(rate) && rate > 0)
-    const total = hasSnap
-      ? Math.round((saleSnap as number) * 100) / 100
-      : has_rate
-        ? Math.round(hours * (rate as number) * 100) / 100
-        : 0
+    // Samme prisregel som del-/slutfaktura (time-log-price.ts) — ellers viser
+    // kladden et andet beløb end fakturaen (overtid, satsændringer).
+    // Uden sats (fallback) vises 0 og rækken forvælges ikke.
+    const price = priceTimeLog({
+      hours: t.hours,
+      sale_amount: t.sale_amount,
+      sale_rate_snapshot: t.sale_rate_snapshot,
+      live_hourly_rate: emp?.hourly_rate,
+    })
+    const has_rate = price.source !== 'fallback'
+    const hours = price.hours
     return {
       id: t.id,
       date: t.start_time ? copenhagenParts(t.start_time).date : '',
@@ -230,8 +226,8 @@ export async function listUnbilledForCaseAction(
       employee_name: emp?.name ?? null,
       work_order_id: t.work_order_id,
       hours,
-      hourly_rate: rate != null && Number.isFinite(rate) && rate > 0 ? rate : null,
-      total_sales_price: total,
+      hourly_rate: has_rate ? price.rate : null,
+      total_sales_price: has_rate ? price.total : 0,
       billable: !!t.billable,
       description: t.description,
       has_rate,

@@ -35,7 +35,7 @@
     "harness:exemption-proofs": "tsx scripts/test-harness/cli.ts exemption-proofs",
     "harness:invoice-pipeline": "tsx scripts/test-harness/cli.ts invoice-pipeline",
     "harness:invoice-attachments": "tsx scripts/test-harness/cli.ts invoice-attachments",
-    "test:time": "tsx scripts/copenhagen-time-test.ts && tsx scripts/offer-validity-test.ts && tsx scripts/offer-followup-test.ts",
+    "test:time": "tsx scripts/copenhagen-time-test.ts && tsx scripts/offer-validity-test.ts && tsx scripts/offer-followup-test.ts && tsx scripts/time-log-price-test.ts",
     "test:profit": "tsx scripts/profit-engine-test.ts && tsx scripts/profit-offer-analysis-test.ts && tsx scripts/supplier-compare-test.ts",
     "test:invoice-pdf": "tsx scripts/invoice-pdf-text-test.ts",
     "test:decode": "tsx scripts/decode-text-file-test.ts && tsx scripts/postgrest-filter-test.ts",

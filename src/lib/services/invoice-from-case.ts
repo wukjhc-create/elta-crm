@@ -26,6 +26,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { priceTimeLog } from '@/lib/invoices/time-log-price'
 
 export interface CaseInvoiceSelection {
   time_log_ids?: string[]
@@ -260,39 +261,27 @@ export async function createInvoiceDraftFromCase(
         continue
       }
 
-      const hours = Number(tl.hours ?? 0)
       const emp = Array.isArray(tl.employee) ? tl.employee[0] ?? null : tl.employee
 
-      // Sprint Ø2.11 — fakturagrundlag bruger FROSSET salgssnapshot (sale_amount/
-      // sale_rate_snapshot fra rate engine), så historiske timer ikke fakturere
-      // med nye/live medarbejdersatser. Fallback til live hourly_rate kun for
-      // ældre rækker uden snapshot.
-      const saleSnap = tl.sale_amount == null ? null : Number(tl.sale_amount)
-      const rateSnap = tl.sale_rate_snapshot == null ? null : Number(tl.sale_rate_snapshot)
-      const useSnapshot = saleSnap != null && Number.isFinite(saleSnap)
-
-      let rate: number
-      if (useSnapshot && rateSnap != null && Number.isFinite(rateSnap)) {
-        rate = rateSnap
-      } else {
-        const rateRaw = emp?.hourly_rate ?? null
-        const liveRate = rateRaw == null ? null : Number(rateRaw)
-        if (liveRate == null || !Number.isFinite(liveRate) || liveRate <= 0) {
-          rate = defaultHourlyRate
-          if (!useSnapshot) {
-            skipped.push({
-              kind: 'time_log',
-              source_id: id,
-              reason: 'missing_employee_rate',
-              detail: `Bruger fallback ${defaultHourlyRate} kr/t — ${emp?.name ?? 'ukendt medarbejder'} mangler hourly_rate`,
-            })
-          }
-        } else {
-          rate = liveRate
-        }
+      // Fælles prisregel (frosset snapshot → live sats → fallback), se
+      // lib/invoices/time-log-price.ts — samme som slutfaktura og kladde-visning.
+      const { hours, rate, total: totalPrice, source } = priceTimeLog(
+        {
+          hours: tl.hours,
+          sale_amount: tl.sale_amount,
+          sale_rate_snapshot: tl.sale_rate_snapshot,
+          live_hourly_rate: emp?.hourly_rate,
+        },
+        defaultHourlyRate
+      )
+      if (source === 'fallback') {
+        skipped.push({
+          kind: 'time_log',
+          source_id: id,
+          reason: 'missing_employee_rate',
+          detail: `Bruger fallback ${defaultHourlyRate} kr/t — ${emp?.name ?? 'ukendt medarbejder'} mangler hourly_rate`,
+        })
       }
-
-      const totalPrice = useSnapshot ? r2(saleSnap as number) : r2(hours * rate)
       position += 1
       const empName = emp?.name ?? 'Medarbejder'
       const description = `Timer (${hours.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t) — ${empName}`

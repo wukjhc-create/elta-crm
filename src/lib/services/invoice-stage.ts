@@ -20,6 +20,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import type { InvoiceRow, InvoiceLineRow } from '@/types/invoice.types'
 
 export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
@@ -384,6 +385,8 @@ export async function createFinalInvoiceForCase(
       end_time: string | null
       billable: boolean
       invoice_line_id: string | null
+      sale_amount: number | string | null
+      sale_rate_snapshot: number | string | null
       employee:
         | { name: string | null; hourly_rate: number | string | null }
         | { name: string | null; hourly_rate: number | string | null }[]
@@ -395,7 +398,8 @@ export async function createFinalInvoiceForCase(
         : supabase
             .from('time_logs')
             .select(
-              'id, hours, end_time, billable, invoice_line_id, employee:employees(name, hourly_rate)'
+              'id, hours, end_time, billable, invoice_line_id, sale_amount, sale_rate_snapshot, ' +
+                'employee:employees(name, hourly_rate)'
             )
             .in('work_order_id', woIds)
             .is('invoice_line_id', null)
@@ -418,11 +422,16 @@ export async function createFinalInvoiceForCase(
 
     const timeRows = (tlRes.data ?? []) as unknown as TimeLogJoin[]
     for (const t of timeRows) {
-      const hours = Number(t.hours ?? 0)
       const emp = Array.isArray(t.employee) ? t.employee[0] : t.employee
-      const rate = emp?.hourly_rate == null ? 650 : Number(emp.hourly_rate)
+      // Fælles prisregel (frosset snapshot → live sats → fallback) — før brugte
+      // slutfakturaen altid live sats og ignorerede rate engine-snapshottet.
+      const { hours, rate, total } = priceTimeLog({
+        hours: t.hours,
+        sale_amount: t.sale_amount,
+        sale_rate_snapshot: t.sale_rate_snapshot,
+        live_hourly_rate: emp?.hourly_rate,
+      })
       if (!Number.isFinite(hours) || hours <= 0) continue
-      const total = r2(hours * rate)
       lines.push({
         description: `Timer (${hours.toLocaleString('da-DK', {
           minimumFractionDigits: 2,
