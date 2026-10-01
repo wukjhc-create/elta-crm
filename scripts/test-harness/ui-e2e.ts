@@ -42,6 +42,8 @@
  *   U25 mail → sag: kundemail i indbakken → "Opret sag" → lander på den nye sags Mails-fane med mailen; mail koblet i DB
  *   U26 fakturering fra sagen: materiale på sagen → Fakturakladde → "Opret del-faktura" → kladde med linjen (120 kr),
  *       materialet låst til fakturalinjen (ingen dobbeltfakturering)
+ *   U27 lead → kunde: "Opret som kunde" → kundesiden; leadet viser "Gå til kunde"; 2. lead med samme mail kobles til
+ *       SAMME kunde (ingen dublet)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -144,6 +146,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let newOfferId: string | null = null
   let u25EmailId: string | null = null
   let billCaseId: string | null = null
+  const u27LeadIds: string[] = []
+  let u27CustomerId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -698,6 +702,36 @@ ${m.text()}`) })
         out.push({ id: 'U26 fakturering fra sagen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U27 lead → kunde
+      if (want('U27')) {
+        const r: Record<string, boolean> = {}
+        const mail = `lead-${stamp}@harness.test`
+        for (const n of [1, 2]) {
+          const ins = await c.admin.from('leads').insert([{ company_name: `[HARNESS] Lead ${n} ${stamp}`, contact_person: `Kontakt ${n}`, email: mail,
+            status: 'qualified', source: 'website', created_by: adminUser.id }]).select('id')
+          const id = (ins.data?.[0] as { id?: string } | undefined)?.id
+          if (id) u27LeadIds.push(id)
+        }
+        const convert = async (leadId: string) => {
+          await a.page.goto(`${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByTestId('lead-convert').click({ timeout: 60_000 }).catch(() => {})
+          await a.page.waitForURL(/\/dashboard\/customers\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
+          return (a.page.url().match(/customers\/([0-9a-f-]{36})/) ?? [])[1] ?? null
+        }
+        const c1 = u27LeadIds[0] ? await convert(u27LeadIds[0]) : null
+        u27CustomerId = c1
+        const cust = c1 ? ((await c.admin.from('customers').select('email, company_name, customer_number').eq('id', c1).maybeSingle()).data as Record<string, string> | null) : null
+        r.kunde_oprettet = !!cust && cust.email === mail && !!cust.customer_number
+        const l1 = ((await c.admin.from('leads').select('custom_fields').eq('id', u27LeadIds[0]).maybeSingle()).data as { custom_fields?: Record<string, unknown> } | null)
+        r.lead_koblet = l1?.custom_fields?.customer_id === c1
+        await a.page.goto(`${base}/dashboard/leads/${u27LeadIds[0]}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.gaa_til_kunde = (await a.page.getByTestId('lead-go-customer').count()) === 1
+        const c2 = u27LeadIds[1] ? await convert(u27LeadIds[1]) : null
+        const dupCount = (await c.admin.from('customers').select('id', { count: 'exact', head: true }).ilike('email', mail)).count ?? 0
+        r.ingen_dublet = !!c2 && c2 === c1 && dupCount === 1
+        out.push({ id: 'U27 lead → kunde', ok: u27LeadIds.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1007,6 +1041,8 @@ ${m.text()}`) })
     }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
+    for (const id of u27LeadIds) { await c.admin.from('lead_activities').delete().eq('lead_id', id); await c.admin.from('leads').delete().eq('id', id) }
+    if (u27CustomerId) await c.admin.from('customers').delete().eq('id', u27CustomerId)
     if (u25EmailId) await c.admin.from('incoming_emails').delete().eq('id', u25EmailId)
     if (siteCaseId) { await c.admin.from('case_notes').delete().eq('case_id', siteCaseId); await c.admin.from('service_cases').delete().eq('id', siteCaseId) }
     if (aoSupplierId) {

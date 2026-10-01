@@ -7,6 +7,8 @@ import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
 import { useConfirm } from '@/components/shared/confirm-dialog'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import {
   Pencil,
   Trash2,
@@ -31,6 +33,7 @@ import {
   deleteLead,
   updateLeadStatus,
   addLeadActivity,
+  convertLeadToCustomerAction,
 } from '@/lib/actions/leads'
 import {
   LEAD_SOURCE_LABELS,
@@ -56,6 +59,20 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [newNote, setNewNote] = useState('')
   const [isAddingNote, setIsAddingNote] = useState(false)
+  const [isConverting, setIsConverting] = useState(false)
+  const { role } = useUserRole()
+  const canConvert = hasPermission(role, 'customers.create') && hasPermission(role, 'leads.edit')
+  const linkedCustomerId = typeof (lead.custom_fields as Record<string, unknown> | null)?.customer_id === 'string'
+    ? ((lead.custom_fields as Record<string, unknown>).customer_id as string) : null
+
+  const handleConvert = async () => {
+    setIsConverting(true)
+    const r = await convertLeadToCustomerAction(lead.id)
+    setIsConverting(false)
+    if (!r.success || !r.data) { toast.error('Fejl', r.error ?? 'Kunne ikke oprette kunde'); return }
+    toast.success(r.data.created ? 'Kunde oprettet' : 'Koblet til eksisterende kunde')
+    router.push(`/dashboard/customers/${r.data.customer_id}`)
+  }
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -137,6 +154,23 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
             <p className="text-gray-600 mt-1">{lead.contact_person}</p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Lead → kunde (så der kan laves tilbud og portaladgang) */}
+            {linkedCustomerId ? (
+              <Link href={`/dashboard/customers/${linkedCustomerId}`}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-emerald-200 text-emerald-800 rounded-md hover:bg-emerald-50"
+                data-testid="lead-go-customer">
+                <Building className="w-4 h-4" /> Gå til kunde
+              </Link>
+            ) : canConvert && (
+              <button
+                onClick={handleConvert}
+                disabled={isConverting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                data-testid="lead-convert"
+              >
+                <Building className="w-4 h-4" /> {isConverting ? 'Opretter…' : 'Opret som kunde'}
+              </button>
+            )}
             <button
               onClick={() => setShowEditForm(true)}
               className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50"

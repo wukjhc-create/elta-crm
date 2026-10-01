@@ -616,3 +616,73 @@ export async function getTeamMembers(): Promise<
     return { success: false, error: formatError(err, 'Kunne ikke hente teammedlemmer') }
   }
 }
+
+// =====================================================
+// Lead → kunde (NEXT: salgsflow). Før fandtes ingen vej fra et lead til en kunde (og dermed tilbud/portal).
+// =====================================================
+
+/**
+ * Opret (eller find) kunden for et lead. Idempotent: koblingen gemmes i lead.custom_fields.customer_id; findes der
+ * allerede en kunde med samme mail, kobles leadet til den i stedet for at oprette en dublet. Leadets status ændres
+ * ikke (en kunde er ikke det samme som "vundet"). Gate: customers.create + leads.edit.
+ */
+export async function convertLeadToCustomerAction(leadId: string): Promise<ActionResult<{ customer_id: string; created: boolean }>> {
+  try {
+    validateUUID(leadId, 'lead ID')
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.create') || !hasPermission('leads.edit')) {
+      return { success: false, error: 'Manglende tilladelse: customers.create + leads.edit' }
+    }
+    const { data: lead } = await supabase.from('leads')
+      .select('id, company_name, contact_person, email, phone, notes, custom_fields').eq('id', leadId).maybeSingle()
+    if (!lead) return { success: false, error: 'Lead ikke fundet' }
+    const cf = (lead.custom_fields ?? {}) as Record<string, unknown>
+
+    // Allerede koblet → samme kunde (hvis den stadig findes)
+    if (typeof cf.customer_id === 'string') {
+      const { data: existing } = await supabase.from('customers').select('id').eq('id', cf.customer_id).maybeSingle()
+      if (existing) return { success: true, data: { customer_id: existing.id as string, created: false } }
+    }
+
+    const email = String(lead.email ?? '').trim().toLowerCase()
+    if (!email) return { success: false, error: 'Leadet mangler en e-mail — tilføj den før kunden oprettes' }
+    const company = String(lead.company_name ?? '').trim() || String(lead.contact_person ?? '').trim()
+    const contact = String(lead.contact_person ?? '').trim() || company
+    if (!company) return { success: false, error: 'Leadet mangler firma- eller kontaktnavn' }
+
+    // Dublet-værn: eksisterende kunde med samme mail
+    const { data: same } = await supabase.from('customers').select('id').ilike('email', email).limit(1).maybeSingle()
+    let customerId = (same?.id as string | undefined) ?? null
+    let created = false
+    if (!customerId) {
+      const { insertCustomerWithRetry } = await import('@/lib/customers/customer-number')
+      const { data: inserted, error } = await insertCustomerWithRetry<{ id: string }>(
+        supabase,
+        (customerNumber) => ({
+          customer_number: customerNumber, company_name: company, contact_person: contact, email,
+          phone: (lead.phone as string | null) ?? null, notes: (lead.notes as string | null) ?? null,
+          billing_country: 'Danmark', shipping_country: 'Danmark', tags: [], is_active: true, created_by: userId,
+          custom_fields: { source: 'lead', lead_id: leadId },
+        }),
+        { label: 'convertLeadToCustomer' }
+      )
+      if (!inserted?.id || error) {
+        logger.error('convertLeadToCustomer: insert failed', { error, entityId: leadId })
+        return { success: false, error: 'Kunne ikke oprette kunden' }
+      }
+      customerId = inserted.id
+      created = true
+    }
+
+    await supabase.from('leads').update({ custom_fields: { ...cf, customer_id: customerId } }).eq('id', leadId)
+    await supabase.from('lead_activities').insert({
+      lead_id: leadId, activity_type: 'note', performed_by: userId,
+      description: created ? 'Kunde oprettet fra lead' : 'Lead koblet til eksisterende kunde (samme e-mail)',
+    })
+    revalidatePath(`/dashboard/leads/${leadId}`)
+    revalidatePath('/dashboard/customers')
+    return { success: true, data: { customer_id: customerId, created } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette kunde fra lead') }
+  }
+}
