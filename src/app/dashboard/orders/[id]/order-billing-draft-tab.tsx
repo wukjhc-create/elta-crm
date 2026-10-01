@@ -38,6 +38,7 @@ import {
 } from '@/types/case-other-costs.types'
 import { formatCurrency } from '@/lib/utils/format'
 import type { StageInvoiceSummary } from '@/lib/services/invoice-stage'
+import { netStageAmount, netStagePercentage } from '@/lib/invoices/stage-net'
 import { CaseInvoiceHistory } from '@/components/modules/orders/case-invoice-history'
 import { CaseInvoicesList } from '@/components/modules/orders/case-invoices-list'
 import { toNumberDa } from '@/lib/utils/danish-number'
@@ -402,7 +403,7 @@ function StageInvoicesOverview({
 
   const cumulativePct = rows
     .filter((r) => r.invoice_type !== 'final')
-    .reduce((s, r) => s + (r.billing_percentage ?? 0), 0)
+    .reduce((s, r) => s + netStagePercentage(r.billing_percentage, r.total_amount, r.credited_amount), 0)
 
   const hasFinal = rows.some((r) => r.is_final_invoice)
 
@@ -580,7 +581,7 @@ function BillingPercentMode({
         setCumulativePct(
           stages
             .filter((s) => s.invoice_type !== 'final')
-            .reduce((sum, s) => sum + (s.billing_percentage ?? 0), 0)
+            .reduce((sum, s) => sum + netStagePercentage(s.billing_percentage, s.total_amount, s.credited_amount), 0)
         )
       }
     })
@@ -965,8 +966,7 @@ function BillingFinalMode({
   )
   const existingFinal = (stages ?? []).find((s) => s.is_final_invoice)
   // Samme regel som slutfakturaen: fradrag = beløb − krediteret (aldrig negativt)
-  const netDeduction = (p: StageInvoiceSummary) =>
-    Math.max(0, Math.round((Number(p.total_amount) - Number(p.credited_amount ?? 0)) * 100) / 100)
+  const netDeduction = (p: StageInvoiceSummary) => netStageAmount(p.total_amount, p.credited_amount)
   const deductionTotal = predecessors.reduce((sum, p) => sum + netDeduction(p), 0)
 
   const positiveSubtotal = (() => {

@@ -21,6 +21,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
+import { netStageAmount, netStagePercentage } from '@/lib/invoices/stage-net'
 import type { InvoiceRow, InvoiceLineRow } from '@/types/invoice.types'
 
 export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
@@ -125,13 +126,22 @@ export async function createStageInvoiceForCase(
   // 3. Procent-sum-gate
   const { data: existingStages } = await supabase
     .from('invoices')
-    .select('billing_percentage, status')
+    .select('id, billing_percentage, status, total_amount')
     .eq('case_id', input.case_id)
     .in('invoice_type', ['deposit', 'progress'])
     .neq('status', 'rejected' as never)              // status enum is draft/sent/paid; rejected is incoming-only
-  const cumulativeBefore = (existingStages ?? []).reduce(
-    (s, r) => s + (r.billing_percentage == null ? 0 : Number(r.billing_percentage)),
-    0
+  // Krediteret andel tæller ikke med (fuldt krediteret rate = 0 %) — ellers
+  // kan en fejlagtig rate ikke erstattes efter kreditering.
+  const stageCredits = await creditedByInvoice(
+    supabase,
+    (existingStages ?? []).map((r) => r.id as string)
+  )
+  const cumulativeBefore = r2(
+    (existingStages ?? []).reduce(
+      (s, r) =>
+        s + netStagePercentage(r.billing_percentage, r.total_amount, stageCredits.get(r.id as string)),
+      0
+    )
   )
   const cumulativeAfter = r2(cumulativeBefore + pct)
   if (cumulativeAfter > 100 && !input.allow_over) {
@@ -358,7 +368,7 @@ export async function createFinalInvoiceForCase(
   // (før: fuldt fradrag selv efter kreditnota → kunden fik pengene to gange).
   const creditedPred = await creditedByInvoice(supabase, predRows.map((p) => p.id))
   const netDeduction = (p: { id: string; total_amount: number | string | null }) =>
-    r2(Number(p.total_amount ?? 0) - (creditedPred.get(p.id) ?? 0))
+    netStageAmount(p.total_amount, creditedPred.get(p.id))
 
   // 4. Pull un-billed source rows (when allowed)
   let unbilledLinesCount = 0
@@ -668,7 +678,7 @@ export async function createFinalInvoiceForCase(
     const predRowsToInsert = predRows.map((p) => ({
       invoice_id: header.id,
       predecessor_invoice_id: p.id,
-      deduction_amount: Math.max(0, netDeduction(p)),
+      deduction_amount: netDeduction(p),
     }))
     const { error: predErr } = await supabase
       .from('invoice_predecessors')
