@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Send, Paperclip, Link2 } from 'lucide-react'
+import { X, Send, Link2 } from 'lucide-react'
 import { createMessageSchema, type CreateMessageInput } from '@/lib/validations/messages'
 import {
   sendMessage,
@@ -292,16 +292,8 @@ export function MessageForm({ replyTo, onClose, onSuccess }: MessageFormProps) {
 
           {/* Buttons */}
           <div className="flex justify-between items-center pt-4 border-t">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md"
-                title="Vedhæft fil (kommer snart)"
-                disabled
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
-            </div>
+            {/* N10: ingen død "kommer snart"-knap — vedhæftninger til interne beskeder er ikke bygget */}
+            <div />
             <div className="flex gap-3">
               <button
                 type="button"

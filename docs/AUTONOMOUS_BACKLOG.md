@@ -43,7 +43,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | N9 | Sager | To parallelle sags-UI'er (Sager/Ordrer + Service) på samme tabel |
 | N12 | e-conomic | Opsætning før kobling | DELVIST — DONE (foundation, ingen bogføring): alle krævede konti i opsætningen (omkostningskonto, kassekladde + bankkonto, kundegruppe, varenr. — før kun layout/betaling/moms; resten faldt stille til "1" eller blokerede), "Klar til bogføring?"-tjekliste pr. flow (kunde-/leverandørfakturaer, betalinger), e-conomic-leverandørnr. på leverandøren (validering, ryddes ved tom). ui-e2e U16. Rest: faktura direkte fra tilbud, "Markér som sendt"/kreditnota/betaling → e-conomic (kræver tilkoblet konto at teste mod — Henrik: nøgler) |
 | N11 | Planlægning | Montør kan starte eget job | BLOCKED_APPROVAL — kode deployet bag MONTOR_START_JOB_ENABLED (OFF), RLS 00181 (WAVE5) på staging grøn: montør starter/afslutter KUN egne arbejdsordrer (lukker samtidig at montør kunne opdatere enhver arbejdsordre via REST). Prod pre ✅. Runbook: p009-rls-write-lockdown.md § Runde 5 |
-| N10 | Planlægning | "Planlæg opgave"-knap vises for montør; interne beskeder: vedhæft fil "kommer snart" |
+| N10 | Planlægning | "Planlæg opgave"-knap vises for montør; interne beskeder: vedhæft fil "kommer snart" | DONE — planlæg-knap kun for work_orders.plan (G4); død "kommer snart"-knap fjernet (ingen tilbage i appen) |
 
 ## Fund registreret i delivery mode
 | # | Sev | Fund | Status |
