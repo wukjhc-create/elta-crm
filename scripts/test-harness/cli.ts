@@ -677,6 +677,36 @@ COMMIT;`)
     log(formatViews(await analyseViews(stagingSql)))
     return
   }
+  if (SUB === 'search-plan') {
+    // N4: produktsøgningens plan + tid på staging (samme ILIKE-mønster som searchSupplierProducts). Kun læsning.
+    const arg = process.argv[3] || ''
+    if (arg === '--seed') {
+      // Realistisk volumen (prod: ~324k) med syntetiske harness-rækker under én harness-leverandør
+      const sup = await stagingSql(`INSERT INTO public.suppliers (name, code) VALUES ('[HARNESS] search-volumen', 'HSEARCHVOL') ON CONFLICT DO NOTHING RETURNING id`)
+      const sid = sup[0]?.id ?? (await stagingSql(`SELECT id FROM public.suppliers WHERE code = 'HSEARCHVOL'`))[0].id
+      await stagingSql(`INSERT INTO public.supplier_products (supplier_id, supplier_sku, supplier_name, ean, cost_price, is_available)
+        SELECT '${sid}', 'HS-' || g, 'Harness vare ' || md5(g::text), lpad((5790000000000 + g)::text, 13, '0'), 1, true FROM generate_series(1, 200000) g
+        ON CONFLICT DO NOTHING`)
+      await stagingSql(`ANALYZE public.supplier_products`)
+    }
+    if (arg === '--cleanup') {
+      await stagingSql(`DELETE FROM public.supplier_products WHERE supplier_id IN (SELECT id FROM public.suppliers WHERE code = 'HSEARCHVOL')`)
+      await stagingSql(`DELETE FROM public.suppliers WHERE code = 'HSEARCHVOL'`)
+      log('harness-søgevolumen fjernet')
+      return
+    }
+    const n = await stagingSql(`SELECT count(*)::int n FROM public.supplier_products`)
+    log(`supplier_products på staging: ${n[0].n}`)
+    for (const t of ['kabel', '5701234', 'zzqxw']) {
+      const plan = await stagingSql(`EXPLAIN (ANALYZE, FORMAT JSON) SELECT id FROM public.supplier_products WHERE is_available = true AND (supplier_sku ILIKE '%${t}%' OR supplier_name ILIKE '%${t}%' OR ean ILIKE '%${t}%') LIMIT 20`)
+      const root = (plan[0] as any)['QUERY PLAN'][0]
+      const nodes: string[] = []
+      const walk = (x: any) => { nodes.push(`${x['Node Type']}${x['Index Name'] ? `(${x['Index Name']})` : ''}`); for (const c of x.Plans ?? []) walk(c) }
+      walk(root.Plan)
+      log(`  ${t.padEnd(8)} ${String(root['Execution Time'].toFixed(1)).padStart(8)} ms  ${nodes.join(' > ')}`)
+    }
+    return
+  }
   if (SUB === 'migrate-staging') {
     // STAGING-ONLY: anvend én navngiven migration fra supabase/migrations (guard er allerede passeret ovenfor).
     const num = String(process.argv[3] || '')
