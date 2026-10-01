@@ -126,6 +126,9 @@ export function OrderDocumentsTab({
             {uploading ? 'Uploader…' : 'Tilføj foto / dokument'}
           </button>
           <span className="text-xs text-gray-500">Billeder eller PDF, max 20 MB pr. fil</span>
+          <span className="text-xs font-medium text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded px-2 py-0.5" data-testid="case-upload-visibility">
+            Synligt for kunden i kundeportalen
+          </span>
           {uploadMsg && (
             <span className={`text-xs ${uploadMsg.ok ? 'text-emerald-700' : 'text-red-600'}`} data-testid="case-upload-msg">{uploadMsg.text}</span>
           )}

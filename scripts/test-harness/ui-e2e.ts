@@ -239,13 +239,13 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
       const page = await ctx.newPage()
       page.on('pageerror', (e) => {
-        pageErrors.push(`${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${e.message.replace(/\s+/g, ' ').slice(0, 700)}`)
+        pageErrors.push(`${new Date().toISOString().slice(11, 19)} ${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${e.message.replace(/\s+/g, ' ').slice(0, 700)}`)
         // Hydration-fejl: fuld besked (inkl. React-diff) til fil, så årsagen kan findes uden gæt
         if (/hydrat/i.test(e.message)) writeFileSync(join(shots, `hydration-${Date.now()}.txt`), `${page.url()}\n${e.message}\n${e.stack ?? ''}`)
       })
       page.on('console', (m) => { if (m.type() === 'error' && /hydrat/i.test(m.text())) writeFileSync(join(shots, `hydration-console-${Date.now()}.txt`), `${page.url()}
 ${m.text()}`) })
-      page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Download the React DevTools|\[HMR\]|Failed to load resource/.test(m.text())) pageErrors.push(`${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${m.text().replace(/%c/g, '').replace(/background:[^;]*;|color:[^;]*;|border-radius:[^;]*;|light-dark\([^)]*\)\)?;?/g, '').replace(/\s+/g, ' ').trim().slice(0, 260)}`) })
+      page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Download the React DevTools|\[HMR\]|Failed to load resource/.test(m.text())) pageErrors.push(`${new Date().toISOString().slice(11, 19)} ${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${m.text().replace(/%c/g, '').replace(/background:[^;]*;|color:[^;]*;|border-radius:[^;]*;|light-dark\([^)]*\)\)?;?/g, '').replace(/\s+/g, ' ').trim().slice(0, 260)}`) })
       await page.goto(`${base}/login`, { waitUntil: 'networkidle', timeout: 180_000 })
       // Udfyld EFTER hydrering: React nulstiller kontrollerede felter der blev udfyldt før hydrering (set som tomme
       // felter på login-fejl-skærmbilledet). Verificér værdierne og udfyld igen hvis de er nulstillet.
@@ -1374,7 +1374,12 @@ ${m.text()}`) })
         let st = ''
         for (let i = 0; i < 20 && st !== 'closed'; i++) { st = await statusOf(); if (st !== 'closed') await new Promise((res) => setTimeout(res, 1000)) }
         r.lukket_efter_bekraeftelse = st === 'closed'
-        const aud = ((await c.admin.from('audit_logs').select('action_description').eq('entity_id', u48CaseId ?? '')).data ?? []) as Array<{ action_description: string | null }>
+        // audit skrives efter status-opdateringen → poll (ellers race)
+        let aud: Array<{ action_description: string | null }> = []
+        for (let i = 0; i < 15 && !aud.some((x) => (x.action_description ?? '').includes('lukket trods')); i++) {
+          if (i) await new Promise((res) => setTimeout(res, 1000))
+          aud = ((await c.admin.from('audit_logs').select('action_description').eq('entity_id', u48CaseId ?? '')).data ?? []) as Array<{ action_description: string | null }>
+        }
         r.audit_noterer = aud.some((x) => (x.action_description ?? '').includes('lukket trods'))
         out.push({ id: 'U48 lukke-værn (ufaktureret)', ok: !!u48CaseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · dialog="${dialogText.slice(0, 90)}"` })
       }
@@ -1543,12 +1548,21 @@ ${m.text()}`) })
         r.aflevering_foto = photoOk
         await m.page.getByTestId('handover-open-signature').click({ timeout: 30_000 }).catch(() => {})
         await m.page.getByPlaceholder('Fulde navn').fill('Kunde Harness').catch(() => {})
-        const sbox = await m.page.getByTestId('handover-signature').locator('canvas').boundingBox().catch(() => null)
-        if (sbox) {
-          await m.page.mouse.move(sbox.x + 20, sbox.y + 20); await m.page.mouse.down()
-          await m.page.mouse.move(sbox.x + 140, sbox.y + 50, { steps: 8 }); await m.page.mouse.move(sbox.x + 240, sbox.y + 25, { steps: 8 }); await m.page.mouse.up()
+        // Tegn på lærredet: rul det i visning og læs positionen lige før (under last flyttede layoutet sig,
+        // så musen ramte navnefeltet); ét nyt forsøg hvis "Bekræft" stadig er deaktiveret.
+        const canvas = m.page.getByTestId('handover-signature').locator('canvas')
+        const confirmBtn = m.page.getByRole('button', { name: /Bekræft underskrift/ })
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await canvas.scrollIntoViewIfNeeded().catch(() => {})
+          await m.page.waitForTimeout(400)
+          const sbox = await canvas.boundingBox().catch(() => null)
+          if (sbox) {
+            await m.page.mouse.move(sbox.x + 20, sbox.y + 20); await m.page.mouse.down()
+            await m.page.mouse.move(sbox.x + 140, sbox.y + 50, { steps: 8 }); await m.page.mouse.move(sbox.x + 240, sbox.y + 25, { steps: 8 }); await m.page.mouse.up()
+          }
+          if (await confirmBtn.isEnabled().catch(() => false)) break
         }
-        await m.page.getByRole('button', { name: /Bekræft underskrift/ }).click({ timeout: 30_000 }).catch(() => {})
+        await confirmBtn.click({ timeout: 30_000 }).catch(() => {})
         let signedName = ''
         for (let i = 0; i < 15 && !signedName; i++) {
           signedName = String(((await c.admin.from('service_cases').select('customer_signature_name, customer_signature, status').eq('id', jobCaseId).maybeSingle()).data as { customer_signature_name?: string } | null)?.customer_signature_name ?? '')

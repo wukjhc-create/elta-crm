@@ -364,6 +364,9 @@ export async function getSystemAlerts(
     const { data, error } = await query
 
     if (error) {
+      // system_alerts findes ikke i prod/staging (00046 aldrig kørt) → ingen advarsler, ikke en fejl
+      // (før: fejl-log + undtagelse ved hver klokke-opdatering)
+      if (error.code === 'PGRST205') return { success: true, data: [] }
       logger.error('Error fetching alerts', { error: error })
       throw new Error('DATABASE_ERROR')
     }

@@ -744,6 +744,8 @@ export async function getUnreadPriceAlerts(): Promise<PriceAlert[]> {
       .limit(10)
 
     if (error) {
+      // system_alerts findes ikke i prod/staging (00046 aldrig kørt) — ikke en fejl, bare ingen advarsler
+      if (error.code === 'PGRST205') return []
       logger.error('Failed to fetch price alerts', { error })
       return []
     }
