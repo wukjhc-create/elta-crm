@@ -25,7 +25,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | G6 | Kunder/sager (salg) | Rolle salg kunne oprette sag men ikke se den (cases.view.assigned manglede, selv om getCaseScope har et salg-mønster: egne sager via created_by/assigned_to); tilbudsmail fra salg uden PDF og med hardkodede firmaoplysninger (getCompanySettings kræver settings.view) | DONE (kode) — salg får cases.view.assigned (scope = egne sager), tilbudsmail/PDF læser kun offentlige firma-kolonner (aldrig SMTP/SMS-hemmeligheder). ui-e2e U13 som salg. pilot-roles + guard-audit grønne |
 | G7 | Leverandørfaktura | Bogføring i e-conomic fejler altid: suppliers.external_supplier_id og costAccountNumber kan ikke sættes nogen steder | → NEXT (N12): prod har INGEN e-conomic-opsætning (0 settings, 0 bogført) — blokerer ikke go-live medmindre e-conomic skal kobles på ved start (beslutning Henrik) |
 | G8 | Leverandørfaktura | Ingen manuel upload af faktura (ingestFromUpload uden UI) | DONE (kode) — "Upload faktura" på listen (incoming_invoices.edit): PDF/JPG/PNG ≤15 MB gemmes privat (attachments/supplier-invoices, signeres ved visning), PDF-tekst → samme parse/match som mail, dedup med samme nøgle som mail (tekst-hash) → dublet åbner eksisterende og rydder filen op. ui-e2e U12; invoice-pipeline 10/10, invoice-attachments 8/8 |
-| G9 | Mail/indbakke | Montør ser og kan arkivere/koble al firmamail (inbox.view uden scope) — privatliv | TODO (rollebeslutning) |
+| G9 | Mail/indbakke | Montør ser og kan arkivere/koble al firmamail (inbox.view uden scope) — privatliv. 2 montører i prod | BESLUTNING (Henrik): (a) fjern inbox.view for montør (sagens mails ses stadig på ordrens Mails-fane) eller (b) behold |
 
 ## NEXT
 | # | Område | Opgave |
@@ -53,7 +53,7 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 | Prod 00178 (runde 4: 44 kalkulations-/katalogtabeller) | staging 44/44, pre-check grøn | samme |
 | Vercel: INVOICE_ATTACHMENT_FETCH_ENABLED=true (faktura-backfill) | kode deployet, baseline taget | docs/runbooks/invoice-attachment-backfill.md |
 | Aktivering af hidtil døde crons (cookie-klient → service-role): unanswered-mails (interne opgaver), offer-reminders (KUNDEMAIL), supplier-sync | analyse færdig; ændrer cron-adfærd → kræver separat godkendelse | — |
-| Opfølgning: prod-cron-status efter 00170–00174 (første kørsler) | `scripts/prod-cron-status-since.ts "2026-10-01 05:10"` | — |
+| Opfølgning: prod-cron-status efter 00170–00174 | DELVIST VERIFICERET 08:23 UTC: bank-match, export-error-notification, invoice-reminders, offer-reminders, payment-report = ok. Udestår: unanswered-mails (12:00 UTC), natlige crons — `scripts/prod-cron-status-since.ts "2026-10-01 05:10"` | — |
 
 ## P0 — Sikkerhed
 | # | Opgave | Status | Note / blocker |
