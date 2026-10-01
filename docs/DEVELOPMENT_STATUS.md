@@ -12,6 +12,7 @@
 | 21:35 | Regression U1–U43: 42/43 (U18 timing-flake → robust vent, grøn alene). `01387ef`: Mine timer (N17), Kun mine på leads (N18), forfald dansk kalender (D20); U44–U45 grønne. Full regression U1–U45 startet. |
 | 22:09 | Regression U1–U45: 44/44 funktionelle grønne, U5 navigationsafbrud (test rettet). `ca15a79`: PDF-fixes (salg/bogholderi 500, fakturamail uden PDF, eksplicit adgang), fælles bankkilde (D21/D22, G12 korrigeret); U46–U47 + negativ kontrol. Full regression U1–U47 startet. |
 | 22:39 | Regression U1–U47: 46/46 funktionelle grønne; U5-fund efter parallelle API-kald i samme kontekst (O1, observation). `23cb9d8`: lukke-værn mod ufaktureret arbejde (D23) + U48. Full regression U1–U48 startet. |
+| 23:39 | U1–U48: 47/47 funktionelle grønne (U5: "network error" i lange kørsler — O1). `ccced39`: portal-tilbudslinjer uden kost/noter (D24, S2 — prod: 2 tilbud/2 kunder havde kostpris i sidedata), dashboard-forfald (D25); U49–U50 m. negative kontroller. `d7ae5ee`: 00184 forberedt (D26 sagsfotos synlige for kunde — beslutning). `a582e92`: klokke-støj (D27, system_alerts findes ikke), test-robusthed (U11/U48). Full regression U1–U50 startet. |
 
 ## Nu
 P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtaget, `check:rbac` blokerende i CI) · **fakturapipeline F-a–F-d DONE** (F-d prod-gate).
