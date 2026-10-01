@@ -57,7 +57,6 @@ import {
   createLineItem,
   updateLineItem,
   deleteLineItem,
-  sendOffer,
   addProductToOffer,
   importCalculationToOffer,
   createLineItemFromSupplierProduct,

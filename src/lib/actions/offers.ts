@@ -1,9 +1,7 @@
 'use server'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
-import { secretTokenReader } from '@/lib/portal/token-reader'
 
 import { revalidatePath } from 'next/cache'
-import { headers } from 'next/headers'
 import {
   createOfferSchema,
   updateOfferSchema,
@@ -12,7 +10,7 @@ import {
 } from '@/lib/validations/offers'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
-import { PORTAL_TOKEN_EXPIRY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
+import { CALC_DEFAULTS } from '@/lib/constants'
 import { calculateSalePrice, calculateLineTotal, computeOfferDB, calculateMarginFromPrices, resolveMargin } from '@/lib/logic/pricing'
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
@@ -20,12 +18,6 @@ import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
-import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
-import { sendEmail } from '@/lib/email/email-service'
-import {
-  generateOfferEmailHtml,
-  generateOfferEmailText,
-} from '@/lib/email/templates/offer-email'
 import { isValidOfferTransition, OFFER_STATUS_LABELS } from '@/types/offers.types'
 import type {
   Offer,
@@ -788,208 +780,6 @@ export async function updateOfferStatus(
     return { success: true, data: data as Offer }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere status') }
-  }
-}
-
-// Send offer via email
-export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
-  try {
-    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('offers.send')) {
-      return { success: false, error: 'Manglende tilladelse: offers.send' }
-    }
-    validateUUID(offerId, 'tilbud ID')
-
-    // Get offer with customer
-    const { data: offer, error: offerError } = await supabase
-      .from('offers')
-      .select(`
-        *,
-        line_items:offer_line_items(*),
-        customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
-      `)
-      .eq('id', offerId)
-      .maybeSingle()
-
-    if (offerError || !offer) {
-      logger.error('Error fetching offer for send', { error: offerError })
-      return { success: false, error: 'Tilbud ikke fundet' }
-    }
-
-    // Validate offer has customer with email
-    if (!offer.customer) {
-      return { success: false, error: 'Tilbuddet har ingen tilknyttet kunde' }
-    }
-
-    if (!offer.customer.email) {
-      return { success: false, error: 'Kunden har ingen email-adresse' }
-    }
-
-    // Validate DB% is above red threshold (if line items have cost data)
-    const lineItems = offer.line_items || []
-    const offerDB = computeOfferDB(lineItems, Number(offer.discount_percentage ?? 0))
-    if (offerDB.hasAnyCost && offerDB.totalCost > 0) {
-      // Load red threshold from settings
-      const { getCalculationSettings } = await import('@/lib/actions/calculation-settings')
-      const calcSettings = await getCalculationSettings()
-      const redThreshold = calcSettings.success && calcSettings.data
-        ? calcSettings.data.margins.db_red_threshold
-        : 10
-
-      if (offerDB.dbPercentage < redThreshold) {
-        return { success: false, error: `Tilbuddet kan ikke sendes — dækningsbidrag er ${offerDB.dbPercentage}% (minimum ${redThreshold}%). Juster priser eller kontakt administrator.` }
-      }
-    }
-
-    // Get company settings
-    const settingsResult = await getCompanySettings()
-    if (!settingsResult.success || !settingsResult.data) {
-      return { success: false, error: 'Kunne ikke hente virksomhedsindstillinger' }
-    }
-
-    // Get or create portal token
-    let portalToken: string
-
-    // Check if customer already has an active portal token
-    const { data: existingTokens } = await (await secretTokenReader())
-      .from('portal_access_tokens')
-      .select('token')
-      .eq('customer_id', offer.customer.id)
-      .eq('is_active', true)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (existingTokens && existingTokens.length > 0) {
-      portalToken = existingTokens[0].token
-    } else {
-      // Create new portal token
-      const tokenBytes = new Uint8Array(32)
-      crypto.getRandomValues(tokenBytes)
-      const newToken = Array.from(tokenBytes)
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('')
-
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + PORTAL_TOKEN_EXPIRY_DAYS)
-
-      const { data: tokenData, error: tokenError } = await supabase
-        .from('portal_access_tokens')
-        .insert({
-          customer_id: offer.customer.id,
-          email: offer.customer.email,
-          token: newToken,
-          expires_at: expiresAt.toISOString(),
-          created_by: userId,
-        })
-        .select('id')
-        .single()
-
-      if (tokenError || !tokenData) {
-        logger.error('Error creating portal token', { error: tokenError })
-        return { success: false, error: 'Kunne ikke oprette portal-adgang' }
-      }
-
-      portalToken = newToken // token-kolonnen er skjult for bruger-sessionen (00175)
-    }
-
-    // Build portal URL
-    const headersList = await headers()
-    const host = headersList.get('host') || 'localhost:3000'
-    const protocol = host.includes('localhost') ? 'http' : 'https'
-    const portalUrl = `${protocol}://${host}/portal/${portalToken}/offers/${offerId}`
-
-    // Sort line items
-    if (offer.line_items) {
-      offer.line_items.sort((a: { position: number }, b: { position: number }) =>
-        a.position - b.position
-      )
-    }
-
-    // Get SMTP settings
-    const smtpResult = await getSmtpSettings()
-
-    // Generate email content
-    const emailHtml = generateOfferEmailHtml({
-      offer: offer as OfferWithRelations,
-      companySettings: settingsResult.data,
-      portalUrl,
-    })
-
-    const emailText = generateOfferEmailText({
-      offer: offer as OfferWithRelations,
-      companySettings: settingsResult.data,
-      portalUrl,
-    })
-
-    // Send email
-    const emailResult = await sendEmail(
-      {
-        to: offer.customer.email,
-        subject: `Tilbud ${offer.offer_number}: ${offer.title}`,
-        html: emailHtml,
-        text: emailText,
-      },
-      smtpResult.success && smtpResult.data
-        ? {
-            host: smtpResult.data.host || undefined,
-            port: smtpResult.data.port || undefined,
-            user: smtpResult.data.user || undefined,
-            password: smtpResult.data.password || undefined,
-            fromEmail: smtpResult.data.fromEmail || undefined,
-            fromName: smtpResult.data.fromName || undefined,
-          }
-        : undefined
-    )
-
-    if (!emailResult.success) {
-      logger.error('Error sending offer email', { error: emailResult.error })
-      return { success: false, error: `Kunne ikke sende email: ${emailResult.error}` }
-    }
-
-    // Update offer status to 'sent'
-    const now = new Date().toISOString()
-    const { data: updatedOffer, error: updateError } = await supabase
-      .from('offers')
-      .update({
-        status: 'sent',
-        sent_at: now,
-      })
-      .eq('id', offerId)
-      .select()
-      .single()
-
-    if (updateError) {
-      logger.error('Error updating offer status after send', { error: updateError })
-      // Email was sent, but status update failed - still log activities
-    }
-
-    // Log activities
-    await logOfferActivity(
-      offerId,
-      'email_sent',
-      `Email sendt til ${offer.customer.email}`,
-      userId,
-      { recipientEmail: offer.customer.email, messageId: emailResult.messageId }
-    )
-
-    await logOfferActivity(
-      offerId,
-      'sent',
-      'Tilbud sendt til kunde',
-      userId,
-      { portalUrl }
-    )
-
-    // Trigger webhooks for offer.sent
-    await emitOfferEvent(supabase, offerId, 'offer.sent')
-
-    revalidatePath('/offers')
-    revalidatePath(`/offers/${offerId}`)
-
-    return { success: true, data: (updatedOffer || offer) as Offer }
-  } catch (err) {
-    return { success: false, error: formatError(err, 'Der opstod en fejl ved afsendelse') }
   }
 }
 
