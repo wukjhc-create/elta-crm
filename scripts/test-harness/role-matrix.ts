@@ -151,7 +151,9 @@ export async function runRoleMatrix(opts: { url: string; anonKey: string; admin:
     const total = Number((await opts.sql(`SELECT count(*) AS n FROM public.${pol.table}`))[0].n)
     const cells: RoleCell[] = []
     for (const role of PILOT_ROLES) {
-      const { count, error } = await clients.get(role)!.from(pol.table).select('*', { count: 'exact', head: true })
+      // Raekke-synlighed maa ikke afhaenge af skjulte kolonner (P-009 laese-side): 'id' hvis den findes, ellers '*'.
+      let { count, error } = await clients.get(role)!.from(pol.table).select('id', { count: 'exact', head: true })
+      if (error) ({ count, error } = await clients.get(role)!.from(pol.table).select('*', { count: 'exact', head: true }))
       cells.push({ role, visible: error ? 'fejl' : (count ?? 0), allowed: pol.allowed.includes(role) })
     }
     const vis = (c: RoleCell) => (typeof c.visible === 'number' ? c.visible : 0)
@@ -265,6 +267,12 @@ export const SECRET_COLUMNS: Array<{ table: string; column: string }> = [
   // P-009 laese-side A3 (00177): kundens bekraeftelses-token + underskrift
   { table: 'document_confirmations', column: 'token' },
   { table: 'offer_signatures', column: 'signature_data' },
+  // P-009 laese-side A4 (00179): virksomheds- og e-conomic-hemmeligheder
+  { table: 'company_settings', column: 'smtp_password' },
+  { table: 'company_settings', column: 'sms_gateway_api_key' },
+  { table: 'company_settings', column: 'sms_gateway_secret' },
+  { table: 'accounting_integration_settings', column: 'api_token' },
+  { table: 'accounting_integration_settings', column: 'agreement_grant_token' },
 ]
 
 export interface SecretColumnVerdict { table: string; column: string; authenticated: boolean; anon: boolean }

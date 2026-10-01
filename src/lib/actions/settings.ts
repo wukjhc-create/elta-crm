@@ -1,5 +1,7 @@
 'use server'
 
+import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
+import { secretColumnReader } from '@/lib/portal/token-reader'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createAnonClient, getUser } from '@/lib/supabase/server'
@@ -41,9 +43,10 @@ export async function getCompanySettings(): Promise<ActionResult<CompanySettings
       return { success: false, error: 'Manglende tilladelse: settings.view' }
     }
 
+    // P-009 (00179): aldrig hemmeligheder (SMTP-password, SMS-noegler) til klienten
     const { data, error } = await supabase
       .from('company_settings')
-      .select('*')
+      .select(COMPANY_SETTINGS_PUBLIC_COLUMNS)
       .maybeSingle()
 
     if (error) {
@@ -55,7 +58,7 @@ export async function getCompanySettings(): Promise<ActionResult<CompanySettings
       return { success: false, error: 'Virksomhedsindstillinger ikke fundet' }
     }
 
-    return { success: true, data: data as CompanySettings }
+    return { success: true, data: data as unknown as CompanySettings }
   } catch (error) {
     logger.error('Error in getCompanySettings', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -86,7 +89,7 @@ export async function updateCompanySettings(
       .from('company_settings')
       .update(input)
       .eq('id', existing.id)
-      .select()
+      .select(COMPANY_SETTINGS_PUBLIC_COLUMNS)
       .single()
 
     if (error) {
@@ -120,7 +123,7 @@ export async function updateCompanySettings(
     }
 
     revalidatePath('/dashboard/settings')
-    return { success: true, data: data as CompanySettings }
+    return { success: true, data: data as unknown as CompanySettings }
   } catch (error) {
     logger.error('Error in updateCompanySettings', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -573,7 +576,8 @@ export async function getSmtpSettings(): Promise<ActionResult<{
       return { success: false, error: 'Manglende tilladelse: settings.manage' }
     }
 
-    const { data, error } = await supabase
+    // P-009 (00179): smtp_password er skjult for bruger-sessionen -> service-role efter settings.manage-tjekket
+    const { data, error } = await (await secretColumnReader())
       .from('company_settings')
       .select('smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_email, smtp_from_name')
       .maybeSingle()

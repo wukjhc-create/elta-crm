@@ -81,7 +81,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 | P-009 runde 4 (00178): kalkulation/katalog/master data (44 tabeller) | DONE (staging) · prod-gate | Auto-specs fra metadata; FØR 44/44 huller, EFTER 44/44 som matrixen. Fund: betingede policies blev ikke droppet → rettet + strengere pre-check |
 | P-009 anon-kontekst-korrektion | DONE | Anon-crons (P-003) læser tabeller som ellers ville skifte fra tom til fejl → keepAnonGrants + CI-check; 00170 rettet (customer_contacts, incoming_emails) |
 | P-009 læse-side A1–A3 (00175–00177): portal-/partner-tokens, integrationshemmeligheder, bekræftelses-tokens, underskrifter, beskeder | DONE (staging) · prod-gate | harness:rls-read 7/7, bevist FØR/EFTER. Følsom-kolonne-scan (prod-sensitive-columns) → resten: company_settings-hemmeligheder (0 værdier) + e-conomic-tokens = A4 |
-| P-009 læse-side A4: company_settings (smtp/sms/bank) + accounting_integration_settings-tokens | TODO | 0 værdier i prod (forebyggende); ~10 select('*')-læsninger skal omlægges |
+| P-009 læse-side A4 (00179): company_settings-hemmeligheder + e-conomic-tokens | DONE (staging) · prod-gate | Fund: getCompanySettings sendte SMTP-password/SMS-nøgler til browseren for settings.view. Nu eksplicitte offentlige kolonner; hemmeligheder kun via service-role i gatede stier. rls-read L8, bevist FØR/EFTER |
 | Pilotbrugere oprettes og onboardes | BLOCKED | Henrik: navne + rolle for 2–3 pilotbrugere (P2 serviceleder, P3 montør/bogholderi) |
 
 ## Fund registreret undervejs
@@ -90,6 +90,7 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `DONE`
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-10-01: P-009 læse-side A4 (00179) på staging; pilot-roles-probe gjort uafhængig af skjulte kolonner.
 - 2026-10-01: P-009 læse-side A1–A3 (00175–00177) + runde 4 (00178) på staging; prod afventer gate.
 - 2026-10-01: P-009 runde 1–3B (00170–00174) kørt i prod (godkendt); alle pre/post/trigger/effektiv-adgang-checks grønne; åbne skrive-tabeller 108→44.
 - 2026-09-30: P-009 runde 3B (00174) på staging: 11 tabeller; alle 5 runder (64 tabeller) grønne samlet; db-audit LAV 44.

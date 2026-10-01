@@ -6,6 +6,7 @@
  *   L4  beskeder: modtager og afsender ser beskeden; tredjepart (inkl. admin) ser den ikke
  *   L5  anon: ingen laesning af tokens/beskeder
  *   L7  document_confirmations.token + offer_signatures.signature_data (00177) ikke laesbare
+ *   L8  company_settings-/e-conomic-hemmeligheder (00179) — privilegie-tjek uafhaengigt af raekker
  *   L6  integrationshemmeligheder (00176): ingen persona kan laese api_key m.fl.; offentlige kolonner laesbare
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -95,6 +96,21 @@ export async function runRlsRead(c: { admin: SupabaseClient; anon: SupabaseClien
     }
     out.push({ id: 'L7 bekræftelses-token/underskrift', ok: l7.length === 0 && confStatus >= 3,
       note: `lækket: ${l7.join(',') || 'intet'} · bekræftelses-status læsbar for ${confStatus}/5 (RLS-roller)` })
+
+    // L8 — virksomheds-/e-conomic-hemmeligheder (00179): kolonne-privilegier (staging kan have 0 raekker)
+    const { COMPANY_SETTINGS_PUBLIC_COLUMNS } = await import('../../src/lib/settings/company-columns')
+    const l8: string[] = []; let pubOk = 0
+    for (const [r, cl] of personas) {
+      for (const [t, col] of [['company_settings', 'smtp_password'], ['company_settings', 'sms_gateway_secret'], ['accounting_integration_settings', 'api_token']] as const) {
+        const q = await cl.from(t).select(col).limit(1)
+        if (!q.error) l8.push(`${r}:${t}.${col}`)
+      }
+      const p = await cl.from('company_settings').select(COMPANY_SETTINGS_PUBLIC_COLUMNS).limit(1)
+      if (!p.error) pubOk++
+    }
+    const an = await c.anon.from('accounting_integration_settings').select('api_token').limit(1)
+    if (!an.error) l8.push('anon:accounting.api_token')
+    out.push({ id: 'L8 virksomheds-/e-conomic-hemmeligheder', ok: l8.length === 0 && pubOk === 5, note: `læsbare hemmeligheder: ${l8.join(',') || 'ingen'} · offentlige virksomhedskolonner: ${pubOk}/5` })
 
     // L5 — anon
     const a1 = await c.anon.from('portal_access_tokens').select('id').eq('id', pt)

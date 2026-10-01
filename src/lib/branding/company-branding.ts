@@ -11,6 +11,7 @@
  * helperen ændres så til at læse fra DB med konstant-fallback.
  */
 
+import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import { APP_URL } from '@/lib/constants'
@@ -81,7 +82,7 @@ export async function getCompanyBranding(): Promise<CompanyBranding> {
     const supabase = await createClient()
     const { data } = await supabase
       .from('company_settings')
-      .select('*')
+      .select(COMPANY_SETTINGS_PUBLIC_COLUMNS) // P-009 (00179): ingen hemmeligheder
       .limit(1)
       .maybeSingle()
     row = (data as Record<string, unknown> | null) || null

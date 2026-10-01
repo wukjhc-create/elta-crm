@@ -525,6 +525,19 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'persona-select') {
+    // STAGING diagnose: SELECT <kolonner> fra <tabel> som hver persona (count + fejltekst)
+    const table = String(process.argv[3] || ''); const cols = String(process.argv[4] || 'id')
+    if (!/^[a-z_0-9]+$/.test(table)) { log('brug: persona-select <tabel> [kolonner]'); process.exit(2) }
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
+    log(`staging-total: ${(await stagingSql(`SELECT count(*)::int n FROM public.${table}`))[0].n}`)
+    for (const [r, cl] of personas) {
+      const q = await cl.from(table).select(cols, { count: 'exact', head: true })
+      log(`  ${r.padEnd(12)} count=${q.count ?? '-'} ${q.error ? `FEJL ${q.error.code}: ${q.error.message}` : ''}`)
+    }
+    return
+  }
   if (SUB === 'rls-table-stats') {
     // STAGING read-only: raekker + unikke kolonner pr. tabel (til auto-specs i rls-lockdown)
     const tables = process.argv.slice(3).filter((t) => /^[a-z_0-9]+$/.test(t))

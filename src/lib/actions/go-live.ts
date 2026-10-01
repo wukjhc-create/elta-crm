@@ -11,6 +11,7 @@
  * also trigger an admin email alert via sendAdminAlert (with cooldown).
  */
 
+import { secretColumnReader } from '@/lib/portal/token-reader'
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
@@ -82,11 +83,12 @@ export async function getGoLiveStatus(): Promise<GoLiveStatus> {
     reminderSent24h,
     sysErr,
   ] = await Promise.all([
-    supabase
+    // P-009 (00179): tokens er skjult for bruger-sessionen; kun tilstedevaerelse bruges (service-role)
+    secretColumnReader().then((r) => r
       .from('accounting_integration_settings')
       .select('active, api_token, agreement_grant_token, last_sync_at')
       .eq('provider', 'economic')
-      .maybeSingle(),
+      .maybeSingle()),
     supabase
       .from('automation_rules')
       .select('id, name, trigger, action, active, dry_run')
