@@ -113,6 +113,30 @@ export interface ExportInvoiceResult {
   external_id?: string | null
 }
 
+/**
+ * Forhåndsvisning af hvad "Eksportér til e-conomic" ville sende for fakturaen —
+ * ingen netværk, ingen skrivning, ingen nøgler. Gated som eksporten.
+ */
+export async function getEconomicInvoicePreviewAction(
+  invoiceId: string
+): Promise<
+  | { ok: true; data: import('@/lib/services/economic-client').EconomicInvoicePreview }
+  | { ok: false; message: string }
+> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ok: false, message: 'Manglende tilladelse: settings.economic' }
+  }
+  const { previewInvoiceForEconomic } = await import('@/lib/services/economic-client')
+  const res = await previewInvoiceForEconomic(invoiceId)
+  return res.ok ? { ok: true, data: res.data } : { ok: false, message: res.error }
+}
+
 export async function exportInvoiceToEconomicAction(
   invoiceId: string
 ): Promise<ExportInvoiceResult> {

@@ -58,6 +58,8 @@
  *   U35 slutfaktura efter kreditnota: forskud 300 krediteret fuldt + rate 500 krediteret 200 + materiale 1.000 → kun −300
  *       fradrag (rate netto), total 700 (før: −300 −500 → 200; kunden fik krediteringen to gange)
  *   U36 rate 100 % krediteret fuldt → ny a conto-rate 50 % kan oprettes (5.000 af 10.000; før: blokeret af 100 %-loftet)
+ *   U37 e-conomic-forhåndsvisning: faktura med linje 0,33 × 525,10 ≠ 173,25 → "Vis hvad der sendes" viser e-conomic-netto
+ *       1.173,28 mod fakturaens 1.173,25 + afvigelsen; intet sendes (ingen sync-log)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -171,6 +173,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u34CaseId: string | null = null
   let u35CaseId: string | null = null
   let u36CaseId: string | null = null
+  let u37InvoiceId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -216,7 +219,7 @@ ${m.text()}`) })
         // Årsag i stedet for gæt: loginsidens fejltekst + skærmbillede
         const why = (await page.locator('[role="alert"], .text-red-600, .text-destructive').allInnerTexts().catch(() => [] as string[])).join(' / ').slice(0, 200)
         loginFailures.push(`${u.email.split('@')[0].replace(/-\d+$/, '')}: url=${new URL(page.url()).pathname} ${why || '(ingen fejltekst)'}`)
-        await page.screenshot({ path: join(shots, `login-fejl-${Date.now()}.png`), fullPage: true }).catch(() => {})
+        await page.screenshot({ caret: 'initial', path: join(shots, `login-fejl-${Date.now()}.png`), fullPage: true }).catch(() => {})
       }
       return { ctx, page, ok }
     }
@@ -245,7 +248,7 @@ ${m.text()}`) })
     out.push({ id: 'U1 admin-login (staging)', ok: a.ok, note: a.ok ? `landede på ${new URL(a.page.url()).pathname}` : `login fejlede (url=${a.page.url()})` })
     if (a.ok) {
       await a.page.goto(`${base}/dashboard/agents`, { waitUntil: 'networkidle', timeout: 180_000 })
-      await a.page.screenshot({ path: join(shots, 'agent-inbox-admin.png'), fullPage: true })
+      await a.page.screenshot({ caret: 'initial', path: join(shots, 'agent-inbox-admin.png'), fullPage: true })
       const inbox = {
         heading: await a.page.getByRole('heading', { name: 'Agent Inbox' }).isVisible(),
         planBtn: await a.page.getByRole('button', { name: 'Kør planlægningsagent' }).isVisible(),
@@ -258,7 +261,7 @@ ${m.text()}`) })
         note: Object.entries(inbox).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
 
       await a.page.goto(`${base}/dashboard/pilot-health`, { waitUntil: 'networkidle', timeout: 180_000 })
-      await a.page.screenshot({ path: join(shots, 'pilot-health-admin.png'), fullPage: true })
+      await a.page.screenshot({ caret: 'initial', path: join(shots, 'pilot-health-admin.png'), fullPage: true })
       const titles = ['System', 'Crons', 'Brugere', 'Agenter & sikkerhedsflag', 'Incidents', 'Integrationer', 'DB-/sikkerhed (live anon-prober)']
       const seen: string[] = []
       for (const t of titles) if (await a.page.getByRole('heading', { name: t, exact: true }).isVisible()) seen.push(t)
@@ -283,7 +286,7 @@ ${m.text()}`) })
         await a.page.getByTestId('offer-profit-card').waitFor({ timeout: 60_000 }).catch(() => {})
         const card = a.page.getByTestId('offer-profit-card')
         const txt = (await card.count()) ? await card.innerText() : ''
-        await a.page.screenshot({ path: join(shots, 'u7-loensomhed.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u7-loensomhed.png'), fullPage: true }).catch(() => {})
         const profit = { kort: /Lønsomhed/.test(txt), realistisk: /Realistisk DB/.test(txt), dom: /(Sund lønsomhed|Under mål-DB|Under minimum-DB|Usikker)/.test(txt),
           timekost: /timekost/i.test(txt) }
         out.push({ id: 'U7 lønsomhed på tilbud (admin)', ok: !seedErr && Object.values(profit).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(profit).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
@@ -303,7 +306,7 @@ ${m.text()}`) })
         await a.page.getByTestId('offer-supplier-savings-card').waitFor({ timeout: 60_000 }).catch(() => {})
         const sc = a.page.getByTestId('offer-supplier-savings-card')
         const stxt = (await sc.count()) ? await sc.innerText() : ''
-        await a.page.screenshot({ path: join(shots, 'u8-grossist.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u8-grossist.png'), fullPage: true }).catch(() => {})
         const cmp = { kort: /Billigere hos anden grossist/.test(stxt), lm: stxt.includes(`HARNESS UI LM ${stamp}`), besparelse: /200,00 kr/.test(stxt) }
         out.push({ id: 'U8 grossist-sammenligning', ok: Object.values(cmp).every(Boolean), note: Object.entries(cmp).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
@@ -325,7 +328,7 @@ ${m.text()}`) })
         await a.page.getByTestId('invoice-control-verdict').waitFor({ timeout: 60_000 }).catch(() => {})
         const pc = a.page.getByTestId('invoice-control-panel')
         const ptxt = (await pc.count()) ? await pc.innerText() : ''
-        await a.page.screenshot({ path: join(shots, 'u9-fakturakontrol.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u9-fakturakontrol.png'), fullPage: true }).catch(() => {})
         const ic = { panel: /Fakturakontrol/.test(ptxt), dom: /Prisafvigelse/.test(ptxt), overpris: /100,00 kr/.test(ptxt) && /Overpris\b/.test(ptxt),
           match: ptxt.includes(`HU-AO-${stamp}`), daekning: /1 \/ 2 \(50 %\)/.test(ptxt) }
         out.push({ id: 'U9 fakturakontrol (admin)', ok: !seedErr && Object.values(ic).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(ic).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
@@ -366,7 +369,7 @@ ${m.text()}`) })
         await kp.getByText('Der opstod en fejl').waitFor({ timeout: 8_000 }).catch(() => {})
         await kp.waitForLoadState('networkidle').catch(() => {})
         const kundeFejl = (await kp.getByText(/Der opstod en fejl|Kunne ikke acceptere/).count()) > 0
-        await kp.screenshot({ path: join(shots, 'u10-portal-accept.png'), fullPage: true }).catch(() => {})
+        await kp.screenshot({ caret: 'initial', path: join(shots, 'u10-portal-accept.png'), fullPage: true }).catch(() => {})
         await kctx.close().catch(() => {})
 
         // Effekter (sag/aktivitet skrives før svaret; tolerér langsom dev-kompilering)
@@ -402,7 +405,7 @@ ${m.text()}`) })
         const filePath = typeof row?.file_url === 'string' && row.file_url.startsWith('attachments/') ? row.file_url.slice('attachments/'.length) : null
         const dl = filePath ? await c.admin.storage.from('attachments').download(filePath) : null
         r.fil_gemt = !!dl?.data && (dl.data.size ?? 0) > 100
-        await a.page.screenshot({ path: join(shots, 'u12-upload-faktura.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u12-upload-faktura.png'), fullPage: true }).catch(() => {})
 
         // Samme fil igen -> dublet: åbner den eksisterende, ingen ny række, ingen ekstra fil
         const before = (await c.admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('invoice_number', invNo)).count ?? 0
@@ -462,7 +465,7 @@ ${m.text()}`) })
         await koersel.first().getByTestId('draft-delete').click({ timeout: 30_000 }).catch(() => {})
         const t3 = await waitTotals(1200) // den tilføjede kørsel slettes igen
         r.linje_slettet = Number(t3.total_amount) === 1200 && Number(t3.final_amount) === 1500
-        await a.page.screenshot({ path: join(shots, 'u15-fakturakladde.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u15-fakturakladde.png'), fullPage: true }).catch(() => {})
         const audits = draftInvoiceId ? (await c.admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', draftInvoiceId)).count ?? 0 : 0
         r.audit = audits >= 3
         out.push({ id: 'U15 fakturakladde (admin)', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
@@ -489,7 +492,7 @@ ${m.text()}`) })
         await card.waitFor({ timeout: 60_000 }).catch(() => {})
         const txt = (await card.count()) ? await card.innerText() : ''
         r.tjekliste = /Klar til bogføring/.test(txt) && /Omkostningskonto/.test(txt) && /Kassekladde/.test(txt) && /Leverandører koblet/.test(txt) && /Kundefakturaer/.test(txt)
-        await a.page.screenshot({ path: join(shots, 'u16-economic.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u16-economic.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U16 e-conomic-opsætning (admin)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
@@ -520,7 +523,7 @@ ${m.text()}`) })
           const p1 = await runImport('12,50', 'ao-pris-1.csv')
           r.oprettet = !!p1?.id && Number(p1.cost_price) === 12.5
           r.aeoeaa_korrekt = p1?.supplier_name === 'Kabel 3x1,5 mørkegrå Ærø'
-          await a.page.screenshot({ path: join(shots, 'u17-ao-import.png'), fullPage: true }).catch(() => {})
+          await a.page.screenshot({ caret: 'initial', path: join(shots, 'u17-ao-import.png'), fullPage: true }).catch(() => {})
           const p2 = await runImport('13,75', 'ao-pris-2.csv')
           r.pris_opdateret = Number(p2?.cost_price) === 13.75
           const hist = p1?.id ? (await c.admin.from('price_history').select('id', { count: 'exact', head: true }).eq('supplier_product_id', p1.id)).count ?? 0 : 0
@@ -634,7 +637,7 @@ ${m.text()}`) })
         await kp.getByText('Beskeder', { exact: true }).first().click({ timeout: 60_000 }).catch(() => {})
         await kp.getByText(saelgerTekst).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.kunde_ser_svar = (await kp.getByText(saelgerTekst).count()) > 0
-        await kp.screenshot({ path: join(shots, 'u23-portal-chat.png'), fullPage: true }).catch(() => {})
+        await kp.screenshot({ caret: 'initial', path: join(shots, 'u23-portal-chat.png'), fullPage: true }).catch(() => {})
         await kctx.close().catch(() => {})
         out.push({ id: 'U23 portal-chat kunde ↔ sælger', ok: !!chatTokenId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
@@ -671,7 +674,7 @@ ${m.text()}`) })
         }
         r.linje_gemt = line?.description === 'Stikkontakt montage' && Number(line?.quantity) === 4 && Number(line?.unit_price) === 250 && Number(line?.total) === 1000
         r.totaler = Number(off?.total_amount) === 1000 && Number(off?.final_amount) === 1250
-        await a.page.screenshot({ path: join(shots, 'u24-nyt-tilbud.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u24-nyt-tilbud.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U24 nyt tilbud fra bunden', ok: Object.values(r).every(Boolean),
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · total=${off?.total_amount}/${off?.final_amount}` })
       }
@@ -693,7 +696,7 @@ ${m.text()}`) })
         r.mail_vist_paa_sag = (await a.page.getByText(subject).count()) > 0
         const linked = u25EmailId ? ((await c.admin.from('incoming_emails').select('service_case_id').eq('id', u25EmailId).maybeSingle()).data as { service_case_id?: string } | null) : null
         r.mail_koblet = !!caseId && linked?.service_case_id === caseId
-        await a.page.screenshot({ path: join(shots, 'u25-mail-til-sag.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u25-mail-til-sag.png'), fullPage: true }).catch(() => {})
         if (caseId) listCaseIds.push(caseId) // ryddes sammen med U20's sager
         out.push({ id: 'U25 mail → sag', ok: !!u25EmailId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
@@ -727,7 +730,7 @@ ${m.text()}`) })
         r.linje_fra_materiale = lines.length === 1 && lines[0].source_case_material_id === matId && Number(lines[0].total_price) === 120
         const locked = matId ? ((await c.admin.from('case_materials').select('invoice_line_id').eq('id', matId).maybeSingle()).data as { invoice_line_id?: string } | null) : null
         r.materiale_laast = !!lines[0] && locked?.invoice_line_id === lines[0].id
-        await a.page.screenshot({ path: join(shots, 'u26-fakturering.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u26-fakturering.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U26 fakturering fra sagen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
@@ -794,7 +797,7 @@ ${m.text()}`) })
         r.kobling_begge_veje = lines.length === 2 && lines.every((l) => !!l.converted_case_material_id && mats.some((m0) => m0.id === l.converted_case_material_id))
         const ext = ((await c.admin.from('incoming_invoices').select('external_invoice_id, posted_at').eq('id', u28.invoiceId).maybeSingle()).data as { external_invoice_id?: string | null; posted_at?: string | null } | null)
         r.ingen_bogfoering = !ext?.external_invoice_id && !ext?.posted_at
-        await a.page.screenshot({ path: join(shots, 'u28-godkend-faktura.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u28-godkend-faktura.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U28 leverandørfaktura → sag', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
@@ -848,7 +851,7 @@ ${m.text()}`) })
         r.arbejdsordre = !!wo && wo.assigned_employee_id === u30.employeeId && wo.scheduled_date === day && wo.status === 'planned'
         await a.page.goto(`${base}/dashboard/calendar?date=${day}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.i_kalenderen = (await a.page.getByText(woTitle).count()) > 0
-        await a.page.screenshot({ path: join(shots, 'u30-planlaegning.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u30-planlaegning.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U30 planlægning fra kalenderen', ok: !!u30.caseId && !!u30.employeeId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
@@ -900,7 +903,7 @@ ${m.text()}`) })
         const after = ((await c.admin.from('time_logs').select('description, invoice_line_id').eq('work_order_id', u31.woId ?? '')).data ?? []) as Array<{ description: string; invoice_line_id: string | null }>
         r.time_laast = after.some((x) => x.description === 'fakturerbar' && !!lines[0] && x.invoice_line_id === lines[0].id)
         r.oevrige_ikke_faktureret = after.filter((x) => x.description !== 'fakturerbar').every((x) => !x.invoice_line_id)
-        await a.page.screenshot({ path: join(shots, 'u31-timer-faktura.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u31-timer-faktura.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U31 timer → faktura', ok: !seedErr && Object.values(r).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · forventet=${expected} linjer=${JSON.stringify(lines.map((l) => [l.description, l.total_price]))} total=${inv?.total_amount}` })
       }
@@ -950,7 +953,7 @@ ${m.text()}`) })
           locked = ((await c.admin.from('time_logs').select('invoice_line_id').eq('id', tlRow.id).maybeSingle()).data as { invoice_line_id?: string } | null)
         }
         r.time_laast = !!timeLine && locked?.invoice_line_id === timeLine.id
-        await a.page.screenshot({ path: join(shots, 'u32-slutfaktura.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u32-slutfaktura.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U32 slutfaktura', ok: !seedErr && Object.values(r).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · linjer=${JSON.stringify(lines.map((l) => [l.description.slice(0, 30), l.total_price]))} total=${fin?.total_amount}` })
       }
@@ -992,7 +995,7 @@ ${m.text()}`) })
         r.fuld_rest = cr.length === 2 && cr.reduce((s0, x) => s0 + Number(x.total_amount), 0) === -2000
         r.kladder = cr.every((x) => x.status === 'draft')
         a.page.removeAllListeners('dialog')
-        await a.page.screenshot({ path: join(shots, 'u33-kreditnota.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u33-kreditnota.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U33 kreditnota', ok: !!u33InvoiceId && Object.values(r).every(Boolean),
           note: `${seed33}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · kreditnotaer=${JSON.stringify(cr.map((x) => x.total_amount))}` })
       }
@@ -1020,7 +1023,7 @@ ${m.text()}`) })
         r.antal = Number(m0?.quantity) === 2
         r.kostpris_1000 = Number(m0?.unit_cost) === 1000
         r.salgspris_1250_50 = Number(m0?.unit_sales_price) === 1250.5
-        await a.page.screenshot({ path: join(shots, 'u34-materiale.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u34-materiale.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U34 materiale m. danske beløb', ok: !!u34CaseId && Object.values(r).every(Boolean),
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · række=${JSON.stringify(m0)}` })
       }
@@ -1054,7 +1057,7 @@ ${m.text()}`) })
         r.intet_fradrag_for_krediteret_forskud = !deductions.some((l) => l.description.includes(`UI-E2E-D-${stamp}`))
         r.rate_fradrag_netto_300 = deductions.length === 1 && Number(deductions[0].total_price) === -300
         r.total_700 = Number(fin?.total_amount) === 700
-        await a.page.screenshot({ path: join(shots, 'u35-kreditfradrag.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u35-kreditfradrag.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U35 slutfaktura efter kreditnota', ok: !seedErr && Object.values(r).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · linjer=${JSON.stringify(lines.map((l) => [l.description.slice(0, 40), l.total_price]))} total=${fin?.total_amount}` })
       }
@@ -1083,9 +1086,35 @@ ${m.text()}`) })
         let nw: Inv | null = await readNew()
         for (let i = 0; i < 20 && !nw; i++) { await new Promise((res) => setTimeout(res, 1000)); nw = await readNew() }
         r.ny_rate_50 = !!nw && Number(nw.billing_percentage) === 50 && Number(nw.total_amount) === 5000
-        await a.page.screenshot({ path: join(shots, 'u36-rate-efter-kredit.png'), fullPage: true }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u36-rate-efter-kredit.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U36 ny rate efter kreditnota', ok: !seedErr && Object.values(r).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ny=${JSON.stringify(nw)}` })
+      }
+
+      // U37 e-conomic-forhåndsvisning på faktura (e-conomic foundation, ingen bogføring)
+      if (want('U37') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-EC-${stamp}`, customer_id: profitCustomerId, status: 'sent',
+          total_amount: 1173.25, tax_amount: 293.31, final_amount: 1466.56, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
+        u37InvoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u37InvoiceId) await c.admin.from('invoice_lines').insert([
+          { invoice_id: u37InvoiceId, position: 1, description: 'Montage', quantity: 2, unit: 't', unit_price: 500, total_price: 1000 },
+          { invoice_id: u37InvoiceId, position: 2, description: 'Timer (0,33 t)', quantity: 0.33, unit: 't', unit_price: 525.1, total_price: 173.25 },
+        ])
+        const seedErr = u37InvoiceId ? '' : `SEED: ${ins.error?.message ?? '?'} · `
+        await a.page.goto(`${base}/dashboard/invoices/${u37InvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /Vis hvad der sendes til e-conomic/ }).click({ timeout: 90_000 }).catch(() => {})
+        const pv = a.page.getByTestId('economic-preview')
+        await pv.getByTestId('economic-preview-net').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.vist = await pv.isVisible().catch(() => false)
+        r.econ_netto_1173_28 = ((await pv.getByTestId('economic-preview-net').textContent().catch(() => '')) ?? '').includes('1.173,28')
+        r.afvigelse_markeret = (await pv.getByText(/e-conomic beregner 0,33 × 525,10 = 173,28/).count()) > 0
+        r.intet_sendes = (await pv.getByText(/intet sendes til e-conomic herfra/).count()) > 0
+        const logs = ((await c.admin.from('accounting_sync_log').select('id').eq('entity_id', u37InvoiceId ?? '')).data ?? []) as unknown[]
+        r.ingen_sync_forsoeg = logs.length === 0
+        await a.page.screenshot({ path: join(shots, 'u37-economic-preview.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U37 e-conomic-forhåndsvisning', ok: !seedErr && Object.values(r).every(Boolean),
+          note: `${seedErr}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
@@ -1103,7 +1132,7 @@ ${m.text()}`) })
         await m.page.goto(`${base}${path}`, { waitUntil: 'networkidle', timeout: 180_000 })
         if ((await m.page.getByText('Du har ikke adgang').count()) > 0) denied.push(path)
       }
-      await m.page.screenshot({ path: join(shots, 'pilot-health-montoer.png'), fullPage: true })
+      await m.page.screenshot({ caret: 'initial', path: join(shots, 'pilot-health-montoer.png'), fullPage: true })
       out.push({ id: 'U4 montør: ingen adgang', ok: denied.length === 3, note: `NoAccess på ${denied.length}/3 (${denied.join(', ') || '-'})` })
 
       // U11 montør-dagen (G4). Seed: medarbejder koblet til montør-login, sag + planlagt arbejdsordre i dag.
@@ -1180,7 +1209,7 @@ ${m.text()}`) })
         const upMsg = (await m.page.getByTestId('case-upload-msg').count()) ? await m.page.getByTestId('case-upload-msg').innerText() : ''
         const docs = jobCaseId ? (await c.admin.from('customer_documents').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId)).count ?? 0 : 0
         r.foto_upload = /1 fil uploadet/.test(upMsg) && docs === 1
-        await m.page.screenshot({ path: join(shots, 'u11-montoer-dokumenter.png'), fullPage: true }).catch(() => {})
+        await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-dokumenter.png'), fullPage: true }).catch(() => {})
 
         // N9a Aflevering på ordresiden: tjekliste → foto til første påkrævede punkt → kundens underskrift (montør, egen sag)
         await m.page.goto(`${base}/dashboard/orders/${jobCaseId}?tab=aflevering`, { waitUntil: 'networkidle', timeout: 180_000 })
@@ -1211,7 +1240,7 @@ ${m.text()}`) })
         }
         const stillOpen = ((await c.admin.from('service_cases').select('status').eq('id', jobCaseId).maybeSingle()).data as { status?: string } | null)?.status !== 'closed'
         r.aflevering_underskrift = signedName === 'Kunde Harness' && stillOpen
-        await m.page.screenshot({ path: join(shots, 'u11-montoer-aflevering.png'), fullPage: true }).catch(() => {})
+        await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-aflevering.png'), fullPage: true }).catch(() => {})
 
         // Sagens Mails-fane: egen sagsmail synlig (G9) — postkassen er lukket, men sagens mails ses stadig
         await m.page.getByRole('button', { name: /^Mails/ }).first().click().catch(() => {})
@@ -1234,7 +1263,7 @@ ${m.text()}`) })
         }
         r.afsluttet = woStatus === 'done'
         if (!r.afsluttet) {
-          await m.page.screenshot({ path: join(shots, 'u11-montoer-afslut.png'), fullPage: true }).catch(() => {})
+          await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-afslut.png'), fullPage: true }).catch(() => {})
           const errTxt = await m.page.locator('.text-red-700, .text-red-600, .bg-red-50').allInnerTexts().catch(() => [] as string[])
           r[`afslut_fejl(${woStatus}|${errTxt.join(' / ').replace(/\s+/g, ' ').slice(0, 160)})`] = false
         }
@@ -1249,7 +1278,7 @@ ${m.text()}`) })
           const nav = m.page.locator('nav.md\\:hidden a')
           const labels = (await nav.allInnerTexts()).map((t) => t.trim())
           u21.bundmenu = JSON.stringify(labels) === JSON.stringify(['Opgaver', 'Kalender', 'Sager'])
-          await m.page.screenshot({ path: join(shots, 'u21-montoer-mobil.png'), fullPage: false }).catch(() => {})
+          await m.page.screenshot({ caret: 'initial', path: join(shots, 'u21-montoer-mobil.png'), fullPage: false }).catch(() => {})
           await m.page.setViewportSize({ width: 1400, height: 1000 })
           out.push({ id: 'U21 montør mobil + Service-redirect', ok: Object.values(u21).every(Boolean), note: `${Object.entries(u21).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · menu=${JSON.stringify(labels)}` })
         }
@@ -1258,7 +1287,7 @@ ${m.text()}`) })
         await m.page.goto(`${base}/dashboard/calendar?date=${today}`, { waitUntil: 'networkidle', timeout: 180_000 })
         r.kalender = (await m.page.getByText(woTitle).count()) > 0 && (await m.page.getByText('Ingen aktive medarbejdere').count()) === 0
           && (await m.page.getByRole('button', { name: /Planlæg opgave/ }).count()) === 0
-        await m.page.screenshot({ path: join(shots, 'u11-montoer-kalender.png'), fullPage: true }).catch(() => {})
+        await m.page.screenshot({ caret: 'initial', path: join(shots, 'u11-montoer-kalender.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U11 montør-dagen (job, foto, afslut, kalender)', ok: !seedErr && Object.values(r).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
@@ -1293,7 +1322,7 @@ ${m.text()}`) })
         await a.page.waitForURL(/tab=fakturakladde/, { timeout: 60_000 }).catch(() => {})
         await a.page.getByText(/Stage-fakturaer på sagen|Fakturakladde|Forskudsfaktura|Slutfaktura/).first().waitFor({ timeout: 90_000 }).catch(() => {})
         r.admin_fakturer_paa_sag = /tab=fakturakladde/.test(a.page.url()) && (await a.page.getByText(/Stage-fakturaer på sagen|Slutfaktura/).count()) > 0
-        await sp.page.screenshot({ path: join(shots, 'u13-salg-sag.png'), fullPage: true }).catch(() => {})
+        await sp.page.screenshot({ caret: 'initial', path: join(shots, 'u13-salg-sag.png'), fullPage: true }).catch(() => {})
       }
       // U14 opfølgning (N1)
       if (want('U14') && (sp.ok && profitCustomerId)) {
@@ -1320,7 +1349,7 @@ ${m.text()}`) })
         f.ring_knap = (await row.getByRole('link', { name: /Ring/ }).count()) === 1
         f.nyt_under_afventer = !txt.includes(`følg op nyt ${stamp}`) && /afventer stadig kunden/.test(txt)
         f.kollega_skjult = !txt.includes(`følg op kollega ${stamp}`)
-        await sp.page.screenshot({ path: join(shots, 'u14-opfoelgning.png'), fullPage: true }).catch(() => {})
+        await sp.page.screenshot({ caret: 'initial', path: join(shots, 'u14-opfoelgning.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U14 salg: tilbudsopfølgning', ok: Object.values(f).every(Boolean), note: Object.entries(f).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
       out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 6 && Object.values(r).every(Boolean),
@@ -1442,6 +1471,7 @@ ${m.text()}`) })
       for (const t of ['credit', 'progress', 'deposit']) for (const iv of invs.filter((x) => x.invoice_type === t)) await c.admin.from('invoices').delete().eq('id', iv.id)
       listCaseIds.push(u36CaseId)
     }
+    if (u37InvoiceId) { await c.admin.from('invoice_lines').delete().eq('invoice_id', u37InvoiceId); await c.admin.from('audit_logs').delete().eq('entity_id', u37InvoiceId); await c.admin.from('invoices').delete().eq('id', u37InvoiceId) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)

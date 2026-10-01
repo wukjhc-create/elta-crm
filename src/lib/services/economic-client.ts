@@ -18,6 +18,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { encrypt, decrypt } from '@/lib/utils/encryption'
+import { buildEconomicInvoiceDraft, type EconomicInvoiceDraft } from '@/lib/economic/invoice-draft'
 import type {
   AccountingAction,
   AccountingEntityType,
@@ -394,43 +395,27 @@ export async function createInvoiceInEconomic(
     customerNumber = created.externalId
   }
 
-  // Lines.
+  // Lines + body via den fælles mapping (samme som forhåndsvisningen).
   const { data: lineRows } = await supabase
     .from('invoice_lines')
-    .select('position, description, quantity, unit_price')
+    .select('position, description, quantity, unit_price, total_price')
     .eq('invoice_id', invoiceId)
     .order('position', { ascending: true })
 
-  const lines = (lineRows ?? []).map((l, i) => ({
-    lineNumber: l.position || i + 1,
-    description: (l.description || '').slice(0, 1000),
-    quantity: Number(l.quantity) || 0,
-    unitNetPrice: Number(l.unit_price) || 0,
-    product: { productNumber: cfg.defaultProductNumber || '1' },
-  }))
-
-  if (lines.length === 0) {
-    await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'create', status: 'failed', error_message: 'no invoice lines' })
-    return { ok: false, status: 'failed', error: 'no invoice lines' }
+  const draft = buildEconomicInvoiceDraft({
+    invoice: inv,
+    customer: cust,
+    customerNumber: Number(customerNumber),
+    lines: lineRows ?? [],
+    config: cfg,
+  })
+  if (!draft.canPost) {
+    // Bogfør aldrig et andet beløb end kunden har fået (eller en tom faktura).
+    const reason = draft.issues.filter((i) => i.severity === 'error').map((i) => i.message).join('; ')
+    await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'create', status: 'failed', error_message: reason })
+    return { ok: false, status: 'failed', error: reason }
   }
-
-  const draftBody = {
-    currency: inv.currency || 'DKK',
-    date: (inv.created_at || new Date().toISOString()).slice(0, 10),
-    paymentTerms: { paymentTermsNumber },
-    customer: { customerNumber: Number(customerNumber) },
-    recipient: {
-      name: cust.company_name || cust.contact_person || 'Kunde',
-      address: cust.billing_address || undefined,
-      zip: cust.billing_postal_code || undefined,
-      city: cust.billing_city || undefined,
-      country: cust.billing_country || 'Denmark',
-      vatZone: { vatZoneNumber },
-    },
-    layout: { layoutNumber },
-    references: { other: inv.invoice_number },
-    lines,
-  }
+  const draftBody = draft.body
 
   const draftRes = await economicFetch<{ draftInvoiceNumber: number }>(ready, '/invoices/drafts', {
     method: 'POST',
@@ -503,6 +488,84 @@ export async function createInvoiceInEconomic(
   await touchLastSyncAt()
   console.log('ECONOMIC INVOICE CREATED:', invoiceId, '→', externalId)
   return { ok: true, status: 'success', externalId, data: { draftInvoiceNumber: draftNumber, bookedNumber } }
+}
+
+// =====================================================
+// Forhåndsvisning (ingen netværk, ingen skrivning)
+// =====================================================
+
+export interface EconomicInvoicePreview {
+  invoice_number: string
+  /** e-conomic-opsætningen er aktiv med nøgler (live-eksport mulig) */
+  integration_ready: boolean
+  /** allerede eksporteret (e-conomic-id) */
+  external_id: string | null
+  draft: EconomicInvoiceDraft
+}
+
+/**
+ * Bygger præcis den kladde createInvoiceInEconomic ville sende — uden at
+ * kontakte e-conomic, oprette kunder eller skrive noget. Læser kun config
+ * (aldrig nøgler).
+ */
+export async function previewInvoiceForEconomic(
+  invoiceId: string
+): Promise<{ ok: true; data: EconomicInvoicePreview } | { ok: false; error: string }> {
+  const supabase = createAdminClient()
+  const { data: inv } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, currency, created_at, total_amount, customer_id, external_invoice_id, external_provider')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (!inv) return { ok: false, error: 'Faktura ikke fundet' }
+
+  const [{ data: settingsRow }, { data: cust }, { data: lineRows }] = await Promise.all([
+    supabase
+      .from('accounting_integration_settings')
+      .select('active, config, api_token, agreement_grant_token')
+      .eq('provider', PROVIDER)
+      .maybeSingle(),
+    inv.customer_id
+      ? supabase
+          .from('customers')
+          .select('company_name, contact_person, billing_address, billing_postal_code, billing_city, billing_country, external_customer_id, external_provider')
+          .eq('id', inv.customer_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('invoice_lines')
+      .select('position, description, quantity, unit_price, total_price')
+      .eq('invoice_id', invoiceId)
+      .order('position', { ascending: true }),
+  ])
+
+  const s = settingsRow as { active?: boolean; config?: EconomicConfig | null; api_token?: string | null; agreement_grant_token?: string | null } | null
+  const c = cust as { external_customer_id?: string | null; external_provider?: string | null } | null
+  const linkedNumber =
+    c?.external_customer_id && c.external_provider === PROVIDER ? Number(c.external_customer_id) : null
+
+  const draft = buildEconomicInvoiceDraft({
+    invoice: inv,
+    customer: (cust ?? {}) as Record<string, string | null>,
+    customerNumber: Number.isFinite(linkedNumber) ? linkedNumber : null,
+    lines: lineRows ?? [],
+    config: s?.config ?? {},
+  })
+  if (!inv.customer_id) {
+    draft.issues.unshift({ code: 'no_customer', severity: 'error', message: 'Fakturaen har ingen kunde' })
+    draft.canPost = false
+  }
+
+  return {
+    ok: true,
+    data: {
+      invoice_number: inv.invoice_number,
+      // Kun om nøgler FINDES — værdierne læses aldrig ud herfra.
+      integration_ready: Boolean(s?.active && s?.api_token && s?.agreement_grant_token),
+      external_id: inv.external_provider === PROVIDER ? inv.external_invoice_id : null,
+      draft,
+    },
+  }
 }
 
 // =====================================================
