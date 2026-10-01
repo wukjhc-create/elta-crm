@@ -40,6 +40,8 @@
  *   U24 nyt tilbud fra bunden: formular (titel + kunde) → tilbudssiden → "Tilføj linje" (4 × 250) → linjen gemt og
  *       tilbuddets totaler opdateret (1.000 ekskl. / 1.250 inkl. moms)
  *   U25 mail → sag: kundemail i indbakken → "Opret sag" → lander på den nye sags Mails-fane med mailen; mail koblet i DB
+ *   U26 fakturering fra sagen: materiale på sagen → Fakturakladde → "Opret del-faktura" → kladde med linjen (120 kr),
+ *       materialet låst til fakturalinjen (ingen dobbeltfakturering)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -138,6 +140,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let chatTokenId: string | null = null
   let newOfferId: string | null = null
   let u25EmailId: string | null = null
+  let billCaseId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -662,6 +665,35 @@ ${m.text()}`) })
         out.push({ id: 'U25 mail → sag', ok: !!u25EmailId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U26 fakturering fra sagen (faktura, GO-LIVE)
+      if (profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] fakturering ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
+        billCaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const mat = billCaseId ? await c.admin.from('case_materials').insert([{ case_id: billCaseId, description: `Kabel 3x1,5 ${stamp}`, quantity: 10, unit: 'm',
+          unit_cost: 5, unit_sales_price: 12, billable: true /* totaler er genererede kolonner */, source: 'manual', created_by: adminUser.id }]).select('id') : null
+        const matId = (mat?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const seedErr = !billCaseId ? `sag: ${sc.error?.message}` : !matId ? `materiale: ${mat?.error?.message}` : ''
+        await a.page.goto(`${base}/dashboard/orders/${billCaseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const btn = a.page.getByRole('button', { name: /Opret del-faktura/ }).first()
+        await btn.waitFor({ timeout: 90_000 }).catch(() => {})
+        await btn.click({ timeout: 30_000 }).catch(() => {})
+        let inv: { id?: string; status?: string; total_amount?: number } | null = null
+        for (let i = 0; i < 20 && !inv; i++) {
+          inv = ((await c.admin.from('invoices').select('id, status, total_amount').eq('case_id', billCaseId).maybeSingle()).data as { id?: string; status?: string; total_amount?: number } | null)
+          if (!inv) await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.kladde_oprettet = inv?.status === 'draft'
+        r.beloeb = Number(inv?.total_amount) === 120
+        const lines = inv?.id ? ((await c.admin.from('invoice_lines').select('id, source_case_material_id, total_price').eq('invoice_id', inv.id)).data ?? []) as Array<{ id: string; source_case_material_id: string | null; total_price: number }> : []
+        r.linje_fra_materiale = lines.length === 1 && lines[0].source_case_material_id === matId && Number(lines[0].total_price) === 120
+        const locked = matId ? ((await c.admin.from('case_materials').select('invoice_line_id').eq('id', matId).maybeSingle()).data as { invoice_line_id?: string } | null) : null
+        r.materiale_laast = !!lines[0] && locked?.invoice_line_id === lines[0].id
+        await a.page.screenshot({ path: join(shots, 'u26-fakturering.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U26 fakturering fra sagen', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -942,6 +974,13 @@ ${m.text()}`) })
     if (seededEmailIds.length) await c.admin.from('incoming_emails').delete().in('id', seededEmailIds)
     if (otherCaseId) { await c.admin.from('case_notes').delete().eq('case_id', otherCaseId); await c.admin.from('service_cases').delete().eq('id', otherCaseId) }
     if (u25EmailId) await c.admin.from('incoming_emails').update({ service_case_id: null }).eq('id', u25EmailId)
+    if (billCaseId) {
+      const { data: invs } = await c.admin.from('invoices').select('id').eq('case_id', billCaseId)
+      await c.admin.from('case_materials').update({ invoice_line_id: null }).eq('case_id', billCaseId)
+      for (const iv of (invs ?? []) as Array<{ id: string }>) { await c.admin.from('audit_logs').delete().eq('entity_id', iv.id); await c.admin.from('invoice_lines').delete().eq('invoice_id', iv.id); await c.admin.from('invoices').delete().eq('id', iv.id) }
+      await c.admin.from('case_materials').delete().eq('case_id', billCaseId)
+      listCaseIds.push(billCaseId)
+    }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u25EmailId) await c.admin.from('incoming_emails').delete().eq('id', u25EmailId)
