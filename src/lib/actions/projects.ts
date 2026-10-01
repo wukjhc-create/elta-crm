@@ -36,7 +36,8 @@ import type {
 import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getCompanySettings } from '@/lib/actions/settings'
-import { triggerWebhooks, buildProjectWebhookPayload } from '@/lib/actions/integrations'
+import { buildProjectWebhookPayload } from '@/lib/actions/integrations'
+import { dispatchWebhooks as triggerWebhooks } from '@/lib/services/webhook-dispatch'
 import { logger } from '@/lib/utils/logger'
 
 // ==================== Projects ====================

@@ -19,6 +19,8 @@
  *   U7  admin: lønsomhedskort på tilbud (Profit Engine) — realistisk DB, dom og timekost-advarsel
  *   U8  admin: grossist-sammenligning på tilbud (samme EAN billigere hos anden leverandør)
  *   U9  admin: fakturakontrol på leverandørfaktura (overpris mod katalog-kostpris via varenr.)
+ *   U10 kunde (UDEN CRM-session): åbn tilbud fra portal-link (første klik), underskriv og acceptér -> succes,
+ *       tilbud accepteret, sag oprettet med sælgeren som ansvarlig, aktivitet på tidslinjen (G1/G2)
  *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -95,6 +97,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let profitCustomerId: string | null = null
   let cmpSupplierIds: string[] = []
   let ctrlInvoiceId: string | null = null
+  let portalOfferId: string | null = null
+  let portalTokenId: string | null = null
 
   try {
     const adminUser = await mkUser('admin')
@@ -210,6 +214,58 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         out.push({ id: 'U9 fakturakontrol (admin)', ok: !seedErr && Object.values(ic).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(ic).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U10 kundeportal-accept som kunden oplever det: ny browser-kontekst UDEN CRM-login (fanger AUTH_REQUIRED-fejl
+      // der er skjult når personalet tester indlogget). Udgående mail/e-conomic er neutraliseret i dev-serveren.
+      {
+        const tok = randomBytes(32).toString('hex') // portal-tokens er 64-tegns hex (validatePortalToken)
+        const off = profitCustomerId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-PA-${stamp}`, title: '[HARNESS] portal-accept',
+          created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(),
+          valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10) }]).select('id') : null
+        portalOfferId = (off?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (portalOfferId) await c.admin.from('offer_line_items').insert([{ offer_id: portalOfferId, position: 1, description: 'Stikkontakt', quantity: 2, unit: 'stk', unit_price: 500, total: 1000, cost_price: 300 }])
+        const pt = profitCustomerId ? await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id') : null
+        portalTokenId = (pt?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const seedErr = !portalOfferId ? `tilbud: ${off?.error?.message?.slice(0, 80) ?? 'ikke oprettet'}` : !portalTokenId ? `token: ${pt?.error?.message?.slice(0, 80) ?? 'ikke oprettet'}` : ''
+
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        const kp = await kctx.newPage()
+        kp.on('pageerror', (e) => pageErrors.push(`kunde: ${e.message.slice(0, 120)}`))
+        await kp.goto(`${base}/portal/${tok}/offers/${portalOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const forsteKlik = kp.url().includes(`/offers/${portalOfferId}`)
+        const acceptBtn = kp.getByRole('button', { name: 'Accepter tilbud' }).first()
+        await acceptBtn.click({ timeout: 30_000 }).catch(() => {})
+        const dlg = kp.locator('div.fixed.inset-0').last()
+        await dlg.locator('input[type="text"]').first().fill('Harness Kunde').catch(() => {})
+        await dlg.locator('input[type="email"]').first().fill(`ui-profit-${stamp}@harness.test`).catch(() => {})
+        const box = await dlg.locator('canvas').boundingBox().catch(() => null)
+        if (box) {
+          await kp.mouse.move(box.x + 20, box.y + 20); await kp.mouse.down()
+          await kp.mouse.move(box.x + 120, box.y + 60, { steps: 8 }); await kp.mouse.move(box.x + 220, box.y + 30, { steps: 8 }); await kp.mouse.up()
+        }
+        await dlg.locator('input[type="checkbox"]').first().check().catch(() => {})
+        await dlg.locator('button.bg-green-600').click({ timeout: 15_000 }).catch(() => {})
+        await kp.getByText('Der opstod en fejl').waitFor({ timeout: 8_000 }).catch(() => {})
+        await kp.waitForLoadState('networkidle').catch(() => {})
+        const kundeFejl = (await kp.getByText(/Der opstod en fejl|Kunne ikke acceptere/).count()) > 0
+        await kp.screenshot({ path: join(shots, 'u10-portal-accept.png'), fullPage: true }).catch(() => {})
+        await kctx.close().catch(() => {})
+
+        // Effekter (sag/aktivitet skrives før svaret; tolerér langsom dev-kompilering)
+        let offerStatus = '', sag: { id?: string; created_by?: string } | null = null, akt = 0
+        for (let i = 0; i < 10; i++) {
+          offerStatus = String(((await c.admin.from('offers').select('status').eq('id', portalOfferId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+          sag = ((await c.admin.from('service_cases').select('id, created_by').eq('source_offer_id', portalOfferId).maybeSingle()).data as { id?: string; created_by?: string } | null)
+          akt = (await c.admin.from('offer_activities').select('id', { count: 'exact', head: true }).eq('offer_id', portalOfferId).eq('activity_type', 'service_case_created')).count ?? 0
+          if (offerStatus === 'accepted' && sag && akt) break
+          await new Promise((r) => setTimeout(r, 1000))
+        }
+        const pa = { forste_klik: forsteKlik, ingen_kundefejl: !kundeFejl, accepteret: offerStatus === 'accepted', sag: !!sag?.id,
+          saelger_ansvarlig: sag?.created_by === adminUser.id, tidslinje: akt === 1 }
+        out.push({ id: 'U10 kundeportal-accept (kunde uden login)', ok: !seedErr && Object.values(pa).every(Boolean),
+          note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(pa).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -234,6 +290,20 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     await browser.close().catch(() => {})
     if (server) killTree(server)
     if (profitOfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', profitOfferId); await c.admin.from('offers').delete().eq('id', profitOfferId) }
+    if (portalOfferId) {
+      const { data: sc } = await c.admin.from('service_cases').select('id').eq('source_offer_id', portalOfferId)
+      await c.admin.from('offers').update({ converted_case_id: null }).eq('id', portalOfferId)
+      for (const r of (sc ?? []) as Array<{ id: string }>) {
+        await c.admin.from('customer_tasks').delete().eq('service_case_id', r.id)
+        await c.admin.from('case_notes').delete().eq('case_id', r.id)
+        await c.admin.from('service_cases').delete().eq('id', r.id)
+      }
+      const { data: inv } = await c.admin.from('invoices').select('id').eq('offer_id', portalOfferId)
+      for (const r of (inv ?? []) as Array<{ id: string }>) { await c.admin.from('invoice_lines').delete().eq('invoice_id', r.id); await c.admin.from('invoices').delete().eq('id', r.id) }
+      for (const t of ['offer_activities', 'offer_signatures', 'offer_line_items']) await c.admin.from(t).delete().eq('offer_id', portalOfferId)
+      await c.admin.from('offers').delete().eq('id', portalOfferId)
+    }
+    if (portalTokenId) await c.admin.from('portal_access_tokens').delete().eq('id', portalTokenId)
     if (profitCustomerId) await c.admin.from('customers').delete().eq('id', profitCustomerId)
     if (ctrlInvoiceId) { await c.admin.from('incoming_invoice_lines').delete().eq('incoming_invoice_id', ctrlInvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', ctrlInvoiceId) }
     for (const sid of cmpSupplierIds) { await c.admin.from('supplier_products').delete().eq('supplier_id', sid); await c.admin.from('suppliers').delete().eq('id', sid) }

@@ -39,7 +39,6 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'email.ts:logIncomingEmail': S('logning fra mail-synk'),
   'employee-events.ts:logEmployeeEvent': S('hændelseslog fra gatede medarbejder-actions'),
   'incoming-emails.ts:quickCreateCustomerFromEmail': S('intern hjælper; UI bruger createCustomerFromEmail (gatet)'),
-  'integrations.ts:triggerWebhooks': S('kaldes fra offers/portal/projects efter deres egen gate/token'),
   'learning.ts:recordProjectFeedback': S('intern læringshjælper'),
   'learning.ts:collectProjectFeedback': S('intern læringshjælper'),
   'offer-activities.ts:logOfferActivity': S('aktivitetslog fra gatede tilbuds-actions'),

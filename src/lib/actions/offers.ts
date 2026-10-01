@@ -17,7 +17,7 @@ import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
-import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
+import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { getCompanySettings, getSmtpSettings } from '@/lib/actions/settings'
 import { sendEmail } from '@/lib/email/email-service'
@@ -757,15 +757,7 @@ export async function updateOfferStatus(
       expired: 'offer.expired',
     }
     const webhookEvent = webhookEventMap[status]
-    if (webhookEvent) {
-      const payload = await buildOfferWebhookPayload(id, webhookEvent)
-      if (payload) {
-        // Fire and forget - don't block the response
-        triggerWebhooks(webhookEvent, payload).catch(err => {
-          logger.error('Error triggering webhooks', { error: err })
-        })
-      }
-    }
+    if (webhookEvent) await emitOfferEvent(supabase, id, webhookEvent)
 
     // Sprint 3D — auto-create service_case when transitioning to accepted.
     // Gated on transition (current → accepted, not already-accepted) so a
@@ -989,12 +981,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
     )
 
     // Trigger webhooks for offer.sent
-    const payload = await buildOfferWebhookPayload(offerId, 'offer.sent')
-    if (payload) {
-      triggerWebhooks('offer.sent', payload).catch(err => {
-        logger.error('Error triggering webhooks', { error: err })
-      })
-    }
+    await emitOfferEvent(supabase, offerId, 'offer.sent')
 
     revalidatePath('/offers')
     revalidatePath(`/offers/${offerId}`)

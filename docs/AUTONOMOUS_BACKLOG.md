@@ -8,12 +8,49 @@ Status: `TODO` · `IN_PROGRESS` · `BLOCKED` · `BLOCKED_APPROVAL` (kun prod-gat
 
 **Arbejdsmode (Henrik 2026-10-01):** en prod-gate stopper KUN sin egen opgave → `BLOCKED_APPROVAL`, alt forberedes færdigt, næste sikre opgave tages straks. Stop kun ved ny S1/S2, alt blokeret, eller 8–10 væsentlige opgaver.
 
+**DELIVERY MODE (Henrik 2026-10-01):** mål = ELTA CRM 1.0 i daglig drift. Prioritet: GO-LIVE → driftsblokerende fejl → S1/S2 →
+NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes først. Prod-gates samles i batches.
+Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
+3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
+
+## GO-LIVE
+| # | Flow | Problem (fundet) | Status |
+|---|---|---|---|
+| G0 | Medarbejdere/tid | Timeregistrering hardkodet +02:00 → alle timer 1 t forkert fra 25/10 (vintertid); redigering læste klokkeslæt i servertid (UTC) | DONE (kode) |
+| G1 | Tilbud → kundeportal → accept | Kunden får "Der opstod en fejl" ved underskrift (webhook-payload kræver login, kastes uden try); intern mail + autopilot køres aldrig; sag/projekt oprettes aldrig fra portalen (kræver bruger-session) | DONE (kode) — webhooks flyttet til server-only service (kaster aldrig; lukker samtidig en ugatet eksporteret webhook-action), tilbud→sag-kerne med service-role og sælgeren som ansvarlig. ui-e2e U10 som kunde UDEN login (negativ kontrol: gammel kode fejler). Legacy-projektoprettelse fra portal uændret (fejler stille som før; projects-modulet er legacy) |
+| G2 | Kundeportal | Første klik fra tilbudsmail sender kunden tilbage til oversigten (samme rodårsag, getPortalOffer) | DONE (kode) — U10 første klik |
+| G3 | Kundeportal | Portal-links dør efter 30 dage for genkommende kunder (udløbet token forbliver aktivt, nyt kan ikke oprettes) | TODO |
+| G4 | Planlægning/montør | Montør: tom kalender (employees-liste kræver employees.view), kan ikke starte job (planned→in_progress kræver work_orders.edit + RLS), kan ikke uploade billeder (cases.edit), landing viser ikke dagens job, tidsformular uden medarbejdervalg | TODO |
+| G5 | Planlægning | Serviceleder kan kun se egen employees-række (RLS 00096) → kan ikke planlægge montører | TODO (migration → staging, prod-gate) |
+| G6 | Kunder/sager (salg) | Rolle salg kan oprette sag men ikke se den (cases.view.assigned/service.view mangler); tilbudsmail fra salg uden PDF (getCompanySettings kræver settings.view) | TODO |
+| G7 | Leverandørfaktura | Bogføring i e-conomic fejler altid: suppliers.external_supplier_id og costAccountNumber kan ikke sættes nogen steder | TODO |
+| G8 | Leverandørfaktura | Ingen manuel upload af faktura (ingestFromUpload uden UI) | TODO |
+| G9 | Mail/indbakke | Montør ser og kan arkivere/koble al firmamail (inbox.view uden scope) — privatliv | TODO (rollebeslutning) |
+
+## NEXT
+| # | Område | Opgave |
+|---|---|---|
+| N1 | Tilbudsopfølgning | Opfølgning synlig for sælger (påmindelser/reminder_count på tilbud, "Følg op"-opgaver for salg) |
+| N2 | Tid | Godkendelse af timer (time_logs.approve findes kun som permission) |
+| N3 | Grossist | AO manuel sync-knap (stub), SupplierStatusCard ikke monteret, syncSupplierPrices per-SKU/timeout |
+| N4 | Grossist | Produktsøgning ilike på 324k rækker uden trigram-indeks (migration) |
+| N5 | Faktura | Faktura direkte fra tilbud i UI; kladde-redigering; "Markér som sendt" → e-conomic; kreditnotaer → e-conomic; betalinger → e-conomic (cashbook-konfiguration) |
+| N6 | Faktura | /dashboard/bank i sidebar |
+| N7 | Profit | Arbejdsordre-profit-snapshot skrives/vises aldrig (profitability.ts ukaldt) |
+| N8 | Tilbud | acceptOffer håndhæver ikke status/udløb server-side; send uden DB-tjek; portal viser tom sælger |
+| N9 | Sager | To parallelle sags-UI'er (Sager/Ordrer + Service) på samme tabel |
+| N10 | Planlægning | "Planlæg opgave"-knap vises for montør; interne beskeder: vedhæft fil "kommer snart" |
+
+## LATER
+Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · generelle audits/refactors · Relatel trin 1–5 (ekstern aktivering gated)
+
 ## Ventende godkendelser (BLOCKED_APPROVAL)
 | Gate | Forberedt | Runbook |
 |---|---|---|
 | Prod 00175–00177 + 00179 (læse-side: tokens, hemmeligheder, beskeder, underskrifter) | kode deployet; staging + rls-read 8/8 | docs/runbooks/p009-rls-write-lockdown.md |
 | Prod 00178 (runde 4: 44 kalkulations-/katalogtabeller) | staging 44/44, pre-check grøn | samme |
 | Vercel: INVOICE_ATTACHMENT_FETCH_ENABLED=true (faktura-backfill) | kode deployet, baseline taget | docs/runbooks/invoice-attachment-backfill.md |
+| Aktivering af hidtil døde crons (cookie-klient → service-role): unanswered-mails (interne opgaver), offer-reminders (KUNDEMAIL), supplier-sync | analyse færdig; ændrer cron-adfærd → kræver separat godkendelse | — |
 | Opfølgning: prod-cron-status efter 00170–00174 (første kørsler) | `scripts/prod-cron-status-since.ts "2026-10-01 05:10"` | — |
 
 ## P0 — Sikkerhed

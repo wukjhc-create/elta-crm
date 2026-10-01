@@ -19,8 +19,8 @@ async function requireGate(permission: Permission) {
 import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createProjectFromOffer } from '@/lib/actions/projects'
-import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
-import { triggerWebhooks, buildOfferWebhookPayload } from '@/lib/actions/integrations'
+import { convertOfferToCase } from '@/lib/services/offer-to-case'
+import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { sendEmail } from '@/lib/email/email-service'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
@@ -392,13 +392,8 @@ export async function getPortalOffer(
         metadata: { viewedViaPortal: true },
       })
 
-      // Trigger webhooks for offer.viewed
-      const payload = await buildOfferWebhookPayload(offerId, 'offer.viewed')
-      if (payload) {
-        triggerWebhooks('offer.viewed', payload).catch(err => {
-          logger.error('Error triggering webhooks', { error: err })
-        })
-      }
+      // Webhook offer.viewed — kaster aldrig (kunden er ikke logget ind; tidligere -> redirect til oversigten)
+      await emitOfferEvent(admin, offerId, 'offer.viewed')
     }
 
     // Get line items — offer_id er allerede customer-scoped via offer-SELECT
@@ -475,7 +470,7 @@ export async function acceptOffer(
     // Verify offer belongs to customer and get details for project creation
     const { data: offer, error: offerError } = await admin
       .from('offers')
-      .select('id, status, customer_id, title, final_amount')
+      .select('id, status, customer_id, title, final_amount, created_by')
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
       .maybeSingle()
@@ -569,21 +564,14 @@ export async function acceptOffer(
     // If this fails the operator can use the manual "Opret sag fra
     // tilbud" button on the offer detail as a fallback.
     try {
-      const sagResult = await createServiceCaseFromOffer(data.offer_id)
+      // Kunden er ikke logget ind -> service-role; aktør = tilbuddets ansvarlige (sælgeren). Kernen logger selv
+      // 'service_case_created' på tilbuddets tidslinje.
+      const actorId = (offer.created_by as string | null) ?? (await systemActorId(admin))
+      const sagResult = actorId
+        ? await convertOfferToCase(admin, data.offer_id, actorId)
+        : { success: false as const, error: 'Ingen ansvarlig bruger til sagen' }
       if (sagResult.success && sagResult.data) {
-        await admin.from('offer_activities').insert({
-          offer_id: data.offer_id,
-          activity_type: 'service_case_created',
-          description: sagResult.data.created
-            ? `Sag ${sagResult.data.case_number} oprettet automatisk`
-            : `Sag ${sagResult.data.case_number} fandtes allerede (idempotency)`,
-          performed_by: null,
-          metadata: {
-            caseId: sagResult.data.case_id,
-            caseNumber: sagResult.data.case_number,
-            created: sagResult.data.created,
-          },
-        })
+        logger.info('Sag oprettet fra portal-accept', { entity: 'offer', entityId: data.offer_id, metadata: { case_number: sagResult.data.case_number, created: sagResult.data.created } })
       } else {
         logger.error('Auto-create service_case failed', {
           error: sagResult.error,
@@ -600,13 +588,8 @@ export async function acceptOffer(
       // Don't fail the offer acceptance if sag creation fails.
     }
 
-    // Trigger webhooks for offer.accepted
-    const payload = await buildOfferWebhookPayload(data.offer_id, 'offer.accepted')
-    if (payload) {
-      triggerWebhooks('offer.accepted', payload).catch(err => {
-        logger.error('Error triggering webhooks', { error: err })
-      })
-    }
+    // Webhook offer.accepted — kaster aldrig (tidligere: AUTH_REQUIRED -> kunden fik fejl efter gemt underskrift)
+    await emitOfferEvent(admin, data.offer_id, 'offer.accepted')
 
     // Send automatic email confirmation to CRM mailbox
     try {
@@ -784,16 +767,7 @@ export async function rejectOffer(
     })
 
     // Trigger webhooks for offer.rejected (best effort)
-    try {
-      const payload = await buildOfferWebhookPayload(offerId, 'offer.rejected')
-      if (payload) {
-        triggerWebhooks('offer.rejected', payload).catch(err => {
-          logger.error('Error triggering webhooks', { error: err })
-        })
-      }
-    } catch (webhookErr) {
-      logger.error('Error building webhook payload', { error: webhookErr })
-    }
+    await emitOfferEvent(admin, offerId, 'offer.rejected')
 
     // Send email notification to CRM mailbox (non-critical)
     try {
@@ -2180,4 +2154,10 @@ export async function portalRequestReschedule(
     logger.error('Error in portalRequestReschedule', { error })
     return { success: false, error: 'Der opstod en fejl' }
   }
+}
+
+/** Fallback-aktør når et tilbud mangler created_by: første aktive admin (samme regel som projektoprettelse). */
+async function systemActorId(admin: ReturnType<typeof createAdminClient>): Promise<string | null> {
+  const { data } = await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).order('created_at').limit(1).maybeSingle()
+  return (data?.id as string | undefined) ?? null
 }
