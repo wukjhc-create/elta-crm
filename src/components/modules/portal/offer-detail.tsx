@@ -1,5 +1,6 @@
 'use client'
 
+import { isOfferExpired, canCustomerRespond } from '@/lib/offers/validity'
 import { useState } from 'react'
 import Link from 'next/link'
 import {
@@ -63,8 +64,8 @@ export function OfferDetail({
 
   const currency = companySettings?.default_currency || 'DKK'
 
-  const isExpired = offer.valid_until && new Date(offer.valid_until) < new Date()
-  const canRespond = (offer.status === 'sent' || offer.status === 'viewed') && !isExpired
+  const isExpired = isOfferExpired(offer.valid_until)
+  const canRespond = canCustomerRespond(offer.status, offer.valid_until)
 
   return (
     <div className="space-y-6">

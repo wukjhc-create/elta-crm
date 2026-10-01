@@ -28,7 +28,8 @@ async function requireGate(permission: Permission) {
 }
 import { revalidatePath } from 'next/cache'
 import { isGraphConfigured, sendEmailViaGraph, getMailbox } from '@/lib/services/microsoft-graph'
-import { getCompanySettings } from '@/lib/actions/settings'
+import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
+import type { CompanySettings } from '@/types/company-settings.types'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { createPortalToken } from '@/lib/actions/portal'
 import { logger } from '@/lib/utils/logger'
@@ -550,7 +551,7 @@ export async function generateEmailPreview(
     }
 
     // Get company settings
-    const settingsResult = await getCompanySettings()
+    const settingsResult = await companySettingsForDocuments(supabase)
     const settings = settingsResult.success ? settingsResult.data : null
 
     // Get or create portal token for offer link
@@ -723,7 +724,7 @@ export async function sendOfferEmail(
       try {
         const { renderToBuffer } = await import('@react-pdf/renderer')
         const { OfferPdfDocument } = await import('@/lib/pdf/offer-pdf-template')
-        const settingsResult = await getCompanySettings()
+        const settingsResult = await companySettingsForDocuments(supabase)
 
         if (settingsResult.success && settingsResult.data) {
           // Fetch full offer with line items for PDF
@@ -1301,4 +1302,15 @@ export async function sendTestEmailAction(
       error: error instanceof Error ? error.message : 'Uventet fejl',
     }
   }
+}
+
+/**
+ * Firmaoplysninger til tilbudsmail/-PDF (navn, adresse, CVR, logo, betingelser). Kun offentlige kolonner — aldrig
+ * SMTP/SMS-hemmeligheder (00179). Kalderen er allerede gated (offers.send); getCompanySettings kræver settings.view,
+ * så salg fik tidligere tilbudsmails UDEN PDF og med hardkodede firmaoplysninger (GO-LIVE G6).
+ */
+async function companySettingsForDocuments(supabase: Awaited<ReturnType<typeof getAuthenticatedClient>>['supabase']): Promise<{ success: boolean; data?: CompanySettings }> {
+  const { data, error } = await supabase.from('company_settings').select(COMPANY_SETTINGS_PUBLIC_COLUMNS).maybeSingle()
+  if (error || !data) return { success: false }
+  return { success: true, data: data as unknown as CompanySettings }
 }

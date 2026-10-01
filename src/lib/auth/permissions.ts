@@ -102,7 +102,8 @@ export const PERMISSIONS = {
   // Cases (service_cases) — bruges af Sprint 7C action gates.
   // service.* eksisterer parallelt for backward compat med sidebar.
   'cases.view.all':              ['admin', 'serviceleder', 'bogholderi'],
-  'cases.view.assigned':         ['admin', 'serviceleder', 'montør', 'bogholderi'],
+  // salg: egne sager (created_by/assigned_to — getCaseScope 'Kilde 1'); kan oprette sager (cases.create) og skal kunne se dem
+  'cases.view.assigned':         ['admin', 'serviceleder', 'montør', 'bogholderi', 'salg'],
   'cases.create':                ['admin', 'serviceleder', 'salg'],
   'cases.edit':                  ['admin', 'serviceleder'],
   'cases.edit.own':              ['admin', 'serviceleder', 'montør'],

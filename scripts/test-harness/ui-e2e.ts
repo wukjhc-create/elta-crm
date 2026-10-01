@@ -25,6 +25,7 @@
  *       -> afslut -> status done i DB; kalenderen viser eget job uden "Planlæg opgave"/tom-tilstand
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
+ *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
  *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -107,10 +108,12 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let jobEmployeeId: string | null = null
   let jobCaseId: string | null = null
   const uploadedInvoiceIds: string[] = []
+  let salgOfferId: string | null = null
 
   try {
     const adminUser = await mkUser('admin')
     const montor = await mkUser('montør')
+    const salg = await mkUser('salg')
 
     server = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['next', 'dev', '-p', String(port)], { cwd: process.cwd(), env, shell: process.platform === 'win32' })
     server.stdout?.on('data', (d) => serverLog.push(String(d)))
@@ -386,6 +389,32 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       }
     } else out.push({ id: 'U4 montør: ingen adgang', ok: false, note: 'montør-login fejlede' })
 
+    // ---- salg (G6): egen sag fra eget tilbud skal kunne ses
+    {
+      const r: Record<string, boolean> = {}
+      const title = `[HARNESS] salgstilbud ${stamp}`
+      const off = profitCustomerId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-S-${stamp}`, title, created_by: salg.id,
+        customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString() }]).select('id') : null
+      salgOfferId = (off?.data?.[0] as { id?: string } | undefined)?.id ?? null
+      const sp = await login(salg)
+      if (sp.ok && salgOfferId) {
+        r.menu_sager = (await sp.page.getByRole('link', { name: 'Sager / Ordrer' }).count()) > 0
+        await sp.page.goto(`${base}/dashboard/offers/${salgOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await sp.page.getByRole('button', { name: 'Opret sag fra tilbud' }).first().click({ timeout: 60_000 }).catch(() => {})
+        await sp.page.waitForURL(/\/dashboard\/orders\//, { timeout: 120_000 }).catch(() => {})
+        await sp.page.waitForLoadState('networkidle').catch(() => {})
+        r.lander_paa_sag = /\/dashboard\/orders\//.test(sp.page.url())
+        await sp.page.getByRole('heading', { name: title }).first().waitFor({ timeout: 120_000 }).catch(() => {}) // første dev-kompilering af sagssiden
+        r.kan_se_sag = (await sp.page.getByRole('heading', { name: title }).count()) > 0
+          && (await sp.page.getByText(/Du har ikke adgang|This page could not be found|Siden blev ikke fundet/).count()) === 0
+        const sag = ((await c.admin.from('service_cases').select('created_by').eq('source_offer_id', salgOfferId).maybeSingle()).data as { created_by?: string } | null)
+        r.sag_ejet_af_salg = sag?.created_by === salg.id
+        await sp.page.screenshot({ path: join(shots, 'u13-salg-sag.png'), fullPage: true }).catch(() => {})
+      }
+      out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 4 && Object.values(r).every(Boolean),
+        note: `${!sp.ok ? 'salg-login fejlede · ' : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+    }
+
     out.push({ id: 'U5 ingen side-/konsolfejl', ok: pageErrors.length === 0, note: pageErrors.length ? pageErrors.slice(0, 3).join(' | ') : `0 fejl · skærmbilleder: ${shots}` })
   } finally {
     await browser.close().catch(() => {})
@@ -417,6 +446,17 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       await c.admin.from('service_cases').delete().eq('id', jobCaseId)
     }
     if (jobEmployeeId) await c.admin.from('employees').delete().eq('id', jobEmployeeId)
+    if (salgOfferId) {
+      await c.admin.from('offers').update({ converted_case_id: null }).eq('id', salgOfferId)
+      const { data: scs } = await c.admin.from('service_cases').select('id').eq('source_offer_id', salgOfferId)
+      for (const r of (scs ?? []) as Array<{ id: string }>) {
+        await c.admin.from('customer_tasks').delete().eq('service_case_id', r.id)
+        await c.admin.from('case_notes').delete().eq('case_id', r.id)
+        await c.admin.from('service_cases').delete().eq('id', r.id)
+      }
+      await c.admin.from('offer_activities').delete().eq('offer_id', salgOfferId)
+      await c.admin.from('offers').delete().eq('id', salgOfferId)
+    }
     for (const id of uploadedInvoiceIds) {
       const { data: row } = await c.admin.from('incoming_invoices').select('file_url').eq('id', id).maybeSingle()
       const fu = (row as { file_url?: string } | null)?.file_url

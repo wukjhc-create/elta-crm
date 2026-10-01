@@ -479,7 +479,7 @@ export async function acceptOffer(
     // Verify offer belongs to customer and get details for project creation
     const { data: offer, error: offerError } = await admin
       .from('offers')
-      .select('id, status, customer_id, title, final_amount, created_by')
+      .select('id, status, customer_id, title, final_amount, created_by, valid_until')
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
       .maybeSingle()
@@ -494,6 +494,12 @@ export async function acceptOffer(
 
     if (offer.status === 'rejected') {
       return { success: false, error: 'Tilbuddet er allerede afvist' }
+    }
+
+    // Server-side guard (UI'en skjuler knappen, men et direkte kald kunne acceptere kladder/udløbne tilbud)
+    const { canCustomerRespond, isOfferExpired } = await import('@/lib/offers/validity')
+    if (!canCustomerRespond(offer.status as string, offer.valid_until as string | null)) {
+      return { success: false, error: isOfferExpired(offer.valid_until as string | null) ? 'Tilbuddet er udløbet — kontakt os for et nyt tilbud' : 'Tilbuddet kan ikke accepteres i denne status' }
     }
 
     // Get client IP

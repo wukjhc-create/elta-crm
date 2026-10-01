@@ -59,8 +59,8 @@ jobs:
       - name: Profit - motor og tilbudsanalyse
         run: npm run test:profit
 
-      # Dansk lokaltid <-> UTC (sommertid) - timeregistrering
-      - name: Tid - Europe/Copenhagen
+      # Dansk lokaltid <-> UTC (sommertid) - timeregistrering + tilbuds gyldighed
+      - name: Tid - Europe/Copenhagen + tilbudsgyldighed
         run: npm run test:time
 
       - name: Fakturakontrol - PDF-tekst
