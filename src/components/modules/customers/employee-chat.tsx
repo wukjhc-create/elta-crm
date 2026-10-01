@@ -177,6 +177,7 @@ export function EmployeeChat({
   }
 
   const handleSend = async () => {
+    if (isUploading) return // vent på upload — ellers sendes beskeden uden bilaget (og bilaget med NÆSTE besked)
     if (!newMessage.trim() && pendingAttachments.length === 0) return
 
     setIsSending(true)
@@ -425,7 +426,7 @@ export function EmployeeChat({
           />
           <button
             onClick={handleSend}
-            disabled={isSending || (!newMessage.trim() && pendingAttachments.length === 0)}
+            disabled={isSending || isUploading || (!newMessage.trim() && pendingAttachments.length === 0)}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSending ? (

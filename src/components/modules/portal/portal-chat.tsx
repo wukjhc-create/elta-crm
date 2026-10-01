@@ -136,6 +136,7 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
   }
 
   const handleSend = async () => {
+    if (isUploading) return // vent på upload — ellers sendes beskeden uden bilaget (og bilaget med NÆSTE besked)
     if (!newMessage.trim() && pendingAttachments.length === 0) return
 
     setIsSending(true)
@@ -332,7 +333,7 @@ export function PortalChat(props: PortalChatProps | PortalChatPropsLegacy) {
           />
           <button
             onClick={handleSend}
-            disabled={isSending || (!newMessage.trim() && pendingAttachments.length === 0)}
+            disabled={isSending || isUploading || (!newMessage.trim() && pendingAttachments.length === 0)}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}

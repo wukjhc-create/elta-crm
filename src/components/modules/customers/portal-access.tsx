@@ -85,13 +85,12 @@ export function PortalAccess({
     }
   }
 
-  const getPortalUrl = (token: string) => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-    return `${baseUrl}/portal/${token}`
-  }
+  // Relativ sti i href (ens på server og klient — absolut origin gav hydreringsfejl); absolut URL kun ved kopiering
+  const getPortalUrl = (token: string, absolute = false) =>
+    `${absolute && typeof window !== 'undefined' ? window.location.origin : ''}/portal/${token}`
 
   const handleCopy = async (token: string) => {
-    const url = getPortalUrl(token)
+    const url = getPortalUrl(token, true)
     await navigator.clipboard.writeText(url)
     setCopiedToken(token)
     setTimeout(() => setCopiedToken(null), 2000)

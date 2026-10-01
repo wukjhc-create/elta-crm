@@ -35,6 +35,8 @@
  *   U21 montør (mobil): bundmenu = Opgaver/Kalender/Sager (ingen Indbakke); gamle Service-links viderestilles til
  *       ordresiden (N9d)
  *   U22 login uden JavaScript (= før hydrering): adgangskoden ender aldrig i URL'en (S2-fund: native GET-submit)
+ *   U23 portal-chat: kunde UDEN login skriver + vedhæfter PDF → sælger ser den på kundekortet og svarer → kunden ser
+ *       svaret (kundeportal, GO-LIVE)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -130,6 +132,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let aoSupplierId: string | null = null
   let siteCaseId: string | null = null
   let searchCustomerId: string | null = null
+  let chatTokenId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -154,8 +157,10 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       page.on('pageerror', (e) => {
         pageErrors.push(`${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${e.message.replace(/\s+/g, ' ').slice(0, 700)}`)
         // Hydration-fejl: fuld besked (inkl. React-diff) til fil, så årsagen kan findes uden gæt
-        if (/Hydration/.test(e.message)) writeFileSync(join(shots, `hydration-${Date.now()}.txt`), `${page.url()}\n${e.message}\n${e.stack ?? ''}`)
+        if (/hydrat/i.test(e.message)) writeFileSync(join(shots, `hydration-${Date.now()}.txt`), `${page.url()}\n${e.message}\n${e.stack ?? ''}`)
       })
+      page.on('console', (m) => { if (m.type() === 'error' && /hydrat/i.test(m.text())) writeFileSync(join(shots, `hydration-console-${Date.now()}.txt`), `${page.url()}
+${m.text()}`) })
       page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Download the React DevTools|\[HMR\]|Failed to load resource/.test(m.text())) pageErrors.push(`${u.email.split('@')[0].replace(/-\d+$/, '')} @ ${new URL(page.url()).pathname}: ${m.text().replace(/%c/g, '').replace(/background:[^;]*;|color:[^;]*;|border-radius:[^;]*;|light-dark\([^)]*\)\)?;?/g, '').replace(/\s+/g, ' ').trim().slice(0, 260)}`) })
       await page.goto(`${base}/login`, { waitUntil: 'networkidle', timeout: 180_000 })
       // Udfyld EFTER hydrering: React nulstiller kontrollerede felter der blev udfyldt før hydrering (set som tomme
@@ -543,6 +548,58 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         out.push({ id: 'U20 sagsliste: type, prioritet, tællere', ok: listCaseIds.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U23 portal-chat begge veje (kunde uden login ↔ sælger)
+      if (profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        chatTokenId = (pt.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const kundeTekst = `Hej fra kunden ${stamp}`
+        const saelgerTekst = `Svar fra sælger ${stamp}`
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        const kp = await kctx.newPage()
+        kp.on('pageerror', (e) => pageErrors.push(`kunde-chat: ${e.message.slice(0, 120)}`))
+        await kp.goto(`${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await kp.getByText('Beskeder', { exact: true }).first().click({ timeout: 60_000 }).catch(() => {})
+        const pdf = makeTextPdf(['Billede af tavlen', 'Harness'])
+        await kp.locator('input[type="file"]').last().setInputFiles({ name: 'tavle.pdf', mimeType: 'application/pdf', buffer: pdf }).catch(() => {})
+        await kp.getByText('tavle.pdf').first().waitFor({ timeout: 60_000 }).catch(() => {}) // upload færdig (send er blokeret imens)
+        await kp.getByPlaceholder('Skriv en besked...').fill(kundeTekst).catch(() => {})
+        await kp.getByPlaceholder('Skriv en besked...').press('Enter').catch(() => {})
+        let msgRow: { id?: string; attachments?: unknown } | null = null
+        for (let i = 0; i < 20 && !msgRow; i++) {
+          msgRow = ((await c.admin.from('portal_messages').select('id, attachments').eq('customer_id', profitCustomerId).ilike('message', `%${kundeTekst}%`).maybeSingle()).data as { id?: string; attachments?: unknown } | null)
+          if (!msgRow) await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.kunde_sendt = !!msgRow?.id
+        r.kunde_bilag = Array.isArray(msgRow?.attachments) && (msgRow!.attachments as unknown[]).length === 1
+
+        // Sælger på kundekortet
+        await a.page.goto(`${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: 'Åbn chat' }).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByText(kundeTekst).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.saelger_ser_besked = (await a.page.getByText(kundeTekst).count()) > 0
+        r.saelger_ser_bilag = (await a.page.getByText('tavle.pdf').count()) > 0
+        await a.page.getByPlaceholder('Skriv en besked...').last().fill(saelgerTekst).catch(() => {})
+        await a.page.getByPlaceholder('Skriv en besked...').last().press('Enter').catch(() => {})
+        let svar = false
+        for (let i = 0; i < 20 && !svar; i++) {
+          svar = ((await c.admin.from('portal_messages').select('id', { count: 'exact', head: true }).eq('customer_id', profitCustomerId).ilike('message', `%${saelgerTekst}%`)).count ?? 0) === 1
+          if (!svar) await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.saelger_svaret = svar
+
+        // Kunden ser svaret
+        await kp.goto(`${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await kp.getByText('Beskeder', { exact: true }).first().click({ timeout: 60_000 }).catch(() => {})
+        await kp.getByText(saelgerTekst).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kunde_ser_svar = (await kp.getByText(saelgerTekst).count()) > 0
+        await kp.screenshot({ path: join(shots, 'u23-portal-chat.png'), fullPage: true }).catch(() => {})
+        await kctx.close().catch(() => {})
+        out.push({ id: 'U23 portal-chat kunde ↔ sælger', ok: !!chatTokenId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -781,6 +838,14 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       await c.admin.from('offers').delete().eq('id', portalOfferId)
     }
     if (portalTokenId) await c.admin.from('portal_access_tokens').delete().eq('id', portalTokenId)
+    if (chatTokenId) await c.admin.from('portal_access_tokens').delete().eq('id', chatTokenId)
+    if (profitCustomerId) {
+      const { data: pm } = await c.admin.from('portal_messages').select('id, attachments').eq('customer_id', profitCustomerId)
+      const paths: string[] = []
+      for (const m0 of (pm ?? []) as Array<{ attachments?: Array<{ path?: string; storage_path?: string }> | null }>) for (const at of m0.attachments ?? []) { const pth = at.storage_path ?? at.path; if (pth) paths.push(pth) }
+      if (paths.length) await c.admin.storage.from('portal-attachments').remove(paths)
+      await c.admin.from('portal_messages').delete().eq('customer_id', profitCustomerId)
+    }
     if (jobCaseId) {
       const { data: hatt } = await c.admin.from('service_case_attachments').select('storage_path').eq('service_case_id', jobCaseId)
       const hp = ((hatt ?? []) as Array<{ storage_path: string | null }>).map((x) => x.storage_path).filter(Boolean) as string[]
