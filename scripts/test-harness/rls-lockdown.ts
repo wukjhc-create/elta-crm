@@ -22,7 +22,12 @@ type Spec = {
   /** betinget UPDATE der SKAL lykkes for updateConditional-roller */
   condUpdate?: Record<string, unknown>
   /** raekke-felter der goer raekken "egen" for personaen (usingSql/delete-betingelse) */
-  ownRow?: (uid: string) => Record<string, unknown>
+  ownRow?: (uid: string, c: Ctx) => Record<string, unknown>
+  /** betinget UPDATE gaelder KUN egne raekker (ownRow): testes paa egen raekke, og en fremmed raekke SKAL afvises
+   *  for roller der kun har den betingede gren (WAVE5: montør starter/afslutter kun egne arbejdsordrer) */
+  condOwnOnly?: boolean
+  /** payload til "update(egen)" hvis den almindelige update ikke opfylder CHECK (fx status-krav) */
+  ownUpdate?: Record<string, unknown>
   /** laesning er bevidst begraenset (laese-side, fx 00175 messages: kun egne) — daekket af harness:rls-read */
   readRestricted?: boolean
   /** primaernoegle hvis ikke 'id' */
@@ -51,7 +56,9 @@ const SPECS: Record<string, Spec> = {
   invoice_lines: { payload: (_u, c) => ({ invoice_id: c.s.invoice, description: '[HARNESS] rls' }), update: { description: '[HARNESS] rls-update' } },
   // unik (invoice_id, predecessor_invoice_id) -> ny faktura fra puljen pr. raekke
   invoice_predecessors: { payload: (_u, c) => ({ invoice_id: c.s[`inv${c.n() % 60}`], predecessor_invoice_id: c.s.invoice2, deduction_amount: 1 }), update: { deduction_amount: 2 } },
-  work_orders: { payload: () => ({ title: '[HARNESS] rls', status: 'planned' }), update: { title: '[HARNESS] rls-update' }, condUpdate: { status: 'done' } },
+  // WAVE5 (00181): montør maa kun starte/afslutte EGNE arbejdsordrer (tildelt hans aktive medarbejder)
+  work_orders: { payload: () => ({ title: '[HARNESS] rls', status: 'planned' }), update: { title: '[HARNESS] rls-update' }, condUpdate: { status: 'in_progress' },
+    condOwnOnly: true, ownRow: (uid, c) => ({ assigned_employee_id: c.s[`emp:${uid}`] }), ownUpdate: { status: 'done' } },
   work_order_profit: { payload: (_u, c) => ({ work_order_id: c.s.workOrder, source: 'manual' }), update: { source: 'recompute' } },
   time_entries: { payload: (uid, c) => ({ project_id: c.s.project, user_id: uid, hours: 1, description: '[HARNESS] rls' }), update: { hours: 2 }, ownRow: (uid) => ({ user_id: uid }) },
   integrations: { payload: (_u, c) => ({ name: `[HARNESS] rls ${c.n()}`, is_active: false }), update: { description: '[HARNESS] rls-update' } },
@@ -122,7 +129,7 @@ const CLEANUP = ['email_events', 'email_messages', 'email_threads', 'sms_events'
   'supplier_sync_logs', 'supplier_sync_jobs', 'supplier_sync_schedules', 'import_batches', 'supplier_products', 'suppliers',
   'offer_line_items', 'customer_documents', 'portal_access_tokens', 'customer_contacts', 'incoming_emails', 'external_references',
   'automation_executions', 'automation_rules', 'integration_logs', 'integration_queue', 'integration_webhooks', 'integration_endpoints', 'integrations',
-  'invoice_predecessors', 'invoice_lines', 'invoices', 'work_order_profit', 'work_orders', 'time_entries', 'projects', 'email_templates', 'sms_templates',
+  'invoice_predecessors', 'invoice_lines', 'invoices', 'work_order_profit', 'work_orders', 'employees', 'time_entries', 'projects', 'email_templates', 'sms_templates',
   'offers', 'customers']
 
 export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseClient; url: string; anonKey: string; ownerUid: string; sql?: (q: string) => Promise<any[]> }, policies: M.TableWritePolicy[] = M.WAVE1): Promise<RlsCheck[]> {
@@ -157,6 +164,8 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
       if (tables.has('invoice_predecessors')) for (let i = 0; i < 60; i++) ctx.s[`inv${i}`] = await seed('invoices', { invoice_number: `HARN-RLS-INV-${stamp}-p${i}`, customer_id: ctx.s.customer })
     }
     if (tables.has('work_order_profit')) ctx.s.workOrder = await seed('work_orders', { title: '[HARNESS] rls-base', status: 'planned' })
+    // En aktiv medarbejder pr. persona -> "egne" arbejdsordrer (WAVE5)
+    if (tables.has('work_orders')) for (const [role, uid] of uids) ctx.s[`emp:${uid}`] = await seed('employees', { name: `[HARNESS] rls ${role}`, email: `rls-emp-${stamp}-${ctx.n()}@harness.test`, role: 'montør', active: true, profile_id: uid })
     if (tables.has('time_entries')) ctx.s.project = await seed('projects', { project_number: `HARN-RLS-P-${stamp}`, name: '[HARNESS] rls', customer_id: ctx.s.customer, created_by: c.ownerUid })
     if ([...tables].some((t) => ['integration_endpoints', 'integration_webhooks', 'integration_queue', 'external_references'].includes(t)))
       ctx.s.integration = await seed('integrations', { name: `[HARNESS] rls-base ${stamp}`, is_active: false })
@@ -219,19 +228,25 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
         if (!spec?.readRestricted) expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, true)
         // betinget UPDATE (fx montør -> done)
         if (p.updateConditional && spec?.condUpdate) {
-          const t2 = await seed(p.table, await P(c.ownerUid))
+          const t2 = await seed(p.table, { ...await P(c.ownerUid), ...(spec.condOwnOnly && spec.ownRow ? spec.ownRow(uid, ctx) : {}) })
           const u2 = await cl.from(p.table).update(spec?.condUpdate).eq(pk, t2).select(pk)
           expect(`${role}:update(${p.updateConditional.desc})${u2.error ? `[${u2.error.message.slice(0, 80)}]` : ''}`, !u2.error && (u2.data ?? []).length === 1, has(p.update, role) || has(p.updateConditional.roles, role))
+          if (spec.condOwnOnly) {
+            // fremmed raekke (ikke personaens): kun de ubetingede update-roller maa
+            const foreign = await seed(p.table, await P(c.ownerUid))
+            const u4 = await cl.from(p.table).update(spec.condUpdate).eq(pk, foreign).select(pk)
+            expect(`${role}:update(fremmed, betinget)`, !u4.error && (u4.data ?? []).length === 1, has(p.update, role))
+          }
         }
         // egne raekker (usingSql / betinget delete)
         if (spec?.ownRow && (p.updateConditional?.usingSql || p.deleteConditional)) {
           if (p.updateConditional?.usingSql) {
-            const own = await seed(p.table, { ...await P(uid), ...spec!.ownRow!(uid) })
-            const u3 = await cl.from(p.table).update(U).eq(pk, own).select(pk)
+            const own = await seed(p.table, { ...await P(uid), ...spec!.ownRow!(uid, ctx) })
+            const u3 = await cl.from(p.table).update(spec!.ownUpdate ?? U).eq(pk, own).select(pk)
             expect(`${role}:update(egen)`, !u3.error && (u3.data ?? []).length === 1, has(p.update, role) || has(p.updateConditional.roles, role))
           }
           if (p.deleteConditional) {
-            const own = await seed(p.table, { ...await P(c.ownerUid), ...spec!.ownRow!(uid) })
+            const own = await seed(p.table, { ...await P(c.ownerUid), ...spec!.ownRow!(uid, ctx) })
             const d3 = await cl.from(p.table).delete().eq(pk, own).select(pk)
             expect(`${role}:delete(${p.deleteConditional.desc})`, !d3.error && (d3.data ?? []).length === 1, has(p.delete, role) || has(p.deleteConditional.roles, role))
           }

@@ -50,6 +50,23 @@ const ALLOWED_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   cancelled:   [],
 }
 
+/** N11-flag: montør kan starte eget job. Slås først til efter prod-migration 00181 (RLS tillader in_progress for montør). */
+function montorStartJobEnabled(): boolean {
+  return process.env.MONTOR_START_JOB_ENABLED === 'true'
+}
+
+/** Hvilke status-handlinger den aktuelle bruger har på arbejdsordrer (UI viser kun brugbare knapper). */
+export async function getWorkOrderCapabilitiesAction(): Promise<{ canStart: boolean; canComplete: boolean; canCancel: boolean; canDelete: boolean }> {
+  try {
+    const { hasPermission } = await getAuthenticatedClientWithRole()
+    const canEdit = hasPermission('work_orders.edit')
+    const canComplete = hasPermission('work_orders.complete')
+    return { canStart: canEdit || (canComplete && montorStartJobEnabled()), canComplete, canCancel: canEdit, canDelete: hasPermission('work_orders.delete') }
+  } catch {
+    return { canStart: false, canComplete: false, canCancel: false, canDelete: false }
+  }
+}
+
 // =====================================================
 // Read
 // =====================================================
@@ -284,7 +301,8 @@ export async function changeWorkOrderStatus(
     const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     // Status transitions til 'done' krav work_orders.complete (montor kan).
     // Andre transitions krav work_orders.edit.
-    const required = next === 'done' ? 'work_orders.complete' : 'work_orders.edit'
+    // N11: montør må starte eget job når MONTOR_START_JOB_ENABLED er sat (kræver RLS 00181 — ellers afviser DB'en)
+    const required = next === 'done' || (next === 'in_progress' && montorStartJobEnabled()) ? 'work_orders.complete' : 'work_orders.edit'
     if (!hasPermission(required)) {
       return { success: false, error: `Manglende tilladelse: ${required}` }
     }

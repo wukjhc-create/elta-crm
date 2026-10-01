@@ -197,3 +197,19 @@ Det kræver en separat læse-runde med kolonne-grants og ejer-policies.
 
 ## Rollback
 Genskab de droppede policies (navne står i DROP-linjerne) som `USING (true)` / `WITH CHECK (true)` for authenticated.
+
+## Runde 5 — 00181 (GO-LIVE N11: montør starter/afslutter kun EGNE arbejdsordrer)
+
+**Status:** BLOCKED_APPROVAL (prod). Staging anvendt 2026-10-01 og grøn.
+
+- **Hvorfor:** montør kunne ikke starte sit job (RLS 00171 tillod kun `status = 'done'`), men kunne til gengæld opdatere
+  ENHVER arbejdsordre via REST (USING uden ejerskab). 00181 genskaber `work_orders`-politikkerne (WAVE5 erstatter
+  WAVE2A for tabellen; 00171 bevares som historik): montør USING/CHECK = arbejdsordren er tildelt hans aktive
+  medarbejder, CHECK `status IN ('in_progress','done')`. admin/serviceleder uændret.
+- **Kode:** deployet bag `MONTOR_START_JOB_ENABLED` (OFF i prod). Uden flaget ser montør kun "Afslut" (virker i prod i dag).
+- **Kørsel (efter godkendelse):** allowlist 00181 → `npx tsx scripts/prod-verify-rls-wave.ts WAVE5 pre` (✅ 2026-10-01,
+  re-wave-tilstand) → `npm run prod:apply-migration -- 00181 --approved-by-henrik` → `... WAVE5 post` →
+  sæt Vercel-env `MONTOR_START_JOB_ENABLED=true` (+ redeploy). Rækkefølgen er vigtig: flag FØR migration = fejl ved Start.
+- **Forudsætning for montør:** login koblet til aktiv medarbejder (G11) — ellers rammer RLS ingen rækker.
+- **Staging-bevis:** `rls-lockdown WAVE5` 36 checks (inkl. ny negativ: montør kan ikke starte en andens arbejdsordre),
+  ui-e2e U11 (Start → I gang → Afslut), planning-flow 6/6, agent-actions 7/7, concurrency 6/6, pilot-roles.

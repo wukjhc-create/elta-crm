@@ -12,6 +12,8 @@ import * as M from './rls/write-matrix'
 const wave = process.argv[2] || 'WAVE1'
 const mode = process.argv[3] === 'post' ? 'post' : 'pre'
 const policies = (M as unknown as Record<string, M.TableWritePolicy[]>)[wave]
+/** Runder der genkører allerede låste tabeller (før-tilstand = rolle-policies fra en tidligere runde). */
+const REWAVES = new Set(['WAVE5'])
 const problems: string[] = []
 const expect = (cond: boolean, label: string) => { console.log(`  ${cond ? '✓' : '❌'} ${label}`); if (!cond) problems.push(label) }
 
@@ -28,14 +30,26 @@ async function main() {
     if (mode === 'pre') {
       console.log(`  åbne skrive-policies nu: ${open.length} på ${new Set(open.map((o) => o.tablename)).size}/${tables.length} tabeller (forventet før)`)
       console.log(`  anon-grants nu: ${anon.map((a) => `${a.table_name}=${a.n}`).join(', ') || 'ingen'}`)
-      const missing = tables.filter((t) => !open.some((o) => o.tablename === t))
-      expect(missing.length === 0, `alle ${tables.length} tabeller har åbne skrive-policies før migrationen${missing.length ? ` (mangler: ${missing.join(',')})` : ''}`)
+      if (REWAVES.has(wave)) {
+        // Genkørsel af en allerede låst tabel (fx WAVE5 erstatter WAVE2A's work_orders): før-tilstanden er rolle-policies,
+        // IKKE åbne — og de genererede navne droppes af migrationen.
+        expect(open.length === 0, `re-wave: ingen åbne skrive-policies før (allerede låst) ${open.length ? open.map((o) => `${o.tablename}.${o.policyname}`).join(',') : ''}`)
+        for (const t of tables) {
+          const cur = (await run(`SELECT policyname, cmd, qual, with_check FROM pg_policies WHERE schemaname='public' AND tablename='${t}' AND cmd IN ('INSERT','UPDATE','DELETE','ALL') ORDER BY cmd`)) as any[]
+          for (const x of cur) console.log(`    nu: ${t}.${x.policyname} ${x.cmd} USING(${x.qual ?? ''}) CHECK(${x.with_check ?? ''})`)
+        }
+      } else {
+        const missing = tables.filter((t) => !open.some((o) => o.tablename === t))
+        expect(missing.length === 0, `alle ${tables.length} tabeller har åbne skrive-policies før migrationen${missing.length ? ` (mangler: ${missing.join(',')})` : ''}`)
+      }
       for (const p of policies) {
         const names = ((await run(`SELECT policyname FROM pg_policies WHERE schemaname='public' AND tablename='${p.table}'`)) as any[]).map((x) => x.policyname)
         // ALLE skrive-policies (ogsaa betingede, fx created_by = auth.uid()) skal erstattes — permissive policies OR'es.
         const allWrite = ((await run(`SELECT policyname FROM pg_policies WHERE schemaname='public' AND tablename='${p.table}' AND cmd IN ('INSERT','UPDATE','DELETE','ALL')
           AND (roles @> ARRAY['authenticated']::name[] OR roles @> ARRAY['public']::name[])`)) as any[]).map((x) => x.policyname)
-        const notCovered = allWrite.filter((x) => !p.dropPolicies.includes(x))
+        const gen = M.policyNames(p.table)
+        const dropped = new Set([...p.dropPolicies, gen.ins, gen.upd, gen.del, gen.sel]) // generatoren dropper også sine egne navne
+        const notCovered = allWrite.filter((x) => !dropped.has(x))
         expect(notCovered.length === 0, `${p.table}: alle skrive-policies droppes af migrationen${notCovered.length ? ` (IKKE DÆKKET: ${notCovered.join(',')})` : ''} [${names.length} policies]`)
       }
       return

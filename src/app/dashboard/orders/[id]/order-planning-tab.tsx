@@ -1,13 +1,12 @@
 'use client'
 
-import { useUserRole } from '@/lib/hooks/use-user-role'
-import { hasPermission } from '@/lib/auth/permissions'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   listWorkOrdersForCase,
   createWorkOrderForCase,
   changeWorkOrderStatus,
+  getWorkOrderCapabilitiesAction,
   deletePlannedWorkOrder,
   type WorkOrderWithEmployee,
 } from '@/lib/actions/work-orders'
@@ -29,6 +28,9 @@ const STATUS_COLORS: Record<WorkOrderStatus, string> = {
   done: 'bg-green-100 text-green-800',
   cancelled: 'bg-gray-200 text-gray-700',
 }
+
+type WorkOrderCaps = Awaited<ReturnType<typeof getWorkOrderCapabilitiesAction>>
+const NO_CAPS: WorkOrderCaps = { canStart: false, canComplete: false, canCancel: false, canDelete: false }
 
 const NEXT_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   planned: ['in_progress', 'done', 'cancelled'],
@@ -56,6 +58,8 @@ export function OrderPlanningTab({
   const [, startTransition] = useTransition()
 
   const [workOrders, setWorkOrders] = useState<WorkOrderWithEmployee[] | null>(null)
+  const [caps, setCaps] = useState<WorkOrderCaps>(NO_CAPS)
+  useEffect(() => { getWorkOrderCapabilitiesAction().then(setCaps).catch(() => setCaps(NO_CAPS)) }, [])
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(false)
@@ -364,6 +368,7 @@ export function OrderPlanningTab({
             {workOrders.map((wo) => (
               <WorkOrderRow
                 key={wo.id}
+                caps={caps}
                 wo={wo}
                 canSeeCost={canSeeCost}
                 onChangeStatus={onChangeStatus}
@@ -408,7 +413,9 @@ function WorkOrderRow({
   disabled,
   onLogsChange,
   canSeeCost = false,
+  caps,
 }: {
+  caps: WorkOrderCaps
   wo: WorkOrderWithEmployee
   onChangeStatus: (woId: string, next: WorkOrderStatus) => void
   onDelete: (woId: string) => void
@@ -416,13 +423,9 @@ function WorkOrderRow({
   onLogsChange?: () => void
   canSeeCost?: boolean
 }) {
-  // Kun knapper rollen faktisk kan bruge: montør (work_orders.complete) afslutter egne job; start/annullér/slet
-  // kræver work_orders.edit/delete (serveren håndhæver det samme).
-  const { role } = useUserRole()
-  const canEdit = hasPermission(role, 'work_orders.edit')
-  const canComplete = hasPermission(role, 'work_orders.complete')
-  const canDelete = hasPermission(role, 'work_orders.delete')
-  const transitions = NEXT_TRANSITIONS[wo.status].filter((t) => (t === 'done' ? canComplete : canEdit))
+  // Kun knapper brugeren faktisk kan bruge — afgjort af serveren (rolle + N11-flag), samme regel som changeWorkOrderStatus.
+  const { canStart, canComplete, canCancel, canDelete } = caps
+  const transitions = NEXT_TRANSITIONS[wo.status].filter((t) => (t === 'done' ? canComplete : t === 'in_progress' ? canStart : canCancel))
 
   return (
     <li className="bg-white border rounded-lg p-4">

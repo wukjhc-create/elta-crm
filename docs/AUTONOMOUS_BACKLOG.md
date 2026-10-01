@@ -42,7 +42,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | N8 | Tilbud | acceptOffer håndhæver ikke status/udløb server-side; send uden DB-tjek; portal viser tom sælger | DELVIST — accept håndhæver nu sendt/set + ikke udløbet server-side; fælles gyldighedsregel (hele "gyldig til"-dagen i dansk tid; før udløb kl. 02:00 på sidste dag) i server + portal, test:time (CI). Rest: send-DB-tjek, sælger i portal |
 | N9 | Sager | To parallelle sags-UI'er (Sager/Ordrer + Service) på samme tabel |
 | N12 | e-conomic | Opsætning før kobling: e-conomic-leverandørnr. pr. leverandør, omkostningskonto, kassekladde/modkonto (betalinger), kreditnotaer → e-conomic |
-| N11 | Planlægning | "Start job" (in_progress) for montør kræver RLS-ændring (00171 tillader kun done) → migration i næste prod-batch |
+| N11 | Planlægning | Montør kan starte eget job | BLOCKED_APPROVAL — kode deployet bag MONTOR_START_JOB_ENABLED (OFF), RLS 00181 (WAVE5) på staging grøn: montør starter/afslutter KUN egne arbejdsordrer (lukker samtidig at montør kunne opdatere enhver arbejdsordre via REST). Prod pre ✅. Runbook: p009-rls-write-lockdown.md § Runde 5 |
 | N10 | Planlægning | "Planlæg opgave"-knap vises for montør; interne beskeder: vedhæft fil "kommer snart" |
 
 ## LATER
@@ -54,6 +54,7 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 | Prod 00175–00177 + 00179 (læse-side: tokens, hemmeligheder, beskeder, underskrifter) | kode deployet; staging + rls-read 8/8 | docs/runbooks/p009-rls-write-lockdown.md |
 | Prod 00178 (runde 4: 44 kalkulations-/katalogtabeller) | staging 44/44, pre-check grøn | samme |
 | Prod 00180 (G10: montør kun mails på egne sager + serviceleder ser medarbejdere) | staging grøn, prod pre ✅ | docs/runbooks/00180-g10-mail-scope-employees.md |
+| Prod 00181 (WAVE5: montør starter/afslutter kun egne arbejdsordrer) + derefter Vercel MONTOR_START_JOB_ENABLED=true | staging grøn, prod pre ✅ | docs/runbooks/p009-rls-write-lockdown.md § Runde 5 |
 | Vercel: INVOICE_ATTACHMENT_FETCH_ENABLED=true (faktura-backfill) | kode deployet, baseline taget | docs/runbooks/invoice-attachment-backfill.md |
 | Aktivering af hidtil døde crons (cookie-klient → service-role): unanswered-mails (interne opgaver), offer-reminders (KUNDEMAIL), supplier-sync | analyse færdig; ændrer cron-adfærd → kræver separat godkendelse | — |
 | Opfølgning: prod-cron-status efter 00170–00174 | DELVIST VERIFICERET 08:23 UTC: bank-match, export-error-notification, invoice-reminders, offer-reminders, payment-report = ok. Udestår: unanswered-mails (12:00 UTC), natlige crons — `scripts/prod-cron-status-since.ts "2026-10-01 05:10"` | — |

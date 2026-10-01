@@ -443,6 +443,21 @@ export const WAVE4: TableWritePolicy[] = [
     why: 'AST-afledt' },
 ]
 
+/**
+ * Runde 5 (GO-LIVE N11): montør kan STARTE sit eget job (planned -> in_progress) og kun opdatere EGNE arbejdsordrer.
+ * Erstatter WAVE2A's work_orders-politik (00171 bevares uændret som historik; 00181 genskaber politikkerne idempotent).
+ * Før: montør USING alle rækker, CHECK status='done' (kunne kun afslutte — men på ENHVER arbejdsordre via REST).
+ */
+export const WAVE5: TableWritePolicy[] = [
+  { table: 'work_orders', insert: ['admin', 'serviceleder'], update: ['admin', 'serviceleder'], delete: ['admin', 'serviceleder'],
+    updateConditional: { roles: ['montør'],
+      usingSql: 'assigned_employee_id IN (SELECT e.id FROM public.employees e WHERE e.profile_id = auth.uid() AND e.active)',
+      checkSql: "status IN ('in_progress', 'done') AND assigned_employee_id IN (SELECT e.id FROM public.employees e WHERE e.profile_id = auth.uid() AND e.active)",
+      desc: 'montør: start/afslut egne arbejdsordrer (work_orders.complete)' },
+    dropPolicies: ['work_orders_all_auth'], recreateOpenSelect: true,
+    why: 'work_orders.plan/edit/delete (admin, serviceleder); montør: start/afslut kun egne (GO-LIVE N11)' },
+]
+
 const q = (s: string) => `"${s.replace(/"/g, '""')}"`
 const roleList = (r: Role[]) => r.map((x) => `'${x}'`).join(', ')
 const inRoles = (r: Role[]) => `public.user_role() IN (${roleList(r)})`

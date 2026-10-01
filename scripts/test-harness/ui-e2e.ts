@@ -91,7 +91,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     return users[users.length - 1]
   }
 
-  const env: Record<string, string> = { ...(process.env as Record<string, string>), NEXT_PUBLIC_APP_URL: base, NEXT_TELEMETRY_DISABLED: '1', PORT: String(port) }
+  const env: Record<string, string> = { ...(process.env as Record<string, string>), NEXT_PUBLIC_APP_URL: base, NEXT_TELEMETRY_DISABLED: '1', PORT: String(port),
+    // N11: staging har RLS 00181 -> montør må starte eget job (prod: flaget er OFF indtil 00181 er godkendt)
+    MONTOR_START_JOB_ENABLED: 'true' }
   for (const k of NEUTRALIZE) env[k] = ''
 
   let server: ChildProcess | null = null
@@ -370,7 +372,18 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         await m.page.waitForURL(/tab=planlaegning/, { timeout: 60_000 }).catch(() => {})
         await m.page.getByRole('button', { name: '✓ Afslut' }).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.afslut_knap = (await m.page.getByRole('button', { name: '✓ Afslut' }).count()) === 1
-        r.ingen_start_slet = (await m.page.getByRole('button', { name: '→ Start' }).count()) === 0 && (await m.page.getByRole('button', { name: 'Slet', exact: true }).count()) === 0
+        // N11: montør kan starte eget job; aldrig annullere/slette
+        r.start_ikke_slet = (await m.page.getByRole('button', { name: '→ Start' }).count()) === 1
+          && (await m.page.getByRole('button', { name: 'Slet', exact: true }).count()) === 0 && (await m.page.getByRole('button', { name: /Annullér/ }).count()) === 0
+
+        // Start jobbet (N11) -> in_progress i DB
+        await m.page.getByRole('button', { name: '→ Start' }).first().click({ timeout: 30_000 }).catch(() => {})
+        let started = ''
+        for (let i = 0; i < 15 && started !== 'in_progress'; i++) {
+          started = String(((await c.admin.from('work_orders').select('status').eq('id', woId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+          if (started !== 'in_progress') await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.startet = started === 'in_progress'
 
         // Foto-upload på Dokumenter-fanen
         await m.page.getByRole('button', { name: 'Dokumenter', exact: true }).click().catch(() => {})
