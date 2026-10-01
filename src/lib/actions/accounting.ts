@@ -12,6 +12,7 @@
  * INGEN hemmeligheder eksponeres (api_token/agreement_grant_token).
  */
 
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
@@ -144,7 +145,7 @@ export async function exportInvoiceToEconomicAction(
   // Bruger-attribueret audit (oven i system-sync-loggen). Best-effort.
   const audit = async (action: string, description: string, metadata: Record<string, unknown>) => {
     try {
-      await supabase.from('audit_logs').insert({
+      await insertAuditRow({
         user_id: userId,
         entity_type: 'invoice',
         entity_id: invoiceId,
@@ -279,7 +280,7 @@ export async function bulkExportInvoicesToEconomicAction(
 
   // Bulk-audit — hvem, antal forsøgt/succes/fejl/sprunget over, invoice_ids.
   try {
-    await supabase.from('audit_logs').insert({
+    await insertAuditRow({
       user_id: userId,
       entity_type: 'invoice',
       entity_id: null,
@@ -918,7 +919,7 @@ export async function retryInvoiceExportAction(
 
   const audit = async (ok: boolean, description: string, extra: Record<string, unknown>) => {
     try {
-      await supabase.from('audit_logs').insert({
+      await insertAuditRow({
         user_id: userId,
         entity_type: 'invoice',
         entity_id: invoiceId,

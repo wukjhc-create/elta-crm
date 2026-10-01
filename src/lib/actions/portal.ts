@@ -441,11 +441,8 @@ export async function getPortalOffer(
       created_at: offer.created_at,
       line_items: lineItems || [],
       signature: signature || null,
-      sales_person: {
-        full_name: null,
-        email: '',
-        phone: null,
-      },
+      // N8: tilbuddets ansvarlige sælger (kun navn + arbejdskontakt; offer er allerede kunde-scopet ovenfor)
+      sales_person: await portalSalesPerson(admin, offer.created_by as string | null),
     }
 
     return { success: true, data: portalOffer }
@@ -2175,4 +2172,12 @@ export async function portalRequestReschedule(
 async function systemActorId(admin: ReturnType<typeof createAdminClient>): Promise<string | null> {
   const { data } = await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).order('created_at').limit(1).maybeSingle()
   return (data?.id as string | undefined) ?? null
+}
+
+/** Sælgerkontakt til kundeportalen: navn, mail, telefon på tilbuddets opretter (aktiv profil). Ellers tom (UI viser "Sælger"). */
+async function portalSalesPerson(admin: ReturnType<typeof createAdminClient>, profileId: string | null): Promise<{ full_name: string | null; email: string; phone: string | null }> {
+  if (!profileId) return { full_name: null, email: '', phone: null }
+  const { data } = await admin.from('profiles').select('full_name, email, phone, is_active').eq('id', profileId).maybeSingle()
+  if (!data || data.is_active === false) return { full_name: null, email: '', phone: null }
+  return { full_name: (data.full_name as string | null) ?? null, email: (data.email as string | null) ?? '', phone: (data.phone as string | null) ?? null }
 }

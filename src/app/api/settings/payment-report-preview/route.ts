@@ -9,6 +9,7 @@
  * Auth: settings.view (kun visning — ingen mutation).
  */
 
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import type { ReactElement, JSXElementConstructor } from 'react'
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     // Best-effort preview-audit — IKKE "rapport sendt", ingen state-ændring.
     try {
-      await supabase.from('audit_logs').insert({
+      await insertAuditRow({
         user_id: userId,
         entity_type: 'export',
         entity_id: null,

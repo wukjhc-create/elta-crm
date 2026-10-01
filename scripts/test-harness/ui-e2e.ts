@@ -23,6 +23,8 @@
  *       tilbud accepteret, sag oprettet med sælgeren som ansvarlig, aktivitet på tidslinjen (G1/G2)
  *   U11 montør-dagen (G4): "Mine job" på landingssiden -> åbn job -> kun Afslut (ingen Start/Slet) -> upload foto
  *       -> afslut -> status done i DB; kalenderen viser eget job uden "Planlæg opgave"/tom-tilstand
+ *   U15 admin: fakturakladde — modtager = faktura-kontakt når kunden ingen mail har; ret stk-pris, tilføj og slet
+ *       manuel linje -> totaler + 25 % moms genberegnet i DB (N5)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -112,6 +114,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let jobEmployeeId: string | null = null
   let jobCaseId: string | null = null
   const uploadedInvoiceIds: string[] = []
+  let draftInvoiceId: string | null = null
+  let draftCustomerId: string | null = null
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
   let salgOfferId: string | null = null
@@ -255,6 +259,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         kp.on('pageerror', (e) => pageErrors.push(`kunde: ${e.message.slice(0, 120)}`))
         await kp.goto(`${base}/portal/${tok}/offers/${portalOfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
         const forsteKlik = kp.url().includes(`/offers/${portalOfferId}`)
+        const saelgerVist = (await kp.getByText('UI E2E admin').count()) > 0 // N8: ansvarlig sælger i portalen
         const acceptBtn = kp.getByRole('button', { name: 'Accepter tilbud' }).first()
         await acceptBtn.click({ timeout: 30_000 }).catch(() => {})
         const dlg = kp.locator('div.fixed.inset-0').last()
@@ -282,7 +287,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
           if (offerStatus === 'accepted' && sag && akt) break
           await new Promise((r) => setTimeout(r, 1000))
         }
-        const pa = { forste_klik: forsteKlik, ingen_kundefejl: !kundeFejl, accepteret: offerStatus === 'accepted', sag: !!sag?.id,
+        const pa = { forste_klik: forsteKlik, saelger_vist: saelgerVist, ingen_kundefejl: !kundeFejl, accepteret: offerStatus === 'accepted', sag: !!sag?.id,
           saelger_ansvarlig: sag?.created_by === adminUser.id, tidslinje: akt === 1 }
         out.push({ id: 'U10 kundeportal-accept (kunde uden login)', ok: !seedErr && Object.values(pa).every(Boolean),
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(pa).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
@@ -319,6 +324,54 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         r.dublet = a.page.url().includes(`${firstId}?dublet=1`) && before === 1 && after === 1 && filesAfter === filesBefore
         out.push({ id: 'U12 upload af leverandørfaktura (admin)', ok: Object.values(r).every(Boolean),
           note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U15 fakturakladde (N5)
+      {
+        const r: Record<string, boolean> = {}
+        const dc = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-D-${stamp}`, company_name: '[HARNESS] kladdekunde', contact_person: 'D',
+          email: '' /* NOT NULL: "ingen mail" = tom streng */, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        draftCustomerId = (dc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (draftCustomerId) await c.admin.from('customer_contacts').insert([{ customer_id: draftCustomerId, name: 'Bogholder', email: `bogholder-${stamp}@harness.test`, role: 'billing' }])
+        const di = draftCustomerId ? await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-K-${stamp}`, customer_id: draftCustomerId, status: 'draft',
+          total_amount: 1000, tax_amount: 250, final_amount: 1250 }]).select('id') : null
+        draftInvoiceId = (di?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (draftInvoiceId) await c.admin.from('invoice_lines').insert([{ invoice_id: draftInvoiceId, position: 1, description: 'Montage', quantity: 2, unit: 'stk', unit_price: 500, total_price: 1000 }])
+        const seedErr = !draftInvoiceId ? `faktura: ${di?.error?.message ?? dc.error?.message ?? '?'}` : ''
+
+        await a.page.goto(`${base}/dashboard/invoices/${draftInvoiceId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const sendBtn = a.page.getByRole('button', { name: /Send faktura på mail/ }).first()
+        await a.page.waitForFunction(() => !!document.querySelector('[title*="faktura-kontakt"]'), null, { timeout: 60_000 }).catch(() => {})
+        r.modtager_fakturakontakt = (await sendBtn.count()) > 0 && (await sendBtn.isEnabled()) && /faktura-kontakt/.test((await sendBtn.getAttribute('title')) ?? '')
+
+        const ed = a.page.getByTestId('draft-lines-editor')
+        await ed.getByTestId('draft-edit').first().click({ timeout: 30_000 }).catch(() => {})
+        await ed.getByTestId('draft-edit-price').fill('600').catch(() => {})
+        await ed.getByTestId('draft-edit-save').click().catch(() => {})
+        const waitTotals = async (want: number) => {
+          for (let i = 0; i < 15; i++) {
+            const t = ((await c.admin.from('invoices').select('total_amount, tax_amount, final_amount').eq('id', draftInvoiceId).maybeSingle()).data ?? {}) as Record<string, number>
+            if (Number(t.total_amount) === want) return t
+            await new Promise((res) => setTimeout(res, 1000))
+          }
+          return ((await c.admin.from('invoices').select('total_amount, tax_amount, final_amount').eq('id', draftInvoiceId).maybeSingle()).data ?? {}) as Record<string, number>
+        }
+        const t1 = await waitTotals(1200)
+        r.pris_rettet = Number(t1.total_amount) === 1200 && Number(t1.tax_amount) === 300 && Number(t1.final_amount) === 1500
+        await ed.getByTestId('draft-add-description').fill('Kørsel').catch(() => {})
+        await ed.getByTestId('draft-add-quantity').fill('1').catch(() => {})
+        await ed.getByTestId('draft-add-price').fill('250').catch(() => {})
+        await ed.getByTestId('draft-add-submit').click().catch(() => {})
+        const t2 = await waitTotals(1450)
+        r.linje_tilfoejet = Number(t2.total_amount) === 1450 && Number(t2.final_amount) === 1812.5
+        a.page.once('dialog', (dlg) => dlg.accept().catch(() => {}))
+        await a.page.getByTestId('draft-delete').last().click({ timeout: 30_000 }).catch(() => {})
+        const t3 = await waitTotals(1200) // den tilføjede kørsel slettes igen
+        r.linje_slettet = Number(t3.total_amount) === 1200 && Number(t3.final_amount) === 1500
+        await a.page.screenshot({ path: join(shots, 'u15-fakturakladde.png'), fullPage: true }).catch(() => {})
+        const audits = draftInvoiceId ? (await c.admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', draftInvoiceId)).count ?? 0 : 0
+        r.audit = audits >= 3
+        out.push({ id: 'U15 fakturakladde (admin)', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
@@ -530,6 +583,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     }
     if (seededEmailIds.length) await c.admin.from('incoming_emails').delete().in('id', seededEmailIds)
     if (otherCaseId) { await c.admin.from('case_notes').delete().eq('case_id', otherCaseId); await c.admin.from('service_cases').delete().eq('id', otherCaseId) }
+    if (draftInvoiceId) { await c.admin.from('audit_logs').delete().eq('entity_id', draftInvoiceId); await c.admin.from('invoice_lines').delete().eq('invoice_id', draftInvoiceId); await c.admin.from('invoices').delete().eq('id', draftInvoiceId) }
+    if (draftCustomerId) { await c.admin.from('customer_contacts').delete().eq('customer_id', draftCustomerId); await c.admin.from('customers').delete().eq('id', draftCustomerId) }
     for (const id of uploadedInvoiceIds) {
       const { data: row } = await c.admin.from('incoming_invoices').select('file_url').eq('id', id).maybeSingle()
       const fu = (row as { file_url?: string } | null)?.file_url

@@ -4,6 +4,7 @@
  * Sprint 6B-2 + 6B-3 — server actions for outgoing invoices.
  */
 
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { revalidatePath } from 'next/cache'
 import {
   getAuthenticatedClientWithRole,
@@ -486,7 +487,7 @@ async function auditInvoiceLifecycle(
       caseNumber = (c?.case_number as string | null) ?? null
     }
     const number = (inv?.invoice_number as string | null) ?? params.invoiceId
-    await supabase.from('audit_logs').insert({
+    await insertAuditRow({
       user_id: params.userId,
       entity_type: 'invoice',
       entity_id: params.invoiceId,
@@ -649,7 +650,7 @@ export async function deleteInvoiceDraftAction(
     const unlockedTotal =
       summary.unlocked_time_logs + summary.unlocked_materials + summary.unlocked_other
     const isCredit = summary.invoice_type === 'credit'
-    await supabase.from('audit_logs').insert({
+    await insertAuditRow({
       user_id: userId,
       entity_type: 'invoice',
       entity_id: invoiceId,
@@ -782,7 +783,7 @@ export async function createCreditNoteForInvoiceAction(
     // Sprint Ø3.3 — persistent audit i audit_logs (kreditnota oprettet).
     // Best-effort: audit-fejl må aldrig vælte krediteringen.
     try {
-      await supabase.from('audit_logs').insert({
+      await insertAuditRow({
         user_id: userId,
         entity_type: 'invoice',
         entity_id: result.credit_invoice_id,
@@ -2121,7 +2122,7 @@ export async function exportPaymentFollowupAction(
 
   // Best-effort audit — vælter aldrig eksporten. Ingen kost i metadata.
   try {
-    await supabase.from('audit_logs').insert({
+    await insertAuditRow({
       user_id: userId,
       entity_type: 'export',
       entity_id: null,
@@ -2136,4 +2137,89 @@ export async function exportPaymentFollowupAction(
   }
 
   return { ok: true, permitted: true, filter, rows }
+}
+
+/**
+ * N5: hvem fakturaen sendes til — SAMME routing som afsendelsen (faktura-kontakt før kundens mail). UI'en brugte kun
+ * customers.email, så kunder med kun en faktura-kontakt kunne ikke få fakturaen sendt. Kun læsning; gate invoices.send.
+ */
+export async function getInvoiceRecipientAction(invoiceId: string): Promise<{ ok: boolean; email?: string; viaBillingContact?: boolean; message?: string }> {
+  try {
+    validateUUID(invoiceId, 'id')
+    const { hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('invoices.send')) return { ok: false, message: 'Manglende tilladelse: invoices.send' }
+    const { resolveInvoiceMailRoute } = await import('@/lib/actions/mail-route-resolvers')
+    const r = await resolveInvoiceMailRoute(invoiceId)
+    if (!r.ok || !r.route) return { ok: false, message: r.error ?? 'Ingen modtager' }
+    return { ok: true, email: r.route.toEmail, viaBillingContact: r.route.recipientRole === 'billing_contact' }
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Kunne ikke finde modtager' }
+  }
+}
+
+// =====================================================
+// GO-LIVE N5 — redigering af fakturakladder (kun status 'draft'; regler i services/invoice-draft-edit.ts)
+// =====================================================
+
+type DraftEditOutcome = { ok: boolean; message: string }
+
+async function draftAdmin() {
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  return createAdminClient()
+}
+
+export async function editDraftInvoiceLineAction(invoiceId: string, lineId: string, patch: { description?: string; unit_price?: number; quantity?: number }): Promise<DraftEditOutcome> {
+  try {
+    validateUUID(lineId, 'linje-id')
+    validateUUID(invoiceId, 'id')
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('invoices.create')) return { ok: false, message: 'Manglende tilladelse: invoices.create' }
+    const admin = await draftAdmin()
+    const { editDraftLine } = await import('@/lib/services/invoice-draft-edit')
+    const r = await editDraftLine(admin, invoiceId, lineId, patch)
+    if (r.ok) {
+      await auditInvoiceLifecycle(ctx.supabase, { userId: ctx.userId, invoiceId, action: 'invoice_draft_line_edited', verb: 'kladdelinje rettet', changes: { line_id: lineId, ...patch, totals: r.totals } })
+      revalidatePath(`/dashboard/invoices/${invoiceId}`)
+    }
+    return { ok: r.ok, message: r.ok ? 'Linje gemt' : r.message }
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Uventet fejl' }
+  }
+}
+
+export async function addDraftInvoiceLineAction(invoiceId: string, input: { description: string; quantity: number; unit?: string | null; unit_price: number }): Promise<DraftEditOutcome> {
+  try {
+    validateUUID(invoiceId, 'id')
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('invoices.create')) return { ok: false, message: 'Manglende tilladelse: invoices.create' }
+    const admin = await draftAdmin()
+    const { addManualDraftLine } = await import('@/lib/services/invoice-draft-edit')
+    const r = await addManualDraftLine(admin, invoiceId, input)
+    if (r.ok) {
+      await auditInvoiceLifecycle(ctx.supabase, { userId: ctx.userId, invoiceId, action: 'invoice_draft_line_added', verb: 'manuel linje tilføjet', changes: { ...input, totals: r.totals } })
+      revalidatePath(`/dashboard/invoices/${invoiceId}`)
+    }
+    return { ok: r.ok, message: r.ok ? 'Linje tilføjet' : r.message }
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Uventet fejl' }
+  }
+}
+
+export async function deleteDraftInvoiceLineAction(invoiceId: string, lineId: string): Promise<DraftEditOutcome> {
+  try {
+    validateUUID(lineId, 'linje-id')
+    validateUUID(invoiceId, 'id')
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('invoices.create')) return { ok: false, message: 'Manglende tilladelse: invoices.create' }
+    const admin = await draftAdmin()
+    const { deleteManualDraftLine } = await import('@/lib/services/invoice-draft-edit')
+    const r = await deleteManualDraftLine(admin, invoiceId, lineId)
+    if (r.ok) {
+      await auditInvoiceLifecycle(ctx.supabase, { userId: ctx.userId, invoiceId, action: 'invoice_draft_line_deleted', verb: 'manuel linje slettet', changes: { line_id: lineId, totals: r.totals } })
+      revalidatePath(`/dashboard/invoices/${invoiceId}`)
+    }
+    return { ok: r.ok, message: r.ok ? 'Linje slettet' : r.message }
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Uventet fejl' }
+  }
 }

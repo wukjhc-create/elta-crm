@@ -1,5 +1,6 @@
 'use server'
 
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 import { secretColumnReader } from '@/lib/portal/token-reader'
 import { revalidatePath } from 'next/cache'
@@ -104,7 +105,7 @@ export async function updateCompanySettings(
       input.time_cost_rate !== undefined && Number(input.time_cost_rate) !== Number(existing.time_cost_rate)
     if (basisChanged || rateChanged) {
       try {
-        await supabase.from('audit_logs').insert({
+        await insertAuditRow({
           user_id: userId,
           entity_type: 'company_settings',
           entity_id: existing.id,
@@ -183,7 +184,7 @@ export async function updateInvoiceEmailConfig(
     }
 
     try {
-      await supabase.from('audit_logs').insert({
+      await insertAuditRow({
         user_id: userId,
         entity_type: 'company_settings',
         entity_id: existing.id,
@@ -339,7 +340,7 @@ export async function sendInvoiceEmailTestAction(input: {
 
     // Best-effort audit som TEST-event (ingen faktura-mutationer).
     try {
-      await supabase.from('audit_logs').insert({
+      await insertAuditRow({
         user_id: userId,
         entity_type: 'company_settings',
         entity_id: (companyRow?.id as string | null) ?? null,
@@ -417,7 +418,7 @@ export async function updatePaymentReportConfig(
       return { success: false, error: 'Kunne ikke gemme rapportindstillinger' }
     }
     try {
-      await supabase.from('audit_logs').insert({
+      await insertAuditRow({
         user_id: userId,
         entity_type: 'company_settings',
         entity_id: existing.id,
@@ -1375,7 +1376,7 @@ export async function updateExportErrorNotificationConfig(input: {
     }
 
     try {
-      await supabase.from('audit_logs').insert({
+      await insertAuditRow({
         user_id: userId,
         entity_type: 'company_settings',
         entity_id: existing.id,

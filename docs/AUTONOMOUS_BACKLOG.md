@@ -36,14 +36,21 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | N2 | Tid | Godkendelse af timer (time_logs.approve findes kun som permission) |
 | N3 | Grossist | AO manuel sync-knap (stub), SupplierStatusCard ikke monteret, syncSupplierPrices per-SKU/timeout |
 | N4 | Grossist | Produktsøgning ilike på 324k rækker uden trigram-indeks (migration) |
-| N5 | Faktura | Faktura direkte fra tilbud i UI; kladde-redigering; "Markér som sendt" → e-conomic; kreditnotaer → e-conomic; betalinger → e-conomic (cashbook-konfiguration) |
+| N5 | Faktura | Faktura direkte fra tilbud i UI; kladde-redigering; "Markér som sendt" → e-conomic; kreditnotaer → e-conomic; betalinger → e-conomic | DELVIST — DONE: modtager efter samme routing som afsendelsen (faktura-kontakt før kundens mail; før: knap deaktiveret uden kunde-mail), redigering af kladder (beskrivelse/stk-pris; antal kun manuelle linjer; tilføj/slet manuelle; totaler + momssats genberegnet; kun status draft) — ui-e2e U15. Rest (e-conomic-dele + faktura fra tilbud) → N12 |
 | N6 | Faktura | /dashboard/bank i sidebar | DONE — menupunkt "Bankafstemning" (bank.view) + ModuleGuard (før: fejlside uden rettighed) |
 | N7 | Profit | Arbejdsordre-profit-snapshot skrives/vises aldrig (profitability.ts ukaldt) |
-| N8 | Tilbud | acceptOffer håndhæver ikke status/udløb server-side; send uden DB-tjek; portal viser tom sælger | DELVIST — accept håndhæver nu sendt/set + ikke udløbet server-side; fælles gyldighedsregel (hele "gyldig til"-dagen i dansk tid; før udløb kl. 02:00 på sidste dag) i server + portal, test:time (CI). Rest: send-DB-tjek, sælger i portal |
+| N8 | Tilbud | acceptOffer håndhæver ikke status/udløb; send uden DB-tjek; portal viser tom sælger | DELVIST — DONE: accept-guard + gyldighedsregel, sælger vises i portalen (navn/mail/telefon fra tilbuddets opretter; U10). BESLUTNING (Henrik): DB-tjek ved afsendelse — hård blokering eller advarsel? (send-gatens DB regner timer uden kostpris som 0 kr → overvurderer DB, jf. F1) |
 | N9 | Sager | To parallelle sags-UI'er (Sager/Ordrer + Service) på samme tabel |
 | N12 | e-conomic | Opsætning før kobling: e-conomic-leverandørnr. pr. leverandør, omkostningskonto, kassekladde/modkonto (betalinger), kreditnotaer → e-conomic |
 | N11 | Planlægning | Montør kan starte eget job | BLOCKED_APPROVAL — kode deployet bag MONTOR_START_JOB_ENABLED (OFF), RLS 00181 (WAVE5) på staging grøn: montør starter/afslutter KUN egne arbejdsordrer (lukker samtidig at montør kunne opdatere enhver arbejdsordre via REST). Prod pre ✅. Runbook: p009-rls-write-lockdown.md § Runde 5 |
 | N10 | Planlægning | "Planlæg opgave"-knap vises for montør; interne beskeder: vedhæft fil "kommer snart" |
+
+## Fund registreret i delivery mode
+| # | Sev | Fund | Status |
+|---|---|---|---|
+| D1 | S3 | audit_logs har ingen INSERT-policy for authenticated → 15 direkte audit-inserts med bruger-session (fakturaer sendt/betalt/krediteret, materialer, øvrige omk., indstillinger, regnskab) fejlede stille; prod: 0 sådanne rækker | DONE — insertAuditRow (service-role, user_id fra serversession); U15 verificerer at audits lander |
+| D2 | S3 | log_audit_event (SECURITY DEFINER, authenticated EXECUTE) tager p_user_id som parameter → en bruger kan forfalske user_id i en audit-række via direkte RPC | TODO (næste migrationsbatch: brug auth.uid() i funktionen) |
+| D3 | S3 | Kunde-/lead-/tilbudslister beregnede relativ tid på server og klient → hydreringsfejl ved minutskifte | DONE (SmartDate) |
 
 ## LATER
 Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · generelle audits/refactors · Relatel trin 1–5 (ekstern aktivering gated)

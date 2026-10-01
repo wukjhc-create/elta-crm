@@ -23,10 +23,12 @@ import {
   markInvoicePaidAction,
   markInvoiceSentAction,
   sendInvoiceEmailAction,
+  getInvoiceRecipientAction,
   type InvoiceDetail,
 } from '@/lib/actions/invoices'
 import type { CreditSummary } from '@/lib/services/invoice-credit'
 import { CreditNoteDialog } from './credit-note-dialog'
+import { DraftLinesEditor } from './draft-lines-editor'
 import { InvoiceAccountingPanel } from '@/components/modules/invoices/invoice-accounting-panel'
 import { formatCurrency } from '@/lib/utils/format'
 import { useUserRole } from '@/lib/hooks/use-user-role'
@@ -113,6 +115,12 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
   const inv = detail.invoice
   const status = inv.status
   const isDraft = status === 'draft'
+  // N5: modtager efter samme routing som afsendelsen (faktura-kontakt før kundens mail)
+  const [recipient, setRecipient] = useState<Awaited<ReturnType<typeof getInvoiceRecipientAction>> | null>(null)
+  useEffect(() => {
+    if (!isDraft) return
+    getInvoiceRecipientAction(inv.id).then(setRecipient).catch(() => setRecipient({ ok: false, message: 'Kunne ikke finde modtager' }))
+  }, [inv.id, isDraft])
   const isSent = status === 'sent'
   const isPaid = status === 'paid'
   const isLocked = isPaid
@@ -125,6 +133,7 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
   const canMarkPaid = hasPermission(role, 'invoices.mark_paid')
   const canDeleteDraft = hasPermission(role, 'invoices.delete_draft')
   const canCredit = hasPermission(role, 'invoices.credit')
+  const canEditDraft = hasPermission(role, 'invoices.create') // N5: rediger kladdelinjer
 
   // Sprint 6F-3 — credit summary state (kun relevant når invoice IKKE er
   // selv en kreditnota og status ≥ sent)
@@ -181,13 +190,13 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
 
   const handleSendMail = () => {
     if (!isDraft) return
-    if (!detail.customer?.email) {
-      flash(false, 'Kunden mangler email — kan ikke sende faktura')
+    if (!recipient?.ok || !recipient.email) {
+      flash(false, recipient?.message ?? 'Ingen modtager — tilføj mail på kunden eller en faktura-kontakt')
       return
     }
     if (
       !window.confirm(
-        `Send faktura ${inv.invoice_number} til ${detail.customer.email}?\n\n` +
+        `Send faktura ${inv.invoice_number} til ${recipient.email}${recipient.viaBillingContact ? ' (faktura-kontakt)' : ''}?\n\n` +
           `PDF vedhæftes automatisk. Status flippes til 'sendt' ved succes. ` +
           `Ingen e-conomic-push i denne sprint.`
       )
@@ -538,6 +547,12 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
       )}
 
       {/* Lines */}
+      {isDraft && canEditDraft && (
+        <Panel title="Rediger kladde">
+          <DraftLinesEditor invoiceId={inv.id} lines={detail.lines} onChanged={async (ok, message) => { flash(ok, message); if (ok) await refresh() }} />
+        </Panel>
+      )}
+
       <Panel title={`Fakturalinjer (${detail.lines.length})`}>
         {detail.lines.length === 0 ? (
           <p className="text-xs text-gray-500">Ingen linjer på fakturaen.</p>
@@ -641,12 +656,12 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
                 <button
                   type="button"
                   onClick={handleSendMail}
-                  disabled={busy !== null || !detail.customer?.email}
+                  disabled={busy !== null || !recipient?.ok}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
                   title={
-                    detail.customer?.email
-                      ? `Sender til ${detail.customer.email}`
-                      : 'Kunden mangler email'
+                    recipient?.ok
+                      ? `Sender til ${recipient.email}${recipient.viaBillingContact ? ' (faktura-kontakt)' : ''}`
+                      : recipient?.message ?? 'Finder modtager…'
                   }
                 >
                   {busy === 'mail' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
@@ -677,10 +692,10 @@ export function InvoiceDetailClient({ initial }: { initial: InvoiceDetail }) {
                 </button>
               )}
             </div>
-            {!detail.customer?.email && (
+            {recipient && !recipient.ok && (
               <div className="rounded ring-1 ring-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
-                Kunden mangler email — &quot;Send faktura på mail&quot; er deaktiveret. Tilføj email på kunden eller brug &quot;Markér som sendt&quot;.
+                Ingen modtager ({recipient.message}) — &quot;Send faktura på mail&quot; er deaktiveret. Tilføj mail på kunden eller en faktura-kontakt, eller brug &quot;Markér som sendt&quot;.
               </div>
             )}
             <p className="text-[11px] text-gray-500 flex items-start gap-1">

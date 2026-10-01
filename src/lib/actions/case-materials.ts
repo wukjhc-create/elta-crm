@@ -10,6 +10,7 @@
  * Delete is gated by invoice_line_id (cannot delete a billed row).
  */
 
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { revalidatePath } from 'next/cache'
 import {
   getAuthenticatedClient,
@@ -343,7 +344,7 @@ export async function updateCaseMaterial(
       (update.unit_sales_price !== undefined && Number(update.unit_sales_price) !== Number(cur.unit_sales_price))
     if (econChanged) {
       try {
-        await supabase.from('audit_logs').insert({
+        await insertAuditRow({
           user_id: userId,
           entity_type: 'case_material',
           entity_id: id,
