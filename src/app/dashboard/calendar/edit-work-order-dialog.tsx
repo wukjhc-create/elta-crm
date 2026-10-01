@@ -47,7 +47,7 @@ const STATUS_COLORS: Record<WorkOrderStatus, string> = {
 }
 
 const ALLOWED_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
-  planned: ['in_progress', 'cancelled'],
+  planned: ['in_progress', 'done', 'cancelled'],
   in_progress: ['done', 'cancelled'],
   done: [],
   cancelled: [],

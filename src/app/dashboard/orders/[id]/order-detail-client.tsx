@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { EditSiteInfoDialog } from '@/components/modules/orders/edit-site-info-dialog'
@@ -93,7 +93,11 @@ export function OrderDetailClient({
   /** Sprint Ø7.4 — cases.edit: må redigere/slette ALLE noter (ikke kun egne). */
   canManageAllNotes?: boolean
 }) {
-  const [active, setActive] = useState<TabId>('overblik')
+  // Deep-link ?tab=<id> (fx fra "Mine job" -> planlaegning)
+  const tabParam = useSearchParams().get('tab')
+  const [active, setActive] = useState<TabId>(
+    TABS.some((t) => t.id === tabParam) && (tabParam !== 'oekonomi' || canSeeCost) ? (tabParam as TabId) : 'overblik'
+  )
 
   const customerName =
     sag.customer?.company_name || sag.customer?.contact_person || '—'

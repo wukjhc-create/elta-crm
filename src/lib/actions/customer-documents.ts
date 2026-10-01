@@ -14,6 +14,8 @@ async function requireGate(permission: Permission) {
 }
 import { getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import type { ActionResult } from '@/types/common.types'
+import { validateUUID } from '@/lib/validations/common'
+import { logger } from '@/lib/utils/logger'
 
 export interface CustomerDocument {
   id: string
@@ -280,6 +282,69 @@ export async function uploadCustomerDocument(
 
     revalidatePath(`/dashboard/customers/${customerId}`)
     return { success: true, data: { id: doc.id } }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Der opstod en fejl') }
+  }
+}
+
+const CASE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+const CASE_UPLOAD_MIME = /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf)$/i
+
+/**
+ * Upload foto/dokument direkte på en sag (fanen Dokumenter på /dashboard/orders/[id]).
+ * Montøren skal kunne dokumentere sit arbejde: cases.edit (kontor) eller cases.edit.own + sagen er i brugerens
+ * scope (samme scope som ordrelisten). Kun billeder/PDF ≤ 20 MB. RLS: customer_documents INSERT og
+ * attachments-bucket tillader de samme roller.
+ */
+export async function uploadCaseDocument(caseId: string, formData: FormData): Promise<ActionResult<{ id: string }>> {
+  try {
+    validateUUID(caseId, 'sags-ID')
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) {
+      if (!hasPermission('cases.edit.own')) return { success: false, error: 'Manglende tilladelse: cases.edit' }
+      const { userCanViewCase } = await import('@/lib/auth/case-scope')
+      if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Sagen er ikke tildelt dig' }
+    }
+
+    const file = formData.get('file') as File | null
+    if (!file || file.size === 0) return { success: false, error: 'Ingen fil valgt' }
+    if (file.size > CASE_UPLOAD_MAX_BYTES) return { success: false, error: 'Filen er for stor (max 20 MB)' }
+    if (!CASE_UPLOAD_MIME.test(file.type || '')) return { success: false, error: 'Kun billeder (JPG, PNG, WEBP, HEIC) og PDF' }
+
+    const { data: sc } = await supabase.from('service_cases').select('id, customer_id').eq('id', caseId).maybeSingle()
+    if (!sc) return { success: false, error: 'Sag ikke fundet' }
+    if (!sc.customer_id) return { success: false, error: 'Sagen har ingen kunde — kan ikke gemme dokument' }
+
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'jpg'
+    const storagePath = `customer-documents/${sc.customer_id}/case-${caseId}-${Date.now()}.${ext}`
+    const { error: uploadErr } = await supabase.storage.from('attachments')
+      .upload(storagePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false })
+    if (uploadErr) {
+      logger.error('uploadCaseDocument: storage upload failed', { error: uploadErr, entityId: caseId })
+      return { success: false, error: 'Upload fejlede' }
+    }
+
+    // file_url er NOT NULL; visning henter altid friske signerede URL'er via storage_path (getDocumentsForCase)
+    const { data: signed } = await supabase.storage.from('attachments').createSignedUrl(storagePath, 3600)
+    const { data: doc, error: docErr } = await supabase.from('customer_documents').insert({
+      customer_id: sc.customer_id,
+      service_case_id: caseId,
+      title: file.name,
+      document_type: 'other',
+      file_url: signed?.signedUrl ?? '',
+      storage_path: storagePath,
+      file_name: file.name,
+      mime_type: file.type,
+      file_size: file.size,
+      shared_by: userId,
+    }).select('id').single()
+    if (docErr || !doc) {
+      logger.error('uploadCaseDocument: insert failed', { error: docErr, entityId: caseId })
+      return { success: false, error: 'Kunne ikke gemme dokument' }
+    }
+
+    revalidatePath(`/dashboard/orders/${caseId}`)
+    return { success: true, data: { id: doc.id as string } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
   }

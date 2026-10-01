@@ -1,5 +1,7 @@
 'use client'
 
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -29,7 +31,7 @@ const STATUS_COLORS: Record<WorkOrderStatus, string> = {
 }
 
 const NEXT_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
-  planned: ['in_progress', 'cancelled'],
+  planned: ['in_progress', 'done', 'cancelled'],
   in_progress: ['done', 'cancelled'],
   done: [],
   cancelled: [],
@@ -414,7 +416,13 @@ function WorkOrderRow({
   onLogsChange?: () => void
   canSeeCost?: boolean
 }) {
-  const transitions = NEXT_TRANSITIONS[wo.status]
+  // Kun knapper rollen faktisk kan bruge: montør (work_orders.complete) afslutter egne job; start/annullér/slet
+  // kræver work_orders.edit/delete (serveren håndhæver det samme).
+  const { role } = useUserRole()
+  const canEdit = hasPermission(role, 'work_orders.edit')
+  const canComplete = hasPermission(role, 'work_orders.complete')
+  const canDelete = hasPermission(role, 'work_orders.delete')
+  const transitions = NEXT_TRANSITIONS[wo.status].filter((t) => (t === 'done' ? canComplete : canEdit))
 
   return (
     <li className="bg-white border rounded-lg p-4">
@@ -480,7 +488,7 @@ function WorkOrderRow({
               {t === 'cancelled' && '✕ Annullér'}
             </button>
           ))}
-          {wo.status === 'planned' && (
+          {wo.status === 'planned' && canDelete && (
             <button
               type="button"
               onClick={() => onDelete(wo.id)}

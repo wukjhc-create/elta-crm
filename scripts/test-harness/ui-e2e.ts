@@ -21,6 +21,8 @@
  *   U9  admin: fakturakontrol på leverandørfaktura (overpris mod katalog-kostpris via varenr.)
  *   U10 kunde (UDEN CRM-session): åbn tilbud fra portal-link (første klik), underskriv og acceptér -> succes,
  *       tilbud accepteret, sag oprettet med sælgeren som ansvarlig, aktivitet på tidslinjen (G1/G2)
+ *   U11 montør-dagen (G4): "Mine job" på landingssiden -> åbn job -> kun Afslut (ingen Start/Slet) -> upload foto
+ *       -> afslut -> status done i DB; kalenderen viser eget job uden "Planlæg opgave"/tom-tilstand
  *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -99,6 +101,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let ctrlInvoiceId: string | null = null
   let portalOfferId: string | null = null
   let portalTokenId: string | null = null
+  let jobEmployeeId: string | null = null
+  let jobCaseId: string | null = null
 
   try {
     const adminUser = await mkUser('admin')
@@ -283,6 +287,66 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       }
       await m.page.screenshot({ path: join(shots, 'pilot-health-montoer.png'), fullPage: true })
       out.push({ id: 'U4 montør: ingen adgang', ok: denied.length === 2, note: `NoAccess på ${denied.length}/2 (${denied.join(', ') || '-'})` })
+
+      // U11 montør-dagen (G4). Seed: medarbejder koblet til montør-login, sag + planlagt arbejdsordre i dag.
+      {
+        const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
+        const woTitle = `[HARNESS] montørjob ${stamp}`
+        const emp = await c.admin.from('employees').insert([{ name: 'Harness Montør', first_name: 'Harness', last_name: 'Montør',
+          email: montor.email, role: 'montør', active: true, profile_id: montor.id }]).select('id')
+        jobEmployeeId = (emp.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sc = profitCustomerId ? await c.admin.from('service_cases').insert([{ title: '[HARNESS] montørsag', customer_id: profitCustomerId,
+          status: 'new', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id') : null
+        jobCaseId = (sc?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const wo = jobCaseId && jobEmployeeId ? await c.admin.from('work_orders').insert([{ case_id: jobCaseId, title: woTitle,
+          scheduled_date: today, assigned_employee_id: jobEmployeeId, status: 'planned' }]).select('id') : null
+        const woId = (wo?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const seedErr = !jobEmployeeId ? `medarbejder: ${emp.error?.message?.slice(0, 80)}` : !jobCaseId ? `sag: ${sc?.error?.message?.slice(0, 80)}`
+          : !woId ? `arbejdsordre: ${wo?.error?.message?.slice(0, 80)}` : ''
+
+        const r: Record<string, boolean> = {}
+        await m.page.goto(`${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const card = m.page.getByTestId('my-jobs-card')
+        r.mine_job = (await card.count()) > 0 && (await card.innerText()).includes(woTitle)
+        await m.page.getByTestId('my-job').filter({ hasText: woTitle }).first().click({ timeout: 30_000 }).catch(() => {})
+        await m.page.waitForURL(/tab=planlaegning/, { timeout: 60_000 }).catch(() => {})
+        await m.page.getByRole('button', { name: '✓ Afslut' }).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.afslut_knap = (await m.page.getByRole('button', { name: '✓ Afslut' }).count()) === 1
+        r.ingen_start_slet = (await m.page.getByRole('button', { name: '→ Start' }).count()) === 0 && (await m.page.getByRole('button', { name: 'Slet', exact: true }).count()) === 0
+
+        // Foto-upload på Dokumenter-fanen
+        await m.page.getByRole('button', { name: 'Dokumenter', exact: true }).click().catch(() => {})
+        const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+        await m.page.getByTestId('case-upload-input').setInputFiles({ name: 'foto-harness.png', mimeType: 'image/png', buffer: png }).catch(() => {})
+        await m.page.getByTestId('case-upload-msg').waitFor({ timeout: 60_000 }).catch(() => {})
+        const upMsg = (await m.page.getByTestId('case-upload-msg').count()) ? await m.page.getByTestId('case-upload-msg').innerText() : ''
+        const docs = jobCaseId ? (await c.admin.from('customer_documents').select('id', { count: 'exact', head: true }).eq('service_case_id', jobCaseId)).count ?? 0 : 0
+        r.foto_upload = /1 fil uploadet/.test(upMsg) && docs === 1
+        await m.page.screenshot({ path: join(shots, 'u11-montoer-dokumenter.png'), fullPage: true }).catch(() => {})
+
+        // Afslut jobbet
+        await m.page.getByRole('button', { name: /^Planlægning \/ Timer/ }).click().catch(() => {}) // navnet inkl. antal-badge
+        await m.page.getByRole('button', { name: '✓ Afslut' }).first().click({ timeout: 30_000 }).catch(() => {})
+        let woStatus = ''
+        for (let i = 0; i < 15 && woStatus !== 'done'; i++) {
+          woStatus = String(((await c.admin.from('work_orders').select('status').eq('id', woId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
+          if (woStatus !== 'done') await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.afsluttet = woStatus === 'done'
+        if (!r.afsluttet) {
+          await m.page.screenshot({ path: join(shots, 'u11-montoer-afslut.png'), fullPage: true }).catch(() => {})
+          const errTxt = await m.page.locator('.text-red-700, .text-red-600, .bg-red-50').allInnerTexts().catch(() => [] as string[])
+          r[`afslut_fejl(${woStatus}|${errTxt.join(' / ').replace(/\s+/g, ' ').slice(0, 160)})`] = false
+        }
+
+        // Kalender: eget job, ingen planlæg-knap, ingen tom-tilstand
+        await m.page.goto(`${base}/dashboard/calendar?date=${today}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.kalender = (await m.page.getByText(woTitle).count()) > 0 && (await m.page.getByText('Ingen aktive medarbejdere').count()) === 0
+          && (await m.page.getByRole('button', { name: /Planlæg opgave/ }).count()) === 0
+        await m.page.screenshot({ path: join(shots, 'u11-montoer-kalender.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U11 montør-dagen (job, foto, afslut, kalender)', ok: !seedErr && Object.values(r).every(Boolean),
+          note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
     } else out.push({ id: 'U4 montør: ingen adgang', ok: false, note: 'montør-login fejlede' })
 
     out.push({ id: 'U5 ingen side-/konsolfejl', ok: pageErrors.length === 0, note: pageErrors.length ? pageErrors.slice(0, 3).join(' | ') : `0 fejl · skærmbilleder: ${shots}` })
@@ -304,6 +368,18 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       await c.admin.from('offers').delete().eq('id', portalOfferId)
     }
     if (portalTokenId) await c.admin.from('portal_access_tokens').delete().eq('id', portalTokenId)
+    if (jobCaseId) {
+      const { data: docs } = await c.admin.from('customer_documents').select('id, storage_path').eq('service_case_id', jobCaseId)
+      const paths = ((docs ?? []) as Array<{ storage_path: string | null }>).map((d) => d.storage_path).filter(Boolean) as string[]
+      if (paths.length) await c.admin.storage.from('attachments').remove(paths)
+      await c.admin.from('customer_documents').delete().eq('service_case_id', jobCaseId)
+      const { data: wos } = await c.admin.from('work_orders').select('id').eq('case_id', jobCaseId)
+      for (const w of (wos ?? []) as Array<{ id: string }>) { await c.admin.from('work_order_profit').delete().eq('work_order_id', w.id); await c.admin.from('time_logs').delete().eq('work_order_id', w.id) }
+      await c.admin.from('work_orders').delete().eq('case_id', jobCaseId)
+      await c.admin.from('case_notes').delete().eq('case_id', jobCaseId)
+      await c.admin.from('service_cases').delete().eq('id', jobCaseId)
+    }
+    if (jobEmployeeId) await c.admin.from('employees').delete().eq('id', jobEmployeeId)
     if (profitCustomerId) await c.admin.from('customers').delete().eq('id', profitCustomerId)
     if (ctrlInvoiceId) { await c.admin.from('incoming_invoice_lines').delete().eq('incoming_invoice_id', ctrlInvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', ctrlInvoiceId) }
     for (const sid of cmpSupplierIds) { await c.admin.from('supplier_products').delete().eq('supplier_id', sid); await c.admin.from('suppliers').delete().eq('id', sid) }

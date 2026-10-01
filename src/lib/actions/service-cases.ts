@@ -1332,15 +1332,18 @@ export async function getEmployeesForOrderSelect(): Promise<
   ActionResult<{ id: string; name: string }[]>
 > {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('employees.view')) {
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    // Montør (time_logs.create uden employees.view) får kun sig selv — så timeformularen ikke er tom.
+    const ownOnly = !hasPermission('employees.view')
+    if (ownOnly && !hasPermission('time_logs.create')) {
       return { success: false, error: 'Manglende tilladelse: employees.view' }
     }
-    const { data, error } = await supabase
+    let q = supabase
       .from('employees')
       .select('id, name, first_name, last_name, active')
       .eq('active', true)
-      .order('name')
+    if (ownOnly) q = q.eq('profile_id', userId)
+    const { data, error } = await q.order('name')
     if (error) {
       // employees table may be optional in some envs; return empty rather than fail.
       logger.warn('Error fetching employees for order select', { error })

@@ -8,13 +8,16 @@
  * + manuelt uploadede docs der er flyttet til sagen.
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { FileText, Mail, Download, Loader2, FolderOpen } from 'lucide-react'
+import { FileText, Mail, Download, Loader2, FolderOpen, Camera } from 'lucide-react'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { getDocumentsForCase, type CaseDocument } from '@/lib/actions/service-cases'
 import { RoofDrawingCaseCard } from '@/components/modules/customers/roof-drawing/roof-drawing-case-card'
+import { uploadCaseDocument } from '@/lib/actions/customer-documents'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 
 function isImage(mime: string | null | undefined, filename: string | null | undefined): boolean {
   if (mime?.startsWith('image/')) return true
@@ -37,6 +40,17 @@ export function OrderDocumentsTab({
 }) {
   const [documents, setDocuments] = useState<CaseDocument[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const { role } = useUserRole()
+  // Kontor (cases.edit) og montør på egne sager (cases.edit.own; serveren tjekker scope)
+  const canUpload = hasPermission(role, 'cases.edit') || hasPermission(role, 'cases.edit.own')
+
+  const load = useCallback(async () => {
+    const data = await getDocumentsForCase(caseId)
+    setDocuments(data)
+  }, [caseId])
 
   useEffect(() => {
     let cancelled = false
@@ -52,6 +66,25 @@ export function OrderDocumentsTab({
       cancelled = true
     }
   }, [caseId])
+
+  const onFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setUploading(true)
+    setUploadMsg(null)
+    let ok = 0
+    const errors: string[] = []
+    for (const f of Array.from(files)) {
+      const fd = new FormData()
+      fd.append('file', f)
+      const r = await uploadCaseDocument(caseId, fd)
+      if (r.success) ok++
+      else errors.push(`${f.name}: ${r.error ?? 'fejl'}`)
+    }
+    await load()
+    setUploading(false)
+    if (fileRef.current) fileRef.current.value = ''
+    setUploadMsg(errors.length ? { ok: false, text: `${ok} uploadet · ${errors.join(' · ')}` } : { ok: true, text: `${ok} fil${ok === 1 ? '' : 'er'} uploadet` })
+  }
 
   if (isLoading) {
     return (
@@ -72,13 +105,40 @@ export function OrderDocumentsTab({
           så vi henter på customerId, ikke service_case_id. */}
       <RoofDrawingCaseCard customerId={customerId} />
 
+      {canUpload && (
+        <div className="bg-white rounded-lg border p-4 flex flex-wrap items-center gap-3" data-testid="case-upload">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+            multiple
+            className="hidden"
+            onChange={(e) => onFiles(e.target.files)}
+            data-testid="case-upload-input"
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:scale-95 transition-transform disabled:opacity-50"
+          >
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            {uploading ? 'Uploader…' : 'Tilføj foto / dokument'}
+          </button>
+          <span className="text-xs text-gray-500">Billeder eller PDF, max 20 MB pr. fil</span>
+          {uploadMsg && (
+            <span className={`text-xs ${uploadMsg.ok ? 'text-emerald-700' : 'text-red-600'}`} data-testid="case-upload-msg">{uploadMsg.text}</span>
+          )}
+        </div>
+      )}
+
       {documents.length === 0 && (
         <div className="bg-white rounded-lg border p-12 text-center text-gray-500">
           <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Ingen dokumenter på denne sag</p>
           <p className="text-sm mt-1">
-            Dokumenter dukker op her når mail-vedhæftninger downloades fra mails koblet til denne
-            sag, eller når brugeren manuelt flytter dokumenter til sagen.
+            Tilføj fotos og dokumenter ovenfor. Mail-vedhæftninger fra mails koblet til sagen
+            dukker også op her.
           </p>
         </div>
       )}

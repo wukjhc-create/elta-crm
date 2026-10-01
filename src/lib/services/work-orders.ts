@@ -10,7 +10,7 @@ import { logger } from '@/lib/utils/logger'
 import type { WorkOrderRow, WorkOrderStatus } from '@/types/workforce.types'
 
 const ALLOWED: Record<WorkOrderStatus, WorkOrderStatus[]> = {
-  planned:     ['in_progress', 'cancelled'],
+  planned:     ['in_progress', 'done', 'cancelled'],
   in_progress: ['done', 'cancelled'],
   done:        [],
   cancelled:   [],

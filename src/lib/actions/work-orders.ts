@@ -42,8 +42,9 @@ export interface CreateWorkOrderForCaseInput {
 
 // Status transitions matching the service-layer state machine
 // (mirrors src/lib/services/work-orders.ts ALLOWED).
+// planned -> done: montøren afslutter sit job direkte (montør kan ikke "starte" — kun afslutte, jf. RLS 00171).
 const ALLOWED_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
-  planned:     ['in_progress', 'cancelled'],
+  planned:     ['in_progress', 'done', 'cancelled'],
   in_progress: ['done', 'cancelled'],
   done:        [],
   cancelled:   [],
@@ -280,12 +281,16 @@ export async function changeWorkOrderStatus(
   next: WorkOrderStatus
 ): Promise<ActionResult<WorkOrderRow>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     // Status transitions til 'done' krav work_orders.complete (montor kan).
     // Andre transitions krav work_orders.edit.
     const required = next === 'done' ? 'work_orders.complete' : 'work_orders.edit'
     if (!hasPermission(required)) {
       return { success: false, error: `Manglende tilladelse: ${required}` }
+    }
+    // Uden work_orders.edit (montør) kun egne arbejdsordrer (tildelt brugerens medarbejder).
+    if (!hasPermission('work_orders.edit') && !(await userCanViewWorkOrder(workOrderId, { supabase, userId, role }))) {
+      return { success: false, error: 'Arbejdsordren er ikke tildelt dig' }
     }
 
     // Read current

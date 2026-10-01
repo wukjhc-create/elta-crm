@@ -119,6 +119,19 @@ export async function listEmployeesAction(filter: ListFilter = {}): Promise<Empl
   return rows
 }
 
+/**
+ * Medarbejdere til kalenderen. Planlæggere (employees.view) ser alle aktive; montør (calendar.view.own) ser kun sin
+ * egen række — ellers var montørens kalender tom ("Ingen aktive medarbejdere"), selv om hans job blev hentet.
+ * RLS (00096) tillader i forvejen egen række. Satser vises aldrig her.
+ */
+export async function listCalendarEmployeesAction(): Promise<EmployeeRow[]> {
+  const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (hasPermission('employees.view')) return listEmployeesAction({ active: 'active', limit: 200 })
+  if (!hasPermission('calendar.view.own')) return []
+  const { data } = await supabase.from('employees').select('*').eq('profile_id', userId).eq('active', true).limit(1)
+  return (data ?? []).map(normaliseEmployee).map((r) => ({ ...r, hourly_rate: null, cost_rate: null }))
+}
+
 export async function getEmployeeAction(id: string): Promise<EmployeeWithCompensation | null> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('employees.view')) return null

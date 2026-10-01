@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { TasksPageClient } from './tasks-page-client'
+import { MyJobsCard } from './my-jobs-card'
 import { getPageRoleContext } from '@/lib/auth/page-guard'
 import { isGraphConfigured } from '@/lib/services/microsoft-graph'
 
@@ -18,11 +19,16 @@ export default async function TasksPage() {
   // Sprint 8C-1 — saa send-mail-dialogen kan vise advarsel + mailto-fallback
   // hvis Graph ikke er konfigureret i miljøet.
   const graphConfigured = isGraphConfigured()
+  // Montørens landingsside: egne job øverst (kalender-scope = kun egne arbejdsordrer)
+  const showMyJobs = ctx.has('calendar.view.own') && !ctx.has('calendar.view.all')
   return (
-    <TasksPageClient
-      isMontor={isMontor}
-      canManage={canManage}
-      graphConfigured={graphConfigured}
-    />
+    <>
+      {showMyJobs && <MyJobsCard />}
+      <TasksPageClient
+        isMontor={isMontor}
+        canManage={canManage}
+        graphConfigured={graphConfigured}
+      />
+    </>
   )
 }

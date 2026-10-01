@@ -14,6 +14,8 @@
  * Month view is rendered by the existing CalendarPageClient (preserved).
  */
 
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition, useMemo, createContext, useContext } from 'react'
@@ -100,6 +102,9 @@ export function CalendarWorkforceClient({
   loadError: string | null
 }) {
   const router = useRouter()
+  const { role } = useUserRole()
+  const canPlan = hasPermission(role, 'work_orders.plan')
+  const canManageEmployees = hasPermission(role, 'employees.view')
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
   const [planDialogOpen, setPlanDialogOpen] = useState(false)
@@ -201,7 +206,8 @@ export function CalendarWorkforceClient({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Planlæg opgave */}
+          {/* Planlæg opgave — kun planlæggere (work_orders.plan) */}
+          {canPlan && (
           <button
             type="button"
             onClick={() => setPlanDialogOpen(true)}
@@ -210,6 +216,7 @@ export function CalendarWorkforceClient({
             <Plus className="w-4 h-4" />
             Planlæg opgave
           </button>
+          )}
 
           {/* View toggle */}
           <div className="inline-flex rounded-lg ring-1 ring-gray-200 overflow-hidden">
@@ -327,6 +334,15 @@ export function CalendarWorkforceClient({
       {/* Empty state — no employees */}
       {employeesWithRows.length === 0 && (
         <div className="text-center py-16 bg-white rounded-lg ring-1 ring-gray-200">
+          {!canManageEmployees ? (
+            <>
+              <h3 className="text-base font-medium text-gray-700">Din bruger er ikke koblet til en medarbejder</h3>
+              <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+                Bed kontoret om at koble din login til din medarbejderprofil — så vises dine job her.
+              </p>
+            </>
+          ) : (
+          <>
           <h3 className="text-base font-medium text-gray-700">Ingen aktive medarbejdere</h3>
           <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
             Opret medarbejdere først for at kunne planlægge arbejdsordrer på dem.
@@ -337,6 +353,8 @@ export function CalendarWorkforceClient({
           >
             + Opret medarbejder
           </Link>
+          </>
+          )}
         </div>
       )}
 

@@ -97,7 +97,11 @@ export function WorkOrderTimeLogs({
     ])
     if (logsRes.success && logsRes.data) setLogs(logsRes.data)
     else if (!logsRes.success) setError(logsRes.error || 'Kunne ikke hente timer')
-    if (empRes.success && empRes.data) setEmployees(empRes.data)
+    if (empRes.success && empRes.data) {
+      setEmployees(empRes.data)
+      // Kun én mulighed (montør = sig selv): vælg den, så formularen kan sendes med det samme
+      if (empRes.data.length === 1) setEmployeeId((cur) => cur || empRes.data![0].id)
+    }
   }
 
   useEffect(() => {

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { getAllTasks } from '@/lib/actions/customer-tasks'
 import { listWorkOrdersByDateRange } from '@/lib/actions/work-orders'
-import { listEmployeesAction } from '@/lib/actions/employees'
+import { listCalendarEmployeesAction } from '@/lib/actions/employees'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { CalendarPageClient } from './calendar-client'
 import { CalendarWorkforceClient } from './calendar-workforce-client'
 import { pageHasPermission } from '@/lib/auth/page-guard'
@@ -30,8 +31,8 @@ interface PageProps {
 // =====================================================
 
 function todayKey(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  // Dansk dato (serveren kører i UTC: 00–02 dansk tid viste ellers gårsdagen)
+  return copenhagenParts(new Date()).date
 }
 
 function dateKey(d: Date): string {
@@ -89,7 +90,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
 
   const [workOrdersRes, employees] = await Promise.all([
     listWorkOrdersByDateRange(rangeStart, rangeEnd),
-    listEmployeesAction({ active: 'active', limit: 200 }),
+    listCalendarEmployeesAction(),
   ])
 
   const workOrders = workOrdersRes.success && workOrdersRes.data ? workOrdersRes.data : []
