@@ -312,19 +312,22 @@ export async function createInvoiceDraftFromCase(
         continue
       }
       // Bind forward-link race-safely
-      const { error: bindErr } = await supabase
+      // 0 rækker = en samtidig faktura nåede at låse rækken først → fjern
+      // linjen, ellers faktureres den to gange.
+      const { data: bound, error: bindErr } = await supabase
         .from('time_logs')
         .update({ invoice_line_id: line.id })
         .eq('id', id)
         .is('invoice_line_id', null)
-      if (bindErr) {
+        .select('id')
+      if (bindErr || !bound || bound.length !== 1) {
         await supabase.from('invoice_lines').delete().eq('id', line.id)
         position -= 1
         skipped.push({
           kind: 'time_log',
           source_id: id,
-          reason: 'insert_failed',
-          detail: `bind failed: ${bindErr.message}`,
+          reason: bindErr ? 'insert_failed' : 'already_billed',
+          detail: bindErr ? `bind failed: ${bindErr.message}` : 'faktureret samtidig på en anden faktura',
         })
         continue
       }
@@ -395,19 +398,22 @@ export async function createInvoiceDraftFromCase(
         })
         continue
       }
-      const { error: bindErr } = await supabase
+      // 0 rækker = en samtidig faktura nåede at låse rækken først → fjern
+      // linjen, ellers faktureres den to gange.
+      const { data: bound, error: bindErr } = await supabase
         .from('case_materials')
         .update({ invoice_line_id: line.id })
         .eq('id', id)
         .is('invoice_line_id', null)
-      if (bindErr) {
+        .select('id')
+      if (bindErr || !bound || bound.length !== 1) {
         await supabase.from('invoice_lines').delete().eq('id', line.id)
         position -= 1
         skipped.push({
           kind: 'case_material',
           source_id: id,
-          reason: 'insert_failed',
-          detail: `bind failed: ${bindErr.message}`,
+          reason: bindErr ? 'insert_failed' : 'already_billed',
+          detail: bindErr ? `bind failed: ${bindErr.message}` : 'faktureret samtidig på en anden faktura',
         })
         continue
       }
@@ -478,19 +484,22 @@ export async function createInvoiceDraftFromCase(
         })
         continue
       }
-      const { error: bindErr } = await supabase
+      // 0 rækker = en samtidig faktura nåede at låse rækken først → fjern
+      // linjen, ellers faktureres den to gange.
+      const { data: bound, error: bindErr } = await supabase
         .from('case_other_costs')
         .update({ invoice_line_id: line.id })
         .eq('id', id)
         .is('invoice_line_id', null)
-      if (bindErr) {
+        .select('id')
+      if (bindErr || !bound || bound.length !== 1) {
         await supabase.from('invoice_lines').delete().eq('id', line.id)
         position -= 1
         skipped.push({
           kind: 'case_other_cost',
           source_id: id,
-          reason: 'insert_failed',
-          detail: `bind failed: ${bindErr.message}`,
+          reason: bindErr ? 'insert_failed' : 'already_billed',
+          detail: bindErr ? `bind failed: ${bindErr.message}` : 'faktureret samtidig på en anden faktura',
         })
         continue
       }

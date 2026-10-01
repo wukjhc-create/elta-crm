@@ -964,7 +964,10 @@ function BillingFinalMode({
     (s) => s.invoice_type === 'deposit' || s.invoice_type === 'progress'
   )
   const existingFinal = (stages ?? []).find((s) => s.is_final_invoice)
-  const deductionTotal = predecessors.reduce((sum, p) => sum + Number(p.total_amount), 0)
+  // Samme regel som slutfakturaen: fradrag = beløb − krediteret (aldrig negativt)
+  const netDeduction = (p: StageInvoiceSummary) =>
+    Math.max(0, Math.round((Number(p.total_amount) - Number(p.credited_amount ?? 0)) * 100) / 100)
+  const deductionTotal = predecessors.reduce((sum, p) => sum + netDeduction(p), 0)
 
   const positiveSubtotal = (() => {
     if (!unbilled || !includeLines) return 0
@@ -1084,7 +1087,12 @@ function BillingFinalMode({
                       {p.billing_percentage == null ? '—' : fmtPct(p.billing_percentage)}
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums font-medium text-red-700">
-                      −{fmtKr(p.total_amount)}
+                      −{fmtKr(netDeduction(p))}
+                      {p.credited_amount > 0 && (
+                        <div className="text-[10px] font-normal text-gray-500">
+                          {fmtKr(p.total_amount)} − krediteret {fmtKr(p.credited_amount)}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

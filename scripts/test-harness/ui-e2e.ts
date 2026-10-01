@@ -55,6 +55,8 @@
  *   U33 kreditnota: sendt faktura 2.000 → "Delvis — beløb" skrevet dansk "1.000" → −1.000 (før: −1 kr); 1.500 over resten
  *       blokeret; fuld kreditnota af resten → i alt −2.000
  *   U34 sagsmateriale via dialogen: antal 2, kost "1.000", salg "1.250,50" → gemt som 1000 / 1250,5 (D11; før 1 / ugyldig)
+ *   U35 slutfaktura efter kreditnota: forskud 300 krediteret fuldt + rate 500 krediteret 200 + materiale 1.000 → kun −300
+ *       fradrag (rate netto), total 700 (før: −300 −500 → 200; kunden fik krediteringen to gange)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -166,6 +168,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u32: { employeeId?: string; caseId?: string; woId?: string } = {}
   let u33InvoiceId: string | null = null
   let u34CaseId: string | null = null
+  let u35CaseId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -956,6 +959,7 @@ ${m.text()}`) })
         const ins = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-K-${stamp}`, customer_id: profitCustomerId, status: 'sent',
           total_amount: 2000, tax_amount: 500, final_amount: 2500, due_date: new Date().toISOString().slice(0, 10) }]).select('id')
         u33InvoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const seed33 = u33InvoiceId ? '' : `SEED: ${ins.error?.message ?? '?'} · `
         if (u33InvoiceId) await c.admin.from('invoice_lines').insert([{ invoice_id: u33InvoiceId, position: 1, description: 'Installation', quantity: 1, unit: 'stk', unit_price: 2000, total_price: 2000 }])
         const credits = async () => ((await c.admin.from('invoices').select('id, total_amount, final_amount, status').eq('credit_of_invoice_id', u33InvoiceId ?? '')).data ?? []) as Array<{ id: string; total_amount: number; final_amount: number; status: string }>
         const openDialog = async () => {
@@ -988,7 +992,7 @@ ${m.text()}`) })
         a.page.removeAllListeners('dialog')
         await a.page.screenshot({ path: join(shots, 'u33-kreditnota.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U33 kreditnota', ok: !!u33InvoiceId && Object.values(r).every(Boolean),
-          note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · kreditnotaer=${JSON.stringify(cr.map((x) => x.total_amount))}` })
+          note: `${seed33}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · kreditnotaer=${JSON.stringify(cr.map((x) => x.total_amount))}` })
       }
 
       // U34 materiale på sagen via dialogen med danske beløb (sag/økonomi, GO-LIVE)
@@ -1017,6 +1021,40 @@ ${m.text()}`) })
         await a.page.screenshot({ path: join(shots, 'u34-materiale.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U34 materiale m. danske beløb', ok: !!u34CaseId && Object.values(r).every(Boolean),
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · række=${JSON.stringify(m0)}` })
+      }
+
+      // U35 slutfaktura når forskud/rate er krediteret (faktura, GO-LIVE)
+      if (want('U35') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] kreditfradrag ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
+        u35CaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const mk = async (row: Record<string, unknown>) => ((await c.admin.from('invoices').insert([{ customer_id: profitCustomerId, case_id: u35CaseId, ...row }]).select('id')).data?.[0] as { id?: string } | undefined)?.id ?? null
+        const depId = u35CaseId ? await mk({ invoice_number: `UI-E2E-D-${stamp}`, invoice_type: 'deposit', status: 'sent', total_amount: 300, tax_amount: 75, final_amount: 375 }) : null
+        const rateId = u35CaseId ? await mk({ invoice_number: `UI-E2E-R-${stamp}`, invoice_type: 'progress', status: 'sent', total_amount: 500, tax_amount: 125, final_amount: 625 }) : null
+        // forskuddet er krediteret fuldt, raten delvist (200)
+        const cr1 = depId ? await mk({ invoice_number: `UI-E2E-KD-${stamp}`, invoice_type: 'credit', credit_of_invoice_id: depId, status: 'sent', total_amount: -300, tax_amount: -75, final_amount: -375 }) : null
+        const cr2 = rateId ? await mk({ invoice_number: `UI-E2E-KR-${stamp}`, invoice_type: 'credit', credit_of_invoice_id: rateId, status: 'sent', total_amount: -200, tax_amount: -50, final_amount: -250 }) : null
+        const mat = u35CaseId ? await c.admin.from('case_materials').insert([{ case_id: u35CaseId, description: `Anlæg ${stamp}`, quantity: 1, unit: 'stk',
+          unit_cost: 600, unit_sales_price: 1000, billable: true, source: 'manual', created_by: adminUser.id }]).select('id') : null
+        const seedErr = !u35CaseId ? `sag: ${sc.error?.message}` : !depId || !rateId ? 'forskud/rate' : !cr1 || !cr2 ? 'kreditnotaer' : !mat?.data?.length ? `materiale: ${mat?.error?.message}` : ''
+        await a.page.goto(`${base}/dashboard/orders/${u35CaseId}?tab=fakturakladde`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /Slutfaktura/ }).first().click({ timeout: 90_000 }).catch(() => {})
+        await a.page.getByRole('button', { name: /Opret slutfaktura/ }).waitFor({ timeout: 60_000 }).catch(() => {})
+        r.visning_netto_fradrag = (await a.page.getByText(/krediteret/).count()) > 0
+        await a.page.getByRole('button', { name: /Opret slutfaktura/ }).click({ timeout: 60_000 }).catch(() => {})
+        type Fin = { id?: string; total_amount?: number }
+        const readFin = async (): Promise<Fin | null> => ((await c.admin.from('invoices').select('id, total_amount').eq('case_id', u35CaseId ?? '').eq('invoice_type', 'final').maybeSingle()).data as Fin | null)
+        let fin: Fin | null = await readFin()
+        for (let i = 0; i < 20 && !fin; i++) { await new Promise((res) => setTimeout(res, 1000)); fin = await readFin() }
+        const lines = fin?.id ? ((await c.admin.from('invoice_lines').select('description, total_price').eq('invoice_id', fin.id)).data ?? []) as Array<{ description: string; total_price: number }> : []
+        const deductions = lines.filter((l) => Number(l.total_price) < 0)
+        r.intet_fradrag_for_krediteret_forskud = !deductions.some((l) => l.description.includes(`UI-E2E-D-${stamp}`))
+        r.rate_fradrag_netto_300 = deductions.length === 1 && Number(deductions[0].total_price) === -300
+        r.total_700 = Number(fin?.total_amount) === 700
+        await a.page.screenshot({ path: join(shots, 'u35-kreditfradrag.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U35 slutfaktura efter kreditnota', ok: !seedErr && Object.values(r).every(Boolean),
+          note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · linjer=${JSON.stringify(lines.map((l) => [l.description.slice(0, 40), l.total_price]))} total=${fin?.total_amount}` })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
@@ -1359,6 +1397,14 @@ ${m.text()}`) })
       await c.admin.from('invoices').delete().eq('id', u33InvoiceId)
     }
     if (u34CaseId) { await c.admin.from('case_materials').delete().eq('case_id', u34CaseId); listCaseIds.push(u34CaseId) }
+    if (u35CaseId) {
+      await c.admin.from('case_materials').update({ invoice_line_id: null }).eq('case_id', u35CaseId)
+      const invs = ((await c.admin.from('invoices').select('id, invoice_type').eq('case_id', u35CaseId)).data ?? []) as Array<{ id: string; invoice_type: string }>
+      for (const iv of invs) { await c.admin.from('invoice_predecessors').delete().eq('invoice_id', iv.id); await c.admin.from('invoice_lines').delete().eq('invoice_id', iv.id); await c.admin.from('audit_logs').delete().eq('entity_id', iv.id) }
+      for (const t of ['final', 'credit', 'progress', 'deposit']) for (const iv of invs.filter((x) => x.invoice_type === t)) await c.admin.from('invoices').delete().eq('id', iv.id)
+      await c.admin.from('case_materials').delete().eq('case_id', u35CaseId)
+      listCaseIds.push(u35CaseId)
+    }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)

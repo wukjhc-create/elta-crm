@@ -354,6 +354,11 @@ export async function createFinalInvoiceForCase(
     invoice_type: string
     status: string
   }>
+  // Fradrag = forgængerens beløb MINUS det der allerede er krediteret på den
+  // (før: fuldt fradrag selv efter kreditnota → kunden fik pengene to gange).
+  const creditedPred = await creditedByInvoice(supabase, predRows.map((p) => p.id))
+  const netDeduction = (p: { id: string; total_amount: number | string | null }) =>
+    r2(Number(p.total_amount ?? 0) - (creditedPred.get(p.id) ?? 0))
 
   // 4. Pull un-billed source rows (when allowed)
   let unbilledLinesCount = 0
@@ -493,11 +498,12 @@ export async function createFinalInvoiceForCase(
   // 5. Build deduction lines (negative — DB has no CHECK forbidding it)
   let deductionTotal = 0
   for (const p of predRows) {
-    const amt = Number(p.total_amount ?? 0)
+    const amt = netDeduction(p)
     if (amt <= 0) continue
     deductionTotal += amt
+    const creditNote = (creditedPred.get(p.id) ?? 0) > 0 ? ', efter kreditnota' : ''
     lines.push({
-      description: `Fradrag: ${p.invoice_number} (${p.invoice_type === 'deposit' ? 'forskud' : 'rate'})`,
+      description: `Fradrag: ${p.invoice_number} (${p.invoice_type === 'deposit' ? 'forskud' : 'rate'}${creditNote})`,
       quantity: 1,
       unit: 'stk',
       unit_price: -amt,
@@ -616,26 +622,45 @@ export async function createFinalInvoiceForCase(
     if (il.source_case_material_id) cmMap.set(il.source_case_material_id, il.id)
     if (il.source_case_other_cost_id) ocMap.set(il.source_case_other_cost_id, il.id)
   }
-  for (const [srcId, lineId] of tlMap) {
-    await supabase
-      .from('time_logs')
-      .update({ invoice_line_id: lineId })
-      .eq('id', srcId)
-      .is('invoice_line_id', null)
+  // Hver lås skal ramme præcis 1 række; ellers har en samtidig faktura
+  // låst rækken først → rul hele slutfakturaen tilbage (ingen dobbelt-
+  // fakturering, ingen halvt bundet kladde).
+  let lostBinds = 0
+  const bind = async (
+    table: 'time_logs' | 'case_materials' | 'case_other_costs',
+    map: Map<string, string>
+  ) => {
+    for (const [srcId, lineId] of map) {
+      const { data: bound, error } = await supabase
+        .from(table)
+        .update({ invoice_line_id: lineId })
+        .eq('id', srcId)
+        .is('invoice_line_id', null)
+        .select('id')
+      if (error || !bound || bound.length !== 1) lostBinds += 1
+    }
   }
-  for (const [srcId, lineId] of cmMap) {
-    await supabase
-      .from('case_materials')
-      .update({ invoice_line_id: lineId })
-      .eq('id', srcId)
-      .is('invoice_line_id', null)
-  }
-  for (const [srcId, lineId] of ocMap) {
-    await supabase
-      .from('case_other_costs')
-      .update({ invoice_line_id: lineId })
-      .eq('id', srcId)
-      .is('invoice_line_id', null)
+  await bind('time_logs', tlMap)
+  await bind('case_materials', cmMap)
+  await bind('case_other_costs', ocMap)
+  if (lostBinds > 0) {
+    const ourLineIds = (insertedLines ?? []).map((l) => (l as { id: string }).id)
+    if (ourLineIds.length > 0) {
+      for (const table of ['time_logs', 'case_materials', 'case_other_costs'] as const) {
+        await supabase.from(table).update({ invoice_line_id: null }).in('invoice_line_id', ourLineIds)
+      }
+      await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+    }
+    await supabase.from('invoices').delete().eq('id', header.id)
+    logger.warn('final invoice rolled back: source rows billed concurrently', {
+      entityId: header.id,
+      metadata: { case_id: sag.id, lost_binds: lostBinds },
+    })
+    return {
+      ...empty,
+      message:
+        'Nogle linjer blev faktureret samtidig på en anden faktura — slutfakturaen er ikke oprettet. Genindlæs og prøv igen.',
+    }
   }
 
   // 11. Insert invoice_predecessors med snapshot
@@ -643,7 +668,7 @@ export async function createFinalInvoiceForCase(
     const predRowsToInsert = predRows.map((p) => ({
       invoice_id: header.id,
       predecessor_invoice_id: p.id,
-      deduction_amount: Number(p.total_amount ?? 0),
+      deduction_amount: Math.max(0, netDeduction(p)),
     }))
     const { error: predErr } = await supabase
       .from('invoice_predecessors')
@@ -718,9 +743,29 @@ export interface StageInvoiceSummary {
   total_amount: number
   tax_amount: number
   final_amount: number
+  /** Krediteret ekskl. moms via kreditnotaer (alle statusser) — fradrag på slutfaktura = total_amount − credited_amount. */
+  credited_amount: number
   is_final_invoice: boolean
   created_at: string
   due_date: string | null
+}
+
+/** Sum af kreditnotaer (ekskl. moms, positiv) pr. original faktura. */
+async function creditedByInvoice(
+  supabase: ReturnType<typeof createAdminClient>,
+  invoiceIds: string[]
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (invoiceIds.length === 0) return out
+  const { data } = await supabase
+    .from('invoices')
+    .select('credit_of_invoice_id, total_amount')
+    .in('credit_of_invoice_id', invoiceIds)
+    .eq('invoice_type', 'credit')
+  for (const c of (data ?? []) as Array<{ credit_of_invoice_id: string; total_amount: number | string }>) {
+    out.set(c.credit_of_invoice_id, r2((out.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.total_amount ?? 0))))
+  }
+  return out
 }
 
 export async function listStageInvoicesForCase(
@@ -757,6 +802,7 @@ export async function listStageInvoicesForCase(
     due_date: string | null
   }
   const raw = (data ?? []) as unknown as RawRow[]
+  const credited = await creditedByInvoice(supabase, raw.map((r) => r.id))
   const rows: StageInvoiceSummary[] = raw.map((r) => ({
     id: r.id,
     invoice_number: r.invoice_number,
@@ -769,6 +815,7 @@ export async function listStageInvoicesForCase(
     total_amount: Number(r.total_amount),
     tax_amount: Number(r.tax_amount),
     final_amount: Number(r.final_amount),
+    credited_amount: credited.get(r.id) ?? 0,
     is_final_invoice: !!r.is_final_invoice,
     created_at: r.created_at,
     due_date: r.due_date,
