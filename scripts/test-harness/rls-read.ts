@@ -8,6 +8,8 @@
  *   L7  document_confirmations.token + offer_signatures.signature_data (00177) ikke laesbare
  *   L8  company_settings-/e-conomic-hemmeligheder (00179) — privilegie-tjek uafhaengigt af raekker
  *   L6  integrationshemmeligheder (00176): ingen persona kan laese api_key m.fl.; offentlige kolonner laesbare
+ *   L9  mail (00180, G9/G10): montør ser KUN mails på egne sager/job; admin/serviceleder/salg/bogholderi ser alle
+ *   L10 medarbejdere (00180, G5): planlæggere (admin, serviceleder) ser alle; montør/salg kun egen række
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
@@ -117,6 +119,42 @@ export async function runRlsRead(c: { admin: SupabaseClient; anon: SupabaseClien
     const a2 = await c.anon.from('partner_access_tokens').select('id').eq('id', pa)
     const a3 = await c.anon.from('messages').select('id').eq('id', msg)
     const anonSaw = [a1, a2, a3].some((q) => !q.error && (q.data ?? []).length > 0)
+    // L9/L10 — 00180. Seed: montør-personaens medarbejder + egen sag (arbejdsordre tildelt ham) + fremmed sag; mails
+    // på egen sag, fremmed sag og uden sag; en ekstra medarbejder uden login.
+    {
+      const montorUid = uids.get('montør')!
+      const empM = await seed('employees', { name: '[HARNESS] rls-read montør', email: `rlsr-m-${stamp}@harness.test`, role: 'montør', active: true, profile_id: montorUid })
+      const empX = await seed('employees', { name: '[HARNESS] rls-read anden', email: `rlsr-x-${stamp}@harness.test`, role: 'montør', active: true })
+      const caseOwn = await seed('service_cases', { title: '[HARNESS] rls-read egen', customer_id: cust, status: 'new', priority: 'medium', source: 'manual', created_by: c.ownerUid })
+      const caseOther = await seed('service_cases', { title: '[HARNESS] rls-read fremmed', customer_id: cust, status: 'new', priority: 'medium', source: 'manual', created_by: c.ownerUid })
+      await seed('work_orders', { case_id: caseOwn, title: '[HARNESS] rls-read job', status: 'planned', assigned_employee_id: empM })
+      const mOwn = await seed('incoming_emails', { sender_email: `a-${stamp}@harness.test`, subject: '[HARNESS] L9 egen', service_case_id: caseOwn, received_at: new Date().toISOString() })
+      const mOther = await seed('incoming_emails', { sender_email: `b-${stamp}@harness.test`, subject: '[HARNESS] L9 fremmed', service_case_id: caseOther, received_at: new Date().toISOString() })
+      const mNone = await seed('incoming_emails', { sender_email: `c-${stamp}@harness.test`, subject: '[HARNESS] L9 uden sag', received_at: new Date().toISOString() })
+      const ids = [mOwn, mOther, mNone]
+      const seen: Record<string, string> = {}
+      for (const [r, cl] of personas) {
+        const { data, error } = await cl.from('incoming_emails').select('id').in('id', ids)
+        const got = new Set(((data ?? []) as Array<{ id: string }>).map((x) => x.id))
+        seen[r] = error ? `fejl:${error.message.slice(0, 40)}` : ids.map((id) => (got.has(id) ? '1' : '0')).join('')
+      }
+      const expectMail: Record<string, string> = { admin: '111', serviceleder: '111', salg: '111', bogholderi: '111', 'montør': '100' }
+      const badMail = Object.entries(expectMail).filter(([r, e]) => seen[r] !== e)
+      out.push({ id: 'L9 mail: montør kun egne sager', ok: badMail.length === 0 && Object.keys(expectMail).every((r) => r in seen),
+        note: `egen/fremmed/uden-sag pr. rolle: ${Object.entries(seen).map(([r, v]) => `${r}=${v}`).join(' ')}${badMail.length ? ` · AFVIGER: ${badMail.map(([r]) => r).join(',')}` : ''}` })
+
+      const empSeen: Record<string, string> = {}
+      for (const [r, cl] of personas) {
+        const { data, error } = await cl.from('employees').select('id').in('id', [empM, empX])
+        const got = new Set(((data ?? []) as Array<{ id: string }>).map((x) => x.id))
+        empSeen[r] = error ? `fejl:${error.message.slice(0, 40)}` : `${got.has(empM) ? 1 : 0}${got.has(empX) ? 1 : 0}`
+      }
+      const expectEmp: Record<string, string> = { admin: '11', serviceleder: '11', 'montør': '10', salg: '00', bogholderi: '00' }
+      const badEmp = Object.entries(expectEmp).filter(([r, e]) => empSeen[r] !== e)
+      out.push({ id: 'L10 medarbejdere: planlæggere ser alle', ok: badEmp.length === 0 && Object.keys(expectEmp).every((r) => r in empSeen),
+        note: `egen-montør/anden pr. rolle: ${Object.entries(empSeen).map(([r, v]) => `${r}=${v}`).join(' ')}${badEmp.length ? ` · AFVIGER: ${badEmp.map(([r]) => r).join(',')}` : ''}` })
+    }
+
     out.push({ id: 'L5 anon læser intet', ok: !anonSaw, note: anonSaw ? 'LÆSTE' : 'afvist/tom' })
   } finally {
     for (const x of created) await c.admin.from(x.t).delete().eq('id', x.id)

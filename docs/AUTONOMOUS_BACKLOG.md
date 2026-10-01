@@ -26,7 +26,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | G7 | Leverandørfaktura | Bogføring i e-conomic fejler altid: suppliers.external_supplier_id og costAccountNumber kan ikke sættes nogen steder | → NEXT (N12). Henrik: e-conomic ER del af 1.0, men må ikke blokere øvrig go-live |
 | G8 | Leverandørfaktura | Ingen manuel upload af faktura (ingestFromUpload uden UI) | DONE (kode) — "Upload faktura" på listen (incoming_invoices.edit): PDF/JPG/PNG ≤15 MB gemmes privat (attachments/supplier-invoices, signeres ved visning), PDF-tekst → samme parse/match som mail, dedup med samme nøgle som mail (tekst-hash) → dublet åbner eksisterende og rydder filen op. ui-e2e U12; invoice-pipeline 10/10, invoice-attachments 8/8 |
 | G9 | Mail/indbakke | Montør så og kunne arkivere/koble al firmamail (inbox.view uden scope) — privatliv | DONE (kode, Henrik 2026-10-01) — inbox.view fjernet for montør (menu + /dashboard/mail → ingen adgang); sagens mails/dokumenter scope-tjekkes (kun egne sager). ui-e2e U4 (3/3) + U11 (egen sagsmail synlig, fremmed skjult). **DB-del → G10** |
-| G10 | Mail/medarbejdere (RLS) | incoming_emails SELECT er USING(true) → montør kan stadig læse al mail direkte via REST; employees: serviceleder ser kun egen række (G5) | IN_PROGRESS (staging) — read-lockdown: mail kun for mail-roller + montør på egne sager; employees SELECT for serviceleder med lønsatser skjult |
+| G10 | Mail/medarbejdere (RLS) | incoming_emails SELECT USING(true) → montør kunne læse al mail via REST; serviceleder så kun egen employees-række (G5) | BLOCKED_APPROVAL — 00180 på staging grøn (rls-read L9/L10 + fuld regression), prod pre-check ✅, runbook docs/runbooks/00180-g10-mail-scope-employees.md. Rettelse: employees.cost_rate/hourly_rate er kost-/salgssatser (løn ligger i employee_compensation) → ingen kolonne-lockdown nødvendig |
 | G11 | Opsætning før pilot | Montør #2 har login men ingen koblet medarbejder → ser ingen job, kan ikke registrere tid | TODO (Henrik, drift): Medarbejder → Rediger → Login → "Knyt eksisterende bruger". Verificér: `npx tsx scripts/prod-montor-linkage.ts` (koblet = montoer_logins) |
 
 ## NEXT
@@ -53,6 +53,7 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 |---|---|---|
 | Prod 00175–00177 + 00179 (læse-side: tokens, hemmeligheder, beskeder, underskrifter) | kode deployet; staging + rls-read 8/8 | docs/runbooks/p009-rls-write-lockdown.md |
 | Prod 00178 (runde 4: 44 kalkulations-/katalogtabeller) | staging 44/44, pre-check grøn | samme |
+| Prod 00180 (G10: montør kun mails på egne sager + serviceleder ser medarbejdere) | staging grøn, prod pre ✅ | docs/runbooks/00180-g10-mail-scope-employees.md |
 | Vercel: INVOICE_ATTACHMENT_FETCH_ENABLED=true (faktura-backfill) | kode deployet, baseline taget | docs/runbooks/invoice-attachment-backfill.md |
 | Aktivering af hidtil døde crons (cookie-klient → service-role): unanswered-mails (interne opgaver), offer-reminders (KUNDEMAIL), supplier-sync | analyse færdig; ændrer cron-adfærd → kræver separat godkendelse | — |
 | Opfølgning: prod-cron-status efter 00170–00174 | DELVIST VERIFICERET 08:23 UTC: bank-match, export-error-notification, invoice-reminders, offer-reminders, payment-report = ok. Udestår: unanswered-mails (12:00 UTC), natlige crons — `scripts/prod-cron-status-since.ts "2026-10-01 05:10"` | — |
