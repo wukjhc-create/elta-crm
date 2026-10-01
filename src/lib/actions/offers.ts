@@ -2561,3 +2561,34 @@ export async function duplicateOfferAction(offerId: string): Promise<ActionResul
     return { success: false, error: formatError(err, 'Kunne ikke kopiere tilbud') }
   }
 }
+
+// =====================================================
+// Standardværdier til tilbudsformularen (gyldighed, moms, betingelser)
+// =====================================================
+
+/**
+ * Formularen fik firmaindstillingerne via getCompanySettings (kræver settings.view) → for salg var
+ * de null, så sælgers tilbud fik INGEN gyldighedsdato og ingen standardbetingelser. Her kun de tre
+ * offentlige felter formularen bruger, via service-role efter offers.create-gaten.
+ */
+export async function getOfferFormDefaultsAction(): Promise<{
+  default_offer_validity_days: number | null
+  default_tax_percentage: number | null
+  default_terms_and_conditions: string | null
+} | null> {
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('offers.create')) return null
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { data } = await createAdminClient()
+    .from('company_settings')
+    .select('default_offer_validity_days, default_tax_percentage, default_terms_and_conditions')
+    .limit(1)
+    .maybeSingle()
+  if (!data) return null
+  const d = data as { default_offer_validity_days: number | null; default_tax_percentage: number | null; default_terms_and_conditions: string | null }
+  return {
+    default_offer_validity_days: d.default_offer_validity_days ?? null,
+    default_tax_percentage: d.default_tax_percentage ?? null,
+    default_terms_and_conditions: d.default_terms_and_conditions ?? null,
+  }
+}

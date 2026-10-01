@@ -26,8 +26,10 @@ import {
   Download,
   FileText,
   Image,
+  FilePlus,
 } from 'lucide-react'
 import { LeadStatusBadge } from '@/components/modules/leads/lead-status-badge'
+import { OfferForm } from '@/components/modules/offers/offer-form'
 import { LeadForm } from '@/components/modules/leads/lead-form'
 import {
   deleteLead,
@@ -55,6 +57,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
+  const [showOfferForm, setShowOfferForm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [newNote, setNewNote] = useState('')
@@ -62,6 +65,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
   const [isConverting, setIsConverting] = useState(false)
   const { role } = useUserRole()
   const canConvert = hasPermission(role, 'customers.create') && hasPermission(role, 'leads.edit')
+  const canCreateOffer = hasPermission(role, 'offers.create')
   const linkedCustomerId = typeof (lead.custom_fields as Record<string, unknown> | null)?.customer_id === 'string'
     ? ((lead.custom_fields as Record<string, unknown>).customer_id as string) : null
 
@@ -169,6 +173,15 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                 data-testid="lead-convert"
               >
                 <Building className="w-4 h-4" /> {isConverting ? 'Opretter…' : 'Opret som kunde'}
+              </button>
+            )}
+            {canCreateOffer && (
+              <button
+                onClick={() => setShowOfferForm(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50"
+                data-testid="lead-create-offer"
+              >
+                <FilePlus className="w-4 h-4" /> Opret tilbud
               </button>
             )}
             <button
@@ -532,6 +545,14 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
           lead={lead}
           onClose={() => setShowEditForm(false)}
           onSuccess={() => router.refresh()}
+        />
+      )}
+      {showOfferForm && (
+        // Er leadet blevet kunde, laves tilbuddet på kunden; ellers på leadet.
+        <OfferForm
+          defaultCustomerId={linkedCustomerId ?? undefined}
+          defaultLeadId={linkedCustomerId ? undefined : lead.id}
+          onClose={() => setShowOfferForm(false)}
         />
       )}
       {ConfirmDialog}

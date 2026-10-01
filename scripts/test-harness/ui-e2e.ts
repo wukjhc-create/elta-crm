@@ -85,6 +85,8 @@
  *       salgspris over kost
  *   U52 kundekort: mail koblet til kunden vises i kundens mail-tidslinje (før: PGRST201 tvetydig join → tom)
  *   U53 go-live: "Opsætning før pilot" (firma, bank, montør-logins koblet, e-conomic-kunder) vises for admin; montør-status = DB
+ *   U54 salg: lead → "Opret tilbud" → tilbud koblet til leadet med firmaets standard-gyldighed og -betingelser
+ *       (før: salg fik ingen gyldighedsdato — firmaindstillinger krævede settings.view)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -230,6 +232,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const u49Ids: string[] = []
   let u50: { tokenId?: string; offerId?: string } = {}
   let u51: { supplierId?: string; offerId?: string } = {}
+  let u54OfferId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1866,6 +1869,47 @@ ${m.text()}`) })
         if (seededCs) await c.admin.from('company_settings').delete().eq('id', seededCs)
         out.push({ id: 'U47 salg: tilbuds-PDF', ok: Object.values(g).every(Boolean), note: `${Object.entries(g).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · status=${res?.status()}` })
       }
+      // U54 salg: lead → "Opret tilbud" med firmaets standard-gyldighed og -betingelser (før: salg fik ingen gyldighedsdato)
+      if (want('U54') && sp.ok) {
+        const g: Record<string, boolean> = {}
+        const cs = ((await c.admin.from('company_settings').select('id, default_offer_validity_days, default_terms_and_conditions')).data ?? []) as Array<{ id: string; default_offer_validity_days: number | null; default_terms_and_conditions: string | null }>
+        let seededCs: string | undefined
+        let restoreCs: { id: string; days: number | null; terms: string | null } | undefined
+        const terms = `[HARNESS] betingelser ${stamp}`
+        if (cs.length === 0) {
+          const ci = await c.admin.from('company_settings').insert([{ company_name: '[HARNESS] Elta Solar', default_offer_validity_days: 21, default_terms_and_conditions: terms }]).select('id')
+          seededCs = (ci.data?.[0] as { id?: string } | undefined)?.id
+        } else {
+          restoreCs = { id: cs[0].id, days: cs[0].default_offer_validity_days, terms: cs[0].default_terms_and_conditions }
+          await c.admin.from('company_settings').update({ default_offer_validity_days: 21, default_terms_and_conditions: terms }).eq('id', cs[0].id)
+        }
+        const ld = await c.admin.from('leads').insert([{ company_name: `[HARNESS] Tilbudslead ${stamp}`, contact_person: 'L', email: `tilbudslead-${stamp}@harness.test`,
+          status: 'qualified', source: 'website', created_by: adminUser.id, assigned_to: salg.id }]).select('id')
+        const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id
+        if (leadId) u27LeadIds.push(leadId)
+        await gotoSafe(sp.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await sp.page.getByTestId('lead-create-offer').click({ timeout: 60_000 }).catch(() => {})
+        const dlg = sp.page.locator('[aria-labelledby="offer-form-title"]')
+        await dlg.waitFor({ timeout: 30_000 }).catch(() => {})
+        const expectDate = new Date(); expectDate.setDate(expectDate.getDate() + 21)
+        const expectIso = expectDate.toISOString().split('T')[0]
+        // vent på at standardværdierne er hentet ind i formularen
+        for (let i = 0; i < 20; i++) { if ((await dlg.locator('#valid_until').inputValue().catch(() => '')) === expectIso) break; await new Promise((res) => setTimeout(res, 500)) }
+        await dlg.locator('#title').fill(`[HARNESS] tilbud fra lead ${stamp}`).catch(() => {})
+        await dlg.getByRole('button', { name: 'Opret tilbud' }).click({ timeout: 30_000 }).catch(() => {})
+        type O = { id: string; lead_id: string | null; valid_until: string | null; terms_and_conditions: string | null; created_by: string }
+        const readO = async (): Promise<O | null> => ((await c.admin.from('offers').select('id, lead_id, valid_until, terms_and_conditions, created_by').eq('title', `[HARNESS] tilbud fra lead ${stamp}`).maybeSingle()).data as O | null)
+        let o: O | null = await readO()
+        for (let i = 0; i < 20 && !o; i++) { await new Promise((res) => setTimeout(res, 1000)); o = await readO() }
+        if (o?.id) u54OfferId = o.id
+        g.tilbud_oprettet = !!o && o.created_by === salg.id
+        g.koblet_til_lead = o?.lead_id === leadId
+        g.gyldighed_fra_standard = o?.valid_until === expectIso
+        g.betingelser_fra_standard = o?.terms_and_conditions === terms
+        if (seededCs) await c.admin.from('company_settings').delete().eq('id', seededCs)
+        if (restoreCs) await c.admin.from('company_settings').update({ default_offer_validity_days: restoreCs.days, default_terms_and_conditions: restoreCs.terms }).eq('id', restoreCs.id)
+        out.push({ id: 'U54 salg: lead → tilbud m. standarder', ok: !!leadId && Object.values(g).every(Boolean), note: `${Object.entries(g).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · gyldig=${o?.valid_until}/${expectIso}` })
+      }
       out.push({ id: 'U13 salg: sag fra eget tilbud', ok: sp.ok && !!salgOfferId && Object.keys(r).length === 6 && Object.values(r).every(Boolean),
         note: `${!sp.ok ? `salg-login fejlede (${loginFailures.join(' | ')}) · ` : ''}${!salgOfferId ? `SEED: ${off?.error?.message?.slice(0, 80)} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
     }
@@ -2022,6 +2066,7 @@ ${m.text()}`) })
     if (u50.tokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u50.tokenId)
     if (u51.offerId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u51.offerId); await c.admin.from('offers').delete().eq('id', u51.offerId) }
     if (u51.supplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u51.supplierId); await c.admin.from('suppliers').delete().eq('id', u51.supplierId) }
+    if (u54OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u54OfferId); await c.admin.from('audit_logs').delete().eq('entity_id', u54OfferId); await c.admin.from('offers').delete().eq('id', u54OfferId) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)

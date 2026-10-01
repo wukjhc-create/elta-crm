@@ -12,6 +12,7 @@ import {
   createOffer,
   updateOffer,
   getLeadsForSelect,
+  getOfferFormDefaultsAction,
 } from '@/lib/actions/offers'
 import type { Offer } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
@@ -28,11 +29,13 @@ interface OfferFormProps {
   calculatorData?: CalculatorData | null
   /** Forudvælg kunde (fx ved oprettelse fra kundekortet). */
   defaultCustomerId?: string
+  /** Forudvælg lead (oprettelse fra leadet, når det endnu ikke er blevet kunde). */
+  defaultLeadId?: string
   onClose: () => void
   onSuccess?: (offer: Offer) => void
 }
 
-export function OfferForm({ offer, companySettings, calculatorData, defaultCustomerId, onClose, onSuccess }: OfferFormProps) {
+export function OfferForm({ offer, companySettings, calculatorData, defaultCustomerId, defaultLeadId, onClose, onSuccess }: OfferFormProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -96,6 +99,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
           title: getDefaultTitle(),
           description: getDefaultDescription(),
           customer_id: defaultCustomerId,
+          lead_id: defaultCustomerId ? undefined : defaultLeadId,
           discount_percentage: 0,
           tax_percentage: companySettings?.default_tax_percentage ?? 25,
           valid_until: getDefaultValidUntil(),
@@ -125,6 +129,24 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
   useEffect(() => { setFocus('title') }, [setFocus])
 
   const customerId = watch('customer_id')
+
+  // Standardværdier når siden ikke kunne give firmaindstillinger (fx salg uden settings.view):
+  // gyldighed, moms og betingelser hentes direkte — ellers fik sælgers tilbud ingen udløbsdato.
+  useEffect(() => {
+    if (isEditing || companySettings) return
+    let cancelled = false
+    getOfferFormDefaultsAction().then((d) => {
+      if (cancelled || !d) return
+      if (d.default_offer_validity_days) {
+        const date = new Date()
+        date.setDate(date.getDate() + d.default_offer_validity_days)
+        setValue('valid_until', date.toISOString().split('T')[0])
+      }
+      if (d.default_tax_percentage != null) setValue('tax_percentage', d.default_tax_percentage)
+      if (d.default_terms_and_conditions) setValue('terms_and_conditions', d.default_terms_and_conditions)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [isEditing, companySettings, setValue])
 
   useEffect(() => {
     async function loadData() {
