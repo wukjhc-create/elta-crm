@@ -1,4 +1,5 @@
 'use server'
+import { secretTokenReader, PORTAL_TOKEN_PUBLIC_COLUMNS } from '@/lib/portal/token-reader'
 
 import { revalidatePath } from 'next/cache'
 import { createClient, createAnonClient } from '@/lib/supabase/server'
@@ -88,7 +89,7 @@ export async function createPortalToken(
         expires_at: data.expires_at || null,
         created_by: userId,
       })
-      .select()
+      .select(PORTAL_TOKEN_PUBLIC_COLUMNS) // token-kolonnen er skjult for bruger-sessionen (00175)
       .single()
 
     if (error) {
@@ -97,7 +98,7 @@ export async function createPortalToken(
     }
 
     revalidatePath('/customers')
-    return { success: true, data: tokenData as PortalAccessToken }
+    return { success: true, data: { ...(tokenData as object), token } as PortalAccessToken }
   } catch (error) {
     logger.error('Error in createPortalToken', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -109,11 +110,15 @@ export async function getPortalTokens(
   customerId: string
 ): Promise<ActionResult<PortalAccessToken[]>> {
   try {
-    const { supabase, userId } = await getAuthenticatedClient()
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
 
-    const { data, error } = await supabase
+    // P-009 (00175): selve tokenet (= fuld kundeadgang) kun til roller der administrerer portal-adgang (offers.send);
+    // oevrige ser status/udloeb uden token. Bruger-sessionen kan ikke laese token-kolonnen.
+    const canSeeToken = hasPermission('offers.send')
+    const reader = canSeeToken ? await secretTokenReader() : supabase
+    const { data, error } = await reader
       .from('portal_access_tokens')
-      .select('*')
+      .select(canSeeToken ? '*' : PORTAL_TOKEN_PUBLIC_COLUMNS)
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
 
@@ -122,7 +127,7 @@ export async function getPortalTokens(
       return { success: false, error: 'Kunne ikke hente portal-adgange' }
     }
 
-    return { success: true, data: data as PortalAccessToken[] }
+    return { success: true, data: data as unknown as PortalAccessToken[] }
   } catch (error) {
     logger.error('Error in getPortalTokens', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -1089,7 +1094,7 @@ export async function sendEmployeeMessage(
       } else {
         // Find newest active, non-expired portal_access_token for deep-link.
         const nowIso = new Date().toISOString()
-        const { data: tokenRow } = await supabase
+        const { data: tokenRow } = await (await secretTokenReader())
           .from('portal_access_tokens')
           .select('token, expires_at')
           .eq('customer_id', customerId)

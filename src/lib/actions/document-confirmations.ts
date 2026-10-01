@@ -34,6 +34,7 @@ import {
   ActionError,
 } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { secretColumnReader } from '@/lib/portal/token-reader'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
@@ -247,7 +248,9 @@ export async function createConfirmationRequests(
     const { data: created, error: insertErr } = await supabase
       .from('document_confirmations')
       .insert(rows)
-      .select('id, token, recipient_email, recipient_name, recipient_role, expires_at')
+      // P-009 (00177): token-kolonnen er skjult for bruger-sessionen -> RETURNING uden token; tokenet (DB-default)
+      // hentes bagefter med service-role til mail-linket (kalderen er en gatet action).
+      .select('id, recipient_email, recipient_name, recipient_role, expires_at')
 
     if (insertErr || !created) {
       logger.error('createConfirmationRequests insert failed', {
@@ -256,12 +259,17 @@ export async function createConfirmationRequests(
       })
       return { success: false, error: 'Kunne ikke oprette bekræftelses-anmodninger' }
     }
+    const { data: tokenRows } = await (await secretColumnReader())
+      .from('document_confirmations')
+      .select('id, token')
+      .in('id', created.map((r) => r.id))
+    const tokenById = new Map(((tokenRows ?? []) as Array<{ id: string; token: string }>).map((r) => [r.id, r.token]))
 
     return {
       success: true,
       data: created.map((row) => ({
         confirmationId: row.id,
-        token: row.token,
+        token: tokenById.get(row.id) ?? '',
         recipientEmail: row.recipient_email,
         recipientName: row.recipient_name,
         recipientRole: row.recipient_role as ConfirmationRecipientRole,

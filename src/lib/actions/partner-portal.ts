@@ -89,11 +89,15 @@ export async function getPartnerTokens(
   customerId: string
 ): Promise<ActionResult<PartnerAccessToken[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
 
-    const { data, error } = await supabase
+    // P-009 (00175): partner-token (= partnerportal-adgang) kun til settings.manage; andre ser status uden token.
+    const canSeeToken = hasPermission('settings.manage')
+    const { secretTokenReader, PARTNER_TOKEN_PUBLIC_COLUMNS } = await import('@/lib/portal/token-reader')
+    const reader = canSeeToken ? await secretTokenReader() : supabase
+    const { data, error } = await reader
       .from('partner_access_tokens')
-      .select('*')
+      .select(canSeeToken ? '*' : PARTNER_TOKEN_PUBLIC_COLUMNS)
       .eq('partner_customer_id', customerId)
       .order('created_at', { ascending: false })
 
@@ -102,7 +106,7 @@ export async function getPartnerTokens(
       return { success: false, error: 'Kunne ikke hente partner-adgange' }
     }
 
-    return { success: true, data: data as PartnerAccessToken[] }
+    return { success: true, data: data as unknown as PartnerAccessToken[] }
   } catch (error) {
     logger.error('Error in getPartnerTokens', { error })
     return { success: false, error: 'Der opstod en fejl' }

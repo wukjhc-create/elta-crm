@@ -1,3 +1,4 @@
+import { secretTokenReader } from '@/lib/portal/token-reader'
 import { createClient } from '@/lib/supabase/server'
 import { APP_URL } from '@/lib/constants'
 
@@ -11,7 +12,11 @@ export async function getPortalOfferUrl(offerId: string, customerId: string): Pr
 
   // Look for an existing active portal token for this customer
   // Include tokens with null expires_at (never-expiring) OR future expiration
-  const { data: existingToken } = await supabase
+  // P-009 (00175): token-kolonnen er skjult for bruger-sessionen. En indlogget medarbejder laeser via service-role
+  // (samme adgang som foer); uden session (anon-cron, P-003) bruges anon-klienten som hidtil -> uaendret cron-adfaerd.
+  const { data: { user } } = await supabase.auth.getUser()
+  const reader = user ? await secretTokenReader() : supabase
+  const { data: existingToken } = await reader
     .from('portal_access_tokens')
     .select('token')
     .eq('customer_id', customerId)

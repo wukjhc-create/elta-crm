@@ -1,4 +1,5 @@
 'use server'
+import { secretTokenReader } from '@/lib/portal/token-reader'
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
 import { revalidatePath } from 'next/cache'
@@ -1126,7 +1127,7 @@ async function sendServiceCaseConfirmation(
     if (!customer?.email) return
 
     // Find portal token
-    const { data: tokenData } = await supabase
+    const { data: tokenData } = await (await secretTokenReader())
       .from('portal_access_tokens')
       .select('token')
       .eq('customer_id', customerId)

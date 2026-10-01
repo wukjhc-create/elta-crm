@@ -1,4 +1,5 @@
 'use server'
+import { secretTokenReader } from '@/lib/portal/token-reader'
 
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
@@ -857,7 +858,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
     let portalToken: string
 
     // Check if customer already has an active portal token
-    const { data: existingTokens } = await supabase
+    const { data: existingTokens } = await (await secretTokenReader())
       .from('portal_access_tokens')
       .select('token')
       .eq('customer_id', offer.customer.id)
@@ -888,7 +889,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
           expires_at: expiresAt.toISOString(),
           created_by: userId,
         })
-        .select('token')
+        .select('id')
         .single()
 
       if (tokenError || !tokenData) {
@@ -896,7 +897,7 @@ export async function sendOffer(offerId: string): Promise<ActionResult<Offer>> {
         return { success: false, error: 'Kunne ikke oprette portal-adgang' }
       }
 
-      portalToken = tokenData.token
+      portalToken = newToken // token-kolonnen er skjult for bruger-sessionen (00175)
     }
 
     // Build portal URL

@@ -15,7 +15,7 @@ import { scanWriteSites, derivedRoles, anonCronTables } from '../rls-write-sites
 import * as M from './write-matrix'
 import { buildMigration } from './build-migration'
 
-export const WAVES: Array<{ nr: string; wave: string }> = [{ nr: '00170', wave: 'WAVE1' }, { nr: '00171', wave: 'WAVE2A' }, { nr: '00172', wave: 'WAVE2B' }, { nr: '00173', wave: 'WAVE3A' }, { nr: '00174', wave: 'WAVE3B' }]
+export const WAVES: Array<{ nr: string; wave: string }> = [{ nr: '00170', wave: 'WAVE1' }, { nr: '00171', wave: 'WAVE2A' }, { nr: '00172', wave: 'WAVE2B' }, { nr: '00173', wave: 'WAVE3A' }, { nr: '00174', wave: 'WAVE3B' }, { nr: '00178', wave: 'WAVE4' }]
 
 export function checkMatrix(): { failures: string[]; warnings: string[] } {
   const failures: string[] = []

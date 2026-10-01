@@ -16,6 +16,7 @@ async function requireGate(permission: Permission) {
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
 import type { MailRoute } from '@/lib/services/mail-routing'
 import type { ActionResult } from '@/types/common.types'
+import { secretColumnReader } from '@/lib/portal/token-reader'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { BRAND } from '@/lib/brand'
@@ -1416,7 +1417,8 @@ async function sendConfirmationEmailInternal(
   supabase: AuthedSupabase,
   confirmationId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const { data: conf } = await supabase
+  // P-009 (00177): token-kolonnen er skjult for bruger-sessionen; mail-linket bygges med service-role (gatet kalder).
+  const { data: conf } = await (await secretColumnReader())
     .from('document_confirmations')
     .select(
       'id, token, recipient_email, recipient_name, recipient_role, expires_at, customer_document_id, status',

@@ -138,6 +138,8 @@ export function PortalAccess({
                   {token.email}
                 </span>
                 <div className="flex items-center gap-1">
+                  {/* P-009: tokenet vises kun for roller der administrerer adgangen (ellers udeladt fra serveren) */}
+                  {token.token && (<>
                   <button
                     onClick={() => handleCopy(token.token)}
                     className="p-1.5 hover:bg-gray-200 rounded text-gray-500"
@@ -158,6 +160,7 @@ export function PortalAccess({
                   >
                     <ExternalLink className="w-4 h-4" />
                   </a>
+                  </>)}
                   <button
                     onClick={() => handleDeactivate(token.id)}
                     disabled={deactivatingId === token.id}

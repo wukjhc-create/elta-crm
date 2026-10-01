@@ -516,6 +516,15 @@ async function main() {
     log(`✅ anon-grants genskabt paa staging: ${req.join(', ')}`)
     return
   }
+  if (SUB === 'rls-read') {
+    const { runRlsRead, formatRlsRead } = await import('./rls-read')
+    const actors = await ensureActors(admin, seedBase)
+    const anonClient = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
+    const checks = await runRlsRead({ admin, anon: anonClient, url: runtime.url, anonKey: runtime.anonKey, ownerUid: actors.ownerUid })
+    log(formatRlsRead(checks))
+    process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
+    return
+  }
   if (SUB === 'rls-lockdown') {
     const { runRlsLockdown, formatRlsLockdown } = await import('./rls-lockdown')
     const M = await import('../rls/write-matrix')

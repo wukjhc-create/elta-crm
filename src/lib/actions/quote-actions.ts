@@ -1,4 +1,5 @@
 'use server'
+import { secretTokenReader } from '@/lib/portal/token-reader'
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
@@ -245,11 +246,14 @@ export async function checkCustomerPortalAccess(
   customerId: string
 ): Promise<ActionResult<{ hasPortal: boolean; portalToken?: string }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
 
-    const { data: token } = await supabase
+    // P-009 (00175): token kun til offers.send (deler portal-links); andre faar kun hasPortal.
+    const canSeeToken = hasPermission('offers.send')
+    const reader = canSeeToken ? await secretTokenReader() : supabase
+    const { data: token } = await reader
       .from('portal_access_tokens')
-      .select('token')
+      .select(canSeeToken ? 'token' : 'id')
       .eq('customer_id', customerId)
       .eq('is_active', true)
       .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
@@ -260,7 +264,7 @@ export async function checkCustomerPortalAccess(
       success: true,
       data: {
         hasPortal: !!token,
-        portalToken: token?.token,
+        portalToken: canSeeToken ? (token as { token?: string } | null)?.token : undefined,
       },
     }
   } catch (error) {

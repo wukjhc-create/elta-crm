@@ -1,4 +1,5 @@
 'use server'
+import { secretTokenReader } from '@/lib/portal/token-reader'
 
 /**
  * Server Actions — Customer Tasks (Opgaver)
@@ -533,7 +534,7 @@ export async function bookBesigtigelse(
       .eq('id', customerId)
       .single()
 
-    const { data: portalTokens } = await supabase
+    const { data: portalTokens } = await (await secretTokenReader())
       .from('portal_access_tokens')
       .select('token')
       .eq('customer_id', customerId)

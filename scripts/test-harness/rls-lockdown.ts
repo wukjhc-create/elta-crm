@@ -22,6 +22,8 @@ type Spec = {
   condUpdate?: Record<string, unknown>
   /** raekke-felter der goer raekken "egen" for personaen (usingSql/delete-betingelse) */
   ownRow?: (uid: string) => Record<string, unknown>
+  /** laesning er bevidst begraenset (laese-side, fx 00175 messages: kun egne) — daekket af harness:rls-read */
+  readRestricted?: boolean
   /** primaernoegle hvis ikke 'id' */
   pk?: string
 }
@@ -87,9 +89,9 @@ const SPECS: Record<string, Spec> = {
   leads: { payload: (uid, c) => ({ company_name: '[HARNESS] rls', contact_person: 'R', email: `rls-${c.stamp}-${c.n()}@harness.test`, created_by: uid }), update: { notes: '[HARNESS] rls-update' } },
   lead_activities: { payload: (uid, c) => ({ lead_id: c.s.lead, activity_type: 'note', description: '[HARNESS] rls', performed_by: uid }), update: { description: '[HARNESS] rls-update' } },
   // modtager = en profil der IKKE er en af personaerne (sink), saa probe-raekker ikke tilhoerer den testede persona
-  messages: { payload: (uid, c) => ({ subject: '[HARNESS] rls', body: 'x', from_user_id: uid, to_user_id: c.s.sinkUid }), update: { read_at: new Date().toISOString() }, ownRow: (uid) => ({ to_user_id: uid }) },
+  messages: { payload: (uid, c) => ({ subject: '[HARNESS] rls', body: 'x', from_user_id: uid, to_user_id: c.s.sinkUid }), update: { read_at: new Date().toISOString() }, ownRow: (uid) => ({ to_user_id: uid }), readRestricted: true },
   sent_quotes: { payload: (_u, c) => ({ quote_reference: `HARN-RLS-Q-${c.stamp}-${c.n()}`, template_type: 'sales', customer_email: `rls-${c.stamp}@harness.test`, title: '[HARNESS] rls' }), update: { title: '[HARNESS] rls-update' } },
-  offer_signatures: { payload: (_u, c) => ({ offer_id: c.s[`of${c.n() % 40}`], signer_name: '[HARNESS] rls', signer_email: `rls-${c.stamp}@harness.test` }), update: { signer_name: '[HARNESS] rls-update' } },
+  offer_signatures: { payload: (_u, c) => ({ offer_id: c.s[`of${c.n() % 40}`], signer_name: '[HARNESS] rls', signer_email: `rls-${c.stamp}@harness.test` }), update: { signer_name: '[HARNESS] rls-update' }, readRestricted: true },
   offer_packages: { payload: (_u, c) => ({ slug: `harn-rls-${c.stamp}-${c.n()}`, name: '[HARNESS] rls', job_type: 'harness', is_active: false }), update: { name: '[HARNESS] rls-update' } },
   offer_package_items: { payload: (_u, c) => ({ package_id: c.s.package, material_id: c.s[`mat${c.n() % 40}`] }), update: { quantity: 2 } },
   offer_text_templates: { payload: (_u, c) => ({ template_key: `harn_rls_${c.stamp}_${c.n()}`, content: 'x', is_active: false }), update: { content: 'y' } },
@@ -208,7 +210,7 @@ export async function runRlsLockdown(c: { admin: SupabaseClient; anon: SupabaseC
         expect(`${role}:update`, !upd.error && (upd.data ?? []).length === 1, has(p.update, role))
         // laesning uaendret
         const sel = await cl.from(p.table).select(pk).eq(pk, target)
-        expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, true)
+        if (!spec.readRestricted) expect(`${role}:select`, !sel.error && (sel.data ?? []).length === 1, true)
         // betinget UPDATE (fx montør -> done)
         if (p.updateConditional && spec.condUpdate) {
           const t2 = await seed(p.table, spec.payload(c.ownerUid, ctx))

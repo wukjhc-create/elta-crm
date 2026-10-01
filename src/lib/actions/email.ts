@@ -1,4 +1,5 @@
 'use server'
+import { secretTokenReader } from '@/lib/portal/token-reader'
 import { permissionDenied } from '@/lib/actions/action-helpers'
 
 /**
@@ -554,7 +555,7 @@ export async function generateEmailPreview(
 
     // Get or create portal token for offer link
     let portalToken = ''
-    const { data: existingToken } = await supabase
+    const { data: existingToken } = await (await secretTokenReader())
       .from('portal_access_tokens')
       .select('token')
       .eq('customer_id', offer.customer_id)

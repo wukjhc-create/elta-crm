@@ -38,6 +38,7 @@ async function requireGate(permission: Permission) {
   return ctx
 }
 import { validateUUID } from '@/lib/validations/common'
+import { secretColumnReader } from '@/lib/portal/token-reader'
 import { logger } from '@/lib/utils/logger'
 import {
   encryptIntegrationSecrets,
@@ -73,7 +74,7 @@ export async function getIntegrations(): Promise<ActionResult<Integration[]>> {
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await getAuthenticatedClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await (await secretColumnReader())
       .from('integrations')
       .select('*')
       .order('name')
@@ -97,7 +98,7 @@ export async function getIntegration(id: string): Promise<ActionResult<Integrati
     validateUUID(id, 'integration ID')
     const { supabase } = await getAuthenticatedClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await (await secretColumnReader())
       .from('integrations')
       .select(`
         *,
@@ -134,7 +135,7 @@ export async function createIntegration(
     // Krypter secret-felter foer lagring (AES-256-GCM, enc:v1:-prefix).
     const encryptedInput = await encryptIntegrationSecrets(input)
 
-    const { data, error } = await supabase
+    const { data, error } = await (await secretColumnReader())
       .from('integrations')
       .insert({
         ...encryptedInput,
@@ -166,7 +167,7 @@ export async function updateIntegration(
 
     // Hent eksisterende ciphertext, saa tomme secret-felter bevares (bevar-
     // hvis-tom) i stedet for at blive nullet.
-    const { data: existing } = await supabase
+    const { data: existing } = await (await secretColumnReader())
       .from('integrations')
       .select(INTEGRATION_SECRET_FIELDS.join(','))
       .eq('id', id)
@@ -177,7 +178,7 @@ export async function updateIntegration(
       existing as Partial<Record<(typeof INTEGRATION_SECRET_FIELDS)[number], string | null>> | null
     )
 
-    const { data, error } = await supabase
+    const { data, error } = await (await secretColumnReader())
       .from('integrations')
       .update(encryptedUpdate)
       .eq('id', id)
@@ -202,7 +203,7 @@ export async function deleteIntegration(id: string): Promise<ActionResult> {
     validateUUID(id, 'integration ID')
     const { supabase } = await requireGate('settings.manage')
 
-    const { error } = await supabase
+    const { error } = await (await secretColumnReader())
       .from('integrations')
       .delete()
       .eq('id', id)
@@ -227,7 +228,7 @@ export async function toggleIntegration(
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await requireGate('settings.manage')
 
-    const { data, error } = await supabase
+    const { data, error } = await (await secretColumnReader())
       .from('integrations')
       .update({ is_active: isActive })
       .eq('id', id)
@@ -548,7 +549,8 @@ export async function triggerWebhooks(
   const { supabase } = await getAuthenticatedClient()
 
   // Find all active webhooks for this event type
-  const { data: webhooks, error: webhookError } = await supabase
+  // integrations(*) indeholder hemmelighedskolonner (skjult for bruger-sessionen, 00176) -> service-role
+  const { data: webhooks, error: webhookError } = await (await secretColumnReader())
     .from('integration_webhooks')
     .select(`
       *,
@@ -801,7 +803,7 @@ export async function exportOfferToIntegration(
     const { supabase, userId } = await requireGate('offers.send')
 
     // Get integration
-    const { data: integrationRow, error: intError } = await supabase
+    const { data: integrationRow, error: intError } = await (await secretColumnReader())
       .from('integrations')
       .select('*')
       .eq('id', integrationId)
@@ -929,7 +931,7 @@ export async function testIntegrationConnection(
     if (!(await checkIntegrationAccess())) return PERM_DENIED_INTEGRATION
     const { supabase } = await requireGate('settings.manage')
 
-    const { data: integrationRow, error } = await supabase
+    const { data: integrationRow, error } = await (await secretColumnReader())
       .from('integrations')
       .select('*')
       .eq('id', integrationId)
@@ -963,7 +965,7 @@ export async function testIntegrationConnection(
     })
 
     // Update last sync time
-    await supabase
+    await (await secretColumnReader())
       .from('integrations')
       .update({
         last_sync_at: new Date().toISOString(),

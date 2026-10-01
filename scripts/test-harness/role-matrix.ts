@@ -253,6 +253,18 @@ export const SECRET_COLUMNS: Array<{ table: string; column: string }> = [
   // P-005 (00164): legacy-credentials i supplier_settings
   { table: 'supplier_settings', column: 'api_credentials' },
   { table: 'supplier_settings', column: 'ftp_credentials' },
+  // P-009 laese-side A1 (00175): adgangstokens (portal = fuld kundeadgang inkl. underskrift; partner = partnerportal)
+  { table: 'portal_access_tokens', column: 'token' },
+  { table: 'partner_access_tokens', column: 'token' },
+  // P-009 laese-side A2 (00176): integrationshemmeligheder
+  { table: 'integrations', column: 'api_key' },
+  { table: 'integrations', column: 'api_secret' },
+  { table: 'integrations', column: 'oauth_client_secret' },
+  { table: 'integrations', column: 'oauth_access_token' },
+  { table: 'integrations', column: 'oauth_refresh_token' },
+  // P-009 laese-side A3 (00177): kundens bekraeftelses-token + underskrift
+  { table: 'document_confirmations', column: 'token' },
+  { table: 'offer_signatures', column: 'signature_data' },
 ]
 
 export interface SecretColumnVerdict { table: string; column: string; authenticated: boolean; anon: boolean }
