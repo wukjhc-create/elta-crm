@@ -319,7 +319,27 @@ export interface EconomicIntegrationStatus {
     paymentTermsNumber: number | null
     vatZoneNumber: number | null
     autoBookOnCreate: boolean
+    /** N12: leverandørfakturaer bogføres på denne omkostningskonto */
+    costAccountNumber: number | null
+    /** N12: betalinger registreres i denne kassekladde mod denne bankkonto */
+    cashbookNumber: number | null
+    bankContraAccountNumber: number | null
+    /** N12: nye kunder/linjer i e-conomic (før stille standard "1") */
+    defaultCustomerGroupNumber: number | null
+    defaultProductNumber: string | null
   }
+  /** N12: hvad mangler før hvert flow kan køre (ingen bogføring sker herfra) */
+  readiness: EconomicReadiness
+}
+
+export interface EconomicReadinessItem { key: string; label: string; ok: boolean; hint: string }
+export interface EconomicReadiness {
+  items: EconomicReadinessItem[]
+  customerInvoices: boolean
+  supplierInvoices: boolean
+  payments: boolean
+  suppliersMapped: number
+  suppliersTotal: number
 }
 
 /** Maskér en hemmelighed til visning: "••••" + sidste 4 tegn. Aldrig rå. */
@@ -327,6 +347,38 @@ function maskToken(token: string | null | undefined): string | null {
   if (!token) return null
   const last4 = token.length >= 4 ? token.slice(-4) : token
   return '••••' + last4
+}
+
+/** N12: tjekliste for e-conomic — hvad mangler før kundefakturaer, leverandørfakturaer og betalinger kan bogføres. */
+async function economicReadiness(credentials: boolean, testOk: boolean | null, cfg: EconomicIntegrationStatus['config_summary']): Promise<EconomicReadiness> {
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+  const [{ count: total }, { count: mapped }] = await Promise.all([
+    admin.from('suppliers').select('id', { count: 'exact', head: true }),
+    admin.from('suppliers').select('id', { count: 'exact', head: true }).eq('external_provider', 'economic').not('external_supplier_id', 'is', null),
+  ])
+  const items: EconomicReadinessItem[] = [
+    { key: 'credentials', label: 'Nøgler gemt', ok: credentials, hint: 'App-hemmelighed og aftale-token fra e-conomic' },
+    { key: 'connection', label: 'Forbindelse testet', ok: testOk === true, hint: testOk === false ? 'Seneste test fejlede — tjek nøglerne' : 'Klik "Test forbindelse"' },
+    { key: 'layout', label: 'Layout', ok: cfg.layoutNumber != null, hint: 'Fakturalayout i e-conomic' },
+    { key: 'paymentTerms', label: 'Betalingsbetingelser', ok: cfg.paymentTermsNumber != null, hint: 'Fx netto 8 dage' },
+    { key: 'vatZone', label: 'Momszone', ok: cfg.vatZoneNumber != null, hint: 'Typisk 1 = Indenlandsk' },
+    { key: 'customerGroup', label: 'Kundegruppe', ok: cfg.defaultCustomerGroupNumber != null, hint: 'Bruges når nye kunder oprettes i e-conomic (ellers 1)' },
+    { key: 'product', label: 'Varenummer til fakturalinjer', ok: cfg.defaultProductNumber != null, hint: 'Varenr. i e-conomic til linjer (ellers "1")' },
+    { key: 'costAccount', label: 'Omkostningskonto (leverandørfakturaer)', ok: cfg.costAccountNumber != null, hint: 'Konto som leverandørfakturaer bogføres på' },
+    { key: 'cashbook', label: 'Kassekladde + bankkonto (betalinger)', ok: cfg.cashbookNumber != null && cfg.bankContraAccountNumber != null, hint: 'Kassekladde-nr. og bankens modkonto' },
+    { key: 'suppliers', label: 'Leverandører koblet til e-conomic', ok: (total ?? 0) > 0 && (mapped ?? 0) === (total ?? 0), hint: `${mapped ?? 0} af ${total ?? 0} har e-conomic-leverandørnr. (sættes på leverandøren)` },
+  ]
+  const ok = (k: string) => items.find((i) => i.key === k)!.ok
+  const base = ok('credentials') && ok('connection')
+  return {
+    items,
+    customerInvoices: base && ok('layout') && ok('paymentTerms') && ok('vatZone'),
+    supplierInvoices: base && ok('costAccount') && (mapped ?? 0) > 0,
+    payments: base && ok('cashbook'),
+    suppliersMapped: mapped ?? 0,
+    suppliersTotal: total ?? 0,
+  }
 }
 
 export async function getEconomicIntegrationStatusAction(): Promise<EconomicIntegrationStatus> {
@@ -342,7 +394,9 @@ export async function getEconomicIntegrationStatusAction(): Promise<EconomicInte
     last_tested_at: null,
     last_test_ok: null,
     last_test_message: null,
-    config_summary: { layoutNumber: null, paymentTermsNumber: null, vatZoneNumber: null, autoBookOnCreate: false },
+    config_summary: { layoutNumber: null, paymentTermsNumber: null, vatZoneNumber: null, autoBookOnCreate: false,
+      costAccountNumber: null, cashbookNumber: null, bankContraAccountNumber: null, defaultCustomerGroupNumber: null, defaultProductNumber: null },
+    readiness: { items: [], customerInvoices: false, supplierInvoices: false, payments: false, suppliersMapped: 0, suppliersTotal: 0 },
   }
   const { hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('settings.economic')) {
@@ -354,6 +408,14 @@ export async function getEconomicIntegrationStatusAction(): Promise<EconomicInte
     const s = await getEconomicSettings() // tokens er dekrypteret in-memory
     const cfg = s?.config ?? {}
     const test = cfg.connectionTest ?? null
+    const c = cfg as Record<string, unknown>
+    const n = (k: string) => (typeof c[k] === 'number' && Number.isFinite(c[k] as number) ? (c[k] as number) : null)
+    const summary: EconomicIntegrationStatus['config_summary'] = {
+      layoutNumber: n('layoutNumber'), paymentTermsNumber: n('paymentTermsNumber'), vatZoneNumber: n('vatZoneNumber'),
+      autoBookOnCreate: !!cfg.autoBookOnCreate, costAccountNumber: n('costAccountNumber'), cashbookNumber: n('cashbookNumber'),
+      bankContraAccountNumber: n('bankContraAccountNumber'), defaultCustomerGroupNumber: n('defaultCustomerGroupNumber'),
+      defaultProductNumber: typeof c.defaultProductNumber === 'string' && c.defaultProductNumber ? (c.defaultProductNumber as string) : null,
+    }
     return {
       ok: true,
       configured: isEconomicReady(s),
@@ -366,12 +428,8 @@ export async function getEconomicIntegrationStatusAction(): Promise<EconomicInte
       last_tested_at: test?.at ?? null,
       last_test_ok: test ? !!test.ok : null,
       last_test_message: test?.message ?? null,
-      config_summary: {
-        layoutNumber: cfg.layoutNumber ?? null,
-        paymentTermsNumber: cfg.paymentTermsNumber ?? null,
-        vatZoneNumber: cfg.vatZoneNumber ?? null,
-        autoBookOnCreate: !!cfg.autoBookOnCreate,
-      },
+      config_summary: summary,
+      readiness: await economicReadiness(isEconomicReady(s), test ? !!test.ok : null, summary),
     }
   } catch (e) {
     logger.error('getEconomicIntegrationStatusAction failed', { error: e })
@@ -393,6 +451,11 @@ export interface SaveEconomicCredentialsInput {
     paymentTermsNumber?: number | null
     vatZoneNumber?: number | null
     autoBookOnCreate?: boolean
+    costAccountNumber?: number | null
+    cashbookNumber?: number | null
+    bankContraAccountNumber?: number | null
+    defaultCustomerGroupNumber?: number | null
+    defaultProductNumber?: string | null
   }
 }
 
@@ -456,11 +519,14 @@ export async function updateEconomicCredentialsAction(
   const prevConfig = (existing?.config ?? {}) as Record<string, unknown>
   const mergedConfig: Record<string, unknown> = { ...prevConfig }
   if (input.config) {
-    for (const k of ['layoutNumber', 'paymentTermsNumber', 'vatZoneNumber'] as const) {
+    for (const k of ['layoutNumber', 'paymentTermsNumber', 'vatZoneNumber', 'costAccountNumber', 'cashbookNumber', 'bankContraAccountNumber', 'defaultCustomerGroupNumber'] as const) {
       const v = input.config[k]
       if (v === null) delete mergedConfig[k]
-      else if (typeof v === 'number' && Number.isFinite(v)) mergedConfig[k] = v
+      else if (typeof v === 'number' && Number.isFinite(v) && Number.isInteger(v) && v > 0) mergedConfig[k] = v
     }
+    const prod = input.config.defaultProductNumber
+    if (prod === null || prod === '') delete mergedConfig.defaultProductNumber
+    else if (typeof prod === 'string' && /^[A-Za-z0-9._-]{1,25}$/.test(prod.trim())) mergedConfig.defaultProductNumber = prod.trim()
     if (typeof input.config.autoBookOnCreate === 'boolean') mergedConfig.autoBookOnCreate = input.config.autoBookOnCreate
   }
 

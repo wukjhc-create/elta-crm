@@ -42,6 +42,7 @@ export function SupplierForm({
     contact_phone: supplier?.contact_phone || '',
     website: supplier?.website || '',
     vat_number: supplier?.vat_number || '',
+    economic_supplier_number: supplier?.external_provider === 'economic' ? supplier?.external_supplier_id || '' : '',
     notes: supplier?.notes || '',
     is_active: supplier?.is_active ?? true,
   })
@@ -61,6 +62,8 @@ export function SupplierForm({
     // CVR sendes kun naar det er aendret (virker ogsaa foer migration 00167, hvor kolonnen ikke findes).
     const payload: CreateSupplierData = { ...formData }
     if ((formData.vat_number || '').trim() === (supplier?.vat_number || '')) delete payload.vat_number
+    const prevEco = supplier?.external_provider === 'economic' ? supplier?.external_supplier_id || '' : ''
+    if ((formData.economic_supplier_number || '').trim() === prevEco) delete payload.economic_supplier_number
 
     let result
     if (isEdit) {
@@ -143,6 +146,18 @@ export function SupplierForm({
                   maxLength={20}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="economic_supplier_number">e-conomic-leverandørnr.</Label>
+              <Input
+                id="economic_supplier_number"
+                value={formData.economic_supplier_number}
+                onChange={(e) => setFormData({ ...formData, economic_supplier_number: e.target.value })}
+                placeholder="Leverandørens nummer i e-conomic — kræves for bogføring af leverandørfakturaer"
+                inputMode="numeric"
+                maxLength={9}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

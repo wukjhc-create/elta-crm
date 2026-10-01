@@ -25,6 +25,8 @@
  *       -> afslut -> status done i DB; kalenderen viser eget job uden "Planlæg opgave"/tom-tilstand
  *   U15 admin: fakturakladde — modtager = faktura-kontakt når kunden ingen mail har; ret stk-pris, tilføj og slet
  *       manuel linje -> totaler + 25 % moms genberegnet i DB (N5)
+ *   U16 admin: e-conomic-opsætning — leverandørnr. sættes på leverandøren (ugyldigt afvises), tjeklisten "Klar til
+ *       bogføring?" vises med alle punkter; intet bogføres (N12)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -364,14 +366,42 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
         await ed.getByTestId('draft-add-submit').click().catch(() => {})
         const t2 = await waitTotals(1450)
         r.linje_tilfoejet = Number(t2.total_amount) === 1450 && Number(t2.final_amount) === 1812.5
+        // Vent på at den nye linje er vist, og slet præcis den (ikke "sidste række" — race mod genindlæsning)
+        const koersel = ed.locator('tr', { hasText: 'Kørsel' })
+        await koersel.first().waitFor({ timeout: 60_000 }).catch(() => {})
         a.page.once('dialog', (dlg) => dlg.accept().catch(() => {}))
-        await a.page.getByTestId('draft-delete').last().click({ timeout: 30_000 }).catch(() => {})
+        await koersel.first().getByTestId('draft-delete').click({ timeout: 30_000 }).catch(() => {})
         const t3 = await waitTotals(1200) // den tilføjede kørsel slettes igen
         r.linje_slettet = Number(t3.total_amount) === 1200 && Number(t3.final_amount) === 1500
         await a.page.screenshot({ path: join(shots, 'u15-fakturakladde.png'), fullPage: true }).catch(() => {})
         const audits = draftInvoiceId ? (await c.admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', draftInvoiceId)).count ?? 0 : 0
         r.audit = audits >= 3
         out.push({ id: 'U15 fakturakladde (admin)', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
+      }
+
+      // U16 e-conomic-opsætning (N12) — kun opsætning, ingen bogføring
+      if (cmpSupplierIds[0]) {
+        const r: Record<string, boolean> = {}
+        const supId = cmpSupplierIds[0]
+        const saveNo = async (value: string) => {
+          await a.page.goto(`${base}/dashboard/settings/suppliers/${supId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await a.page.getByRole('button', { name: 'Rediger' }).first().click({ timeout: 60_000 }).catch(() => {})
+          await a.page.locator('#economic_supplier_number').fill(value).catch(() => {})
+          await a.page.getByRole('button', { name: 'Gem ændringer' }).click().catch(() => {})
+          await a.page.waitForTimeout(2500)
+          return ((await c.admin.from('suppliers').select('external_supplier_id, external_provider').eq('id', supId).maybeSingle()).data ?? {}) as Record<string, string | null>
+        }
+        const ok1 = await saveNo('1001')
+        r.leverandoernr_gemt = ok1.external_supplier_id === '1001' && ok1.external_provider === 'economic'
+        const bad = await saveNo('abc')
+        r.ugyldigt_afvist = bad.external_supplier_id === '1001'
+        await a.page.goto(`${base}/dashboard/settings/economic`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const card = a.page.getByTestId('economic-readiness')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        const txt = (await card.count()) ? await card.innerText() : ''
+        r.tjekliste = /Klar til bogføring/.test(txt) && /Omkostningskonto/.test(txt) && /Kassekladde/.test(txt) && /Leverandører koblet/.test(txt) && /Kundefakturaer/.test(txt)
+        await a.page.screenshot({ path: join(shots, 'u16-economic.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U16 e-conomic-opsætning (admin)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl

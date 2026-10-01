@@ -46,6 +46,20 @@ function withVat<T extends { vat_number?: string }>(data: T, vat: string | null 
   return vat === undefined ? rest : { ...rest, vat_number: vat }
 }
 
+/**
+ * N12: e-conomic-leverandørnr. -> external_supplier_id + external_provider='economic'. Sendes kun når formularen har
+ * ændret det: tomt ved opret -> udelades; tomt ved redigering -> begge felter ryddes. Kun positive heltal (e-conomic).
+ */
+function withEconomicSupplier<T extends { economic_supplier_number?: string }>(data: T, mode: 'create' | 'update'):
+  { error: string } | { row: Omit<T, 'economic_supplier_number'> & { external_supplier_id?: string | null; external_provider?: string | null } } {
+  const { economic_supplier_number: raw, ...rest } = data
+  if (raw === undefined) return { row: rest }
+  const v = raw.trim()
+  if (!v) return { row: mode === 'create' ? rest : { ...rest, external_supplier_id: null, external_provider: null } }
+  if (!/^[1-9]\d{0,8}$/.test(v)) return { error: 'Ugyldigt e-conomic-leverandørnr. — kun tal (fx 1001)' }
+  return { row: { ...rest, external_supplier_id: v, external_provider: 'economic' } }
+}
+
 async function requireSupplierWrite() {
   const ctx = await getAuthenticatedClientWithRole()
   ctx.requirePermission('settings.suppliers')
@@ -130,10 +144,13 @@ export async function createSupplier(
     const vat = prepareVat(data.vat_number, 'create')
     if ('error' in vat) return { success: false, error: vat.error }
 
+    const eco = withEconomicSupplier(withVat(data, vat.value), 'create')
+    if ('error' in eco) return { success: false, error: eco.error }
+
     const { data: supplier, error } = await supabase
       .from('suppliers')
       .insert({
-        ...withVat(data, vat.value),
+        ...eco.row,
         created_by: userId,
       })
       .select()
@@ -164,9 +181,12 @@ export async function updateSupplier(
     const vat = prepareVat(data.vat_number, 'update')
     if ('error' in vat) return { success: false, error: vat.error }
 
+    const eco = withEconomicSupplier(withVat(data, vat.value), 'update')
+    if ('error' in eco) return { success: false, error: eco.error }
+
     const { data: supplier, error } = await supabase
       .from('suppliers')
-      .update(withVat(data, vat.value))
+      .update(eco.row)
       .eq('id', id)
       .select()
       .single()

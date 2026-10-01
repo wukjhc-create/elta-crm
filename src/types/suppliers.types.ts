@@ -17,6 +17,9 @@ export interface Supplier {
   website: string | null
   /** CVR/VAT, normaliseret (fx DK12345678). Migration 00167. */
   vat_number?: string | null
+  /** e-conomic-leverandørnr. (00094) — kræves for bogføring af leverandørfakturaer (N12) */
+  external_supplier_id?: string | null
+  external_provider?: string | null
   notes: string | null
   is_active: boolean
   created_by: string | null
@@ -33,6 +36,8 @@ export interface CreateSupplierData {
   website?: string
   /** CVR/VAT — normaliseres server-side (samme regel som DB-triggeren i 00167). */
   vat_number?: string
+  /** e-conomic-leverandørnr. — mappes til external_supplier_id/external_provider='economic' (N12) */
+  economic_supplier_number?: string
   notes?: string
   is_active?: boolean
 }

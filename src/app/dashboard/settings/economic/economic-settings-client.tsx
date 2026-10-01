@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { CheckCircle2, XCircle, BookCheck, KeyRound, PlugZap, Trash2, ShieldAlert, Loader2, ListChecks } from 'lucide-react'
 import {
   updateEconomicCredentialsAction,
+  getEconomicIntegrationStatusAction,
   testEconomicConnectionAction,
   clearEconomicIntegrationAction,
   type EconomicIntegrationStatus,
@@ -40,6 +41,12 @@ export function EconomicSettingsClient({
   const [paymentTerms, setPaymentTerms] = useState(status.config_summary.paymentTermsNumber?.toString() ?? '')
   const [vatZone, setVatZone] = useState(status.config_summary.vatZoneNumber?.toString() ?? '')
   const [autoBook, setAutoBook] = useState(status.config_summary.autoBookOnCreate)
+  // N12: konti/numre der kræves for leverandørfakturaer, betalinger og nye kunder/linjer
+  const [costAccount, setCostAccount] = useState(status.config_summary.costAccountNumber?.toString() ?? '')
+  const [cashbook, setCashbook] = useState(status.config_summary.cashbookNumber?.toString() ?? '')
+  const [bankContra, setBankContra] = useState(status.config_summary.bankContraAccountNumber?.toString() ?? '')
+  const [customerGroup, setCustomerGroup] = useState(status.config_summary.defaultCustomerGroupNumber?.toString() ?? '')
+  const [productNo, setProductNo] = useState(status.config_summary.defaultProductNumber ?? '')
   const [active, setActive] = useState(status.active)
 
   const [saving, startSave] = useTransition()
@@ -69,6 +76,11 @@ export function EconomicSettingsClient({
           paymentTermsNumber: num(paymentTerms),
           vatZoneNumber: num(vatZone),
           autoBookOnCreate: autoBook,
+          costAccountNumber: num(costAccount),
+          cashbookNumber: num(cashbook),
+          bankContraAccountNumber: num(bankContra),
+          defaultCustomerGroupNumber: num(customerGroup),
+          defaultProductNumber: productNo.trim() || null,
         },
       })
       setFlash({ ok: res.ok, text: res.message })
@@ -86,8 +98,15 @@ export function EconomicSettingsClient({
             paymentTermsNumber: num(paymentTerms),
             vatZoneNumber: num(vatZone),
             autoBookOnCreate: autoBook,
+            costAccountNumber: num(costAccount),
+            cashbookNumber: num(cashbook),
+            bankContraAccountNumber: num(bankContra),
+            defaultCustomerGroupNumber: num(customerGroup),
+            defaultProductNumber: productNo.trim() || null,
           },
         })
+        // Tjeklisten genberegnes på serveren
+        getEconomicIntegrationStatusAction().then((st) => { if (st.ok) setStatus(st) }).catch(() => {})
       }
     })
   }
@@ -97,6 +116,7 @@ export function EconomicSettingsClient({
     startTest(async () => {
       const res = await testEconomicConnectionAction()
       setTestResult({ ok: res.ok, text: res.message })
+      getEconomicIntegrationStatusAction().then((st) => { if (st.ok) setStatus(st) }).catch(() => {})
       refresh({
         last_tested_at: res.tested_at ?? status.last_tested_at,
         last_test_ok: res.status === 'not_configured' ? status.last_test_ok : res.ok,
@@ -196,6 +216,25 @@ export function EconomicSettingsClient({
         </div>
       </div>
 
+      {/* N12: hvad mangler før hvert flow kan bogføres */}
+      <div className="bg-white rounded-lg ring-1 ring-gray-200 p-5" data-testid="economic-readiness">
+        <h2 className="text-sm font-semibold text-gray-800 mb-2">Klar til bogføring?</h2>
+        <div className="flex flex-wrap gap-2 mb-3 text-xs">
+          {([['Kundefakturaer', status.readiness.customerInvoices], ['Leverandørfakturaer', status.readiness.supplierInvoices], ['Betalinger', status.readiness.payments]] as const).map(([l, ok]) => (
+            <span key={l} className={`px-2 py-1 rounded-full ring-1 ${ok ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-gray-50 text-gray-600 ring-gray-200'}`}>{ok ? '✓' : '○'} {l}</span>
+          ))}
+        </div>
+        <ul className="text-sm divide-y divide-gray-100">
+          {status.readiness.items.map((i) => (
+            <li key={i.key} className="flex items-start gap-2 py-1.5">
+              <span className={i.ok ? 'text-emerald-600' : 'text-amber-600'}>{i.ok ? '✓' : '!'}</span>
+              <span className="flex-1"><span className="text-gray-900">{i.label}</span>{!i.ok && <span className="block text-xs text-gray-500">{i.hint}</span>}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-[11px] text-gray-400 mt-2">Intet bogføres herfra — listen viser kun hvad der mangler.</p>
+      </div>
+
       {!status.encryption_ready && (
         <div className="rounded-lg ring-1 ring-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-900 flex items-start gap-2">
           <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
@@ -261,6 +300,25 @@ export function EconomicSettingsClient({
               <input type="number" value={vatZone} onChange={(e) => setVatZone(e.target.value)} disabled={busy}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
             </label>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-700 mb-2">Konti og standarder</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {([
+                ['Omkostningskonto (leverandørfakturaer)', costAccount, setCostAccount, 'number'],
+                ['Kassekladde (betalinger)', cashbook, setCashbook, 'number'],
+                ['Bankkonto / modkonto (betalinger)', bankContra, setBankContra, 'number'],
+                ['Kundegruppe (nye kunder)', customerGroup, setCustomerGroup, 'number'],
+                ['Varenr. til fakturalinjer', productNo, setProductNo, 'text'],
+              ] as const).map(([label, value, set, type]) => (
+                <label key={label} className="block">
+                  <span className="text-xs font-medium text-gray-600">{label}</span>
+                  <input type={type} value={value} onChange={(e) => (set as (v: string) => void)(e.target.value)} disabled={busy}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="flex items-center gap-6">
