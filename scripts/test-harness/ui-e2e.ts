@@ -122,6 +122,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ headless: true })
   const pageErrors: string[] = []
+  // Målrettet kørsel: UI_E2E_ONLY=U24,U26 (afhængigheder: U9/U16 kræver U8; U8 kræver U7). Tom = alle.
+  const only = (process.env.UI_E2E_ONLY ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  const want = (id: string) => only.length === 0 || only.includes(id)
   const loginFailures: string[] = []
   let profitOfferId: string | null = null
   let profitCustomerId: string | null = null
@@ -192,7 +195,7 @@ ${m.text()}`) })
     }
 
     // U22 — S2: login-formularen før hydrering. JS slået fra = værste fald; hverken klik eller Enter må give GET med adgangskoden.
-    {
+    if (want('U22')) {
       const nojs = await browser.newContext({ viewport: { width: 1400, height: 1000 }, javaScriptEnabled: false })
       const np = await nojs.newPage()
       const secret = `Ikke-i-url-${stamp}`
@@ -238,9 +241,10 @@ ${m.text()}`) })
         note: `sektioner=${seen.length}/7 · fejlede sektioner=${failedSections} · live-send OFF vist=${liveOff ? 'ja' : 'nej'}` })
       // U7 lønsomhed (Profit Engine): tilbud med timelinje UDEN kost + materiale MED kost -> kortet viser realistisk DB,
       // dom og advarsel om timekost; ingen fejl. Probe-tilbud ryddes i finally.
-      {
-        const { data: cust } = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-P-${stamp}`, company_name: '[HARNESS] ui-profit', contact_person: 'P', email: `ui-profit-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
-        profitCustomerId = (cust?.[0] as { id?: string } | undefined)?.id ?? null
+      // Fælles testkunde for alle blokke (uafhængig af U7, så UI_E2E_ONLY kan køre enkeltblokke)
+      const { data: cust } = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-P-${stamp}`, company_name: '[HARNESS] ui-profit', contact_person: 'P', email: `ui-profit-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+      profitCustomerId = (cust?.[0] as { id?: string } | undefined)?.id ?? null
+      if (want('U7')) {
         const { data: off } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-P-${stamp}`, title: '[HARNESS] lønsomhed', created_by: adminUser.id, customer_id: profitCustomerId }]).select('id')
         profitOfferId = (off?.[0] as { id?: string } | undefined)?.id ?? null
         const linesRes = profitOfferId ? await c.admin.from('offer_line_items').insert([
@@ -259,7 +263,7 @@ ${m.text()}`) })
       }
 
       // U8 grossist-sammenligning: samme EAN billigere hos anden leverandør -> kort med besparelse 200 kr
-      {
+      if (want('U8')) {
         const ean = `57${String(stamp).slice(-11)}`
         const sAO = await c.admin.from('suppliers').insert([{ name: `HARNESS UI AO ${stamp}`, code: `HUAO${stamp}` }]).select('id')
         const sLM = await c.admin.from('suppliers').insert([{ name: `HARNESS UI LM ${stamp}`, code: `HULM${stamp}` }]).select('id')
@@ -279,7 +283,7 @@ ${m.text()}`) })
 
       // U9 fakturakontrol: faktura fra AO-probe-leverandøren; linje 1 med varenr. HU-AO (katalog 100) faktureret 110 x 10
       // -> Overpris 100 kr; linje 2 uden match -> ikke kontrollerbar. Dom = Prisafvigelse. Faktura ryddes i finally.
-      {
+      if (want('U9')) {
         const inv = cmpSupplierIds[0] ? await c.admin.from('incoming_invoices').insert([{ source: 'manual', supplier_id: cmpSupplierIds[0],
           invoice_number: `UI-E2E-IC-${stamp}`, parse_status: 'parsed', status: 'awaiting_approval', amount_excl_vat: 1200 }]).select('id') : null
         ctrlInvoiceId = (inv?.data?.[0] as { id?: string } | undefined)?.id ?? null
@@ -302,7 +306,7 @@ ${m.text()}`) })
 
       // U10 kundeportal-accept som kunden oplever det: ny browser-kontekst UDEN CRM-login (fanger AUTH_REQUIRED-fejl
       // der er skjult når personalet tester indlogget). Udgående mail/e-conomic er neutraliseret i dev-serveren.
-      {
+      if (want('U10')) {
         const tok = randomBytes(32).toString('hex') // portal-tokens er 64-tegns hex (validatePortalToken)
         const off = profitCustomerId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-PA-${stamp}`, title: '[HARNESS] portal-accept',
           created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(),
@@ -354,7 +358,7 @@ ${m.text()}`) })
       }
 
       // U12 manuel upload af leverandørfaktura (G8): rigtig PDF via filvælgeren på listen.
-      {
+      if (want('U12')) {
         const invNo = `UPL${String(stamp).slice(-8)}`
         const pdf = makeTextPdf(['HARNESS Upload-grossist A/S', `Faktura ${invNo}`, `Fakturanummer: ${invNo}`, 'Fakturadato: 01-10-2026',
           'Forfaldsdato: 31-10-2026', 'Beloeb i alt inkl. moms: 1.875,00 DKK', 'Varenr 7654321 Stikkontakt 5 stk'])
@@ -387,7 +391,7 @@ ${m.text()}`) })
       }
 
       // U15 fakturakladde (N5)
-      {
+      if (want('U15')) {
         const r: Record<string, boolean> = {}
         const dc = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-D-${stamp}`, company_name: '[HARNESS] kladdekunde', contact_person: 'D',
           email: '' /* NOT NULL: "ingen mail" = tom streng */, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
@@ -438,7 +442,7 @@ ${m.text()}`) })
       }
 
       // U16 e-conomic-opsætning (N12) — kun opsætning, ingen bogføring
-      if (cmpSupplierIds[0]) {
+      if (want('U16') && (cmpSupplierIds[0])) {
         const r: Record<string, boolean> = {}
         const supId = cmpSupplierIds[0]
         const saveNo = async (value: string) => {
@@ -463,7 +467,7 @@ ${m.text()}`) })
       }
 
       // U17 AO-prisfil-import (ISO-8859-1). Kræver en leverandør med kode 'AO' (AO-konfiguration vælges på koden).
-      {
+      if (want('U17')) {
         const r: Record<string, boolean> = {}
         const existingAo = (await c.admin.from('suppliers').select('id').ilike('code', 'AO').maybeSingle()).data as { id?: string } | null
         let note = ''
@@ -499,7 +503,7 @@ ${m.text()}`) })
       }
 
       // U18 stedinfo (N9b)
-      if (profitCustomerId) {
+      if (want('U18') && (profitCustomerId)) {
         const r: Record<string, boolean> = {}
         const sc = await c.admin.from('service_cases').insert([{ title: '[HARNESS] stedinfo', customer_id: profitCustomerId, status: 'new', priority: 'medium',
           source: 'manual', created_by: adminUser.id, address: 'Odinsvej 10', postal_code: '4100', city: 'Ringsted' }]).select('id')
@@ -525,7 +529,7 @@ ${m.text()}`) })
       }
 
       // U19 søgning med komma/parentes (sikre PostgREST-filtre)
-      {
+      if (want('U19')) {
         const r: Record<string, boolean> = {}
         const name = `Hansen, Jens (VVS) 3x1,5 ${stamp}`
         const ins = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-S-${stamp}`, company_name: name, contact_person: 'Søg',
@@ -539,7 +543,7 @@ ${m.text()}`) })
       }
 
       // U20 sagsliste (N9c)
-      if (profitCustomerId) {
+      if (want('U20') && (profitCustomerId)) {
         const r: Record<string, boolean> = {}
         const tag = `LST${stamp}`
         for (const [type, priority] of [['installation', 'urgent'], ['service', 'medium']] as const) {
@@ -557,7 +561,7 @@ ${m.text()}`) })
       }
 
       // U23 portal-chat begge veje (kunde uden login ↔ sælger)
-      if (profitCustomerId) {
+      if (want('U23') && (profitCustomerId)) {
         const r: Record<string, boolean> = {}
         const tok = randomBytes(32).toString('hex')
         const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
@@ -609,7 +613,7 @@ ${m.text()}`) })
       }
 
       // U24 nyt tilbud fra bunden (salgets kerneflow)
-      if (profitCustomerId) {
+      if (want('U24') && (profitCustomerId)) {
         const r: Record<string, boolean> = {}
         const title = `[HARNESS] nyt tilbud ${stamp}`
         await a.page.goto(`${base}/dashboard/offers`, { waitUntil: 'networkidle', timeout: 180_000 })
@@ -644,7 +648,7 @@ ${m.text()}`) })
       }
 
       // U25 mail → sag (mail/indbakke, GO-LIVE)
-      if (profitCustomerId) {
+      if (want('U25') && (profitCustomerId)) {
         const r: Record<string, boolean> = {}
         const subject = `[HARNESS] Fejl på inverter ${stamp}`
         const em = await c.admin.from('incoming_emails').insert([{ sender_email: `ui-profit-${stamp}@harness.test`, sender_name: 'Harness Kunde', subject,
@@ -666,7 +670,7 @@ ${m.text()}`) })
       }
 
       // U26 fakturering fra sagen (faktura, GO-LIVE)
-      if (profitCustomerId) {
+      if (want('U26') && (profitCustomerId)) {
         const r: Record<string, boolean> = {}
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] fakturering ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
           priority: 'medium', source: 'manual', created_by: adminUser.id, payer_customer_id: profitCustomerId }]).select('id')
@@ -713,7 +717,7 @@ ${m.text()}`) })
       out.push({ id: 'U4 montør: ingen adgang', ok: denied.length === 3, note: `NoAccess på ${denied.length}/3 (${denied.join(', ') || '-'})` })
 
       // U11 montør-dagen (G4). Seed: medarbejder koblet til montør-login, sag + planlagt arbejdsordre i dag.
-      {
+      if (want('U11')) {
         const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
         const woTitle = `[HARNESS] montørjob ${stamp}`
         const emp = await c.admin.from('employees').insert([{ name: 'Harness Montør', first_name: 'Harness', last_name: 'Montør',
@@ -826,7 +830,7 @@ ${m.text()}`) })
         }
 
         // U21 (N9d): Service-link viderestilles; mobil-bundmenu for montør
-        {
+        if (want('U21')) {
           const u21: Record<string, boolean> = {}
           await m.page.goto(`${base}/dashboard/service-cases/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           u21.service_link_viderestilles = new RegExp(`/dashboard/orders/${jobCaseId}`).test(m.page.url())
@@ -882,7 +886,7 @@ ${m.text()}`) })
         await sp.page.screenshot({ path: join(shots, 'u13-salg-sag.png'), fullPage: true }).catch(() => {})
       }
       // U14 opfølgning (N1)
-      if (sp.ok && profitCustomerId) {
+      if (want('U14') && (sp.ok && profitCustomerId)) {
         const daysAgo = (n: number) => new Date(Date.now() - n * 86400_000).toISOString()
         const validTo = new Date(Date.now() + 20 * 86400_000).toISOString().slice(0, 10)
         const mk = async (num: string, title: string, by: string, sentAt: string, status: string, viewedAt: string | null) => {
