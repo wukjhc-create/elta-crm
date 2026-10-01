@@ -23,8 +23,8 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | G4 | Planlægning/montør | Montør: tom kalender (employees-liste kræver employees.view), kunne ikke afslutte job (planned→in_progress krævede work_orders.edit), kunne ikke uploade fotos, landing viste ikke job, tom medarbejdervælger i timeformular; desuden kunne enhver montør afslutte ANDRES arbejdsordrer (ingen scope-tjek) | DONE (kode) — "Mine job" på landingssiden (ikke afsluttet / i dag / kommende → direkte til Planlægning-fanen), montør afslutter eget job direkte (planned→done; RLS 00171 tillader done), scope-tjek på statusskift, kun brugbare knapper pr. rolle, kalender viser egen række (+ forklaring hvis login ikke er koblet), foto/PDF-upload på sagens Dokumenter-fane (cases.edit.own + scope), timeformular forvalgt med montøren selv, kalender-"i dag" i dansk tid. ui-e2e U11 som montør. **Drift (Henrik):** prod har 2 montør-logins, kun 1 koblet til medarbejder → opret/knyt via Medarbejder → Rediger → Login |
 | G5 | Planlægning | Serviceleder kan kun se egen employees-række (RLS 00096) → kan ikke planlægge montører | TODO (migration → staging, prod-gate) |
 | G6 | Kunder/sager (salg) | Rolle salg kan oprette sag men ikke se den (cases.view.assigned/service.view mangler); tilbudsmail fra salg uden PDF (getCompanySettings kræver settings.view) | TODO |
-| G7 | Leverandørfaktura | Bogføring i e-conomic fejler altid: suppliers.external_supplier_id og costAccountNumber kan ikke sættes nogen steder | TODO |
-| G8 | Leverandørfaktura | Ingen manuel upload af faktura (ingestFromUpload uden UI) | TODO |
+| G7 | Leverandørfaktura | Bogføring i e-conomic fejler altid: suppliers.external_supplier_id og costAccountNumber kan ikke sættes nogen steder | → NEXT (N12): prod har INGEN e-conomic-opsætning (0 settings, 0 bogført) — blokerer ikke go-live medmindre e-conomic skal kobles på ved start (beslutning Henrik) |
+| G8 | Leverandørfaktura | Ingen manuel upload af faktura (ingestFromUpload uden UI) | DONE (kode) — "Upload faktura" på listen (incoming_invoices.edit): PDF/JPG/PNG ≤15 MB gemmes privat (attachments/supplier-invoices, signeres ved visning), PDF-tekst → samme parse/match som mail, dedup med samme nøgle som mail (tekst-hash) → dublet åbner eksisterende og rydder filen op. ui-e2e U12; invoice-pipeline 10/10, invoice-attachments 8/8 |
 | G9 | Mail/indbakke | Montør ser og kan arkivere/koble al firmamail (inbox.view uden scope) — privatliv | TODO (rollebeslutning) |
 
 ## NEXT
@@ -39,6 +39,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | N7 | Profit | Arbejdsordre-profit-snapshot skrives/vises aldrig (profitability.ts ukaldt) |
 | N8 | Tilbud | acceptOffer håndhæver ikke status/udløb server-side; send uden DB-tjek; portal viser tom sælger |
 | N9 | Sager | To parallelle sags-UI'er (Sager/Ordrer + Service) på samme tabel |
+| N12 | e-conomic | Opsætning før kobling: e-conomic-leverandørnr. pr. leverandør, omkostningskonto, kassekladde/modkonto (betalinger), kreditnotaer → e-conomic |
 | N11 | Planlægning | "Start job" (in_progress) for montør kræver RLS-ændring (00171 tillader kun done) → migration i næste prod-batch |
 | N10 | Planlægning | "Planlæg opgave"-knap vises for montør; interne beskeder: vedhæft fil "kommer snart" |
 

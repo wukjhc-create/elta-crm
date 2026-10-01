@@ -23,11 +23,14 @@
  *       tilbud accepteret, sag oprettet med sælgeren som ansvarlig, aktivitet på tidslinjen (G1/G2)
  *   U11 montør-dagen (G4): "Mine job" på landingssiden -> åbn job -> kun Afslut (ingen Start/Slet) -> upload foto
  *       -> afslut -> status done i DB; kalenderen viser eget job uden "Planlæg opgave"/tom-tilstand
+ *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
+ *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U6  admin: opkalds-opslag /dashboard/cti (P3 #15) renderer tom-tilstand for ukendt nummer
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { spawn, execSync, type ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
+import { makeTextPdf } from './pdf-fixture'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -103,6 +106,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let portalTokenId: string | null = null
   let jobEmployeeId: string | null = null
   let jobCaseId: string | null = null
+  const uploadedInvoiceIds: string[] = []
 
   try {
     const adminUser = await mkUser('admin')
@@ -270,6 +274,39 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
           note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(pa).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
 
+      // U12 manuel upload af leverandørfaktura (G8): rigtig PDF via filvælgeren på listen.
+      {
+        const invNo = `UPL${String(stamp).slice(-8)}`
+        const pdf = makeTextPdf(['HARNESS Upload-grossist A/S', `Faktura ${invNo}`, `Fakturanummer: ${invNo}`, 'Fakturadato: 01-10-2026',
+          'Forfaldsdato: 31-10-2026', 'Beloeb i alt inkl. moms: 1.875,00 DKK', 'Varenr 7654321 Stikkontakt 5 stk'])
+        const r: Record<string, boolean> = {}
+        await a.page.goto(`${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('invoice-upload-input').setInputFiles({ name: `faktura-${invNo}.pdf`, mimeType: 'application/pdf', buffer: pdf }).catch(() => {})
+        await a.page.waitForURL(/\/dashboard\/incoming-invoices\/[0-9a-f-]{36}/, { timeout: 120_000 }).catch(() => {})
+        const firstId = (a.page.url().match(/incoming-invoices\/([0-9a-f-]{36})/) ?? [])[1] ?? null
+        if (firstId) uploadedInvoiceIds.push(firstId)
+        r.aabnet = !!firstId
+        const row = firstId ? ((await c.admin.from('incoming_invoices').select('source, invoice_number, amount_incl_vat, file_url, uploaded_by').eq('id', firstId).maybeSingle()).data as Record<string, any> | null) : null
+        r.laest = row?.invoice_number === invNo && Number(row?.amount_incl_vat) === 1875
+        r.kilde_upload = row?.source === 'upload' && row?.uploaded_by === adminUser.id
+        const filePath = typeof row?.file_url === 'string' && row.file_url.startsWith('attachments/') ? row.file_url.slice('attachments/'.length) : null
+        const dl = filePath ? await c.admin.storage.from('attachments').download(filePath) : null
+        r.fil_gemt = !!dl?.data && (dl.data.size ?? 0) > 100
+        await a.page.screenshot({ path: join(shots, 'u12-upload-faktura.png'), fullPage: true }).catch(() => {})
+
+        // Samme fil igen -> dublet: åbner den eksisterende, ingen ny række, ingen ekstra fil
+        const before = (await c.admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('invoice_number', invNo)).count ?? 0
+        const filesBefore = ((await c.admin.storage.from('attachments').list(filePath ? filePath.split('/').slice(0, -1).join('/') : 'supplier-invoices', { limit: 1000 })).data ?? []).length
+        await a.page.goto(`${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('invoice-upload-input').setInputFiles({ name: `faktura-${invNo}-kopi.pdf`, mimeType: 'application/pdf', buffer: pdf }).catch(() => {})
+        await a.page.waitForURL(/dublet=1/, { timeout: 120_000 }).catch(() => {})
+        const after = (await c.admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('invoice_number', invNo)).count ?? 0
+        const filesAfter = ((await c.admin.storage.from('attachments').list(filePath ? filePath.split('/').slice(0, -1).join('/') : 'supplier-invoices', { limit: 1000 })).data ?? []).length
+        r.dublet = a.page.url().includes(`${firstId}?dublet=1`) && before === 1 && after === 1 && filesAfter === filesBefore
+        out.push({ id: 'U12 upload af leverandørfaktura (admin)', ok: Object.values(r).every(Boolean),
+          note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await a.page.goto(`${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -380,6 +417,13 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       await c.admin.from('service_cases').delete().eq('id', jobCaseId)
     }
     if (jobEmployeeId) await c.admin.from('employees').delete().eq('id', jobEmployeeId)
+    for (const id of uploadedInvoiceIds) {
+      const { data: row } = await c.admin.from('incoming_invoices').select('file_url').eq('id', id).maybeSingle()
+      const fu = (row as { file_url?: string } | null)?.file_url
+      if (fu && fu.startsWith('attachments/')) await c.admin.storage.from('attachments').remove([fu.slice('attachments/'.length)])
+      for (const t of ['incoming_invoice_lines', 'incoming_invoice_audit_log']) await c.admin.from(t).delete().eq('incoming_invoice_id', id)
+      await c.admin.from('incoming_invoices').delete().eq('id', id)
+    }
     if (profitCustomerId) await c.admin.from('customers').delete().eq('id', profitCustomerId)
     if (ctrlInvoiceId) { await c.admin.from('incoming_invoice_lines').delete().eq('incoming_invoice_id', ctrlInvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', ctrlInvoiceId) }
     for (const sid of cmpSupplierIds) { await c.admin.from('supplier_products').delete().eq('supplier_id', sid); await c.admin.from('suppliers').delete().eq('id', sid) }

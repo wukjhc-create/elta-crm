@@ -8,6 +8,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/utils/logger'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import {
   approveInvoice,
@@ -1120,5 +1121,68 @@ export async function getIncomingInvoiceConversionPreviewAction(id: string): Pro
     already_converted_count: alreadyCount,
     lines,
     internal_purchase: true,
+  }
+}
+
+// =====================================================
+// GO-LIVE G8 — manuel upload af leverandørfaktura (papir/PDF der ikke kommer på mail)
+// =====================================================
+
+const UPLOAD_MAX_BYTES = 15 * 1024 * 1024
+const UPLOAD_MIME = /^(application\/pdf|image\/(jpeg|png))$/i
+
+/**
+ * Upload én leverandørfaktura: filen gemmes privat (attachments/supplier-invoices/…, signeres kun ved visning),
+ * tekst udtrækkes fra PDF og fakturaen køres gennem samme parse/match som mail-flowet. Dublet (samme tekst/fil)
+ * returnerer den eksisterende faktura. Ingen e-conomic, ingen mail. Gate: incoming_invoices.edit.
+ */
+export async function uploadIncomingInvoiceAction(formData: FormData): Promise<{ ok: boolean; invoiceId?: string; duplicate?: boolean; message?: string }> {
+  const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.edit')) return { ok: false, message: 'Manglende tilladelse: incoming_invoices.edit' }
+
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) return { ok: false, message: 'Ingen fil valgt' }
+  if (file.size > UPLOAD_MAX_BYTES) return { ok: false, message: 'Filen er for stor (max 15 MB)' }
+  if (!UPLOAD_MIME.test(file.type || '')) return { ok: false, message: 'Kun PDF, JPG eller PNG' }
+
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer())
+    const isPdf = /pdf/i.test(file.type)
+    let rawText = ''
+    if (isPdf) {
+      try {
+        const { extractPdfText } = await import('@/lib/invoice-control/pdf-text')
+        rawText = (await extractPdfText(bytes)) ?? ''
+      } catch (e) {
+        logger.warn('uploadIncomingInvoice: PDF-tekst kunne ikke udtrækkes (scannet?) — gemmes til manuel behandling', { error: e })
+      }
+    }
+
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const ext = isPdf ? 'pdf' : file.type.toLowerCase().includes('png') ? 'png' : 'jpg'
+    const { randomUUID } = await import('crypto')
+    const path = `supplier-invoices/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${ext}`
+    const { error: upErr } = await admin.storage.from('attachments').upload(path, bytes, { contentType: file.type, upsert: false })
+    if (upErr) {
+      logger.error('uploadIncomingInvoice: storage upload failed', { error: upErr })
+      return { ok: false, message: 'Upload af fil fejlede' }
+    }
+
+    const { ingestFromUpload } = await import('@/lib/services/incoming-invoices')
+    const res = await ingestFromUpload({
+      fileName: file.name.slice(0, 200), mime: file.type, rawText, fileBytes: bytes, fileUrl: `attachments/${path}`, uploadedBy: userId,
+    })
+    if (res.duplicate) {
+      // Filen blev ikke brugt — ryd den op igen (fakturaen findes allerede)
+      await admin.storage.from('attachments').remove([path])
+      return { ok: true, invoiceId: res.invoiceId ?? undefined, duplicate: true, message: 'Fakturaen findes allerede' }
+    }
+    if (!res.invoiceId) return { ok: false, message: res.error ? 'Kunne ikke oprette faktura' : 'Ukendt fejl' }
+    revalidatePath('/dashboard/incoming-invoices')
+    return { ok: true, invoiceId: res.invoiceId, message: rawText ? 'Faktura oprettet og læst' : 'Faktura oprettet — ingen tekst i filen, udfyld felterne manuelt' }
+  } catch (err) {
+    logger.error('uploadIncomingInvoiceAction failed', { error: err })
+    return { ok: false, message: 'Der opstod en fejl ved upload' }
   }
 }

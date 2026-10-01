@@ -10,6 +10,7 @@ import {
 } from '@/lib/actions/incoming-invoices'
 import { Button } from '@/components/ui/button'
 import { useUserRole } from '@/lib/hooks/use-user-role'
+import { UploadInvoiceButton } from './upload-invoice-button'
 import {
   incomingDueBadge,
   matchesIncomingDueFilter,
@@ -132,6 +133,8 @@ export function IncomingInvoicesListClient({
             Godkend leverandørfakturaer · auto-pushed til e-conomic ved godkendelse.
           </p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+        <UploadInvoiceButton />
         {isAdmin && (
           <Button
             type="button"
@@ -144,6 +147,7 @@ export function IncomingInvoicesListClient({
             {seedBusy ? 'Opretter…' : '+ Opret test-leverandørfaktura'}
           </Button>
         )}
+        </div>
       </div>
 
       {seedMsg && (

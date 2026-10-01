@@ -6,7 +6,7 @@
  *                                       creates one incoming_invoices row
  *                                       per PDF/HTML attachment that looks
  *                                       like an invoice, runs parse + match.
- *   - ingestFromUpload(...)           — direct upload (for the future UI).
+ *   - ingestFromUpload(...)           — manuel upload (Leverandørfaktura → Upload faktura).
  *   - parseAndMatch(invoiceId)        — runs parser + matcher + state flip.
  *   - approveInvoice(id, approverId)  — gate, transition to approved + push
  *                                       to e-conomic (skip-safe).
@@ -375,15 +375,21 @@ export interface UploadInput {
   mime: string
   rawText: string
   fileBytes?: Buffer
+  /** Gemt fil som "bucket/sti" (privat; signeres ved visning). */
+  fileUrl?: string | null
   uploadedBy?: string | null
   supplierIdHint?: string | null
 }
 
 export async function ingestFromUpload(input: UploadInput): Promise<{ invoiceId: string | null; duplicate: boolean; error?: string }> {
   const supabase = createAdminClient()
-  const fileHash = input.fileBytes
-    ? createHash('sha256').update(input.fileBytes).digest('hex')
-    : sha256(input.rawText)
+  // Samme dedup-nøgle som mail-flowet (hash af udtrukket tekst), så samme faktura via mail OG upload kun
+  // oprettes én gang. Uden tekst (scannet PDF) bruges filens bytes.
+  const fileHash = input.rawText.trim()
+    ? sha256(input.rawText)
+    : input.fileBytes
+      ? createHash('sha256').update(input.fileBytes).digest('hex')
+      : sha256(input.rawText)
 
   const { data: dup } = await supabase
     .from('incoming_invoices')
@@ -399,6 +405,7 @@ export async function ingestFromUpload(input: UploadInput): Promise<{ invoiceId:
       source: 'upload',
       uploaded_by: input.uploadedBy ?? null,
       file_name: input.fileName,
+      file_url: input.fileUrl ?? null,
       mime_type: input.mime,
       file_size_bytes: input.fileBytes?.length ?? null,
       file_hash: fileHash,
