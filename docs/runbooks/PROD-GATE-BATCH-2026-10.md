@@ -75,3 +75,12 @@ bruger objekter fra en anden i batchen.
 
 **Før pilot (drift, ikke kode):** G11. Montør #2's login skal kobles til en medarbejder
 (Medarbejder → Rediger → Login). Verificér med `npx tsx scripts/prod-montor-linkage.ts`.
+
+## Feature-branches (2026-10-02)
+
+| Branch | Indhold | Migration? | Merge til main |
+|---|---|---|---|
+| `webform-inquiries` | D37 webhenvendelser (kontaktformular var hard-ignoreret), N24a retro-kobling af kundemails, N24b behandl ventende mails | Nej | Efter e2e (U64, U65) + build — ingen prod-gate |
+| `n23-case-status` | N23 sagsstatus følger arbejdet, N26a timer/budget fra tilbud, N26b rapport på sager, N32 menupunkt | Nej | Efter e2e (U63, U66) + build — ingen prod-gate |
+| `d26-internal-case-docs` | D26 sagsdokumenter interne som standard | 00184 | Først EFTER prod-00184 |
+| `n2-time-approval` | N2 timegodkendelse | 00185 | Først EFTER prod-00185 |

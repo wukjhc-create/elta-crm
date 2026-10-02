@@ -136,6 +136,12 @@ async function gotoSafe(page: import('playwright').Page, url: string, opts: { wa
       await waitForHttp(`${new URL(url).origin}/login`, 240_000)
       return await page.goto(url, opts).catch(() => null)
     }
+    // En klient-navigation fra forrige trin (router.push/refresh) kan afbryde goto — vent til siden falder til ro, prøv igen
+    if (/ERR_ABORTED/.test(msg)) {
+      console.warn(`[ui-e2e] navigation afbrudt, prøver igen: ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
+      await page.waitForLoadState('load', { timeout: 30_000 }).catch(() => {})
+      return await page.goto(url, opts).catch(() => null)
+    }
     if (!/Timeout/i.test(msg)) throw e
     console.warn(`[ui-e2e] goto-timeout, prøver igen (load): ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
     return await page.goto(url, { ...opts, waitUntil: 'load' }).catch(() => null)
@@ -164,6 +170,13 @@ function killTree(child: ChildProcess) {
 
 export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; port?: number }): Promise<UiE2eCheck[]> {
   const out: UiE2eCheck[] = []
+  // Stream hvert resultat med tidsstempel, så en langsom/hængende kørsel kan følges og stoppes uden at miste
+  // de allerede kørte tests (før: alt blev først udskrevet til sidst).
+  const pushOut = out.push.bind(out)
+  out.push = (...items: UiE2eCheck[]) => {
+    for (const x of items) console.log(`[ui-e2e ${new Date().toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen' })}] ${x.ok ? '✓' : '❌'} ${x.id} — ${x.note.slice(0, 200)}`)
+    return pushOut(...items)
+  }
   const port = c.port ?? 3217
   const base = `http://localhost:${port}`
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''

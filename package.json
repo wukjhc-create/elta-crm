@@ -64,6 +64,7 @@
     "harness:db-audit": "tsx scripts/test-harness/cli.ts db-audit",
     "harness:staging-parity": "tsx scripts/test-harness/cli.ts staging-parity",
     "harness:migrate-staging": "tsx scripts/test-harness/cli.ts migrate-staging",
+    "harness:cleanup-users": "tsx scripts/test-harness/cli.ts cleanup-users",
     "harness:verify-read-lockdown": "tsx scripts/test-harness/cli.ts verify-read-lockdown",
     "harness:verify-00159": "tsx scripts/test-harness/cli.ts verify-00159",
     "prod:apply-migration": "tsx scripts/prod-apply-migration.ts",
