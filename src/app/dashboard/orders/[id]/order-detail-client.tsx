@@ -37,6 +37,7 @@ import { OrderInspectionTab } from './order-inspection-tab'
 import { OrderNotesTab } from './order-notes-tab'
 import { OrderTasksTab } from './order-tasks-tab'
 import { InlineStatusChanger } from './inline-status-changer'
+import { CaseCloseReadiness } from './case-close-readiness'
 import { OfferAgentButton } from '@/components/modules/agents/offer-agent-button'
 import { WeatherWidget } from '@/components/shared/weather-widget'
 
@@ -198,6 +199,9 @@ export function OrderDetailClient({
         </div>
       </div>
 
+      {/* N23: sagen er klar til lukning (kun for cases.close) */}
+      <CaseCloseReadiness caseId={sag.id} status={sag.status} />
+
       {/* Tabs nav */}
       <div className="bg-white rounded-lg ring-1 ring-gray-200 overflow-x-auto">
         <div className="flex border-b min-w-max">
@@ -302,7 +306,8 @@ export function OrderDetailClient({
             active !== 'handlinger' &&
             active !== 'opgaver' &&
             active !== 'noter' &&
-            active !== 'aktivitet' && (
+            active !== 'aktivitet' &&
+            active !== 'aflevering' && (
               <Placeholder
                 tabId={active}
                 tabLabel={TABS.find((t) => t.id === active)?.label ?? ''}

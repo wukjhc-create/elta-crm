@@ -166,16 +166,16 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
     <div className="bg-white rounded-lg border p-6">
       <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <Briefcase className="w-5 h-5 text-gray-400" />
-        Projekt-rentabilitet
+        Sagsrentabilitet
       </h3>
       {data.length === 0 ? (
-        <p className="text-sm text-gray-400 py-8 text-center">Ingen aktive/afsluttede projekter</p>
+        <p className="text-sm text-gray-400 py-8 text-center">Ingen sager endnu</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left">
-                <th className="pb-2 font-medium text-gray-500">Projekt</th>
+                <th className="pb-2 font-medium text-gray-500">Sag</th>
                 <th className="pb-2 font-medium text-gray-500">Kunde</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Budget</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Est. timer</th>
@@ -253,7 +253,7 @@ function TeamTable({ data }: { data: TeamProductivity[] }) {
                 <th className="pb-2 font-medium text-gray-500 text-right">Timer total</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Fakturerbar</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Udnyttelse</th>
-                <th className="pb-2 font-medium text-gray-500 text-right">Projekter</th>
+                <th className="pb-2 font-medium text-gray-500 text-right">Sager</th>
               </tr>
             </thead>
             <tbody>

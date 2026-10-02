@@ -331,11 +331,6 @@ export function OrderEconomyTab({
             <Banknote className="w-4 h-4 text-gray-500" />
             Fakturering
           </h3>
-          {!data.invoicing.has_invoice_data && (
-            <span className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-              Sprint 6
-            </span>
-          )}
         </div>
 
         {data.invoicing.has_invoice_data ? (
@@ -359,9 +354,7 @@ export function OrderEconomyTab({
           </div>
         ) : (
           <p className="text-xs text-gray-500">
-            Fakturadata vises her når Sprint 6 (Faktura + e-conomic) lander. Ingen
-            fake tal — vi venter med at vise faktureringsstatus indtil rigtig
-            fakturadata er tilgængelig.
+            Ingen fakturaer på sagen endnu. Fakturér fra fanen Fakturakladde.
           </p>
         )}
       </div>
