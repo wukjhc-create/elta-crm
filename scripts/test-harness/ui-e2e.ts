@@ -88,6 +88,7 @@
  *   U54 salg: lead → "Opret tilbud" → tilbud koblet til leadet med firmaets standard-gyldighed og -betingelser
  *       (før: salg fik ingen gyldighedsdato — firmaindstillinger krævede settings.view)
  *   U55 salg: "Print" på eget tilbud viser firmaets navn og CVR (før: "Virksomhed" uden oplysninger)
+ *   U56 kundeportal: sagens "Bemærkninger (interne)" (status_note) findes IKKE i kundens side (før: vist i portalen)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -178,7 +179,10 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
 
   const env: Record<string, string> = { ...(process.env as Record<string, string>), NEXT_PUBLIC_APP_URL: base, NEXT_TELEMETRY_DISABLED: '1', PORT: String(port),
     // N11: staging har RLS 00181 -> montør må starte eget job (prod: flaget er OFF indtil 00181 er godkendt)
-    MONTOR_START_JOB_ENABLED: 'true' }
+    MONTOR_START_JOB_ENABLED: 'true',
+    // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
+    // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
+    NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }
   for (const k of NEUTRALIZE) env[k] = ''
 
   let server: ChildProcess | null = null
@@ -234,6 +238,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u50: { tokenId?: string; offerId?: string } = {}
   let u51: { supplierId?: string; offerId?: string } = {}
   let u54OfferId: string | null = null
+  let u56TokenId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1517,6 +1522,29 @@ ${m.text()}`) })
         out.push({ id: 'U53 go-live: opsætning før pilot', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · montører=${profs.length} koblede=${profs.filter((p) => linked.has(p.id)).length}` })
       }
 
+      // U56 kundeportal: sagens interne bemærkning (status_note, "Bemærkninger (interne)") vises/sendes IKKE til kunden
+      if (want('U56') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const note = `INTERNBEMAERKNING${stamp}`
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] portal-sag ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, status_note: note }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id
+        if (caseId) listCaseIds.push(caseId)
+        const tok = randomBytes(32).toString('hex')
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u56TokenId = (pt.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        const kp = await kctx.newPage()
+        kp.on('pageerror', (e) => pageErrors.push(`kunde-sag: ${e.message.slice(0, 120)}`))
+        await gotoSafe(kp, `${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const html = await kp.content().catch(() => '')
+        r.sag_vist = html.includes(`[HARNESS] portal-sag ${stamp}`)
+        r.intern_bemaerkning_skjult = !html.includes(note)
+        await kctx.close().catch(() => {})
+        out.push({ id: 'U56 portal: intern sagsbemærkning skjult', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -2093,6 +2121,7 @@ ${m.text()}`) })
     if (u51.offerId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u51.offerId); await c.admin.from('offers').delete().eq('id', u51.offerId) }
     if (u51.supplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u51.supplierId); await c.admin.from('suppliers').delete().eq('id', u51.supplierId) }
     if (u54OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u54OfferId); await c.admin.from('audit_logs').delete().eq('entity_id', u54OfferId); await c.admin.from('offers').delete().eq('id', u54OfferId) }
+    if (u56TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u56TokenId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)

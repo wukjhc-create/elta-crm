@@ -441,7 +441,7 @@ export async function getPortalServiceCases(
 
     const { data, error } = await supabase
       .from('service_cases')
-      .select('id, case_number, title, description, status, priority, status_note, address, postal_code, city, floor_door, start_date, end_date, project_name, type, reference, created_at')
+      .select('id, case_number, title, description, status, priority, address, postal_code, city, floor_door, start_date, end_date, project_name, type, reference, created_at') // ikke status_note: "Bemærkninger (interne)"
       .eq('customer_id', customerId)
       .in('status', ['new', 'in_progress', 'pending'])
       .order('created_at', { ascending: false })
