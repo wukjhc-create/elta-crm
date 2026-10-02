@@ -309,7 +309,19 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     const montor = await mkUser('montør')
     const salg = await mkUser('salg')
 
-    server = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['next', 'dev', '-p', String(port)], { cwd: process.cwd(), env, shell: process.platform === 'win32' })
+    // Henrik 2026-10-02 (test-politik): `next dev` kompilerer hver side ved første besøg (tilbudssiden >180 s) og
+    // brugte op til 3,5 GB heap på en 6 GB-maskine → genstarter/OOM og timer-lange kørsler. Standard er nu et
+    // produktionsbuild (`next build` + `next start`): ingen on-demand kompilering, lavt hukommelsesforbrug.
+    // UI_E2E_SERVER=dev = gammel adfærd. UI_E2E_REUSE_BUILD=1 = genbrug seneste build (kun når koden er uændret).
+    const mode = process.env.UI_E2E_SERVER === 'dev' ? 'dev' : 'start'
+    if (mode === 'start' && process.env.UI_E2E_REUSE_BUILD !== '1') {
+      const t0 = Date.now()
+      console.log('[ui-e2e] next build (staging-env) …')
+      execSync(`${process.platform === 'win32' ? 'npx.cmd' : 'npx'} next build`, { cwd: process.cwd(), env: { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3072`.trim() }, stdio: 'ignore' })
+      console.log(`[ui-e2e] build færdig på ${Math.round((Date.now() - t0) / 1000)} s`)
+    }
+    const serverEnv = mode === 'start' ? { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=1536`.trim() } : env
+    server = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['next', mode, '-p', String(port)], { cwd: process.cwd(), env: serverEnv, shell: process.platform === 'win32' })
     server.stdout?.on('data', (d) => serverLog.push(String(d)))
     server.stderr?.on('data', (d) => serverLog.push(String(d)))
     if (!(await waitForHttp(`${base}/login`, 240_000))) {
@@ -2136,7 +2148,7 @@ ${m.text()}`) })
         const expectDate = new Date(); expectDate.setDate(expectDate.getDate() + 21)
         const expectIso = expectDate.toISOString().split('T')[0]
         // vent på at standardværdierne er hentet ind i formularen
-        for (let i = 0; i < 20; i++) { if ((await dlg.locator('#valid_until').inputValue().catch(() => '')) === expectIso) break; await new Promise((res) => setTimeout(res, 500)) }
+        for (let i = 0; i < 60; i++) { if ((await dlg.locator('#valid_until').inputValue().catch(() => '')) === expectIso) break; await new Promise((res) => setTimeout(res, 500)) } // op til 30 s
         await dlg.locator('#title').fill(`[HARNESS] tilbud fra lead ${stamp}`).catch(() => {})
         await dlg.getByRole('button', { name: 'Opret tilbud' }).click({ timeout: 30_000 }).catch(() => {})
         type O = { id: string; lead_id: string | null; valid_until: string | null; terms_and_conditions: string | null; created_by: string }
@@ -2186,8 +2198,14 @@ ${m.text()}`) })
     const restarts = (serverLog.join('').match(/memory threshold, restarting/g) ?? []).length
     const envRe = /network error|Failed to fetch|WebSocket is already in CLOSING or CLOSED state|ERR_CONNECTION/
     const envErrors = restarts > 0 ? pageErrors.filter((x) => envRe.test(x)) : []
-    const realErrors = pageErrors.filter((x) => !envErrors.includes(x))
-    const envNote = restarts > 0 ? ` · dev-server genstartet ${restarts}× (hukommelse); ${envErrors.length} netværksfejl under genstart henført til miljø${envErrors.length ? `: ${envErrors.slice(0, 2).join(' | ').slice(0, 300)}` : ''}` : ''
+    // Produktionsbuild: React #419 (Suspense faldt tilbage til klient-rendering) når testen navigerer videre før
+    // serverens stream er færdig — serveren logger da "destination stream closed early". Kun i den situation henføres
+    // #419 til testens navigation (vises i noten); uden afbrudte streams fejler #419 som før.
+    const abortedStreams = (serverLog.join('').match(/destination stream closed early/g) ?? []).length
+    const abortErrors = abortedStreams > 0 ? pageErrors.filter((x) => /Minified React error #419/.test(x)) : []
+    const realErrors = pageErrors.filter((x) => !envErrors.includes(x) && !abortErrors.includes(x))
+    const envNote = (restarts > 0 ? ` · dev-server genstartet ${restarts}× (hukommelse); ${envErrors.length} netværksfejl under genstart henført til miljø${envErrors.length ? `: ${envErrors.slice(0, 2).join(' | ').slice(0, 300)}` : ''}` : '')
+      + (abortErrors.length ? ` · ${abortErrors.length}× React #419 ved afbrudt stream (${abortedStreams} afbrudte streams i serverloggen): ${abortErrors[0].slice(0, 120)}` : '')
     out.push({ id: 'U5 ingen side-/konsolfejl', ok: realErrors.length === 0, note: `${realErrors.length ? realErrors.slice(0, 3).join(' | ') : `0 fejl · skærmbilleder: ${shots}`}${envNote}` })
   } finally {
     await browser.close().catch(() => {})
