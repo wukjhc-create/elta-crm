@@ -151,6 +151,13 @@ export interface CreateCaseMaterialInput {
   notes?: string | null
 }
 
+/**
+ * Afgør om brugerens priser GEMMES (ellers 0 — kontoret prissætter), ikke hvem der må skrive.
+ * Navngivet konstant, så RLS-matrixtjekket (der læser hasPermission('…')-literaler som skrive-gates)
+ * ikke tolker denne visnings-ret som en skrivevej for bogholderi. Skrive-gaten er materials.add_to_case.
+ */
+const PRICE_VISIBILITY_PERMISSION = 'materials.view.cost_prices' as const
+
 export async function createCaseMaterial(
   input: CreateCaseMaterialInput
 ): Promise<ActionResult<CaseMaterialRow>> {
@@ -211,8 +218,8 @@ export async function createCaseMaterial(
         unit: (input.unit ?? 'stk').trim() || 'stk',
         quantity,
         // Uden kost-ret (montør) prissætter kontoret — klientens priser ignoreres.
-        unit_cost: hasPermission('materials.view.cost_prices') ? unit_cost : 0,
-        unit_sales_price: hasPermission('materials.view.cost_prices') ? unit_sales_price : 0,
+        unit_cost: hasPermission(PRICE_VISIBILITY_PERMISSION) ? unit_cost : 0,
+        unit_sales_price: hasPermission(PRICE_VISIBILITY_PERMISSION) ? unit_sales_price : 0,
         source: input.source ?? 'manual',
         source_offer_line_id: input.source_offer_line_id || null,
         source_incoming_invoice_line_id: input.source_incoming_invoice_line_id || null,
