@@ -653,13 +653,7 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
           </View>
         )}
 
-        {/* Notes */}
-        {invoice.notes && (
-          <View style={styles.notesBlock}>
-            <Text style={styles.notesTitle}>Note</Text>
-            <Text style={styles.notesText}>{invoice.notes}</Text>
-          </View>
-        )}
+        {/* invoice.notes er "Intern note" (sådan hedder feltet alle steder det udfyldes) — udeladt fra kundens faktura med vilje (D34). */}
 
         {/* Footer */}
         <Text style={styles.footer} fixed>
