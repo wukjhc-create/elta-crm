@@ -195,8 +195,8 @@ export async function getOfferConversionPreview(
         address,
         documents_following: (docs ?? []).map((d) => ({ id: d.id as string, title: (d.title as string | null) ?? null })),
         not_included: [
-          'Tilbudslinjer og kalkulation kopieres ikke — sagen får tilbudssummen som kontraktsum.',
-          'Interne priser/kost og margin følger ikke med.',
+          'Tilbudslinjer og kalkulation kopieres ikke — sagen får tilbudssummen som kontraktsum samt planlagte timer (timelinjer) og samlet kostbudget fra linjerne.',
+          'Linjernes interne priser og margin følger ikke med (kun det samlede kostbudget).',
           'Kontakt på stedet sættes på sagen efterfølgende (følger ikke fra tilbuddet).',
         ],
         warnings,
