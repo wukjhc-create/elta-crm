@@ -19,6 +19,7 @@
 | 03:28 | U1–U56: 55/56 (U13 under dev-genstart — nu sent i kørslen takket være mere heap; grøn i genkørsel). `` D33: tilbuds-PDF til kunden uden interne noter (S2, forebyggende — 0 berørt i prod). |
 | 04:01 | **U1–U56 56/56 ✅ uden dev-genstart** (mere heap virkede). `cf919b6` faktura-PDF uden intern note (D34). `d18db85` partnerportal uden interne bemærkninger. `d10ebd4`+`5ba4af6` datoer i dansk tid i PDF/sider/mails (D35, 31+17 steder). Full regression U1–U56 startet. |
 | 04:26 | U1–U56: 55/56 (U11 kalender under dev-genstart). **CI var rød** siden D18 (check:rls-matrix) → rettet `d671d59` (D36); alle CI-trin + `next build` grønne lokalt. Prod read-only "Opsætning før pilot": firma ✓ CVR ✓, bank i firmaindstillinger ✗ (env ukendt), 1/2 montør-login ukoblet (G11), 2 fakturerede kunder uden e-conomic-kobling. |
+| 04:36 | `45d9638`: accepteret tilbud → leads vundet (N21, U57 m. negativ kontrol). Full regression U1–U57 startet. |
 
 ## Nu
 P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtaget, `check:rbac` blokerende i CI) · **fakturapipeline F-a–F-d DONE** (F-d prod-gate).
