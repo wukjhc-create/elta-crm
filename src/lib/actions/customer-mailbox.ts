@@ -555,3 +555,28 @@ export async function getUnreadCustomerEmailCount(): Promise<number> {
   if (error) return 0
   return count || 0
 }
+
+/**
+ * N24a: ukoblede mails fra kundens adresse (fx modtaget før kunden blev oprettet) — antal og ét-klik kobling på
+ * kundekortet. Kræver customers.edit (samme som at svare kunden); skriver med bruger-sessionen (RLS).
+ */
+export async function getUnlinkedCustomerEmailCountAction(customerId: string): Promise<number> {
+  if (await gateDenied('customers.edit')) return 0
+  const supabase = await createClient()
+  const { data: cust } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+  const { countUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
+  return countUnlinkedEmailsFromAddress(supabase, (cust as { email?: string | null } | null)?.email)
+}
+
+export async function linkUnlinkedCustomerEmailsAction(customerId: string): Promise<{ success: boolean; linked?: number; error?: string }> {
+  const denied = await gateDenied('customers.edit')
+  if (denied) return { success: false, error: denied }
+  const supabase = await createClient()
+  const { data: cust } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle()
+  const email = (cust as { email?: string | null } | null)?.email
+  if (!email) return { success: false, error: 'Kunden har ingen mailadresse' }
+  const { linkUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
+  const linked = await linkUnlinkedEmailsFromAddress(supabase, customerId, email)
+  revalidatePath(`/dashboard/customers/${customerId}`)
+  return { success: true, linked }
+}

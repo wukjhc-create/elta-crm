@@ -20,6 +20,8 @@ import {
 } from 'lucide-react'
 import {
   getCustomerMailbox,
+  getUnlinkedCustomerEmailCountAction,
+  linkUnlinkedCustomerEmailsAction,
   markCustomerEmailRead,
   replyToCustomerEmail,
   sendEmailToCustomer,
@@ -55,6 +57,17 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
   const [showCompose, setShowCompose] = useState(false)
   // D28: bogholderi læser kun (mails koblet til kunden) — ingen ny mail/svar
   const [canReply, setCanReply] = useState(false)
+  // N24a: tidligere mails fra kundens adresse, der ikke er koblet til kunden
+  const [unlinked, setUnlinked] = useState(0)
+  const [linking, setLinking] = useState(false)
+  const linkOld = async () => {
+    setLinking(true)
+    const r = await linkUnlinkedCustomerEmailsAction(customerId)
+    setLinking(false)
+    if (!r.success) { toast.error('Kunne ikke koble mails', r.error); return }
+    toast.success(`${r.linked ?? 0} mail(s) koblet til kunden`)
+    await load()
+  }
   const [composeSubject, setComposeSubject] = useState('')
   const [composeBody, setComposeBody] = useState('')
   const [composeSending, setComposeSending] = useState(false)
@@ -70,6 +83,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
     setUnreadCount(result.unreadCount)
     setCanReply(result.canReply)
     setLoading(false)
+    if (result.canReply) setUnlinked(await getUnlinkedCustomerEmailCountAction(customerId))
   }
 
   useEffect(() => { load() }, [customerId, customerEmail])
@@ -182,6 +196,11 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
         </div>
         <p className="text-xs text-gray-400 mt-1">
           {canReply ? <>Kun mails til/fra {customerEmail}</> : <span data-testid="customer-mails-readonly">Mails koblet til kunden (kun læsning)</span>}
+          {canReply && unlinked > 0 && (
+            <button type="button" onClick={linkOld} disabled={linking} className="ml-2 text-emerald-700 hover:underline disabled:opacity-50" data-testid="customer-mails-link-old">
+              {linking ? 'Kobler…' : `Kobl ${unlinked} tidligere mail(s) fra adressen til kunden`}
+            </button>
+          )}
         </p>
       </div>
 

@@ -38,7 +38,7 @@
     "test:time": "tsx scripts/copenhagen-time-test.ts && tsx scripts/offer-validity-test.ts && tsx scripts/offer-followup-test.ts && tsx scripts/time-log-price-test.ts && tsx scripts/stage-net-test.ts && tsx scripts/economic-draft-test.ts && tsx scripts/economic-supplier-draft-test.ts && tsx scripts/economic-payment-test.ts && tsx scripts/week-hours-test.ts && tsx scripts/unbilled-test.ts && tsx scripts/offer-pdf-notes-test.ts && tsx scripts/invoice-pdf-notes-test.ts && tsx scripts/format-dk-test.ts",
     "test:profit": "tsx scripts/profit-engine-test.ts && tsx scripts/profit-offer-analysis-test.ts && tsx scripts/offer-low-db-test.ts && tsx scripts/supplier-compare-test.ts",
     "test:invoice-pdf": "tsx scripts/invoice-pdf-text-test.ts",
-    "test:decode": "tsx scripts/decode-text-file-test.ts && tsx scripts/postgrest-filter-test.ts && tsx scripts/danish-number-test.ts",
+    "test:decode": "tsx scripts/website-inquiry-test.ts && tsx scripts/decode-text-file-test.ts && tsx scripts/postgrest-filter-test.ts && tsx scripts/danish-number-test.ts",
     "harness:supplier-vat": "tsx scripts/test-harness/cli.ts supplier-vat",
     "harness:action-auth": "tsx scripts/test-harness/cli.ts action-auth",
     "harness:rls-read": "tsx scripts/test-harness/cli.ts rls-read",

@@ -48,7 +48,7 @@ import type {
 // =====================================================
 
 export async function getIncomingEmails(options?: {
-  filter?: EmailLinkStatus | 'all' | 'ao_matches' | 'requires_response'
+  filter?: EmailLinkStatus | 'all' | 'ao_matches' | 'requires_response' | 'webform'
   readFilter?: 'all' | 'read' | 'unread'
   sortOrder?: 'newest' | 'oldest'
   search?: string
@@ -91,6 +91,9 @@ export async function getIncomingEmails(options?: {
     query = query.eq('link_status', 'pending')
   } else if (filter === 'ignored') {
     query = query.eq('link_status', 'ignored')
+  } else if (filter === 'webform') {
+    // Webhenvendelser fra hjemmesiden, der ikke er koblet til en kunde — også de historisk fejl-ignorerede
+    query = query.ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null)
   } else if (filter === 'ao_matches') {
     // Skip noise i AO-matches også — undgå at marketing-mails om AO
     // dukker op selvom de matcher et AO-produkt-keyword
@@ -179,13 +182,14 @@ export async function getIncomingEmailStats(): Promise<{
   ignored: number
   aoMatches: number
   requiresResponse: number
+  webform: number
 }> {
   const supabase = await createClient()
 
   // Sprint 8E noise-cleanup: total + unread ekskluderer ignored/noise
   // så CRM-tæller afspejler den arbejds-relevante indbakke.
   // ignored-counter beholder rå count så debug-tab viser præcis tal.
-  const [totalRes, unreadRes, unidentifiedRes, linkedRes, pendingRes, ignoredRes, aoRes] = await Promise.all([
+  const [totalRes, unreadRes, unidentifiedRes, linkedRes, pendingRes, ignoredRes, aoRes, webformRes] = await Promise.all([
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', false).neq('link_status', 'ignored'),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_read', false).eq('is_archived', false).neq('link_status', 'ignored'),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'unidentified').eq('is_archived', false),
@@ -193,6 +197,7 @@ export async function getIncomingEmailStats(): Promise<{
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'pending').eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'ignored').eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('has_ao_matches', true).eq('is_archived', false).neq('link_status', 'ignored'),
+    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', false).ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null),
   ])
 
   // Sprint 8E-1A: requires_response counter (live-beregnet via helper)
@@ -215,6 +220,7 @@ export async function getIncomingEmailStats(): Promise<{
     ignored: ignoredRes.count || 0,
     aoMatches: aoRes.count || 0,
     requiresResponse,
+    webform: webformRes.count || 0,
   }
 }
 
@@ -1842,4 +1848,35 @@ export async function autoRelinkEmail(
     logger.error('autoRelinkEmail failed', { error: err, entityId: emailId })
     return { linked: false }
   }
+}
+
+/**
+ * N24b: mails der aldrig blev behandlet (link_status 'pending' — prod: 59 fra marts–juni). Kør den eksisterende
+ * matcher (linkEmail: kun eksisterende kunder, opretter intet). Uden match → 'unidentified' (manuel håndtering).
+ * Brugerudløst fra fanen Afventer (inbox.view); højst 100 pr. kørsel.
+ */
+export async function autoLinkPendingEmailsAction(): Promise<{ success: boolean; processed?: number; linked?: number; error?: string }> {
+  if (await gateDenied('inbox.view')) return { success: false, error: 'Manglende tilladelse: inbox.view' }
+  const supabase = await createClient()
+  const { data: pending, error } = await supabase
+    .from('incoming_emails')
+    .select('id, sender_email, sender_name, subject, body_html, body_text')
+    .eq('link_status', 'pending')
+    .eq('is_archived', false)
+    .order('received_at', { ascending: true })
+    .limit(100)
+  if (error) return { success: false, error: 'Kunne ikke hente ventende mails' }
+  const { linkEmail } = await import('@/lib/services/email-linker')
+  let linked = 0
+  for (const e of (pending ?? []) as Array<{ id: string; sender_email: string; sender_name: string | null; subject: string | null; body_html: string | null; body_text: string | null }>) {
+    try {
+      const r = await linkEmail(e.id, e.sender_email, e.sender_name, e.subject || '', e.body_html, e.body_text)
+      if (r.status === 'linked') { linked++; continue }
+    } catch (err) {
+      logger.warn('autoLinkPending: matcher fejlede', { error: err, entityId: e.id })
+    }
+    await supabase.from('incoming_emails').update({ link_status: 'unidentified', processed_at: new Date().toISOString() }).eq('id', e.id).eq('link_status', 'pending')
+  }
+  revalidatePath('/dashboard/mail')
+  return { success: true, processed: (pending ?? []).length, linked }
 }
