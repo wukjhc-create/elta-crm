@@ -38,7 +38,7 @@ export async function MyHoursCard() {
       )}
       {week.entries.some((e) => e.approval_status === 'rejected') && (
         <p className="text-xs text-red-800 flex items-center gap-1 mb-2">
-          <AlertTriangle className="w-3.5 h-3.5" /> Nogle timer er afvist — se begrundelsen (hold musen over "Afvist") og ret registreringen.
+          <AlertTriangle className="w-3.5 h-3.5" /> Nogle timer er afvist — se begrundelsen (hold musen over &quot;Afvist&quot;) og ret registreringen.
         </p>
       )}
       {week.entries.length === 0 ? (
