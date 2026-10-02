@@ -13,6 +13,19 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Beslutninger (Henrik 2026-10-02, efter overnight)
+| # | Beslutning | Udførelse |
+|---|---|---|
+| D24 | Ingen kundekontakt. Dokumentér internt som lukket | LUKKET — se docs/pilot/INCIDENT_LOG.md (P-013) |
+| D26 | Sagsfotos/-dokumenter er INTERNE som standard; brugeren vælger aktivt "Del med kunde". 00184 på STAGING, ikke prod | IN_PROGRESS |
+| D18 | Montør må IKKE indtaste/redigere kostpriser på øvrige omkostninger; må registrere udgiften/kvitteringen/oplysningen — kostfelter styres af kontorroller | TODO |
+| D28 | Bogholderi skal se kundemails relevante for kunde/faktura/økonomi, men ikke hele virksomhedens postkasse — least-privilege design på staging | TODO |
+| D27 | Price alerts beholdes som NEXT; korrekt foundation senere; fjern ikke | NEXT |
+| N2 | Time approval: montør registrerer → serviceleder/admin godkender. Design på staging; ingen løn/finance-sideeffekter endnu | TODO |
+| N8a | WARNING (ikke hard block) ved lav DB; tydelig DB/margin-advarsel før tilbud sendes. Hard block først når kostdata er dokumenteret komplette | TODO |
+
+**Næste hovedfokus (Henrik 2026-10-02):** 1) D26/00184 på staging · 2) prod-gate-batch klar til samlet deployment · 3) 00180 og 00181 først · 4) én samlet pre/post-runbook for 00175–00183 · 5) ingen live e-conomic-posting uden nøgler/godkendelse · 6) derefter synlige GO-LIVE/NEXT-flows.
+
 ## GO-LIVE
 | # | Flow | Problem (fundet) | Status |
 |---|---|---|---|

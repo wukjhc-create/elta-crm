@@ -21,6 +21,7 @@ export const INCIDENT_REGISTER: IncidentEntry[] = [
     pending: 'Runde 4: ~44 kalkulations-/katalogtabeller (staging først)' },
   { id: 'P-010', severity: 'S2', area: 'Kundedokumenter', title: 'Uautentificeret sletning af kundedokumenter via outbound-attachment-action', closed: true },
   { id: 'P-012', severity: 'S2', area: 'Login/auth-formularer', title: 'Klik før hydrering gav native GET-submit med adgangskoden i URL (historik/request-logs)', closed: true },
+  { id: 'P-013', severity: 'S2', area: 'Kundeportal — tilbudslinjer', title: 'Kostpris/margin/linjenoter i sidedata til kunden (select(*)); 2 tilbud/2 kunder; ingen kundekontakt (Henrik)', closed: true },
   { id: 'P-011', severity: 'S2', area: 'Bank/finance', title: 'Bankimport/-match (markér faktura betalt) uden rettighedstjek', closed: true },
   { id: 'P-006', severity: 'S3', area: 'Server-action-RBAC', title: 'Mange skrivende server-actions uden rettighedstjek — alle gatet eller bevist undtaget; CI-blokerende audit', closed: true },
   { id: 'P-005', severity: 'S3', area: 'Pris/leverandør-RBAC', title: 'Pris-/leverandør-actions uden rettighedstjek; supplier_settings skrivbar for alle indloggede', closed: true },
