@@ -56,7 +56,14 @@ function fmtDate(s: string): string {
   })
 }
 
-export function OrderOtherCostsTab({ caseId }: { caseId: string }) {
+export function OrderOtherCostsTab({
+  caseId,
+  canSeeCost = true,
+}: {
+  caseId: string
+  /** materials.view.cost_prices — uden: ingen kost-/DB-visning (serveren sender 0 for kost; montør) */
+  canSeeCost?: boolean
+}) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -192,9 +199,9 @@ export function OrderOtherCostsTab({ caseId }: { caseId: string }) {
                 <th className="px-2 py-2 text-left">Leverandør</th>
                 <th className="px-2 py-2 text-right">Antal</th>
                 <th className="px-2 py-2 text-left">Enhed</th>
-                <th className="px-2 py-2 text-right">Kostpris</th>
+                {canSeeCost && <th className="px-2 py-2 text-right">Kostpris</th>}
                 <th className="px-2 py-2 text-right">Salgspris</th>
-                <th className="px-2 py-2 text-right">Sum kost</th>
+                {canSeeCost && <th className="px-2 py-2 text-right">Sum kost</th>}
                 <th className="px-2 py-2 text-right">Sum salg</th>
                 <th className="px-2 py-2 text-center w-20">Handling</th>
               </tr>
@@ -260,15 +267,19 @@ export function OrderOtherCostsTab({ caseId }: { caseId: string }) {
                       {fmtNum(r.quantity, 2)}
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-600">{r.unit}</td>
-                    <td className="px-2 py-2 text-right tabular-nums">
-                      {formatCurrency(r.unit_cost, 'DKK', 2)}
-                    </td>
+                    {canSeeCost && (
+                      <td className="px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(r.unit_cost, 'DKK', 2)}
+                      </td>
+                    )}
                     <td className="px-2 py-2 text-right tabular-nums">
                       {formatCurrency(r.unit_sales_price, 'DKK', 2)}
                     </td>
-                    <td className="px-2 py-2 text-right tabular-nums font-medium">
-                      {formatCurrency(r.total_cost, 'DKK', 2)}
-                    </td>
+                    {canSeeCost && (
+                      <td className="px-2 py-2 text-right tabular-nums font-medium">
+                        {formatCurrency(r.total_cost, 'DKK', 2)}
+                      </td>
+                    )}
                     <td className="px-2 py-2 text-right tabular-nums font-medium">
                       {formatCurrency(r.total_sales_price, 'DKK', 2)}
                     </td>
@@ -305,7 +316,7 @@ export function OrderOtherCostsTab({ caseId }: { caseId: string }) {
                 )
               })}
             </tbody>
-            {summary && (
+            {summary && canSeeCost && (
               <tfoot className="bg-gray-50 text-sm">
                 <tr className="border-t-2 border-gray-200">
                   <td colSpan={8} className="px-3 py-2 text-right text-xs text-gray-600 uppercase tracking-wide">

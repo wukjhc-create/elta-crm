@@ -1809,6 +1809,12 @@ ${m.text()}`) })
         r.uden_priser = Number(mr?.unit_cost) === 0 && Number(mr?.unit_sales_price) === 0
         // lad montør-siden falde til ro (router.refresh efter gem) før næste navigation — ellers afbrudte fetch/WebSocket i U5
         await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        // Øvrige omkostninger: heller ingen kost-kolonner/DB for montør (serveren sender 0)
+        if (jobCaseId) await c.admin.from('case_other_costs').insert([{ case_id: jobCaseId, category: 'koersel', description: `Kørsel ${stamp}`, quantity: 1, unit_cost: 50, unit_sales_price: 80, created_by: adminUser.id }])
+        await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=oevrige`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await m.page.getByRole('columnheader', { name: 'Salgspris' }).first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.oevrige_uden_kost = (await m.page.getByText(`Kørsel ${stamp}`).count()) > 0 && (await m.page.getByRole('columnheader', { name: 'Kostpris' }).count()) === 0 && (await m.page.getByText('Foreløbig DB').count()) === 0
+        await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         // kontoret ser stadig priser og kan prissætte
         await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('columnheader', { name: 'Kostpris' }).waitFor({ timeout: 60_000 }).catch(() => {})
@@ -2078,6 +2084,7 @@ ${m.text()}`) })
       await c.admin.from('work_orders').delete().eq('case_id', jobCaseId)
       await c.admin.from('case_notes').delete().eq('case_id', jobCaseId)
       await c.admin.from('case_materials').delete().eq('case_id', jobCaseId)
+      await c.admin.from('case_other_costs').delete().eq('case_id', jobCaseId)
       await c.admin.from('service_cases').delete().eq('id', jobCaseId)
     }
     if (jobEmployeeId) await c.admin.from('employees').delete().eq('id', jobEmployeeId)

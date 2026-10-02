@@ -262,7 +262,7 @@ export function OrderDetailClient({
               canDelete={materialPerms.del}
             />
           )}
-          {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} />}
+          {active === 'oevrige' && <OrderOtherCostsTab caseId={sag.id} canSeeCost={materialPerms.seePrices} />}
           {active === 'mails' && <OrderMailsTab caseId={sag.id} />}
           {active === 'dokumenter' && (
             <OrderDocumentsTab caseId={sag.id} customerId={sag.customer_id ?? null} />
