@@ -1849,3 +1849,34 @@ export async function autoRelinkEmail(
     return { linked: false }
   }
 }
+
+/**
+ * N24b: mails der aldrig blev behandlet (link_status 'pending' — prod: 59 fra marts–juni). Kør den eksisterende
+ * matcher (linkEmail: kun eksisterende kunder, opretter intet). Uden match → 'unidentified' (manuel håndtering).
+ * Brugerudløst fra fanen Afventer (inbox.view); højst 100 pr. kørsel.
+ */
+export async function autoLinkPendingEmailsAction(): Promise<{ success: boolean; processed?: number; linked?: number; error?: string }> {
+  if (await gateDenied('inbox.view')) return { success: false, error: 'Manglende tilladelse: inbox.view' }
+  const supabase = await createClient()
+  const { data: pending, error } = await supabase
+    .from('incoming_emails')
+    .select('id, sender_email, sender_name, subject, body_html, body_text')
+    .eq('link_status', 'pending')
+    .eq('is_archived', false)
+    .order('received_at', { ascending: true })
+    .limit(100)
+  if (error) return { success: false, error: 'Kunne ikke hente ventende mails' }
+  const { linkEmail } = await import('@/lib/services/email-linker')
+  let linked = 0
+  for (const e of (pending ?? []) as Array<{ id: string; sender_email: string; sender_name: string | null; subject: string | null; body_html: string | null; body_text: string | null }>) {
+    try {
+      const r = await linkEmail(e.id, e.sender_email, e.sender_name, e.subject || '', e.body_html, e.body_text)
+      if (r.status === 'linked') { linked++; continue }
+    } catch (err) {
+      logger.warn('autoLinkPending: matcher fejlede', { error: err, entityId: e.id })
+    }
+    await supabase.from('incoming_emails').update({ link_status: 'unidentified', processed_at: new Date().toISOString() }).eq('id', e.id).eq('link_status', 'pending')
+  }
+  revalidatePath('/dashboard/mail')
+  return { success: true, processed: (pending ?? []).length, linked }
+}

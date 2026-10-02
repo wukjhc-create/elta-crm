@@ -40,6 +40,7 @@ import {
   runSyncAndDiagnose,
   resetDeltaLink,
   fastForwardAllMailboxes,
+  autoLinkPendingEmailsAction,
   type SyncDiagnostic,
 } from '@/lib/actions/incoming-emails'
 import { createServiceCaseFromEmail } from '@/lib/actions/service-cases'
@@ -99,6 +100,7 @@ export function MailClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const toast = useToast()
+  const [autoLinking, setAutoLinking] = useState(false)
 
   // Core state
   const [emails, setEmails] = useState<IncomingEmailWithCustomer[]>([])
@@ -1045,6 +1047,29 @@ export function MailClient() {
           )
         })}
       </div>
+
+      {/* N24b: aldrig-behandlede mails → kør matcheren (kun eksisterende kunder, opretter intet) */}
+      {currentFilter === 'pending' && stats.pending > 0 && (
+        <div className="flex items-center gap-3 rounded-lg bg-amber-50 ring-1 ring-amber-200 px-4 py-2 text-sm text-amber-900" data-testid="mail-pending-autolink">
+          <span>{stats.pending} mail(s) er aldrig blevet behandlet.</span>
+          <button
+            type="button"
+            disabled={autoLinking}
+            onClick={async () => {
+              setAutoLinking(true)
+              const r = await autoLinkPendingEmailsAction()
+              setAutoLinking(false)
+              if (!r.success) { toast.error('Kunne ikke behandle', r.error); return }
+              toast.success(`${r.processed ?? 0} behandlet`, `${r.linked ?? 0} koblet til kunder · resten ligger under Uidentificerede`)
+              router.refresh()
+              await loadEmails()
+            }}
+            className="ml-auto px-3 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {autoLinking ? 'Behandler…' : 'Forsøg automatisk kobling'}
+          </button>
+        </div>
+      )}
 
       {/* ========== SPLIT VIEW: LIST (with filter bar) + DETAIL ========== */}
       <div className="flex gap-6 min-h-[650px]">
