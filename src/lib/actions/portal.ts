@@ -23,7 +23,7 @@ import { convertOfferToCase } from '@/lib/services/offer-to-case'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { sendEmail } from '@/lib/email/email-service'
 import { isGraphConfigured, sendEmailViaGraph } from '@/lib/services/microsoft-graph'
-import { getSmtpSettings, getCompanySettings } from '@/lib/actions/settings'
+import { getSmtpSettings } from '@/lib/actions/settings'
 import { isInternalEmail } from '@/lib/services/mail-routing'
 import { MAX_FILE_SIZE, APP_URL } from '@/lib/constants'
 import type {
@@ -613,23 +613,13 @@ export async function acceptOffer(
 
     // Send automatic email confirmation to CRM mailbox
     try {
-      const [smtpResult, settingsResult] = await Promise.all([
-        getSmtpSettings(),
-        getCompanySettings(),
-      ])
+      // Kunden er ikke logget ind: getSmtpSettings/getCompanySettings krævede en session og fejlede
+      // ALTID her (AUTH_REQUIRED i loggen) → mailen brugte env-SMTP. Samme adfærd nu, uden fejl-støj:
+      // ingen SMTP-override (env), firmanavn via offentlig kolonne (D29).
+      const { data: companyRow } = await admin.from('company_settings').select('company_name').limit(1).maybeSingle()
       const crmMailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
-      const companyName = settingsResult.data?.company_name || 'Elta Solar'
-
-      const smtpConfig = smtpResult.success && smtpResult.data
-        ? {
-            host: smtpResult.data.host || undefined,
-            port: smtpResult.data.port || undefined,
-            user: smtpResult.data.user || undefined,
-            password: smtpResult.data.password || undefined,
-            fromEmail: smtpResult.data.fromEmail || undefined,
-            fromName: smtpResult.data.fromName || undefined,
-          }
-        : undefined
+      const companyName = (companyRow as { company_name?: string | null } | null)?.company_name || 'Elta Solar'
+      const smtpConfig = undefined
 
       await sendEmail({
         to: crmMailbox,
