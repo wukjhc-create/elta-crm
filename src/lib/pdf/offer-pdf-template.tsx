@@ -419,13 +419,8 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
           </View>
         )}
 
-        {/* Notes / OBS Points */}
-        {offer.notes && (
-          <View style={styles.notesBox}>
-            <Text style={styles.notesTitle}>OBS / Bemærkninger</Text>
-            <Text style={styles.notesText}>{offer.notes}</Text>
-          </View>
-        )}
+        {/* offers.notes er "Interne noter" (vises IKKE på PDF/portal jf. tilbudssiden) — udeladt med vilje.
+            Kundevendt tekst hører til i "Opgavens omfang" (scope). */}
 
         {/* Line Items Table */}
         {lineItems.length > 0 && (
@@ -471,9 +466,6 @@ export function OfferPdfDocument({ offer, companySettings }: OfferPdfProps) {
                   )}
                   <View style={hasImages ? { width: '32%' } : styles.colDescription}>
                     <Text>{item.description}</Text>
-                    {item.notes && (
-                      <Text style={styles.lineItemNotes}>{item.notes}</Text>
-                    )}
                   </View>
                   <Text style={styles.colQuantity}>
                     {item.quantity} {item.unit}
