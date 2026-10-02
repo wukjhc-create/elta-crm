@@ -96,6 +96,8 @@
  *       bekræftelse (afvist → stadig kladde) og audit-logges
  *   U61 D28: bogholderi ser kundens koblede mails på kundekortet (kun læsning, ingen Ny Mail) men ikke ukoblede
  *       adresse-match-mails; kontoret ser begge
+ *   U64 webhenvendelser: kontaktformular-mail (også en tidligere fejl-ignoreret) vises under "Webhenvendelser"; andre
+ *       ignorerede mails gør ikke
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -1687,6 +1689,25 @@ ${m.text()}`) })
         r.kontor_ser_begge = (await a.page.getByText(linkedSubj).count()) > 0 && (await a.page.getByText(looseSubj).count()) > 0 && (await a.page.getByRole('button', { name: /Ny Mail/ }).count()) > 0
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         out.push({ id: 'U61 D28 bogholderi: kundens koblede mails (læsning)', ok: !em.error && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${em.error ? ` · SEED: ${em.error.message}` : ''}` })
+      }
+
+      // U64 webhenvendelser: kontaktformular-mails (også tidligere fejl-ignorerede) vises under "Webhenvendelser";
+      // FormSubmits systemmails gør ikke
+      if (want('U64')) {
+        const r: Record<string, boolean> = {}
+        const inq = `Ny henvendelse fra eltasolar.dk [HARNESS ${stamp}]`, sys = `Action Required: Activate FormSubmit henvendelse [HARNESS ${stamp}]`
+        const em = await c.admin.from('incoming_emails').insert([
+          { sender_email: 'submissions@formsubmit.co', subject: inq, body_text: "Here's what they had to say:\nname\nTest Testesen\nemail\ntest@example.dk", received_at: new Date().toISOString(), is_archived: false, link_status: 'ignored' },
+          { sender_email: 'noreply@example.dk', subject: sys, body_text: 'x', received_at: new Date().toISOString(), is_archived: false, link_status: 'ignored' },
+        ]).select('id')
+        for (const x of (em.data ?? []) as Array<{ id: string }>) seededEmailIds.push(x.id)
+        await gotoSafe(a.page, `${base}/dashboard/mail?filter=webform`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText(inq).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.fane_vist = (await a.page.getByRole('button', { name: /Webhenvendelser/ }).count()) > 0
+        r.fejl_ignoreret_henvendelse_vist = (await a.page.getByText(inq).count()) > 0
+        r.andre_mails_ikke_vist = (await a.page.getByText(sys).count()) === 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U64 webhenvendelser i indbakken', ok: !em.error && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${em.error ? ` · SEED: ${em.error.message}` : ''}` })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
