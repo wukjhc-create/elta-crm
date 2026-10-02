@@ -98,6 +98,7 @@
  *       adresse-match-mails; kontoret ser begge
  *   U64 webhenvendelser: kontaktformular-mail (også en tidligere fejl-ignoreret) vises under "Webhenvendelser"; andre
  *       ignorerede mails gør ikke
+ *   U65 N24a: ukoblet mail fra kundens adresse → "Kobl tidligere mails" på kundekortet kobler den (linked_by retro)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -1708,6 +1709,34 @@ ${m.text()}`) })
         r.andre_mails_ikke_vist = (await a.page.getByText(sys).count()) === 0
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         out.push({ id: 'U64 webhenvendelser i indbakken', ok: !em.error && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${em.error ? ` · SEED: ${em.error.message}` : ''}` })
+      }
+
+      // U65 N24a: ukoblet mail fra kundens adresse (modtaget før kobling) → "Kobl tidligere mails" på kundekortet
+      if (want('U65') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const custEmail = ((await c.admin.from('customers').select('email').eq('id', profitCustomerId).maybeSingle()).data as { email?: string | null } | null)?.email
+        const subj = `[HARNESS] gammel kundemail ${stamp}`
+        const em = custEmail ? await c.admin.from('incoming_emails').insert([{ sender_email: custEmail.toUpperCase(), subject: subj, customer_id: null,
+          received_at: new Date(Date.now() - 30 * 86400_000).toISOString(), is_archived: false, link_status: 'unidentified' }]).select('id') : null
+        const emId = (em?.data?.[0] as { id?: string } | undefined)?.id
+        if (emId) seededEmailIds.push(emId)
+        await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const btn = a.page.getByTestId('customer-mails-link-old')
+        await btn.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.knap_vist = (await btn.count()) === 1
+        await btn.click({ timeout: 30_000 }).catch(() => {})
+        type LinkRow = { customer_id?: string | null; linked_by?: string | null }
+        let linked: LinkRow | null = null
+        for (let i = 0; i < 20; i++) {
+          linked = (await c.admin.from('incoming_emails').select('customer_id, linked_by').eq('id', emId ?? '').maybeSingle()).data as LinkRow | null
+          if (linked?.customer_id) break
+          await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.mail_koblet = linked?.customer_id === profitCustomerId && linked?.linked_by === 'retro'
+        await a.page.getByText(subj).first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.vist_paa_kundekort = (await a.page.getByText(subj).count()) > 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U65 N24a tidligere kundemails kobles', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl

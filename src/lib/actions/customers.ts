@@ -463,6 +463,11 @@ export async function createCustomer(formData: FormData): Promise<ActionResult<C
     await logCreate('customer', customer.id, customer.company_name, {
       customer_number: customer.customer_number,
     })
+    // N24a: tidligere mails fra kundens adresse kobles til den nye kunde
+    {
+      const { linkUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
+      await linkUnlinkedEmailsFromAddress(supabase, customer.id, customer.email)
+    }
     revalidatePath('/customers')
     return { success: true, data: customer }
   } catch (err) {
@@ -614,6 +619,10 @@ export async function quickCreateCustomer(
       customer_type: input.customer_type,
       source: 'quick_create',
     })
+    {
+      const { linkUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
+      await linkUnlinkedEmailsFromAddress(supabase, customer.id, customer.email)
+    }
     revalidatePath('/dashboard/customers')
     return { success: true, data: customer }
   } catch (err) {
@@ -693,6 +702,11 @@ export async function updateCustomer(formData: FormData): Promise<ActionResult<C
     await logUpdate('customer', customerId, data.company_name, changes)
 
     revalidatePath('/customers')
+    // N24a: ny/ændret mailadresse → kobl tidligere ukoblede mails fra adressen
+    if ((data as Customer | null)?.email) {
+      const { linkUnlinkedEmailsFromAddress } = await import('@/lib/mail/retro-link')
+      await linkUnlinkedEmailsFromAddress(supabase, customerId, (data as Customer).email)
+    }
     revalidatePath(`/customers/${customerId}`)
     return { success: true, data: data as Customer }
   } catch (err) {
