@@ -96,6 +96,8 @@
  *       bekræftelse (afvist → stadig kladde) og audit-logges
  *   U61 D28: bogholderi ser kundens koblede mails på kundekortet (kun læsning, ingen Ny Mail) men ikke ukoblede
  *       adresse-match-mails; kontoret ser begge
+ *   U63 N23: sag new → I gang når montøren starter job/registrerer tid (audit); "Klar til lukning" når alle job er udført
+ *       og intet er ufaktureret → Luk sagen; ufaktureret sag viser intet banner
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -1922,6 +1924,45 @@ ${m.text()}`) })
         r.kontor_ser_priser = (await a.page.getByRole('columnheader', { name: 'Kostpris' }).count()) > 0 && (await a.page.getByRole('button', { name: /^Handlinger/ }).count()) > 0
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u40-montor-materialer.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U40 montør: egen sag uden priser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
+      // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
+      if (want('U63') && jobCaseId && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const st = ((await c.admin.from('service_cases').select('status').eq('id', jobCaseId).maybeSingle()).data as { status?: string } | null)?.status
+        r.sag_i_gang_efter_arbejde = st === 'in_progress'
+        const aud = ((await c.admin.from('audit_logs').select('action').eq('entity_id', jobCaseId)).data ?? []) as Array<{ action: string }>
+        r.auto_start_auditlogget = aud.some((x) => x.action === 'case_auto_in_progress')
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] klar til lukning ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const readyCaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (readyCaseId) {
+          listCaseIds.push(readyCaseId)
+          await c.admin.from('work_orders').insert([{ case_id: readyCaseId, title: `[HARNESS] udført job ${stamp}`, status: 'done', completed_at: new Date().toISOString() }])
+        }
+        await gotoSafe(a.page, `${base}/dashboard/orders/${readyCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('case-ready-to-close').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.klar_til_lukning_vist = (await a.page.getByTestId('case-ready-to-close').count()) === 1
+        await a.page.getByTestId('case-close-now').click({ timeout: 30_000 }).catch(() => {})
+        let closed = ''
+        for (let i = 0; i < 20 && closed !== 'closed'; i++) {
+          closed = String(((await c.admin.from('service_cases').select('status').eq('id', readyCaseId ?? '').maybeSingle()).data as { status?: string } | null)?.status ?? '')
+          if (closed !== 'closed') await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.lukket = closed === 'closed'
+        // U11's sag har ufaktureret tid → intet "klar"-banner
+        await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.waitForTimeout(3000)
+        r.ufaktureret_ikke_klar = (await a.page.getByTestId('case-ready-to-close').count()) === 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        if (readyCaseId) {
+          const { data: rw } = await c.admin.from('work_orders').select('id').eq('case_id', readyCaseId)
+          for (const w of (rw ?? []) as Array<{ id: string }>) { await c.admin.from('work_order_profit').delete().eq('work_order_id', w.id); await c.admin.from('work_orders').delete().eq('id', w.id) }
+          await c.admin.from('audit_logs').delete().eq('entity_id', readyCaseId)
+        }
+        await c.admin.from('audit_logs').delete().eq('entity_id', jobCaseId).eq('action', 'case_auto_in_progress')
+        out.push({ id: 'U63 N23 sagsstatus følger arbejdet', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U44 montør: "Mine timer" viser ugens egne timer (efter U11's tidsregistrering)
