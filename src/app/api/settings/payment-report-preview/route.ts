@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     const branding = await loadReportBranding(supabase)
-    const dateDk = new Date().toLocaleDateString('da-DK', { day: '2-digit', month: 'long', year: 'numeric' })
+    const dateDk = new Date().toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: '2-digit', month: 'long', year: 'numeric' })
     const payload = buildReportPdfPayload(rows, REPORT_FILTER_LABEL[config.filter], dateDk, branding)
 
     const document = PaymentReportPdfDocument({ payload }) as ReactElement<

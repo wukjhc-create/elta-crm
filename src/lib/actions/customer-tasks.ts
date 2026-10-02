@@ -521,7 +521,7 @@ export async function bookBesigtigelse(
 
     // Format date for display (e.g. "18. marts 2026")
     const dateObj = new Date(date)
-    const formattedDate = dateObj.toLocaleDateString('da-DK', {
+    const formattedDate = dateObj.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
       day: 'numeric',
       month: 'long',
       year: 'numeric',

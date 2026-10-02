@@ -1755,7 +1755,7 @@ export async function getInvoiceLiquidityChartAction(
   for (let i = 5; i >= 0; i--) {
     const d = new Date(base.getFullYear(), base.getMonth() - i, 1)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const label = cap(d.toLocaleDateString('da-DK', { month: 'short' }).replace('.', ''))
+    const label = cap(d.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', month: 'short' }).replace('.', ''))
     buckets.set(key, { month: key, month_label: label, invoiced_total: 0, paid_total: 0, draft_total: 0 })
     order.push(key)
   }

@@ -594,7 +594,7 @@ function buildLeadNotes(
   const parts: string[] = []
 
   // Header with metadata
-  const dateStr = new Date(receivedAt).toLocaleDateString('da-DK', {
+  const dateStr = new Date(receivedAt).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
     year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
   parts.push(`Oprettet fra email modtaget ${dateStr}`)
@@ -1227,7 +1227,7 @@ export async function sendQuickReply(
   const safeOriginalBody = originalBody
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // Strip control chars
 
-  const dateStr = new Date(email.received_at).toLocaleDateString('da-DK', {
+  const dateStr = new Date(email.received_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
 

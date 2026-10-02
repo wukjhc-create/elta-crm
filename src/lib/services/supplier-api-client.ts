@@ -827,7 +827,7 @@ export class LMClassicClient extends BaseSupplierAPIClient {
       }
 
       const lastDate = latestImport
-        ? new Date(latestImport.created_at).toLocaleDateString('da-DK')
+        ? new Date(latestImport.created_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen' })
         : 'ukendt'
 
       return {

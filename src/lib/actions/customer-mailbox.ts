@@ -461,7 +461,7 @@ export async function replyToCustomerEmail(
       .replace(/\n/g, '<br />')
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
 
-    const dateStr = new Date(email.received_at).toLocaleDateString('da-DK', {
+    const dateStr = new Date(email.received_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
       day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
     })
 

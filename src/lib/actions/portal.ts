@@ -637,13 +637,13 @@ export async function acceptOffer(
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Tilbud:</td><td style="font-weight:600;">${offer.title}</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Underskrevet af:</td><td>${data.signer_name} (${data.signer_email})</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Beløb:</td><td style="font-weight:600;">${new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(offer.final_amount)}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tidspunkt:</td><td>${new Date().toLocaleString('da-DK')}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tidspunkt:</td><td>${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</td></tr>
           </table>
           <p>Se tilbuddet i ELTA Drift: <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app'}/dashboard/offers">Gå til Tilbud</a></p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
           <p style="color:#999;font-size:12px;">Denne email er automatisk genereret af ${companyName} CRM.</p>
         `,
-        text: `Tilbud accepteret\n\nKunden har accepteret tilbud: ${offer.title}\nUnderskrevet af: ${data.signer_name} (${data.signer_email})\nBeløb: ${offer.final_amount} DKK\nTidspunkt: ${new Date().toLocaleString('da-DK')}\n\nSe tilbuddet i ELTA Drift.`,
+        text: `Tilbud accepteret\n\nKunden har accepteret tilbud: ${offer.title}\nUnderskrevet af: ${data.signer_name} (${data.signer_email})\nBeløb: ${offer.final_amount} DKK\nTidspunkt: ${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}\n\nSe tilbuddet i ELTA Drift.`,
       }, smtpConfig)
     } catch (emailError) {
       logger.error('Failed to send acceptance confirmation email', { error: emailError })

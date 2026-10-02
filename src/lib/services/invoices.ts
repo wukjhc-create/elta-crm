@@ -835,7 +835,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
       maximumFractionDigits: 2,
     }).format(Number(invoice.final_amount) || 0),
     dueDateFormatted: invoice.due_date
-      ? new Date(invoice.due_date).toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
+      ? new Date(invoice.due_date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
       : '',
     daysOverdue: days,
     paymentReference: invoice.payment_reference,
@@ -1052,7 +1052,7 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
       maximumFractionDigits: 2,
     }).format(Number(invoice.final_amount) || 0),
     dueDateFormatted: invoice.due_date
-      ? new Date(invoice.due_date).toLocaleDateString('da-DK', {
+      ? new Date(invoice.due_date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
           day: 'numeric',
           month: 'long',
           year: 'numeric',

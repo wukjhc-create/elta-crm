@@ -365,7 +365,7 @@ export async function submitSignedFuldmagt(
       }
     }
     const now = new Date()
-    const dateStr = now.toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
+    const dateStr = now.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
 
     // Update description with signed data
     const updatedDesc = {

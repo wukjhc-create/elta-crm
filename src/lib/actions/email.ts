@@ -1287,7 +1287,7 @@ export async function sendTestEmailAction(
         <h1>Test e-mail</h1>
         <p>Dette er en test e-mail fra ELTA Drift.</p>
         <p>Hvis du modtager denne e-mail, er Microsoft Graph konfigurationen korrekt.</p>
-        <p>Sendt: ${new Date().toLocaleString('da-DK')}</p>
+        <p>Sendt: ${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</p>
       `,
     })
 

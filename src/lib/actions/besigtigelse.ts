@@ -147,7 +147,7 @@ export async function saveBesigtigelsesnotat(
     })
 
     const now = new Date()
-    const dateStr = now.toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
+    const dateStr = now.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
     const fileDate = now.toISOString().slice(0, 10)
     const title = `Besigtigelsesrapport — ${customer.company_name} — ${dateStr}`
 
@@ -1288,7 +1288,7 @@ export async function sendExistingBesigtigelsesreport(
         let confirmationBlock = ''
         if (confirmation) {
           const confirmUrl = `${appUrl.replace(/\/$/, '')}/portal/confirm-besigtigelse/${confirmation.token}`
-          const expiresLabel = new Date(confirmation.expiresAt).toLocaleDateString('da-DK', {
+          const expiresLabel = new Date(confirmation.expiresAt).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
             year: 'numeric', month: 'long', day: 'numeric',
           })
           confirmationBlock = `
@@ -1461,7 +1461,7 @@ async function sendConfirmationEmailInternal(
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
   const confirmUrl = `${appUrl.replace(/\/$/, '')}/portal/confirm-besigtigelse/${conf.token}`
-  const expiresLabel = new Date(conf.expires_at).toLocaleDateString('da-DK', {
+  const expiresLabel = new Date(conf.expires_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
