@@ -57,7 +57,6 @@ export interface PartnerServiceCase {
   title: string
   description: string | null
   status: ServiceCaseStatus
-  status_note: string | null
   address: string | null
   postal_code: string | null
   city: string | null

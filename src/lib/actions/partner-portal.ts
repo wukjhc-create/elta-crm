@@ -237,7 +237,7 @@ export async function getPartnerServiceCases(
     const { data, error } = await supabase
       .from('service_cases')
       .select(
-        'id, case_number, title, description, status, status_note, address, postal_code, city, start_date, end_date, project_name, type, reference, created_at, end_customer:customers!service_cases_end_customer_id_fkey(company_name)'
+        'id, case_number, title, description, status, address, postal_code, city, start_date, end_date, project_name, type, reference, created_at, end_customer:customers!service_cases_end_customer_id_fkey(company_name)'
       )
       .eq('payer_customer_id', partnerCustomerId)
       .in('status', ['new', 'in_progress', 'pending'])
