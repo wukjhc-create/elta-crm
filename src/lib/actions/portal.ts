@@ -607,6 +607,10 @@ export async function acceptOffer(
     // Webhook offer.accepted — kaster aldrig (tidligere: AUTH_REQUIRED -> kunden fik fejl efter gemt underskrift)
     await emitOfferEvent(admin, data.offer_id, 'offer.accepted')
 
+    // Salgspipeline: tilknyttede leads → vundet (kaster aldrig)
+    const { markLeadsWonForAcceptedOffer } = await import('@/lib/services/lead-won')
+    await markLeadsWonForAcceptedOffer(admin, data.offer_id, null)
+
     // Send automatic email confirmation to CRM mailbox
     try {
       const [smtpResult, settingsResult] = await Promise.all([

@@ -89,6 +89,7 @@
  *       (før: salg fik ingen gyldighedsdato — firmaindstillinger krævede settings.view)
  *   U55 salg: "Print" på eget tilbud viser firmaets navn og CVR (før: "Virksomhed" uden oplysninger)
  *   U56 kundeportal: sagens "Bemærkninger (interne)" (status_note) findes IKKE i kundens side (før: vist i portalen)
+ *   U57 tilbud sat til Accepteret → lead (lead_id) og lead konverteret til kunden markeres vundet + aktivitet; tabt lead uændret
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -239,6 +240,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u51: { supplierId?: string; offerId?: string } = {}
   let u54OfferId: string | null = null
   let u56TokenId: string | null = null
+  let u57OfferId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1545,6 +1547,39 @@ ${m.text()}`) })
         out.push({ id: 'U56 portal: intern sagsbemærkning skjult', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U57 accepteret tilbud → tilknyttede leads vundet (salgspipeline)
+      if (want('U57') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const mkLead = async (n: string, status: string, custom: Record<string, unknown> | null) => ((await c.admin.from('leads').insert([{ company_name: `[HARNESS] pipeline ${n} ${stamp}`,
+          contact_person: n, email: `pipe-${n}-${stamp}@harness.test`, status, source: 'website', created_by: adminUser.id, custom_fields: custom ?? {} }]).select('id')).data?.[0] as { id?: string } | undefined)?.id
+        const leadA = await mkLead('A', 'proposal', null)
+        const leadB = await mkLead('B', 'negotiation', { customer_id: profitCustomerId })
+        const leadC = await mkLead('C', 'lost', { customer_id: profitCustomerId })
+        for (const id of [leadA, leadB, leadC]) if (id) u27LeadIds.push(id)
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-PW-${stamp}`, title: `[HARNESS] pipeline-tilbud ${stamp}`, customer_id: profitCustomerId,
+          lead_id: leadA, status: 'sent', sent_at: new Date().toISOString(), created_by: adminUser.id }]).select('id')
+        u57OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        a.page.on('dialog', (d) => { d.accept().catch(() => {}) })
+        await gotoSafe(a.page, `${base}/dashboard/offers/${u57OfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByRole('button', { name: /^Accepteret$/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        const confirmBtn = a.page.getByRole('button', { name: /^(Bekræft|Ja|Acceptér|Skift status)$/ })
+        if (await confirmBtn.first().isVisible().catch(() => false)) await confirmBtn.first().click().catch(() => {})
+        type Ld = { id: string; status: string }
+        const readLeads = async () => ((await c.admin.from('leads').select('id, status').in('id', [leadA, leadB, leadC].filter(Boolean) as string[])).data ?? []) as Ld[]
+        let leads = await readLeads()
+        for (let i = 0; i < 20 && !leads.some((l) => l.id === leadA && l.status === 'won'); i++) { await new Promise((res) => setTimeout(res, 1000)); leads = await readLeads() }
+        a.page.removeAllListeners('dialog')
+        const st = (id?: string) => leads.find((l) => l.id === id)?.status
+        const offStatus = String(((await c.admin.from('offers').select('status').eq('id', u57OfferId ?? '').maybeSingle()).data as { status?: string } | null)?.status ?? '')
+        r.tilbud_accepteret = offStatus === 'accepted'
+        r.lead_via_lead_id_vundet = st(leadA) === 'won'
+        r.konverteret_lead_vundet = st(leadB) === 'won'
+        r.tabt_lead_uaendret = st(leadC) === 'lost'
+        const acts = ((await c.admin.from('lead_activities').select('lead_id, description').in('lead_id', [leadA, leadB].filter(Boolean) as string[])).data ?? []) as Array<{ lead_id: string; description: string }>
+        r.aktivitet_logget = acts.filter((x) => x.description.includes('Vundet')).length === 2
+        out.push({ id: 'U57 accepteret tilbud → lead vundet', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · leads=${JSON.stringify(leads.map((l) => l.status))}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -2120,9 +2155,17 @@ ${m.text()}`) })
     if (u50.tokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u50.tokenId)
     if (u51.offerId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u51.offerId); await c.admin.from('offers').delete().eq('id', u51.offerId) }
     if (u51.supplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u51.supplierId); await c.admin.from('suppliers').delete().eq('id', u51.supplierId) }
+    if (u57OfferId) {
+      const { data: auto } = await c.admin.from('service_cases').select('id').eq('source_offer_id', u57OfferId)
+      for (const x of (auto ?? []) as Array<{ id: string }>) listCaseIds.push(x.id)
+      await c.admin.from('offers').update({ converted_case_id: null }).eq('id', u57OfferId)
+      for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u57OfferId)
+      await c.admin.from('audit_logs').delete().eq('entity_id', u57OfferId)
+    }
     if (u54OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u54OfferId); await c.admin.from('audit_logs').delete().eq('entity_id', u54OfferId); await c.admin.from('offers').delete().eq('id', u54OfferId) }
     if (u56TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u56TokenId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
+    if (u57OfferId) await c.admin.from('offers').delete().eq('id', u57OfferId)
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)
     if (u31.employeeId) await c.admin.from('employees').delete().eq('id', u31.employeeId)

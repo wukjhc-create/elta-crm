@@ -757,6 +757,12 @@ export async function updateOfferStatus(
     // re-save does not retry. Idempotent at app + DB level. Non-critical:
     // failure does NOT roll back the status change.
     if (status === 'accepted' && current.status !== 'accepted') {
+      // Salgspipeline: tilknyttede leads → vundet (service-role efter offers-gaten; kaster aldrig)
+      {
+        const { createAdminClient } = await import('@/lib/supabase/admin')
+        const { markLeadsWonForAcceptedOffer } = await import('@/lib/services/lead-won')
+        await markLeadsWonForAcceptedOffer(createAdminClient(), id, userId)
+      }
       try {
         const sagResult = await createServiceCaseFromOffer(id)
         if (!sagResult.success) {
