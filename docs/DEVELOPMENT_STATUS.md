@@ -17,6 +17,7 @@
 | 01:42 | U1–U52 52/52 ✅; U1–U54 53/54 (U21 = dev-genstart, gjort robust). `cfbec0d` go-live "Opsætning før pilot" (G13, U53). `8d9da00` PGRST201-sweep (ingen flere). `e9c6ead` Opret tilbud fra lead (N20) + standard-gyldighed for salg (D30, U54). `27cd230` firmaoplysninger på sælgers tilbuds-print (D31, U55). Full regression U1–U55 startet. |
 | 02:53 | U1–U55: 45/55 — alle 10 fejl efter dev-genstart, grønne i målrettet genkørsel; prod verificeret fri for test-data. `da73f44`: interne sagsbemærkninger skjult for kunden (D32, S2 forebyggende) + U56; testserver mere heap. Full regression U1–U56 startet. |
 | 03:28 | U1–U56: 55/56 (U13 under dev-genstart — nu sent i kørslen takket være mere heap; grøn i genkørsel). `` D33: tilbuds-PDF til kunden uden interne noter (S2, forebyggende — 0 berørt i prod). |
+| 04:01 | **U1–U56 56/56 ✅ uden dev-genstart** (mere heap virkede). `cf919b6` faktura-PDF uden intern note (D34). `d18db85` partnerportal uden interne bemærkninger. `d10ebd4`+`5ba4af6` datoer i dansk tid i PDF/sider/mails (D35, 31+17 steder). Full regression U1–U56 startet. |
 
 ## Nu
 P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtaget, `check:rbac` blokerende i CI) · **fakturapipeline F-a–F-d DONE** (F-d prod-gate).
