@@ -1,5 +1,20 @@
 import { format, parseISO, formatDistanceToNow } from 'date-fns'
 import { da } from 'date-fns/locale'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+
+/**
+ * Dansk "vægur" for et tidspunkt, uafhængigt af processens tidszone (Vercel = UTC):
+ * tidsstempler omregnes til dansk dato/klokkeslæt; rene datoer (YYYY-MM-DD) bruges som de er.
+ * Før: et tidsstempel kl. 00–02 dansk tid fik gårsdagens dato, og klokkeslæt var 1–2 timer forkert,
+ * når siden/PDF'en blev dannet på serveren.
+ */
+function danishWallClock(date: string | Date): Date {
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return parseISO(date)
+  const { date: d, clock } = copenhagenParts(typeof date === 'string' ? date : date.toISOString())
+  const [y, m, day] = d.split('-').map(Number)
+  const [hh, mm] = clock.split(':').map(Number)
+  return new Date(y, m - 1, day, hh, mm)
+}
 
 // =====================================================
 // Date Formatting
@@ -10,8 +25,7 @@ import { da } from 'date-fns/locale'
  */
 export function formatDateTimeDK(date: string | Date | null | undefined): string {
   if (!date) return ''
-  const dateObj = typeof date === 'string' ? parseISO(date) : date
-  return format(dateObj, 'd. MMM yyyy HH:mm', { locale: da })
+  return format(danishWallClock(date), 'd. MMM yyyy HH:mm', { locale: da })
 }
 
 /**
@@ -19,8 +33,7 @@ export function formatDateTimeDK(date: string | Date | null | undefined): string
  */
 export function formatDateLongDK(date: string | Date | null | undefined): string {
   if (!date) return ''
-  const dateObj = typeof date === 'string' ? parseISO(date) : date
-  return format(dateObj, 'd. MMMM yyyy', { locale: da })
+  return format(danishWallClock(date), 'd. MMMM yyyy', { locale: da })
 }
 
 /**
@@ -56,7 +69,7 @@ export function formatSmartDate(date: string | Date | null | undefined): string 
   if (diffDays >= 0 && diffDays < 7) {
     return formatDistanceToNow(dateObj, { addSuffix: true, locale: da })
   }
-  return format(dateObj, 'd. MMM yyyy', { locale: da })
+  return format(danishWallClock(date), 'd. MMM yyyy', { locale: da })
 }
 
 // =====================================================
