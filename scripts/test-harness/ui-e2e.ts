@@ -96,6 +96,8 @@
  *       bekræftelse (afvist → stadig kladde) og audit-logges
  *   U61 D28: bogholderi ser kundens koblede mails på kundekortet (kun læsning, ingen Ny Mail) men ikke ukoblede
  *       adresse-match-mails; kontoret ser begge
+ *   U62 N2: montørens timer afventer godkendelse; admin afviser med begrundelse (montør ser "Afvist") og godkender;
+ *       montør har ikke adgang til godkendelsessiden; audit
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -1922,6 +1924,52 @@ ${m.text()}`) })
         r.kontor_ser_priser = (await a.page.getByRole('columnheader', { name: 'Kostpris' }).count()) > 0 && (await a.page.getByRole('button', { name: /^Handlinger/ }).count()) > 0
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u40-montor-materialer.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U40 montør: egen sag uden priser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U62 N2: timegodkendelse — montør registrerer (U11) → admin afviser med begrundelse → montør ser "Afvist" → godkend
+      if (want('U62') && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        type TL = { id: string; approval_status: string; rejection_reason: string | null; approved_by: string | null }
+        const readTl = async (): Promise<TL | null> => ((await c.admin.from('time_logs').select('id, approval_status, rejection_reason, approved_by, work_order:work_orders!inner(case_id)')
+          .eq('work_order.case_id', jobCaseId ?? '').not('end_time', 'is', null).limit(1).maybeSingle()).data as TL | null)
+        const tl0 = await readTl()
+        r.registrering_afventer = tl0?.approval_status === 'pending'
+        const caseNo = ((await c.admin.from('service_cases').select('case_number').eq('id', jobCaseId).maybeSingle()).data as { case_number?: string } | null)?.case_number ?? ''
+        // montør: "Afventer" i Mine timer; ingen adgang til godkendelsessiden
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.montoer_ser_afventer = (await m.page.getByTestId('my-hours-pending').count()) > 0
+        await gotoSafe(m.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.montoer_ingen_adgang = (await m.page.getByTestId('time-approval-row').count()) === 0 && (await m.page.getByText(/adgang/i).count()) > 0
+        // admin: afvis med begrundelse
+        await gotoSafe(a.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const row = a.page.getByTestId('time-approval-row').filter({ hasText: caseNo })
+        await row.first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.admin_ser_raekken = caseNo !== '' && (await row.count()) > 0
+        await row.first().getByTestId('time-approval-reject').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByTestId('time-approval-reason').fill('Forkert sag — ret venligst').catch(() => {})
+        await a.page.getByTestId('time-approval-reject-confirm').click({ timeout: 30_000 }).catch(() => {})
+        let tl1: TL | null = null
+        for (let i = 0; i < 20; i++) { tl1 = await readTl(); if (tl1?.approval_status === 'rejected') break; await new Promise((res) => setTimeout(res, 1000)) }
+        r.afvist_med_begrundelse = tl1?.approval_status === 'rejected' && tl1?.rejection_reason === 'Forkert sag — ret venligst'
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.montoer_ser_afvist = (await m.page.getByTestId('my-hours-rejected').count()) > 0
+        await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        // admin: godkend fra fanen Afvist
+        await gotoSafe(a.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('time-approval-tab-rejected').click({ timeout: 30_000 }).catch(() => {})
+        const row2 = a.page.getByTestId('time-approval-row').filter({ hasText: caseNo })
+        await row2.first().waitFor({ timeout: 60_000 }).catch(() => {})
+        await row2.first().getByTestId('time-approval-approve').click({ timeout: 30_000 }).catch(() => {})
+        let tl2: TL | null = null
+        for (let i = 0; i < 20; i++) { tl2 = await readTl(); if (tl2?.approval_status === 'approved') break; await new Promise((res) => setTimeout(res, 1000)) }
+        r.godkendt_af_admin = tl2?.approval_status === 'approved' && tl2?.approved_by === adminUser.id && tl2?.rejection_reason === null
+        const aud = ((await c.admin.from('audit_logs').select('action').eq('entity_id', tl2?.id ?? '')).data ?? []) as Array<{ action: string }>
+        r.auditlogget = aud.some((x) => x.action === 'time_log_rejected') && aud.some((x) => x.action === 'time_log_approved')
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u62-godkend-timer.png'), fullPage: true }).catch(() => {})
+        if (tl2?.id) await c.admin.from('audit_logs').delete().eq('entity_id', tl2.id)
+        out.push({ id: 'U62 N2 timegodkendelse', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U44 montør: "Mine timer" viser ugens egne timer (efter U11's tidsregistrering)

@@ -11,6 +11,8 @@
  *   L9  mail (00180, G9/G10): montør ser KUN mails på egne sager/job; admin/serviceleder/salg ser alle (bogholderi: L12)
  *   L10 medarbejdere (00180, G5): planlæggere (admin, serviceleder) ser alle; montør/salg kun egen række
  *   L12 mail (00186, D28): bogholderi ser kun mails koblet til en kunde eller kilde til en leverandørfaktura
+ *   L13 timegodkendelse (00185, N2): montør kan ikke sætte/ændre godkendelse via REST; insert tvinges pending; rettelse
+ *       af godkendt registrering kræver ny godkendelse; service-role (server-action efter gate) kan godkende
  *   L11 audit-identitet (00182, D2): log_audit_event med en ANDENS p_user_id fra en bruger-session skrives som kalderen selv
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -129,7 +131,7 @@ export async function runRlsRead(c: { admin: SupabaseClient; anon: SupabaseClien
       const empX = await seed('employees', { name: '[HARNESS] rls-read anden', email: `rlsr-x-${stamp}@harness.test`, role: 'montør', active: true })
       const caseOwn = await seed('service_cases', { title: '[HARNESS] rls-read egen', customer_id: cust, status: 'new', priority: 'medium', source: 'manual', created_by: c.ownerUid })
       const caseOther = await seed('service_cases', { title: '[HARNESS] rls-read fremmed', customer_id: cust, status: 'new', priority: 'medium', source: 'manual', created_by: c.ownerUid })
-      await seed('work_orders', { case_id: caseOwn, title: '[HARNESS] rls-read job', status: 'planned', assigned_employee_id: empM })
+      const woOwn = await seed('work_orders', { case_id: caseOwn, title: '[HARNESS] rls-read job', status: 'planned', assigned_employee_id: empM })
       const mOwn = await seed('incoming_emails', { sender_email: `a-${stamp}@harness.test`, subject: '[HARNESS] L9 egen', service_case_id: caseOwn, received_at: new Date().toISOString() })
       const mOther = await seed('incoming_emails', { sender_email: `b-${stamp}@harness.test`, subject: '[HARNESS] L9 fremmed', service_case_id: caseOther, received_at: new Date().toISOString() })
       const mNone = await seed('incoming_emails', { sender_email: `c-${stamp}@harness.test`, subject: '[HARNESS] L9 uden sag', received_at: new Date().toISOString() })
@@ -154,6 +156,25 @@ export async function runRlsRead(c: { admin: SupabaseClient; anon: SupabaseClien
       }
       const expectEmp: Record<string, string> = { admin: '11', serviceleder: '11', 'montør': '10', salg: '00', bogholderi: '00' }
       const badEmp = Object.entries(expectEmp).filter(([r, e]) => empSeen[r] !== e)
+      // L13 — 00185 (N2): godkendelse af timer kan ikke ændres fra en bruger-session (montør godkender ikke sig selv)
+      {
+        const mc = personas.get('montør')!
+        const r: Record<string, boolean> = {}
+        const t0 = new Date(Date.now() - 3 * 3600_000).toISOString(), t1 = new Date(Date.now() - 2 * 3600_000).toISOString()
+        const ins = await mc.from('time_logs').insert([{ employee_id: empM, work_order_id: woOwn, start_time: t0, end_time: t1, approval_status: 'approved' }]).select('id, approval_status')
+        const tl = (ins.data?.[0] as { id?: string; approval_status?: string } | undefined)
+        if (tl?.id) created.unshift({ t: 'time_logs', id: tl.id })
+        r.insert_tvinges_pending = !ins.error && tl?.approval_status === 'pending'
+        const self = await mc.from('time_logs').update({ approval_status: 'approved' }).eq('id', tl?.id ?? '').select('id')
+        r.selvgodkendelse_afvist = !!self.error && /godkendelsesflowet/.test(self.error.message)
+        const svc = await c.admin.from('time_logs').update({ approval_status: 'approved', approved_by: c.ownerUid, approved_at: new Date().toISOString() }).eq('id', tl?.id ?? '').select('approval_status')
+        r.service_role_godkender = !svc.error && (svc.data?.[0] as { approval_status?: string } | undefined)?.approval_status === 'approved'
+        const edit = await mc.from('time_logs').update({ end_time: new Date(Date.now() - 1.5 * 3600_000).toISOString() }).eq('id', tl?.id ?? '').select('approval_status, approved_by')
+        const e0 = edit.data?.[0] as { approval_status?: string; approved_by?: string | null } | undefined
+        r.rettelse_kraever_ny_godkendelse = !edit.error && e0?.approval_status === 'pending' && e0?.approved_by === null
+        out.push({ id: 'L13 timegodkendelse beskyttet', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + (ins.error ? ` · insert: ${ins.error.message.slice(0, 80)}` : '') })
+      }
+
       out.push({ id: 'L10 medarbejdere: planlæggere ser alle', ok: badEmp.length === 0 && Object.keys(expectEmp).every((r) => r in empSeen),
         note: `egen-montør/anden pr. rolle: ${Object.entries(empSeen).map(([r, v]) => `${r}=${v}`).join(' ')}${badEmp.length ? ` · AFVIGER: ${badEmp.map(([r]) => r).join(',')}` : ''}` })
     }

@@ -38,7 +38,7 @@ export async function getMyWeekHoursAction(weekOffset = 0): Promise<MyWeekHoursR
 
   const { data, error } = await supabase
     .from('time_logs')
-    .select('id, start_time, end_time, hours, billable, description, work_order:work_orders(title, case:service_cases(case_number, title))')
+    .select('id, start_time, end_time, hours, billable, description, approval_status, rejection_reason, work_order:work_orders(title, case:service_cases(case_number, title))')
     .eq('employee_id', emp.id)
     .gte('start_time', fromIso)
     .lt('start_time', toIso)
@@ -48,6 +48,7 @@ export async function getMyWeekHoursAction(weekOffset = 0): Promise<MyWeekHoursR
 
   type Row = {
     id: string; start_time: string; end_time: string | null; hours: number | string | null; billable: boolean | null; description: string | null
+    approval_status: string | null; rejection_reason: string | null
     work_order: { title: string | null; case: { case_number: string | null; title: string | null } | Array<{ case_number: string | null; title: string | null }> | null } |
       Array<{ title: string | null; case: { case_number: string | null; title: string | null } | Array<{ case_number: string | null; title: string | null }> | null }> | null
   }
@@ -57,6 +58,7 @@ export async function getMyWeekHoursAction(weekOffset = 0): Promise<MyWeekHoursR
     const cs = one(wo?.case ?? null)
     return {
       id: r.id, start_time: r.start_time, end_time: r.end_time, hours: r.hours, billable: r.billable, description: r.description,
+      approval_status: r.approval_status, rejection_reason: r.rejection_reason,
       work_order_title: wo?.title ?? null, case_number: cs?.case_number ?? null, case_title: cs?.title ?? null,
     }
   })
