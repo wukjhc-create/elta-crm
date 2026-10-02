@@ -154,6 +154,13 @@ export interface CreateCaseOtherCostInput {
   notes?: string | null
 }
 
+/**
+ * D18 (Henrik 2026-10-02): montør registrerer selve udgiften (beskrivelse, antal, bilag, note); kost-/salgspris styres
+ * af kontorroller. Samme prisret som visning af kostpriser (jf. case-materials). Navngivet konstant: check:rls-matrix
+ * læser literal hasPermission-strenge som skrive-gates.
+ */
+const PRICE_FIELDS_PERMISSION = 'materials.view.cost_prices' as const
+
 export async function createCaseOtherCost(
   input: CreateCaseOtherCostInput
 ): Promise<ActionResult<CaseOtherCostRow>> {
@@ -215,8 +222,8 @@ export async function createCaseOtherCost(
         cost_date: input.cost_date || undefined,    // let DB DEFAULT take over
         unit: (input.unit ?? 'stk').trim() || 'stk',
         quantity,
-        unit_cost,
-        unit_sales_price,
+        unit_cost: hasPermission(PRICE_FIELDS_PERMISSION) ? unit_cost : 0,
+        unit_sales_price: hasPermission(PRICE_FIELDS_PERMISSION) ? unit_sales_price : 0,
         receipt_url: input.receipt_url?.trim() || null,
         receipt_filename: input.receipt_filename?.trim() || null,
         source: input.source ?? 'manual',

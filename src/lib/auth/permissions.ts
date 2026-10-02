@@ -39,6 +39,9 @@ export const PERMISSIONS = {
   'customers.create': ['admin', 'serviceleder', 'salg'],
   'customers.edit': ['admin', 'serviceleder', 'salg'],
   'customers.delete': ['admin'],
+  // D28 (Henrik 2026-10-02): LÆSE kundens mails på kundekortet. Bogholderi kun mails KOBLET til kunden (ikke adresse-
+  // match, ikke hele postkassen); svar/ny mail kræver fortsat customers.edit.
+  'customers.emails.view': ['admin', 'serviceleder', 'salg', 'bogholderi'],
 
   // Project permissions
   'projects.view': ['admin', 'serviceleder', 'montør'],

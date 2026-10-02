@@ -236,6 +236,11 @@ export function OrderOtherCostsTab({
                             Faktureret
                           </span>
                         )}
+                        {canSeeCost && r.unit_cost === 0 && r.unit_sales_price === 0 && (
+                          <span className="inline-block text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded" data-testid="other-cost-awaiting-price">
+                            Afventer pris
+                          </span>
+                        )}
                         {!r.billable && (
                           <span className="inline-block text-[10px] uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                             Ikke faktura
@@ -370,6 +375,7 @@ export function OrderOtherCostsTab({
         open={dialogOpen}
         caseId={caseId}
         editing={editing}
+        canSetPrices={canSeeCost}
         onClose={() => {
           setDialogOpen(false)
           setEditing(null)

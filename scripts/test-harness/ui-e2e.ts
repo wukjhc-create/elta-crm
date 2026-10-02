@@ -64,7 +64,8 @@
  *       (differencelinje 400; før: 600 bogført), leverandør nr. 12; intet sendes, status uændret
  *   U39 kunde → eksisterende e-conomic-debitor: ugyldigt nr. afvist, gyldigt gemt + audit, samme nr. på anden kunde afvist,
  *       kobling fjernet igen (undgår dublet-debitorer ved første eksport)
- *   U40 montør på egen sag: ingen Fakturakladde/Handlinger/Økonomi-faner, ingen kostkolonne; registrerer 3 stk materiale
+ *   U40 montør på egen sag: ingen Fakturakladde/Handlinger/Økonomi-faner, ingen kostkolonne; D18: øvrig omkostning uden
+ *       prisfelter (gemt med 0, kontoret ser "Afventer pris"); registrerer 3 stk materiale
  *       uden prisfelter → gemt med 0-priser (kontoret prissætter); admin ser stadig priser + Handlinger (kræver U11)
  *   U41 kundeportal (kunde uden login): sendt faktura vises + PDF downloades (%PDF); kladde skjult og PDF 404; anden
  *       kundes faktura-PDF 404
@@ -91,6 +92,10 @@
  *   U56 kundeportal: sagens "Bemærkninger (interne)" (status_note) findes IKKE i kundens side (før: vist i portalen)
  *   U57 tilbud sat til Accepteret → lead (lead_id) og lead konverteret til kunden markeres vundet + aktivitet; tabt lead uændret
  *   U58 sendt tilbud efter "gyldig til" vises som "Udløbet" (detalje + liste); gyldigt tilbud ikke
+ *   U60 N8a: kladde med lav DB → advarsel (ikke blokering); send-dialog kræver bekræftelse; manuel "Sendt" kræver
+ *       bekræftelse (afvist → stadig kladde) og audit-logges
+ *   U61 D28: bogholderi ser kundens koblede mails på kundekortet (kun læsning, ingen Ny Mail) men ikke ukoblede
+ *       adresse-match-mails; kontoret ser begge
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -243,6 +248,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u56TokenId: string | null = null
   let u57OfferId: string | null = null
   const u58Ids: string[] = []
+  let u60OfferId: string | null = null
+  let u60Since: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1602,6 +1609,86 @@ ${m.text()}`) })
         out.push({ id: 'U58 udløbet tilbud markeret', ok: u58Ids.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U60 N8a: lav DB er en ADVARSEL — afsendelse/“sendt” kræver aktiv bekræftelse (ingen mail sendes i testen)
+      if (want('U60') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        u60Since = new Date().toISOString()
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-LD-${stamp}`, title: `[HARNESS] lav DB ${stamp}`, customer_id: profitCustomerId,
+          status: 'draft', created_by: adminUser.id, tax_percentage: 25 }]).select('id')
+        u60OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u60OfferId) await c.admin.from('offer_line_items').insert([{ offer_id: u60OfferId, position: 1, description: 'Inverter', quantity: 1, unit: 'stk', unit_price: 1000, total: 1000, cost_price: 990 }])
+        await gotoSafe(a.page, `${base}/dashboard/offers/${u60OfferId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('offer-lowdb-banner').waitFor({ timeout: 90_000 }).catch(() => {})
+        r.advarsel_vist = (await a.page.getByTestId('offer-lowdb-banner').count()) === 1
+        const sendBtn = a.page.getByRole('button', { name: 'Send Tilbud' }).first()
+        r.send_ikke_blokeret = await sendBtn.isEnabled().catch(() => false)
+        await sendBtn.click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByTestId('send-lowdb-warning').waitFor({ timeout: 60_000 }).catch(() => {})
+        const mailBtn = a.page.getByTestId('send-email-submit')
+        await mailBtn.waitFor({ timeout: 30_000 }).catch(() => {})
+        r.dialog_advarsel = (await a.page.getByTestId('send-lowdb-warning').count()) === 1
+        // Vent til forhåndsvisningen er hentet (ellers er knappen deaktiveret af den grund) — afkrydsningen er så eneste blokering
+        for (let i = 0; i < 30 && !(await a.page.getByRole('dialog').getByText(/Til:|Emne/).count().catch(() => 0)); i++) await new Promise((res) => setTimeout(res, 1000))
+        r.send_kraever_bekraeftelse = await mailBtn.isDisabled({ timeout: 10_000 }).catch(() => false)
+        await a.page.getByTestId('send-lowdb-ack').check({ timeout: 30_000 }).catch(() => {})
+        // Når forhåndsvisningen er klar, er knappen aktiv efter bekræftelse (vi trykker IKKE — ingen mail)
+        for (let i = 0; i < 30 && !(await mailBtn.isEnabled().catch(() => false)); i++) await new Promise((res) => setTimeout(res, 1000))
+        r.bekraeftet_kan_sende = await mailBtn.isEnabled().catch(() => false)
+        await a.page.getByRole('button', { name: 'Annuller' }).first().click({ timeout: 30_000 }).catch(() => {})
+        // Manuel status "Sendt": afvist bekræftelse → stadig kladde; accepteret → sendt + audit
+        const readStatus = async () => ((await c.admin.from('offers').select('status').eq('id', u60OfferId ?? '').maybeSingle()).data as { status?: string } | null)?.status
+        a.page.once('dialog', (d) => { d.dismiss().catch(() => {}) })
+        await a.page.getByRole('button', { name: 'Sendt', exact: true }).first().click({ timeout: 30_000 }).catch(() => {})
+        await new Promise((res) => setTimeout(res, 4000))
+        r.annulleret_forbliver_kladde = (await readStatus()) === 'draft'
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        a.page.once('dialog', (d) => { d.accept().catch(() => {}) })
+        await a.page.getByRole('button', { name: 'Sendt', exact: true }).first().click({ timeout: 30_000 }).catch(() => {})
+        let st: string | undefined
+        for (let i = 0; i < 20; i++) { st = await readStatus(); if (st === 'sent') break; await new Promise((res) => setTimeout(res, 1000)) }
+        r.bekraeftet_markeret_sendt = st === 'sent'
+        // audit skrives efter statusopdateringen — poll
+        let audOk = false
+        for (let i = 0; i < 20 && !audOk; i++) {
+          const aud = ((await c.admin.from('audit_logs').select('metadata').eq('entity_id', u60OfferId ?? '').eq('entity_type', 'offer')).data ?? []) as Array<{ metadata: Record<string, unknown> | null }>
+          audOk = aud.some((x) => x.metadata?.low_db_acknowledged === true)
+          if (!audOk) await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.bekraeftelse_auditlogget = audOk
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u60-lav-db.png'), fullPage: true }).catch(() => {})
+        out.push({ id: 'U60 N8a lav DB = advarsel med bekræftelse', ok: !!u60OfferId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U61 D28: bogholderi ser kundens KOBLEDE mails (kun læsning) — ikke adresse-match/hele postkassen
+      if (want('U61') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const bog = await mkUser('bogholderi')
+        const linkedSubj = `[HARNESS] faktura-spørgsmål ${stamp}`, looseSubj = `[HARNESS] løs mail ${stamp}`
+        const custEmail = ((await c.admin.from('customers').select('email').eq('id', profitCustomerId).maybeSingle()).data as { email?: string | null } | null)?.email ?? `ui-profit-${stamp}@harness.test`
+        const em = await c.admin.from('incoming_emails').insert([
+          { sender_email: custEmail, subject: linkedSubj, body_text: `Linket brødtekst ${stamp}`, customer_id: profitCustomerId, received_at: new Date().toISOString(), is_archived: false, link_status: 'linked' },
+          // samme nøgler i begge rækker: supabase-js bulk-insert sætter manglende kolonner til NULL (link_status er NOT NULL)
+          { sender_email: custEmail, subject: looseSubj, body_text: 'Løs', customer_id: null, received_at: new Date().toISOString(), is_archived: false, link_status: 'unidentified' },
+        ]).select('id')
+        for (const x of (em.data ?? []) as Array<{ id: string }>) seededEmailIds.push(x.id)
+        const b = await login(bog)
+        r.bogholderi_login = b.ok
+        await gotoSafe(b.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await b.page.getByText(linkedSubj).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.ser_koblet_mail = (await b.page.getByText(linkedSubj).count()) > 0
+        r.ser_ikke_loes_mail = (await b.page.getByText(looseSubj).count()) === 0
+        r.kun_laesning = (await b.page.getByTestId('customer-mails-readonly').count()) === 1 && (await b.page.getByRole('button', { name: /Ny Mail/ }).count()) === 0
+        await b.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        await b.ctx.close().catch(() => {})
+        // Kontoret (customers.edit) ser fortsat begge (adresse-match) og kan skrive
+        await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText(looseSubj).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kontor_ser_begge = (await a.page.getByText(linkedSubj).count()) > 0 && (await a.page.getByText(looseSubj).count()) > 0 && (await a.page.getByRole('button', { name: /Ny Mail/ }).count()) > 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U61 D28 bogholderi: kundens koblede mails (læsning)', ok: !em.error && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${em.error ? ` · SEED: ${em.error.message}` : ''}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1660,7 +1747,7 @@ ${m.text()}`) })
         // Start jobbet (N11) -> in_progress i DB
         await m.page.getByRole('button', { name: '→ Start' }).first().click({ timeout: 30_000 }).catch(() => {})
         let started = ''
-        for (let i = 0; i < 15 && started !== 'in_progress'; i++) {
+        for (let i = 0; i < 30 && started !== 'in_progress'; i++) { // 30 s: start kan tage >15 s på en presset dev-maskine
           started = String(((await c.admin.from('work_orders').select('status').eq('id', woId).maybeSingle()).data as { status?: string } | null)?.status ?? '')
           if (started !== 'in_progress') await new Promise((res) => setTimeout(res, 1000))
         }
@@ -1814,7 +1901,21 @@ ${m.text()}`) })
         await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=oevrige`, { waitUntil: 'networkidle', timeout: 180_000 })
         await m.page.getByRole('columnheader', { name: 'Salgspris' }).first().waitFor({ timeout: 30_000 }).catch(() => {})
         r.oevrige_uden_kost = (await m.page.getByText(`Kørsel ${stamp}`).count()) > 0 && (await m.page.getByRole('columnheader', { name: 'Kostpris' }).count()) === 0 && (await m.page.getByText('Foreløbig DB').count()) === 0
+        // D18: montør registrerer selve udgiften — ingen kost-/salgsfelter; serveren gemmer 0; kontoret ser "Afventer pris"
+        await m.page.getByRole('button', { name: 'Tilføj omkostning' }).first().click({ timeout: 30_000 }).catch(() => {})
+        const odlg = m.page.locator('[aria-labelledby="case-other-cost-dialog-title"]')
+        await odlg.getByPlaceholder('F.eks. Kørsel til Aalborg, 2 ture').fill(`Parkering ${stamp}`).catch(() => {})
+        r.oevrige_dialog_uden_priser = (await odlg.getByTestId('other-cost-price-by-office').count()) === 1 && (await odlg.getByText('Kostpris pr. enhed (DKK)').count()) === 0 && (await odlg.getByText('Salgspris pr. enhed (DKK)').count()) === 0
+        await odlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+        type ORow = { unit_cost?: number; unit_sales_price?: number; created_by?: string }
+        const readO = async (): Promise<ORow | null> => ((await c.admin.from('case_other_costs').select('unit_cost, unit_sales_price, created_by').eq('case_id', jobCaseId ?? '').eq('description', `Parkering ${stamp}`).maybeSingle()).data as ORow | null)
+        let orow: ORow | null = await readO()
+        for (let i = 0; i < 20 && !orow; i++) { await new Promise((res) => setTimeout(res, 1000)); orow = await readO() }
+        r.oevrige_registreret_uden_pris = orow?.created_by === montor.id && Number(orow?.unit_cost) === 0 && Number(orow?.unit_sales_price) === 0
         await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=oevrige`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText(`Parkering ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kontor_ser_afventer_pris = (await a.page.getByTestId('other-cost-awaiting-price').count()) > 0
         // kontoret ser stadig priser og kan prissætte
         await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=materialer`, { waitUntil: 'networkidle', timeout: 180_000 })
         await a.page.getByRole('columnheader', { name: 'Kostpris' }).waitFor({ timeout: 60_000 }).catch(() => {})
@@ -2194,6 +2295,13 @@ ${m.text()}`) })
     for (const oid of u58Ids) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', oid); await c.admin.from('offers').delete().eq('id', oid) }
     if (u54OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u54OfferId); await c.admin.from('audit_logs').delete().eq('entity_id', u54OfferId); await c.admin.from('offers').delete().eq('id', u54OfferId) }
     if (u56TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u56TokenId)
+    if (u60OfferId) {
+      for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u60OfferId)
+      await c.admin.from('audit_logs').delete().eq('entity_id', u60OfferId)
+      await c.admin.from('offers').delete().eq('id', u60OfferId)
+    }
+    // send-dialogens forhåndsvisning kan oprette et portal-token til testkunden
+    if (u60Since && profitCustomerId) await c.admin.from('portal_access_tokens').delete().eq('customer_id', profitCustomerId).gte('created_at', u60Since)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (u57OfferId) await c.admin.from('offers').delete().eq('id', u57OfferId)
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)

@@ -252,6 +252,8 @@ export interface SendOfferEmailInput {
   bcc?: string[]
   attachments?: EmailAttachment[]
   include_pdf?: boolean // Attach offer PDF
+  /** N8a: brugeren har bekræftet advarslen om lav DB (kræves af serveren når et kladde-tilbud har DB under minimum). */
+  acknowledge_low_db?: boolean
   /**
    * Manuel modtager-override fra send-dialog. Hvis sat, sendes mail til
    * denne email i stedet for resolveOfferMailRoute's default (billing-

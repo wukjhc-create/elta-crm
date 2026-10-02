@@ -11,7 +11,9 @@ import {
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { CALC_DEFAULTS } from '@/lib/constants'
-import { calculateSalePrice, calculateLineTotal, computeOfferDB, calculateMarginFromPrices, resolveMargin } from '@/lib/logic/pricing'
+import { calculateSalePrice, calculateLineTotal, calculateMarginFromPrices, resolveMargin } from '@/lib/logic/pricing'
+import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'
+import { lowDbAckMessage, type OfferLowDbStatus } from '@/lib/offers/low-db-warning'
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
@@ -629,7 +631,8 @@ export async function deleteOffer(id: string): Promise<ActionResult> {
 // Update offer status
 export async function updateOfferStatus(
   id: string,
-  status: OfferStatus
+  status: OfferStatus,
+  options?: { acknowledgeLowDb?: boolean },
 ): Promise<ActionResult<Offer>> {
   try {
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
@@ -656,30 +659,13 @@ export async function updateOfferStatus(
       }
     }
 
-    // Hard-lock: validate DB% before allowing 'sent' status
+    // N8a (Henrik 2026-10-02): lav DB er en ADVARSEL, ikke en blokering — 'sent' med DB under minimum kræver bekræftelse
+    let lowDbSent: OfferLowDbStatus | null = null
     if (status === 'sent') {
-      const { data: offerWithItems } = await supabase
-        .from('offers')
-        .select('*, line_items:offer_line_items(*)')
-        .eq('id', id)
-        .maybeSingle()
-
-      if (offerWithItems?.line_items) {
-        const offerDB = computeOfferDB(offerWithItems.line_items, Number(offerWithItems.discount_percentage ?? 0))
-        if (offerDB.hasAnyCost && offerDB.totalCost > 0) {
-          const { getCalculationSettings } = await import('@/lib/actions/calculation-settings')
-          const calcSettings = await getCalculationSettings()
-          const redThreshold = calcSettings.success && calcSettings.data
-            ? calcSettings.data.margins.db_red_threshold
-            : 10
-
-          if (offerDB.dbPercentage < redThreshold) {
-            return {
-              success: false,
-              error: `Tilbuddet kan ikke sendes — dækningsbidrag er ${offerDB.dbPercentage}% (minimum ${redThreshold}%).`,
-            }
-          }
-        }
+      const lowDb = await getOfferLowDbStatus(supabase, id)
+      if (lowDb?.low) {
+        if (!options?.acknowledgeLowDb) return { success: false, error: lowDbAckMessage(lowDb) }
+        lowDbSent = lowDb
       }
     }
 
@@ -738,6 +724,7 @@ export async function updateOfferStatus(
       metadata: {
         offer_number: data.offer_number,
         final_amount: data.final_amount,
+        ...(lowDbSent ? { low_db_acknowledged: true, db_percentage: lowDbSent.dbPercentage, db_threshold: lowDbSent.threshold } : {}),
       },
     })
 

@@ -8,8 +8,9 @@
  *   L7  document_confirmations.token + offer_signatures.signature_data (00177) ikke laesbare
  *   L8  company_settings-/e-conomic-hemmeligheder (00179) — privilegie-tjek uafhaengigt af raekker
  *   L6  integrationshemmeligheder (00176): ingen persona kan laese api_key m.fl.; offentlige kolonner laesbare
- *   L9  mail (00180, G9/G10): montør ser KUN mails på egne sager/job; admin/serviceleder/salg/bogholderi ser alle
+ *   L9  mail (00180, G9/G10): montør ser KUN mails på egne sager/job; admin/serviceleder/salg ser alle (bogholderi: L12)
  *   L10 medarbejdere (00180, G5): planlæggere (admin, serviceleder) ser alle; montør/salg kun egen række
+ *   L12 mail (00186, D28): bogholderi ser kun mails koblet til en kunde eller kilde til en leverandørfaktura
  *   L11 audit-identitet (00182, D2): log_audit_event med en ANDENS p_user_id fra en bruger-session skrives som kalderen selv
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -139,7 +140,8 @@ export async function runRlsRead(c: { admin: SupabaseClient; anon: SupabaseClien
         const got = new Set(((data ?? []) as Array<{ id: string }>).map((x) => x.id))
         seen[r] = error ? `fejl:${error.message.slice(0, 40)}` : ids.map((id) => (got.has(id) ? '1' : '0')).join('')
       }
-      const expectMail: Record<string, string> = { admin: '111', serviceleder: '111', salg: '111', bogholderi: '111', 'montør': '100' }
+      // bogholderi: 00186 (D28) — ingen af disse er kunde-/fakturamails → 000 (se L12)
+      const expectMail: Record<string, string> = { admin: '111', serviceleder: '111', salg: '111', bogholderi: '000', 'montør': '100' }
       const badMail = Object.entries(expectMail).filter(([r, e]) => seen[r] !== e)
       out.push({ id: 'L9 mail: montør kun egne sager', ok: badMail.length === 0 && Object.keys(expectMail).every((r) => r in seen),
         note: `egen/fremmed/uden-sag pr. rolle: ${Object.entries(seen).map(([r, v]) => `${r}=${v}`).join(' ')}${badMail.length ? ` · AFVIGER: ${badMail.map(([r]) => r).join(',')}` : ''}` })
@@ -154,6 +156,25 @@ export async function runRlsRead(c: { admin: SupabaseClient; anon: SupabaseClien
       const badEmp = Object.entries(expectEmp).filter(([r, e]) => empSeen[r] !== e)
       out.push({ id: 'L10 medarbejdere: planlæggere ser alle', ok: badEmp.length === 0 && Object.keys(expectEmp).every((r) => r in empSeen),
         note: `egen-montør/anden pr. rolle: ${Object.entries(empSeen).map(([r, v]) => `${r}=${v}`).join(' ')}${badEmp.length ? ` · AFVIGER: ${badEmp.map(([r]) => r).join(',')}` : ''}` })
+    }
+
+    // L12 — 00186 (D28): bogholderi ser kun mails koblet til en kunde eller kilde til en leverandørfaktura
+    {
+      const mCust = await seed('incoming_emails', { sender_email: `k-${stamp}@harness.test`, subject: '[HARNESS] L12 kunde', customer_id: cust, received_at: new Date().toISOString() })
+      const mInv = await seed('incoming_emails', { sender_email: `f-${stamp}@harness.test`, subject: '[HARNESS] L12 faktura', received_at: new Date().toISOString() })
+      await seed('incoming_invoices', { source: 'email', source_email_id: mInv })
+      const mLoose = await seed('incoming_emails', { sender_email: `l-${stamp}@harness.test`, subject: '[HARNESS] L12 løs', received_at: new Date().toISOString() })
+      const ids = [mCust, mInv, mLoose]
+      const seen: Record<string, string> = {}
+      for (const [r, cl] of personas) {
+        const { data, error } = await cl.from('incoming_emails').select('id').in('id', ids)
+        const got = new Set(((data ?? []) as Array<{ id: string }>).map((x) => x.id))
+        seen[r] = error ? `fejl:${error.message.slice(0, 40)}` : ids.map((id) => (got.has(id) ? '1' : '0')).join('')
+      }
+      const expect: Record<string, string> = { admin: '111', serviceleder: '111', salg: '111', bogholderi: '110', 'montør': '000' }
+      const bad = Object.entries(expect).filter(([r, e]) => seen[r] !== e)
+      out.push({ id: 'L12 mail: bogholderi kun kunde-/fakturamails', ok: bad.length === 0 && Object.keys(expect).every((r) => r in seen),
+        note: `kunde/faktura/løs pr. rolle: ${Object.entries(seen).map(([r, v]) => `${r}=${v}`).join(' ')}${bad.length ? ` · AFVIGER: ${bad.map(([r]) => r).join(',')}` : ''}` })
     }
 
     // L11 — D2: forsøg at forfalske audit-identitet via direkte RPC (salg udgiver sig for admin)

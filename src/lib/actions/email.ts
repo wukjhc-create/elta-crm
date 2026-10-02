@@ -31,6 +31,9 @@ import { isGraphConfigured, sendEmailViaGraph, getMailbox } from '@/lib/services
 import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
+import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'
+import { lowDbAckMessage } from '@/lib/offers/low-db-warning'
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { createPortalToken } from '@/lib/actions/portal'
 import { logger } from '@/lib/utils/logger'
 import type { MailRoute } from '@/lib/services/mail-routing'
@@ -693,6 +696,12 @@ export async function sendOfferEmail(
       return { success: false, error: 'Kunde har ingen e-mail adresse' }
     }
 
+    // N8a: lav DB er en advarsel — et kladde-tilbud under minimum-DB sendes kun med aktiv bekræftelse
+    const lowDb = offer.status === 'draft' ? await getOfferLowDbStatus(supabase, input.offer_id) : null
+    if (lowDb?.low && !input.acknowledge_low_db) {
+      return { success: false, error: lowDbAckMessage(lowDb) }
+    }
+
     // Generate preview (includes all variables and rendered content)
     const previewResult = await generateEmailPreview({
       offer_id: input.offer_id,
@@ -896,6 +905,14 @@ export async function sendOfferEmail(
       message_id: emailResult.messageId,
       ...(shadowMeta || {}),
     })
+
+    if (lowDb?.low) {
+      await insertAuditRow({
+        user_id: userId, entity_type: 'offer', entity_id: offer.id, entity_name: offer.offer_number ?? null,
+        action: 'offer_sent_low_db', action_description: `Tilbud sendt med lav DB (${lowDb.dbPercentage}% < ${lowDb.threshold}%) efter bekræftet advarsel`,
+        changes: null, metadata: { db_percentage: lowDb.dbPercentage, threshold: lowDb.threshold, via: 'email' },
+      })
+    }
 
     // Update offer status if it was draft
     if (offer.status === 'draft') {

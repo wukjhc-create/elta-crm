@@ -53,6 +53,8 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
 
   // Compose state
   const [showCompose, setShowCompose] = useState(false)
+  // D28: bogholderi læser kun (mails koblet til kunden) — ingen ny mail/svar
+  const [canReply, setCanReply] = useState(false)
   const [composeSubject, setComposeSubject] = useState('')
   const [composeBody, setComposeBody] = useState('')
   const [composeSending, setComposeSending] = useState(false)
@@ -66,6 +68,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
     setEmails(result.emails)
     setConversations(result.conversations || [])
     setUnreadCount(result.unreadCount)
+    setCanReply(result.canReply)
     setLoading(false)
   }
 
@@ -168,17 +171,17 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                 Alle
               </button>
             </div>
-            <button
+            {canReply && <button
               onClick={() => { setShowCompose(true); setTimeout(() => composeRef.current?.focus(), 100) }}
               className="inline-flex items-center gap-1.5 px-4 min-h-[44px] bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium active:scale-95 transition-transform touch-manipulation"
             >
               <PenSquare className="w-4 h-4" />
               Ny Mail
-            </button>
+            </button>}
           </div>
         </div>
         <p className="text-xs text-gray-400 mt-1">
-          Kun mails til/fra {customerEmail}
+          {canReply ? <>Kun mails til/fra {customerEmail}</> : <span data-testid="customer-mails-readonly">Mails koblet til kunden (kun læsning)</span>}
         </p>
       </div>
 
@@ -323,7 +326,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                                   {format(new Date(msg.received_at), 'd. MMM yyyy HH:mm', { locale: da })}
                                 </span>
                               </div>
-                              {msgIsIncoming && (
+                              {msgIsIncoming && canReply && (
                                 <button
                                   onClick={() => {
                                     setReplyingToId(isReplying ? null : msg.id)
@@ -477,7 +480,7 @@ export function CustomerEmailTimeline({ customerId, customerEmail }: CustomerEma
                             {format(new Date(viewingEmail.received_at), 'd. MMMM yyyy HH:mm', { locale: da })}
                           </p>
                         </div>
-                        {isIncoming && (
+                        {isIncoming && canReply && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()

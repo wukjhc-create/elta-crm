@@ -54,6 +54,8 @@ interface SendEmailModalProps {
   onOpenChange: (open: boolean) => void
   offerId: string
   onEmailSent?: () => void
+  /** N8a: kladde-tilbud med DB under minimum — vis advarsel; afsendelse kræver aktiv bekræftelse. */
+  lowDb?: { dbPercentage: number; threshold: number } | null
 }
 
 export function SendEmailModal({
@@ -61,8 +63,11 @@ export function SendEmailModal({
   onOpenChange,
   offerId,
   onEmailSent,
+  lowDb = null,
 }: SendEmailModalProps) {
   const toast = useToast()
+  const [ackLowDb, setAckLowDb] = useState(false)
+  useEffect(() => { if (open) setAckLowDb(false) }, [open])
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string>('offer_send')
@@ -223,6 +228,7 @@ export function SendEmailModal({
         sender_name: senderName || undefined,
         include_pdf: includePdf,
         recipient_override: resolveRecipientOverride(),
+        acknowledge_low_db: lowDb ? ackLowDb : undefined,
       })
 
       if (result.success) {
@@ -286,13 +292,40 @@ export function SendEmailModal({
             </Select>
           </div>
 
+          {/* N8a: advarsel om lav DB — bekræftelse kræves før afsendelse */}
+          {lowDb && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 space-y-2" data-testid="send-lowdb-warning">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-900">
+                    Lavt dækningsbidrag: {lowDb.dbPercentage}% (minimum {lowDb.threshold}%)
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    Tjek kost- og salgspriser før du sender. Linjer uden kostpris tæller som 0 kr i kost.
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-amber-900">
+                <input
+                  type="checkbox"
+                  checked={ackLowDb}
+                  onChange={(e) => setAckLowDb(e.target.checked)}
+                  className="rounded border-amber-400"
+                  data-testid="send-lowdb-ack"
+                />
+                Jeg har set advarslen og vil sende tilbuddet alligevel
+              </label>
+            </div>
+          )}
+
           {/* Error message */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
               <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-red-800">Der opstod en fejl</p>
-                <p className="text-sm text-red-600">{error}</p>
+                <p className="text-sm text-red-600">{error.replace(/^LOW_DB_ACK_REQUIRED:\s*/, '')}</p>
               </div>
             </div>
           )}
@@ -472,7 +505,8 @@ export function SendEmailModal({
           </Button>
           <Button
             onClick={handleSend}
-            disabled={isSending || isLoadingPreview || !preview || isInternalRecipient}
+            disabled={isSending || isLoadingPreview || !preview || isInternalRecipient || (!!lowDb && !ackLowDb)}
+            data-testid="send-email-submit"
           >
             {isSending ? (
               <>

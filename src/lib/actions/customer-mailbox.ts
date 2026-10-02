@@ -17,6 +17,16 @@ import type { Permission } from '@/lib/auth/permissions'
  * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
  * (null = tilladt), saa hver action kan svare i sin egen returtype. Kaster aldrig.
  */
+/** D28: læse-/svare-adgang til kundens mails i én session-opslag. */
+async function mailAccess(): Promise<{ view: boolean; edit: boolean }> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    return { view: ctx.hasPermission('customers.emails.view'), edit: ctx.hasPermission('customers.edit') }
+  } catch {
+    return { view: false, edit: false }
+  }
+}
+
 async function gateDenied(permission: Permission): Promise<string | null> {
   try {
     const ctx = await getAuthenticatedClientWithRole()
@@ -149,10 +159,11 @@ export interface CustomerConversation {
 export async function getCustomerMailbox(
   customerId: string,
   customerEmail: string
-): Promise<{ emails: CustomerMailboxEmail[]; unreadCount: number; conversations: CustomerConversation[] }> {
-  // Kundens mails: kun dem der ejer kunderelationen (customers.edit — ikke montør jf. G9).
-  // Før: ingen gate (kun RLS, og incoming_emails er åben i prod indtil 00180/G10).
-  if (await gateDenied('customers.edit')) return { emails: [], unreadCount: 0, conversations: [] }
+): Promise<{ emails: CustomerMailboxEmail[]; unreadCount: number; conversations: CustomerConversation[]; canReply: boolean }> {
+  // Kundens mails (D28): customers.emails.view — ikke montør (G9). Kun roller med customers.edit (kunderelationen)
+  // ser også adresse-matchede mails og kan svare; bogholderi ser kun mails der er KOBLET til kunden (least-privilege).
+  const access = await mailAccess()
+  if (!access.view) return { emails: [], unreadCount: 0, conversations: [], canReply: false }
   const supabase = await createClient()
 
   const emailLower = customerEmail.toLowerCase()
@@ -171,13 +182,15 @@ export async function getCustomerMailbox(
       service_case:service_cases!incoming_emails_service_case_id_fkey (id, case_number, title, status)
     `)
     .eq('is_archived', false)
-    .or(`sender_email.ilike.${pgQuote(escapeLike(emailLower))},original_sender_email.ilike.${pgQuote(escapeLike(emailLower))},to_email.ilike.${pgQuote(escapeLike(emailLower))},customer_id.eq.${customerId}`)
+    .or(access.edit
+      ? `sender_email.ilike.${pgQuote(escapeLike(emailLower))},original_sender_email.ilike.${pgQuote(escapeLike(emailLower))},to_email.ilike.${pgQuote(escapeLike(emailLower))},customer_id.eq.${customerId}`
+      : `customer_id.eq.${customerId}`)
     .order('received_at', { ascending: false })
     .limit(200)
 
   if (error) {
     logger.error('Failed to fetch customer mailbox', { error, entityId: customerId })
-    return { emails: [], unreadCount: 0, conversations: [] }
+    return { emails: [], unreadCount: 0, conversations: [], canReply: false }
   }
 
   const emails: CustomerMailboxEmail[] = (data || []).map((e) => {
@@ -267,7 +280,7 @@ export async function getCustomerMailbox(
 
   const unreadCount = emails.filter((e) => !e.is_read && e.direction === 'incoming').length
 
-  return { emails, unreadCount, conversations }
+  return { emails, unreadCount, conversations, canReply: access.edit }
 }
 
 /**
@@ -277,18 +290,21 @@ export async function getCustomerEmailBody(emailId: string): Promise<{
   html: string | null
   text: string | null
 }> {
-  if (await gateDenied('customers.edit')) return { html: null, text: null }
+  const access = await mailAccess()
+  if (!access.view) return { html: null, text: null }
   const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('incoming_emails')
-    .select('body_html, body_text')
+    .select('body_html, body_text, customer_id')
     .eq('id', emailId)
     .maybeSingle()
 
   if (error || !data) {
     return { html: null, text: null }
   }
+  // D28: uden customers.edit kun mails koblet til en kunde (ikke vilkårlige mails i postkassen via id)
+  if (!access.edit && !(data as { customer_id?: string | null }).customer_id) return { html: null, text: null }
 
   return { html: data.body_html, text: data.body_text }
 }
@@ -297,7 +313,7 @@ export async function getCustomerEmailBody(emailId: string): Promise<{
  * Mark a customer email as read
  */
 export async function markCustomerEmailRead(emailId: string): Promise<void> {
-  const denied = await gateDenied('customers.view')
+  const denied = await gateDenied('customers.emails.view') // D28 (før customers.view — også montør)
   if (denied) return // RBAC: stille afvisning (void)
   const supabase = await createClient()
   await supabase

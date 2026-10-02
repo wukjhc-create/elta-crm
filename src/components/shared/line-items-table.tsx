@@ -483,7 +483,7 @@ export function LineItemsTable({
             <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" />
               <span className="text-sm text-red-700 font-medium">
-                Dækningsbidraget er under minimumstærsklen. Tilbuddet kan ikke sendes.
+                Dækningsbidraget er under minimumstærsklen. Tilbuddet kan sendes efter bekræftet advarsel.
               </span>
             </div>
           )}

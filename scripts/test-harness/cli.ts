@@ -793,6 +793,18 @@ COMMIT;`)
     log('✅ anvendt (kør verifikation: npm run harness:verify-00159)')
     return
   }
+  if (SUB === 'verify-read-lockdown') {
+    // STAGING: samme tjek som prod:verify-read-lockdown (00175/00176/00177/00179), mod staging via mgmt-API.
+    const { READ_LOCKDOWN_NRS, runReadLockdownChecks } = await import('../rls/read-lockdown-checks')
+    const arg = String(process.argv[3] || 'all')
+    const mode = process.argv[4] === 'pre' ? 'pre' : 'post'
+    const sel: string[] = arg === 'all' ? [...READ_LOCKDOWN_NRS] : READ_LOCKDOWN_NRS.filter((n) => n === arg)
+    log(`=== laese-lockdown ${sel.join(',')} ${mode} @ staging:${ref} ===`)
+    const problems = await runReadLockdownChecks(stagingSql, mode, sel)
+    log(problems.length ? `❌ ${problems.length} afvigelse(r)` : '✅ som forventet')
+    process.exitCode = problems.length ? 2 : 0
+    return
+  }
   if (SUB === 'verify-00159') {
     const { run00159Checks, format00159 } = await import('./migration-checks')
     const r = await run00159Checks(stagingSql)

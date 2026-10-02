@@ -84,6 +84,7 @@ import type { OfferActivityWithPerformer } from '@/types/offer-activities.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatCurrency } from '@/lib/utils/format'
 import { computeOfferDB, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_THRESHOLDS } from '@/lib/logic/pricing'
+import { LOW_DB_ACK_REQUIRED } from '@/lib/offers/low-db-warning'
 import { LineItemsTable, type LineItemSaveData } from '@/components/shared/line-items-table'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { canSeeFinancials } from '@/lib/auth/roles'
@@ -242,7 +243,13 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
   }
 
   const handleStatusChange = async (newStatus: OfferStatus) => {
-    const result = await updateOfferStatus(offer.id, newStatus)
+    let result = await updateOfferStatus(offer.id, newStatus)
+    // N8a: lav DB er en advarsel — bekræft og prøv igen
+    if (!result.success && result.error?.startsWith(LOW_DB_ACK_REQUIRED)) {
+      const msg = result.error.replace(/^LOW_DB_ACK_REQUIRED:\s*/, '')
+      if (!window.confirm(`${msg}\n\nMarkér tilbuddet som sendt alligevel?`)) { router.refresh(); return }
+      result = await updateOfferStatus(offer.id, newStatus, { acknowledgeLowDb: true })
+    }
 
     if (result.success) {
       toast.success('Status opdateret')
@@ -587,8 +594,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <>
                 <button
                   onClick={handleOpenSendEmail}
-                  disabled={isOfferRed && offer.status === 'draft'}
-                  title={isOfferRed && offer.status === 'draft' ? `DB er ${offerDBPct}% — for lavt til at sende` : undefined}
+                  title={isOfferRed && offer.status === 'draft' ? `Advarsel: DB er ${offerDBPct}% — under minimum ${thresholds.red}%` : undefined}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Mail className="w-4 h-4" />
@@ -698,14 +704,15 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
 
             {/* DB Warning Banner */}
             {isOfferRed && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-center gap-3" data-testid="offer-lowdb-banner">
                 <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-red-800">
-                    Dækningsbidrag er {offerDBPct}% — tilbuddet kan ikke sendes
+                  <p className="text-sm font-medium text-amber-900">
+                    Advarsel: dækningsbidrag er {offerDBPct}% — under minimum {thresholds.red}%
                   </p>
-                  <p className="text-xs text-red-600 mt-0.5">
-                    Juster salgspriser eller indkøbspriser. Minimum DB kan ændres under Indstillinger → Kalkulation → Trafiklys.
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    Tilbuddet kan sendes, men du skal bekræfte advarslen. Tjek salgs- og indkøbspriser (linjer uden kostpris
+                    tæller som 0 kr). Minimum DB ændres under Indstillinger → Kalkulation → Trafiklys.
                   </p>
                 </div>
               </div>
@@ -1381,6 +1388,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
         onOpenChange={setShowSendEmailModal}
         offerId={offer.id}
         onEmailSent={handleEmailSent}
+        lowDb={isOfferRed && offer.status === 'draft' ? { dbPercentage: offerDBPct, threshold: thresholds.red } : null}
       />
 
 

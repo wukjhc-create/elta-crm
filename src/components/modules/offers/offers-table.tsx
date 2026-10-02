@@ -29,6 +29,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { CopyButton } from '@/components/shared/copy-button'
 import { useConfirm } from '@/components/shared/confirm-dialog'
 import { deleteOffer, updateOfferStatus } from '@/lib/actions/offers'
+import { LOW_DB_ACK_REQUIRED } from '@/lib/offers/low-db-warning'
 import { useToast } from '@/components/ui/toast'
 import { OFFER_STATUSES, OFFER_STATUS_LABELS, type OfferWithRelations, type OfferStatus } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
@@ -127,7 +128,17 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
   }
 
   const handleStatusChange = async (id: string, status: OfferStatus) => {
-    const result = await updateOfferStatus(id, status)
+    let result = await updateOfferStatus(id, status)
+    // N8a: lav DB er en advarsel — bekræft og prøv igen
+    if (!result.success && result.error?.startsWith(LOW_DB_ACK_REQUIRED)) {
+      const ok = await confirm({
+        title: 'Lavt dækningsbidrag',
+        description: result.error.replace(/^LOW_DB_ACK_REQUIRED:\s*/, ''),
+        confirmLabel: 'Markér som sendt alligevel',
+      })
+      if (!ok) { setOpenMenuId(null); return }
+      result = await updateOfferStatus(id, status, { acknowledgeLowDb: true })
+    }
 
     if (result.success) {
       toast.success('Status opdateret')

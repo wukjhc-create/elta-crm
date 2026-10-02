@@ -66,12 +66,15 @@ export function CaseOtherCostDialog({
   editing,
   onClose,
   onSaved,
+  canSetPrices = true,
 }: {
   open: boolean
   caseId: string
   editing: CaseOtherCostRow | null
   onClose: () => void
   onSaved: () => void
+  /** D18: kost-/salgspris styres af kontoret (materials.view.cost_prices). Uden: kun selve udgiften registreres. */
+  canSetPrices?: boolean
 }) {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [submitting, setSubmitting] = useState(false)
@@ -132,7 +135,7 @@ export function CaseOtherCostDialog({
   const handleSubmit = async () => {
     setError(null)
     if (!canSubmit) {
-      setError('Tjek dato, antal, kostpris og salgspris')
+      setError(canSetPrices ? 'Tjek dato, antal, kostpris og salgspris' : 'Tjek dato og antal')
       return
     }
     setSubmitting(true)
@@ -144,8 +147,8 @@ export function CaseOtherCostDialog({
       cost_date: form.cost_date,
       unit: form.unit.trim() || 'stk',
       quantity: parsedQty,
-      unit_cost: parsedCost,
-      unit_sales_price: parsedSale,
+      // D18: uden prisret sendes ingen priser (serveren sætter 0; kontoret prissætter bagefter)
+      ...(canSetPrices ? { unit_cost: parsedCost, unit_sales_price: parsedSale } : {}),
       receipt_url: form.receipt_url.trim() || null,
       receipt_filename: form.receipt_filename.trim() || null,
       billable: form.billable,
@@ -297,6 +300,14 @@ export function CaseOtherCostDialog({
             </div>
           </div>
 
+          {!canSetPrices && (
+            <p className="rounded bg-blue-50 ring-1 ring-blue-200 px-3 py-2 text-xs text-blue-900" data-testid="other-cost-price-by-office">
+              Priser udfyldes af kontoret. Skriv gerne beløbet fra kvitteringen i noten, og tag et foto af kvitteringen
+              under fanen Dokumenter.
+            </p>
+          )}
+
+          {canSetPrices && (<>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -356,6 +367,7 @@ export function CaseOtherCostDialog({
               </div>
             </div>
           </div>
+          </>)}
 
           {/* Receipt fields — manual paste for now, upload UI later */}
           <details className="rounded ring-1 ring-gray-200 bg-white text-xs">
