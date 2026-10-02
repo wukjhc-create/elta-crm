@@ -186,7 +186,7 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
 // =====================================================
 
 function CasesCard({ overview }: { overview: DashboardOverview }) {
-  const { new: newCases, in_progress, pending, total } = overview.cases
+  const { new: newCases, in_progress, pending, total, readyToClose } = overview.cases
   const err = overview.errors.cases
   return (
     <Card
@@ -203,6 +203,11 @@ function CasesCard({ overview }: { overview: DashboardOverview }) {
         <Pill label="I gang" value={in_progress} tone="blue" />
         <Pill label="Pending" value={pending} tone={pending > 0 ? 'amber' : 'gray'} />
       </div>
+      {readyToClose > 0 && (
+        <p className="mt-2 text-xs text-emerald-800" data-testid="cockpit-ready-to-close">
+          {readyToClose} sag{readyToClose === 1 ? '' : 'er'} klar til lukning (alle job udført, alt faktureret)
+        </p>
+      )}
     </Card>
   )
 }

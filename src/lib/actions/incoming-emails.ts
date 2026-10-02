@@ -1880,3 +1880,51 @@ export async function autoLinkPendingEmailsAction(): Promise<{ success: boolean;
   revalidatePath('/dashboard/mail')
   return { success: true, processed: (pending ?? []).length, linked }
 }
+
+/**
+ * N35: opret et lead fra en mail (webhenvendelse/kundehenvendelse). Kontaktdata læses fra mailen (samme parser som
+ * "Opret fra mail"; FormSubmit-tabellen forstås). Webhenvendelser bruger ALDRIG afsenderen (FormSubmit) som mail.
+ * Dublet-værn: findes et lead for mailen, returneres det. Kræver inbox.view + leads.create.
+ */
+export async function createLeadFromEmailAction(emailId: string): Promise<{ success: boolean; data?: { leadId: string; existed: boolean }; error?: string }> {
+  try {
+    validateUUID(emailId, 'emailId')
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('inbox.view') || !hasPermission('leads.create')) return { success: false, error: 'Manglende tilladelse: leads.create' }
+    const { data: existing } = await supabase.from('leads').select('id').eq('custom_fields->>source_email_id', emailId).limit(1).maybeSingle()
+    if (existing) return { success: true, data: { leadId: (existing as { id: string }).id, existed: true } }
+    const { data: email } = await supabase.from('incoming_emails')
+      .select('id, subject, sender_email, sender_name, reply_to, body_text, body_html').eq('id', emailId).maybeSingle()
+    if (!email) return { success: false, error: 'Mail ikke fundet' }
+    const e = email as { id: string; subject: string | null; sender_email: string; sender_name: string | null; reply_to: string | null; body_text: string | null; body_html: string | null }
+    const { isWebsiteInquiry } = await import('@/lib/mail/website-inquiry')
+    const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
+    const web = isWebsiteInquiry({ senderEmail: e.sender_email, subject: e.subject })
+    const parsed = parseCustomerFromEmail(e.body_text, e.body_html, web ? null : e.sender_email)
+    const contactEmail = (parsed.email || (web ? e.reply_to : e.sender_email) || '').trim().toLowerCase()
+    if (!contactEmail || !contactEmail.includes('@') || /formsubmit\.co$/i.test(contactEmail)) {
+      return { success: false, error: 'Kundens mailadresse kunne ikke læses fra mailen — opret leadet manuelt' }
+    }
+    const name = (parsed.name || parsed.contactPerson || (web ? '' : e.sender_name) || contactEmail).trim()
+    const { data: lead, error } = await supabase.from('leads').insert({
+      company_name: name,
+      contact_person: (parsed.contactPerson || name).trim(),
+      email: contactEmail,
+      phone: parsed.phone || null,
+      source: web ? 'website' : 'email',
+      status: 'new',
+      notes: `Fra mail: ${e.subject ?? '(intet emne)'}`,
+      created_by: userId,
+      custom_fields: { source_email_id: e.id },
+    }).select('id').single()
+    if (error || !lead) {
+      logger.error('createLeadFromEmail failed', { error, entityId: emailId })
+      return { success: false, error: 'Kunne ikke oprette lead' }
+    }
+    revalidatePath('/dashboard/leads')
+    revalidatePath('/dashboard/mail')
+    return { success: true, data: { leadId: (lead as { id: string }).id, existed: false } }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Der opstod en fejl' }
+  }
+}

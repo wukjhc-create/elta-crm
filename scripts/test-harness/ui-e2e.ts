@@ -102,6 +102,8 @@
  *   U63 N23: sag new → I gang når montøren starter job/registrerer tid (audit); "Klar til lukning" når alle job er udført
  *       og intet er ufaktureret → Luk sagen; ufaktureret sag viser intet banner
  *   U66 N26b: Rapporter → Sagsrentabilitet viser montørsagen (bygger på sager/timer, ikke gamle projekter)
+ *   U67 N27: styringscockpittet viser antal sager klar til lukning
+ *   U68 N35: webhenvendelse → "Opret lead" med kontaktdata fra formularen (ikke FormSubmit-afsenderen), kilde website
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -141,9 +143,9 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52'],
   sales: ['U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67'],
   economy: ['U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65'],
+  'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -333,6 +335,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     if (!(await waitForHttp(`${base}/login`, 240_000))) {
       return [{ id: 'dev-server', ok: false, note: `startede ikke: ${serverLog.join('').slice(-300)}` }]
     }
+    mark = Date.now() // telemetri: første tests tid tæller fra serveren svarer (ikke build/serverstart)
 
     const login = async (u: { email: string; password: string }) => {
       const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
@@ -379,9 +382,12 @@ ${m.text()}`) })
       await np.locator('input[type="password"]').press('Enter').catch(() => {})
       await np.waitForTimeout(1500)
       const url = np.url()
-      const method = (await np.locator('form').first().getAttribute('method').catch(() => null)) ?? ''
-      out.push({ id: 'U22 login før hydrering: adgangskode aldrig i URL', ok: !url.includes(secret) && !/password=/.test(url) && method.toLowerCase() === 'post',
-        note: `url=${new URL(url).pathname}${new URL(url).search ? '?…' : ''} · form method=${method || '(ingen)'}` })
+      // Produktionsbuild: login-siden prerenderes statisk med Suspense-skelet (useSearchParams) → INGEN formular før
+      // hydrering = intet at indsende. Er der en formular (dev), skal den være method=post.
+      const forms = await np.locator('form').count().catch(() => 0)
+      const method = forms ? ((await np.locator('form').first().getAttribute('method').catch(() => null)) ?? '') : ''
+      out.push({ id: 'U22 login før hydrering: adgangskode aldrig i URL', ok: !url.includes(secret) && !/password=/.test(url) && (forms === 0 || method.toLowerCase() === 'post'),
+        note: `url=${new URL(url).pathname}${new URL(url).search ? '?…' : ''} · ${forms ? `form method=${method || '(ingen)'}` : 'ingen formular før hydrering (skelet)'}` })
       await nojs.close().catch(() => {})
     }
 
@@ -1800,6 +1806,55 @@ ${m.text()}`) })
         r.vist_paa_kundekort = (await a.page.getByText(subj).count()) > 0
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         out.push({ id: 'U65 N24a tidligere kundemails kobles', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U67 N27: styringscockpittet tæller sager klar til lukning (alle job udført, intet ufaktureret)
+      if (want('U67') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] cockpit-klar ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const cid = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (cid) {
+          listCaseIds.push(cid)
+          await c.admin.from('work_orders').insert([{ case_id: cid, title: `[HARNESS] udført ${stamp}`, status: 'done', completed_at: new Date().toISOString() }])
+        }
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('cockpit-ready-to-close').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.cockpit_viser_klar = (await a.page.getByTestId('cockpit-ready-to-close').count()) === 1
+        if (cid) {
+          const { data: rw } = await c.admin.from('work_orders').select('id').eq('case_id', cid)
+          for (const w of (rw ?? []) as Array<{ id: string }>) { await c.admin.from('work_order_profit').delete().eq('work_order_id', w.id); await c.admin.from('work_orders').delete().eq('id', w.id) }
+        }
+        out.push({ id: 'U67 N27 cockpit: sager klar til lukning', ok: !!cid && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U68 N35: webhenvendelse → "Opret lead" (kontaktdata fra formularen, kilde website, koblet til mailen)
+      if (want('U68')) {
+        const r: Record<string, boolean> = {}
+        const subj = `Ny henvendelse fra eltasolar.dk [LEAD ${stamp}]`
+        const leadMail = `webform-${stamp}@harness.test`
+        const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', reply_to: leadMail, subject: subj,
+          body_text: `Here's what they had to say:\nName\nValue\nname\nWeb Testesen\nphone\n+45 22 33 44 55\nemail\n${leadMail}\ninquiry_type\nSolceller\nmessage\nTilbud tak`,
+          received_at: new Date().toISOString(), is_archived: false, link_status: 'unidentified' }]).select('id')
+        const emId = (em.data?.[0] as { id?: string } | undefined)?.id
+        if (emId) seededEmailIds.push(emId)
+        await gotoSafe(a.page, `${base}/dashboard/mail?filter=webform`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByText(subj).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('mail-create-lead').click({ timeout: 60_000 }).catch(() => {})
+        type L = { id: string; email: string; phone: string | null; source: string; company_name: string }
+        let lead: L | null = null
+        for (let i = 0; i < 20 && !lead; i++) {
+          lead = (await c.admin.from('leads').select('id, email, phone, source, company_name').eq('custom_fields->>source_email_id', emId ?? '').maybeSingle()).data as L | null
+          if (!lead) await new Promise((res) => setTimeout(res, 1000))
+        }
+        if (lead) u27LeadIds.push(lead.id)
+        r.lead_oprettet = !!lead
+        r.kundens_mail_ikke_formsubmit = lead?.email === leadMail
+        r.navn_og_telefon = !!lead?.company_name.includes('Web Testesen') && (lead?.phone ?? '').replace(/\D/g, '').endsWith('22334455')
+        r.kilde_website = lead?.source === 'website'
+        r.knap_bliver_aabn_lead = (await a.page.getByTestId('mail-lead-open').count()) === 1
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U68 N35 webhenvendelse → lead', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl

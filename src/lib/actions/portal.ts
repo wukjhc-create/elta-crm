@@ -18,7 +18,6 @@ async function requireGate(permission: Permission) {
 }
 import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
-import { createProjectFromOffer } from '@/lib/actions/projects'
 import { convertOfferToCase } from '@/lib/services/offer-to-case'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { sendEmail } from '@/lib/email/email-service'
@@ -549,30 +548,9 @@ export async function acceptOffer(
       metadata: { signerName: data.signer_name, signerEmail: data.signer_email, signerIp: clientIp },
     })
 
-    // Auto-create project from accepted offer (non-critical — runs in authenticated context)
-    try {
-      const projectResult = await createProjectFromOffer(
-        data.offer_id,
-        customerId,
-        offer.title,
-        offer.final_amount
-      )
-
-      if (projectResult.success && projectResult.data) {
-        await admin.from('offer_activities').insert({
-          offer_id: data.offer_id,
-          activity_type: 'project_created',
-          description: `Projekt ${projectResult.data.project_number} oprettet automatisk`,
-          performed_by: null,
-          metadata: { projectId: projectResult.data.id, projectNumber: projectResult.data.project_number },
-        })
-      } else {
-        logger.error('Error auto-creating project', { error: projectResult.error })
-      }
-    } catch (projectError) {
-      logger.error('Project creation failed (non-critical)', { error: projectError })
-      // Don't fail the offer acceptance if project creation fails
-    }
+    // D39: før blev et projekt i den gamle projects-model oprettet her med BRUGER-session — kunden er ikke logget ind,
+    // så kaldet fejlede altid (AUTH_REQUIRED + fejl-log ved hver accept; prod: 1 projekt / 4 accepterede tilbud).
+    // Sagen (service_cases) herunder er den rigtige model.
 
     // Sprint 3D — auto-create service_case parallel to project (non-critical).
     // Idempotent at app level (offer-to-case.ts) and at DB level (UNIQUE

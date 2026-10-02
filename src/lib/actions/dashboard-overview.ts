@@ -74,6 +74,8 @@ export interface DashboardOverview {
     in_progress: number
     pending: number
     total: number
+    /** N27: sager hvor alle job er udført og intet er ufaktureret (kun for cases.close; ellers 0). */
+    readyToClose: number
   }
   offers: {
     followupCount: number
@@ -102,7 +104,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
   const overview: DashboardOverview = {
     mails: { requiresResponseCount: 0, oldest: [] },
     tasks: { openCount: 0, autoCount: 0, overdueCount: 0, overdue: [] },
-    cases: { new: 0, in_progress: 0, pending: 0, total: 0 },
+    cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0 },
     offers: { followupCount: 0, oldest: [] },
     visits: { upcoming: [], empty: true },
     errors: {},
@@ -225,6 +227,26 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         overview.cases.in_progress = progressRes.count || 0
         overview.cases.pending = pendingRes.count || 0
         overview.cases.total = totalRes.count || 0
+        // N27: klar til lukning — kandidater (≥1 job udført, ingen åbne job) i én forespørgsel, fuld vurdering
+        // (inkl. ufaktureret/kørende timer) kun for kandidaterne. Kræver cases.close (ellers null → 0).
+        const { data: open } = await supabase.from('service_cases').select('id').in('status', ['new', 'in_progress', 'pending']).eq('is_proposal', false).limit(200)
+        const ids = ((open ?? []) as Array<{ id: string }>).map((x) => x.id)
+        if (ids.length) {
+          const { data: wos } = await supabase.from('work_orders').select('case_id, status').in('case_id', ids)
+          const agg = new Map<string, { done: number; open: number }>()
+          for (const w of (wos ?? []) as Array<{ case_id: string; status: string }>) {
+            const a = agg.get(w.case_id) ?? { done: 0, open: 0 }
+            if (w.status === 'done') a.done++
+            else if (w.status === 'planned' || w.status === 'in_progress') a.open++
+            agg.set(w.case_id, a)
+          }
+          const candidates = [...agg.entries()].filter(([, a]) => a.done > 0 && a.open === 0).map(([id]) => id).slice(0, 25)
+          if (candidates.length) {
+            const { getCaseCloseReadinessAction } = await import('@/lib/actions/service-cases')
+            const rs = await Promise.all(candidates.map((id) => getCaseCloseReadinessAction(id)))
+            overview.cases.readyToClose = rs.filter((r) => r.success && r.data?.ready).length
+          }
+        }
       } catch (err) {
         logger.error('getDashboardOverview: cases failed', { error: err })
         overview.errors.cases = err instanceof Error ? err.message : 'failed'
