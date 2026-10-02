@@ -55,7 +55,7 @@ import type {
 // Filter tab config
 // =====================================================
 
-type FilterTab = 'all' | EmailLinkStatus | 'requires_response'
+type FilterTab = 'all' | EmailLinkStatus | 'requires_response' | 'webform'
 
 // Sprint 8E noise-cleanup: 'ignored'-tab er KUN synlig i debug-mode
 // (URL ?debug=1). Til daglig brug må støj/marketing/social-mails ikke
@@ -65,6 +65,8 @@ const BASE_FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[]
   { value: 'all', label: 'Alle', icon: Mail },
   // Sprint 8E-1A: ny "Kræver svar"-tab
   { value: 'requires_response', label: 'Kræver svar', icon: AlertCircle },
+  // Henvendelser fra hjemmesidens kontaktformular (var fejlagtigt ignoreret som støj indtil 2026-10-02)
+  { value: 'webform', label: 'Webhenvendelser', icon: Mail },
   { value: 'unidentified', label: 'Uidentificerede', icon: AlertCircle },
   { value: 'linked', label: 'Koblede', icon: CheckCircle2 },
   { value: 'pending', label: 'Afventer', icon: Clock },
@@ -114,6 +116,7 @@ export function MailClient() {
     pending: 0,
     ignored: 0,
     requiresResponse: 0,
+    webform: 0,
   })
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
@@ -183,6 +186,7 @@ export function MailClient() {
         pending: statsResult.pending,
         ignored: statsResult.ignored,
         requiresResponse: statsResult.requiresResponse,
+        webform: statsResult.webform,
       })
       setAllSyncStates(allStatesResult)
       setSyncState(syncStateResult)
@@ -310,6 +314,7 @@ export function MailClient() {
         pending: statsResult.pending,
         ignored: statsResult.ignored,
         requiresResponse: statsResult.requiresResponse,
+        webform: statsResult.webform,
       })
       setSyncState(syncStateResult)
       setLastRefresh(new Date())
@@ -1006,6 +1011,7 @@ export function MailClient() {
           const count =
             tab.value === 'all' ? stats.total :
             tab.value === 'requires_response' ? stats.requiresResponse :
+            tab.value === 'webform' ? stats.webform :
             tab.value === 'unidentified' ? stats.unidentified :
             tab.value === 'linked' ? stats.linked :
             tab.value === 'pending' ? stats.pending :
@@ -1027,7 +1033,7 @@ export function MailClient() {
                 <span className={`ml-1 inline-flex items-center justify-center min-w-[20px] px-1.5 py-0.5 rounded-full text-xs font-semibold ${
                   isActive
                     ? 'bg-primary text-primary-foreground'
-                    : tab.value === 'requires_response' ? 'bg-red-100 text-red-800'
+                    : tab.value === 'requires_response' || tab.value === 'webform' ? 'bg-red-100 text-red-800'
                     : tab.value === 'unidentified' ? 'bg-amber-100 text-amber-800'
                     : tab.value === 'ignored' ? 'bg-gray-200 text-gray-600'
                     : 'bg-gray-100 text-gray-600'
