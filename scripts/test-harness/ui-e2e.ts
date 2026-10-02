@@ -107,7 +107,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { spawn, execSync, type ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
 import { makeTextPdf } from './pdf-fixture'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync, appendFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
@@ -124,6 +124,22 @@ const NEUTRALIZE = [
 
 /** Navigation der ikke vælter hele suiten ved en kold kompilering: ét nyt forsøg med 'load' ved timeout.
  *  En side der reelt fejler, fejler stadig i testens egne tjek. */
+/** Telemetri pr. test (nulstilles ved hvert resultat): goto-timeouts og -genforsøg. */
+const tele = { gotoTimeouts: 0, gotoRetries: 0 }
+
+/**
+ * Testgrupper (Henrik 2026-10-02: smoke ≤10 min, målrettet ≤20 min, fuld regression kun natligt/milestone).
+ *   UI_E2E_GROUP=smoke|sales|montor|economy|portal-mail   (kan kombineres med komma; UI_E2E_ONLY vinder hvis sat)
+ * U1–U4/U6/U13/U5 (login, adgang, konsolfejl) kører altid.
+ */
+export const UI_E2E_GROUPS: Record<string, string[]> = {
+  smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52'],
+  sales: ['U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48'],
+  economy: ['U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61'],
+}
+
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
   try {
     return await page.goto(url, opts)
@@ -131,6 +147,7 @@ async function gotoSafe(page: import('playwright').Page, url: string, opts: { wa
     const msg = String(e)
     // `next dev` genstarter sig selv ved hukommelsespres ("approaching the used memory threshold, restarting")
     // — vent til serveren svarer igen og prøv én gang til.
+    tele.gotoRetries++
     if (/ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE/.test(msg)) {
       console.warn(`[ui-e2e] dev-server utilgængelig (genstart?) — venter: ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
       await waitForHttp(`${new URL(url).origin}/login`, 240_000)
@@ -143,6 +160,7 @@ async function gotoSafe(page: import('playwright').Page, url: string, opts: { wa
       return await page.goto(url, opts).catch(() => null)
     }
     if (!/Timeout/i.test(msg)) throw e
+    tele.gotoTimeouts++
     console.warn(`[ui-e2e] goto-timeout, prøver igen (load): ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
     return await page.goto(url, { ...opts, waitUntil: 'load' }).catch(() => null)
   }
@@ -172,9 +190,23 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const out: UiE2eCheck[] = []
   // Stream hvert resultat med tidsstempel, så en langsom/hængende kørsel kan følges og stoppes uden at miste
   // de allerede kørte tests (før: alt blev først udskrevet til sidst).
+  // Telemetri (Henrik 2026-10-02): pr. test start, varighed, ok, goto-timeouts/-genforsøg → JSONL (overlever afbrudt kørsel)
+  const runStart = Date.now()
+  let mark = runStart
+  const teleFile = join(tmpdir(), 'elta-ui-e2e', `telemetry-${new Date(runStart).toISOString().replace(/[:.]/g, '-')}.jsonl`)
+  try { mkdirSync(join(tmpdir(), 'elta-ui-e2e'), { recursive: true }) } catch { /* findes */ }
   const pushOut = out.push.bind(out)
   out.push = (...items: UiE2eCheck[]) => {
-    for (const x of items) console.log(`[ui-e2e ${new Date().toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen' })}] ${x.ok ? '✓' : '❌'} ${x.id} — ${x.note.slice(0, 200)}`)
+    for (const x of items) {
+      const now = Date.now()
+      const rec = { test: x.id.split(' ')[0], name: x.id, start: new Date(mark).toISOString(), duration_s: Math.round((now - mark) / 1000),
+        ok: x.ok, goto_timeouts: tele.gotoTimeouts, goto_retries: tele.gotoRetries }
+      try { appendFileSync(teleFile, JSON.stringify(rec) + '\n') } catch { /* telemetri må ikke vælte testen */ }
+      console.log(`[ui-e2e ${new Date(now).toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen' })}] ${x.ok ? '✓' : '❌'} ${x.id} (${rec.duration_s}s${rec.goto_timeouts ? `, ${rec.goto_timeouts} timeout` : ''}${rec.goto_retries ? `, ${rec.goto_retries} retry` : ''}) — ${x.note.slice(0, 200)}`)
+      mark = now
+      tele.gotoTimeouts = 0
+      tele.gotoRetries = 0
+    }
     return pushOut(...items)
   }
   const port = c.port ?? 3217
@@ -213,7 +245,10 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const browser = await chromium.launch({ headless: true })
   const pageErrors: string[] = []
   // Målrettet kørsel: UI_E2E_ONLY=U24,U26 (afhængigheder: U9/U16 kræver U8; U8 kræver U7). Tom = alle.
-  const only = (process.env.UI_E2E_ONLY ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  const groups = (process.env.UI_E2E_GROUP ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  for (const g of groups) if (!UI_E2E_GROUPS[g]) throw new Error(`ukendt UI_E2E_GROUP '${g}' (${Object.keys(UI_E2E_GROUPS).join('|')})`)
+  const onlyEnv = (process.env.UI_E2E_ONLY ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  const only = onlyEnv.length ? onlyEnv : [...new Set(groups.flatMap((g) => UI_E2E_GROUPS[g]))]
   const want = (id: string) => only.length === 0 || only.includes(id)
   const loginFailures: string[] = []
   let profitOfferId: string | null = null
