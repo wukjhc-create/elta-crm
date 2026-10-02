@@ -869,6 +869,8 @@ export interface CaseDocument {
   document_type: string
   description: string | null
   created_at: string
+  /** D26: delt med kunden (kunde-/partnerportal). Sagsuploads og mailbilag er interne som standard. */
+  visible_to_customer: boolean
 }
 
 export interface CaseEmailDetail extends CaseEmail {
@@ -1070,7 +1072,7 @@ export async function getDocumentsForCase(
 
     const { data, error } = await supabase
       .from('customer_documents')
-      .select('id, title, file_name, file_url, storage_path, mime_type, file_size, source_email_id, document_type, description, created_at')
+      .select('id, title, file_name, file_url, storage_path, mime_type, file_size, source_email_id, document_type, description, created_at, visible_to_customer')
       .eq('service_case_id', serviceCaseId)
       .order('created_at', { ascending: false })
       .limit(200)

@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
       .eq('id', documentId)
       .eq('service_cases.payer_customer_id', partnerCustomerId)
       .in('document_type', PARTNER_DOCUMENT_TYPES as unknown as string[])
+      .eq('visible_to_customer', true) // D26
       .maybeSingle()
 
     if (error || !doc || !doc.storage_path) {

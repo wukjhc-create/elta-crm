@@ -1677,6 +1677,7 @@ export async function getPortalDocuments(
       .from('customer_documents')
       .select('id, title, description, document_type, file_url, storage_path, file_name, mime_type, created_at')
       .eq('customer_id', customerId)
+      .eq('visible_to_customer', true) // D26: sagsdokumenter/mailbilag er interne medmindre de er delt
       .order('created_at', { ascending: false })
 
     if (error) {

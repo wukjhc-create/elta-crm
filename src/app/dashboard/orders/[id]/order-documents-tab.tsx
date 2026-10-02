@@ -15,7 +15,7 @@ import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { getDocumentsForCase, type CaseDocument } from '@/lib/actions/service-cases'
 import { RoofDrawingCaseCard } from '@/components/modules/customers/roof-drawing/roof-drawing-case-card'
-import { uploadCaseDocument } from '@/lib/actions/customer-documents'
+import { uploadCaseDocument, setCaseDocumentVisibilityAction } from '@/lib/actions/customer-documents'
 import { useUserRole } from '@/lib/hooks/use-user-role'
 import { hasPermission } from '@/lib/auth/permissions'
 
@@ -42,6 +42,8 @@ export function OrderDocumentsTab({
   const [isLoading, setIsLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  // D26: interne som standard — brugeren vælger aktivt "Del med kunde"
+  const [shareWithCustomer, setShareWithCustomer] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const { role } = useUserRole()
   // Kontor (cases.edit) og montør på egne sager (cases.edit.own; serveren tjekker scope)
@@ -76,6 +78,7 @@ export function OrderDocumentsTab({
     for (const f of Array.from(files)) {
       const fd = new FormData()
       fd.append('file', f)
+      if (shareWithCustomer) fd.append('share_with_customer', 'true')
       const r = await uploadCaseDocument(caseId, fd)
       if (r.success) ok++
       else errors.push(`${f.name}: ${r.error ?? 'fejl'}`)
@@ -83,7 +86,14 @@ export function OrderDocumentsTab({
     await load()
     setUploading(false)
     if (fileRef.current) fileRef.current.value = ''
-    setUploadMsg(errors.length ? { ok: false, text: `${ok} uploadet · ${errors.join(' · ')}` } : { ok: true, text: `${ok} fil${ok === 1 ? '' : 'er'} uploadet` })
+    setUploadMsg(errors.length ? { ok: false, text: `${ok} uploadet · ${errors.join(' · ')}` } : { ok: true, text: `${ok} fil${ok === 1 ? '' : 'er'} uploadet${shareWithCustomer ? ' (delt med kunden)' : ' (intern)'}` })
+    setShareWithCustomer(false)
+  }
+
+  const toggleVisibility = async (doc: CaseDocument) => {
+    const r = await setCaseDocumentVisibilityAction(doc.id, !doc.visible_to_customer)
+    if (!r.success) { setUploadMsg({ ok: false, text: r.error ?? 'Kunne ikke ændre deling' }); return }
+    await load()
   }
 
   if (isLoading) {
@@ -126,9 +136,18 @@ export function OrderDocumentsTab({
             {uploading ? 'Uploader…' : 'Tilføj foto / dokument'}
           </button>
           <span className="text-xs text-gray-500">Billeder eller PDF, max 20 MB pr. fil</span>
-          <span className="text-xs font-medium text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded px-2 py-0.5" data-testid="case-upload-visibility">
-            Synligt for kunden i kundeportalen
-          </span>
+          <label className="inline-flex items-center gap-1.5 text-xs text-gray-700" data-testid="case-upload-visibility">
+            <input
+              type="checkbox"
+              checked={shareWithCustomer}
+              onChange={(e) => setShareWithCustomer(e.target.checked)}
+              disabled={uploading}
+              className="rounded border-gray-300"
+              data-testid="case-upload-share"
+            />
+            Del med kunde (vises i kundeportalen)
+          </label>
+          {!shareWithCustomer && <span className="text-xs text-gray-500">Gemmes internt</span>}
           {uploadMsg && (
             <span className={`text-xs ${uploadMsg.ok ? 'text-emerald-700' : 'text-red-600'}`} data-testid="case-upload-msg">{uploadMsg.text}</span>
           )}
@@ -156,7 +175,7 @@ export function OrderDocumentsTab({
           </div>
           <div className="divide-y">
             {mailDocs.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} fromMail />
+              <DocumentRow key={doc.id} doc={doc} fromMail canShare={canUpload} onToggle={toggleVisibility} />
             ))}
           </div>
         </div>
@@ -172,7 +191,7 @@ export function OrderDocumentsTab({
           </div>
           <div className="divide-y">
             {otherDocs.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} fromMail={false} />
+              <DocumentRow key={doc.id} doc={doc} fromMail={false} canShare={canUpload} onToggle={toggleVisibility} />
             ))}
           </div>
         </div>
@@ -181,7 +200,17 @@ export function OrderDocumentsTab({
   )
 }
 
-function DocumentRow({ doc, fromMail }: { doc: CaseDocument; fromMail: boolean }) {
+function DocumentRow({
+  doc,
+  fromMail,
+  canShare,
+  onToggle,
+}: {
+  doc: CaseDocument
+  fromMail: boolean
+  canShare: boolean
+  onToggle: (doc: CaseDocument) => void
+}) {
   const isImg = isImage(doc.mime_type, doc.file_name)
   return (
     <div className="p-4 flex items-center justify-between gap-3">
@@ -213,6 +242,23 @@ function DocumentRow({ doc, fromMail }: { doc: CaseDocument; fromMail: boolean }
                 <Mail className="w-3 h-3" />
                 Fra mail
               </Link>
+            )}
+            {/* D26: synlighed for kunden */}
+            <span
+              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${doc.visible_to_customer ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
+              data-testid="doc-visibility"
+            >
+              {doc.visible_to_customer ? 'Delt med kunde' : 'Intern'}
+            </span>
+            {canShare && (
+              <button
+                type="button"
+                onClick={() => onToggle(doc)}
+                className="text-[10px] text-emerald-700 hover:underline"
+                data-testid="doc-visibility-toggle"
+              >
+                {doc.visible_to_customer ? 'Gør intern' : 'Del med kunde'}
+              </button>
             )}
           </div>
         </div>

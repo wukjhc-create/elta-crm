@@ -16,6 +16,7 @@ import { getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import type { ActionResult } from '@/types/common.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 
 export interface CustomerDocument {
   id: string
@@ -337,6 +338,8 @@ export async function uploadCaseDocument(caseId: string, formData: FormData): Pr
       mime_type: file.type,
       file_size: file.size,
       shared_by: userId,
+      // D26 (Henrik 2026-10-02): interne som standard — kun delt når brugeren aktivt har valgt "Del med kunde"
+      visible_to_customer: formData.get('share_with_customer') === 'true',
     }).select('id').single()
     if (docErr || !doc) {
       logger.error('uploadCaseDocument: insert failed', { error: docErr, entityId: caseId })
@@ -345,6 +348,46 @@ export async function uploadCaseDocument(caseId: string, formData: FormData): Pr
 
     revalidatePath(`/dashboard/orders/${caseId}`)
     return { success: true, data: { id: doc.id as string } }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Der opstod en fejl') }
+  }
+}
+
+/**
+ * D26: del/skjul et sagsdokument for kunden (kunde- og partnerportal). Samme adgang som upload: cases.edit,
+ * eller cases.edit.own på en sag brugeren må se. Kun dokumenter der hører til en sag.
+ */
+export async function setCaseDocumentVisibilityAction(documentId: string, visible: boolean): Promise<ActionResult<{ visible: boolean }>> {
+  try {
+    validateUUID(documentId, 'dokument-ID')
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    const { data: doc } = await supabase.from('customer_documents').select('id, service_case_id').eq('id', documentId).maybeSingle()
+    const caseId = (doc as { service_case_id?: string | null } | null)?.service_case_id ?? null
+    if (!doc || !caseId) return { success: false, error: 'Dokument ikke fundet' }
+    if (!hasPermission('cases.edit')) {
+      if (!hasPermission('cases.edit.own')) return { success: false, error: 'Manglende tilladelse: cases.edit' }
+      const { userCanViewCase } = await import('@/lib/auth/case-scope')
+      if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Sagen er ikke tildelt dig' }
+    }
+    // Service-role efter gaten (montør har ikke UPDATE på customer_documents i RLS); kun synligheds-feltet skrives.
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { data: upd, error } = await createAdminClient()
+      .from('customer_documents')
+      .update({ visible_to_customer: !!visible })
+      .eq('id', documentId)
+      .select('id')
+    if (error || !upd || upd.length !== 1) {
+      logger.error('setCaseDocumentVisibility failed', { error, entityId: documentId })
+      return { success: false, error: 'Kunne ikke ændre deling' }
+    }
+    await insertAuditRow({
+      user_id: userId, entity_type: 'customer_document', entity_id: documentId, entity_name: null,
+      action: visible ? 'document_shared_with_customer' : 'document_made_internal',
+      action_description: visible ? 'Dokument delt med kunden (portal)' : 'Dokument gjort internt',
+      changes: { visible_to_customer: { old: !visible, new: !!visible } }, metadata: { service_case_id: caseId },
+    })
+    revalidatePath(`/dashboard/orders/${caseId}`)
+    return { success: true, data: { visible: !!visible } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
   }

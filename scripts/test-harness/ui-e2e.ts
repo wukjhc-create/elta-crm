@@ -91,6 +91,8 @@
  *   U56 kundeportal: sagens "Bemærkninger (interne)" (status_note) findes IKKE i kundens side (før: vist i portalen)
  *   U57 tilbud sat til Accepteret → lead (lead_id) og lead konverteret til kunden markeres vundet + aktivitet; tabt lead uændret
  *   U58 sendt tilbud efter "gyldig til" vises som "Udløbet" (detalje + liste); gyldigt tilbud ikke
+ *   U59 D26: upload på sag uden valg → intern (ikke i kundeportalen); "Del med kunde" → synlig + audit; upload med deling
+ *       valgt → delt med det samme
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -243,6 +245,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u56TokenId: string | null = null
   let u57OfferId: string | null = null
   const u58Ids: string[] = []
+  let u59CaseId: string | null = null
+  let u59TokenId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1602,6 +1606,55 @@ ${m.text()}`) })
         out.push({ id: 'U58 udløbet tilbud markeret', ok: u58Ids.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U59 D26: sagsdokumenter er interne som standard; "Del med kunde" er et aktivt valg
+      if (want('U59') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] dokumentdeling ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id
+        if (caseId) { listCaseIds.push(caseId); u59CaseId = caseId }
+        const tok = randomBytes(32).toString('hex')
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u59TokenId = (pt.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+        type Doc = { id: string; file_name: string; visible_to_customer: boolean }
+        const docs = async (): Promise<Doc[]> => ((await c.admin.from('customer_documents').select('id, file_name, visible_to_customer').eq('service_case_id', caseId ?? '')).data ?? []) as Doc[]
+        const waitDoc = async (name: string) => { for (let i = 0; i < 20; i++) { const d = (await docs()).find((x) => x.file_name === name); if (d) return d; await new Promise((res) => setTimeout(res, 1000)) } return undefined }
+        const portalHas = async (name: string) => {
+          const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+          const kp = await kctx.newPage()
+          await gotoSafe(kp, `${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const html = await kp.content().catch(() => '')
+          await kctx.close().catch(() => {})
+          return html.includes(name)
+        }
+        const internalName = `intern-${stamp}.png`, sharedName = `delt-${stamp}.png`
+        // 1) upload uden at vælge deling → intern
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.standard_ikke_delt = !(await a.page.getByTestId('case-upload-share').isChecked().catch(() => true))
+        await a.page.getByTestId('case-upload-input').setInputFiles({ name: internalName, mimeType: 'image/png', buffer: png }).catch(() => {})
+        const d1 = await waitDoc(internalName)
+        r.upload_intern = d1?.visible_to_customer === false
+        r.portal_skjuler_intern = d1 ? !(await portalHas(internalName)) : false
+        // 2) aktivt "Del med kunde" på dokumentet → synligt i portalen
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('doc-visibility-toggle').first().click({ timeout: 30_000 }).catch(() => {})
+        let d1b: Doc | undefined
+        for (let i = 0; i < 15; i++) { d1b = (await docs()).find((x) => x.id === d1?.id); if (d1b?.visible_to_customer) break; await new Promise((res) => setTimeout(res, 1000)) }
+        r.delt_efter_valg = d1b?.visible_to_customer === true
+        r.portal_viser_delt = d1b?.visible_to_customer ? await portalHas(internalName) : false
+        // 3) upload med "Del med kunde" sat → delt med det samme
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=dokumenter`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('case-upload-share').check().catch(() => {})
+        await a.page.getByTestId('case-upload-input').setInputFiles({ name: sharedName, mimeType: 'image/png', buffer: png }).catch(() => {})
+        const d2 = await waitDoc(sharedName)
+        r.upload_med_deling = d2?.visible_to_customer === true
+        const aud = caseId ? ((await c.admin.from('audit_logs').select('action').eq('entity_id', d1?.id ?? '')).data ?? []) as Array<{ action: string }> : []
+        r.deling_auditlogget = aud.some((x) => x.action === 'document_shared_with_customer')
+        out.push({ id: 'U59 D26 sagsdokumenter interne som standard', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -2194,6 +2247,14 @@ ${m.text()}`) })
     for (const oid of u58Ids) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', oid); await c.admin.from('offers').delete().eq('id', oid) }
     if (u54OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u54OfferId); await c.admin.from('audit_logs').delete().eq('entity_id', u54OfferId); await c.admin.from('offers').delete().eq('id', u54OfferId) }
     if (u56TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u56TokenId)
+    if (u59CaseId) {
+      const { data: dd } = await c.admin.from('customer_documents').select('id, storage_path').eq('service_case_id', u59CaseId)
+      const paths = ((dd ?? []) as Array<{ storage_path: string | null }>).map((x) => x.storage_path).filter(Boolean) as string[]
+      if (paths.length) await c.admin.storage.from('attachments').remove(paths)
+      for (const x of (dd ?? []) as Array<{ id: string }>) await c.admin.from('audit_logs').delete().eq('entity_id', x.id)
+      await c.admin.from('customer_documents').delete().eq('service_case_id', u59CaseId)
+    }
+    if (u59TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u59TokenId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (u57OfferId) await c.admin.from('offers').delete().eq('id', u57OfferId)
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)

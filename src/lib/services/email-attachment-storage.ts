@@ -334,6 +334,7 @@ async function archiveAttachmentsToCustomerDocuments(
           customer_id: email.customer_id,
           service_case_id: email.service_case_id || null,
           source_email_id: email.id,
+          visible_to_customer: false, // D26: mailbilag er interne, indtil nogen aktivt deler dem
           title: `${att.filename} — ${subjectLabel}`,
           description,
           document_type: 'other',
