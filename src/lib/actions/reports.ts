@@ -371,54 +371,55 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
       return { success: false, error: 'Manglende tilladelse: economy.view' }
     }
 
-    const { data: projects } = await supabase
-      .from('projects')
-      .select(
-        'id, project_number, name, status, budget, estimated_hours, actual_hours, customer:customers(company_name)',
-      )
-      .in('status', ['active', 'completed'])
+    // N26b: bygger på sager (service_cases + time_logs). Før: den gamle projects/time_entries-model, som ikke bruges
+    // længere → rapporten var tom/forkert for alle rigtige sager.
+    const { data: cases } = await supabase
+      .from('service_cases')
+      .select('id, case_number, title, status, budget, planned_hours, customer:customers!service_cases_customer_id_fkey(company_name)')
+      .neq('status', 'converted')
       .order('created_at', { ascending: false })
       .limit(50)
 
-    if (!projects || projects.length === 0) {
+    if (!cases || cases.length === 0) {
       return { success: true, data: [] }
     }
 
-    // Get billable hours per project
-    const projectIds = projects.map((p) => p.id)
-    const { data: timeEntries } = await supabase
-      .from('time_entries')
-      .select('project_id, hours, billable')
-      .in('project_id', projectIds)
+    const caseIds = cases.map((c) => c.id as string)
+    const { data: logs } = await supabase
+      .from('time_logs')
+      .select('hours, billable, end_time, work_order:work_orders!inner(case_id)')
+      .in('work_order.case_id', caseIds)
+      .not('end_time', 'is', null)
 
-    const billableMap = new Map<string, number>()
-    for (const entry of timeEntries || []) {
-      if (entry.billable) {
-        billableMap.set(
-          entry.project_id,
-          (billableMap.get(entry.project_id) || 0) + (entry.hours || 0),
-        )
-      }
+    const actual = new Map<string, number>()
+    const billable = new Map<string, number>()
+    for (const l of (logs ?? []) as unknown as Array<{ hours: number | string | null; billable: boolean | null; work_order: { case_id: string } | Array<{ case_id: string }> }>) {
+      const wo = Array.isArray(l.work_order) ? l.work_order[0] : l.work_order
+      if (!wo) continue
+      const h = Number(l.hours ?? 0) || 0
+      actual.set(wo.case_id, (actual.get(wo.case_id) ?? 0) + h)
+      if (l.billable !== false) billable.set(wo.case_id, (billable.get(wo.case_id) ?? 0) + h)
     }
+    const r1 = (n: number) => Math.round(n * 10) / 10
 
-    const result: ProjectProfitability[] = projects.map((p) => {
-      const customer = p.customer as unknown as { company_name: string } | null
+    const result: ProjectProfitability[] = cases.map((c) => {
+      const customer = (Array.isArray(c.customer) ? c.customer[0] : c.customer) as { company_name: string } | null
       return {
-        project_id: p.id,
-        project_number: p.project_number || '',
-        project_name: p.name,
+        project_id: c.id as string,
+        project_number: (c.case_number as string | null) || '',
+        project_name: (c.title as string | null) || '',
         customer_name: customer?.company_name || null,
-        status: p.status,
-        budget: p.budget,
-        actual_hours: p.actual_hours || 0,
-        billable_hours: billableMap.get(p.id) || 0,
-        estimated_hours: p.estimated_hours,
+        status: c.status as string,
+        budget: c.budget == null ? null : Number(c.budget),
+        actual_hours: r1(actual.get(c.id as string) ?? 0),
+        billable_hours: r1(billable.get(c.id as string) ?? 0),
+        estimated_hours: c.planned_hours == null ? null : Number(c.planned_hours),
       }
     })
 
     return { success: true, data: result }
   } catch (err) {
-    return { success: false, error: formatError(err, 'Kunne ikke hente projektdata') }
+    return { success: false, error: formatError(err, 'Kunne ikke hente sagsdata') }
   }
 }
 
@@ -438,53 +439,38 @@ export async function getTeamProductivity(
     const since = new Date()
     since.setMonth(since.getMonth() - months)
 
-    const { data: entries } = await supabase
-      .from('time_entries')
-      .select('user_id, hours, billable, project_id')
-      .gte('date', since.toISOString())
+    // N26b: medarbejdernes timer fra time_logs (før: den gamle time_entries-tabel)
+    const { data: logs } = await supabase
+      .from('time_logs')
+      .select('employee_id, hours, billable, end_time, work_order:work_orders(case_id), employee:employees(name)')
+      .gte('start_time', since.toISOString())
+      .not('end_time', 'is', null)
 
-    if (!entries || entries.length === 0) {
+    if (!logs || logs.length === 0) {
       return { success: true, data: [] }
     }
 
-    // Aggregate by user
-    const userMap = new Map<
-      string,
-      { total: number; billable: number; projects: Set<string> }
-    >()
-
-    for (const entry of entries) {
-      const existing = userMap.get(entry.user_id) || {
-        total: 0,
-        billable: 0,
-        projects: new Set<string>(),
-      }
-      existing.total += entry.hours || 0
-      if (entry.billable) existing.billable += entry.hours || 0
-      if (entry.project_id) existing.projects.add(entry.project_id)
-      userMap.set(entry.user_id, existing)
+    const map = new Map<string, { name: string; total: number; billable: number; cases: Set<string> }>()
+    for (const l of logs as unknown as Array<{ employee_id: string; hours: number | string | null; billable: boolean | null;
+      work_order: { case_id: string | null } | Array<{ case_id: string | null }> | null; employee: { name: string | null } | Array<{ name: string | null }> | null }>) {
+      const emp = Array.isArray(l.employee) ? l.employee[0] : l.employee
+      const wo = Array.isArray(l.work_order) ? l.work_order[0] : l.work_order
+      const e = map.get(l.employee_id) ?? { name: emp?.name || 'Ukendt', total: 0, billable: 0, cases: new Set<string>() }
+      const h = Number(l.hours ?? 0) || 0
+      e.total += h
+      if (l.billable !== false) e.billable += h
+      if (wo?.case_id) e.cases.add(wo.case_id)
+      map.set(l.employee_id, e)
     }
 
-    // Get user names
-    const userIds = Array.from(userMap.keys())
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name, email')
-      .in('id', userIds)
-
-    const nameMap = new Map<string, string>()
-    for (const profile of profiles || []) {
-      nameMap.set(profile.id, profile.full_name || profile.email)
-    }
-
-    const result: TeamProductivity[] = Array.from(userMap.entries())
-      .map(([id, data]) => ({
+    const result: TeamProductivity[] = Array.from(map.entries())
+      .map(([id, d]) => ({
         user_id: id,
-        full_name: nameMap.get(id) || 'Ukendt',
-        total_hours: Math.round(data.total * 10) / 10,
-        billable_hours: Math.round(data.billable * 10) / 10,
-        billable_percentage: data.total > 0 ? Math.round((data.billable / data.total) * 100) : 0,
-        projects_count: data.projects.size,
+        full_name: d.name,
+        total_hours: Math.round(d.total * 10) / 10,
+        billable_hours: Math.round(d.billable * 10) / 10,
+        billable_percentage: d.total > 0 ? Math.round((d.billable / d.total) * 100) : 0,
+        projects_count: d.cases.size,
       }))
       .sort((a, b) => b.total_hours - a.total_hours)
 

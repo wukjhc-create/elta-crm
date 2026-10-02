@@ -98,6 +98,7 @@
  *       adresse-match-mails; kontoret ser begge
  *   U63 N23: sag new → I gang når montøren starter job/registrerer tid (audit); "Klar til lukning" når alle job er udført
  *       og intet er ufaktureret → Luk sagen; ufaktureret sag viser intet banner
+ *   U66 N26b: Rapporter → Sagsrentabilitet viser montørsagen (bygger på sager/timer, ikke gamle projekter)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -1963,6 +1964,19 @@ ${m.text()}`) })
         }
         await c.admin.from('audit_logs').delete().eq('entity_id', jobCaseId).eq('action', 'case_auto_in_progress')
         out.push({ id: 'U63 N23 sagsstatus følger arbejdet', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U66 N26b: rapportens sagsrentabilitet bygger på sager + timer (før: gammel projektmodel → altid tom)
+      if (want('U66') && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const cn = ((await c.admin.from('service_cases').select('case_number').eq('id', jobCaseId).maybeSingle()).data as { case_number?: string } | null)?.case_number ?? ''
+        await gotoSafe(a.page, `${base}/dashboard/reports`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText('Sagsrentabilitet').first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.sektion_vist = (await a.page.getByText('Sagsrentabilitet').count()) > 0
+        await a.page.getByText(cn).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.montoersag_med = cn !== '' && (await a.page.getByText(cn).count()) > 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U66 N26b sagsrentabilitet i rapporter', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U44 montør: "Mine timer" viser ugens egne timer (efter U11's tidsregistrering)
