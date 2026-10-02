@@ -20,6 +20,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react'
 import { OfferStatusBadge } from './offer-status-badge'
+import { OfferExpiryChip } from './offer-expiry-chip'
 import { OfferConversionBadge } from './offer-conversion-badge'
 import { OfferForm } from './offer-form'
 import { OfferTaskForm } from './offer-task-form'
@@ -306,6 +307,7 @@ export function OffersTable({ offers, companySettings, sortBy, sortOrder, onSort
                           locale: da,
                         })
                       : '-'}
+                    <div><OfferExpiryChip status={offer.status} validUntil={offer.valid_until} /></div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                     <SmartDate date={offer.created_at} />

@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { OfferStatusBadge } from '@/components/modules/offers/offer-status-badge'
+import { OfferExpiryChip } from '@/components/modules/offers/offer-expiry-chip'
 import { OfferForm } from '@/components/modules/offers/offer-form'
 import { OfferPartiesCard } from '@/components/modules/offers/offer-parties-card'
 import { EditOfferPartiesDialog } from '@/components/modules/offers/edit-offer-parties-dialog'
@@ -573,6 +574,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 {offer.title}
               </h1>
               <OfferStatusBadge status={offer.status} />
+              <OfferExpiryChip status={offer.status} validUntil={offer.valid_until} withHint />
             </div>
             <p className="text-gray-600 mt-1 font-mono inline-flex items-center gap-1">
               {offer.offer_number}

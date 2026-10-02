@@ -90,6 +90,7 @@
  *   U55 salg: "Print" på eget tilbud viser firmaets navn og CVR (før: "Virksomhed" uden oplysninger)
  *   U56 kundeportal: sagens "Bemærkninger (interne)" (status_note) findes IKKE i kundens side (før: vist i portalen)
  *   U57 tilbud sat til Accepteret → lead (lead_id) og lead konverteret til kunden markeres vundet + aktivitet; tabt lead uændret
+ *   U58 sendt tilbud efter "gyldig til" vises som "Udløbet" (detalje + liste); gyldigt tilbud ikke
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -241,6 +242,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u54OfferId: string | null = null
   let u56TokenId: string | null = null
   let u57OfferId: string | null = null
+  const u58Ids: string[] = []
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1580,6 +1582,26 @@ ${m.text()}`) })
         out.push({ id: 'U57 accepteret tilbud → lead vundet', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · leads=${JSON.stringify(leads.map((l) => l.status))}` })
       }
 
+      // U58 udløbet tilbud markeres (kunden kan ikke acceptere i portalen)
+      if (want('U58') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const dk = (o: number) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + o * 86400_000))
+        const mk = async (n: string, validUntil: string) => ((await c.admin.from('offers').insert([{ offer_number: `UI-E2E-X${n}-${stamp}`, title: `[HARNESS] udløb ${n} ${stamp}`,
+          customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(), created_by: adminUser.id, valid_until: validUntil }]).select('id')).data?.[0] as { id?: string } | undefined)?.id
+        const expired = await mk('U', dk(-1)), valid = await mk('G', dk(1))
+        u58Ids.push(...([expired, valid].filter(Boolean) as string[]))
+        await gotoSafe(a.page, `${base}/dashboard/offers/${expired}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('offer-expired').first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.udloebet_markeret = (await a.page.getByTestId('offer-expired').count()) > 0
+        await gotoSafe(a.page, `${base}/dashboard/offers/${valid}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.waitForTimeout(1500)
+        r.gyldigt_ikke_markeret = (await a.page.getByTestId('offer-expired').count()) === 0
+        await gotoSafe(a.page, `${base}/dashboard/offers?search=${encodeURIComponent(`UI-E2E-XU-${stamp}`)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('offer-expired').first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.listen_markerer = (await a.page.getByTestId('offer-expired').count()) > 0
+        out.push({ id: 'U58 udløbet tilbud markeret', ok: u58Ids.length === 2 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -2162,6 +2184,7 @@ ${m.text()}`) })
       for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u57OfferId)
       await c.admin.from('audit_logs').delete().eq('entity_id', u57OfferId)
     }
+    for (const oid of u58Ids) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', oid); await c.admin.from('offers').delete().eq('id', oid) }
     if (u54OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u54OfferId); await c.admin.from('audit_logs').delete().eq('entity_id', u54OfferId); await c.admin.from('offers').delete().eq('id', u54OfferId) }
     if (u56TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u56TokenId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
