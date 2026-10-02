@@ -4,7 +4,7 @@
  * Fund (prod read-only 2026-10-02): 81 ukoblede mails var sendt fra en KENDT kundes adresse — typisk modtaget før
  * kunden blev oprettet, og mail-sync'en kobler kun ved modtagelse. De var derfor usynlige på kundekortet og for
  * bogholderi (D28).
- * Kun mails uden kunde og som ikke er bevidst ignoreret; sag-koblede mails røres ikke. Bruger-sessionen (RLS) skriver,
+ * Kun mails uden kunde og som ikke er bevidst ignoreret (også sag-koblede uden kunde). Bruger-sessionen (RLS) skriver,
  * så kun roller der må koble mails kan det. Kaster aldrig.
  */
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
