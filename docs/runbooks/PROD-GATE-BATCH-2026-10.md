@@ -1,5 +1,7 @@
 # Prod-gate-batch (oktober 2026) — samlet pre/post-køreplan 00175–00183
 
+> **STATUS 2026-10-03: hele batchen 00175–00183 er KØRT i prod** (09:52–10:00, i køreplanens rækkefølge, alle pre/post grønne, samlet post 6/6). Udestår kun trin 2b (Vercel-env, Henrik).
+
 Alt herunder er færdigt og verificeret på staging og venter KUN på Henriks godkendelse. Koden der matcher hver
 migration er allerede på main/prod (expand/contract — ingen deploy i batchen, undtagen trin 2b's env-flag).
 
