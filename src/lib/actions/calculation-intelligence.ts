@@ -18,7 +18,7 @@ import type {
   ProfitSimulationResult,
 } from '@/types/calculation-intelligence.types'
 import { CalculationIntelligenceEngine, detectAnomalies } from '@/lib/services/calculation-intelligence'
-import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -196,6 +196,9 @@ export async function getRoomCalculations(
   calculationId: string
 ): Promise<ActionResult<RoomCalculation[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.calculations
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -290,6 +293,9 @@ export async function getCalculationAnomalies(
   calculationId: string
 ): Promise<ActionResult<CalculationAnomaly[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.calculations
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase

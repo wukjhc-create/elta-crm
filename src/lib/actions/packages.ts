@@ -83,7 +83,7 @@ export async function getPackages(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<PackageSummary>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -150,7 +150,10 @@ export async function getPackages(filters?: {
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: { data: data || [], page, pageSize, total, totalPages } }
+    // D48: pakke-vælgeren i tilbud (salg) viser salgspris — kost/DB kun for kostpris-roller
+    const rows = (data || []) as PackageSummary[]
+    const visible = hasPermission('offers.view.cost_prices') ? rows : rows.map((r) => ({ ...r, total_cost_price: 0, db_amount: 0, db_percentage: 0 }))
+    return { success: true, data: { data: visible, page, pageSize, total, totalPages } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente pakker') }
   }
@@ -158,7 +161,7 @@ export async function getPackages(filters?: {
 
 export async function getPackage(id: string): Promise<ActionResult<Package>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
     validateUUID(id, 'pakke ID')
 
     const { data, error } = await supabase
@@ -187,7 +190,7 @@ export async function getPackage(id: string): Promise<ActionResult<Package>> {
 
 export async function getPackageWithItems(id: string): Promise<ActionResult<Package & { items: PackageItem[] }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
     validateUUID(id, 'pakke ID')
 
     // Get package
@@ -383,7 +386,7 @@ export async function copyPackage(
 
 export async function getPackageItems(packageId: string): Promise<ActionResult<PackageItem[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
     validateUUID(packageId, 'pakke ID')
 
     const { data, error } = await supabase
@@ -668,7 +671,7 @@ export async function getComponentsForPicker(): Promise<ActionResult<{
   variants: { code: string; name: string }[]
 }[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
 
     const { data: components, error } = await supabase
       .from('calc_components')
@@ -744,7 +747,7 @@ export async function getProductsForPicker(): Promise<ActionResult<{
   category_name: string
 }[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
 
     const { data, error } = await supabase
       .from('product_catalog')

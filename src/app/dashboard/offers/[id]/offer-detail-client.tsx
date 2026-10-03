@@ -87,6 +87,7 @@ import { computeOfferDB, isDBBelowSendThreshold, type DBThresholds, DEFAULT_DB_T
 import { LOW_DB_ACK_REQUIRED } from '@/lib/offers/low-db-warning'
 import { LineItemsTable, type LineItemSaveData } from '@/components/shared/line-items-table'
 import { useUserRole } from '@/lib/hooks/use-user-role'
+import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 import { canSeeFinancials } from '@/lib/auth/roles'
 import { hasPermission } from '@/lib/auth/permissions'
 
@@ -115,6 +116,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     router.push(`/dashboard/offers/${res.data.id}`)
   }
   const showFinancials = canSeeFinancials(role)
+  // PV8 shoulder-surfing: kost/DB/avance og lønsomhedskort sammenfoldet som standard (også for kostpris-roller)
+  const [costOpen, toggleCost] = useCostReveal()
+  const showCostDetails = showFinancials && costOpen
   const { confirm, ConfirmDialog } = useConfirm()
   const [showEditForm, setShowEditForm] = useState(false)
   const [showEditPartiesDialog, setShowEditPartiesDialog] = useState(false)
@@ -708,7 +712,9 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-amber-900">
-                    Advarsel: dækningsbidrag er {offerDBPct}% — under minimum {thresholds.red}%
+                    {showCostDetails
+                      ? `Advarsel: dækningsbidrag er ${offerDBPct}% — under minimum ${thresholds.red}%`
+                      : 'Advarsel: dækningsbidraget er under minimum (vis kost/DB for detaljer)'}
                   </p>
                   <p className="text-xs text-amber-800 mt-0.5">
                     Tilbuddet kan sendes, men du skal bekræfte advarslen. Tjek salgs- og indkøbspriser (linjer uden kostpris
@@ -723,6 +729,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Linjer</h2>
                 <div className="flex items-center gap-2">
+                  {showFinancials && <CostRevealToggle open={costOpen} onToggle={toggleCost} />}
                   <button
                     onClick={() => setShowPackagePicker(true)}
                     className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-primary border rounded px-2 py-1"
@@ -754,6 +761,8 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     <Search className="w-4 h-4" />
                     Søg leverandør
                   </button>
+                  {/* D48: prisoptimering vælger billigste leverandør ud fra netto — kun kostpris-roller */}
+                  {showFinancials && (
                   <button
                     onClick={handleOptimizePrices}
                     disabled={isOptimizing || offer.status !== 'draft' || lineItems.filter(li => li.supplier_product_id).length === 0}
@@ -766,6 +775,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     )}
                     Optimer priser
                   </button>
+                  )}
                   <button
                     onClick={() => handleInlineSave({
                       description: '',
@@ -927,8 +937,8 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 items={lineItems}
                 offerId={offer.id}
                 currency={currency}
-                showCostData={showFinancials}
-                showDBSummary={showFinancials}
+                showCostData={showCostDetails}
+                showDBSummary={showCostDetails}
                 thresholds={thresholds}
                 editable={offer.status === 'draft'}
                 onSaveItem={handleInlineSave}
@@ -1202,19 +1212,25 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
             )}
 
             {/* Lønsomhed (Profit Engine) — kun roller med kostpris-adgang */}
-            {showFinancials && lineItems.length > 0 && (
+            {showFinancials && !costOpen && lineItems.length > 0 && (
+              <div className="bg-white rounded-lg border p-4 flex items-center justify-between" data-testid="offer-internal-economy-collapsed">
+                <p className="text-sm text-gray-600">Intern økonomi (lønsomhed, besparelser, prisforklaring) er skjult.</p>
+                <CostRevealToggle open={costOpen} onToggle={toggleCost} />
+              </div>
+            )}
+            {showCostDetails && lineItems.length > 0 && (
               <OfferProfitCard
                 offerId={offer.id}
                 lineItems={lineItems}
                 discountPercentage={Number(offer.discount_percentage ?? 0)}
               />
             )}
-            {showFinancials && lineItems.some((l) => l.supplier_product_id) && (
+            {showCostDetails && lineItems.some((l) => l.supplier_product_id) && (
               <OfferSupplierSavingsCard offerId={offer.id} lineItems={lineItems} />
             )}
 
             {/* Price Explanation — regner kost/avance ud fra linjernes kostpris → kun kostpris-roller (D45) */}
-            {showFinancials && offer.line_items && offer.line_items.length > 0 && (
+            {showCostDetails && offer.line_items && offer.line_items.length > 0 && (
               <PriceExplanationCard
                 offerId={offer.id}
                 lineItems={offer.line_items}

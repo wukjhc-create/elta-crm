@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
-import { getSolarCalculatorData } from '@/lib/actions/solar-products'
+import { calculateSolarQuote, getSolarCalculatorData } from '@/lib/actions/solar-products'
+import { getDefaultInputV2 } from '@/lib/utils/solar-calculator'
 import { CalculatorPageClientV2 } from '@/components/modules/calculator/calculator-page-client-v2'
 import { CalculatorPageClient } from '@/components/modules/calculator'
 import { pageHasPermission } from '@/lib/auth/page-guard'
@@ -21,11 +22,14 @@ export default async function CalcPage() {
   const p = result.success ? result.data?.products : undefined
   const catalogReady = !!p && p.panels.length > 0 && p.inverters.length > 0 && p.mountings.length > 0 && p.batteries.length > 0
   if (result.success && result.data && catalogReady) {
+    // D48/D51: uden kostadgang beregnes startresultatet server-side (klienten får ingen kostpriser)
+    const serverInitial = showInternal ? null : await calculateSolarQuote(getDefaultInputV2(result.data.products))
     return (
       <CalculatorPageClientV2
         products={result.data.products}
         assumptions={result.data.assumptions}
         showInternal={showInternal}
+        serverInitialResults={serverInitial?.success ? serverInitial.data ?? null : null}
       />
     )
   }

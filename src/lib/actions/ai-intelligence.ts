@@ -10,7 +10,7 @@
  * - Price explanations
  */
 
-import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -99,6 +99,9 @@ export async function saveProjectContext(
  */
 export async function getProjectContext(calculationId: string) {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return null
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -224,6 +227,9 @@ export async function saveRiskAssessments(
  */
 export async function getRiskAssessments(calculationId: string) {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return []
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -446,6 +452,9 @@ export async function savePriceExplanation(
  */
 export async function getPriceExplanation(offerId: string) {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return null
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -550,6 +559,9 @@ export async function createCalculationSnapshot(
  */
 export async function getCalculationSnapshots(calculationId: string) {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return []
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase

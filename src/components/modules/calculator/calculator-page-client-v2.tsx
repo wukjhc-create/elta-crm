@@ -15,6 +15,7 @@ import {
 } from '@/lib/utils/solar-calculator'
 import { templateToInput } from '@/lib/utils/calculator'
 import { getTemplates } from '@/lib/actions/calculator'
+import { calculateSolarQuote } from '@/lib/actions/solar-products'
 import type {
   CalculatorResults,
   TemplateWithCreator,
@@ -31,19 +32,26 @@ interface CalculatorPageClientV2Props {
   assumptions: SolarAssumptions
   /** D51: offers.view.cost_prices */
   showInternal?: boolean
+  /** D48/D51: uden kostadgang har klienten ingen kostpriser — beregnes server-side (startresultat fra siden) */
+  serverInitialResults?: CalculatorResults | null
 }
 
 export function CalculatorPageClientV2({
   products,
   assumptions,
   showInternal = false,
+  serverInitialResults = null,
 }: CalculatorPageClientV2Props) {
   // Initialize with default input based on available products
   const defaultInput = getDefaultInputV2(products)
+  // D48/D51: roller uden kostadgang regner altid på serveren (klientens produkter har ingen kostpriser)
+  const serverCalc = !showInternal
 
   // Build initial context and results
-  const initialContext = buildCalculatorContext(products, assumptions, defaultInput)
-  const initialResults = initialContext
+  const initialContext = serverCalc ? null : buildCalculatorContext(products, assumptions, defaultInput)
+  const initialResults = serverCalc
+    ? serverInitialResults
+    : initialContext
     ? calculateSolarSystemV2(defaultInput, initialContext)
     : null
 
@@ -83,6 +91,18 @@ export function CalculatorPageClientV2({
       const legacyInput = templateToInput(template) as CalculatorInput
       const v2Input = convertLegacyToV2(legacyInput)
 
+      if (serverCalc) {
+        void calculateSolarQuote(v2Input).then((res) => {
+          if (!res.success || !res.data) { setCalculationError(res.error ?? 'Kunne ikke anvende skabelon'); return }
+          setCurrentInput(v2Input)
+          setResults(res.data)
+          setActiveTemplateName(template.name)
+          setCalculationError(null)
+          setFormKey((prev) => prev + 1)
+        })
+        return
+      }
+
       const context = buildCalculatorContext(products, assumptions, v2Input)
       if (!context) {
         setCalculationError('Kunne ikke finde de valgte produkter i databasen')
@@ -102,6 +122,16 @@ export function CalculatorPageClientV2({
 
   const handleCalculate = useCallback(
     (newInput: CalculatorInputV2) => {
+      if (serverCalc) {
+        setCurrentInput(newInput)
+        void calculateSolarQuote(newInput).then((res) => {
+          if (!res.success || !res.data) { setCalculationError(res.error ?? 'Kunne ikke beregne'); return }
+          setResults(res.data)
+          setActiveTemplateName(null)
+          setCalculationError(null)
+        })
+        return
+      }
       const context = buildCalculatorContext(products, assumptions, newInput)
 
       if (!context) {
@@ -115,7 +145,7 @@ export function CalculatorPageClientV2({
       setActiveTemplateName(null)
       setCalculationError(null)
     },
-    [products, assumptions]
+    [products, assumptions, serverCalc]
   )
 
   const handleCreateOffer = () => {

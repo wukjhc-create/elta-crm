@@ -4,6 +4,7 @@ import { getPortalTokens } from '@/lib/actions/portal'
 import { getPartnerTokens } from '@/lib/actions/partner-portal'
 import { getDocumentCompanySettings } from '@/lib/actions/company-public'
 import { CustomerDetailClient } from './customer-detail-client'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +25,8 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
   if (!customerResult.success || !customerResult.data) {
     notFound()
   }
+  // D48: kundeaftaler (leverandørrabat, avance, kostpris) kun for prisværktøjet (admin, serviceleder)
+  const canManagePricing = await pageHasPermission('tools.pricing')
 
   return (
     <CustomerDetailClient
@@ -31,6 +34,7 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
       portalTokens={tokensResult.data || []}
       partnerTokens={partnerTokensResult.data || []}
       companySettings={settingsResult.success && settingsResult.data ? settingsResult.data : null}
+      canManagePricing={canManagePricing}
     />
   )
 }

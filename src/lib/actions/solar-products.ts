@@ -33,7 +33,29 @@ async function requireGate(permission: Permission) {
   ctx.requirePermission(permission)
   return ctx
 }
+
+/**
+ * D48/D51 (privacy): solprodukternes `price` og monteringens `price_per_panel` er internt kostgrundlag (avance lægges
+ * på i beregneren). Uden offers.view.cost_prices (salg m.fl.) sendes de aldrig til klienten — beregningen sker
+ * server-side (calculateSolarQuote). Navngivet konstant: check:rls-matrix læser literal-strenge som skrive-gates.
+ */
+const SOLAR_COST_PERMISSION: Permission = 'offers.view.cost_prices'
+/** Standardavance for roller uden kostadgang — de kan ikke selv sætte avancen (ellers afslører avance 0 kostprisen). */
+const SALES_DEFAULT_SOLAR_MARGIN = 0.25
+const MAX_SOLAR_DISCOUNT = 0.3
+
+function stripSolarCostIfNeeded<T extends SolarProduct>(rows: T[], hasPermission: (p: Permission) => boolean): T[] {
+  if (hasPermission(SOLAR_COST_PERMISSION)) return rows
+  return rows.map((p) => ({
+    ...p,
+    price: 0,
+    specifications: p.product_type === 'mounting' ? { ...p.specifications, price_per_panel: 0 } : p.specifications,
+  }))
+}
 import { logger } from '@/lib/utils/logger'
+import { buildCalculatorContext, calculateSolarSystemV2 } from '@/lib/utils/solar-calculator'
+import type { CalculatorInputV2 } from '@/types/solar-products.types'
+import type { CalculatorResults } from '@/types/calculator.types'
 // =====================================================
 // Read Operations
 // =====================================================
@@ -45,7 +67,7 @@ export async function getSolarProducts(
   type?: SolarProductType
 ): Promise<ActionResult<SolarProduct[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
 
     let query = supabase
       .from('solar_products')
@@ -65,7 +87,7 @@ export async function getSolarProducts(
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data as SolarProduct[] }
+    return { success: true, data: stripSolarCostIfNeeded(data as SolarProduct[], hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente solprodukter') }
   }
@@ -76,7 +98,7 @@ export async function getSolarProducts(
  */
 export async function getSolarProduct(id: string): Promise<ActionResult<SolarProduct>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     validateUUID(id, 'produkt ID')
 
     const { data, error } = await supabase
@@ -94,7 +116,7 @@ export async function getSolarProduct(id: string): Promise<ActionResult<SolarPro
       return { success: false, error: 'Produktet blev ikke fundet' }
     }
 
-    return { success: true, data: data as SolarProduct }
+    return { success: true, data: stripSolarCostIfNeeded([data as SolarProduct], hasPermission)[0] }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente produkt') }
   }
@@ -105,7 +127,7 @@ export async function getSolarProduct(id: string): Promise<ActionResult<SolarPro
  */
 export async function getSolarProductByCode(code: string): Promise<ActionResult<SolarProduct>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
 
     if (!code || typeof code !== 'string') {
       return { success: false, error: 'Ugyldig produktkode' }
@@ -127,7 +149,7 @@ export async function getSolarProductByCode(code: string): Promise<ActionResult<
       return { success: false, error: 'Produktet blev ikke fundet' }
     }
 
-    return { success: true, data: data as SolarProduct }
+    return { success: true, data: stripSolarCostIfNeeded([data as SolarProduct], hasPermission)[0] }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente produkt') }
   }
@@ -138,8 +160,22 @@ export async function getSolarProductByCode(code: string): Promise<ActionResult<
  */
 export async function getSolarProductsByType(): Promise<ActionResult<SolarProductsByType>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const data = await loadSolarProductsByType(supabase)
+    if (hasPermission(SOLAR_COST_PERMISSION)) return { success: true, data }
+    return { success: true, data: {
+      panels: stripSolarCostIfNeeded(data.panels, hasPermission),
+      inverters: stripSolarCostIfNeeded(data.inverters, hasPermission),
+      batteries: stripSolarCostIfNeeded(data.batteries, hasPermission),
+      mountings: stripSolarCostIfNeeded(data.mountings, hasPermission),
+    } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente solprodukter') }
+  }
+}
 
+/** Ufiltreret (inkl. kostpriser) — kun til server-side beregning. */
+async function loadSolarProductsByType(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<SolarProductsByType> {
     const { data, error } = await supabase
       .from('solar_products')
       .select('*')
@@ -171,13 +207,7 @@ export async function getSolarProductsByType(): Promise<ActionResult<SolarProduc
       .filter((p) => p.product_type === 'mounting' && isMountingSpecs(p.specifications))
       .map((p) => p as unknown as MountingProduct)
 
-    return {
-      success: true,
-      data: { panels, inverters, batteries, mountings },
-    }
-  } catch (err) {
-    return { success: false, error: formatError(err, 'Kunne ikke hente solprodukter') }
-  }
+    return { panels, inverters, batteries, mountings }
 }
 
 // =====================================================
@@ -313,8 +343,19 @@ export async function deleteSolarProduct(id: string): Promise<ActionResult<void>
  */
 export async function getSolarAssumptions(): Promise<ActionResult<SolarAssumptions>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const assumptions = await loadSolarAssumptions(supabase)
+    // D48/D51: lønsats og basis-installationskost er internt kostgrundlag
+    if (hasPermission(SOLAR_COST_PERMISSION)) return { success: true, data: assumptions }
+    return { success: true, data: { ...assumptions, laborCostPerHour: 0, baseInstallationCost: 0 } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente solcelleindstillinger') }
+  }
+}
 
+/** Ufiltreret (inkl. intern lønsats) — kun til server-side beregning. */
+async function loadSolarAssumptions(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']): Promise<SolarAssumptions> {
+  {
     const { data, error } = await supabase
       .from('calculation_settings')
       .select('setting_key, setting_value')
@@ -370,9 +411,7 @@ export async function getSolarAssumptions(): Promise<ActionResult<SolarAssumptio
       }
     }
 
-    return { success: true, data: assumptions }
-  } catch (err) {
-    return { success: false, error: formatError(err, 'Kunne ikke hente solcelleindstillinger') }
+    return assumptions
   }
 }
 
@@ -523,5 +562,49 @@ export async function getSolarCalculatorData(): Promise<
     }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente beregnerdata') }
+  }
+}
+
+/**
+ * D48/D51: solcelleberegning server-side. Kostpris-roller regner som før (egen avance); øvrige (salg) regner med
+ * standardavancen og en begrænset rabat, og får kun kundevendte tal tilbage (ingen komponent-/lønkost, subtotal
+ * eller avancebeløb).
+ */
+export async function calculateSolarQuote(input: CalculatorInputV2): Promise<ActionResult<CalculatorResults>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('tools.solar_calc')) return { success: false, error: 'Manglende tilladelse: tools.solar_calc' }
+    const seesCost = hasPermission(SOLAR_COST_PERMISSION)
+    const panelCount = Math.round(Number(input?.panelCount))
+    if (!Number.isFinite(panelCount) || panelCount < 1 || panelCount > 500) {
+      return { success: false, error: 'Ugyldigt antal paneler' }
+    }
+    const clamp = (v: unknown, max: number) => Math.min(Math.max(Number(v) || 0, 0), max)
+    const safeInput: CalculatorInputV2 = {
+      panelCode: String(input.panelCode ?? ''),
+      panelCount,
+      inverterCode: String(input.inverterCode ?? ''),
+      mountingCode: String(input.mountingCode ?? ''),
+      batteryCode: String(input.batteryCode ?? ''),
+      annualConsumption: clamp(input.annualConsumption, 1_000_000),
+      margin: seesCost ? clamp(input.margin, 1) : SALES_DEFAULT_SOLAR_MARGIN,
+      discount: clamp(input.discount, MAX_SOLAR_DISCOUNT),
+      includeVat: input.includeVat !== false,
+    }
+    const [products, assumptions] = await Promise.all([loadSolarProductsByType(supabase), loadSolarAssumptions(supabase)])
+    const context = buildCalculatorContext(products, assumptions, safeInput)
+    if (!context) return { success: false, error: 'Kunne ikke finde de valgte produkter' }
+    const results = calculateSolarSystemV2(safeInput, context)
+    if (seesCost) return { success: true, data: results }
+    return {
+      success: true,
+      data: {
+        ...results,
+        panelsCost: 0, inverterCost: 0, mountingCost: 0, batteryCost: 0, laborCost: 0, installationCost: 0,
+        subtotal: 0, margin: 0,
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke beregne anlægget') }
   }
 }

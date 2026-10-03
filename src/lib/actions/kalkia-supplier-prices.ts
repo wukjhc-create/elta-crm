@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { KalkiaVariantMaterial } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -140,6 +140,9 @@ export async function getSupplierOptionsForMaterial(
   is_available: boolean
 }>>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.calculations
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     const sanitized = sanitizeSearchTerm(materialName)
@@ -411,6 +414,9 @@ export async function loadSupplierPricesForVariant(
   lastSyncedAt: string | null
 }>>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.calculations
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(variantId, 'variant ID')
 
@@ -594,6 +600,9 @@ export async function loadSupplierPricesForCalculation(
   lastSyncedAt: string | null
 }>>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.calculations
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(calculationId, 'kalkulation ID')
 
