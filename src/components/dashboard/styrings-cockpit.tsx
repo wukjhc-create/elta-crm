@@ -186,7 +186,7 @@ function TasksCard({ overview }: { overview: DashboardOverview }) {
 // =====================================================
 
 function CasesCard({ overview }: { overview: DashboardOverview }) {
-  const { new: newCases, in_progress, pending, total, readyToClose } = overview.cases
+  const { new: newCases, in_progress, pending, total, readyToClose, timesPendingApproval } = overview.cases
   const err = overview.errors.cases
   return (
     <Card
@@ -207,6 +207,11 @@ function CasesCard({ overview }: { overview: DashboardOverview }) {
         <p className="mt-2 text-xs text-emerald-800" data-testid="cockpit-ready-to-close">
           {readyToClose} sag{readyToClose === 1 ? '' : 'er'} klar til lukning (alle job udført, alt faktureret)
         </p>
+      )}
+      {timesPendingApproval > 0 && (
+        <a href="/dashboard/time-approval" className="mt-1 block text-xs text-amber-800 hover:underline" data-testid="cockpit-times-pending">
+          {timesPendingApproval} timeregistrering{timesPendingApproval === 1 ? '' : 'er'} afventer godkendelse →
+        </a>
       )}
     </Card>
   )

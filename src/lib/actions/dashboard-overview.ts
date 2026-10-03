@@ -76,6 +76,8 @@ export interface DashboardOverview {
     total: number
     /** N27: sager hvor alle job er udført og intet er ufaktureret (kun for cases.close; ellers 0). */
     readyToClose: number
+    /** N28: afsluttede timeregistreringer der afventer godkendelse (kun for time_logs.approve; ellers 0). */
+    timesPendingApproval: number
   }
   offers: {
     followupCount: number
@@ -104,7 +106,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
   const overview: DashboardOverview = {
     mails: { requiresResponseCount: 0, oldest: [] },
     tasks: { openCount: 0, autoCount: 0, overdueCount: 0, overdue: [] },
-    cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0 },
+    cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0, timesPendingApproval: 0 },
     offers: { followupCount: 0, oldest: [] },
     visits: { upcoming: [], empty: true },
     errors: {},
@@ -246,6 +248,14 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             const rs = await Promise.all(candidates.map((id) => getCaseCloseReadinessAction(id)))
             overview.cases.readyToClose = rs.filter((r) => r.success && r.data?.ready).length
           }
+        }
+        // N28: timer der afventer godkendelse (montør registrerer → serviceleder/admin godkender)
+        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+        const ctx = await getAuthenticatedClientWithRole()
+        if (ctx.hasPermission('time_logs.approve')) {
+          const { count } = await supabase.from('time_logs').select('id', { count: 'exact', head: true })
+            .eq('approval_status', 'pending').not('end_time', 'is', null)
+          overview.cases.timesPendingApproval = count || 0
         }
       } catch (err) {
         logger.error('getDashboardOverview: cases failed', { error: err })

@@ -109,6 +109,7 @@
  *   U69 N31/D40: kunden booker besigtigelse i portalen → CRM-opgave (ingen kundemail uden flag); interne kundeopgaver
  *       hverken vises eller ligger i portalens sidedata
  *   U70 N36: dashboardets "Aktive Sager" = antal aktive sager; ingen links til /customers|/offers|/projects (404)
+ *   U72 N28: styringscockpittet viser antal timeregistreringer der afventer godkendelse (link til Godkend timer)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -148,7 +149,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U62', 'U63', 'U66', 'U67', 'U72'],
   economy: ['U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -2173,6 +2174,25 @@ ${m.text()}`) })
         r.kontor_ser_priser = (await a.page.getByRole('columnheader', { name: 'Kostpris' }).count()) > 0 && (await a.page.getByRole('button', { name: /^Handlinger/ }).count()) > 0
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u40-montor-materialer.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U40 montør: egen sag uden priser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U72 N28: styringscockpittet viser antal timeregistreringer der afventer godkendelse (time_logs.approve)
+      if (want('U72') && jobCaseId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const { data: wo } = await c.admin.from('work_orders').select('id').eq('case_id', jobCaseId).limit(1).maybeSingle()
+        const woId = (wo as { id?: string } | null)?.id
+        const t0 = new Date(Date.now() - 5 * 3600_000).toISOString(), t1 = new Date(Date.now() - 4 * 3600_000).toISOString()
+        const ins = woId ? await c.admin.from('time_logs').insert([{ employee_id: jobEmployeeId, work_order_id: woId, start_time: t0, end_time: t1 }]).select('id') : null
+        const tlId = (ins?.data?.[0] as { id?: string } | undefined)?.id
+        const { count } = await c.admin.from('time_logs').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending').not('end_time', 'is', null)
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const el = a.page.getByTestId('cockpit-times-pending')
+        await el.waitFor({ timeout: 60_000 }).catch(() => {})
+        const txt = (await el.innerText().catch(() => '')).trim()
+        r.cockpit_viser_antal = !!tlId && txt.startsWith(`${count} `)
+        r.linker_til_godkendelse = (await el.getAttribute('href').catch(() => '')) === '/dashboard/time-approval'
+        if (tlId) await c.admin.from('time_logs').delete().eq('id', tlId)
+        out.push({ id: 'U72 N28 cockpit: timer afventer godkendelse', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · vist="${txt}" forventet=${count}` })
       }
 
       // U62 N2: timegodkendelse — montør registrerer (U11) → admin afviser med begrundelse → montør ser "Afvist" → godkend
