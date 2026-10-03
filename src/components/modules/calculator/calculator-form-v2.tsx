@@ -14,6 +14,8 @@ interface CalculatorFormV2Props {
   products: SolarProductsByType
   defaultValues: CalculatorInputV2
   onCalculate: (input: CalculatorInputV2) => void
+  /** D51: avance-skyderen kun for kostpris-roller (salg bruger standardavancen) */
+  showInternal?: boolean
 }
 
 const LABELS = {
@@ -32,6 +34,7 @@ export function CalculatorFormV2({
   products,
   defaultValues,
   onCalculate,
+  showInternal = true,
 }: CalculatorFormV2Props) {
   const [values, setValues] = useState<CalculatorInputV2>(defaultValues)
 
@@ -186,8 +189,8 @@ export function CalculatorFormV2({
       <div className="space-y-4">
         <h3 className="font-semibold text-lg border-b pb-2">Prissætning</h3>
 
-        {/* Margin */}
-        <div className="space-y-1">
+        {/* Margin — D51: kun kostpris-roller */}
+        {showInternal && <div className="space-y-1">
           <label htmlFor="margin" className="text-sm font-medium">
             {LABELS.margin}: {Math.round(values.margin * 100)}%
           </label>
@@ -205,7 +208,7 @@ export function CalculatorFormV2({
             <span>0%</span>
             <span>50%</span>
           </div>
-        </div>
+        </div>}
 
         {/* Discount */}
         <div className="space-y-1">

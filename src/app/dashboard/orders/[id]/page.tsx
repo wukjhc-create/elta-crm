@@ -91,6 +91,8 @@ export default async function OrderDetailPage({
   }
 
   const canSeeCost = await pageHasPermission('economy.cost_prices')
+  // D50 — kost pr. timeregistrering afslører medarbejderens kostsats: kun løn-adgang (ellers aggregeret)
+  const canSeeLaborCostDetail = await pageHasPermission('employees.payroll.view')
   // Sprint Ø3.1 — kost-fri faktureringsstatus + fakturakladde-adgang (bred).
   const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
   // Sprint Ø3.4 — må brugeren faktisk oprette faktura? Styrer UX-disabled-state
@@ -113,6 +115,7 @@ export default async function OrderDetailPage({
       creator={creator}
       plannedWorkOrderCount={plannedCount}
       canSeeCost={canSeeCost}
+      canSeeLaborCostDetail={canSeeLaborCostDetail}
       canSeeBilling={canSeeBilling}
       canCreateInvoice={canCreateInvoice}
       canAddNote={canAddNote}

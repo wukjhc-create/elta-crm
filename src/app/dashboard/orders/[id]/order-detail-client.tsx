@@ -78,6 +78,7 @@ export function OrderDetailClient({
   creator,
   plannedWorkOrderCount = 0,
   canSeeCost = false,
+  canSeeLaborCostDetail = false,
   canSeeBilling = false,
   canCreateInvoice = false,
   canAddNote = false,
@@ -91,6 +92,8 @@ export function OrderDetailClient({
   plannedWorkOrderCount?: number
   /** Sprint Ø2.10 — economy.cost_prices: gate til intern kost / DB. */
   canSeeCost?: boolean
+  /** D50 — employees.payroll.view: kost pr. timeregistrering (ellers kun aggregeret). */
+  canSeeLaborCostDetail?: boolean
   /** Sprint Ø3.1 — invoices.view.own_cases: kost-fri faktureringsstatus + fakturakladde. */
   canSeeBilling?: boolean
   /** Sprint Ø3.4 — invoices.create: styrer om opret-knapper er aktive. */
@@ -249,6 +252,7 @@ export function OrderDetailClient({
               caseTitle={sag.title}
               caseDefaultEmployeeId={sag.formand_id ?? null}
               canSeeCost={canSeeCost}
+              canSeeLaborCostDetail={canSeeLaborCostDetail}
             />
           )}
           {active === 'aflevering' && <OrderHandoverTab caseId={sag.id} />}

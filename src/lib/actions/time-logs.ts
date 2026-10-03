@@ -30,6 +30,7 @@ import {
   formatError,
 } from '@/lib/actions/action-helpers'
 import { getWorkOrderScope } from '@/lib/auth/case-scope'
+import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import type { ActionResult } from '@/types/common.types'
@@ -443,6 +444,44 @@ export async function updateTimeLog(
   }
 }
 
+// ===== Read — aggregeret kost (D50) =====
+
+/**
+ * D50: aggregeret intern timekost for én sag (sum af frosne cost_amount) — economy.cost_prices + time_logs.view.all.
+ * Kost pr. række/medarbejder kræver employees.payroll.view (se stripTimeLogPrices).
+ */
+export async function getCaseLaborCostTotal(caseId: string): Promise<ActionResult<{ cost: number }>> {
+  try {
+    validateUUID(caseId, 'sag ID')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('economy.cost_prices') || !hasPermission('time_logs.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: economy.cost_prices' }
+    }
+    const { data: wos, error: woErr } = await supabase.from('work_orders').select('id').eq('case_id', caseId)
+    if (woErr) {
+      logger.error('getCaseLaborCostTotal: work_orders failed', { error: woErr })
+      return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
+    }
+    const ids = (wos || []).map((w: { id: string }) => w.id)
+    if (ids.length === 0) return { success: true, data: { cost: 0 } }
+    let cost = 0
+    // paginér (PostgREST-loft 1000 rækker)
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('time_logs').select('cost_amount').in('work_order_id', ids)
+        .order('id').range(from, from + 999)
+      if (error) {
+        logger.error('getCaseLaborCostTotal: time_logs failed', { error })
+        return { success: false, error: 'Kunne ikke hente timeregistreringer' }
+      }
+      for (const r of data || []) cost += Number((r as { cost_amount: number | string | null }).cost_amount ?? 0)
+      if (!data || data.length < 1000) break
+    }
+    return { success: true, data: { cost: Math.round(cost * 100) / 100 } }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
 // ===== Helpers =====
 
 /**
@@ -452,7 +491,10 @@ export async function updateTimeLog(
 function stripTimeLogPrices(rows: TimeLogWithEmployee[], hasPermission: (p: Permission) => boolean): TimeLogWithEmployee[] {
   const cost = hasPermission('economy.cost_prices')
   const sale = cost || hasPermission('invoices.view.own_cases')
-  if (cost) return rows
+  // D50 (privacy): kost pr. række afslører medarbejderens kostsats (kost / timer) — kun employees.payroll.view.
+  // Kostpris-roller uden løn-adgang (serviceleder, bogholderi) får aggregeret kost via getCaseLaborCostTotal.
+  if (cost && hasPermission('employees.payroll.view')) return rows
+  if (cost) return rows.map((r) => ({ ...r, cost_amount: null, cost_rate_snapshot: null }))
   return rows.map((r) => ({
     ...r,
     cost_amount: null,

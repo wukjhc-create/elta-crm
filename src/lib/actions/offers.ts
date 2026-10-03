@@ -1171,6 +1171,10 @@ export async function importCalculationToOffer(
     if (!hasPermission('offers.edit')) {
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
     }
+    // D48: kalkulationer er kun for tools.calculations (ikke salg)
+    if (!hasPermission('tools.calculations')) {
+      return { success: false, error: 'Manglende tilladelse: tools.calculations' }
+    }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(calculationId, 'kalkulation ID')
 
@@ -1964,7 +1968,13 @@ export async function searchSupplierProductsLive(
       }
     }
 
-    return { success: true, data: allProducts.slice(0, limit * 2) }
+    const live = allProducts.slice(0, limit * 2)
+    // D44 (privacy/RBAC): live-API-priser er netto — kost/avance kun for offers.view.cost_prices (fallback-grenene
+    // stripper allerede via searchSupplierProductsForOffer)
+    if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
+      return { success: true, data: live.map((p) => ({ ...p, cost_price: 0, margin_percentage: 0 })) }
+    }
+    return { success: true, data: live }
   } catch (err) {
     return { success: false, error: formatError(err, 'Live søgning fejlede') }
   }

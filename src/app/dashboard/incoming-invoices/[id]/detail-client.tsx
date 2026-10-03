@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   approveIncomingInvoiceAction,
@@ -13,6 +13,7 @@ import {
   setIncomingInvoiceCaseAction,
   postIncomingInvoiceToEconomicAction,
   getIncomingInvoiceFileUrlAction,
+  revealIncomingInvoiceIbanAction,
   type IncomingInvoiceDetail,
 } from '@/lib/actions/incoming-invoices'
 import { useUserRole } from '@/lib/hooks/use-user-role'
@@ -57,6 +58,8 @@ export function IncomingInvoiceDetailClient({
 }) {
   const router = useRouter()
   const { role } = useUserRole()
+  // PV9: fuld IBAN kun for bank.view (admin, bogholderi) — serveren håndhæver også
+  const canRevealIban = role === 'admin' || role === 'bogholderi'
   const isAdmin = role === 'admin'
   const [detail, setDetail] = useState<IncomingInvoiceDetail>(initial)
   const [busy, startTransition] = useTransition()
@@ -312,7 +315,7 @@ export function IncomingInvoiceDetailClient({
           <Row label="Moms"               value={fmtAmount(inv.vat_amount, inv.currency)} />
           <Row label="Beløb incl moms"    value={fmtAmount(inv.amount_incl_vat, inv.currency)} />
           <Row label="Betalingsreference" value={<span className="font-mono">{inv.payment_reference ?? '—'}</span>} />
-          <Row label="IBAN"               value={<span className="font-mono">{inv.iban ?? '—'}</span>} />
+          <Row label="IBAN"               value={<IbanValue invoiceId={inv.id} masked={inv.iban} canReveal={canRevealIban} />} />
         </Panel>
 
         <Panel title="Match resultat">
@@ -668,4 +671,36 @@ function StatusBadge({ value }: { value: string }) {
     : value === 'awaiting_approval' ? 'bg-blue-100 text-blue-800'
     : 'bg-gray-100 text-gray-700'
   return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${colour}`}>{value}</span>
+}
+
+/** PV9: IBAN maskeret; "Vis" (bank.view) henter den fulde værdi og skjuler den igen ved vindues-/fanebytte. */
+function IbanValue({ invoiceId, masked, canReveal }: { invoiceId: string; masked: string | null; canReveal: boolean }) {
+  const [full, setFull] = useState<string | null>(null)
+  useEffect(() => {
+    const hide = () => setFull(null)
+    const onVis = () => { if (document.visibilityState === 'hidden') hide() }
+    window.addEventListener('blur', hide)
+    document.addEventListener('visibilitychange', onVis)
+    return () => { window.removeEventListener('blur', hide); document.removeEventListener('visibilitychange', onVis) }
+  }, [])
+  if (!masked) return <span className="font-mono">—</span>
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="font-mono" data-testid="iban-value">{full ?? masked}</span>
+      {canReveal && (
+        <button
+          type="button"
+          className="text-xs text-emerald-700 hover:underline"
+          data-testid="iban-reveal"
+          onClick={async () => {
+            if (full) { setFull(null); return }
+            const r = await revealIncomingInvoiceIbanAction(invoiceId)
+            if (r.ok) setFull(r.iban)
+          }}
+        >
+          {full ? 'Skjul' : 'Vis'}
+        </button>
+      )}
+    </span>
+  )
 }

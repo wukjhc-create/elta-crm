@@ -51,7 +51,7 @@ export async function getCalculations(
   filters?: CalculationFilters
 ): Promise<ActionResult<PaginatedResponse<CalculationWithRelations>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations') // D48: før intet tilladelsestjek (alle indloggede)
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -137,7 +137,7 @@ export async function getCalculation(
   id: string
 ): Promise<ActionResult<CalculationWithRelations>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations') // D48: før intet tilladelsestjek (alle indloggede)
     validateUUID(id, 'kalkulation ID')
 
     const { data, error } = await supabase
@@ -451,7 +451,7 @@ export async function getCalculationsForSelect(): Promise<
   ActionResult<{ id: string; name: string; final_amount: number }[]>
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations') // D48: før intet tilladelsestjek (alle indloggede)
 
     const { data, error } = await supabase
       .from('calculations')
@@ -477,7 +477,7 @@ export async function getCalculationRows(
   calculationId: string
 ): Promise<ActionResult<CalculationRowWithRelations[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.calculations') // D48: før intet tilladelsestjek (alle indloggede)
     validateUUID(calculationId, 'kalkulation ID')
 
     const { data, error } = await supabase

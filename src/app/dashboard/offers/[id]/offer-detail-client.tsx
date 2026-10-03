@@ -737,6 +737,8 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     <Package className="w-4 h-4" />
                     Fra leverandør
                   </button>
+                  {/* D48: kalkulationer kun for kostpris-roller (ikke salg) */}
+                  {showFinancials && (
                   <button
                     onClick={handleOpenCalculationPicker}
                     className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-primary border rounded px-2 py-1"
@@ -744,6 +746,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                     <Calculator className="w-4 h-4" />
                     Fra kalkulation
                   </button>
+                  )}
                   <button
                     onClick={() => setShowSupplierSearch(!showSupplierSearch)}
                     className={`inline-flex items-center gap-1 text-sm border rounded px-2 py-1 ${showSupplierSearch ? 'bg-blue-50 text-blue-700 border-blue-300' : 'text-gray-600 hover:text-primary'}`}

@@ -29,11 +29,14 @@ import type {
 interface CalculatorPageClientV2Props {
   products: SolarProductsByType
   assumptions: SolarAssumptions
+  /** D51: offers.view.cost_prices */
+  showInternal?: boolean
 }
 
 export function CalculatorPageClientV2({
   products,
   assumptions,
+  showInternal = false,
 }: CalculatorPageClientV2Props) {
   // Initialize with default input based on available products
   const defaultInput = getDefaultInputV2(products)
@@ -201,6 +204,7 @@ export function CalculatorPageClientV2({
               products={products}
               defaultValues={currentInput}
               onCalculate={handleCalculate}
+              showInternal={showInternal}
             />
           </div>
         </div>
@@ -209,7 +213,7 @@ export function CalculatorPageClientV2({
         <div className="lg:col-span-2 space-y-6">
           {results ? (
             <>
-              <ResultsPanel results={results} />
+              <ResultsPanel results={results} showInternal={showInternal} />
               <SavingsChart
                 projections={results.yearlyProjections}
                 totalPrice={results.totalPrice}

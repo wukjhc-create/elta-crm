@@ -24,6 +24,7 @@ import type {
 } from '@/types/case-materials.types'
 import { formatCurrency } from '@/lib/utils/format'
 import { CaseMaterialDialog } from './case-material-dialog'
+import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 
 const SOURCE_LABEL: Record<string, string> = {
   manual: 'Manuel',
@@ -78,6 +79,9 @@ export function OrderMaterialsTab({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<CaseMaterialRow | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  // PV8 shoulder-surfing: kost/DB foldet sammen som standard, også for roller med adgang
+  const [costOpen, toggleCost] = useCostReveal()
+  const showCost = canSeePrices && costOpen
 
   const reload = useCallback(async () => {
     setLoadError(null)
@@ -126,6 +130,8 @@ export function OrderMaterialsTab({
               : 'Faktisk forbrug på sagen. Priser sættes af kontoret.'}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        {canSeePrices && <CostRevealToggle open={costOpen} onToggle={toggleCost} />}
         {canAdd && (
         <button
           type="button"
@@ -139,6 +145,7 @@ export function OrderMaterialsTab({
           Tilføj materiale
         </button>
         )}
+        </div>
       </div>
 
       {loadError && (
@@ -210,9 +217,9 @@ export function OrderMaterialsTab({
                 <th className="px-2 py-2 text-left">Enhed</th>
                 {canSeePrices && (
                   <>
-                    <th className="px-2 py-2 text-right">Kostpris</th>
+                    {showCost && <th className="px-2 py-2 text-right">Kostpris</th>}
                     <th className="px-2 py-2 text-right">Salgspris</th>
-                    <th className="px-2 py-2 text-right">Sum kost</th>
+                    {showCost && <th className="px-2 py-2 text-right">Sum kost</th>}
                     <th className="px-2 py-2 text-right">Sum salg</th>
                   </>
                 )}
@@ -255,15 +262,19 @@ export function OrderMaterialsTab({
                     <td className="px-2 py-2 text-xs text-gray-600">{r.unit}</td>
                     {canSeePrices && (
                       <>
+                        {showCost && (
                         <td className="px-2 py-2 text-right tabular-nums">
                           {formatCurrency(r.unit_cost, 'DKK', 2)}
                         </td>
+                        )}
                         <td className="px-2 py-2 text-right tabular-nums">
                           {formatCurrency(r.unit_sales_price, 'DKK', 2)}
                         </td>
+                        {showCost && (
                         <td className="px-2 py-2 text-right tabular-nums font-medium">
                           {formatCurrency(r.total_cost, 'DKK', 2)}
                         </td>
+                        )}
                         <td className="px-2 py-2 text-right tabular-nums font-medium">
                           {formatCurrency(r.total_sales_price, 'DKK', 2)}
                         </td>
@@ -320,18 +331,21 @@ export function OrderMaterialsTab({
             {summary && canSeePrices && (
               <tfoot className="bg-gray-50 text-sm">
                 <tr className="border-t-2 border-gray-200">
-                  <td colSpan={7} className="px-3 py-2 text-right text-xs text-gray-600 uppercase tracking-wide">
+                  <td colSpan={showCost ? 7 : 6} className="px-3 py-2 text-right text-xs text-gray-600 uppercase tracking-wide">
                     Total ({summary.count} {summary.count === 1 ? 'linje' : 'linjer'})
                   </td>
+                  {showCost && (
                   <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-900">
                     {formatCurrency(summary.total_cost, 'DKK', 2)}
                   </td>
+                  )}
                   <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-900">
                     {formatCurrency(summary.total_sales_price, 'DKK', 2)}
                   </td>
                   <td colSpan={2} />
                 </tr>
-                <tr>
+                {showCost && (
+                <tr data-testid="materials-db-row">
                   <td colSpan={7} className="px-3 py-1 text-right text-xs text-gray-600 uppercase tracking-wide">
                     Foreløbig DB
                   </td>
@@ -361,6 +375,7 @@ export function OrderMaterialsTab({
                   </td>
                   <td colSpan={2} />
                 </tr>
+                )}
               </tfoot>
             )}
           </table>

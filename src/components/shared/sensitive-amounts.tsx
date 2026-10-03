@@ -46,3 +46,34 @@ export function Sensitive({ children }: { children: React.ReactNode }) {
     ? <span data-testid="sensitive-value">{children}</span>
     : <span className="tracking-widest text-gray-400 select-none" data-testid="sensitive-masked" aria-label="skjult">••••••</span>
 }
+
+/**
+ * Shoulder-surfing for roller MED adgang: kost/DB-kolonner er sammenfoldet som standard og skal aktivt foldes ud
+ * ("Vis kost/DB"); de foldes automatisk sammen igen når vinduet/fanen skjules.
+ */
+export function useCostReveal(): [boolean, () => void] {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const hide = () => setOpen(false)
+    const onVis = () => { if (document.visibilityState === 'hidden') hide() }
+    window.addEventListener('blur', hide)
+    document.addEventListener('visibilitychange', onVis)
+    return () => { window.removeEventListener('blur', hide); document.removeEventListener('visibilitychange', onVis) }
+  }, [])
+  return [open, () => setOpen((v) => !v)]
+}
+
+export function CostRevealToggle({ open, onToggle, label = 'kost/DB' }: { open: boolean; onToggle: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50"
+      data-testid="cost-reveal-toggle"
+      aria-pressed={open}
+    >
+      {open ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+      {open ? `Skjul ${label}` : `Vis ${label}`}
+    </button>
+  )
+}

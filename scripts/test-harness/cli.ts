@@ -654,6 +654,25 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'columns') {
+    // Read-only: kolonner for én eller flere tabeller på staging (schema-tjek før kode skrives mod en tabel).
+    for (const raw of process.argv.slice(3)) {
+      const table = raw.replace(/[^a-z0-9_]/g, '')
+      const rows = await stagingSql(`SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' ORDER BY ordinal_position`)
+      log(`${table}: ${rows.map((r) => `${r.column_name}:${r.data_type}${r.is_nullable === 'NO' ? '!' : ''}`).join(', ')}`)
+    }
+    return
+  }
+  if (SUB === 'rls-policies') {
+    // Read-only: RLS-policies + rækkeantal for én tabel på staging (fejlsøgning af rolle-synlighed).
+    const table = (process.argv[3] ?? '').replace(/[^a-z0-9_]/g, '')
+    if (!table) { log('brug: rls-policies <tabel>'); process.exitCode = 1; return }
+    const rows = await stagingSql(`SELECT policyname, cmd, roles::text, qual, with_check FROM pg_policies WHERE schemaname = 'public' AND tablename = '${table}' ORDER BY cmd, policyname`)
+    for (const r of rows) log(`${String(r.cmd).padEnd(7)} ${String(r.policyname).padEnd(48)} roles=${r.roles} using=${r.qual ?? '—'} check=${r.with_check ?? '—'}`)
+    const n = await stagingSql(`SELECT count(*)::int n, count(*) FILTER (WHERE is_active)::int active FROM public.${table}`).catch(() => [])
+    log(`rækker: ${JSON.stringify(n[0] ?? {})}`)
+    return
+  }
   if (SUB === 'test-users') {
     // Read-only: profiler pr. rolle og e-mail-mønster på staging (efterladte testbrugere?) — kun antal.
     const rows = await stagingSql(`SELECT p.role, split_part(coalesce(u.email, ''), '@', 2) dom,

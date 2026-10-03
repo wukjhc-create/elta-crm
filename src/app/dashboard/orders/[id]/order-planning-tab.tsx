@@ -11,9 +11,10 @@ import {
   type WorkOrderWithEmployee,
 } from '@/lib/actions/work-orders'
 import { getEmployeesForOrderSelect } from '@/lib/actions/service-cases'
-import { listTimeLogsForCase } from '@/lib/actions/time-logs'
+import { getCaseLaborCostTotal, listTimeLogsForCase } from '@/lib/actions/time-logs'
 import type { WorkOrderStatus } from '@/types/workforce.types'
 import { WorkOrderTimeLogs } from './work-order-time-logs'
+import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 
 const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   planned: 'Planlagt',
@@ -47,12 +48,15 @@ export function OrderPlanningTab({
   caseTitle,
   caseDefaultEmployeeId,
   canSeeCost = false,
+  canSeeLaborCostDetail = false,
 }: {
   caseId: string
   caseTitle: string
   caseDefaultEmployeeId?: string | null
   /** Sprint Ø2.10 — gate til intern kost / DB (economy.cost_prices). */
   canSeeCost?: boolean
+  /** D50 — employees.payroll.view: kost/DB pr. timeregistrering; ellers kun sagens aggregerede kost. */
+  canSeeLaborCostDetail?: boolean
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -77,16 +81,21 @@ export function OrderPlanningTab({
 
   // Inline create form state
   const [showForm, setShowForm] = useState(false)
+  // PV8 shoulder-surfing: intern kost/DB (sagstotal + timeregistreringer) foldet sammen som standard
+  const [costOpen, toggleCost] = useCostReveal()
+  const showCost = canSeeCost && costOpen
   const [formTitle, setFormTitle] = useState('')
   const [formDate, setFormDate] = useState('')
   const [formEmployee, setFormEmployee] = useState<string>(caseDefaultEmployeeId ?? '')
   const [formDescription, setFormDescription] = useState('')
 
   const reload = async () => {
-    const [woRes, empRes, logsRes] = await Promise.all([
+    const [woRes, empRes, logsRes, costRes] = await Promise.all([
       listWorkOrdersForCase(caseId),
       getEmployeesForOrderSelect(),
       listTimeLogsForCase(caseId),
+      // D50: aggregeret kost fra serveren (rækkerne har ingen kost uden løn-adgang)
+      canSeeCost ? getCaseLaborCostTotal(caseId) : Promise.resolve(null),
     ])
     if (woRes.success && woRes.data) setWorkOrders(woRes.data)
     else setError(woRes.error || 'Kunne ikke hente arbejdsordrer')
@@ -96,7 +105,7 @@ export function OrderPlanningTab({
       setCaseTotals({
         count: logs.length,
         hours: logs.reduce((s, l) => s + (l.hours ?? 0), 0),
-        cost: logs.reduce((s, l) => s + (l.cost_amount ?? 0), 0),
+        cost: costRes?.success && costRes.data ? costRes.data.cost : logs.reduce((s, l) => s + (l.cost_amount ?? 0), 0),
         sale: logs.reduce(
           (s, l) =>
             s +
@@ -310,7 +319,7 @@ export function OrderPlanningTab({
               <span>
                 {caseTotals.hours.toLocaleString('da-DK', { maximumFractionDigits: 2 })} t
               </span>
-              {canSeeCost && caseTotals.cost > 0 && (
+              {showCost && caseTotals.cost > 0 && (
                 <>
                   <span className="text-gray-400">·</span>
                   <span>
@@ -340,7 +349,7 @@ export function OrderPlanningTab({
                   </span>
                 </>
               )}
-              {canSeeCost && caseTotals.sale > 0 && caseTotals.cost > 0 && (
+              {showCost && caseTotals.sale > 0 && caseTotals.cost > 0 && (
                 <>
                   <span className="text-gray-400">·</span>
                   <span>
@@ -361,6 +370,11 @@ export function OrderPlanningTab({
                   </span>
                 </>
               )}
+              {canSeeCost && (
+                <span className="ml-auto">
+                  <CostRevealToggle open={costOpen} onToggle={toggleCost} />
+                </span>
+              )}
             </div>
           )}
 
@@ -370,7 +384,7 @@ export function OrderPlanningTab({
                 key={wo.id}
                 caps={caps}
                 wo={wo}
-                canSeeCost={canSeeCost}
+                canSeeCost={showCost && canSeeLaborCostDetail}
                 onChangeStatus={onChangeStatus}
                 onDelete={onDelete}
                 disabled={isWorking}

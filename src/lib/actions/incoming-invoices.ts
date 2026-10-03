@@ -159,6 +159,8 @@ export async function getIncomingInvoiceDetailAction(id: string): Promise<Incomi
   if (!hasPermission('incoming_invoices.view')) return null
   const invoice = await getInvoiceById(id)
   if (!invoice) return null
+  // PV9 (privacy): leverandørens IBAN maskeres altid (sidste 4); fuld visning via revealIncomingInvoiceIbanAction
+  invoice.iban = maskIban(invoice.iban)
 
   // Sprint Ø9.0 — har-bilag beregnes FØR redaction; rå storage-URL redactes ud
   // af payloaden (storage-objekter må KUN nås via getIncomingInvoiceFileUrlAction
@@ -1202,4 +1204,20 @@ export async function uploadIncomingInvoiceAction(formData: FormData): Promise<{
     logger.error('uploadIncomingInvoiceAction failed', { error: err })
     return { ok: false, message: 'Der opstod en fejl ved upload' }
   }
+}
+
+/** PV9: maskér IBAN til de sidste 4 tegn. */
+function maskIban(iban: string | null | undefined): string | null {
+  if (!iban) return null
+  const compact = iban.replace(/\s+/g, '')
+  return compact.length <= 4 ? '••••' : `•••• ${compact.slice(-4)}`
+}
+
+/** PV9: fuld IBAN for én leverandørfaktura — kun bank.view (admin, bogholderi), aktivt valgt i UI'et. */
+export async function revealIncomingInvoiceIbanAction(id: string): Promise<{ ok: true; iban: string | null } | { ok: false; message: string }> {
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('bank.view')) return { ok: false, message: 'Manglende tilladelse: bank.view' }
+  const invoice = await getInvoiceById(id)
+  if (!invoice) return { ok: false, message: 'Faktura ikke fundet' }
+  return { ok: true, iban: invoice.iban ?? null }
 }

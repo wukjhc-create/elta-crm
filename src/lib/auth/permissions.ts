@@ -90,7 +90,9 @@ export const PERMISSIONS = {
   'employees.edit': ['admin'],
 
   // Tools / advanced features
-  'tools.calculations': ['admin', 'serviceleder', 'salg'],
+  // D48 (Henrik 2026-10-03): kalkulationsværktøjet er en kostmodel (DB, avance, lønkost) → ikke salg.
+  // Salg prissætter via tilbud/salgspriser.
+  'tools.calculations': ['admin', 'serviceleder'],
   'tools.ai_project': ['admin', 'serviceleder'],
   'tools.products': ['admin', 'serviceleder', 'salg'],
   'tools.pricing': ['admin', 'serviceleder'],
