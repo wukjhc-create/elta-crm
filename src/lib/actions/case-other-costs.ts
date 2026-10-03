@@ -8,6 +8,7 @@
  * catalog lookup. Delete + edit gated by invoice_line_id.
  */
 
+import { getStorageSignedUrls } from '@/lib/storage/signed-url'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { revalidatePath } from 'next/cache'
 import {
@@ -103,9 +104,17 @@ export async function listCaseOtherCosts(
       total_sales_price > 0 ? (contribution_margin_raw / total_sales_price) * 100 : 0
 
     // Sprint 7E — strip kostpriser hvis user mangler permission
-    const rows = canSeeCostPrices
+    const priced = canSeeCostPrices
       ? rawRows
       : rawRows.map((r) => ({ ...r, unit_cost: 0, total_cost: 0 }))
+    // N30: uploadede kvitteringer ligger privat i storage (receipts/<sag>/…) → kortlivede signerede visnings-URL'er
+    const receiptPaths = priced.map((r) => r.receipt_url).filter((u): u is string => !!u && u.startsWith(RECEIPT_PREFIX))
+    const signedList = await getStorageSignedUrls('attachments', receiptPaths) // samme rækkefølge som stierne
+    const signed = new Map(receiptPaths.map((p, i) => [p, signedList[i] ?? null]))
+    const rows = priced.map((r) => ({
+      ...r,
+      receipt_view_url: r.receipt_url && r.receipt_url.startsWith(RECEIPT_PREFIX) ? signed.get(r.receipt_url) ?? null : r.receipt_url,
+    }))
 
     return {
       success: true,
@@ -159,6 +168,10 @@ export interface CreateCaseOtherCostInput {
  * af kontorroller. Samme prisret som visning af kostpriser (jf. case-materials). Navngivet konstant: check:rls-matrix
  * læser literal hasPermission-strenge som skrive-gates.
  */
+/** N30: privat storage-præfiks for kvitteringer på øvrige omkostninger (bucket attachments). */
+const RECEIPT_PREFIX = 'receipts/'
+const RECEIPT_MAX_BYTES = 10 * 1024 * 1024
+
 const PRICE_FIELDS_PERMISSION = 'materials.view.cost_prices' as const
 
 export async function createCaseOtherCost(
@@ -428,6 +441,36 @@ export async function deleteCaseOtherCost(id: string): Promise<ActionResult> {
 
     revalidatePath(`/dashboard/orders/${cur.case_id}`)
     return { success: true }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
+/**
+ * N30: upload af kvittering/bilag til en øvrig omkostning. Privat i storage (receipts/<sag>/…), aldrig et kunde-
+ * dokument (kundeportalen ser det ikke). Samme adgang som at registrere omkostningen: other_costs.add_to_case +
+ * egen sag for montør. Returnerer stien, som gemmes i receipt_url; visning sker via signeret URL.
+ */
+export async function uploadOtherCostReceiptAction(caseId: string, formData: FormData): Promise<ActionResult<{ path: string; filename: string }>> {
+  try {
+    validateUUID(caseId, 'case_id')
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('other_costs.add_to_case')) return { success: false, error: 'Manglende tilladelse: other_costs.add_to_case' }
+    if (!(await userCanViewCase(caseId, { role, userId, supabase }))) return { success: false, error: 'Sagen er ikke tildelt dig' }
+    const file = formData.get('file')
+    if (!(file instanceof File) || file.size === 0) return { success: false, error: 'Ingen fil valgt' }
+    if (file.size > RECEIPT_MAX_BYTES) return { success: false, error: 'Filen er for stor (max 10 MB)' }
+    if (!/^(image\/(jpeg|png|webp|heic)|application\/pdf)$/.test(file.type)) return { success: false, error: 'Kun billede (JPG/PNG/WEBP/HEIC) eller PDF' }
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80) || 'kvittering'
+    const path = `${RECEIPT_PREFIX}${caseId}/${Date.now()}-${safe}`
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { error } = await createAdminClient().storage.from('attachments')
+      .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false })
+    if (error) {
+      logger.error('uploadOtherCostReceipt failed', { error, entityId: caseId })
+      return { success: false, error: 'Kunne ikke gemme filen' }
+    }
+    return { success: true, data: { path, filename: file.name.slice(0, 200) } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

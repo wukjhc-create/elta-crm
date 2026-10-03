@@ -248,7 +248,7 @@ export function OrderOtherCostsTab({
                         )}
                         {r.receipt_url && (
                           <a
-                            href={r.receipt_url}
+                            href={r.receipt_view_url ?? r.receipt_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded hover:bg-blue-200"

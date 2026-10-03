@@ -64,6 +64,8 @@ export interface CaseOtherCostRow {
 
   receipt_url: string | null
   receipt_filename: string | null
+  /** N30: visnings-URL (signeret, kortlivet) når receipt_url er en privat storage-sti; ellers = receipt_url */
+  receipt_view_url?: string | null
 
   source: CaseOtherCostSource
   // Provenance — sat når raden er konverteret fra en leverandørfaktura-linje

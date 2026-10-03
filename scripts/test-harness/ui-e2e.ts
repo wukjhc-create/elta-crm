@@ -107,6 +107,8 @@
  *   U69 N31/D40: kunden booker besigtigelse i portalen → CRM-opgave (ingen kundemail uden flag); interne kundeopgaver
  *       hverken vises eller ligger i portalens sidedata
  *   U70 N36: dashboardets "Aktive Sager" = antal aktive sager; ingen links til /customers|/offers|/projects (404)
+ *   U71 N30: montør uploader kvittering på øvrig omkostning → privat storage-sti (ikke kundedokument); kontoret får
+ *       signeret bilag-link
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -146,7 +148,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71'],
   economy: ['U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -2223,6 +2225,38 @@ ${m.text()}`) })
         r.montoersag_med = cn !== '' && (await a.page.getByText(cn).count()) > 0
         await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
         out.push({ id: 'U66 N26b sagsrentabilitet i rapporter', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U71 N30: montør uploader kvittering på øvrig omkostning (privat storage, ikke kundedokument); kontoret ser bilaget
+      if (want('U71') && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+        const desc = `Parkering m. bilag ${stamp}`
+        await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=oevrige`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await m.page.getByRole('button', { name: 'Tilføj omkostning' }).first().click({ timeout: 30_000 }).catch(() => {})
+        const dlg = m.page.locator('[aria-labelledby="case-other-cost-dialog-title"]')
+        await dlg.getByPlaceholder('F.eks. Kørsel til Aalborg, 2 ture').fill(desc).catch(() => {})
+        await dlg.getByTestId('other-cost-receipt-file').setInputFiles({ name: 'kvittering.png', mimeType: 'image/png', buffer: png }).catch(() => {})
+        await dlg.getByTestId('other-cost-receipt-ok').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.upload_bekraeftet = (await dlg.getByTestId('other-cost-receipt-ok').count()) === 1
+        await dlg.getByRole('button', { name: 'Tilføj', exact: true }).click({ timeout: 30_000 }).catch(() => {})
+        type O = { receipt_url: string | null; receipt_filename: string | null }
+        let row: O | null = null
+        for (let i = 0; i < 20 && !row; i++) {
+          row = (await c.admin.from('case_other_costs').select('receipt_url, receipt_filename').eq('case_id', jobCaseId).eq('description', desc).maybeSingle()).data as O | null
+          if (!row) await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.privat_sti_gemt = !!row?.receipt_url?.startsWith(`receipts/${jobCaseId}/`) && row?.receipt_filename === 'kvittering.png'
+        const docs = ((await c.admin.from('customer_documents').select('id').eq('service_case_id', jobCaseId).ilike('file_name', '%kvittering%')).data ?? []) as unknown[]
+        r.ikke_kundedokument = docs.length === 0
+        await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}?tab=oevrige`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const link = a.page.locator('a', { hasText: 'Bilag' }).first()
+        await link.waitFor({ timeout: 30_000 }).catch(() => {})
+        const href = (await link.getAttribute('href').catch(() => '')) ?? ''
+        r.kontor_ser_signeret_bilag = /^https?:\/\//.test(href) && href.includes('token=')
+        if (row?.receipt_url) await c.admin.storage.from('attachments').remove([row.receipt_url])
+        out.push({ id: 'U71 N30 kvittering på øvrig omkostning', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U44 montør: "Mine timer" viser ugens egne timer (efter U11's tidsregistrering)

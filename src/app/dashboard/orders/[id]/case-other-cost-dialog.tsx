@@ -14,6 +14,7 @@ import { X, Loader2, AlertCircle } from 'lucide-react'
 import {
   createCaseOtherCost,
   updateCaseOtherCost,
+  uploadOtherCostReceiptAction,
 } from '@/lib/actions/case-other-costs'
 import {
   CASE_OTHER_COST_CATEGORIES,
@@ -78,6 +79,7 @@ export function CaseOtherCostDialog({
 }) {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [submitting, setSubmitting] = useState(false)
+  const [receiptUploading, setReceiptUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const firstInputRef = useRef<HTMLSelectElement | null>(null)
 
@@ -369,12 +371,41 @@ export function CaseOtherCostDialog({
           </div>
           </>)}
 
-          {/* Receipt fields — manual paste for now, upload UI later */}
-          <details className="rounded ring-1 ring-gray-200 bg-white text-xs">
+          {/* N30: kvittering/bilag — upload (privat, ikke synlig for kunden) eller link */}
+          <details className="rounded ring-1 ring-gray-200 bg-white text-xs" open={!canSetPrices || undefined}>
             <summary className="cursor-pointer px-3 py-1.5 text-gray-600 hover:text-gray-900 select-none">
               Bilag / kvittering (valgfri)
             </summary>
             <div className="px-3 pb-3 pt-1 space-y-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Upload kvittering (billede eller PDF)</label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+                  capture="environment"
+                  disabled={receiptUploading}
+                  data-testid="other-cost-receipt-file"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0]
+                    if (!f) return
+                    setReceiptUploading(true)
+                    setError(null)
+                    const fd = new FormData()
+                    fd.append('file', f)
+                    const r = await uploadOtherCostReceiptAction(caseId, fd)
+                    setReceiptUploading(false)
+                    if (!r.success || !r.data) { setError(r.error ?? 'Kunne ikke uploade kvittering'); return }
+                    update('receipt_url', r.data.path)
+                    update('receipt_filename', r.data.filename)
+                  }}
+                  className="block w-full text-xs"
+                />
+                {receiptUploading && <p className="text-[11px] text-gray-500 mt-1">Uploader…</p>}
+                {form.receipt_url.startsWith('receipts/') && !receiptUploading && (
+                  <p className="text-[11px] text-emerald-700 mt-1" data-testid="other-cost-receipt-ok">✓ {form.receipt_filename || 'Kvittering'} uploadet (ikke synlig for kunden)</p>
+                )}
+              </div>
+              {!form.receipt_url.startsWith('receipts/') && (<>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   URL til bilag
@@ -397,9 +428,7 @@ export function CaseOtherCostDialog({
                   className="w-full border rounded px-2 py-1.5 text-sm font-mono"
                 />
               </div>
-              <p className="text-[11px] text-gray-500">
-                Upload-knap kommer i en senere sprint. Indtast URL + filnavn manuelt indtil da.
-              </p>
+              </>)}
             </div>
           </details>
 
