@@ -157,11 +157,12 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
           ))}
         </ActivitySection>
 
-        <ActivitySection
+        {/* N36: gammel projektmodel — kun når kunden har sådanne (sager er den gældende model) */}
+        {projects.length > 0 && (<ActivitySection
           icon={<FolderKanban className="w-4 h-4" />}
-          title="Projekter"
+          title="Projekter (gammel model)"
           count={projects.length}
-          defaultOpen={projects.length > 0}
+          defaultOpen={false}
         >
           {projects.map((project) => (
             <Link
@@ -181,7 +182,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
               </div>
             </Link>
           ))}
-        </ActivitySection>
+        </ActivitySection>)}
 
         <ActivitySection
           icon={<Send className="w-4 h-4" />}

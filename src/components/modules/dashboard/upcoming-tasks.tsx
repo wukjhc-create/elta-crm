@@ -40,7 +40,7 @@ export function UpcomingTasks({ tasks }: UpcomingTasksProps) {
         return (
           <Link
             key={task.id}
-            href={`/dashboard/projects/${task.project_id}`}
+            href={`/dashboard/tasks?taskId=${task.id}`}
             className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
           >
             <div

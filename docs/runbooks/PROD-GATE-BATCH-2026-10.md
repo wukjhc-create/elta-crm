@@ -1,5 +1,7 @@
 # Prod-gate-batch (oktober 2026) — samlet pre/post-køreplan 00175–00183
 
+> **STATUS 2026-10-03: hele batchen 00175–00183 er KØRT i prod** (09:52–10:00, i køreplanens rækkefølge, alle pre/post grønne, samlet post 6/6). Udestår kun trin 2b (Vercel-env, Henrik).
+
 Alt herunder er færdigt og verificeret på staging og venter KUN på Henriks godkendelse. Koden der matcher hver
 migration er allerede på main/prod (expand/contract — ingen deploy i batchen, undtagen trin 2b's env-flag).
 
@@ -68,9 +70,19 @@ bruger objekter fra en anden i batchen.
 |---|---|---|
 | **00184** D26: `customer_documents.visible_to_customer` (sagsfotos/mailbilag interne som standard, aktivt "Del med kunde") | Staging ✅, kode på branch `d26-internal-case-docs` (ikke main) | **Migration FØRST, derefter merge af branchen** (koden filtrerer på kolonnen). Prod-effekt (read-only 2026-10-02): 18 dokumenter; 3 mailbilag bliver interne, 15 forbliver synlige, 0 sagsuploads. Pre: `npx tsx scripts/prod-case-upload-docs.ts`. Post: `columns customer_documents` + U59 |
 | **00186** D28: bogholderi læser kun mails koblet til en kunde eller kilde til en leverandørfaktura (ikke hele postkassen) | Staging ✅ (rls-read L12), app-del på main | **Efter 00180** (erstatter dens mail-policy). Ingen kodeafhængighed. Prod-effekt (read-only 2026-10-02): bogholderi 805 → 241 mails (214 kundekoblede + 27 fakturakilder). Pre/post: `npx tsx scripts/prod-verify-00186.ts pre|post` |
+| **00185** N2: timegodkendelse (`time_logs.approval_status` + trigger der beskytter godkendelsesfelterne) | Staging ✅ (rls-read L13), kode på branch `n2-time-approval` | **Migration FØRST, derefter merge af branchen.** Eksisterende timer markeres godkendt (ingen kø). Ingen løn-/faktureringseffekt. Post: `columns time_logs` + trigger `trg_time_logs_approval_guard` findes; U62 |
 | Vercel-env `INVOICE_ATTACHMENT_FETCH_ENABLED=true` (fakturabilag fra mail) | Klar | Baseline: `prod-invoice-attachment-baseline.ts` → post: `prod-backfill-status.ts` (invoice-attachment-backfill.md) |
 | Aktivering af døde crons (unanswered-mails, offer-reminders = KUNDEMAIL, supplier-sync) | Kræver separat godkendelse | — |
 | Live e-conomic-bogføring | Kræver nøgler + godkendelse | Kun preview/mapping i dag |
 
 **Før pilot (drift, ikke kode):** G11. Montør #2's login skal kobles til en medarbejder
 (Medarbejder → Rediger → Login). Verificér med `npx tsx scripts/prod-montor-linkage.ts`.
+
+## Feature-branches (2026-10-02)
+
+| Branch | Indhold | Migration? | Merge til main |
+|---|---|---|---|
+| `webform-inquiries` | D37 webhenvendelser (kontaktformular var hard-ignoreret), N24a retro-kobling af kundemails, N24b behandl ventende mails | Nej | Efter e2e (U64, U65) + build — ingen prod-gate |
+| `n23-case-status` | N23 sagsstatus følger arbejdet, N26a timer/budget fra tilbud, N26b rapport på sager, N32 menupunkt | Nej | Efter e2e (U63, U66) + build — ingen prod-gate |
+| `d26-internal-case-docs` | D26 sagsdokumenter interne som standard | 00184 | Først EFTER prod-00184 |
+| `n2-time-approval` | N2 timegodkendelse | 00185 | Først EFTER prod-00185 |

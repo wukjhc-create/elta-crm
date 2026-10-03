@@ -34,6 +34,15 @@ const APPROVED: Record<string, string> = {
   '00172': '2026-10-01', // P-009 RLS-skrivelaas runde 2B, godkendt af Henrik i chat 2026-10-01
   '00173': '2026-10-01', // P-009 RLS-skrivelaas runde 3A, godkendt af Henrik i chat 2026-10-01
   '00174': '2026-10-01', // P-009 RLS-skrivelaas runde 3B, godkendt af Henrik i chat 2026-10-01
+  '00180': '2026-10-03', // G10 montoer-mailscope + serviceleder ser medarbejdere, godkendt af Henrik i chat 2026-10-03 (koeres foerst)
+  '00181': '2026-10-03', // P-009 WAVE5 work_orders (montoer kun egne), godkendt af Henrik i chat 2026-10-03
+  '00175': '2026-10-03', // P-009 laese-lockdown A1 (tokens, beskeder), godkendt af Henrik i chat 2026-10-03
+  '00176': '2026-10-03', // P-009 laese-lockdown A2 (integrationshemmeligheder), godkendt af Henrik i chat 2026-10-03
+  '00177': '2026-10-03', // P-009 laese-lockdown A3 (bekraeftelses-tokens, underskrifter), godkendt af Henrik i chat 2026-10-03
+  '00179': '2026-10-03', // P-009 laese-lockdown A4 (firma-/e-conomic-hemmeligheder), godkendt af Henrik i chat 2026-10-03
+  '00178': '2026-10-03', // P-009 WAVE4 (kalkulations-/katalogtabeller), godkendt af Henrik i chat 2026-10-03
+  '00182': '2026-10-03', // D2 audit-identitet, godkendt af Henrik i chat 2026-10-03
+  '00183': '2026-10-03', // N4 trigram-indeks (uden for 02:00-sync), godkendt af Henrik i chat 2026-10-03
 }
 
 async function main() {

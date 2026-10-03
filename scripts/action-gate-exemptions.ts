@@ -46,7 +46,7 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'partner-portal.ts:validatePartnerToken': S('token-validering brugt server-side af partnerportalen'),
   'portal.ts:validatePortalToken': S('token-validering brugt server-side af portalen'),
   'portal.ts:getPortalOffer': S('læses server-side af portalsiden efter token-validering'),
-  'portal.ts:portalBookBesigtigelse': S('kaldes server-side fra portalens bookingflow'),
+  'portal.ts:portalBookBesigtigelse': T('kunden booker besigtigelse via portal-token (N31; validering + maks 3 åbne; kundemail gated)'),
   'projects.ts:createProjectFromOffer': S('kaldes af gatet tilbuds-flow'),
   'system-alerts-admin.ts:createSystemAlertAdmin': S('intern alarm-skrivning (service-role)'),
   // ---- token-valideret ekstern kunde (portal / bekræftelse / fuldmagt)

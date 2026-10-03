@@ -662,6 +662,23 @@ async function main() {
     for (const r of rows) log(`${String(r.role).padEnd(12)} ${String(r.kilde).padEnd(8)} ${String(r.dom).padEnd(28)} ${r.n}`)
     return
   }
+  if (SUB === 'cleanup-users') {
+    // STAGING: slet efterladte syntetiske auth-brugere (@harness.test) ældre end 3 timer — ikke de faste
+    // pilot-<rolle>-personaer (genbruges af role-matrix) og ikke brugere fra en kørsel der er i gang.
+    // Fund 2026-10-02: ~540 efterladte brugere (harness-owner+/harness-montor+ pr. seed) → fx "249 montører" i U53.
+    const rows = await stagingSql(`SELECT id::text id, email FROM auth.users WHERE email LIKE '%@harness.test'
+      AND email NOT LIKE 'pilot-%' AND created_at < now() - interval '3 hours' ORDER BY created_at LIMIT 2000`) as Array<{ id: string; email: string }>
+    log(`=== CLEANUP-USERS: ${rows.length} kandidater (staging:${ref}) ===`)
+    let ok = 0
+    const failed: string[] = []
+    for (const r of rows) {
+      const { error } = await admin.auth.admin.deleteUser(r.id)
+      if (error) failed.push(error.message.slice(0, 60)); else ok++
+    }
+    const reasons = [...new Set(failed)].slice(0, 5)
+    log(`slettet ${ok} · fejlede ${failed.length}${reasons.length ? ` (${reasons.join(' | ')})` : ''}`)
+    return
+  }
   if (SUB === 'ambiguous-fks') {
     // Read-only: tabelpar med FLERE FK'er imellem sig — embeds uden "!fk" fejler (PGRST201), jf. D28.
     const rows = await stagingSql(`SELECT a, b, count(*)::int n, string_agg(fk, ', ' ORDER BY fk) fks FROM (

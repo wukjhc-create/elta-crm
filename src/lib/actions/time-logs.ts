@@ -282,6 +282,9 @@ export async function createTimeLog(
 
     if (wo.case_id) {
       revalidatePath(`/dashboard/orders/${wo.case_id}`)
+      // N23: sagen følger arbejdet (new → in_progress)
+      const { autoStartCaseOnWork } = await import('@/lib/cases/case-auto-start')
+      await autoStartCaseOnWork(wo.case_id as string, 'time_logged', userId)
     }
     return { success: true, data: data as TimeLogRow }
   } catch (error) {

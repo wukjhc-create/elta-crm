@@ -84,6 +84,14 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
 
     const customerId = (offer.customer_id as string | null) ?? null
 
+    // N26a: planlagte timer + internt kostbudget fra tilbudslinjerne (grundlag for efterkalkulation)
+    const { deriveCaseBudgetFromOffer, offerBudgetNote } = await import('@/lib/cases/offer-budget')
+    const { data: offerLines } = await supabase
+      .from('offer_line_items')
+      .select('quantity, unit, cost_price, supplier_cost_price_at_creation')
+      .eq('offer_id', offerId)
+    const offerBudget = deriveCaseBudgetFromOffer((offerLines ?? []) as never[])
+
     const insertPayload = {
       source_offer_id: offer.id as string,
       customer_id: customerId,
@@ -98,6 +106,8 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       title: (offer.title as string) || 'Sag fra tilbud',
       project_name: (offer.title as string) || null,
       contract_sum: (offer.final_amount as number | null) ?? null,
+      planned_hours: offerBudget.plannedHours,
+      budget: offerBudget.budget,
       description,
       reference: (offer.offer_number as string | null) ?? null,
       type: 'installation' as const,
@@ -140,7 +150,7 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
     try {
       await supabase.from('case_notes').insert({
         case_id: caseId,
-        content: `Oprettet fra tilbud ${offerNumber ?? offer.id}${documentCount ? ` — ${documentCount} dokument(er) koblet` : ''}.`,
+        content: `Oprettet fra tilbud ${offerNumber ?? offer.id}${documentCount ? ` — ${documentCount} dokument(er) koblet` : ''}.${offerBudgetNote(offerBudget) ? ` ${offerBudgetNote(offerBudget)}` : ''}`,
         kind: 'system',
         urgency: 'normal',
         created_by: userId,

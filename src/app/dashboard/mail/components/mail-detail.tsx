@@ -1,5 +1,6 @@
 'use client'
-
+
+import { CreateLeadFromMailButton } from './create-lead-from-mail-button'
 import { useState, useEffect } from 'react'
 import {
   Mail,
@@ -444,6 +445,9 @@ export function MailDetail({
               </button>
             </>
           )}
+
+          {/* N35: ukoblet mail (fx webhenvendelse) → lead */}
+          {!email.customer_id && <CreateLeadFromMailButton emailId={email.id} />}
 
           {/* ★ LINKED: Now show work actions */}
           {email.link_status === 'linked' && onCreateServiceCase && (

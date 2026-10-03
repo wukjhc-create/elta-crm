@@ -18,7 +18,6 @@ async function requireGate(permission: Permission) {
 }
 import { headers } from 'next/headers'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
-import { createProjectFromOffer } from '@/lib/actions/projects'
 import { convertOfferToCase } from '@/lib/services/offer-to-case'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { sendEmail } from '@/lib/email/email-service'
@@ -549,30 +548,9 @@ export async function acceptOffer(
       metadata: { signerName: data.signer_name, signerEmail: data.signer_email, signerIp: clientIp },
     })
 
-    // Auto-create project from accepted offer (non-critical — runs in authenticated context)
-    try {
-      const projectResult = await createProjectFromOffer(
-        data.offer_id,
-        customerId,
-        offer.title,
-        offer.final_amount
-      )
-
-      if (projectResult.success && projectResult.data) {
-        await admin.from('offer_activities').insert({
-          offer_id: data.offer_id,
-          activity_type: 'project_created',
-          description: `Projekt ${projectResult.data.project_number} oprettet automatisk`,
-          performed_by: null,
-          metadata: { projectId: projectResult.data.id, projectNumber: projectResult.data.project_number },
-        })
-      } else {
-        logger.error('Error auto-creating project', { error: projectResult.error })
-      }
-    } catch (projectError) {
-      logger.error('Project creation failed (non-critical)', { error: projectError })
-      // Don't fail the offer acceptance if project creation fails
-    }
+    // D39: før blev et projekt i den gamle projects-model oprettet her med BRUGER-session — kunden er ikke logget ind,
+    // så kaldet fejlede altid (AUTH_REQUIRED + fejl-log ved hver accept; prod: 1 projekt / 4 accepterede tilbud).
+    // Sagen (service_cases) herunder er den rigtige model.
 
     // Sprint 3D — auto-create service_case parallel to project (non-critical).
     // Idempotent at app level (offer-to-case.ts) and at DB level (UNIQUE
@@ -1748,10 +1726,31 @@ export async function portalBookBesigtigelse(
 
     const session = sessionResult.data
 
+    // N31: offentligt endpoint (kun token) — valider input og begræns åbne bookinger
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date())
+    const maxDate = new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today || date > maxDate) {
+      return { success: false, error: 'Vælg en dato fra i dag og op til et halvt år frem' }
+    }
+    const slot = (timeSlot ?? '').trim()
+    if (!slot || slot.length > 40) return { success: false, error: 'Vælg et tidsrum' }
+    timeSlot = slot
+    notes = notes?.trim().slice(0, 1000) || undefined
+
     // Phase alpha.1: customer_tasks anon FOR ALL-policy droppet. Brug
     // service-role server-side til baade customer-lookup og task-insert,
     // scoped til session.customer_id fra valideret token.
     const admin = createAdminClient()
+
+    const { count: openBookings } = await admin
+      .from('customer_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', session.customer_id)
+      .ilike('title', 'PORTAL: Besigtigelse%')
+      .neq('status', 'done')
+    if ((openBookings ?? 0) >= 3) {
+      return { success: false, error: 'Du har allerede åbne bookinger — vi kontakter dig snarest' }
+    }
 
     const formattedDate = new Date(date).toLocaleDateString('da-DK', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -1789,7 +1788,8 @@ export async function portalBookBesigtigelse(
         status: 'pending',
         priority: 'high',
         due_date: date,
-        created_by: session.customer_id, // customer-initiated
+        // N31: created_by refererer auth.users — kunden er ikke en bruger (før: customer_id → FK-fejl, booking fejlede altid)
+        created_by: null,
       })
       .select('id')
       .single()
@@ -1799,7 +1799,11 @@ export async function portalBookBesigtigelse(
       return { success: false, error: 'Kunne ikke oprette booking' }
     }
 
-    // Send confirmation email with ICS attachment
+    // Send confirmation email with ICS attachment — N31: LIVE KUNDEMAIL er gated (Henrik 2026-10-03). Uden flaget
+    // oprettes kun CRM-opgaven; kunden ser bookingen i portalen.
+    if (process.env.PORTAL_BOOKING_CONFIRMATION_EMAIL_ENABLED !== 'true') {
+      return { success: true, data: { taskId: task.id } }
+    }
     try {
       const { sendEmailViaGraph } = await import('@/lib/services/microsoft-graph')
       const { generateBesigtigelseICS, extractStartTimeFromSlot } = await import('@/lib/utils/ics')
@@ -1886,11 +1890,14 @@ export async function portalBookBesigtigelse(
 }
 
 /**
- * Get existing besigtigelse bookings for portal customer.
- * Broad matching: any task with 'besigtigelse' in title or description,
- * or with 'Besigtigelse' anywhere in the task.
- * Falls back to returning ALL tasks with a due_date for the customer.
+ * Get existing besigtigelse bookings for portal customer — KUN opgaver med 'besigtigelse' i titel/beskrivelse
+ * (D40: ingen fallback til øvrige, interne opgaver).
  */
+/** D40: en kundeopgave er en besigtigelse (må vises/bekræftes i portalen) kun hvis titel/beskrivelse siger det. */
+function isBesigtigelseTask(t: { title?: string | null; description?: string | null }): boolean {
+  return /esigtigelse/i.test(t.title ?? '') || /esigtigelse/i.test(t.description ?? '')
+}
+
 export async function getPortalBesigtigelser(
   token: string
 ): Promise<ActionResult<PortalBesigtigelse[]>> {
@@ -1929,18 +1936,16 @@ export async function getPortalBesigtigelser(
         t.description?.toLowerCase().includes('esigtigelse')
     )
 
-    if (besigTasks.length > 0) {
-      return { success: true, data: besigTasks as PortalBesigtigelse[] }
+    // D40 (S2): før faldt funktionen tilbage til ALLE kundens opgaver (interne titler/beskrivelser i kundeportalen —
+    // prod 2026-10-03: 1 portalkunde, 2 interne opgaver). Nu kun besigtigelsesopgaver, og til klienten kun det
+    // portalen viser: dato, status og tidspunkt-linjen (ingen interne titler/beskrivelser i payloaden).
+    return {
+      success: true,
+      data: besigTasks.map((t) => {
+        const time = t.description?.match(/Tidspunkt:\s*(.+)/i)?.[1] ?? t.description?.match(/kl\.\s*(\S+)/)?.[1] ?? null
+        return { ...t, title: 'Besigtigelse', description: time ? `Tidspunkt: ${time.trim()}` : null } as PortalBesigtigelse
+      }),
     }
-
-    // Fallback: any task with a due_date
-    const tasksWithDate = tasks.filter((t) => t.due_date)
-    if (tasksWithDate.length > 0) {
-      return { success: true, data: tasksWithDate as PortalBesigtigelse[] }
-    }
-
-    // Last resort: return ALL tasks so the portal shows something
-    return { success: true, data: tasks as PortalBesigtigelse[] }
   } catch (error) {
     logger.error('Error in getPortalBesigtigelser', { error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -1971,12 +1976,13 @@ export async function portalConfirmBesigtigelse(
     // Verify task belongs to this customer and fetch full details
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, status, description, due_date')
+      .select('id, customer_id, status, title, description, due_date')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
-    if (fetchErr || !task) {
+    // D40: kun besigtigelsesopgaver kan bekræftes fra portalen (ikke vilkårlige interne opgaver)
+    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; description?: string | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
     }
 
@@ -2129,12 +2135,12 @@ export async function portalRequestReschedule(
     // Verify task belongs to this customer
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, due_date')
+      .select('id, customer_id, due_date, title, description')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
-    if (fetchErr || !task) {
+    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; description?: string | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
     }
 

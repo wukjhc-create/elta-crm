@@ -24,6 +24,13 @@
 | 06:29 | Slut-regression U1–U58: 54/58 — 4 fejl under netværksudfald mod staging-Supabase kl. 06:01 (UND_ERR_SOCKET "other side closed"); alle 4 grønne i målrettet genkørsel. `eba82a2` D29. Prod read-only: ingen test-data. Alle CI-trin grønne lokalt. |
 | **06:41** | **SLUT.** Start 2026-10-01 20:18 → slut 2026-10-02 06:41 (dansk tid). 43 commits (`4606dde..`), heraf 25 kode/test. Se docs/OVERNIGHT-2026-10-02.md |
 
+## Dagsession 2026-10-02 (Henriks beslutninger D24/D26/D18/D28/D27/N2/N8a)
+| Tid (dansk) | Checkpoint |
+|---|---|
+| 14:05 | Main: `1468251` D18 (montør-omkostninger uden prisfelter, U40), N8a (lav DB = advarsel m. bekræftelse, U60 + unit), D28 app-del (bogholderi læser kundens koblede mails, U61), samlet prod-gate pre/post (`prod:batch-check pre` ✅ 6/6 i prod; `prod:verify-read-lockdown`: prod pre ✅, staging post ✅, prod post fanger 16 afvigelser = negativ kontrol). `cf824d7`/`60d3b04` docs. Branches (kode kræver kolonner — merge først efter prod-migration): `d26-internal-case-docs` (00184, U59 7/7 + negativ kontrol), `n2-time-approval` (00185, rls-read L13, U62 8/8). Staging: 00184, 00185, 00186 anvendt; rls-read 13/13 (L12 D28, L13 N2). Fuld regression på main (U1–U58, U60, U61; U59/U62 ligger på branches) startet. |
+| 16:12 | Henrik: ingen passiv ventetid (regel gemt). NEXT-2 genereret fra prod read-only + kodeanalyse (N23–N34, L-SMS, L-Lager). Branches (worktrees `C:\Dev\elta-n23`, `C:\Dev\elta-wf`): `n23-case-status` = N23 sagsstatus følger arbejdet (auto I gang + Klar til lukning, U63), N26a timer/kostbudget fra tilbud, N32 menupunkt Medarbejderøkonomi; `webform-inquiries` = **D37 (S2): hjemmesidens kontaktformular blev hard-ignoreret siden 30/4 (~48 henvendelser, kun 3 website-leads)** → fanen Webhenvendelser (U64) + N24a retro-kobling af 81 kundemails (U65). Fuld regression på main kører langsomt (offers/[id] goto-timeouts under hukommelsespres; dev-server genstartet 16:01) — ikke hængt. |
+| 17:03 | Test-politik (Henrik): smoke ≤10, målrettet ≤20, proces ≤30, enkelt test ≤5 min. D38: e2e kører nu mod produktionsbuild (build ~40 s–2,5 min, tests 4–50 s) + watchdog-batches `harness:ui-batches` (FAILED_TIMEOUT/kill tree/sidste output, afhængigheder automatisk) + telemetri JSONL; 533 testbrugere ryddet på staging. Målt: montør 282 s, portal-mail 308 s, 16 berørte tests i 6 batches 735 s — ingen hængende processer. Lokalt main: merge af `webform-inquiries` + `n23-case-status`, D39 (legacy-projekt fjernet fra portal-accept), N27 (cockpit: sager klar til lukning, U67), N35 (Opret lead fra mail/webhenvendelse, U68), U22 rettet til prod-prerender. Pushes efter grøn batch-kørsel + lint. |
+
 ## Nu
 P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtaget, `check:rbac` blokerende i CI) · **fakturapipeline F-a–F-d DONE** (F-d prod-gate).
 **Prod-migrationer 00159–00166 kørt og verificeret** (00163–00166 den 2026-09-29). Ingen prod-migration afventer.
@@ -31,7 +38,7 @@ P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtag
 Næste ikke-blokerede: CVR-kolonne til leverandør-match (IC10, kræver migration) · døde `files.ts` · OIOUBL-parsing · prishistorik-baseret forventet pris.
 
 ## Staging-state at kende
-- 00159–00166 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
+- 00175–00186 anvendt (00184 D26, 00185 N2, 00186 D28 den 2026-10-02 — prod afventer godkendelse) · 00159–00166 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
 - `npm run harness:pilot-roles` = fuld rolle-regression (matrix + skrive/update-probes + R1–R4 35 checks + views + hemmelige kolonner).
 - P-003 udvidet (#9): 4 crons bruger anon-klient → stille no-ops; se docs/pilot/CRON_DISCOVERY.md. Ret ikke uden beslutning (= aktivering).
 - Alle cron-kørsler logges i `system_health_log` (service `cron`) via `withCronRun`.

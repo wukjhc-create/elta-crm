@@ -369,6 +369,11 @@ export async function changeWorkOrderStatus(
 
     if (data.case_id) {
       revalidatePath(`/dashboard/orders/${data.case_id}`)
+      // N23: sagen følger arbejdet (new → in_progress)
+      if (next === 'in_progress' || next === 'done') {
+        const { autoStartCaseOnWork } = await import('@/lib/cases/case-auto-start')
+        await autoStartCaseOnWork(data.case_id as string, next === 'done' ? 'work_order_done' : 'work_order_started', userId)
+      }
     }
 
     return { success: true, data: data as WorkOrderRow }

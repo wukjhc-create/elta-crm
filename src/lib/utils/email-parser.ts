@@ -1,3 +1,4 @@
+import { normalizeFormSubmitTable } from '@/lib/mail/website-inquiry'
 /**
  * Email body parser — extracts customer information from email content.
  *
@@ -39,6 +40,8 @@ export function parseCustomerFromEmail(
   if (!text) {
     return emptyResult()
   }
+  // Webhenvendelse (FormSubmit-tabel) → "Navn: …"-linjer
+  text = normalizeFormSubmitTable(text)
 
   // Step 1: Try labeled field extraction first (most reliable)
   const labeled = extractLabeledFields(text, senderEmail || null)

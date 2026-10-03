@@ -647,6 +647,24 @@ async function processEmailIntelligenceUnsafe(
 ): Promise<IntelligenceResult> {
   const supabase = createAdminClient()
 
+  // -------- Webhenvendelse (hjemmesidens kontaktformular): ALDRIG støj, ALDRIG auto-kunde --------
+  // Afsenderen er FormSubmit (ikke kunden) → manuel håndtering i indbakken (fanen "Webhenvendelser", "Opret fra mail").
+  const { isWebsiteInquiry } = await import('@/lib/mail/website-inquiry')
+  if (isWebsiteInquiry(email)) {
+    await supabase
+      .from('incoming_emails')
+      .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
+      .eq('id', emailId)
+    await writeIntelligenceLog({
+      emailId,
+      subject: email.subject,
+      classification: 'customer',
+      action: 'skipped',
+      reason: 'Webhenvendelse (kontaktformular) — manuel håndtering, ingen auto-oprettelse',
+    })
+    return { type: 'customer', customerId: null, created: false, skipped: true }
+  }
+
   // -------- Stage 0: priority score (no AI) --------
   const score = scoreEmail(email)
   console.log('EMAIL SCORE:', score, email.subject)

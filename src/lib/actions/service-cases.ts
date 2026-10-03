@@ -10,6 +10,7 @@ import {
   formatError,
 } from '@/lib/actions/action-helpers'
 import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
+import { validateUUID } from '@/lib/validations/common'
 import { createAnonClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
@@ -1456,8 +1457,17 @@ async function unbilledCloseBlock(
   supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
   caseId: string
 ): Promise<string | null> {
-  const { summarizeUnbilled, unbilledCloseMessage } = await import('@/lib/invoices/unbilled')
-  const { data: wos } = await supabase.from('work_orders').select('id').eq('case_id', caseId)
+  const { unbilledCloseMessage } = await import('@/lib/invoices/unbilled')
+  return unbilledCloseMessage((await loadCaseWork(supabase, caseId)).unbilled)
+}
+
+/** Sagens job-statusser + ufaktureret optælling (samme regler som fakturakladden). */
+async function loadCaseWork(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+  caseId: string
+) {
+  const { summarizeUnbilled } = await import('@/lib/invoices/unbilled')
+  const { data: wos } = await supabase.from('work_orders').select('id, status').eq('case_id', caseId)
   const woIds = (wos ?? []).map((w) => w.id as string)
   const [tl, mat, oth] = await Promise.all([
     woIds.length
@@ -1466,11 +1476,33 @@ async function unbilledCloseBlock(
     supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
     supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
   ])
-  return unbilledCloseMessage(summarizeUnbilled({
-    timeLogs: (tl.data ?? []) as never[],
-    materials: (mat.data ?? []) as never[],
-    otherCosts: (oth.data ?? []) as never[],
-  }))
+  return {
+    workOrderStatuses: (wos ?? []).map((w) => String((w as { status?: string }).status ?? '')),
+    unbilled: summarizeUnbilled({
+      timeLogs: (tl.data ?? []) as never[],
+      materials: (mat.data ?? []) as never[],
+      otherCosts: (oth.data ?? []) as never[],
+    }),
+  }
+}
+
+/**
+ * N23: er sagen klar til lukning? (alle job udført, intet ufaktureret, ingen kørende timer). Kun for brugere der må
+ * lukke sager (cases.close) — andre får null (intet banner).
+ */
+export async function getCaseCloseReadinessAction(caseId: string): Promise<ActionResult<import('@/lib/cases/case-progress').CloseReadiness | null>> {
+  try {
+    validateUUID(caseId, 'sags-ID')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.close')) return { success: true, data: null }
+    const { data: sc } = await supabase.from('service_cases').select('status').eq('id', caseId).maybeSingle()
+    if (!sc) return { success: false, error: 'Sag ikke fundet' }
+    const { caseCloseReadiness } = await import('@/lib/cases/case-progress')
+    const work = await loadCaseWork(supabase, caseId)
+    return { success: true, data: caseCloseReadiness({ caseStatus: (sc as { status?: string }).status, ...work }) }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Der opstod en fejl') }
+  }
 }
 
 export async function setServiceCaseStatus(

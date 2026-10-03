@@ -98,6 +98,17 @@
  *       adresse-match-mails; kontoret ser begge
  *   U62 N2: montørens timer afventer godkendelse; admin afviser med begrundelse (montør ser "Afvist") og godkender;
  *       montør har ikke adgang til godkendelsessiden; audit
+ *   U64 webhenvendelser: kontaktformular-mail (også en tidligere fejl-ignoreret) vises under "Webhenvendelser"; andre
+ *       ignorerede mails gør ikke
+ *   U65 N24a: ukoblet mail fra kundens adresse → "Kobl tidligere mails" på kundekortet kobler den (linked_by retro)
+ *   U63 N23: sag new → I gang når montøren starter job/registrerer tid (audit); "Klar til lukning" når alle job er udført
+ *       og intet er ufaktureret → Luk sagen; ufaktureret sag viser intet banner
+ *   U66 N26b: Rapporter → Sagsrentabilitet viser montørsagen (bygger på sager/timer, ikke gamle projekter)
+ *   U67 N27: styringscockpittet viser antal sager klar til lukning
+ *   U68 N35: webhenvendelse → "Opret lead" med kontaktdata fra formularen (ikke FormSubmit-afsenderen), kilde website
+ *   U69 N31/D40: kunden booker besigtigelse i portalen → CRM-opgave (ingen kundemail uden flag); interne kundeopgaver
+ *       hverken vises eller ligger i portalens sidedata
+ *   U70 N36: dashboardets "Aktive Sager" = antal aktive sager; ingen links til /customers|/offers|/projects (404)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -109,7 +120,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { spawn, execSync, type ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
 import { makeTextPdf } from './pdf-fixture'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync, appendFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
@@ -126,6 +137,22 @@ const NEUTRALIZE = [
 
 /** Navigation der ikke vælter hele suiten ved en kold kompilering: ét nyt forsøg med 'load' ved timeout.
  *  En side der reelt fejler, fejler stadig i testens egne tjek. */
+/** Telemetri pr. test (nulstilles ved hvert resultat): goto-timeouts og -genforsøg. */
+const tele = { gotoTimeouts: 0, gotoRetries: 0 }
+
+/**
+ * Testgrupper (Henrik 2026-10-02: smoke ≤10 min, målrettet ≤20 min, fuld regression kun natligt/milestone).
+ *   UI_E2E_GROUP=smoke|sales|montor|economy|portal-mail   (kan kombineres med komma; UI_E2E_ONLY vinder hvis sat)
+ * U1–U4/U6/U13/U5 (login, adgang, konsolfejl) kører altid.
+ */
+export const UI_E2E_GROUPS: Record<string, string[]> = {
+  smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
+  sales: ['U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67'],
+  economy: ['U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+}
+
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
   try {
     return await page.goto(url, opts)
@@ -133,12 +160,20 @@ async function gotoSafe(page: import('playwright').Page, url: string, opts: { wa
     const msg = String(e)
     // `next dev` genstarter sig selv ved hukommelsespres ("approaching the used memory threshold, restarting")
     // — vent til serveren svarer igen og prøv én gang til.
+    tele.gotoRetries++
     if (/ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE/.test(msg)) {
       console.warn(`[ui-e2e] dev-server utilgængelig (genstart?) — venter: ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
       await waitForHttp(`${new URL(url).origin}/login`, 240_000)
       return await page.goto(url, opts).catch(() => null)
     }
+    // En klient-navigation fra forrige trin (router.push/refresh) kan afbryde goto — vent til siden falder til ro, prøv igen
+    if (/ERR_ABORTED/.test(msg)) {
+      console.warn(`[ui-e2e] navigation afbrudt, prøver igen: ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
+      await page.waitForLoadState('load', { timeout: 30_000 }).catch(() => {})
+      return await page.goto(url, opts).catch(() => null)
+    }
     if (!/Timeout/i.test(msg)) throw e
+    tele.gotoTimeouts++
     console.warn(`[ui-e2e] goto-timeout, prøver igen (load): ${url.replace(/[0-9a-f]{64}/, '<token>')}`)
     return await page.goto(url, { ...opts, waitUntil: 'load' }).catch(() => null)
   }
@@ -166,6 +201,27 @@ function killTree(child: ChildProcess) {
 
 export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; port?: number }): Promise<UiE2eCheck[]> {
   const out: UiE2eCheck[] = []
+  // Stream hvert resultat med tidsstempel, så en langsom/hængende kørsel kan følges og stoppes uden at miste
+  // de allerede kørte tests (før: alt blev først udskrevet til sidst).
+  // Telemetri (Henrik 2026-10-02): pr. test start, varighed, ok, goto-timeouts/-genforsøg → JSONL (overlever afbrudt kørsel)
+  const runStart = Date.now()
+  let mark = runStart
+  const teleFile = join(tmpdir(), 'elta-ui-e2e', `telemetry-${new Date(runStart).toISOString().replace(/[:.]/g, '-')}.jsonl`)
+  try { mkdirSync(join(tmpdir(), 'elta-ui-e2e'), { recursive: true }) } catch { /* findes */ }
+  const pushOut = out.push.bind(out)
+  out.push = (...items: UiE2eCheck[]) => {
+    for (const x of items) {
+      const now = Date.now()
+      const rec = { test: x.id.split(' ')[0], name: x.id, start: new Date(mark).toISOString(), duration_s: Math.round((now - mark) / 1000),
+        ok: x.ok, goto_timeouts: tele.gotoTimeouts, goto_retries: tele.gotoRetries }
+      try { appendFileSync(teleFile, JSON.stringify(rec) + '\n') } catch { /* telemetri må ikke vælte testen */ }
+      console.log(`[ui-e2e ${new Date(now).toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen' })}] ${x.ok ? '✓' : '❌'} ${x.id} (${rec.duration_s}s${rec.goto_timeouts ? `, ${rec.goto_timeouts} timeout` : ''}${rec.goto_retries ? `, ${rec.goto_retries} retry` : ''}) — ${x.note.slice(0, 200)}`)
+      mark = now
+      tele.gotoTimeouts = 0
+      tele.gotoRetries = 0
+    }
+    return pushOut(...items)
+  }
   const port = c.port ?? 3217
   const base = `http://localhost:${port}`
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
@@ -202,7 +258,10 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const browser = await chromium.launch({ headless: true })
   const pageErrors: string[] = []
   // Målrettet kørsel: UI_E2E_ONLY=U24,U26 (afhængigheder: U9/U16 kræver U8; U8 kræver U7). Tom = alle.
-  const only = (process.env.UI_E2E_ONLY ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  const groups = (process.env.UI_E2E_GROUP ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  for (const g of groups) if (!UI_E2E_GROUPS[g]) throw new Error(`ukendt UI_E2E_GROUP '${g}' (${Object.keys(UI_E2E_GROUPS).join('|')})`)
+  const onlyEnv = (process.env.UI_E2E_ONLY ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  const only = onlyEnv.length ? onlyEnv : [...new Set(groups.flatMap((g) => UI_E2E_GROUPS[g]))]
   const want = (id: string) => only.length === 0 || only.includes(id)
   const loginFailures: string[] = []
   let profitOfferId: string | null = null
@@ -252,6 +311,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const u58Ids: string[] = []
   let u60OfferId: string | null = null
   let u60Since: string | null = null
+  let u69TokenId: string | null = null
+  const u69TaskIds: string[] = []
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -263,12 +324,44 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     const montor = await mkUser('montør')
     const salg = await mkUser('salg')
 
-    server = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['next', 'dev', '-p', String(port)], { cwd: process.cwd(), env, shell: process.platform === 'win32' })
+    // Henrik 2026-10-02 (test-politik): `next dev` kompilerer hver side ved første besøg (tilbudssiden >180 s) og
+    // brugte op til 3,5 GB heap på en 6 GB-maskine → genstarter/OOM og timer-lange kørsler. Standard er nu et
+    // produktionsbuild (`next build` + `next start`): ingen on-demand kompilering, lavt hukommelsesforbrug.
+    // UI_E2E_SERVER=dev = gammel adfærd. UI_E2E_REUSE_BUILD=1 = genbrug seneste build (kun når koden er uændret).
+    const mode = process.env.UI_E2E_SERVER === 'dev' ? 'dev' : 'start'
+    if (mode === 'start' && process.env.UI_E2E_REUSE_BUILD !== '1') {
+      const t0 = Date.now()
+      console.log('[ui-e2e] next build (staging-env) …')
+      // Build-output gemmes (før: stdio ignore → en fejlet build var usynlig, og næste batch fandt intet build).
+      // Én genkørsel ved fejl (fx forbigående hukommelsespres); derefter tydelig fejl med de sidste linjer.
+      const buildLog = join(tmpdir(), 'elta-ui-e2e', 'next-build.log')
+      const runBuild = () => execSync(`${process.platform === 'win32' ? 'npx.cmd' : 'npx'} next build`, {
+        cwd: process.cwd(), env: { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3072`.trim() },
+        stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 })
+      try {
+        writeFileSync(buildLog, runBuild())
+      } catch (e1) {
+        const out1 = String((e1 as { stdout?: Buffer }).stdout ?? '') + String((e1 as { stderr?: Buffer }).stderr ?? '')
+        writeFileSync(buildLog, out1)
+        console.warn(`[ui-e2e] next build fejlede — prøver igen. Sidste linjer:\n${out1.split('\n').slice(-15).join('\n')}`)
+        try {
+          writeFileSync(buildLog, runBuild())
+        } catch (e2) {
+          const out2 = String((e2 as { stdout?: Buffer }).stdout ?? '') + String((e2 as { stderr?: Buffer }).stderr ?? '')
+          writeFileSync(buildLog, out2)
+          throw new Error(`next build fejlede 2× (log: ${buildLog}):\n${out2.split('\n').slice(-25).join('\n')}`)
+        }
+      }
+      console.log(`[ui-e2e] build færdig på ${Math.round((Date.now() - t0) / 1000)} s`)
+    }
+    const serverEnv = mode === 'start' ? { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=1536`.trim() } : env
+    server = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['next', mode, '-p', String(port)], { cwd: process.cwd(), env: serverEnv, shell: process.platform === 'win32' })
     server.stdout?.on('data', (d) => serverLog.push(String(d)))
     server.stderr?.on('data', (d) => serverLog.push(String(d)))
     if (!(await waitForHttp(`${base}/login`, 240_000))) {
       return [{ id: 'dev-server', ok: false, note: `startede ikke: ${serverLog.join('').slice(-300)}` }]
     }
+    mark = Date.now() // telemetri: første tests tid tæller fra serveren svarer (ikke build/serverstart)
 
     const login = async (u: { email: string; password: string }) => {
       const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
@@ -315,9 +408,12 @@ ${m.text()}`) })
       await np.locator('input[type="password"]').press('Enter').catch(() => {})
       await np.waitForTimeout(1500)
       const url = np.url()
-      const method = (await np.locator('form').first().getAttribute('method').catch(() => null)) ?? ''
-      out.push({ id: 'U22 login før hydrering: adgangskode aldrig i URL', ok: !url.includes(secret) && !/password=/.test(url) && method.toLowerCase() === 'post',
-        note: `url=${new URL(url).pathname}${new URL(url).search ? '?…' : ''} · form method=${method || '(ingen)'}` })
+      // Produktionsbuild: login-siden prerenderes statisk med Suspense-skelet (useSearchParams) → INGEN formular før
+      // hydrering = intet at indsende. Er der en formular (dev), skal den være method=post.
+      const forms = await np.locator('form').count().catch(() => 0)
+      const method = forms ? ((await np.locator('form').first().getAttribute('method').catch(() => null)) ?? '') : ''
+      out.push({ id: 'U22 login før hydrering: adgangskode aldrig i URL', ok: !url.includes(secret) && !/password=/.test(url) && (forms === 0 || method.toLowerCase() === 'post'),
+        note: `url=${new URL(url).pathname}${new URL(url).search ? '?…' : ''} · ${forms ? `form method=${method || '(ingen)'}` : 'ingen formular før hydrering (skelet)'}` })
       await nojs.close().catch(() => {})
     }
 
@@ -1691,6 +1787,159 @@ ${m.text()}`) })
         out.push({ id: 'U61 D28 bogholderi: kundens koblede mails (læsning)', ok: !em.error && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${em.error ? ` · SEED: ${em.error.message}` : ''}` })
       }
 
+      // U64 webhenvendelser: kontaktformular-mails (også tidligere fejl-ignorerede) vises under "Webhenvendelser";
+      // FormSubmits systemmails gør ikke
+      if (want('U64')) {
+        const r: Record<string, boolean> = {}
+        const inq = `Ny henvendelse fra eltasolar.dk [HARNESS ${stamp}]`, sys = `Action Required: Activate FormSubmit henvendelse [HARNESS ${stamp}]`
+        const em = await c.admin.from('incoming_emails').insert([
+          { sender_email: 'submissions@formsubmit.co', subject: inq, body_text: "Here's what they had to say:\nname\nTest Testesen\nemail\ntest@example.dk", received_at: new Date().toISOString(), is_archived: false, link_status: 'ignored' },
+          { sender_email: 'noreply@example.dk', subject: sys, body_text: 'x', received_at: new Date().toISOString(), is_archived: false, link_status: 'ignored' },
+        ]).select('id')
+        for (const x of (em.data ?? []) as Array<{ id: string }>) seededEmailIds.push(x.id)
+        await gotoSafe(a.page, `${base}/dashboard/mail?filter=webform`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText(inq).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.fane_vist = (await a.page.getByRole('button', { name: /Webhenvendelser/ }).count()) > 0
+        r.fejl_ignoreret_henvendelse_vist = (await a.page.getByText(inq).count()) > 0
+        r.andre_mails_ikke_vist = (await a.page.getByText(sys).count()) === 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U64 webhenvendelser i indbakken', ok: !em.error && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${em.error ? ` · SEED: ${em.error.message}` : ''}` })
+      }
+
+      // U65 N24a: ukoblet mail fra kundens adresse (modtaget før kobling) → "Kobl tidligere mails" på kundekortet
+      if (want('U65') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const custEmail = ((await c.admin.from('customers').select('email').eq('id', profitCustomerId).maybeSingle()).data as { email?: string | null } | null)?.email
+        const subj = `[HARNESS] gammel kundemail ${stamp}`
+        const em = custEmail ? await c.admin.from('incoming_emails').insert([{ sender_email: custEmail.toUpperCase(), subject: subj, customer_id: null,
+          received_at: new Date(Date.now() - 30 * 86400_000).toISOString(), is_archived: false, link_status: 'unidentified' }]).select('id') : null
+        const emId = (em?.data?.[0] as { id?: string } | undefined)?.id
+        if (emId) seededEmailIds.push(emId)
+        await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const btn = a.page.getByTestId('customer-mails-link-old')
+        await btn.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.knap_vist = (await btn.count()) === 1
+        await btn.click({ timeout: 30_000 }).catch(() => {})
+        type LinkRow = { customer_id?: string | null; linked_by?: string | null }
+        let linked: LinkRow | null = null
+        for (let i = 0; i < 20; i++) {
+          linked = (await c.admin.from('incoming_emails').select('customer_id, linked_by').eq('id', emId ?? '').maybeSingle()).data as LinkRow | null
+          if (linked?.customer_id) break
+          await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.mail_koblet = linked?.customer_id === profitCustomerId && linked?.linked_by === 'retro'
+        await a.page.getByText(subj).first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.vist_paa_kundekort = (await a.page.getByText(subj).count()) > 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U65 N24a tidligere kundemails kobles', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U67 N27: styringscockpittet tæller sager klar til lukning (alle job udført, intet ufaktureret)
+      if (want('U67') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] cockpit-klar ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const cid = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (cid) {
+          listCaseIds.push(cid)
+          await c.admin.from('work_orders').insert([{ case_id: cid, title: `[HARNESS] udført ${stamp}`, status: 'done', completed_at: new Date().toISOString() }])
+        }
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('cockpit-ready-to-close').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.cockpit_viser_klar = (await a.page.getByTestId('cockpit-ready-to-close').count()) === 1
+        if (cid) {
+          const { data: rw } = await c.admin.from('work_orders').select('id').eq('case_id', cid)
+          for (const w of (rw ?? []) as Array<{ id: string }>) { await c.admin.from('work_order_profit').delete().eq('work_order_id', w.id); await c.admin.from('work_orders').delete().eq('id', w.id) }
+        }
+        out.push({ id: 'U67 N27 cockpit: sager klar til lukning', ok: !!cid && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U68 N35: webhenvendelse → "Opret lead" (kontaktdata fra formularen, kilde website, koblet til mailen)
+      if (want('U68')) {
+        const r: Record<string, boolean> = {}
+        const subj = `Ny henvendelse fra eltasolar.dk [LEAD ${stamp}]`
+        const leadMail = `webform-${stamp}@harness.test`
+        const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', reply_to: leadMail, subject: subj,
+          body_text: `Here's what they had to say:\nName\nValue\nname\nWeb Testesen\nphone\n+45 22 33 44 55\nemail\n${leadMail}\ninquiry_type\nSolceller\nmessage\nTilbud tak`,
+          received_at: new Date().toISOString(), is_archived: false, link_status: 'unidentified' }]).select('id')
+        const emId = (em.data?.[0] as { id?: string } | undefined)?.id
+        if (emId) seededEmailIds.push(emId)
+        await gotoSafe(a.page, `${base}/dashboard/mail?filter=webform`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByText(subj).first().click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('mail-create-lead').click({ timeout: 60_000 }).catch(() => {})
+        type L = { id: string; email: string; phone: string | null; source: string; company_name: string }
+        let lead: L | null = null
+        for (let i = 0; i < 20 && !lead; i++) {
+          lead = (await c.admin.from('leads').select('id, email, phone, source, company_name').eq('custom_fields->>source_email_id', emId ?? '').maybeSingle()).data as L | null
+          if (!lead) await new Promise((res) => setTimeout(res, 1000))
+        }
+        if (lead) u27LeadIds.push(lead.id)
+        r.lead_oprettet = !!lead
+        r.kundens_mail_ikke_formsubmit = lead?.email === leadMail
+        r.navn_og_telefon = !!lead?.company_name.includes('Web Testesen') && (lead?.phone ?? '').replace(/\D/g, '').endsWith('22334455')
+        r.kilde_website = lead?.source === 'website'
+        r.knap_bliver_aabn_lead = (await a.page.getByTestId('mail-lead-open').count()) === 1
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U68 N35 webhenvendelse → lead', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U69 N31 + D40: kunden booker besigtigelse i portalen (CRM-opgave, ingen kundemail uden flag); interne
+      // kundeopgaver vises/sendes IKKE til portalen
+      if (want('U69') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u69TokenId = (pt.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const secret = `[HARNESS] INTERN dårlig betaler ${stamp}`
+        const it = await c.admin.from('customer_tasks').insert([{ customer_id: profitCustomerId, title: secret, description: `Intern note ${stamp}`,
+          status: 'pending', priority: 'normal', due_date: new Date(Date.now() + 3 * 86400_000).toISOString(), created_by: adminUser.id }]).select('id')
+        const internalId = (it.data?.[0] as { id?: string } | undefined)?.id
+        if (internalId) u69TaskIds.push(internalId)
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        const kp = await kctx.newPage()
+        await gotoSafe(kp, `${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await kp.getByTestId('portal-book-open').first().click({ timeout: 60_000 }).catch(() => {})
+        const d = new Date(Date.now() + 7 * 86400_000)
+        const dateKey = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(d)
+        await kp.getByTestId('portal-book-date').fill(dateKey).catch(() => {})
+        await kp.getByTestId('portal-book-slot').selectOption({ index: 1 }).catch(() => {})
+        await kp.getByTestId('portal-book-submit').click({ timeout: 30_000 }).catch(() => {})
+        await kp.getByTestId('portal-booking-done').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.bekraeftet_i_portal = (await kp.getByTestId('portal-booking-done').count()) === 1
+        type T = { id: string; created_by: string | null; due_date: string | null; description: string | null }
+        let task: T | null = null
+        for (let i = 0; i < 15 && !task; i++) {
+          task = (await c.admin.from('customer_tasks').select('id, created_by, due_date, description').eq('customer_id', profitCustomerId).ilike('title', 'PORTAL: Besigtigelse%').gte('created_at', new Date(Date.now() - 600_000).toISOString()).limit(1).maybeSingle()).data as T | null
+          if (!task) await new Promise((res) => setTimeout(res, 1000))
+        }
+        if (task) u69TaskIds.push(task.id)
+        r.crm_opgave_oprettet = !!task && task.created_by === null && (task.due_date ?? '').startsWith(dateKey) && (task.description ?? '').includes('10:00–12:00')
+        // D40: den interne opgave må hverken vises eller ligge i sidens data
+        await gotoSafe(kp, `${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const html = await kp.content().catch(() => '')
+        r.intern_opgave_ikke_eksponeret = !html.includes(secret) && !html.includes(`Intern note ${stamp}`)
+        r.booking_vist = (await kp.getByText(/10:00–12:00/).count()) > 0
+        await kctx.close().catch(() => {})
+        out.push({ id: 'U69 N31/D40 portal-booking + ingen interne opgaver', ok: !!u69TokenId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U70 N36: dashboardets "Aktive Sager" bygger på sager (før: gammel projektmodel → 0); aktivitetslisten linker
+      // kun ind i /dashboard (før: /customers/…, /offers/…, /projects/… → 404)
+      if (want('U70')) {
+        const r: Record<string, boolean> = {}
+        const { count } = await c.admin.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")')
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const label = a.page.locator('p', { hasText: /^Aktive Sager$/ }).first()
+        await label.waitFor({ timeout: 60_000 }).catch(() => {})
+        const shown = (await label.locator('xpath=following-sibling::p[1]').innerText().catch(() => '')).trim()
+        r.aktive_sager_fra_sager = shown === String(count ?? -1)
+        const hrefs = await a.page.locator('a[href]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))
+        const bad = hrefs.filter((h) => /^\/(customers|offers|projects)\//.test(h) || h.startsWith('/dashboard/projects/'))
+        r.ingen_doede_links = bad.length === 0
+        out.push({ id: 'U70 N36 dashboard på sager', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · vist=${shown} forventet=${count}${bad.length ? ` · døde: ${bad.slice(0, 3).join(',')}` : ''}` })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -1972,6 +2221,58 @@ ${m.text()}`) })
         out.push({ id: 'U62 N2 timegodkendelse', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
+      // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
+      if (want('U63') && jobCaseId && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const st = ((await c.admin.from('service_cases').select('status').eq('id', jobCaseId).maybeSingle()).data as { status?: string } | null)?.status
+        r.sag_i_gang_efter_arbejde = st === 'in_progress'
+        const aud = ((await c.admin.from('audit_logs').select('action').eq('entity_id', jobCaseId)).data ?? []) as Array<{ action: string }>
+        r.auto_start_auditlogget = aud.some((x) => x.action === 'case_auto_in_progress')
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] klar til lukning ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const readyCaseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (readyCaseId) {
+          listCaseIds.push(readyCaseId)
+          await c.admin.from('work_orders').insert([{ case_id: readyCaseId, title: `[HARNESS] udført job ${stamp}`, status: 'done', completed_at: new Date().toISOString() }])
+        }
+        await gotoSafe(a.page, `${base}/dashboard/orders/${readyCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('case-ready-to-close').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.klar_til_lukning_vist = (await a.page.getByTestId('case-ready-to-close').count()) === 1
+        await a.page.getByTestId('case-close-now').click({ timeout: 30_000 }).catch(() => {})
+        let closed = ''
+        for (let i = 0; i < 20 && closed !== 'closed'; i++) {
+          closed = String(((await c.admin.from('service_cases').select('status').eq('id', readyCaseId ?? '').maybeSingle()).data as { status?: string } | null)?.status ?? '')
+          if (closed !== 'closed') await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.lukket = closed === 'closed'
+        // U11's sag har ufaktureret tid → intet "klar"-banner
+        await gotoSafe(a.page, `${base}/dashboard/orders/${jobCaseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.waitForTimeout(3000)
+        r.ufaktureret_ikke_klar = (await a.page.getByTestId('case-ready-to-close').count()) === 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        if (readyCaseId) {
+          const { data: rw } = await c.admin.from('work_orders').select('id').eq('case_id', readyCaseId)
+          for (const w of (rw ?? []) as Array<{ id: string }>) { await c.admin.from('work_order_profit').delete().eq('work_order_id', w.id); await c.admin.from('work_orders').delete().eq('id', w.id) }
+          await c.admin.from('audit_logs').delete().eq('entity_id', readyCaseId)
+        }
+        await c.admin.from('audit_logs').delete().eq('entity_id', jobCaseId).eq('action', 'case_auto_in_progress')
+        out.push({ id: 'U63 N23 sagsstatus følger arbejdet', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U66 N26b: rapportens sagsrentabilitet bygger på sager + timer (før: gammel projektmodel → altid tom)
+      if (want('U66') && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const cn = ((await c.admin.from('service_cases').select('case_number').eq('id', jobCaseId).maybeSingle()).data as { case_number?: string } | null)?.case_number ?? ''
+        await gotoSafe(a.page, `${base}/dashboard/reports`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByText('Sagsrentabilitet').first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.sektion_vist = (await a.page.getByText('Sagsrentabilitet').count()) > 0
+        await a.page.getByText(cn).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.montoersag_med = cn !== '' && (await a.page.getByText(cn).count()) > 0
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        out.push({ id: 'U66 N26b sagsrentabilitet i rapporter', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U44 montør: "Mine timer" viser ugens egne timer (efter U11's tidsregistrering)
       if (want('U44') && jobCaseId) {
         const r: Record<string, boolean> = {}
@@ -2136,7 +2437,7 @@ ${m.text()}`) })
         const expectDate = new Date(); expectDate.setDate(expectDate.getDate() + 21)
         const expectIso = expectDate.toISOString().split('T')[0]
         // vent på at standardværdierne er hentet ind i formularen
-        for (let i = 0; i < 20; i++) { if ((await dlg.locator('#valid_until').inputValue().catch(() => '')) === expectIso) break; await new Promise((res) => setTimeout(res, 500)) }
+        for (let i = 0; i < 60; i++) { if ((await dlg.locator('#valid_until').inputValue().catch(() => '')) === expectIso) break; await new Promise((res) => setTimeout(res, 500)) } // op til 30 s
         await dlg.locator('#title').fill(`[HARNESS] tilbud fra lead ${stamp}`).catch(() => {})
         await dlg.getByRole('button', { name: 'Opret tilbud' }).click({ timeout: 30_000 }).catch(() => {})
         type O = { id: string; lead_id: string | null; valid_until: string | null; terms_and_conditions: string | null; created_by: string }
@@ -2186,8 +2487,14 @@ ${m.text()}`) })
     const restarts = (serverLog.join('').match(/memory threshold, restarting/g) ?? []).length
     const envRe = /network error|Failed to fetch|WebSocket is already in CLOSING or CLOSED state|ERR_CONNECTION/
     const envErrors = restarts > 0 ? pageErrors.filter((x) => envRe.test(x)) : []
-    const realErrors = pageErrors.filter((x) => !envErrors.includes(x))
-    const envNote = restarts > 0 ? ` · dev-server genstartet ${restarts}× (hukommelse); ${envErrors.length} netværksfejl under genstart henført til miljø${envErrors.length ? `: ${envErrors.slice(0, 2).join(' | ').slice(0, 300)}` : ''}` : ''
+    // Produktionsbuild: React #419 (Suspense faldt tilbage til klient-rendering) når testen navigerer videre før
+    // serverens stream er færdig — serveren logger da "destination stream closed early". Kun i den situation henføres
+    // #419 til testens navigation (vises i noten); uden afbrudte streams fejler #419 som før.
+    const abortedStreams = (serverLog.join('').match(/destination stream closed early/g) ?? []).length
+    const abortErrors = abortedStreams > 0 ? pageErrors.filter((x) => /Minified React error #419/.test(x)) : []
+    const realErrors = pageErrors.filter((x) => !envErrors.includes(x) && !abortErrors.includes(x))
+    const envNote = (restarts > 0 ? ` · dev-server genstartet ${restarts}× (hukommelse); ${envErrors.length} netværksfejl under genstart henført til miljø${envErrors.length ? `: ${envErrors.slice(0, 2).join(' | ').slice(0, 300)}` : ''}` : '')
+      + (abortErrors.length ? ` · ${abortErrors.length}× React #419 ved afbrudt stream (${abortedStreams} afbrudte streams i serverloggen): ${abortErrors[0].slice(0, 120)}` : '')
     out.push({ id: 'U5 ingen side-/konsolfejl', ok: realErrors.length === 0, note: `${realErrors.length ? realErrors.slice(0, 3).join(' | ') : `0 fejl · skærmbilleder: ${shots}`}${envNote}` })
   } finally {
     await browser.close().catch(() => {})
@@ -2350,6 +2657,8 @@ ${m.text()}`) })
     }
     // send-dialogens forhåndsvisning kan oprette et portal-token til testkunden
     if (u60Since && profitCustomerId) await c.admin.from('portal_access_tokens').delete().eq('customer_id', profitCustomerId).gte('created_at', u60Since)
+    for (const id of u69TaskIds) await c.admin.from('customer_tasks').delete().eq('id', id)
+    if (u69TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u69TokenId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (u57OfferId) await c.admin.from('offers').delete().eq('id', u57OfferId)
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)

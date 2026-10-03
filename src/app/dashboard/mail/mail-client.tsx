@@ -40,6 +40,7 @@ import {
   runSyncAndDiagnose,
   resetDeltaLink,
   fastForwardAllMailboxes,
+  autoLinkPendingEmailsAction,
   type SyncDiagnostic,
 } from '@/lib/actions/incoming-emails'
 import { createServiceCaseFromEmail } from '@/lib/actions/service-cases'
@@ -55,7 +56,7 @@ import type {
 // Filter tab config
 // =====================================================
 
-type FilterTab = 'all' | EmailLinkStatus | 'requires_response'
+type FilterTab = 'all' | EmailLinkStatus | 'requires_response' | 'webform'
 
 // Sprint 8E noise-cleanup: 'ignored'-tab er KUN synlig i debug-mode
 // (URL ?debug=1). Til daglig brug må støj/marketing/social-mails ikke
@@ -65,6 +66,8 @@ const BASE_FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[]
   { value: 'all', label: 'Alle', icon: Mail },
   // Sprint 8E-1A: ny "Kræver svar"-tab
   { value: 'requires_response', label: 'Kræver svar', icon: AlertCircle },
+  // Henvendelser fra hjemmesidens kontaktformular (var fejlagtigt ignoreret som støj indtil 2026-10-02)
+  { value: 'webform', label: 'Webhenvendelser', icon: Mail },
   { value: 'unidentified', label: 'Uidentificerede', icon: AlertCircle },
   { value: 'linked', label: 'Koblede', icon: CheckCircle2 },
   { value: 'pending', label: 'Afventer', icon: Clock },
@@ -97,6 +100,7 @@ export function MailClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const toast = useToast()
+  const [autoLinking, setAutoLinking] = useState(false)
 
   // Core state
   const [emails, setEmails] = useState<IncomingEmailWithCustomer[]>([])
@@ -114,6 +118,7 @@ export function MailClient() {
     pending: 0,
     ignored: 0,
     requiresResponse: 0,
+    webform: 0,
   })
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
@@ -183,6 +188,7 @@ export function MailClient() {
         pending: statsResult.pending,
         ignored: statsResult.ignored,
         requiresResponse: statsResult.requiresResponse,
+        webform: statsResult.webform,
       })
       setAllSyncStates(allStatesResult)
       setSyncState(syncStateResult)
@@ -310,6 +316,7 @@ export function MailClient() {
         pending: statsResult.pending,
         ignored: statsResult.ignored,
         requiresResponse: statsResult.requiresResponse,
+        webform: statsResult.webform,
       })
       setSyncState(syncStateResult)
       setLastRefresh(new Date())
@@ -1006,6 +1013,7 @@ export function MailClient() {
           const count =
             tab.value === 'all' ? stats.total :
             tab.value === 'requires_response' ? stats.requiresResponse :
+            tab.value === 'webform' ? stats.webform :
             tab.value === 'unidentified' ? stats.unidentified :
             tab.value === 'linked' ? stats.linked :
             tab.value === 'pending' ? stats.pending :
@@ -1027,7 +1035,7 @@ export function MailClient() {
                 <span className={`ml-1 inline-flex items-center justify-center min-w-[20px] px-1.5 py-0.5 rounded-full text-xs font-semibold ${
                   isActive
                     ? 'bg-primary text-primary-foreground'
-                    : tab.value === 'requires_response' ? 'bg-red-100 text-red-800'
+                    : tab.value === 'requires_response' || tab.value === 'webform' ? 'bg-red-100 text-red-800'
                     : tab.value === 'unidentified' ? 'bg-amber-100 text-amber-800'
                     : tab.value === 'ignored' ? 'bg-gray-200 text-gray-600'
                     : 'bg-gray-100 text-gray-600'
@@ -1039,6 +1047,29 @@ export function MailClient() {
           )
         })}
       </div>
+
+      {/* N24b: aldrig-behandlede mails → kør matcheren (kun eksisterende kunder, opretter intet) */}
+      {currentFilter === 'pending' && stats.pending > 0 && (
+        <div className="flex items-center gap-3 rounded-lg bg-amber-50 ring-1 ring-amber-200 px-4 py-2 text-sm text-amber-900" data-testid="mail-pending-autolink">
+          <span>{stats.pending} mail(s) er aldrig blevet behandlet.</span>
+          <button
+            type="button"
+            disabled={autoLinking}
+            onClick={async () => {
+              setAutoLinking(true)
+              const r = await autoLinkPendingEmailsAction()
+              setAutoLinking(false)
+              if (!r.success) { toast.error('Kunne ikke behandle', r.error); return }
+              toast.success(`${r.processed ?? 0} behandlet`, `${r.linked ?? 0} koblet til kunder · resten ligger under Uidentificerede`)
+              router.refresh()
+              await loadEmails()
+            }}
+            className="ml-auto px-3 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {autoLinking ? 'Behandler…' : 'Forsøg automatisk kobling'}
+          </button>
+        </div>
+      )}
 
       {/* ========== SPLIT VIEW: LIST (with filter bar) + DETAIL ========== */}
       <div className="flex gap-6 min-h-[650px]">
