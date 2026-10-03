@@ -100,6 +100,7 @@ function runBatch(n: number, tests: string[], build: boolean, deadline: number):
       clearInterval(timer)
       const missing = tests.filter((t) => !done.has(t))
       log(`batch ${n} slut (exit ${code}) på ${Math.round((Date.now() - batchStart) / 1000)} s${missing.length ? ` — uden resultat: ${missing.join(',')}` : ''}`)
+      if (missing.length || code !== 0) log(`sidste output:\n    ${tail.slice(-15).join('\n    ')}`)
       for (const t of missing) results.push({ test: t, status: 'NOT_RUN', seconds: 0, batch: n, note: tail.slice(-3).join(' | ').slice(0, 220) })
       resolve([])
     })

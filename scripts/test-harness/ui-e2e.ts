@@ -104,6 +104,8 @@
  *   U66 N26b: Rapporter → Sagsrentabilitet viser montørsagen (bygger på sager/timer, ikke gamle projekter)
  *   U67 N27: styringscockpittet viser antal sager klar til lukning
  *   U68 N35: webhenvendelse → "Opret lead" med kontaktdata fra formularen (ikke FormSubmit-afsenderen), kilde website
+ *   U69 N31/D40: kunden booker besigtigelse i portalen → CRM-opgave (ingen kundemail uden flag); interne kundeopgaver
+ *       hverken vises eller ligger i portalens sidedata
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -145,7 +147,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67'],
   economy: ['U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68'],
+  'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -306,6 +308,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const u58Ids: string[] = []
   let u60OfferId: string | null = null
   let u60Since: string | null = null
+  let u69TokenId: string | null = null
+  const u69TaskIds: string[] = []
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -325,7 +329,26 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     if (mode === 'start' && process.env.UI_E2E_REUSE_BUILD !== '1') {
       const t0 = Date.now()
       console.log('[ui-e2e] next build (staging-env) …')
-      execSync(`${process.platform === 'win32' ? 'npx.cmd' : 'npx'} next build`, { cwd: process.cwd(), env: { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3072`.trim() }, stdio: 'ignore' })
+      // Build-output gemmes (før: stdio ignore → en fejlet build var usynlig, og næste batch fandt intet build).
+      // Én genkørsel ved fejl (fx forbigående hukommelsespres); derefter tydelig fejl med de sidste linjer.
+      const buildLog = join(tmpdir(), 'elta-ui-e2e', 'next-build.log')
+      const runBuild = () => execSync(`${process.platform === 'win32' ? 'npx.cmd' : 'npx'} next build`, {
+        cwd: process.cwd(), env: { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3072`.trim() },
+        stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 })
+      try {
+        writeFileSync(buildLog, runBuild())
+      } catch (e1) {
+        const out1 = String((e1 as { stdout?: Buffer }).stdout ?? '') + String((e1 as { stderr?: Buffer }).stderr ?? '')
+        writeFileSync(buildLog, out1)
+        console.warn(`[ui-e2e] next build fejlede — prøver igen. Sidste linjer:\n${out1.split('\n').slice(-15).join('\n')}`)
+        try {
+          writeFileSync(buildLog, runBuild())
+        } catch (e2) {
+          const out2 = String((e2 as { stdout?: Buffer }).stdout ?? '') + String((e2 as { stderr?: Buffer }).stderr ?? '')
+          writeFileSync(buildLog, out2)
+          throw new Error(`next build fejlede 2× (log: ${buildLog}):\n${out2.split('\n').slice(-25).join('\n')}`)
+        }
+      }
       console.log(`[ui-e2e] build færdig på ${Math.round((Date.now() - t0) / 1000)} s`)
     }
     const serverEnv = mode === 'start' ? { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=1536`.trim() } : env
@@ -1857,6 +1880,47 @@ ${m.text()}`) })
         out.push({ id: 'U68 N35 webhenvendelse → lead', ok: !!emId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U69 N31 + D40: kunden booker besigtigelse i portalen (CRM-opgave, ingen kundemail uden flag); interne
+      // kundeopgaver vises/sendes IKKE til portalen
+      if (want('U69') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u69TokenId = (pt.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const secret = `[HARNESS] INTERN dårlig betaler ${stamp}`
+        const it = await c.admin.from('customer_tasks').insert([{ customer_id: profitCustomerId, title: secret, description: `Intern note ${stamp}`,
+          status: 'pending', priority: 'normal', due_date: new Date(Date.now() + 3 * 86400_000).toISOString(), created_by: adminUser.id }]).select('id')
+        const internalId = (it.data?.[0] as { id?: string } | undefined)?.id
+        if (internalId) u69TaskIds.push(internalId)
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        const kp = await kctx.newPage()
+        await gotoSafe(kp, `${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await kp.getByTestId('portal-book-open').first().click({ timeout: 60_000 }).catch(() => {})
+        const d = new Date(Date.now() + 7 * 86400_000)
+        const dateKey = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(d)
+        await kp.getByTestId('portal-book-date').fill(dateKey).catch(() => {})
+        await kp.getByTestId('portal-book-slot').selectOption({ index: 1 }).catch(() => {})
+        await kp.getByTestId('portal-book-submit').click({ timeout: 30_000 }).catch(() => {})
+        await kp.getByTestId('portal-booking-done').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.bekraeftet_i_portal = (await kp.getByTestId('portal-booking-done').count()) === 1
+        type T = { id: string; created_by: string | null; due_date: string | null; description: string | null }
+        let task: T | null = null
+        for (let i = 0; i < 15 && !task; i++) {
+          task = (await c.admin.from('customer_tasks').select('id, created_by, due_date, description').eq('customer_id', profitCustomerId).ilike('title', 'PORTAL: Besigtigelse%').gte('created_at', new Date(Date.now() - 600_000).toISOString()).limit(1).maybeSingle()).data as T | null
+          if (!task) await new Promise((res) => setTimeout(res, 1000))
+        }
+        if (task) u69TaskIds.push(task.id)
+        r.crm_opgave_oprettet = !!task && task.created_by === null && (task.due_date ?? '').startsWith(dateKey) && (task.description ?? '').includes('10:00–12:00')
+        // D40: den interne opgave må hverken vises eller ligge i sidens data
+        await gotoSafe(kp, `${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const html = await kp.content().catch(() => '')
+        r.intern_opgave_ikke_eksponeret = !html.includes(secret) && !html.includes(`Intern note ${stamp}`)
+        r.booking_vist = (await kp.getByText(/10:00–12:00/).count()) > 0
+        await kctx.close().catch(() => {})
+        out.push({ id: 'U69 N31/D40 portal-booking + ingen interne opgaver', ok: !!u69TokenId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -2528,6 +2592,8 @@ ${m.text()}`) })
     }
     // send-dialogens forhåndsvisning kan oprette et portal-token til testkunden
     if (u60Since && profitCustomerId) await c.admin.from('portal_access_tokens').delete().eq('customer_id', profitCustomerId).gte('created_at', u60Since)
+    for (const id of u69TaskIds) await c.admin.from('customer_tasks').delete().eq('id', id)
+    if (u69TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u69TokenId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (u57OfferId) await c.admin.from('offers').delete().eq('id', u57OfferId)
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)

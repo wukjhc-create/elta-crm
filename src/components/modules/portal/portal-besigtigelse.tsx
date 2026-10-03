@@ -16,6 +16,7 @@ import {
   portalRequestReschedule,
 } from '@/lib/actions/portal'
 import type { PortalBesigtigelse } from '@/lib/actions/portal'
+import { PortalBookBesigtigelse } from './portal-book-besigtigelse'
 
 interface PortalBesigtigelseSectionProps {
   token: string
@@ -80,8 +81,11 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
           <CalendarCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">Ingen besigtigelser planlagt</p>
           <p className="text-xs text-gray-400 mt-1">
-            Når vi planlægger en besigtigelse, kan du se og bekræfte den her
+            Når vi planlægger en besigtigelse, kan du se og bekræfte den her — eller book selv et tidspunkt
           </p>
+          <div className="mt-4 flex justify-center">
+            <PortalBookBesigtigelse token={token} onBooked={loadBookings} />
+          </div>
         </div>
       </div>
     )
@@ -97,6 +101,9 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
       </div>
 
       <div className="p-6 space-y-4">
+        {/* N31: kunden kan selv booke (endnu) en besigtigelse */}
+        <PortalBookBesigtigelse token={token} onBooked={loadBookings} />
+
         {/* Upcoming — actionable */}
         {upcoming.map((b) => (
           <BesigtigelseCard
