@@ -30,6 +30,7 @@ import {
   type ServiceCaseEconomy,
 } from '@/lib/actions/service-case-economy'
 import { formatCurrency } from '@/lib/utils/format'
+import { CaseOfferVsActualPanel } from './case-offer-vs-actual-panel'
 
 type SwitchTabFn = (tab: 'planlaegning' | 'materialer' | 'oevrige' | 'fakturakladde') => void
 
@@ -323,6 +324,9 @@ export function OrderEconomyTab({
 
       {/* Supplier invoices (Sprint 5E-4) */}
       <SupplierInvoicesPanel data={data} />
+
+      {/* N26c — tilbudt vs. faktisk pr. linje (foldet sammen, hentes ved åbning) */}
+      <CaseOfferVsActualPanel caseId={caseId} />
 
       {/* Invoicing */}
       <div className="rounded-lg ring-1 ring-gray-200 bg-white p-4">
