@@ -106,6 +106,7 @@
  *   U68 N35: webhenvendelse → "Opret lead" med kontaktdata fra formularen (ikke FormSubmit-afsenderen), kilde website
  *   U69 N31/D40: kunden booker besigtigelse i portalen → CRM-opgave (ingen kundemail uden flag); interne kundeopgaver
  *       hverken vises eller ligger i portalens sidedata
+ *   U70 N36: dashboardets "Aktive Sager" = antal aktive sager; ingen links til /customers|/offers|/projects (404)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -143,7 +144,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  * U1–U4/U6/U13/U5 (login, adgang, konsolfejl) kører altid.
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
-  smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52'],
+  smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67'],
   economy: ['U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
@@ -1919,6 +1920,22 @@ ${m.text()}`) })
         r.booking_vist = (await kp.getByText(/10:00–12:00/).count()) > 0
         await kctx.close().catch(() => {})
         out.push({ id: 'U69 N31/D40 portal-booking + ingen interne opgaver', ok: !!u69TokenId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U70 N36: dashboardets "Aktive Sager" bygger på sager (før: gammel projektmodel → 0); aktivitetslisten linker
+      // kun ind i /dashboard (før: /customers/…, /offers/…, /projects/… → 404)
+      if (want('U70')) {
+        const r: Record<string, boolean> = {}
+        const { count } = await c.admin.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")')
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const label = a.page.locator('p', { hasText: /^Aktive Sager$/ }).first()
+        await label.waitFor({ timeout: 60_000 }).catch(() => {})
+        const shown = (await label.locator('xpath=following-sibling::p[1]').innerText().catch(() => '')).trim()
+        r.aktive_sager_fra_sager = shown === String(count ?? -1)
+        const hrefs = await a.page.locator('a[href]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))
+        const bad = hrefs.filter((h) => /^\/(customers|offers|projects)\//.test(h) || h.startsWith('/dashboard/projects/'))
+        r.ingen_doede_links = bad.length === 0
+        out.push({ id: 'U70 N36 dashboard på sager', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · vist=${shown} forventet=${count}${bad.length ? ` · døde: ${bad.slice(0, 3).join(',')}` : ''}` })
       }
 
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl

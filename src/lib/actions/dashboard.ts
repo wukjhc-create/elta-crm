@@ -2,7 +2,6 @@
 
 import type { LeadStatus } from '@/types/leads.types'
 import type { OfferStatus } from '@/types/offers.types'
-import type { ProjectStatus } from '@/types/projects.types'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { DASHBOARD_LIMITS } from '@/lib/constants'
 
@@ -34,13 +33,9 @@ export interface DashboardStats {
     accepted_value: number
     acceptance_rate: number
   }
-  projects: {
-    total: number
-    planning: number
+  /** N36: sager + timer (service_cases/time_logs). Før: den gamle projects/time_entries-model → 0 i prod. */
+  cases: {
     active: number
-    on_hold: number
-    completed: number
-    cancelled: number
     total_hours: number
     billable_hours: number
   }
@@ -81,10 +76,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     supabase.from('customers').select('is_active, created_at'),
     // Offers stats
     supabase.from('offers').select('status, total_amount').eq('is_proposal', false),
-    // Projects stats
-    supabase.from('projects').select('status'),
-    // Time entries for project hours
-    supabase.from('time_entries').select('hours, billable'),
+    // N36: sager (ikke gamle projekter)
+    // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
+    supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")'),
+    // N36: afsluttede timeregistreringer (time_logs — ikke gamle time_entries)
+    supabase.from('time_logs').select('hours, billable').not('end_time', 'is', null),
     // Unread messages for current user
     supabase
       .from('messages')
@@ -104,8 +100,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const leads = leadsResult.data || []
   const customers = customersResult.data || []
   const offers = offersResult.data || []
-  const projects = projectsResult.data || []
-  const timeEntries = timeEntriesResult.data || []
+  const activeCases = projectsResult.count || 0
+  const timeEntries = (timeEntriesResult.data || []) as Array<{ hours: number | string | null; billable: boolean | null }>
 
   // Calculate leads stats
   const leadsByStatus = leads.reduce(
@@ -157,20 +153,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const acceptanceRate =
     decidedOffers > 0 ? Math.round((acceptedOffers.length / decidedOffers) * 100) : 0
 
-  // Calculate projects stats
-  const projectsByStatus = projects.reduce(
-    (acc, project) => {
-      acc[project.status as ProjectStatus] =
-        (acc[project.status as ProjectStatus] || 0) + 1
-      return acc
-    },
-    {} as Record<ProjectStatus, number>
-  )
-
-  const totalHours = timeEntries.reduce((sum, entry) => sum + entry.hours, 0)
-  const billableHours = timeEntries
-    .filter((entry) => entry.billable)
-    .reduce((sum, entry) => sum + entry.hours, 0)
+  // N36: sager i arbejde (ikke lukket/konverteret) + timer fra time_logs
+  const r1 = (n: number) => Math.round(n * 10) / 10
+  const totalHours = r1(timeEntries.reduce((sum, entry) => sum + (Number(entry.hours) || 0), 0))
+  const billableHours = r1(timeEntries
+    .filter((entry) => entry.billable !== false)
+    .reduce((sum, entry) => sum + (Number(entry.hours) || 0), 0))
 
   return {
     leads: {
@@ -200,13 +188,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       accepted_value: acceptedValue,
       acceptance_rate: acceptanceRate,
     },
-    projects: {
-      total: projects.length,
-      planning: projectsByStatus['planning'] || 0,
-      active: projectsByStatus['active'] || 0,
-      on_hold: projectsByStatus['on_hold'] || 0,
-      completed: projectsByStatus['completed'] || 0,
-      cancelled: projectsByStatus['cancelled'] || 0,
+    cases: {
+      active: activeCases,
       total_hours: totalHours,
       billable_hours: billableHours,
     },
@@ -241,9 +224,11 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
         .eq('is_proposal', false)
         .order('created_at', { ascending: false })
         .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
+      // N36: sager (ikke gamle projekter)
       supabase
-        .from('projects')
-        .select('id, project_number, name, status, created_at')
+        .from('service_cases')
+        .select('id, case_number, title, status, created_at')
+        .eq('is_proposal', false)
         .order('created_at', { ascending: false })
         .limit(DASHBOARD_LIMITS.ACTIVITY_PER_TABLE),
     ])
@@ -275,7 +260,7 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
         title: customer.company_name,
         description: customer.customer_number,
         created_at: customer.created_at,
-        link: `/customers/${customer.id}`,
+        link: `/dashboard/customers/${customer.id}`, // før /customers/… → 404
       })
     }
   }
@@ -290,22 +275,22 @@ export async function getRecentActivity(limit: number = DASHBOARD_LIMITS.RECENT_
         title: offer.offer_number,
         description: offer.title,
         created_at: offer.created_at,
-        link: `/offers/${offer.id}`,
+        link: `/dashboard/offers/${offer.id}`, // før /offers/… → 404
       })
     }
   }
 
-  // Map projects to activities
+  // N36: nye sager (før: gamle projekter med link til /projects/… → 404)
   if (projectsResult.data) {
-    for (const project of projectsResult.data) {
+    for (const sag of projectsResult.data as Array<{ id: string; case_number: string | null; title: string | null; created_at: string }>) {
       activities.push({
-        id: `project-${project.id}`,
+        id: `case-${sag.id}`,
         type: 'project',
-        action: 'Nyt projekt',
-        title: project.project_number,
-        description: project.name,
-        created_at: project.created_at,
-        link: `/projects/${project.id}`,
+        action: 'Ny sag',
+        title: sag.case_number ?? 'Sag',
+        description: sag.title ?? undefined,
+        created_at: sag.created_at,
+        link: `/dashboard/orders/${sag.id}`,
       })
     }
   }
@@ -331,19 +316,11 @@ export async function getUpcomingTasks(limit: number = DASHBOARD_LIMITS.UPCOMING
 > {
   const { supabase } = await getAuthenticatedClient()
 
+  // N36: kundeopgaver (før: gamle project_tasks → prod 1 række, link til /dashboard/projects/…)
   const { data } = await supabase
-    .from('project_tasks')
-    .select(
-      `
-      id,
-      title,
-      due_date,
-      priority,
-      status,
-      project:projects(id, name, project_number)
-    `
-    )
-    .not('status', 'eq', 'done')
+    .from('customer_tasks')
+    .select('id, title, due_date, priority, status, customer:customers(id, company_name)')
+    .neq('status', 'done')
     .not('due_date', 'is', null)
     .order('due_date', { ascending: true })
     .limit(limit)
@@ -351,15 +328,15 @@ export async function getUpcomingTasks(limit: number = DASHBOARD_LIMITS.UPCOMING
   if (!data) return []
 
   return data.map((task) => {
-    const project = task.project as unknown as { id: string; name: string; project_number: string } | null
+    const c = (Array.isArray(task.customer) ? task.customer[0] : task.customer) as { id: string; company_name: string } | null
     return {
-      id: task.id,
-      title: task.title,
-      project_name: project?.project_number || '',
-      project_id: project?.id || '',
-      due_date: task.due_date,
-      priority: task.priority,
-      status: task.status,
+      id: task.id as string,
+      title: task.title as string,
+      project_name: c?.company_name || '',
+      project_id: c?.id || '',
+      due_date: task.due_date as string | null,
+      priority: task.priority as string,
+      status: task.status as string,
     }
   })
 }

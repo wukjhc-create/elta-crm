@@ -185,8 +185,8 @@ export default async function DashboardPage() {
         />
         <StatCard
           title="Aktive Sager"
-          value={stats.projects.active}
-          subtitle={`${stats.projects.total_hours}t registreret`}
+          value={stats.cases.active}
+          subtitle={`${stats.cases.total_hours}t registreret`}
           icon={FolderKanban}
           iconColor="text-orange-600"
           iconBgColor="bg-orange-100"
@@ -206,8 +206,8 @@ export default async function DashboardPage() {
         />
         <StatCard
           title="Fakturerbare Timer"
-          value={`${stats.projects.billable_hours}t`}
-          subtitle={`af ${stats.projects.total_hours}t total`}
+          value={`${stats.cases.billable_hours}t`}
+          subtitle={`af ${stats.cases.total_hours}t total`}
           icon={Clock}
           iconColor="text-cyan-600"
           iconBgColor="bg-cyan-100"
