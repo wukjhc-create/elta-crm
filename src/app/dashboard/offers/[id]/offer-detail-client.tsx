@@ -51,6 +51,7 @@ import { OfferSupplierSavingsCard } from '@/components/modules/offers/offer-supp
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
 import { OfferTaskForm } from '@/components/modules/offers/offer-task-form'
 import { insertPackageIntoOffer } from '@/lib/actions/packages'
+import { fillMissingOfferLineCosts } from '@/lib/actions/profit'
 import { SendEmailModal, EmailTimeline } from '@/components/email'
 import {
   deleteOffer,
@@ -705,6 +706,30 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 ))}
               </div>
             </div>
+
+            {/* N25: linjer uden kostpris → DB overvurderet; hurtig-udfyld (kun kostpris-roller, ingen beløb vist) */}
+            {showFinancials && offerDB.linesWithoutCost > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between gap-3" data-testid="offer-missing-cost-banner">
+                <p className="text-sm text-blue-900">
+                  {offerDB.linesWithoutCost} linje{offerDB.linesWithoutCost === 1 ? '' : 'r'} uden kostpris — tælles som 0 kr, så DB er overvurderet.
+                </p>
+                {offer.status === 'draft' && (
+                  <button
+                    type="button"
+                    data-testid="offer-fill-cost"
+                    className="shrink-0 text-sm px-3 py-1.5 rounded border border-blue-300 bg-white hover:bg-blue-100 text-blue-900"
+                    onClick={async () => {
+                      const res = await fillMissingOfferLineCosts(offer.id)
+                      if (!res.success || !res.data) { toast.error('Kunne ikke udfylde kost', res.error); return }
+                      toast.success(`Kost udfyldt på ${res.data.filled} linje(r)`, res.data.remaining > 0 ? `${res.data.remaining} mangler stadig (timekost: ${res.data.hourlySource})` : undefined)
+                      router.refresh()
+                    }}
+                  >
+                    Udfyld kost
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* DB Warning Banner */}
             {isOfferRed && (

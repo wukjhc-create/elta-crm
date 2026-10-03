@@ -103,6 +103,8 @@ export function computeOfferDB(lineItems: LineItemForDB[], offerDiscountPercenta
   dbAmount: number
   dbPercentage: number
   hasAnyCost: boolean
+  /** N25: salgslinjer (total > 0) uden kostpris — tælles som 0 kr kost, så DB'en er overvurderet */
+  linesWithoutCost: number
 } {
   const totalCost = lineItems.reduce((sum, item) => {
     const cost = item.cost_price || item.supplier_cost_price_at_creation || 0
@@ -112,6 +114,7 @@ export function computeOfferDB(lineItems: LineItemForDB[], offerDiscountPercenta
   const discount = offerDiscountPercentage > 0 ? Math.min(offerDiscountPercentage, 100) : 0
   const totalSale = grossSale * (1 - discount / 100)
   const hasAnyCost = lineItems.some(item => item.cost_price || item.supplier_cost_price_at_creation)
+  const linesWithoutCost = lineItems.filter((item) => item.total > 0 && !item.cost_price && !item.supplier_cost_price_at_creation).length
 
   return {
     totalCost,
@@ -119,6 +122,7 @@ export function computeOfferDB(lineItems: LineItemForDB[], offerDiscountPercenta
     dbAmount: calculateDBAmount(totalCost, totalSale),
     dbPercentage: calculateDBPercentage(totalCost, totalSale),
     hasAnyCost,
+    linesWithoutCost,
   }
 }
 

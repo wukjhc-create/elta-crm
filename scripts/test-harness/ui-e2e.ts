@@ -123,6 +123,10 @@
  *   U81 N26c: Økonomi → tilbudt vs. faktisk pr. linje (foldet/ikke hentet til åbning; over/ikke brugt/ikke tilbudt; afvigelse)
  *   U82 D48/D51: solcelle-beregner — salg får ingen kostpriser/lønsats (server-beregning, standardavance); admin ser intern kost
  *   U83 privacy-rollematrix (5 roller): kost/DB sammenfoldet på sag/tilbud; ingen kostværdier i data uden kostadgang; leverandør-login kun admin
+ *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
+ *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
+ *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U88 N26d: Rapporter → Sagsrentabilitet med tilbudt/faktisk kost + afvigelse, sammenfoldet som standard
  *   U84 D48-audit: salg uden kost/avance i getOffer, tilføjet leverandørlinje, pakke-vælger, kundepriser, AI-indsigter; ingen Optimer
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
@@ -162,9 +166,9 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73'],
-  economy: ['U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -341,6 +345,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u84OfferId: string | null = null
   let u84SupplierId: string | null = null
   let u84PackageId: string | null = null
+  let u87OfferId: string | null = null
+  let u87SupplierId: string | null = null
+  let u88OfferId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -2513,10 +2520,10 @@ ${m.text()}`) })
         out.push({ id: 'U82 D48 solcelle-beregner: salg uden kostgrundlag (server-beregning)', ok: u82SolarIds.length === 4 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
-      // U83 privacy-rollematrix (admin, serviceleder, salg, montør, bogholderi): kost/DB er sammenfoldet som standard
-      // på sag og tilbud for alle; roller uden kostadgang får heller ingen kostværdier i data; leverandør-login kun admin
-      if (want('U83') && profitCustomerId) {
-        const r: Record<string, boolean> = {}
+      // U83/U86 privacy-rollematrix — delt i to (ingen enkelt test nær 5 min): U83 admin/salg/montør, U86 serviceleder/
+      // bogholderi. Kost/DB sammenfoldet som standard på sag og tilbud; roller uden kostadgang får ingen kostværdier i
+      // data; leverandør-login kun admin. U85: lille målrettet shoulder-surfing-test (admin tilbud + serviceleder login-fane).
+      if ((want('U83') || want('U85') || want('U86')) && profitCustomerId) {
         const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] matrix ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
           priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
         const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
@@ -2530,11 +2537,30 @@ ${m.text()}`) })
         const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U83 grossist ${stamp}`, code: `HU83${stamp}` }]).select('id')
         u83SupplierId = (sup.data?.[0] as { id?: string } | undefined)?.id ?? null
         const costVals = ['87.65', '87,65', '5432.1', '5.432,10']
+        if (want('U85')) {
+          const r: Record<string, boolean> = {}
+          await gotoSafe(a.page, `${base}/dashboard/offers/${u83OfferId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.getByText(`Matrix linje ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          const vis = await a.page.locator('body').innerText().catch(() => '')
+          r.admin_tilbud_foldet = !vis.includes('5.432,10') && (await a.page.getByTestId('offer-profit-card').count()) === 0
+          await a.page.getByTestId('cost-reveal-toggle').first().click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForTimeout(800)
+          r.admin_fold_ud = (await a.page.locator('body').innerText().catch(() => '')).includes('5.432,10')
+          const sl = await login(await mkUser('serviceleder'))
+          await gotoSafe(sl.page, `${base}/dashboard/settings/suppliers/${u83SupplierId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await sl.page.getByText(`[HARNESS] U83 grossist ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+          r.serviceleder_ingen_loginfane = (await sl.page.getByText(`[HARNESS] U83 grossist ${stamp}`).count()) > 0 && (await sl.page.getByRole('tab', { name: /API Login|FTP Login/ }).count()) === 0 // tekst — testid fandtes ikke i gammel kode (negativ kontrol)
+          await sl.ctx.close().catch(() => {})
+          out.push({ id: 'U85 shoulder-surfing: tilbud foldet + login-fane skjult', ok: !!u83OfferId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+        }
         type Role = 'admin' | 'serviceleder' | 'salg' | 'montør' | 'bogholderi'
         const seesCost: Record<Role, boolean> = { admin: true, serviceleder: true, salg: false, 'montør': false, bogholderi: true }
         const seesOffers: Record<Role, boolean> = { admin: true, serviceleder: true, salg: true, 'montør': false, bogholderi: false }
+        for (const [tid, roles] of [['U83', ['admin', 'salg', 'montør']], ['U86', ['serviceleder', 'bogholderi']]] as Array<[string, Role[]]>) {
+        if (!want(tid)) continue
+        const r: Record<string, boolean> = {}
         const notes: string[] = []
-        for (const role of ['admin', 'serviceleder', 'salg', 'montør', 'bogholderi'] as Role[]) {
+        for (const role of roles) {
           const u = role === 'admin' ? adminUser : role === 'salg' ? salg : role === 'montør' ? montor : await mkUser(role)
           const s = await login(u)
           const net: string[] = []
@@ -2564,13 +2590,14 @@ ${m.text()}`) })
           // leverandør-login-fane
           await gotoSafe(s.page, `${base}/dashboard/settings/suppliers/${u83SupplierId}`, { waitUntil: 'networkidle', timeout: 120_000 })
           await s.page.waitForTimeout(800)
-          const credTab = (await s.page.getByTestId('supplier-credentials-tab').count()) > 0
+          const credTab = (await s.page.getByRole('tab', { name: /API Login|FTP Login/ }).count()) > 0
           const credOk = role === 'admin' ? credTab : !credTab
           r[`${role}`] = caseOk && offerOk && dataOk && credOk
           notes.push(`${role}:sag=${caseOk ? 'ok' : 'SYNLIG'},tilbud=${offerOk ? 'ok' : 'FEJL'},data=${dataOk ? 'ok' : 'LÆK'},login-fane=${credTab ? 'ja' : 'nej'}`)
           await s.ctx.close().catch(() => {})
         }
-        out.push({ id: 'U83 privacy-rollematrix (5 roller)', ok: !!caseId && !!u83OfferId && Object.values(r).every(Boolean), note: notes.join(' · ') })
+        out.push({ id: `${tid} privacy-rollematrix (${roles.join('/')})`, ok: !!caseId && !!u83OfferId && Object.values(r).every(Boolean), note: notes.join(' · ') })
+        }
       }
 
       // U84 D48-audit (S1): salg får ingen kost/avance fra (1) getOffer (margin_percentage), (2) tilføj linje fra leverandør
@@ -2626,6 +2653,80 @@ ${m.text()}`) })
         await a.page.getByText('Leverandørpriser', { exact: true }).first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.admin_kundepriser = (await a.page.getByText('Leverandørpriser', { exact: true }).count()) > 0
         out.push({ id: 'U84 D48-audit: salg uden kost i linjer/pakker/kundepriser/AI', ok: !!u84OfferId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${leaked.length ? ` · LÆK: ${leaked.join(',')}` : ''}` })
+      }
+
+      // U87 N25: tilbudslinjer uden kostpris — banner (antal, ingen beløb) for kontoret; "Udfyld kost" sætter
+      // leverandørens kostpris på leverandørlinjen (salgspris uændret); salg ser intet banner
+      if (want('U87') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U87 grossist ${stamp}`, code: `HU87${stamp}`, is_active: true }]).select('id')
+        u87SupplierId = (sup.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sp = u87SupplierId ? await c.admin.from('supplier_products').insert([{ supplier_id: u87SupplierId, supplier_sku: `H87-${stamp}`, supplier_name: `Harness U87 vare ${stamp}`, cost_price: 41.5, unit: 'stk', is_available: true }]).select('id') : null
+        const spId = (sp?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-NC-${stamp}`, title: `[HARNESS] mangler kost ${stamp}`, customer_id: profitCustomerId, status: 'draft', created_by: salg.id, tax_percentage: 25 }]).select('id')
+        u87OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const L = (position: number, description: string, unit: string, extra: Record<string, unknown>) =>
+          ({ offer_id: u87OfferId, position, description, quantity: 2, unit, unit_price: 100, total: 200, cost_price: 0, margin_percentage: 0, sale_price: 100, ...extra })
+        if (u87OfferId) await c.admin.from('offer_line_items').insert([
+          L(1, `NC vare ${stamp}`, 'stk', { supplier_product_id: spId }),
+          L(2, `NC manuel ${stamp}`, 'stk', {}),
+          L(3, `NC med kost ${stamp}`, 'stk', { cost_price: 50 }),
+        ])
+        await gotoSafe(a.page, `${base}/dashboard/offers/${u87OfferId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const banner = a.page.getByTestId('offer-missing-cost-banner')
+        await banner.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.banner_2_linjer = ((await banner.textContent().catch(() => '')) ?? '').includes('2 linjer uden kostpris')
+        await a.page.getByTestId('offer-fill-cost').click({ timeout: 30_000 }).catch(() => {})
+        type NL = { description: string; cost_price: number | null; unit_price: number }
+        const readL = async () => ((await c.admin.from('offer_line_items').select('description, cost_price, unit_price').eq('offer_id', u87OfferId ?? '')).data ?? []) as NL[]
+        let lines = await readL()
+        for (let i = 0; i < 20 && Number(lines.find((l) => l.description.startsWith('NC vare'))?.cost_price ?? 0) === 0; i++) { await new Promise((res) => setTimeout(res, 1000)); lines = await readL() }
+        const vare = lines.find((l) => l.description.startsWith('NC vare'))
+        r.leverandoerkost_udfyldt = Number(vare?.cost_price) === 41.5 && Number(vare?.unit_price) === 100
+        r.manuel_uaendret = Number(lines.find((l) => l.description.startsWith('NC manuel'))?.cost_price ?? 0) === 0
+        await a.page.waitForTimeout(1500)
+        r.banner_1_linje = ((await banner.textContent().catch(() => '')) ?? '').includes('1 linje uden kostpris')
+        const s = await login(salg)
+        await gotoSafe(s.page, `${base}/dashboard/offers/${u87OfferId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await s.page.getByText(`NC manuel ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.salg_intet_banner = (await s.page.getByTestId('offer-missing-cost-banner').count()) === 0
+        await s.ctx.close().catch(() => {})
+        out.push({ id: 'U87 N25 manglende kostpris på tilbudslinjer', ok: !!u87OfferId && !!spId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U88 N26d/PV8: Rapporter → Sagsrentabilitet — budget/tilbudt/faktisk kost sammenfoldet som standard; fold ud viser
+      // tilbudt vs. faktisk kost og afvigelse pr. sag (tilbudt 5.000, faktisk 660 → −4.340)
+      if (want('U88') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-RP-${stamp}`, title: `[HARNESS] rapport ${stamp}`, customer_id: profitCustomerId,
+          status: 'accepted', created_by: adminUser.id, tax_percentage: 25 }]).select('id')
+        u88OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const L = (position: number, description: string, quantity: number, unit: string, cost: number) =>
+          ({ offer_id: u88OfferId, position, description, quantity, unit, unit_price: cost * 1.5, total: quantity * cost * 1.5, cost_price: cost, margin_percentage: 33, sale_price: cost * 1.5 })
+        if (u88OfferId) await c.admin.from('offer_line_items').insert([L(1, 'Montage', 10, 'timer', 400), L(2, `RP kabel ${stamp}`, 50, 'm', 10), L(3, `RP tavle ${stamp}`, 1, 'stk', 500)])
+        const caseTitle = `[HARNESS] rapport ${stamp}`
+        const sc = await c.admin.from('service_cases').insert([{ title: caseTitle, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, source_offer_id: u88OfferId }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) {
+          listCaseIds.push(caseId)
+          await c.admin.from('case_materials').insert([
+            { case_id: caseId, description: `rp kabel ${stamp}`, quantity: 60, unit: 'm', unit_cost: 10, unit_sales_price: 15, billable: true, source: 'manual', created_by: adminUser.id },
+            { case_id: caseId, description: `RP ekstra ${stamp}`, quantity: 2, unit: 'stk', unit_cost: 30, unit_sales_price: 45, billable: true, source: 'manual', created_by: adminUser.id },
+          ])
+        }
+        await gotoSafe(a.page, `${base}/dashboard/reports`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const card = a.page.getByTestId('report-case-profitability')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        await card.getByText(caseTitle).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.sag_i_rapport = (await card.getByText(caseTitle).count()) > 0
+        r.foldet = (await card.getByText('Tilbudt kost').count()) === 0 && (await card.getByText('Budget').count()) === 0
+        await card.getByTestId('cost-reveal-toggle').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(800)
+        const row = card.locator('tr', { hasText: caseTitle }).first()
+        r.afvigelse = ((await row.getByTestId('report-case-deviation').textContent().catch(() => '')) ?? '').includes('4.340')
+        r.sortering_vises = (await card.getByTestId('report-sort-deviation').count()) === 1
+        out.push({ id: 'U88 N26d rapport: tilbudt vs. faktisk kost pr. sag (foldet)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
@@ -3185,6 +3286,9 @@ ${m.text()}`) })
     if (u84OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u84OfferId); await c.admin.from('offers').delete().eq('id', u84OfferId) }
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
+    if (u88OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u88OfferId); await c.admin.from('offers').delete().eq('id', u88OfferId) }
+    if (u87OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u87OfferId); await c.admin.from('offers').delete().eq('id', u87OfferId) }
+    if (u87SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u87SupplierId); await c.admin.from('suppliers').delete().eq('id', u87SupplierId) }
     if (u81OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u81OfferId); await c.admin.from('offers').delete().eq('id', u81OfferId) }
     if (u77OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u77OfferId); await c.admin.from('offers').delete().eq('id', u77OfferId) }
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('case_materials').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
