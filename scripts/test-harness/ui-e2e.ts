@@ -109,6 +109,12 @@
  *   U70 N36: dashboardets "Aktive Sager" = antal aktive sager; ingen links til /customers|/offers|/projects (404)
  *   U71 N30: montør uploader kvittering på øvrig omkostning → privat storage-sti (ikke kundedokument); kontoret får
  *       signeret bilag-link
+ *   U73 privacy: medarbejderløn/-satser kun i fanen "Økonomi & løn" (løn-roller, hentes ved åbning, maskeret, væk
+ *       ved fanebytte); serviceleder ingen fane/lønhistorik (D41); montør ingen kost/sats i sagens tidsdata (D42)
+ *   U74 privacy/RBAC: salg får ingen kost/avance i tilbuddets data (D43); montør/salg ingen sagsbudget/lav-DB (D46);
+ *       kontoret ser fortsat kost
+ *   U75 D47: produktkatalog uden kostpris for salg (kolonne + data); kontoret ser den
+ *   U76 D49: pris-/systemadvarsler på dashboardet og prisovervågningen kun for kostpris-roller (salg: ingen)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -147,8 +153,8 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71'],
+  sales: ['U74', 'U75', 'U76', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73'],
   economy: ['U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -313,6 +319,10 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u60Since: string | null = null
   let u69TokenId: string | null = null
   const u69TaskIds: string[] = []
+  let u74OfferId: string | null = null
+  let u73Diag = ''
+  let u74Diag = ''
+  let u75ProductId: string | null = null
   const listCaseIds: string[] = []
   const seededEmailIds: string[] = []
   let otherCaseId: string | null = null
@@ -1940,6 +1950,98 @@ ${m.text()}`) })
         out.push({ id: 'U70 N36 dashboard på sager', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · vist=${shown} forventet=${count}${bad.length ? ` · døde: ${bad.slice(0, 3).join(',')}` : ''}` })
       }
 
+      // U74 privacy/RBAC: salg får ingen kost/leverandørkost/avance i tilbuddets data (D43) eller leverandørsøgning (D44);
+      // montør/salg får ikke sagens interne budget/lav-DB (D46); kontoret ser fortsat kost
+      if (want('U74') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-PV-${stamp}`, title: `[HARNESS] privacy ${stamp}`, customer_id: profitCustomerId,
+          status: 'draft', created_by: salg.id, tax_percentage: 25 }]).select('id')
+        const oid = (off.data?.[0] as { id?: string } | undefined)?.id
+        if (oid) u74OfferId = oid
+        if (oid) await c.admin.from('offer_line_items').insert([{ offer_id: oid, position: 1, description: 'Inverter', quantity: 1, unit: 'stk', unit_price: 9000, total: 9000,
+          cost_price: 4321.09, supplier_cost_price_at_creation: 4321.09, supplier_margin_applied: 37.5 }])
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] budget ${stamp}`, customer_id: profitCustomerId, status: 'new', priority: 'medium',
+          source: 'manual', created_by: salg.id, budget: 76543.21, low_profit: true }]).select('id')
+        const cid = (sc.data?.[0] as { id?: string } | undefined)?.id
+        if (cid) listCaseIds.push(cid)
+        const sp = await login(salg)
+        const net: string[] = []
+        sp.page.on('response', async (resp) => { try { if (['script', 'stylesheet', 'image', 'font', 'media'].includes(resp.request().resourceType())) return; net.push(await resp.text()) } catch { /* lukket */ } }) // kun data/HTML — JS-bundles indeholder UI-tekster som "Lav DB"
+        await gotoSafe(sp.page, `${base}/dashboard/offers/${oid}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await sp.page.waitForTimeout(1500)
+        const offerAll = (await sp.page.content().catch(() => '')) + net.join('\n')
+        r.salg_tilbud_uden_kost = !offerAll.includes('4321.09') && !offerAll.includes('4.321,09') && !/"supplier_margin_applied":\s*37/.test(offerAll)
+        // D43 data-værn: salg redigerer linjen (autosave ved blur) → de skjulte kost-/avancefelter må IKKE nulstilles
+        const desc = sp.page.locator('input[placeholder="Beskrivelse..."]').first()
+        await desc.fill(`Inverter redigeret ${stamp}`).catch(() => {})
+        await desc.press('Tab').catch(() => {})
+        type LI = { description: string; cost_price: number | null; supplier_cost_price_at_creation: number | null; supplier_margin_applied: number | null }
+        let li: LI | null = null
+        for (let i = 0; i < 20; i++) {
+          li = (await c.admin.from('offer_line_items').select('description, cost_price, supplier_cost_price_at_creation, supplier_margin_applied').eq('offer_id', oid ?? '').maybeSingle()).data as LI | null
+          if (li?.description === `Inverter redigeret ${stamp}`) break
+          await new Promise((res) => setTimeout(res, 1000))
+        }
+        r.salg_redigering_gemt = li?.description === `Inverter redigeret ${stamp}`
+        r.skjult_kost_bevaret = Number(li?.cost_price) === 4321.09 && Number(li?.supplier_cost_price_at_creation) === 4321.09 && Number(li?.supplier_margin_applied) === 37.5
+        net.length = 0
+        await gotoSafe(sp.page, `${base}/dashboard/orders/${cid}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await sp.page.waitForTimeout(1500)
+        const caseAll = (await sp.page.content().catch(() => '')) + net.join('\n')
+        const caseDiag = [caseAll.includes('76543') ? 'budget-tal' : '', caseAll.includes('76.543') ? 'budget-dk' : '', /"low_profit":\s*true/.test(caseAll) ? 'low_profit' : '', caseAll.includes('Lav DB') ? 'tekst-Lav-DB' : ''].filter(Boolean)
+        u74Diag = caseDiag.join(',')
+        if (caseDiag.length) { const i = caseAll.indexOf(caseDiag.includes('tekst-Lav-DB') ? 'Lav DB' : caseDiag.includes('low_profit') ? 'low_profit' : '76543'); u74Diag += ` ved: ${caseAll.slice(Math.max(0, i - 120), i + 40).replace(/\s+/g, ' ')}` }
+        r.salg_sag_uden_budget = caseDiag.length === 0
+        net.length = 0
+        await gotoSafe(sp.page, `${base}/dashboard/orders`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await sp.page.waitForTimeout(1000)
+        const listAll = (await sp.page.content().catch(() => '')) + net.join('\n')
+        r.sagsliste_uden_lav_db = !/"low_profit":\s*true/.test(listAll) && !listAll.includes('Lav DB') && !listAll.includes('76543')
+        await sp.ctx.close().catch(() => {})
+        // kontoret ser fortsat kost på tilbuddet
+        await gotoSafe(a.page, `${base}/dashboard/offers/${oid}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.waitForTimeout(1000)
+        r.kontor_ser_kost = (await a.page.content().catch(() => '')).includes('4.321,09')
+        await a.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {})
+        out.push({ id: 'U74 privacy: tilbud/sag uden kost for salg', ok: !!oid && !!cid && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${u74Diag ? ` · ${u74Diag.slice(0, 260)}` : ''}` })
+      }
+
+      // U75 D47: produktkataloget — salg ser ingen kostpris-kolonne/-værdier; kontoret gør
+      if (want('U75')) {
+        const r: Record<string, boolean> = {}
+        // mindst ét produkt (tom katalog → ingen tabel/kolonne at teste)
+        const pr = await c.admin.from('product_catalog').insert([{ name: `[HARNESS] produkt ${stamp}`, list_price: 199, cost_price: 123.45 }]).select('id')
+        u75ProductId = (pr.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sp = await login(salg)
+        const net: string[] = []
+        sp.page.on('response', async (resp) => { try { if (['script', 'stylesheet', 'image', 'font', 'media'].includes(resp.request().resourceType())) return; net.push(await resp.text()) } catch { /* lukket */ } }) // kun data/HTML — JS-bundles indeholder UI-tekster som "Lav DB"
+        await gotoSafe(sp.page, `${base}/dashboard/products`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await sp.page.waitForTimeout(1000)
+        const all = (await sp.page.content().catch(() => '')) + net.join('\n')
+        r.salg_ingen_kostkolonne = (await sp.page.getByRole('columnheader', { name: 'Kostpris' }).count()) === 0
+        r.salg_ingen_kostvaerdier = !/"cost_price":\s*[1-9]/.test(all)
+        await sp.ctx.close().catch(() => {})
+        await gotoSafe(a.page, `${base}/dashboard/products`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.kontor_ser_kostkolonne = (await a.page.getByRole('columnheader', { name: 'Kostpris' }).count()) > 0
+        out.push({ id: 'U75 D47 produkter uden kostpris for salg', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U76 D49: pris-/systemadvarsler (leverandørkost, lav margin) kun for kostpris-roller; prisovervågning ingen adgang for salg
+      if (want('U76')) {
+        const r: Record<string, boolean> = {}
+        const sp = await login(salg)
+        await gotoSafe(sp.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await sp.page.waitForTimeout(1000)
+        r.salg_ingen_prisovervaagning_paa_dashboard = (await sp.page.getByRole('heading', { name: 'Prisovervågning' }).count()) === 0 && (await sp.page.getByRole('heading', { name: 'Systemadvarsler' }).count()) === 0
+        await gotoSafe(sp.page, `${base}/dashboard/pricing`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.salg_ingen_adgang_til_prisovervaagning = (await sp.page.getByText(/ikke adgang/i).count()) > 0
+        await sp.ctx.close().catch(() => {})
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.kontor_ser_prisovervaagning = (await a.page.getByRole('heading', { name: 'Prisovervågning' }).count()) > 0
+        await a.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {})
+        out.push({ id: 'U76 D49 prisadvarsler kun for kostpris-roller', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U6 opkalds-opslag (P3 #15): ukendt nummer giver tom-tilstand, ingen fejl
       await gotoSafe(a.page, `${base}/dashboard/cti?number=4500000001`, { waitUntil: 'networkidle', timeout: 180_000 })
       const cti = { heading: await a.page.getByRole('heading', { name: 'Opkald' }).isVisible(), formatted: (await a.page.getByText('+45 00 00 00 01').count()) > 0,
@@ -2257,6 +2359,82 @@ ${m.text()}`) })
         r.kontor_ser_signeret_bilag = /^https?:\/\//.test(href) && href.includes('token=')
         if (row?.receipt_url) await c.admin.storage.from('attachments').remove([row.receipt_url])
         out.push({ id: 'U71 N30 kvittering på øvrig omkostning', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U73 privacy (Henrik 2026-10-03): medarbejderens løn/satser står ikke på oversigter; fanen "Økonomi & løn" kun for
+      // løn-roller, henter først ved åbning, maskeret indtil "Vis beløb", væk når fanen forlades; serviceleder ser
+      // hverken fanen eller lønhistorikkens detaljer (D41); montør får ingen kost/sats i sagens tidsdata (D42)
+      if (want('U73') && jobEmployeeId && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        const WAGE = '987,65', COST = '543,21'
+        await c.admin.from('employee_compensation').upsert([{ employee_id: jobEmployeeId, hourly_wage: 987.65, internal_cost_rate: 543.21, sales_rate: 650 }], { onConflict: 'employee_id' })
+        await c.admin.from('employees').update({ hourly_rate: 650, cost_rate: 543.21 }).eq('id', jobEmployeeId)
+        await c.admin.from('employee_events').insert([{ employee_id: jobEmployeeId, event_type: 'compensation_changed', title: 'Satser/økonomi ændret',
+          description: `Lønforhøjelse ${stamp}`, metadata: { real_hourly_cost: 777.77 } }])
+        // admin: liste + overblik uden beløb
+        await gotoSafe(a.page, `${base}/dashboard/employees`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const listHtml = await a.page.content().catch(() => '')
+        r.liste_uden_satser = !listHtml.includes('543,21') && !listHtml.includes('543.21') && !listHtml.includes(WAGE)
+        // Netværkssvar (inkl. server actions) — følsomme data må ikke HENTES før fanen åbnes
+        const netA: string[] = []
+        const onRespA = async (resp: import('playwright').Response) => { try { if (resp.request().method() === 'POST' || resp.url().includes('/dashboard/employees')) netA.push(await resp.text()) } catch { /* stream lukket */ } }
+        a.page.on('response', onRespA)
+        await gotoSafe(a.page, `${base}/dashboard/employees/${jobEmployeeId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.waitForTimeout(1500)
+        const overHtml = (await a.page.content().catch(() => '')) + netA.join('\n')
+        r.overblik_henter_ikke_loen = !overHtml.includes('987.65') && !overHtml.includes('543.21') && !overHtml.includes('777.77') && !overHtml.includes(WAGE)
+        a.page.off('response', onRespA)
+        await a.page.getByTestId('employee-tab-oekonomi').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByTestId('employee-economy').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.oekonomi_maskeret = (await a.page.getByTestId('sensitive-masked').count()) > 0 && !(await a.page.content().catch(() => '')).includes(WAGE)
+        await a.page.getByTestId('sensitive-reveal-toggle').first().click({ timeout: 10_000 }).catch(() => {})
+        r.vis_beloeb_viser = (await a.page.getByText(new RegExp(WAGE)).count()) > 0
+        await a.page.getByTestId('employee-tab-overblik').click({ timeout: 10_000 }).catch(() => {})
+        await a.page.getByTestId('employee-economy').waitFor({ state: 'detached', timeout: 15_000 }).catch(() => {})
+        r.vaek_naar_fanen_forlades = !(await a.page.content().catch(() => '')).includes(WAGE)
+        await a.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {})
+        // serviceleder: ingen økonomi-fane, ingen lønhistorik-detaljer
+        const sl = await mkUser('serviceleder')
+        const s = await login(sl)
+        await gotoSafe(s.page, `${base}/dashboard/employees/${jobEmployeeId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await s.page.getByTestId('employee-tab-overblik').waitFor({ timeout: 60_000 }).catch(() => {})
+        const slHtml = await s.page.content().catch(() => '')
+        r.serviceleder_ingen_oekonomifane = s.ok && (await s.page.getByTestId('employee-tab-oekonomi').count()) === 0
+        r.serviceleder_ingen_loendetaljer = !slHtml.includes(`Lønforhøjelse ${stamp}`) && !slHtml.includes('777.77') && !slHtml.includes(WAGE)
+        await s.ctx.close().catch(() => {})
+        // montør: sagens tidsdata uden kost/sats
+        // D42: sagens tidsdata hentes via server actions → gennemsøg svarene, ikke kun DOM
+        const netM: string[] = []
+        const onRespM = async (resp: import('playwright').Response) => { try { if (resp.request().method() === 'POST') netM.push((await resp.body()).toString('utf8')) } catch { /* stream lukket */ } }
+        m.page.on('response', onRespM)
+        // Tidsdata hentes af et klientkald (server action) efter hydrering. Vent på PRÆCIS det svar (waitForResponse
+        // læser hele kroppen) — før: polling af en liste, der nogle gange ikke nåede at få svaret (m_timer=0, flaky).
+        const awaitTimeLogs = () => m.page.waitForResponse(async (resp) => {
+          if (resp.request().method() !== 'POST') return false
+          const body = (await resp.body().catch(() => Buffer.from(''))).toString('utf8')
+          if (body.includes('"hours"')) { netM.push(body); return true }
+          return false
+        }, { timeout: 30_000 }).then(() => true).catch(() => false)
+        const firstTry = awaitTimeLogs()
+        await gotoSafe(m.page, `${base}/dashboard/orders/${jobCaseId}?tab=planlaegning`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+        if (!(await firstTry)) {
+          const secondTry = awaitTimeLogs()
+          await m.page.reload({ waitUntil: 'domcontentloaded', timeout: 120_000 }).catch(() => {})
+          await secondTry
+        }
+        await m.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {})
+        m.page.off('response', onRespM)
+        try { writeFileSync(join(shots, 'u73-montoer-net.txt'), netM.map((t) => t.slice(0, 3000)).join('\n----\n')) } catch { /* diagnose */ }
+        const mAll = (await m.page.content().catch(() => '')) + netM.join('\n')
+        const sawTimeLogs = netM.some((t) => t.includes('"hours"'))
+        r.montoer_tidsdata_hentet = sawTimeLogs
+        const leak = /"cost_amount":\s*[1-9]/.test(mAll) || /"cost_rate_snapshot":\s*[1-9]/.test(mAll) || /"hourly_rate":\s*650/.test(mAll) || mAll.includes('543.21')
+        r.montoer_ingen_kost_eller_sats = !leak
+        u73Diag = `POST-svar=${netM.length} m_timer=${netM.filter((t) => t.includes('"hours"')).length} m_cost_amount=${netM.filter((t) => t.includes('cost_amount')).length} læk=${leak ? 'ja' : 'nej'}`
+        await m.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {})
+        await c.admin.from('employee_events').delete().eq('employee_id', jobEmployeeId)
+        await c.admin.from('employee_compensation').delete().eq('employee_id', jobEmployeeId)
+        out.push({ id: 'U73 privacy: medarbejderløn kun i egen fane', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${u73Diag}` })
       }
 
       // U44 montør: "Mine timer" viser ugens egne timer (efter U11's tidsregistrering)
@@ -2645,6 +2823,8 @@ ${m.text()}`) })
     if (u60Since && profitCustomerId) await c.admin.from('portal_access_tokens').delete().eq('customer_id', profitCustomerId).gte('created_at', u60Since)
     for (const id of u69TaskIds) await c.admin.from('customer_tasks').delete().eq('id', id)
     if (u69TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u69TokenId)
+    if (u74OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u74OfferId); await c.admin.from('offers').delete().eq('id', u74OfferId) }
+    if (u75ProductId) await c.admin.from('product_catalog').delete().eq('id', u75ProductId)
     for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (u57OfferId) await c.admin.from('offers').delete().eq('id', u57OfferId)
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)

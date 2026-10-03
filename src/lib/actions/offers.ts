@@ -168,6 +168,9 @@ export async function getOffers(filters?: {
   }
 }
 
+/** D43/D44: synlighed af kost/avance (navngivet: check:rls-matrix læser literal-strenge i skrivefunktioner som skrive-gates). */
+const OFFER_COST_VISIBILITY_PERMISSION = 'offers.view.cost_prices' as const
+
 // Get single offer by ID with all relations
 export async function getOffer(id: string): Promise<ActionResult<OfferWithRelations>> {
   try {
@@ -200,6 +203,13 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
     // Sort line items by position
     if (data.line_items) {
       data.line_items.sort((a: OfferLineItem, b: OfferLineItem) => a.position - b.position)
+      // D43 (privacy/RBAC): kost/leverandørkost/avance kun for offers.view.cost_prices — før lå de i payloaden til
+      // salg og blev kun skjult i UI'et
+      if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
+        data.line_items = data.line_items.map((li: OfferLineItem) => ({
+          ...li, cost_price: null, supplier_cost_price_at_creation: null, supplier_margin_applied: null,
+        }))
+      }
     }
 
     return { success: true, data: data as OfferWithRelations }
@@ -930,7 +940,10 @@ export async function updateLineItem(
     // cost_price er NOT NULL DEFAULT 0 — undlad at sende feltet hvis det ikke
     // er i payloaden, saa eksisterende vaerdi bevares (i stedet for at saette
     // det til 0 paa update af ikke-leverandoer-linjer).
-    const costPriceRaw = formData.get('cost_price')
+    // D43: uden offers.view.cost_prices (salg) har klienten aldrig set kost/avance → rør dem ikke (ellers ville en
+    // redigering nulstille de skjulte værdier)
+    const mayTouchCost = hasPermission(OFFER_COST_VISIBILITY_PERMISSION)
+    const costPriceRaw = mayTouchCost ? formData.get('cost_price') : null
     const costPrice = costPriceRaw ? Number(costPriceRaw) : undefined
     const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
     const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
@@ -942,8 +955,8 @@ export async function updateLineItem(
         ...updateData,
         total,
         ...(costPrice !== undefined ? { cost_price: costPrice } : {}),
-        supplier_margin_applied: supplierMargin,
-        supplier_cost_price_at_creation: supplierCostAtCreation,
+        ...(mayTouchCost ? { supplier_margin_applied: supplierMargin } : {}),
+        ...(mayTouchCost ? { supplier_cost_price_at_creation: supplierCostAtCreation } : {}),
         ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
       })
       .eq('id', lineItemId)
@@ -1775,6 +1788,14 @@ export async function searchSupplierProductsForOffer(
     // Sort: cheapest cost_price first
     results.sort((a, b) => (a.cost_price || Infinity) - (b.cost_price || Infinity))
 
+    // D44 (privacy/RBAC): netto-/kostpris og avance kun for offers.view.cost_prices — salg ser salgspris (rækkefølge
+    // og "billigst"-markering bevares)
+    if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
+      return { success: true, data: results.map((r) => ({
+        ...r, cost_price: 0, margin_percentage: 0,
+        alternatives: r.alternatives?.map((x) => ({ ...x, cost_price: 0 })),
+      })) }
+    }
     return { success: true, data: results }
   } catch (err) {
     return { success: false, error: formatError(err, 'Søgning fejlede') }

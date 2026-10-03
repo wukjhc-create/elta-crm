@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { getProducts, getProductCategories } from '@/lib/actions/products'
 import ProductsClient from './products-client'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 
 export const metadata = {
   title: 'Produktkatalog',
@@ -21,6 +22,8 @@ export default async function ProductsPage({ searchParams }: PageProps) {
   const params = await searchParams
   const page = params.page ? parseInt(params.page) : 1
 
+  // D47: kostpris-kolonnen kun for products.view.cost_prices (serveren stripper også værdien)
+  const canSeeCost = await pageHasPermission('products.view.cost_prices')
   const [productsResult, categoriesResult] = await Promise.all([
     getProducts({
       search: params.search,
@@ -36,6 +39,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
       <ProductsClient
         initialProducts={productsResult.success && productsResult.data ? productsResult.data : null}
         categories={categoriesResult.success && categoriesResult.data ? categoriesResult.data : []}
+        canSeeCost={canSeeCost}
         initialFilters={{
           search: params.search || '',
           category_id: params.category_id || '',

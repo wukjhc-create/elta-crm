@@ -836,10 +836,12 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                             </div>
                             <p className="text-sm font-medium text-gray-900 truncate mt-0.5">{p.product_name}</p>
                           </div>
+                          {showFinancials && (
                           <div className="text-right shrink-0">
                             <div className="text-xs text-gray-400">Netto</div>
                             <div className={`text-sm font-medium ${isCheapest ? 'text-green-700' : ''}`}>{formatCurrency(p.cost_price, currency, 2)}</div>
                           </div>
+                          )}
                           <div className="text-right shrink-0">
                             <div className="text-xs text-gray-400">Salgspris</div>
                             <div className="text-sm font-semibold text-green-700">{formatCurrency(p.estimated_sale_price, currency, 2)}</div>
@@ -1208,8 +1210,8 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
               <OfferSupplierSavingsCard offerId={offer.id} lineItems={lineItems} />
             )}
 
-            {/* Price Explanation */}
-            {offer.line_items && offer.line_items.length > 0 && (
+            {/* Price Explanation — regner kost/avance ud fra linjernes kostpris → kun kostpris-roller (D45) */}
+            {showFinancials && offer.line_items && offer.line_items.length > 0 && (
               <PriceExplanationCard
                 offerId={offer.id}
                 lineItems={offer.line_items}

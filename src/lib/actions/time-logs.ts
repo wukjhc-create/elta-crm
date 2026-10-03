@@ -21,6 +21,7 @@
  *    authenticated users to INSERT/SELECT.
  */
 
+import type { Permission } from '@/lib/auth/permissions'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
@@ -87,12 +88,8 @@ export async function listTimeLogsForWorkOrder(
 
     const rows = (data || []) as TimeLogRow[]
     const enriched = await enrichWithEmployees(supabase, rows)
-    // Sprint Ø2.10 — defense in depth: fjern interne kostfelter server-side
-    // for brugere uden economy.cost_prices (ikke bare skjul i UI).
-    const safe = hasPermission('economy.cost_prices')
-      ? enriched
-      : enriched.map((r) => ({ ...r, cost_amount: null, cost_rate_snapshot: null }))
-    return { success: true, data: safe }
+    // Sprint Ø2.10 / D42 — defense in depth: fjern pris-/kostfelter server-side (ikke bare skjul i UI)
+    return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -150,7 +147,8 @@ export async function listTimeLogsForCase(
 
     const rows = (data || []) as TimeLogRow[]
     const enriched = await enrichWithEmployees(supabase, rows)
-    return { success: true, data: enriched }
+    // D42: før blev kost (cost_amount, kostsats) og medarbejdersats sendt til alle med time_logs.view.own (montør)
+    return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -446,6 +444,23 @@ export async function updateTimeLog(
 }
 
 // ===== Helpers =====
+
+/**
+ * D42 (privacy/RBAC, Henrik 2026-10-03): uden economy.cost_prices ingen kost (cost_amount, kostsats) og ingen
+ * medarbejdersats; uden invoices.view.own_cases heller ingen salgsbeløb. Montør ser timer, ikke penge (jf. D18).
+ */
+function stripTimeLogPrices(rows: TimeLogWithEmployee[], hasPermission: (p: Permission) => boolean): TimeLogWithEmployee[] {
+  const cost = hasPermission('economy.cost_prices')
+  const sale = cost || hasPermission('invoices.view.own_cases')
+  if (cost) return rows
+  return rows.map((r) => ({
+    ...r,
+    cost_amount: null,
+    cost_rate_snapshot: null,
+    ...(sale ? {} : { sale_amount: null, sale_rate_snapshot: null }),
+    employee: r.employee ? { ...r.employee, hourly_rate: null } : r.employee,
+  }))
+}
 
 async function enrichWithEmployees(
   supabase: Awaited<ReturnType<typeof getAuthenticatedClient>>['supabase'],

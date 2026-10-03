@@ -35,7 +35,7 @@ export default async function EditEmployeePage({
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
 
-  const employee = await getEmployeeAction(id)
+  const employee = await getEmployeeAction(id, { includeCompensation: canEditPayroll })
   if (!employee) notFound()
 
   return (

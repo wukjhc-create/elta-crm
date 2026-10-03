@@ -24,7 +24,7 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
   if (!ctx.has('employees.view')) {
     return <NoAccess permission="employees.view" />
   }
-  const canSeePayroll = ctx.has('employees.payroll.view')
+  // Privacy (Henrik 2026-10-03): ingen satser på oversigten — kun i medarbejderens fane "Økonomi & løn"
 
   const params = await searchParams
   const activeFilter = params.active ?? 'active'
@@ -47,7 +47,6 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
     <EmployeesListClient
       employees={filtered}
       filters={{ q: search, active: activeFilter, role: roleFilter }}
-      canSeePayroll={canSeePayroll}
     />
   )
 }

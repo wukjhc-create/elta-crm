@@ -109,10 +109,12 @@ export async function getServiceCases(filters?: {
     }
 
     const total = count || 0
+    // D46 (privacy/RBAC): internt budget og lav-DB-markering kun for economy.cost_prices (før: alle med sagsadgang)
+    const showEconomy = hasPermission('economy.cost_prices')
     return {
       success: true,
       data: {
-        data: (data || []) as ServiceCaseWithRelations[],
+        data: ((data || []) as ServiceCaseWithRelations[]).map((c) => (showEconomy ? c : { ...c, budget: null, low_profit: false })),
         total,
         page,
         pageSize,
@@ -156,7 +158,9 @@ export async function getServiceCase(id: string): Promise<ActionResult<ServiceCa
       return { success: false, error: 'Serviceopgave ikke fundet' }
     }
 
-    return { success: true, data: data as ServiceCaseWithRelations }
+    // D46: internt budget og lav-DB-markering kun for economy.cost_prices
+    const sag = data as ServiceCaseWithRelations
+    return { success: true, data: hasPermission('economy.cost_prices') ? sag : { ...sag, budget: null, low_profit: false } }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }

@@ -111,6 +111,8 @@ export default async function DashboardPage() {
   const canSeeBilling = await pageHasPermission('invoices.view.own_cases')
   // Sprint Ø9.1 — leverandørfaktura-forfaldswidget kun for incoming_invoices.view.
   const canViewIncoming = await pageHasPermission('incoming_invoices.view')
+  // D49: pris-/systemadvarsler (leverandørkost, lav margin) kun for economy.cost_prices
+  const canViewCostAlerts = await pageHasPermission('economy.cost_prices')
 
   return (
     <div className="space-y-6">
@@ -270,7 +272,8 @@ export default async function DashboardPage() {
         <QuickActions companySettings={companySettings} />
       </div>
 
-      {/* System Alerts, Price Monitoring & Supplier Health */}
+      {/* System Alerts, Price Monitoring & Supplier Health — D49: kun kostpris-roller (indkøbspriser/margin) */}
+      {canViewCostAlerts && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg border">
           <h2 className="text-lg font-semibold mb-4">Systemadvarsler</h2>
@@ -282,6 +285,7 @@ export default async function DashboardPage() {
         </div>
         <SupplierHealthOverview />
       </div>
+      )}
 
       {/* Email Intelligence — today's counts */}
       <EmailIntelligenceCard />

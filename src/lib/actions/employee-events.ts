@@ -53,7 +53,15 @@ export async function listEmployeeEvents(
       .order('created_at', { ascending: false })
       .limit(limit)
     if (error) return { success: false, error: 'Kunne ikke hente historik' }
-    return { success: true, data: (data ?? []) as EmployeeEvent[] }
+    // D41 (privacy/RBAC): historikken vises for employees.view (fx serviceleder), men løn-hændelser bar metadata
+    // (real_hourly_cost) og begrundelse for satsændring → kun med employees.payroll.view. Metadata sendes aldrig.
+    const canSeePayroll = ctx.hasPermission('employees.payroll.view')
+    const rows = ((data ?? []) as EmployeeEvent[]).map((ev) => ({
+      ...ev,
+      metadata: {},
+      description: ev.event_type === 'compensation_changed' && !canSeePayroll ? null : ev.description,
+    }))
+    return { success: true, data: rows }
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke hente historik') }
   }

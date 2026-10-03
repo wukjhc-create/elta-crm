@@ -57,12 +57,15 @@ interface ProductsClientProps {
     search: string
     category_id: string
   }
+  /** D47: products.view.cost_prices */
+  canSeeCost?: boolean
 }
 
 export default function ProductsClient({
   initialProducts,
   categories,
   initialFilters,
+  canSeeCost = false,
 }: ProductsClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -209,7 +212,7 @@ export default function ProductsClient({
                 <TableHead>Produkt</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead>Kategori</TableHead>
-                <TableHead className="text-right">Kostpris</TableHead>
+                {canSeeCost && <TableHead className="text-right">Kostpris</TableHead>}
                 <TableHead className="text-right">Listepris</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
@@ -241,9 +244,11 @@ export default function ProductsClient({
                       <span className="text-gray-400">-</span>
                     )}
                   </TableCell>
+                  {canSeeCost && (
                   <TableCell className="text-right">
                     {product.cost_price ? formatCurrency(product.cost_price) : '-'}
                   </TableCell>
+                  )}
                   <TableCell className="text-right font-medium">
                     {formatCurrency(product.list_price)}
                   </TableCell>

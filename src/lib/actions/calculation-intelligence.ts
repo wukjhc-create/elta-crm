@@ -345,7 +345,10 @@ export async function getSystemAlerts(
   filters?: { is_read?: boolean; alert_type?: string; limit?: number }
 ): Promise<ActionResult<SystemAlert[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // D49: systemadvarsler (bl.a. lav margin) kun for economy.cost_prices — før kun login-tjek
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('economy.cost_prices')) return { success: true, data: [] }
+    const { supabase } = ctx
 
     let query = supabase
       .from('system_alerts')

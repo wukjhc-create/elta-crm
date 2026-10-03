@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
 import { PricingDashboardClient } from './pricing-client'
+import { pageHasPermission } from '@/lib/auth/page-guard'
+import { NoAccess } from '@/components/auth/no-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +10,9 @@ export const metadata: Metadata = {
   description: 'Overvåg prisændringer, påvirkede tilbud og leverandørtendenser',
 }
 
-export default function PricingDashboardPage() {
+export default async function PricingDashboardPage() {
+  // D49: indkøbspriser — kun economy.cost_prices
+  if (!(await pageHasPermission('economy.cost_prices'))) return <NoAccess permission="economy.cost_prices" />
   return (
     <div className="container mx-auto py-6 px-4 max-w-7xl">
       <div className="mb-6">

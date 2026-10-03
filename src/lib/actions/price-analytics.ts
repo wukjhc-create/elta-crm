@@ -2,7 +2,17 @@
 
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+
+/**
+ * D49 (privacy/RBAC): prisovervågning viser leverandørernes kost-/indkøbspriser — før kun login-tjek, så alle roller
+ * (også montør/salg) kunne hente dem. Nu economy.cost_prices. (Funktionen bevares jf. D27 — kun adgangen strammes.)
+ */
+async function requireCostAccess() {
+  const ctx = await getAuthenticatedClientWithRole()
+  ctx.requirePermission('economy.cost_prices')
+  return ctx
+}
 import { logger } from '@/lib/utils/logger'
 
 // =====================================================
@@ -73,7 +83,7 @@ export async function getPriceChangeAlerts(options?: {
   daysBack?: number
 }): Promise<ActionResult<PriceChangeAlert[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireCostAccess()
     const threshold = options?.threshold || 5 // Default 5% change
     const daysBack = options?.daysBack || 7
     const cutoffDate = new Date()
@@ -176,7 +186,7 @@ export async function getAffectedOffers(
   options?: { daysBack?: number }
 ): Promise<ActionResult<AffectedOffer[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireCostAccess()
     const daysBack = options?.daysBack || 30
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysBack)
@@ -323,7 +333,7 @@ export async function getPriceTrends(
   options?: { limit?: number }
 ): Promise<ActionResult<PriceTrend[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireCostAccess()
     validateUUID(supplierId, 'leverandør ID')
 
     const now = new Date()
@@ -436,7 +446,7 @@ export async function getPriceTrends(
  */
 export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPriceStats[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireCostAccess()
     const now = new Date()
     const date30DaysAgo = new Date(now)
     date30DaysAgo.setDate(date30DaysAgo.getDate() - 30)
@@ -537,7 +547,7 @@ export async function getPriceAlertSummary(): Promise<ActionResult<{
   criticalAlerts: number // Changes > 10%
 }>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireCostAccess()
     const now = new Date()
     const date7DaysAgo = new Date(now)
     date7DaysAgo.setDate(date7DaysAgo.getDate() - 7)
@@ -588,7 +598,7 @@ export async function getProductPriceHistory(
   created_at: string
 }>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireCostAccess()
     validateUUID(supplierProductId, 'produkt ID')
 
     const { data, error } = await supabase
