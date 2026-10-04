@@ -238,6 +238,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-gray-900 truncate">{customer.company_name}</p>
+                  <AutoCreatedChip customer={customer} />
                   {customer.is_active ? (
                     <span className="shrink-0 w-2 h-2 bg-green-500 rounded-full" />
                   ) : (
@@ -326,6 +327,7 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
                         >
                           {customer.company_name}
                         </Link>
+                        <AutoCreatedChip customer={customer} />
                         <PaymentListChip badge={paymentBadges?.[customer.id]} />
                       </div>
                       {customer.vat_number && (
@@ -463,5 +465,17 @@ export function CustomersTable({ customers, sortBy, sortOrder, onSort, filtered,
       )}
       {ConfirmDialog}
     </>
+  )
+}
+
+/** N74: kunde oprettet automatisk fra mail (og evt. uden rigtig e-mail) — markeres så den kan gennemgås */
+function AutoCreatedChip({ customer }: { customer: { tags?: string[] | null; email?: string | null } }) {
+  const placeholder = (customer.email ?? '').toLowerCase().endsWith('@elta-crm.local')
+  if (!placeholder && !(customer.tags ?? []).includes('auto-email')) return null
+  return (
+    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 ring-1 ring-amber-200" data-testid="customer-auto-chip"
+      title="Oprettet automatisk ud fra en mail — tjek at det er en kunde (ikke en leverandør/dublet)">
+      {placeholder ? 'Fra mail · mangler e-mail' : 'Fra mail'}
+    </span>
   )
 }

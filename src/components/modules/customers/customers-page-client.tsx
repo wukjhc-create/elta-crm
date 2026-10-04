@@ -32,6 +32,8 @@ interface PaginationData {
 interface Filters {
   search?: string
   is_active?: boolean
+  /** N74: kun automatisk oprettede fra mail */
+  origin?: 'auto'
 }
 
 interface SortData {
@@ -52,6 +54,8 @@ interface CustomersPageClientProps {
   paymentSort?: PaymentSortKey
   /** Sprint Ø4.6/Ø4.9 — tællere pr. betalingsfilter. */
   paymentCounts?: PaymentCounts
+  /** N74: antal kunder oprettet automatisk fra mail */
+  autoCreatedCount?: number
 }
 
 export function CustomersPageClient({
@@ -64,6 +68,7 @@ export function CustomersPageClient({
   paymentFilter = 'all',
   paymentSort = 'default',
   paymentCounts,
+  autoCreatedCount = 0,
 }: CustomersPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -203,6 +208,19 @@ export function CustomersPageClient({
                 Søg
               </button>
             </div>
+
+            {/* N74: automatisk oprettede kunder (fra mail) — til gennemgang/oprydning */}
+            {(autoCreatedCount > 0 || filters.origin === 'auto') && (
+              <button
+                type="button"
+                onClick={() => updateURL({ origin: filters.origin === 'auto' ? undefined : 'auto', page: '1' })}
+                className={`px-3 py-2 text-sm rounded-md ring-1 whitespace-nowrap ${filters.origin === 'auto' ? 'bg-amber-600 text-white ring-amber-600' : 'bg-white text-gray-700 ring-gray-200 hover:bg-gray-50'}`}
+                data-testid="customers-origin-auto"
+                title="Kunder som mail-automatikken har oprettet ud fra telefon/adresse i en mail — kan være leverandører eller dubletter"
+              >
+                Oprettet fra mail ({autoCreatedCount})
+              </button>
+            )}
 
             {/* Status filter */}
             <select

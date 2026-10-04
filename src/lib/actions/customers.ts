@@ -27,10 +27,27 @@ import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import type { PaymentFilterKey, PaymentSortKey, PaymentCounts } from '@/app/dashboard/customers/customer-payment-filter'
 import type { CustomerPaymentBadge } from '@/lib/actions/invoices'
 
+/**
+ * N74: kunder oprettet automatisk fra indgående mail (email-intelligence: tag 'auto-email'; uden e-mail får de en
+ * pladsholder @elta-crm.local). Prod 2026-10-04: bl.a. leverandører (signaturens telefon/adresse) — filteret gør dem
+ * nemme at gennemgå. PostgREST-or-filter, fælles for liste og tæller.
+ */
+const AUTO_CREATED_FILTER = 'tags.cs.{auto-email},email.ilike.%@elta-crm.local'
+
+/** N74: antal automatisk oprettede kunder (customers.view). */
+export async function countAutoCreatedCustomersAction(): Promise<number> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('customers.view')) return 0
+  const { count } = await supabase.from('customers').select('id', { count: 'exact', head: true }).or(AUTO_CREATED_FILTER)
+  return count ?? 0
+}
+
 // Get all customers with optional filtering and pagination
 export async function getCustomers(filters?: {
   search?: string
   is_active?: boolean
+  /** N74: kun automatisk oprettede (fra mail) */
+  origin?: 'auto'
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   page?: number
@@ -109,6 +126,11 @@ export async function getCustomers(filters?: {
       dataQuery = dataQuery.eq('is_active', filters.is_active)
     }
 
+    if (filters?.origin === 'auto') {
+      countQuery = countQuery.or(AUTO_CREATED_FILTER)
+      dataQuery = dataQuery.or(AUTO_CREATED_FILTER)
+    }
+
     // Sprint Ø4.5 — global whitelist (betalingsfilter). Tom liste → nul rækker.
     if (filters?.customerIds !== undefined) {
       countQuery = countQuery.in('id', filters.customerIds)
@@ -173,6 +195,8 @@ interface PaymentListInput {
   pageSize?: number
   payment?: PaymentFilterKey
   paysort?: PaymentSortKey
+  /** N74: kun automatisk oprettede (fra mail) */
+  origin?: 'auto'
 }
 
 export interface CustomersWithPaymentState {
@@ -224,6 +248,7 @@ export async function getCustomersWithPaymentState(
       let out = q
       if (searchFilter) out = out.or(searchFilter)
       if (input?.is_active !== undefined) out = out.eq('is_active', input.is_active)
+      if (input?.origin === 'auto') out = out.or(AUTO_CREATED_FILTER)
       if (withPaymentFilter) {
         if (payment === 'overdue') out = out.gt('overdue_count', 0)
         else if (payment === 'outstanding') out = out.gt('outstanding_total', 0)

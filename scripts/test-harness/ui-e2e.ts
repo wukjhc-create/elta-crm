@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3796,6 +3796,26 @@ ${m.text()}`) })
         r.aabnet_vist = (await opened.getByTestId('cockpit-offer-opened').count()) === 1
         r.ikke_aabnet_vist = (await unopened.getByTestId('cockpit-offer-unopened').count()) === 1
         out.push({ id: 'U118 N65 tilbud åbnet/ikke åbnet i opfølgningen', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U125 N74: kundelisten — "Oprettet fra mail" filtrerer til automatisk oprettede kunder (tag auto-email / pladsholder-
+      // mail @elta-crm.local) med mærket "Fra mail · mangler e-mail"; en manuelt oprettet kunde vises ikke i filteret
+      if (want('U125')) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('customers').insert([
+          { customer_number: `UI-E2E-A-${stamp}`, company_name: `[HARNESS] auto ${stamp}`, contact_person: 'A', email: `auto+u125-${stamp}@elta-crm.local`, tags: ['auto-email'], created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+          { customer_number: `UI-E2E-M-${stamp}`, company_name: `[HARNESS] manuel ${stamp}`, contact_person: 'M', email: `manuel-${stamp}@harness.test`, tags: [], created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+        ]).select('id')
+        u115CustomerIds.push(...((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id))
+        r.seed = (ins.data ?? []).length === 2
+        await gotoSafe(a.page, `${base}/dashboard/customers?search=${stamp}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('customers-origin-auto').click({ timeout: 60_000 }).catch(() => {})
+        await a.page.waitForURL(/origin=auto/, { timeout: 60_000 }).catch(() => {})
+        await a.page.getByText(`[HARNESS] auto ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.auto_vises = (await a.page.getByText(`[HARNESS] auto ${stamp}`).count()) > 0
+        r.manuel_skjult = (await a.page.getByText(`[HARNESS] manuel ${stamp}`).count()) === 0
+        r.maerke = /mangler e-mail/.test((await a.page.getByTestId('customer-auto-chip').first().textContent().catch(() => '')) ?? '')
+        out.push({ id: 'U125 N74 kunder oprettet fra mail', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} ${ins.error?.message ?? ''}` })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;

@@ -1,5 +1,5 @@
 import { Metadata } from 'next'
-import { getCustomers, getCustomersWithPaymentState } from '@/lib/actions/customers'
+import { countAutoCreatedCustomersAction, getCustomers, getCustomersWithPaymentState } from '@/lib/actions/customers'
 import type { CustomerPaymentBadge } from '@/lib/actions/invoices'
 import type { CustomerWithRelations } from '@/types/customers.types'
 import { pageHasPermission } from '@/lib/auth/page-guard'
@@ -23,6 +23,7 @@ interface PageProps {
     sortOrder?: 'asc' | 'desc'
     payment?: string
     paysort?: string
+    origin?: string
   }>
 }
 
@@ -34,6 +35,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const is_active = params.is_active === 'true' ? true : params.is_active === 'false' ? false : undefined
   const sortBy = params.sortBy || undefined
   const sortOrder = params.sortOrder || undefined
+  const origin = params.origin === 'auto' ? ('auto' as const) : undefined
+  const autoCreatedCount = await countAutoCreatedCustomersAction()
 
   // Sprint Ø4.9 — betalingsfilter + GLOBAL sortering + tællere via SQL-view.
   const paymentFilter = parsePaymentFilter(params.payment)
@@ -53,7 +56,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     // Søgning + betalingsfilter + global betalingssortering + paginering — alt
     // i SQL via v_customers_with_payment_summary. Ingen limit 20000, ingen N+1.
     const res = await getCustomersWithPaymentState({
-      page, pageSize, search, is_active, sortBy, sortOrder, payment: paymentFilter, paysort: paymentSort,
+      page, pageSize, search, is_active, sortBy, sortOrder, payment: paymentFilter, paysort: paymentSort, origin,
     })
     if (res.success && res.data) {
       customers = res.data.data
@@ -68,7 +71,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     }
   } else {
     // Uden fakturaadgang: kundelisten fungerer som før (ingen betalingsdata).
-    const res = await getCustomers({ page, pageSize, search, is_active, sortBy, sortOrder })
+    const res = await getCustomers({ page, pageSize, search, is_active, sortBy, sortOrder, origin })
     if (res.success && res.data) {
       customers = res.data.data
       total = res.data.total
@@ -92,7 +95,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     <CustomersPageClient
       customers={customers}
       pagination={{ currentPage: resPage, totalPages, totalItems: total, pageSize: resPageSize }}
-      filters={{ search, is_active }}
+      filters={{ search, is_active, origin }}
+      autoCreatedCount={autoCreatedCount}
       sort={{ sortBy, sortOrder }}
       paymentBadges={paymentBadges}
       canViewPayments={canViewPayments}
