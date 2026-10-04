@@ -450,7 +450,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           const { data: bodies } = await supabase.from('incoming_emails').select('id, body_text, body_html').in('id', shown.map((r) => r.id))
           for (const b of (bodies ?? []) as Array<{ id: string; body_text: string | null; body_html: string | null }>) {
             const p = parseCustomerFromEmail(b.body_text, b.body_html, null)
-            contactById.set(b.id, [p.name, p.city].filter(Boolean).join(' · ') || null)
+            contactById.set(b.id, [p.name, p.city || p.postalCode].filter(Boolean).join(' · ') || null)
           }
         }
         overview.webInquiries = {
