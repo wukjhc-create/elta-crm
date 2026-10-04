@@ -869,6 +869,8 @@ export async function getPortalMessages(
         .from('offers')
         .select('id, offer_number, title')
         .in('id', offerIds)
+        // Q10: kun kundens egne tilbud — en besked med et fremmed offer_id viste ellers det tilbuds nr./titel
+        .eq('customer_id', customerId)
       for (const o of offers || []) {
         offerMap.set(o.id as string, {
           id: o.id as string,
@@ -915,6 +917,11 @@ export async function sendPortalMessage(
     // (linje ovenfor) — service-role har INGEN RLS-guard, saa app er
     // single source of truth for scope.
     const admin = createAdminClient()
+    // Q10: offer_id skal være kundens eget tilbud (før blev et vilkårligt UUID gemt og slået op uden kunde-filter)
+    if (data.offer_id) {
+      const { data: own } = await admin.from('offers').select('id').eq('id', data.offer_id).eq('customer_id', customerId).maybeSingle()
+      if (!own) return { success: false, error: 'Ugyldigt tilbud' }
+    }
     const senderName = data.sender_name || sessionResult.data.customer.contact_person
     const { data: message, error } = await admin
       .from('portal_messages')

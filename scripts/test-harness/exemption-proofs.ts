@@ -15,7 +15,7 @@ export async function runExemptionProofs(c: { admin: SupabaseClient; sql: Sql; o
   const portal = await import('../../src/lib/actions/portal')
   const partner = await import('../../src/lib/actions/partner-portal')
   const { submitConfirmation } = await import('../../src/lib/actions/document-confirmations')
-  const { submitSignedFuldmagt } = await import('../../src/lib/actions/fuldmagt')
+  const { submitSignedFuldmagt, getPortalFuldmagter } = await import('../../src/lib/actions/fuldmagt')
   const cust = (await c.sql(`SELECT id, email FROM customers WHERE custom_fields->>'harness' IS NOT NULL AND email IS NOT NULL LIMIT 1`))[0]
   if (!cust) return [{ id: 'setup', ok: false, note: 'ingen harness-kunde' }]
   const stamp = Date.now()
@@ -60,6 +60,8 @@ export async function runExemptionProofs(c: { admin: SupabaseClient; sql: Sql; o
       getPortalInvoices: (t) => portal.getPortalInvoices(t),
       getPortalDocuments: (t) => portal.getPortalDocuments(t),
       getPortalBesigtigelser: (t) => portal.getPortalBesigtigelser(t),
+      // Q10: udløbet link viste fuldmagter (CPR/CVR + underskrift) — tokenet blev kun tjekket for is_active
+      getPortalFuldmagter: (t) => getPortalFuldmagter(t),
       getPartnerServiceCases: (t) => partner.getPartnerServiceCases(t),
       getPartnerDocuments: (t) => partner.getPartnerDocuments(t),
       uploadPortalAttachment: (t) => {
@@ -82,6 +84,18 @@ export async function runExemptionProofs(c: { admin: SupabaseClient; sql: Sql; o
     const other = (await c.sql(`SELECT id FROM customers WHERE id <> '${cust.id}' LIMIT 1`))[0]
     const cross = await portal.sendPortalMessage(validTok, { customer_id: other?.id, message: `[HARNESS-EX] kryds ${stamp}` } as never)
     out.push({ id: 'T gyldigt token, anden kunde', ok: !cross.success, note: cross.success ? 'ACCEPTERET (cross-customer!)' : `afvist (${(cross as { error?: string }).error})` })
+
+    // Q10: gyldigt token, egen kunde, men ANDEN kundes tilbud som offer_id -> afvist (før: gemt, og nr./titel vist i chatten)
+    if (other?.id) {
+      const foreignOffer = await ins('offers', { offer_number: `HARNESS-EXF-${stamp}`, title: '[HARNESS] fremmed tilbud', status: 'sent', customer_id: other.id, created_by: c.ownerUid, total_amount: 0, final_amount: 0 })
+      const fo = await portal.sendPortalMessage(validTok, { customer_id: cust.id, offer_id: foreignOffer, message: `[HARNESS-EX] fremmed tilbud ${stamp}` } as never)
+      const msgs = await portal.getPortalMessages(validTok)
+      const leaked = JSON.stringify(msgs).includes(`HARNESS-EXF-${stamp}`)
+      out.push({ id: 'T fremmed tilbud i besked', ok: !fo.success && !leaked, note: fo.success ? `ACCEPTERET${leaked ? ' + titel vist' : ''}` : 'afvist' })
+      // positiv: eget tilbud accepteres stadig
+      const own = await portal.sendPortalMessage(validTok, { customer_id: cust.id, offer_id: offerId, message: `[HARNESS-EX] eget tilbud ${stamp}` } as never)
+      out.push({ id: 'T eget tilbud i besked', ok: !!own.success, note: own.success ? 'gemt' : `FEJL: ${(own as { error?: string }).error}` })
+    }
 
     // positiv kontrol
     const ok = await portal.sendPortalMessage(validTok, { customer_id: cust.id, message: `[HARNESS-EX] gyldig ${stamp}` } as never)

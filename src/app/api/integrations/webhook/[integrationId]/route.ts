@@ -87,7 +87,18 @@ export async function POST(
                        request.headers.get('X-API-Key') ||
                        request.headers.get('X-Webhook-Secret')
 
-    if (integration.api_key) {
+    // Q10: fail-closed — før var en integration uden api_key helt uden godkendelse (enhver med integrations-id'et
+    // kunne sætte status på vilkårlige tilbud/projekter)
+    if (!integration.api_key) {
+      await logWebhook(supabase, integrationId, {
+        success: false,
+        error_message: 'Integration has no API key configured',
+        response_status: 401,
+        duration_ms: Date.now() - startTime,
+      })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    {
       if (!authHeader) {
         await logWebhook(supabase, integrationId, {
           success: false,

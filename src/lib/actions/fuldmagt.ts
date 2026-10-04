@@ -19,6 +19,7 @@ import { BRAND } from '@/lib/brand'
 import { APP_URL } from '@/lib/constants'
 import { internalRequestHeaders } from '@/lib/security/internal-request'
 import { escapeHtml } from '@/lib/utils/html-escape'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 export interface FuldmagtData {
   id: string
@@ -181,6 +182,8 @@ export async function getPortalFuldmagter(
       .select('customer_id')
       .eq('token', token)
       .eq('is_active', true)
+      // Q10: udløbne links viste stadig CPR/CVR + underskrift og kunne underskrive (som validatePortalToken)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .single()
 
     if (tokenErr || !tokenData) {
@@ -329,6 +332,8 @@ export async function submitSignedFuldmagt(
       .select('customer_id')
       .eq('token', token)
       .eq('is_active', true)
+      // Q10: udløbne links viste stadig CPR/CVR + underskrift og kunne underskrive (som validatePortalToken)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .single()
 
     if (tokenErr || !tokenData) {
@@ -347,6 +352,14 @@ export async function submitSignedFuldmagt(
     }
 
     const existingDesc = JSON.parse(doc.description || '{}')
+    // Q10: kun ventende fuldmagter — før kunne en allerede underskrevet fuldmagt (eller et andet kontraktdokument)
+    // underskrives igen og overskrive den gemte underskrift/PDF
+    if (doc.document_type !== 'contract' || existingDesc.type !== 'fuldmagt') {
+      return { success: false, error: 'Dokument ikke fundet' }
+    }
+    if (existingDesc.status === 'signed') {
+      return { success: false, error: 'Fuldmagten er allerede underskrevet' }
+    }
 
     // Fase 2a — ROLLE-GATE (Plan A): kun sagens anlægsejer (end_customer) må
     // underskrive fuldmagten. Den tiltænkte signer resolves fra sagen (eller
@@ -406,8 +419,9 @@ export async function submitSignedFuldmagt(
     }
 
     const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer())
-    const fileDate = now.toISOString().slice(0, 10)
-    const fileName = `fuldmagt-${fileDate}.pdf`
+    const fileDate = copenhagenParts(now).date
+    // Q10: dokument-id i navnet — to fuldmagter underskrevet samme dag overskrev hinandens PDF (upsert)
+    const fileName = `fuldmagt-${fileDate}-${documentId.slice(0, 8)}.pdf`
     // Læg PDF'en under dokumentets kunde (ikke nødvendigvis = signeren).
     const storagePath = `customer-documents/${doc.customer_id}/${fileName}`
 
