@@ -358,7 +358,7 @@ export async function recomputeOfferTotals(offerId: string): Promise<{
     // Pull current offer-level discount + tax settings
     const { data: offer } = await supabase
       .from('offers')
-      .select('discount_percentage, discount_amount, tax_percentage')
+      .select('discount_percentage, tax_percentage')
       .eq('id', offerId)
       .maybeSingle()
 
@@ -369,7 +369,6 @@ export async function recomputeOfferTotals(offerId: string): Promise<{
 
     const taxPct = Number(offer.tax_percentage ?? 25)
     const offerDiscountPct = Number(offer.discount_percentage ?? 0)
-    const offerDiscountAmt = Number(offer.discount_amount ?? 0)
 
     // Sum all lines
     const { data: lines } = await supabase
@@ -382,13 +381,17 @@ export async function recomputeOfferTotals(offerId: string): Promise<{
       (lines || []).reduce((s, l) => s + Number(l.total ?? 0), 0)
     )
 
-    const afterPctDiscount = round2(sumLines * (1 - offerDiscountPct / 100))
-    const afterFlatDiscount = round2(Math.max(0, afterPctDiscount - offerDiscountAmt))
-    const taxAmount = round2(afterFlatDiscount * (taxPct / 100))
-    const finalAmount = round2(afterFlatDiscount + taxAmount)
+    // Salgs-review T3: SAMME formel som DB-triggeren update_offer_totals (00005, verificeret i prod) — total_amount er
+    // linjesummen FØR rabat, discount_amount = linjesum × rabat-%, moms af nettobeløbet. Før blev rabatten trukket fra
+    // to gange (procent + det af triggeren gemte discount_amount som fast beløb) og total_amount gemt som netto →
+    // PDF/mail viste Subtotal − Rabat + Moms ≠ TOTAL.
+    const discountAmount = round2(sumLines * (offerDiscountPct / 100))
+    const net = sumLines - discountAmount
+    const taxAmount = round2(net * (taxPct / 100))
+    const finalAmount = round2(net + taxAmount)
 
     const totals = {
-      total_amount: afterFlatDiscount,
+      total_amount: sumLines,
       tax_amount: taxAmount,
       final_amount: finalAmount,
     }
@@ -397,6 +400,7 @@ export async function recomputeOfferTotals(offerId: string): Promise<{
       .from('offers')
       .update({
         total_amount: totals.total_amount,
+        discount_amount: discountAmount,
         tax_amount: totals.tax_amount,
         final_amount: totals.final_amount,
         updated_at: new Date().toISOString(),

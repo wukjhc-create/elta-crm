@@ -3886,6 +3886,9 @@ ${m.text()}`) })
         const dHtml = dRes.status === 200 ? await dRes.text() : ''
         r.kladde_ikke_i_portal = !dHtml.includes(`UI-E2E-SECD-${stamp}`)
         r.kladde_pdf_afvist = (await fetch(`${base}/api/portal/offers/pdf?token=${tok}&offerId=${u134DraftId}`)).status !== 200
+        // Q13 (S1): /view-offer/<uuid> (uden login) videresendte med kundens portal-token i URL'en
+        const vo = await fetch(`${base}/view-offer/${u134OfferId}`, { redirect: 'manual' })
+        r.view_offer_uden_token = !(vo.headers.get('location') ?? '').includes(tok) && !(await vo.text()).includes(tok)
         // positiv kontrol: det sendte tilbud kan stadig hentes som PDF
         r.sendt_pdf_ok = (await fetch(`${base}/api/portal/offers/pdf?token=${tok}&offerId=${u134OfferId}`)).status === 200
         out.push({ id: 'U134 Q10 portal lækker ikke firmahemmeligheder + setup-db lukket', ok: !!u134TokenId && Object.values(r).every(Boolean),

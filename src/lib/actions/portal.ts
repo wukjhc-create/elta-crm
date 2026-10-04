@@ -527,7 +527,8 @@ export async function acceptOffer(
     }
 
     // Update offer status — eksplicit customer_id-scope for defense-in-depth
-    const { error: updateError } = await admin
+    // Salgs-review: kun hvis tilbuddet STADIG kan besvares — en samtidig afvisning (anden fane) blev ellers overskrevet
+    const { data: acceptedRow, error: updateError } = await admin
       .from('offers')
       .update({
         status: 'accepted',
@@ -535,7 +536,15 @@ export async function acceptOffer(
       })
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
+      .in('status', ['sent', 'viewed'])
+      .select('id')
+      .maybeSingle()
 
+    if (!updateError && !acceptedRow) {
+      // tilbuddet blev besvaret imens — fjern den netop gemte underskrift igen
+      await admin.from('offer_signatures').delete().eq('offer_id', data.offer_id)
+      return { success: false, error: 'Tilbuddet er netop besvaret — genindlæs siden' }
+    }
     if (updateError) {
       logger.error('Error updating offer', { error: updateError })
       return { success: false, error: 'Kunne ikke opdatere tilbud' }
@@ -719,7 +728,7 @@ export async function rejectOffer(
 
     // Update med 6 nye strukturerede felter — eksplicit customer_id-scope
     // for defense-in-depth.
-    const { error: updateError } = await admin
+    const { data: rejectedRow, error: updateError } = await admin
       .from('offers')
       .update({
         status: 'rejected',
@@ -733,7 +742,14 @@ export async function rejectOffer(
       })
       .eq('id', offerId)
       .eq('customer_id', customerId)
+      // Salgs-review: kun hvis tilbuddet stadig er sendt/set — en samtidig accept (anden fane) blev ellers til "afvist"
+      .in('status', ['sent', 'viewed'])
+      .select('id')
+      .maybeSingle()
 
+    if (!updateError && !rejectedRow) {
+      return { success: false, error: 'Tilbuddet er netop besvaret — genindlæs siden' }
+    }
     if (updateError) {
       logger.error('Error rejecting offer', { error: updateError })
       return { success: false, error: 'Kunne ikke afvise tilbud' }

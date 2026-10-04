@@ -36,6 +36,7 @@ import {
 } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
 import type { Permission } from '@/lib/auth/permissions'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 
 // Get all offers with optional filtering and pagination
 export async function getOffers(filters?: {
@@ -2614,7 +2615,8 @@ export async function duplicateOfferAction(offerId: string): Promise<ActionResul
     // Gyldighed fra firmaets standard (ikke den gamle dato, der typisk er udløbet)
     const { data: cs } = await supabase.from('company_settings').select('default_offer_validity_days').maybeSingle()
     const days = Number((cs as { default_offer_validity_days?: number | null } | null)?.default_offer_validity_days ?? 30) || 30
-    const validUntil = new Date(Date.now() + days * 86400_000).toISOString().slice(0, 10)
+    // dansk kalenderdato (før UTC → en dag for tidligt ved kopi mellem kl. 00 og 02)
+    const validUntil = copenhagenDatePlusDays(days)
 
     const insertData: Record<string, unknown> = {
       title: `${source.title} (kopi)`.slice(0, 200),

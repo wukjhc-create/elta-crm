@@ -14,6 +14,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_EMAIL, BRAND_WEBSITE, BRAND_GREEN } from '@/lib/brand'
 import { withCronRun } from '@/lib/services/cron-run'
+import { isOfferExpired } from '@/lib/offers/validity'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -77,6 +78,8 @@ async function handleCron(request: Request): Promise<Response> {
           customer:customers!offers_customer_id_fkey(company_name, contact_person, email)
         `)
         .in('status', ['sent', 'viewed'])
+        // salgs-review: forslag (is_proposal) er ikke rigtige tilbud — ingen rykkere
+        .eq('is_proposal', false)
         .lt('reminder_count', maxCount)
         .or(`last_reminder_sent.is.null,last_reminder_sent.lt.${cutoffDate.toISOString()}`)
         .not('sent_at', 'is', null)
@@ -90,7 +93,8 @@ async function handleCron(request: Request): Promise<Response> {
             const customerRaw = offer.customer as unknown
             const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
             if (!customer?.email) continue
-            if (offer.valid_until && new Date(offer.valid_until) < new Date()) continue
+            // samme regel som portalen (dansk dato; sidste gyldige dag tæller med — før sprunget over)
+            if (isOfferExpired(offer.valid_until as string | null)) continue
 
             let senderName = BRAND_COMPANY_NAME
             if (offer.created_by) {

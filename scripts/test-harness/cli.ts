@@ -472,6 +472,34 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'offer-recompute') {
+    // Salgs-review T3 (staging): recomputeOfferTotals skal give PRÆCIS DB-triggerens totaler (update_offer_totals).
+    // Før: rabatten blev trukket fra to gange og total_amount gemt som netto.
+    const mod = await import(process.env.OUT_MOD || '../../src/lib/services/offer-pricing')
+    const actors = await ensureActors(admin, seedBase)
+    const cust = (await stagingSql(`SELECT id FROM customers WHERE custom_fields->>'harness' IS NOT NULL LIMIT 1`))[0]
+    const { data, error } = await admin.from('offers').insert([{ offer_number: `UI-E2E-RC-${Date.now()}`, title: '[HARNESS] recompute',
+      created_by: actors.ownerUid, customer_id: cust.id, status: 'draft', discount_percentage: 10, tax_percentage: 25 }]).select('id')
+    const id = (data?.[0] as { id?: string } | undefined)?.id
+    if (!id) throw new Error(`seed: ${error?.message}`)
+    try {
+      await admin.from('offer_line_items').insert([
+        { offer_id: id, position: 1, description: 'A', quantity: 3, unit: 'stk', unit_price: 333.33 },
+        { offer_id: id, position: 2, description: 'B', quantity: 1, unit: 'stk', unit_price: 1000.01 },
+      ])
+      const read = async () => (await stagingSql(`SELECT total_amount::float t, discount_amount::float d, tax_amount::float x, final_amount::float f FROM offers WHERE id = '${id}'`))[0]
+      const byTrigger = await read()
+      await mod.recomputeOfferTotals(id)
+      const byRecompute = await read()
+      const same = JSON.stringify(byTrigger) === JSON.stringify(byRecompute)
+      log(`${same ? 'PASS' : 'FAIL'}  recompute = trigger  trigger=${JSON.stringify(byTrigger)} recompute=${JSON.stringify(byRecompute)}`)
+      process.exitCode = same ? 0 : 2
+    } finally {
+      await admin.from('offer_line_items').delete().eq('offer_id', id)
+      await admin.from('offers').delete().eq('id', id)
+    }
+    return
+  }
   if (SUB === 'offer-invoice-discount') {
     // Faktura-review (HØJ): faktura fra tilbud ignorerede rabat → rabat-tilbud afvises (negativ) ; uden rabat oprettes
     // fakturaen stadig (positiv kontrol). Staging; alt seedet ryddes. Ingen mail (kun createInvoiceFromOffer, ikke "send").
