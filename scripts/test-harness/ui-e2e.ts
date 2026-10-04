@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3711,6 +3711,25 @@ ${m.text()}`) })
         r.gammel_ikke_i_listen = (await a.page.getByText(`[HARNESS] svar gammel ${stamp}`).count()) === 0
         r.note_aeldre = /ældre tråd/.test((await a.page.getByTestId('cockpit-mails-older').textContent().catch(() => '')) ?? '')
         out.push({ id: 'U124 N73 kræver svar: kun seneste 14 dage', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U129 N84: "Opret som ny kunde" på en webhenvendelse foreslår kunden fra formularen (B), ikke FormSubmit som betaler
+      if (want('U129')) {
+        const r: Record<string, boolean> = {}
+        const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', sender_name: 'FormSubmit',
+          subject: `Ny henvendelse fra eltasolar.dk [HARNESS] U129 ${stamp}`,
+          body_text: [`Navn: Harness Formkunde ${stamp}`, `Email: form-${stamp}@harness.test`, 'Telefon: 87654321', 'Besked: Ladestander'].join('\n'),
+          link_status: 'unidentified', received_at: new Date().toISOString(), is_archived: false, is_read: true }]).select('id')
+        const id = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (id) u113EmailIds.push(id)
+        r.seed = !!id
+        await gotoSafe(a.page, `${base}/dashboard/mail?filter=webform&emailId=${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByRole('button', { name: /Opret som ny kunde/ }).first().click({ timeout: 60_000 }).catch(() => {})
+        const bodyOnly = a.page.locator('input[name="create-mode"][value="body_only"]')
+        await bodyOnly.waitFor({ timeout: 30_000 }).catch(() => {})
+        r.standard_fra_formular = await bodyOnly.isChecked().catch(() => false)
+        r.ikke_formsubmit_betaler = !(await a.page.locator('input[name="create-mode"][value="payer_plus_site"]').isChecked().catch(() => true))
+        out.push({ id: 'U129 N84 webhenvendelse → kunde fra formularen', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)

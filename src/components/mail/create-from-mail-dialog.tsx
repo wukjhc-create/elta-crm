@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { isWebsiteInquiry } from '@/lib/mail/website-inquiry'
 import { Loader2, X, UserPlus, Building2, MapPin, AlertCircle, Sparkles } from 'lucide-react'
 import {
   createCustomerAndCaseFromEmail,
@@ -50,6 +51,8 @@ interface MailLike {
   id: string
   sender_email: string
   sender_name?: string | null
+  /** N84: bruges til at genkende webhenvendelser (FormSubmit) */
+  subject?: string | null
   body_text?: string | null
   body_html?: string | null
 }
@@ -73,16 +76,20 @@ export function CreateFromMailDialog({ email, onClose, onSuccess }: CreateFromMa
 
   const senderEmail = email.sender_email || ''
   const senderName = email.sender_name || senderEmail.split('@')[0] || ''
-  const senderIsFirm = !isFreemail(senderEmail)
+  // N84: webhenvendelse — afsenderen er FormSubmit, ikke kunden. Må aldrig blive "betaler" som standard
+  // (før: formsubmit.co er ikke gratis-mail → standard "betaler + sted" med FormSubmit som betalende kunde).
+  const webInquiry = isWebsiteInquiry({ senderEmail: email.sender_email, subject: email.subject })
+  const senderIsFirm = !webInquiry && !isFreemail(senderEmail)
   const hasBodyData = !!(parsed.name || parsed.address || parsed.phone || parsed.email)
 
   // Smart default
   const defaultMode: CreateFromEmailMode = useMemo(() => {
+    if (webInquiry) return 'body_only'
     if (senderIsFirm && hasBodyData) return 'payer_plus_site'
     if (!hasBodyData) return 'payer_only'
     if (senderIsFirm) return 'payer_plus_site'
     return 'body_only'
-  }, [senderIsFirm, hasBodyData])
+  }, [webInquiry, senderIsFirm, hasBodyData])
 
   const [mode, setMode] = useState<CreateFromEmailMode>(defaultMode)
 

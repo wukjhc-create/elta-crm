@@ -774,14 +774,30 @@ export async function createCustomerFromEmail(
   if (!email) return { success: false, error: 'Email ikke fundet' }
 
   // 2. Determine sender info (prefer original for forwarded emails)
-  const senderEmail = email.original_sender_email || email.sender_email
-  const senderName = email.original_sender_name || email.sender_name || senderEmail
+  let senderEmail = email.original_sender_email || email.sender_email
+  let senderName = email.original_sender_name || email.sender_name || senderEmail
+  let formPhone: string | null = null
+
+  // N84: webhenvendelse — afsenderen er FormSubmit, ikke kunden. Kunden læses fra formularen (som "Opret lead");
+  // ellers blev kunden "FormSubmit / submissions@formsubmit.co", og senere henvendelser matchede den.
+  const { isWebsiteInquiry } = await import('@/lib/mail/website-inquiry')
+  if (isWebsiteInquiry({ senderEmail: email.sender_email, subject: email.subject })) {
+    const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
+    const form = parseCustomerFromEmail(email.body_text, email.body_html, null)
+    const formEmail = (form.email || email.reply_to || '').trim().toLowerCase()
+    if (!formEmail || !formEmail.includes('@') || /formsubmit\.co$/i.test(formEmail)) {
+      return { success: false, error: 'Kundens mailadresse kunne ikke læses fra henvendelsen — brug "Opret som ny kunde" og udfyld den' }
+    }
+    senderEmail = formEmail
+    senderName = (form.name || form.contactPerson || formEmail).trim()
+    formPhone = form.phone || null
+  }
 
   if (!senderEmail) return { success: false, error: 'Ingen afsender-email fundet' }
 
   // 3. Clean subject and extract data from body
   const cleanedSubject = cleanSubject(email.subject)
-  const phone = extractPhoneNumber(email.body_text) || extractPhoneNumber(email.body_preview)
+  const phone = formPhone || extractPhoneNumber(email.body_text) || extractPhoneNumber(email.body_preview)
 
   // 4. Check for existing customer by email
   const { data: existingCustomer } = await supabase

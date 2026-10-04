@@ -182,6 +182,7 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N81 | Mail/henvendelser | Webhenvendelser: kontaktkort øverst i mailen (navn, telefon som ring-op-link, e-mail, adresse) med samme parser som "Opret lead" — før kun FormSubmits rå tabel | N67 | DONE (U122 udvidet) |
 | N82 | Cockpit/henvendelser | Alle webhenvendelser har samme emne ("Ny henvendelse fra eltasolar.dk") → cockpitlisten var 5 ens rækker. Viser nu navn · by fra formularen (samme parser; kun de 5 viste) | N67 | DONE (U122) |
 | N83 | Salg/cockpit | "Leads — opfølgning": åbne leads (ikke vundet/tabt) uden ændring i 7 dage, ældst først (leads.edit; kortet vises kun når der er nogen). Prod: alle 5 leads står åbne > 7 dage; N67 giver flere | prod-leads-state | DONE (U128) |
+| N84 | Mail → kunde (fejl) | "Opret som ny kunde" på en webhenvendelse foreslog som standard FormSubmit som betalende kunde (formsubmit.co er ikke gratis-mail → "betaler + sted"), og hurtig-vejen i kobl-dialogen oprettede kunden "FormSubmit / submissions@formsubmit.co" → senere henvendelser ville matche den. Nu: standard "kunde fra formularen"; hurtig-vejen bruger formularens navn/e-mail/telefon eller afviser med forklaring. Prod: 0 sådanne kunder (read-only) | kodeanalyse | DONE (U129; negativ kontrol fejler på gammel dialog) |
 | Q2 | Kvalitet | U16/U38 seed-konflikter på uq_suppliers_external (efterladte [HARNESS]-leverandører) — unikt nr. pr. kørsel / frigiv før seed; præcis dubletbesked i leverandørformularen | regression | DONE |
 
 ### Checkpoint 2026-10-04 19:00
