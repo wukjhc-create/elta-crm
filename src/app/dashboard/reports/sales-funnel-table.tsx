@@ -20,7 +20,7 @@ export function SalesFunnelTable({ data }: { data: SalesFunnel | null }) {
         Salgstragt
       </h3>
       <p className="text-xs text-gray-500 mb-4">
-        Sendt-rate {pct(t.sent_rate)} af oprettede tilbud · vinderrate {pct(t.win_rate)} af sendte. Faktureret er ekskl. moms (kreditnotaer trukket fra).
+        Sendt-rate {pct(t.sent_rate)} af oprettede tilbud · vinderrate {pct(t.win_rate)} af sendte. Accepteret værdi og faktureret er ekskl. moms (kreditnotaer trukket fra; faktura i udstedelsesmåneden).
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

@@ -729,13 +729,21 @@ export async function getSalesFunnel(months: number = 6): Promise<ActionResult<i
     const since = new Date(`${list[0]}-01T00:00:00Z`)
     since.setUTCDate(since.getUTCDate() - 1)
     const iso = since.toISOString()
-    const [cust, off, inv] = await Promise.all([
-      supabase.from('customers').select('created_at').gte('created_at', iso).limit(5000),
-      supabase.from('offers').select('created_at, sent_at, accepted_at, final_amount, is_proposal')
-        .or(`created_at.gte.${iso},sent_at.gte.${iso},accepted_at.gte.${iso}`).limit(5000),
-      supabase.from('invoices').select('created_at, status, invoice_type, voided_at, total_amount').gte('created_at', iso).limit(5000),
-    ])
-    if (cust.error || off.error || inv.error) return { success: false, error: 'Kunne ikke hente salgstragt' }
+    // pagineret (PostgREST afkortede .limit(5000) til 1000); fakturaer efter udstedelse ELLER oprettelse i perioden
+    const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+    let cust: { data: unknown[] }, off: { data: unknown[] }, inv: { data: unknown[] }
+    try {
+      const [c, o, i] = await Promise.all([
+        fetchAllRows((f, t) => supabase.from('customers').select('id, created_at').gte('created_at', iso).order('id').range(f, t)),
+        fetchAllRows((f, t) => supabase.from('offers').select('id, created_at, sent_at, accepted_at, final_amount, tax_amount, is_proposal')
+          .or(`created_at.gte.${iso},sent_at.gte.${iso},accepted_at.gte.${iso}`).order('id').range(f, t)),
+        fetchAllRows((f, t) => supabase.from('invoices').select('id, created_at, sent_at, status, invoice_type, voided_at, total_amount')
+          .or(`created_at.gte.${iso},sent_at.gte.${iso}`).order('id').range(f, t)),
+      ])
+      cust = { data: c }; off = { data: o }; inv = { data: i }
+    } catch {
+      return { success: false, error: 'Kunne ikke hente salgstragt' }
+    }
     return {
       success: true,
       data: computeSalesFunnel({

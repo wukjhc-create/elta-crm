@@ -36,5 +36,14 @@ ok(f.totals.sent_rate === 66.67 && f.totals.win_rate === 50, 'konverteringsrater
 const empty = computeSalesFunnel({ months: ['2026-10'], customers: [], offers: [], invoices: [] })
 ok(empty.totals.sent_rate === null && empty.totals.win_rate === null, 'ingen data → ingen rater')
 
+// Kode-review: accepteret værdi ekskl. moms (final − moms) og faktura i udstedelsesmåneden (sent_at)
+const vat = computeSalesFunnel({
+  months: ['2026-09', '2026-10'], customers: [],
+  offers: [{ created_at: '2026-10-02T10:00:00Z', sent_at: '2026-10-02T10:00:00Z', accepted_at: '2026-10-03T10:00:00Z', final_amount: 12500, tax_amount: 2500 }],
+  invoices: [{ created_at: '2026-09-29T10:00:00Z', sent_at: '2026-10-01T10:00:00Z', status: 'sent', invoice_type: 'standard', voided_at: null, total_amount: 10000 }],
+})
+ok(vat.months[1].accepted_value === 10000, 'accepteret værdi ekskl. moms', String(vat.months[1].accepted_value))
+ok(vat.months[0].invoiced_ex_vat === 0 && vat.months[1].invoiced_ex_vat === 10000, 'faktura tæller i udstedelsesmåneden', JSON.stringify(vat.months.map((m) => m.invoiced_ex_vat)))
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle salgstragt-tests bestået')
 process.exitCode = bad ? 1 : 0

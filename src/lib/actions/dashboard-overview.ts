@@ -380,12 +380,15 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       try {
         const ctx = roleCtx
         if (!ctx.hasPermission('invoices.create')) return
-        const [tl, mat, oth] = await Promise.all([
-          supabase.from('time_logs').select('sale_amount, work_order:work_orders!inner(case_id)')
-            .eq('billable', true).is('invoice_line_id', null).not('end_time', 'is', null).limit(2000),
-          supabase.from('case_materials').select('case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).limit(2000),
-          supabase.from('case_other_costs').select('case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).limit(2000),
+        // pagineret (PostgREST afkortede .limit(2000) til 1000 → for lav salgsværdi/antal sager ved mange linjer)
+        const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+        const [tlRows, matRows, othRows] = await Promise.all([
+          fetchAllRows((f, t) => supabase.from('time_logs').select('id, sale_amount, work_order:work_orders!inner(case_id)')
+            .eq('billable', true).is('invoice_line_id', null).not('end_time', 'is', null).order('id').range(f, t)),
+          fetchAllRows((f, t) => supabase.from('case_materials').select('id, case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).order('id').range(f, t)),
+          fetchAllRows((f, t) => supabase.from('case_other_costs').select('id, case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).order('id').range(f, t)),
         ])
+        const tl = { data: tlRows }, mat = { data: matRows }, oth = { data: othRows }
         const agg = new Map<string, { lines: number; sale: number }>()
         const add = (caseId: string | null | undefined, sale: unknown) => {
           if (!caseId) return

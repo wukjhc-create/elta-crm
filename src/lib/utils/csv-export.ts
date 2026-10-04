@@ -43,7 +43,10 @@ export function generateCsv<T>(
 /**
  * Escape a CSV field value - wrap in quotes if it contains special characters
  */
-function escapeCsvField(value: string): string {
+export function escapeCsvField(input: string): string {
+  // Formel-injektion (kode-review): en celle der starter med = + @ TAB/CR — eller - efterfulgt af andet end et tal —
+  // udføres som formel i Excel. Fx importerede kundenavne. Neutraliseres med ' foran; negative beløb røres ikke.
+  const value = /^[=+@\t\r]/.test(input) || /^-(?![\d.,\s]*$)/.test(input) ? `'${input}` : input
   if (
     value.includes(';') ||
     value.includes('"') ||

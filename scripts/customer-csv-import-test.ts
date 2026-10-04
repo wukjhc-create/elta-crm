@@ -35,5 +35,11 @@ ok(c[4].reason === 'Samme e-mail tidligere i filen' && c[5].reason === 'Kunde me
 const comma = parseCustomerCsv('Name,Email,Phone\nAcme,info@acme.dk,12345678\n')
 ok(comma.delimiter === ',' && comma.rows[0].values.company_name === 'Acme' && comma.rows[0].values.phone === '12345678', 'kommasepareret engelsk')
 
+// Kode-review: rækker ud over grænsen tælles (før droppet tavst)
+const many = parseCustomerCsv(['Firmanavn;E-mail', 'A;a@x.dk', 'B;b@x.dk', 'C;c@x.dk', ''].join('\n'), 2)
+ok(many.rows.length === 2 && many.truncatedRows === 1, 'afskårne rækker tælles', `${many.rows.length}/${many.truncatedRows}`)
+const fits = parseCustomerCsv(['Firmanavn;E-mail', 'A;a@x.dk', ''].join('\n'), 2)
+ok(fits.truncatedRows === 0, 'ingen afskæring når filen passer')
+
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle kundeimport-tests bestået')
 process.exitCode = bad ? 1 : 0

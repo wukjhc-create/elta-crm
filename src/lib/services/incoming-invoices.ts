@@ -394,7 +394,7 @@ export async function attachFileToInvoice(input: UploadInput & { invoiceId: stri
   if (LOCKED_INVOICE_STATUSES.includes(row.status as string)) return { ok: false, message: `Fakturaen er ${row.status} — bilag kan ikke ændres` }
   if (row.file_url) return { ok: false, message: 'Fakturaen har allerede et bilag' }
   const text = input.rawText.trim()
-  const { error: upErr } = await supabase.from('incoming_invoices').update({
+  const { data: updated, error: upErr } = await supabase.from('incoming_invoices').update({
     file_name: input.fileName,
     file_url: input.fileUrl ?? null,
     mime_type: input.mime,
@@ -402,7 +402,11 @@ export async function attachFileToInvoice(input: UploadInput & { invoiceId: stri
     ...(text ? { raw_text: input.rawText } : {}),
     parse_status: 'pending',
   }).eq('id', input.invoiceId)
+    // kode-review: samtidige vedhæftninger/statusændring — kun hvis der STADIG ikke er et bilag og fakturaen ikke er låst
+    .is('file_url', null).not('status', 'in', `(${LOCKED_INVOICE_STATUSES.join(',')})`)
+    .select('id')
   if (upErr) return { ok: false, message: 'Kunne ikke gemme bilaget' }
+  if (!(updated ?? []).length) return { ok: false, message: 'Fakturaen fik et bilag eller blev afsluttet imens — genindlæs siden' }
   await auditLog({
     incomingInvoiceId: input.invoiceId,
     action: 'file_attached',

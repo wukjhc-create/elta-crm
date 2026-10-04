@@ -740,7 +740,13 @@ export function MailClient() {
                   const ids = emails.filter((e) => !e.is_read).map((e) => e.id)
                   setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, is_read: true } : e)))
                   setStats((prev) => ({ ...prev, unread: Math.max(0, prev.unread - ids.length) }))
-                  await markEmailsAsRead(ids).catch(() => null)
+                  const res = await markEmailsAsRead(ids).catch(() => null)
+                  // kode-review: serveren afviste → rul den optimistiske markering tilbage (før viste UI'et mails som læste)
+                  if (!res?.success) {
+                    setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, is_read: false } : e)))
+                    setStats((prev) => ({ ...prev, unread: prev.unread + ids.length }))
+                    toast.error('Kunne ikke markere som læst', res?.error)
+                  }
                 }}
               >
                 Markér viste som læst ({emails.filter((e) => !e.is_read).length})
