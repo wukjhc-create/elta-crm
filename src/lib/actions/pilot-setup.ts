@@ -90,5 +90,61 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
       href: '/dashboard/settings/economic',
     },
   ]
+
+  // Driftskøer fundet 2026-10-04 (N41/N50/N57/N58) — kun antal
+  const [portalUnread, mailInvoicesNoFile, aoFresh, newCases] = await Promise.all([
+    admin.from('portal_messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').is('read_at', null),
+    admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('source', 'email').is('file_url', null)
+      .not('status', 'in', '(approved,posted,rejected,cancelled)'),
+    admin.from('suppliers').select('id, code').eq('is_active', true).limit(20),
+    admin.from('service_cases').select('id, work_orders(status)').eq('status', 'new').limit(500),
+  ])
+  // Frisk = mindst én vare opdateret inden for 60 dage (eksistens-tjek stopper ved første match: ~50–80 ms i prod;
+  // "seneste updated_at" sorterede 322k LM-varer og tog 4 s)
+  const staleSuppliers: string[] = []
+  const freshCutoff = new Date(Date.now() - 60 * 86_400_000).toISOString()
+  for (const sp of (aoFresh.data ?? []) as Array<{ id: string; code: string }>) {
+    const [{ count: total }, { data: fresh }] = await Promise.all([
+      admin.from('supplier_products').select('id', { count: 'estimated', head: true }).eq('supplier_id', sp.id),
+      admin.from('supplier_products').select('id').eq('supplier_id', sp.id).gt('updated_at', freshCutoff).limit(1),
+    ])
+    if ((total ?? 0) > 0 && (fresh ?? []).length === 0) staleSuppliers.push(sp.code)
+  }
+  const newWithWork = ((newCases.data ?? []) as Array<{ work_orders: Array<{ status: string }> | null }>)
+    .filter((c) => (c.work_orders ?? []).some((w) => w.status === 'in_progress' || w.status === 'done')).length
+  items.push(
+    {
+      key: 'portal_unread',
+      label: 'Kundebeskeder fra portalen besvaret',
+      ok: (portalUnread.count ?? 0) === 0,
+      detail: (portalUnread.count ?? 0) === 0 ? 'ingen ulæste kundebeskeder' : `${portalUnread.count} ulæste kundebesked(er) — kunder venter på svar`,
+      fixHint: 'Dashboard → "Kundebeskeder (portal)" → åbn kundens chat',
+      href: '/dashboard',
+    },
+    {
+      key: 'invoice_attachments',
+      label: 'Mail-leverandørfakturaer har bilag',
+      ok: (mailInvoicesNoFile.count ?? 0) === 0,
+      detail: (mailInvoicesNoFile.count ?? 0) === 0 ? 'alle mail-fakturaer har bilag' : `${mailInvoicesNoFile.count} mail-faktura(er) uden bilag — kan ikke læses/kontrolleres`,
+      fixHint: 'Vercel-env INVOICE_ATTACHMENT_FETCH_ENABLED=true (henter automatisk) — eller "Vedhæft PDF fra mailen" på fakturaen',
+      href: '/dashboard/incoming-invoices',
+    },
+    {
+      key: 'supplier_prices',
+      label: 'Leverandørpriser opdateret (< 60 dage)',
+      ok: staleSuppliers.length === 0,
+      detail: staleSuppliers.length === 0 ? 'alle aktive leverandørers priser er friske' : `forældede prislister: ${staleSuppliers.join(', ')} — tilbud kan få forkerte kostpriser`,
+      fixHint: 'Indstillinger → Leverandører → Importér prisfil (eller aktivér synkronisering)',
+      href: '/dashboard/settings/suppliers',
+    },
+    {
+      key: 'case_status',
+      label: 'Sagsstatus følger arbejdet',
+      ok: newWithWork === 0,
+      detail: newWithWork === 0 ? 'ingen sager står som Ny med igangværende arbejde' : `${newWithWork} sag(er) står som Ny, men har startet/udført arbejde`,
+      fixHint: 'Åbn sagen → "Sæt til I gang"',
+      href: '/dashboard/orders',
+    },
+  )
   return { ok: true, items }
 }

@@ -182,7 +182,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
-  smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
+  smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
@@ -397,6 +397,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u111OfferId: string | null = null
   let u111SupplierId: string | null = null
   let u113EmailIds: string[] = []
+  let u114MessageId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -3471,6 +3472,21 @@ ${m.text()}`) })
         out.push({ id: 'U113 N59 markér viste mails som læst', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ulæste tilbage=${unread}` })
       }
 
+      // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)
+      // vises; en ulæst kundebesked gør "portal_unread" rød
+      if (want('U114') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const pm = await c.admin.from('portal_messages').insert([{ customer_id: profitCustomerId, sender_type: 'customer', sender_name: 'Kunde', message: `Go-live tjek ${stamp}` }]).select('id')
+        u114MessageId = (pm.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await gotoSafe(a.page, `${base}/dashboard/go-live`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('pilot-setup').waitFor({ timeout: 60_000 }).catch(() => {})
+        for (const k of ['portal_unread', 'invoice_attachments', 'supplier_prices', 'case_status']) {
+          r[`punkt_${k}`] = (await a.page.getByTestId(`pilot-setup-${k}`).count()) === 1
+        }
+        r.portal_roed = (await a.page.getByTestId('pilot-setup-portal_unread').getAttribute('data-ok').catch(() => '')) === 'nej'
+        out.push({ id: 'U114 Go-live-tjekliste med driftskøer', ok: !!u114MessageId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -4029,6 +4045,7 @@ ${m.text()}`) })
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
     if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
+    if (u114MessageId) await c.admin.from('portal_messages').delete().eq('id', u114MessageId)
     if (u113EmailIds.length) await c.admin.from('incoming_emails').delete().in('id', u113EmailIds)
     if (u111OfferId) await c.admin.from('offers').delete().eq('id', u111OfferId)
     if (u111SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u111SupplierId); await c.admin.from('suppliers').delete().eq('id', u111SupplierId) }
