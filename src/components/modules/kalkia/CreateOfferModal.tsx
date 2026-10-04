@@ -1,5 +1,6 @@
 'use client'
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -99,7 +100,7 @@ export function CreateOfferModal({
       // Set default valid until to 30 days from now
       const defaultDate = new Date()
       defaultDate.setDate(defaultDate.getDate() + 30)
-      setValidUntil(defaultDate.toISOString().split('T')[0])
+      setValidUntil(copenhagenParts(defaultDate).date)
     }
   }, [open, calculationName])
 

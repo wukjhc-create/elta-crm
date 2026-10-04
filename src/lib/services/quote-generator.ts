@@ -11,6 +11,7 @@
  * Auto-shares to customer portal if customer has active portal session.
  */
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { createClient } from '@supabase/supabase-js'
 import type { GenerateQuoteInput, GenerateQuoteResult } from '@/types/quote-templates.types'
 import { getCompanySettings } from '@/lib/actions/settings'
@@ -273,7 +274,7 @@ export async function generateAndSendQuote(
           tax_amount: financials.taxAmount,
           total: financials.total,
           validity_days: input.validityDays,
-          valid_until: validUntil.toISOString().split('T')[0],
+          valid_until: copenhagenParts(validUntil).date,
           pdf_storage_path: storagePath,
           pdf_public_url: pdfPublicUrl,
           sent_by: userId,

@@ -1,5 +1,6 @@
 'use client'
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -34,7 +35,7 @@ export function TimeEntryForm({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = copenhagenParts(new Date()).date
 
   const {
     register,

@@ -1,5 +1,6 @@
 'use client'
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -49,7 +50,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
     if (companySettings?.default_offer_validity_days) {
       const date = new Date()
       date.setDate(date.getDate() + companySettings.default_offer_validity_days)
-      return date.toISOString().split('T')[0]
+      return copenhagenParts(date).date
     }
     return undefined
   }
@@ -140,7 +141,7 @@ export function OfferForm({ offer, companySettings, calculatorData, defaultCusto
       if (d.default_offer_validity_days) {
         const date = new Date()
         date.setDate(date.getDate() + d.default_offer_validity_days)
-        setValue('valid_until', date.toISOString().split('T')[0])
+        setValue('valid_until', copenhagenParts(date).date)
       }
       if (d.default_tax_percentage != null) setValue('tax_percentage', d.default_tax_percentage)
       if (d.default_terms_and_conditions) setValue('terms_and_conditions', d.default_terms_and_conditions)
