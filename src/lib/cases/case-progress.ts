@@ -49,3 +49,24 @@ export function caseCloseReadiness(input: CloseReadinessInput): CloseReadiness {
   if (input.unbilled.count > 0) return { ...base, ready: false, reason: `${input.unbilled.count} post(er) er ikke faktureret` }
   return { ...base, ready: true, reason: 'Alle job er udført, og alt er faktureret' }
 }
+
+/**
+ * N58: sager der står som "Ny" selvom arbejdet er i gang (job startet/udført, tid registreret eller faktura udstedt) —
+ * typisk sager fra før N23-automatikken. Forslaget er et aktivt valg på sagen (ingen automatisk dataændring).
+ */
+export interface StartHintInput {
+  caseStatus: string | null | undefined
+  workOrderStatuses: string[]
+  timeLogCount: number
+  issuedInvoiceCount: number
+}
+
+export function caseStartHint(input: StartHintInput): { suggest: boolean; reason: string } {
+  if (input.caseStatus !== 'new') return { suggest: false, reason: '' }
+  const started = input.workOrderStatuses.filter((s) => s === 'in_progress' || s === 'done').length
+  const parts: string[] = []
+  if (started > 0) parts.push(`${started} job startet/udført`)
+  if (input.timeLogCount > 0) parts.push(`${input.timeLogCount} timeregistrering${input.timeLogCount === 1 ? '' : 'er'}`)
+  if (input.issuedInvoiceCount > 0) parts.push(`${input.issuedInvoiceCount} faktura${input.issuedInvoiceCount === 1 ? '' : 'er'} udstedt`)
+  return parts.length ? { suggest: true, reason: parts.join(', ') } : { suggest: false, reason: '' }
+}

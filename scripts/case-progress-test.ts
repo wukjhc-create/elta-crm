@@ -2,7 +2,7 @@
  * Unit-tests for N23 sagsstatus (src/lib/cases/case-progress.ts). Ingen DB.
  *   npx tsx scripts/case-progress-test.ts
  */
-import { shouldAutoStartCase, caseCloseReadiness } from '../src/lib/cases/case-progress'
+import { shouldAutoStartCase, caseCloseReadiness, caseStartHint } from '../src/lib/cases/case-progress'
 
 let bad = 0
 const ok = (c: boolean, label: string, extra = '') => { if (!c) bad++; console.log(`${c ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`) }
@@ -23,6 +23,12 @@ ok(!u.ready && u.reason.includes('3 post'), 'ufaktureret → ikke klar', u.reaso
 ok(!caseCloseReadiness({ caseStatus: 'in_progress', workOrderStatuses: ['done'], unbilled: { count: 0, openTimer: true } }).ready, 'kørende timer → ikke klar')
 ok(!caseCloseReadiness({ caseStatus: 'closed', workOrderStatuses: ['done'], unbilled: clean }).ready, 'lukket sag → ikke klar')
 ok(caseCloseReadiness({ caseStatus: 'pending', workOrderStatuses: ['done'], unbilled: clean }).ready, 'afventer-sag med alt udført → klar')
+
+// N58: start-hint for sager der står som Ny trods arbejde
+const h1 = caseStartHint({ caseStatus: 'new', workOrderStatuses: ['done', 'planned'], timeLogCount: 2, issuedInvoiceCount: 1 })
+ok(h1.suggest && h1.reason === '1 job startet/udført, 2 timeregistreringer, 1 faktura udstedt', 'N58: ny sag med arbejde → forslag', h1.reason)
+ok(!caseStartHint({ caseStatus: 'new', workOrderStatuses: ['planned'], timeLogCount: 0, issuedInvoiceCount: 0 }).suggest, 'N58: kun planlagt job → intet forslag')
+ok(!caseStartHint({ caseStatus: 'in_progress', workOrderStatuses: ['done'], timeLogCount: 3, issuedInvoiceCount: 0 }).suggest, 'N58: allerede i gang → intet forslag')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle sagsstatus-tests bestået')
 process.exitCode = bad ? 1 : 0

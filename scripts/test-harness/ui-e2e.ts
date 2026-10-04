@@ -184,7 +184,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -3418,6 +3418,36 @@ ${m.text()}`) })
         r.gammel_markeret = (await oldItem.getByTestId('supplier-price-stale').count()) > 0
         r.frisk_umarkeret = (await freshItem.getByText(`Harness U111 frisk ${stamp}`).count()) > 0 && (await freshItem.getByTestId('supplier-price-stale').count()) === 0
         out.push({ id: 'U111 N57 forældede leverandørpriser markeres', ok: !!u111OfferId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U112 N58: sag der står som "Ny" med udført job → forslag "Sæt til I gang" → status in_progress; sag uden arbejde
+      // får intet forslag
+      if (want('U112') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const mk = async (title: string) => {
+          const sc = await c.admin.from('service_cases').insert([{ title, customer_id: profitCustomerId, status: 'new', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+          const id = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (id) listCaseIds.push(id)
+          return id
+        }
+        const withWork = await mk(`[HARNESS] ny med arbejde ${stamp}`)
+        const empty = await mk(`[HARNESS] ny uden arbejde ${stamp}`)
+        if (withWork) await c.admin.from('work_orders').insert([{ case_id: withWork, title: `[HARNESS] udført ${stamp}`, status: 'done', completed_at: new Date().toISOString() }])
+        await gotoSafe(a.page, `${base}/dashboard/orders/${withWork}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const hint = a.page.getByTestId('case-start-hint')
+        await hint.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.forslag_vist = /1 job startet\/udført/.test((await hint.textContent().catch(() => '')) ?? '')
+        await a.page.getByTestId('case-start-now').click({ timeout: 30_000 }).catch(() => {})
+        let st = ''
+        for (let i = 0; i < 15 && st !== 'in_progress'; i++) {
+          await new Promise((res) => setTimeout(res, 1000))
+          st = ((await c.admin.from('service_cases').select('status').eq('id', withWork ?? '').maybeSingle()).data as { status?: string } | null)?.status ?? ''
+        }
+        r.status_i_gang = st === 'in_progress'
+        await gotoSafe(a.page, `${base}/dashboard/orders/${empty}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.waitForTimeout(1500)
+        r.intet_forslag_uden_arbejde = (await a.page.getByTestId('case-start-hint').count()) === 0
+        out.push({ id: 'U112 N58 Ny-sag med arbejde → Sæt til I gang', ok: !!withWork && !!empty && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;

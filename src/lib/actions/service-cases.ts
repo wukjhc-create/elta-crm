@@ -1509,6 +1509,39 @@ export async function getCaseCloseReadinessAction(caseId: string): Promise<Actio
   }
 }
 
+/**
+ * N58: sag der står som "Ny" trods arbejde (job startet/udført, tid, udstedt faktura) — forslag om at sætte den til
+ * "I gang". Kun brugere der må ændre status (cases.edit); andre får null.
+ */
+export async function getCaseStartHintAction(caseId: string): Promise<ActionResult<{ suggest: boolean; reason: string } | null>> {
+  try {
+    validateUUID(caseId, 'sags-ID')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('cases.edit')) return { success: true, data: null }
+    const { data: sc } = await supabase.from('service_cases').select('status').eq('id', caseId).maybeSingle()
+    if (!sc) return { success: false, error: 'Sag ikke fundet' }
+    if ((sc as { status?: string }).status !== 'new') return { success: true, data: { suggest: false, reason: '' } }
+    const { data: wos } = await supabase.from('work_orders').select('id, status').eq('case_id', caseId)
+    const woIds = (wos ?? []).map((w) => w.id as string)
+    const [tl, inv] = await Promise.all([
+      woIds.length ? supabase.from('time_logs').select('id', { count: 'exact', head: true }).in('work_order_id', woIds) : Promise.resolve({ count: 0 }),
+      supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('case_id', caseId).neq('status', 'draft').is('voided_at', null),
+    ])
+    const { caseStartHint } = await import('@/lib/cases/case-progress')
+    return {
+      success: true,
+      data: caseStartHint({
+        caseStatus: 'new',
+        workOrderStatuses: (wos ?? []).map((w) => String((w as { status?: string }).status ?? '')),
+        timeLogCount: tl.count ?? 0,
+        issuedInvoiceCount: inv.count ?? 0,
+      }),
+    }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Der opstod en fejl') }
+  }
+}
+
 export async function setServiceCaseStatus(
   id: string,
   status: ServiceCaseStatus,

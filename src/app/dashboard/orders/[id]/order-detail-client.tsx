@@ -37,7 +37,7 @@ import { OrderInspectionTab } from './order-inspection-tab'
 import { OrderNotesTab } from './order-notes-tab'
 import { OrderTasksTab } from './order-tasks-tab'
 import { InlineStatusChanger } from './inline-status-changer'
-import { CaseCloseReadiness } from './case-close-readiness'
+import { CaseCloseReadiness, CaseStartHint } from './case-close-readiness'
 import { OfferAgentButton } from '@/components/modules/agents/offer-agent-button'
 import { WeatherWidget } from '@/components/shared/weather-widget'
 
@@ -198,6 +198,7 @@ export function OrderDetailClient({
       </div>
 
       {/* N23: sagen er klar til lukning (kun for cases.close) */}
+      <CaseStartHint caseId={sag.id} status={sag.status} />
       <CaseCloseReadiness caseId={sag.id} status={sag.status} />
 
       {/* Tabs nav */}
