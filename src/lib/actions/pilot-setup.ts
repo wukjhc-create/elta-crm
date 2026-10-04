@@ -92,13 +92,27 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
   ]
 
   // Driftskøer fundet 2026-10-04 (N41/N50/N57/N58) — kun antal
-  const [portalUnread, mailInvoicesNoFile, aoFresh, newCases] = await Promise.all([
+  const since90 = new Date(Date.now() - 90 * 86_400_000).toISOString()
+  const [portalUnread, mailInvoicesNoFile, aoFresh, newCases, invoicesNoSupplier, webInquiries] = await Promise.all([
     admin.from('portal_messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').is('read_at', null),
     admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('source', 'email').is('file_url', null)
       .not('status', 'in', '(approved,posted,rejected,cancelled)'),
     admin.from('suppliers').select('id, code').eq('is_active', true).limit(20),
     admin.from('service_cases').select('id, work_orders(status)').eq('status', 'new').limit(500),
+    // N66: åbne leverandørfakturaer uden leverandør (kan ikke bogføres/kontrolleres mod leverandøren)
+    admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).is('supplier_id', null)
+      .not('status', 'in', '(approved,posted,rejected,cancelled)'),
+    // N67: webhenvendelser (90 d) uden kunde — lead-tjek sker nedenfor
+    admin.from('incoming_emails').select('id').ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%')
+      .is('customer_id', null).eq('is_archived', false).gte('received_at', since90).limit(500),
   ])
+  const webIds = ((webInquiries.data ?? []) as Array<{ id: string }>).map((w) => w.id)
+  let openWeb = 0
+  if (webIds.length) {
+    const { data: leads } = await admin.from('leads').select('custom_fields').not('custom_fields->>source_email_id', 'is', null).limit(5000)
+    const withLead = new Set(((leads ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>).map((l) => l.custom_fields?.source_email_id))
+    openWeb = webIds.filter((id) => !withLead.has(id)).length
+  }
   // Frisk = mindst én vare opdateret inden for 60 dage (eksistens-tjek stopper ved første match: ~50–80 ms i prod;
   // "seneste updated_at" sorterede 322k LM-varer og tog 4 s)
   const staleSuppliers: string[] = []
@@ -136,6 +150,22 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
       detail: staleSuppliers.length === 0 ? 'alle aktive leverandørers priser er friske' : `forældede prislister: ${staleSuppliers.join(', ')} — tilbud kan få forkerte kostpriser`,
       fixHint: 'Indstillinger → Leverandører → Importér prisfil (eller aktivér synkronisering)',
       href: '/dashboard/settings/suppliers',
+    },
+    {
+      key: 'invoice_suppliers',
+      label: 'Leverandørfakturaer har leverandør',
+      ok: (invoicesNoSupplier.count ?? 0) === 0,
+      detail: (invoicesNoSupplier.count ?? 0) === 0 ? 'alle åbne leverandørfakturaer er koblet' : `${invoicesNoSupplier.count} åben(e) leverandørfaktura(er) uden leverandør`,
+      fixHint: 'Leverandørfaktura → "Vælg leverandør" / "Opret ny" (kobler også de øvrige fra samme afsender); privat afsender → filteret "Ikke en faktura?"',
+      href: '/dashboard/incoming-invoices',
+    },
+    {
+      key: 'web_inquiries',
+      label: 'Webhenvendelser fulgt op (90 dage)',
+      ok: openWeb === 0,
+      detail: openWeb === 0 ? 'alle henvendelser fra hjemmesiden har kunde eller lead' : `${openWeb} henvendelse(r) fra hjemmesiden uden kunde eller lead`,
+      fixHint: 'Dashboard → "Henvendelser fra hjemmesiden" → "Opret lead"',
+      href: '/dashboard',
     },
     {
       key: 'case_status',
