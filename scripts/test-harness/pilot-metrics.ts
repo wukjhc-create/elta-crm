@@ -38,7 +38,11 @@ export const PILOT_METRIC_QUERIES = {
       (SELECT count(*) FROM public.portal_messages WHERE sender_type = 'customer' AND read_at IS NULL) AS portal_unread,
       (SELECT coalesce(floor(extract(epoch FROM now() - min(created_at)) / 86400), 0) FROM public.portal_messages WHERE sender_type = 'customer' AND read_at IS NULL) AS portal_oldest_days,
       (SELECT count(*) FROM public.incoming_invoices WHERE source = 'email' AND file_url IS NULL AND status NOT IN ('approved', 'posted', 'rejected', 'cancelled')) AS invoices_missing_file,
-      (SELECT count(DISTINCT case_id) FROM public.case_materials WHERE billable AND invoice_line_id IS NULL) AS cases_unbilled_materials`,
+      (SELECT count(DISTINCT case_id) FROM public.case_materials WHERE billable AND invoice_line_id IS NULL) AS cases_unbilled_materials,
+      (SELECT count(*) FROM public.incoming_invoices WHERE supplier_id IS NULL AND status NOT IN ('approved', 'posted', 'rejected', 'cancelled')) AS invoices_no_supplier,
+      (SELECT count(*) FROM public.incoming_emails e WHERE e.sender_email ILIKE '%@formsubmit.co' AND e.subject ILIKE '%henvendelse%' AND e.customer_id IS NULL
+        AND NOT e.is_archived AND e.received_at > now() - interval '90 days'
+        AND NOT EXISTS (SELECT 1 FROM public.leads l WHERE l.custom_fields->>'source_email_id' = e.id::text)) AS web_inquiries_open`,
 } as const
 for (const [k, sql] of Object.entries(PILOT_METRIC_QUERIES)) {
   if (!/^SELECT\s/i.test(sql) || sql.includes(';')) throw new Error(`pilot-metrics: '${k}' er ikke en ren SELECT`)
@@ -53,7 +57,7 @@ export interface PilotHealth {
   agentActions24h: { actions: number; executed: number; failed: number; needs_verification: number }
   activity24h: { cases_created: number; offers_created: number; audit_events: number; tasks_created: number }
   timeApproval: { pending: number; oldest_pending_days: number; approved_7d: number; rejected_7d: number }
-  workQueues: { portal_unread: number; portal_oldest_days: number; invoices_missing_file: number; cases_unbilled_materials: number }
+  workQueues: { portal_unread: number; portal_oldest_days: number; invoices_missing_file: number; cases_unbilled_materials: number; invoices_no_supplier: number; web_inquiries_open: number }
   alarms: string[]
 }
 
@@ -89,7 +93,7 @@ export function formatPilotHealth(h: PilotHealth): string {
   l.push(`Agent-actions 24t: ${h.agentActions24h.actions} (udført ${h.agentActions24h.executed}, fejlet ${h.agentActions24h.failed}, needs_verification ${h.agentActions24h.needs_verification})`)
   l.push(`Aktivitet 24t: sager=${h.activity24h.cases_created} tilbud=${h.activity24h.offers_created} opgaver=${h.activity24h.tasks_created} audit=${h.activity24h.audit_events}`)
   l.push(`Timegodkendelse: afventer=${h.timeApproval.pending} (ældste ${h.timeApproval.oldest_pending_days} d) · godkendt 7d=${h.timeApproval.approved_7d} · afvist 7d=${h.timeApproval.rejected_7d}`)
-  l.push(`Arbejdskøer: portal ulæste=${h.workQueues.portal_unread} (ældste ${h.workQueues.portal_oldest_days} d) · mail-fakturaer uden bilag=${h.workQueues.invoices_missing_file} · sager m. ufakt. materialer=${h.workQueues.cases_unbilled_materials}`)
+  l.push(`Arbejdskøer: portal ulæste=${h.workQueues.portal_unread} (ældste ${h.workQueues.portal_oldest_days} d) · mail-fakturaer uden bilag=${h.workQueues.invoices_missing_file} · sager m. ufakt. materialer=${h.workQueues.cases_unbilled_materials} · leverandørfakturaer uden leverandør=${h.workQueues.invoices_no_supplier} · webhenvendelser uden lead/kunde (90 d)=${h.workQueues.web_inquiries_open}`)
   l.push(h.alarms.length ? `🔴 ALARM: ${h.alarms.join('; ')}` : '🟢 ingen alarmer')
   return l.join('\n')
 }
