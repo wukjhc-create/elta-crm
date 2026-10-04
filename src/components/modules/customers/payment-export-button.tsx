@@ -16,6 +16,7 @@ import type { PaymentFilterKey } from '@/app/dashboard/customers/customer-paymen
 import { generateCsv, downloadCsv } from '@/lib/utils/csv-export'
 import { PAYMENT_EXPORT_COLUMNS } from '@/lib/invoices/payment-export-columns'
 import { useToast } from '@/components/ui/toast'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 const FILE_LABEL: Record<PaymentFilterKey, string> = {
   all: 'betalingsliste',
@@ -52,7 +53,7 @@ export function PaymentExportButton({ paymentFilter }: { paymentFilter: PaymentF
         return
       }
       const csv = generateCsv(res.rows, PAYMENT_EXPORT_COLUMNS)
-      const date = new Date().toISOString().slice(0, 10)
+      const date = copenhagenParts(new Date()).date
       downloadCsv(csv, `elta-drift-${FILE_LABEL[paymentFilter]}-${date}.csv`)
       toast.success(`${res.rows.length} kunde(r) eksporteret.`)
     } catch {

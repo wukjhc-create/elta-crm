@@ -14,6 +14,7 @@ import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { classifyCustomerRows, parseCustomerCsv, phoneDigits, type ClassifiedRow, type CustomerField } from '@/lib/customers/csv-import'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 const MAX_TEXT = 2_000_000 // ~2 MB CSV
 const MAX_IMPORT = 500
@@ -86,7 +87,7 @@ export async function importCustomersAction(csvText: string): Promise<ActionResu
     const { classified } = a as Required<Pick<typeof a, 'classified'>>
     const toCreate = classified.filter((r) => r.status === 'new')
     if (toCreate.length > MAX_IMPORT) return { success: false, error: `Højst ${MAX_IMPORT} nye kunder pr. import — del filen op` }
-    const batch = new Date().toISOString().slice(0, 10)
+    const batch = copenhagenParts(new Date()).date
     let created = 0, failed = 0
     for (const r of toCreate) {
       const v = r.values

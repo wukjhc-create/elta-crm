@@ -45,7 +45,7 @@ export interface CreateWorkOrderForCaseInput {
 }
 
 // Status transitions matching the service-layer state machine
-// (mirrors src/lib/services/work-orders.ts ALLOWED).
+// (den tidligere services/work-orders.ts var død kode og er fjernet 2026-10-04 — dette er den eneste kilde).
 // planned -> done: montøren afslutter sit job direkte (montør kan ikke "starte" — kun afslutte, jf. RLS 00171).
 const ALLOWED_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   planned:     ['in_progress', 'done', 'cancelled'],
@@ -363,9 +363,14 @@ export async function changeWorkOrderStatus(
       .from('work_orders')
       .update(patch)
       .eq('id', workOrderId)
+      // montør-review: kun hvis status stadig er den vi læste — ellers kunne en samtidig annullering blive til "udført"
+      .eq('status', cur.status as string)
       .select('*')
-      .single()
+      .maybeSingle()
 
+    if (!error && !data) {
+      return { success: false, error: 'Status er netop ændret af en anden — genindlæs og prøv igen' }
+    }
     if (error || !data) {
       logger.error('changeWorkOrderStatus failed', { error })
       return { success: false, error: 'Kunne ikke ændre status' }

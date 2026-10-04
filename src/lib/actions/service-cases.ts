@@ -33,6 +33,7 @@ import type {
 } from '@/types/service-cases.types'
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
 import type { PortalServiceCase } from '@/types/portal.types'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 const PAGE_SIZE = 25
 
@@ -1475,7 +1476,8 @@ async function loadCaseWork(
   const woIds = (wos ?? []).map((w) => w.id as string)
   const [tl, mat, oth] = await Promise.all([
     woIds.length
-      ? supabase.from('time_logs').select('end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds)
+      ? // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
+        fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data }))
       : Promise.resolve({ data: [] }),
     supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
     supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),

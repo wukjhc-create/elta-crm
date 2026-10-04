@@ -10,6 +10,12 @@ migration. Alle er bygget oven på `main`; tsc/check:rbac/check:rls-matrix er gr
 | `admin-alert-recipients-auth-email` (ca6a8a7) | Admin-alarmer (e-conomic ikke sat op, bankimport forældet m.fl.) sendes til aktive admins' login-e-mail, når `profiles.email` er tom | `no_recipients` hver dag — alarmerne når ingen (profiles.email tom for alle 3 admins; ADMIN_ALERT_EMAIL ikke sat) | Henriks OK (aktiverer daglige interne alarmmails) — alternativt sæt ADMIN_ALERT_EMAIL i Vercel |
 | `profiles-email-from-auth` (65b8910) | Migration **00188**: `handle_new_user` sætter også e-mail; backfill af tomme `profiles.email` fra `auth.users`; sync når login-e-mailen ændres | `profiles.email` tom for ALLE brugere → admin-alarmer når ingen, portalen viser sælger uden e-mail, mailsignatur finder ingen afsender | Henriks OK + migration (dataændring; login-e-mail bliver synlig i portalen) — gør `admin-alert-recipients-auth-email` overflødig |
 | `n69-mark-thread-answered` (cb1ab0c) | Knap "Besvaret uden for CRM" på mails; tråden ud af "Kræver svar", indtil kunden skriver igen. Migration **00187**: `incoming_emails.responded_at` + `responded_by` | 117 tråde "kræver svar", 95 ældre end 30 dage — svar sendes fra personlige postkasser, som ikke synkes | Henriks OK + migration (staging → prod) |
+| `invoice-review-b` (89a609c) | Faktura-review B1/B2/B5: udestående = beløb − betalt − udstedte kreditnotaer (betalingsstatus, rykkere, rykkerbeløb, dashboards, cockpit); betaling kun på sendte fakturaer (bankmatch rammer ikke længere kladder); annullering afgøres ekskl. moms. Detaljer: `docs/runbooks/invoice-review-decisions.md` | 5 fakturaer i prod; ingen ramt endnu | merge (ingen migration) |
+| `time-logs-invoice-lock` (8880099) | Migration **00189** (Q12/M2): trigger der låser fakturerede timeregistreringer for bruger-sessioner (ingen ændring/sletning, `invoice_line_id` kun via faktureringen/service-role). Lukker dobbeltfakturering via direkte REST-kald. SQL i branchen — IKKE kørt nogen steder | 1 time_log i prod | staging → U32/U33/U35 → prod (pre/post) |
+
+Montør-reviewets DB-punkter (M1–M4: kollegers kost via API, låsning af fakturerede timer, montørens kolonne-adgang på
+arbejdsordrer, sats-tjek) kræver migration + et designvalg — se Q12 i `docs/AUTONOMOUS_BACKLOG.md`. Prod i dag: 1 montør,
+0 synlige kollega-rækker.
 
 ## Anbefalet rækkefølge
 1. **N74b** og **N68b** (ingen migration): merge til main → Vercel deployer. Ingen data ændres; kun fremtidige mails.
@@ -47,9 +53,8 @@ Ingen af branchene ændrer eksisterende kunder/fakturaer. Oprydning sker manuelt
 kundelistens "Oprettet fra mail" (+ masse-deaktivering), leverandørfakturaernes "Ikke en faktura?" + "Ikke en faktura".
 
 ## Lokale worktrees (udvikler-maskinen)
-Branchene er bygget i worktrees `C:\Dev\elta-n68b`, `C:\Dev\elta-n69`, `C:\Dev\elta-n74b`, `C:\Dev\elta-alerts`, hver med en
-**junction** `node_modules` → `C:\Dev\elta-crm
-ode_modules`. Fjern junctionen FØR worktreen slettes — ellers kan
+Branchene er bygget i worktrees `C:\Dev\elta-n68b`, `C:\Dev\elta-n69`, `C:\Dev\elta-n74b`, `C:\Dev\elta-alerts`,
+`C:\Dev\elta-pemail`, `C:\Dev\elta-invoice-b`, `C:\Dev\elta-tl-lock`, hver med en **junction** `node_modules` → `C:\Dev\elta-crm\node_modules`. Fjern junctionen FØR worktreen slettes — ellers kan
 oprydningen følge junctionen og slette hovedrepoets node_modules:
 ```
 cmd /c rmdir C:\Dev\elta-n69\node_modules

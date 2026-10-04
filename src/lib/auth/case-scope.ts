@@ -19,6 +19,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { UserRole } from '@/types/auth.types'
 import { hasPermission } from '@/lib/auth/permissions'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type CaseScope =
   | { type: 'all' }
@@ -78,12 +79,15 @@ export async function getCaseScope(ctx: ScopeContext): Promise<CaseScope> {
   const employeeId = (empRes.data?.id as string | undefined) ?? null
 
   if (employeeId) {
-    const woRes = await ctx.supabase
+    // montør-review: side for side (PostgREST giver højst 1.000 rækker — ældre montører mistede vilkårlige sager)
+    const woRows = await fetchAllRows<{ id: string; case_id: string | null }>((from, to) => ctx.supabase
       .from('work_orders')
-      .select('case_id')
+      .select('id, case_id')
       .eq('assigned_employee_id', employeeId)
       .not('case_id', 'is', null)
-    for (const row of woRes.data ?? []) {
+      .order('id')
+      .range(from, to))
+    for (const row of woRows) {
       if (row.case_id) caseIdSet.add(row.case_id as string)
     }
   }
@@ -120,11 +124,14 @@ export async function getWorkOrderScope(ctx: ScopeContext): Promise<WorkOrderSco
     return { type: 'specific', workOrderIds: [], employeeId: null }
   }
 
-  const woRes = await ctx.supabase
+  // montør-review: side for side (1.000-loftet gav "Arbejdsordren er ikke tildelt dig" på nye job)
+  const woRows = await fetchAllRows<{ id: string }>((from, to) => ctx.supabase
     .from('work_orders')
     .select('id')
     .eq('assigned_employee_id', employeeId)
-  const workOrderIds = (woRes.data ?? [])
+    .order('id')
+    .range(from, to))
+  const workOrderIds = woRows
     .map((r) => r.id as string)
     .filter(Boolean)
 

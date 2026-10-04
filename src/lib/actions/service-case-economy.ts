@@ -21,6 +21,7 @@ import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type { ServiceCaseStatus } from '@/types/service-cases.types'
 import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface ServiceCaseEconomy {
   case_id: string
@@ -190,10 +191,13 @@ export async function getServiceCaseEconomy(
     ] = await Promise.all([
       woIds.length === 0
         ? Promise.resolve({ data: [] as Array<{ hours: number | null; end_time: string | null; cost_amount: number | null; sale_amount: number | null; billable: boolean | null; invoice_line_id: string | null; employee: { hourly_rate: number | null } | null }> })
-        : supabase
+        : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
+          fetchAllRows((f, t) => supabase
             .from('time_logs')
-            .select('hours, end_time, cost_amount, sale_amount, billable, invoice_line_id, employee:employees(hourly_rate)')
-            .in('work_order_id', woIds),
+            .select('id, hours, end_time, cost_amount, sale_amount, billable, invoice_line_id, employee:employees(hourly_rate)')
+            .in('work_order_id', woIds)
+            .order('id')
+            .range(f, t)).then((data) => ({ data, error: null })),
       supabase
         .from('case_materials')
         .select('total_cost, total_sales_price, unit_cost, unit_sales_price, billable, invoice_line_id')
@@ -586,7 +590,8 @@ export async function getServiceCaseBillingStatus(
     const [tlRes, matRes, othRes, invRes] = await Promise.all([
       woIds.length === 0
         ? Promise.resolve({ data: [] as Array<{ end_time: string | null; sale_amount: number | string | null; billable: boolean | null; invoice_line_id: string | null }> })
-        : supabase.from('time_logs').select('end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds),
+        : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
+          fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data })),
       supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('invoices').select('total_amount').eq('case_id', caseId),
