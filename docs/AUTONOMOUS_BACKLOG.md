@@ -159,9 +159,9 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N60 | Kunder/go-live | CSV-import af kunder (e-conomic/regneark): forhåndsvisning ny/dublet/ugyldig, server genvaliderer, max 500, audit | go-live | DONE (U115, unit) — pushet 4c5bfe5 |
 | N61 | Økonomi | Cockpit "Forfaldne fakturaer" (invoices.view.all): antal, beløb, dage over forfald, rykkere → fakturaen | prod-jobs-without-time (1 forfalden uden rykker) | DONE (U116) |
 | N62 | Planlægning/faktura | Kalender "Job uden registreret tid": overståede job (60 d) med montør uden timer → sagens Planlægning-fane (work_orders.plan) | kodeanalyse (glemte timer faktureres aldrig) | DONE (U117) |
-| N63 | Mail | Indbakke: filter "ukoblede" + arkivér valgte (ikke-destruktivt, is_archived) | N59 | NEXT |
-| N64 | Montør | "Mine job": påmindelse om job fra i går/tidligere uden registreret tid (egen tid, ingen kost) | N62 | NEXT |
-| N65 | Tilbud | Tilbudsdetalje: "Kunden har ikke åbnet tilbuddet" / sidst set (viewed_at) i opfølgningen | salg | NEXT |
+| N63 | Mail | Indbakke: filter "ukoblede" + arkivér valgte (ikke-destruktivt, is_archived) | N59 | UDSKUDT — filteret findes ("Uidentificerede"); arkivering mangler visning/gendan → bulk-arkivér først når "Arkiveret"-visning + Gendan findes |
+| N64 | Montør | "Mine job": påmindelse om job fra i går/tidligere uden registreret tid (egen tid, ingen kost) | N62 | DONE (U119) — "Afsluttet uden timer — registrér din tid" |
+| N65 | Tilbud | Tilbudsdetalje: "Kunden har ikke åbnet tilbuddet" / sidst set (viewed_at) i opfølgningen | salg | DONE (U118) — cockpittets opfølgning viser åbnet/ikke åbnet; "Set" fandtes på tilbuddet |
 | Q2 | Kvalitet | U16/U38 seed-konflikter på uq_suppliers_external (efterladte [HARNESS]-leverandører) — unikt nr. pr. kørsel / frigiv før seed; præcis dubletbesked i leverandørformularen | regression | DONE |
 
 ### Checkpoint 2026-10-04 11:00

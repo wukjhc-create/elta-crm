@@ -146,3 +146,29 @@ export async function getJobsWithoutTimeAction(): Promise<ActionResult<{ items: 
     return { success: false, error: formatError(err, 'Kunne ikke hente job uden tid') }
   }
 }
+
+/**
+ * N64: hvilke af de givne (montørens egne, allerede scope-filtrerede) arbejdsordrer har INGEN synlige timelinjer.
+ * Bruges af "Mine job" til påmindelsen "Afsluttet uden timer". RLS (can_view_time_log) afgrænser til hvad brugeren må
+ * se; kun id'er returneres (ingen timer/kost). calendar.view.own eller calendar.view.all.
+ */
+export async function getWorkOrdersWithoutTimeAction(workOrderIds: string[]): Promise<ActionResult<string[]>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('calendar.view.own') && !hasPermission('calendar.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: calendar.view' }
+    }
+    const ids = Array.from(new Set((Array.isArray(workOrderIds) ? workOrderIds : [])
+      .filter((id) => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)))).slice(0, 200)
+    if (!ids.length) return { success: true, data: [] }
+    const { data, error } = await supabase.from('time_logs').select('work_order_id').in('work_order_id', ids)
+    if (error) {
+      logger.error('getWorkOrdersWithoutTimeAction: time_logs failed', { error })
+      return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
+    }
+    const withTime = new Set(((data ?? []) as Array<{ work_order_id: string }>).map((l) => l.work_order_id))
+    return { success: true, data: ids.filter((id) => !withTime.has(id)) }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente tidsregistreringer') }
+  }
+}

@@ -184,7 +184,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -381,6 +381,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u91InvoiceIds: string[] = []
   let u116InvoiceId: string | null = null
   let u117WorkOrderId: string | null = null
+  let u119WorkOrderId: string | null = null
   let u91SeedErr = ''
   let u92InvoiceId: string | null = null
   let u93CustomerId: string | null = null
@@ -3590,6 +3591,31 @@ ${m.text()}`) })
         out.push({ id: 'U117 N62 job uden registreret tid', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${wo.error?.message ?? ''} ${u117Diag}` })
       }
 
+      // U119 N64: montørens "Mine job" påminder om eget afsluttet job (i går) uden timer; forsvinder når tid er registreret.
+      // Kræver U11 (montør-medarbejder + sag).
+      if (want('U119') && jobCaseId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const title = `[HARNESS] afsluttet uden timer ${stamp}`
+        const d1 = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() - 86_400_000))
+        const wo = await c.admin.from('work_orders').insert([{ case_id: jobCaseId, title, status: 'done', scheduled_date: d1, assigned_employee_id: jobEmployeeId }]).select('id')
+        u119WorkOrderId = (wo.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!u119WorkOrderId
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const box = m.page.getByTestId('my-jobs-no-time')
+        await box.getByText(title).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.paamindelse_vist = (await box.getByText(title).count()) > 0
+        const t0 = Date.now() - 26 * 3600_000
+        const tl = u119WorkOrderId ? await c.admin.from('time_logs').insert([{ employee_id: jobEmployeeId, work_order_id: u119WorkOrderId,
+          start_time: new Date(t0).toISOString(), end_time: new Date(t0 + 3600_000).toISOString(), billable: true, description: 'U119' }]).select('id') : null
+        r.tid_seedet = !tl?.error
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await m.page.getByTestId('my-jobs-card').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.vaek_efter_tid = (await m.page.getByTestId('my-jobs-no-time').getByText(title).count()) === 0
+        await m.ctx.close().catch(() => {})
+        out.push({ id: 'U119 N64 Mine job: afsluttet uden timer', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${wo.error?.message ?? ''} ${tl?.error?.message ?? ''}` })
+      }
+
       // U118 N65: cockpittets tilbudsopfølgning viser om kunden har åbnet tilbuddet (viewed) eller ej (sent).
       // Seed oprettet 2019 → ældst → altid blandt de viste; ryddes med U100's tilbud.
       if (want('U118') && profitCustomerId) {
@@ -4188,6 +4214,7 @@ ${m.text()}`) })
     if (u92InvoiceId) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', u92InvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u92InvoiceId) }
     if (u116InvoiceId) await c.admin.from('invoices').delete().eq('id', u116InvoiceId)
     if (u117WorkOrderId) await c.admin.from('work_orders').delete().eq('id', u117WorkOrderId)
+    if (u119WorkOrderId) { await c.admin.from('time_logs').delete().eq('work_order_id', u119WorkOrderId); await c.admin.from('work_orders').delete().eq('id', u119WorkOrderId) }
     for (const id of u91InvoiceIds) { await c.admin.from('invoice_lines').delete().eq('invoice_id', id); await c.admin.from('invoices').delete().eq('id', id) }
     if (u89EmployeeId) { await c.admin.from('employee_compensation').delete().eq('employee_id', u89EmployeeId); await c.admin.from('employees').delete().eq('id', u89EmployeeId) }
     if (u88OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u88OfferId); await c.admin.from('offers').delete().eq('id', u88OfferId) }

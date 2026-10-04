@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { CalendarCheck, ChevronRight, AlertTriangle, Navigation } from 'lucide-react'
 import { listWorkOrdersByDateRange, type WorkOrderForCalendar } from '@/lib/actions/work-orders'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { getWorkOrdersWithoutTimeAction } from '@/lib/actions/planning-backlog'
 
 function shiftDay(day: string, n: number): string {
   const d = new Date(`${day}T12:00:00Z`)
@@ -17,7 +18,7 @@ function shiftDay(day: string, n: number): string {
 const fmtDay = (day: string) =>
   new Date(`${day}T12:00:00Z`).toLocaleDateString('da-DK', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
-const STATUS: Record<string, string> = { planned: 'Planlagt', in_progress: 'I gang' }
+const STATUS: Record<string, string> = { planned: 'Planlagt', in_progress: 'I gang', done: 'Afsluttet' }
 
 export async function MyJobsCard() {
   const today = copenhagenParts(new Date()).date
@@ -27,6 +28,11 @@ export async function MyJobsCard() {
   const overdue = open.filter((w) => w.scheduled_date && w.scheduled_date < today)
   const todays = open.filter((w) => w.scheduled_date === today)
   const upcoming = open.filter((w) => w.scheduled_date && w.scheduled_date > today)
+  // N64: afsluttede job (seneste 14 dage) uden en eneste timelinje — påmind montøren før timerne glemmes
+  const pastDone = (res.data ?? []).filter((w) => w.status === 'done' && w.scheduled_date && w.scheduled_date <= today)
+  const noTimeRes = pastDone.length ? await getWorkOrdersWithoutTimeAction(pastDone.map((w) => w.id)) : null
+  const noTimeIds = new Set(noTimeRes?.success ? noTimeRes.data ?? [] : [])
+  const doneWithoutTime = pastDone.filter((w) => noTimeIds.has(w.id))
 
   return (
     <section className="bg-white rounded-lg border p-4 sm:p-5 mb-6" data-testid="my-jobs-card">
@@ -35,6 +41,11 @@ export async function MyJobsCard() {
         <h2 className="font-semibold">Mine job</h2>
         <Link href="/dashboard/calendar" className="ml-auto text-xs text-emerald-700 hover:underline">Kalender</Link>
       </div>
+      {doneWithoutTime.length > 0 && (
+        <div className="mb-4" data-testid="my-jobs-no-time">
+          <JobGroup title="Afsluttet uden timer — registrér din tid" jobs={doneWithoutTime} warn />
+        </div>
+      )}
       {open.length === 0 ? (
         <p className="text-sm text-gray-500">Ingen planlagte job de næste 7 dage.</p>
       ) : (
