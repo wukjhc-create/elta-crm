@@ -228,16 +228,17 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
               </div>
             </div>
 
-            {/* Email source banner */}
-            {lead.source === 'email' && lead.custom_fields && (lead.custom_fields as Record<string, string>).source_email_id && (() => {
+            {/* Email source banner — N76: også webhenvendelser (source='website'); linket åbner selve mailen */}
+            {lead.custom_fields && (lead.custom_fields as Record<string, string>).source_email_id && (() => {
               const cf = lead.custom_fields as Record<string, string>
+              const web = lead.source === 'website'
               return (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3" data-testid="lead-source-mail">
                   <Inbox className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-amber-900">Oprettet fra email</p>
+                    <p className="text-sm font-medium text-amber-900">{web ? 'Oprettet fra webhenvendelse' : 'Oprettet fra email'}</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      Emne: {cf.source_email_subject || 'Ukendt'}
+                      Emne: {cf.source_email_subject || lead.notes?.replace(/^Fra mail: /, '') || 'Ukendt'}
                       {cf.source_email_received_at && (
                         <span className="ml-2">
                           — modtaget {format(new Date(cf.source_email_received_at), 'd. MMM yyyy HH:mm', { locale: da })}
@@ -246,8 +247,9 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                     </p>
                   </div>
                   <a
-                    href={`/dashboard/mail?search=${encodeURIComponent(lead.email)}`}
+                    href={`/dashboard/mail?filter=${web ? 'webform' : 'all'}&emailId=${encodeURIComponent(cf.source_email_id)}`}
                     className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 shrink-0"
+                    data-testid="lead-source-mail-link"
                   >
                     Se i Mail <ExternalLink className="w-3 h-3" />
                   </a>

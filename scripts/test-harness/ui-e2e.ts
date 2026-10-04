@@ -3625,6 +3625,10 @@ ${m.text()}`) })
         const ldRow = (await c.admin.from('leads').select('id, email, source').eq('custom_fields->>source_email_id', id ?? '').maybeSingle()).data as { id: string; email: string; source: string } | null
         u122LeadId = ldRow?.id ?? null
         r.lead_oprettet = !!ldRow && ldRow.email === `web-${stamp}@harness.test` && ldRow.source === 'website' && a.page.url().includes(`/dashboard/leads/${ldRow.id}`)
+        // N76: leadet viser "Oprettet fra webhenvendelse" med link direkte til mailen
+        await a.page.getByTestId('lead-source-mail').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.lead_banner = /webhenvendelse/.test((await a.page.getByTestId('lead-source-mail').textContent().catch(() => '')) ?? '')
+          && ((await a.page.getByTestId('lead-source-mail-link').getAttribute('href').catch(() => '')) ?? '').includes(`emailId=${id}`)
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
         await a.page.getByText('Henvendelser fra hjemmesiden').first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.vaek_med_lead = !!u122LeadId && (await a.page.getByTestId('cockpit-web-inquiries').getByText(subj).count()) === 0
