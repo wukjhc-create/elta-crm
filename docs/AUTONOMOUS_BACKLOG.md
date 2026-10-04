@@ -188,6 +188,15 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | Q3 | Kvalitet/tid | "I dag" beregnet som UTC-dato (toISOString) 10 steder → mellem 00:00 og 01/02 dansk tid var dagen forkert: forfalds-badges på leverandørfakturaer, kalenderens i dag, min. dato ved besigtigelsesbooking (også portalen), returnerings-/fratrædelsesdato, indkøbsoverblik, system-health. Nu dansk kalenderdag (copenhagenParts) | kodeanalyse | DONE (U43/U52/U89/U92/U123 + test:time). Q3b: tilbuddets gyldig-til-standard (formular, Kalkia, tilbudsgenerator) og tidsregistreringens i dag — samme fejl (UTC-dato af nu + N dage); U74–U76/U93 |
 | Q2 | Kvalitet | U16/U38 seed-konflikter på uq_suppliers_external (efterladte [HARNESS]-leverandører) — unikt nr. pr. kørsel / frigiv før seed; præcis dubletbesked i leverandørformularen | regression | DONE |
 
+## NEXT-6 (genereret 2026-10-04 19:40 — prod-brug: mail + kunder aktive, alt andet stille; 92/107 kunder auto-oprettet)
+| # | Område | Opgave | Kilde | Status |
+|---|---|---|---|---|
+| Q4 | Kvalitet | `npm run harness:ui-full [-- grupper]`: fuld regression i kørsler under 30-min-loftet (første bygger, resten genbruger), ikke-nåede samles i ekstra kørsel, FAIL genkøres isoleret → FLAKY/FAIL | regression i dag ramte loftet 2× | DONE (smoke 8/8 via ui-full) |
+| N87 | Kunder | Dublet-forslag: lead → kunde matcher kun på e-mail; auto-kunde fra samme person (telefon) giver dublet → "Findes kunden allerede?" på leadet (samme telefon — sidste 8 cifre uanset format — eller samme fulde navn) + "Kobl til denne kunde" (kobler lead + kildemail; ingen fletning/ændring af kunden) | N74/N77 | DONE (U131) |
+| N88 | Mail | Uidentificerede mails fra privatpersoner (78 gratis-mail) — "Opret lead" findes; vis kontaktkort (N81) også for ikke-webform mails med udtrukne data? | N81 | NEXT (vurdér) |
+| N89 | Faktura | Forfaldne fakturaer (N61): rykker-forhåndsvisning fra cockpittet (ingen afsendelse uden mail-flag) | N61 | NEXT |
+| N90 | Tid | Resten af server-side datoformatering uden tidszone (PDF-skabeloner, rapporter) — kun hvor tidspunkter (ikke datoer) vises | Q3 | NEXT (lav) |
+
 ### Checkpoint 2026-10-04 19:00
 - Fuld regression (alle grupper, 5 sekventielle kørsler): grøn; kun forventede/flaky afvigelser, alle genkørt grønt på frisk build (U15 race i audit-tjek rettet; U73 flaky positiv kontrol; U55/U58/U60 + portal/mail-rest ikke nået pga. 30-min-loftet → kørt bagefter: grønne).
 - Nyt siden 16:30: N76–N83 (web-lead-banner, mail kobles ved kunde fra lead, adresse fra formular + parser-fix, "Ikke en faktura", pladsholder-mail afvises ved afsendelse + vises som "Mangler e-mail", kontaktkort på webhenvendelser, navn·by i cockpittet, leads-opfølgning), "kræver svar" nyeste-først (latent fejl), watchdog navngiver nu den test der faktisk hænger.

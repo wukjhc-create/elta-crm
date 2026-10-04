@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -3971,6 +3971,37 @@ ${m.text()}`) })
         r.montoer_intet_kort = (await m.page.getByText('Leads — opfølgning').count()) === 0
         await m.ctx.close().catch(() => {})
         out.push({ id: 'U128 N83 leads uden opfølgning i cockpittet', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} ${ld.error?.message ?? ''} upd=${lead?.updated_at ?? '-'}` })
+      }
+
+      // U131 N87: lead uden kunde viser "Findes kunden allerede?" med en auto-oprettet kunde med samme telefon (andet
+      // format); "Kobl til denne kunde" kobler leadet (ingen ny kunde)
+      if (want('U131')) {
+        const r: Record<string, boolean> = {}
+        const tel = `2${String(stamp).slice(-7)}`
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-D-${stamp}`, company_name: `[HARNESS] dublet ${stamp}`, contact_person: 'D',
+          email: `auto+d${stamp}@elta-crm.local`, phone: `+45 ${tel.slice(0, 2)} ${tel.slice(2, 4)} ${tel.slice(4, 6)} ${tel.slice(6)}`, tags: ['auto-email'], created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (custId) u115CustomerIds.push(custId)
+        const ld = await c.admin.from('leads').insert([{ company_name: `[HARNESS] lead dublet ${stamp}`, contact_person: 'Lead D', email: `leadd-${stamp}@harness.test`,
+          phone: tel, status: 'new', source: 'website', created_by: adminUser.id }]).select('id')
+        const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (leadId) u128LeadIds.push(leadId)
+        r.seed = !!custId && !!leadId
+        await gotoSafe(a.page, `${base}/dashboard/leads/${leadId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const box = a.page.getByTestId('lead-customer-candidates')
+        await box.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.forslag_vist = /samme telefon/.test((await box.textContent().catch(() => '')) ?? '') && (await box.getByText(`[HARNESS] dublet ${stamp}`).count()) === 1
+        await box.getByTestId('lead-link-candidate').first().click({ timeout: 30_000 }).catch(() => {})
+        let linked: string | null = null
+        for (let i = 0; i < 15 && !linked; i++) {
+          await a.page.waitForTimeout(1000)
+          const row = (await c.admin.from('leads').select('custom_fields').eq('id', leadId ?? '').maybeSingle()).data as { custom_fields: { customer_id?: string } | null } | null
+          linked = row?.custom_fields?.customer_id ?? null
+        }
+        r.lead_koblet = linked === custId
+        await a.page.getByTestId('lead-go-customer').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.gaa_til_kunde = (await a.page.getByTestId('lead-go-customer').count()) === 1
+        out.push({ id: 'U131 N87 lead → eksisterende kunde (samme telefon)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;

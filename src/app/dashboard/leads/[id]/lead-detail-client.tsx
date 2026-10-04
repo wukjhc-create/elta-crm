@@ -1,5 +1,6 @@
 'use client'
 
+import { LeadCustomerCandidates } from './lead-customer-candidates'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -227,6 +228,9 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                 ))}
               </div>
             </div>
+
+            {/* N87: findes kunden allerede (samme telefon/navn)? — kun før leadet er koblet til en kunde */}
+            {!linkedCustomerId && canConvert && <LeadCustomerCandidates leadId={lead.id} />}
 
             {/* Email source banner — N76: også webhenvendelser (source='website'); linket åbner selve mailen */}
             {lead.custom_fields && (lead.custom_fields as Record<string, string>).source_email_id && (() => {

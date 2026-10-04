@@ -50,6 +50,7 @@
     "harness:relatel-lookup": "tsx scripts/test-harness/cli.ts relatel-lookup",
     "harness:ui-e2e": "tsx scripts/test-harness/cli.ts ui-e2e",
     "harness:ui-batches": "tsx scripts/test-harness/ui-batches.ts",
+    "harness:ui-full": "tsx scripts/test-harness/ui-full.ts",
     "harness:send-producer": "tsx scripts/test-harness/cli.ts send-producer",
     "harness:planning-flow": "tsx scripts/test-harness/cli.ts planning-flow",
     "harness:agent-actions": "tsx scripts/test-harness/cli.ts agent-actions",
