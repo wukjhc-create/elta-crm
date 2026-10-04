@@ -376,6 +376,8 @@ export async function getPortalOffer(
       .select('*')
       .eq('id', offerId)
       .eq('customer_id', customerId)
+      // Q10: som tilbudslisten — kladder (ikke sendt) kunne ellers åbnes via UUID
+      .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
       .maybeSingle()
 
     if (error || !offer) {
@@ -917,6 +919,12 @@ export async function sendPortalMessage(
     // (linje ovenfor) — service-role har INGEN RLS-guard, saa app er
     // single source of truth for scope.
     const admin = createAdminClient()
+    // Q10: vedhæftninger skal være kundens egne uploads (signeret URL i portal-attachments/<kunde>/) — før blev
+    // klientens URL gemt som den var og vist som link/billede for medarbejderen (vilkårligt eksternt link)
+    const ownPrefix = `${(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '')}/storage/v1/object/sign/portal-attachments/${customerId}/`
+    if ((data.attachments ?? []).some((a) => typeof a?.url !== 'string' || !a.url.startsWith(ownPrefix))) {
+      return { success: false, error: 'Ugyldig vedhæftning' }
+    }
     // Q10: offer_id skal være kundens eget tilbud (før blev et vilkårligt UUID gemt og slået op uden kunde-filter)
     if (data.offer_id) {
       const { data: own } = await admin.from('offers').select('id').eq('id', data.offer_id).eq('customer_id', customerId).maybeSingle()
@@ -2147,6 +2155,11 @@ export async function portalRequestReschedule(
     }
 
     const session = sessionResult.data
+
+    // Q10: kundens tekst begrænses (før ubegrænset ind i en CRM-opgave)
+    if (typeof message !== 'string' || message.length > 2000) {
+      return { success: false, error: 'Beskeden er for lang (højst 2.000 tegn)' }
+    }
 
     // Use admin client — token already validated
     const { createAdminClient } = await import('@/lib/supabase/admin')

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * Weather API proxy — fetches OpenWeather One Call 3.0 data
@@ -7,12 +8,20 @@ import { NextRequest, NextResponse } from 'next/server'
  * GET /api/weather?lat=55.676&lon=12.568
  */
 export async function GET(request: NextRequest) {
-  const lat = request.nextUrl.searchParams.get('lat')
-  const lon = request.nextUrl.searchParams.get('lon')
+  // Q10: kun indloggede medarbejdere (før kunne alle bruge proxyen og opbruge OpenWeather-kvoten)
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!lat || !lon) {
+  // kun gyldige koordinater (før gik rå query-værdier ind i upstream-URL'en)
+  const latNum = Number(request.nextUrl.searchParams.get('lat'))
+  const lonNum = Number(request.nextUrl.searchParams.get('lon'))
+  if (!request.nextUrl.searchParams.get('lat') || !request.nextUrl.searchParams.get('lon') ||
+      !Number.isFinite(latNum) || !Number.isFinite(lonNum) || Math.abs(latNum) > 90 || Math.abs(lonNum) > 180) {
     return NextResponse.json({ error: 'lat and lon required' }, { status: 400 })
   }
+  const lat = String(latNum)
+  const lon = String(lonNum)
 
   const apiKey = process.env.OPENWEATHER_API_KEY
   if (!apiKey) {

@@ -92,6 +92,10 @@ export async function runExemptionProofs(c: { admin: SupabaseClient; sql: Sql; o
       const msgs = await portal.getPortalMessages(validTok)
       const leaked = JSON.stringify(msgs).includes(`HARNESS-EXF-${stamp}`)
       out.push({ id: 'T fremmed tilbud i besked', ok: !fo.success && !leaked, note: fo.success ? `ACCEPTERET${leaked ? ' + titel vist' : ''}` : 'afvist' })
+      // Q10: vedhæftning med ekstern URL (vist som link/billede for medarbejderen) → afvist
+      const ext = await portal.sendPortalMessage(validTok, { customer_id: cust.id, message: `[HARNESS-EX] ekstern bilag ${stamp}`,
+        attachments: [{ name: 'faktura.pdf', url: 'https://evil.example/login', size: 1, type: 'application/pdf' }] } as never)
+      out.push({ id: 'T ekstern vedhæftning', ok: !ext.success, note: ext.success ? 'ACCEPTERET (eksternt link gemt)' : 'afvist' })
       // positiv: eget tilbud accepteres stadig
       const own = await portal.sendPortalMessage(validTok, { customer_id: cust.id, offer_id: offerId, message: `[HARNESS-EX] eget tilbud ${stamp}` } as never)
       out.push({ id: 'T eget tilbud i besked', ok: !!own.success, note: own.success ? 'gemt' : `FEJL: ${(own as { error?: string }).error}` })

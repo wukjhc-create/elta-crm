@@ -408,6 +408,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u109TokenId: string | null = null
   let u134OfferId: string | null = null
   let u134TokenId: string | null = null
+  let u134DraftId: string | null = null
   let u109InvoiceId: string | null = null
   let u110OfferId: string | null = null
   let u111OfferId: string | null = null
@@ -3875,6 +3876,18 @@ ${m.text()}`) })
         const pdfBody = (b: unknown) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
         r.fuldmagt_pdf_lukket = (await fetch(`${base}/api/fuldmagt/pdf`, pdfBody({ customer_name: 'X', date: '2026-10-04', signature_data: 'http://127.0.0.1/' }))).status === 401
         r.besigtigelse_pdf_lukket = (await fetch(`${base}/api/besigtigelse/pdf`, pdfBody({ customer: { customer_number: 'X' }, formData: {}, date: '2026-10-04', images: [] }))).status === 401
+        // Q10 lave: vejr-proxy kun for indloggede; migrate-roles timing-safe/fail-closed; kladde-tilbud ikke via UUID
+        r.vejr_kraever_login = (await fetch(`${base}/api/weather?lat=55.6&lon=12.5`, { redirect: 'manual' })).status !== 200
+        r.migrate_roles_lukket = (await fetch(`${base}/api/admin/migrate-roles`, { method: 'POST', headers: { Authorization: 'Bearer ' } })).status === 401
+        const draft = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-SECD-${stamp}`, title: '[HARNESS] U134 kladde', created_by: adminUser.id,
+          customer_id: profitCustomerId, status: 'draft' }]).select('id')
+        u134DraftId = (draft.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const dRes = await fetch(`${base}/portal/${tok}/offers/${u134DraftId}`, { redirect: 'manual' })
+        const dHtml = dRes.status === 200 ? await dRes.text() : ''
+        r.kladde_ikke_i_portal = !dHtml.includes(`UI-E2E-SECD-${stamp}`)
+        r.kladde_pdf_afvist = (await fetch(`${base}/api/portal/offers/pdf?token=${tok}&offerId=${u134DraftId}`)).status !== 200
+        // positiv kontrol: det sendte tilbud kan stadig hentes som PDF
+        r.sendt_pdf_ok = (await fetch(`${base}/api/portal/offers/pdf?token=${tok}&offerId=${u134OfferId}`)).status === 200
         out.push({ id: 'U134 Q10 portal lækker ikke firmahemmeligheder + setup-db lukket', ok: !!u134TokenId && Object.values(r).every(Boolean),
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${leaks.length ? ` · læk: ${leaks.join(',')}` : ''}` })
       }
@@ -4683,6 +4696,7 @@ ${m.text()}`) })
     if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
     if (u134TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u134TokenId)
     if (u134OfferId) await c.admin.from('offers').delete().eq('id', u134OfferId)
+    if (u134DraftId) await c.admin.from('offers').delete().eq('id', u134DraftId)
     for (const id of u115CustomerIds) await c.admin.from('customers').delete().eq('id', id)
     if (u114MessageId) await c.admin.from('portal_messages').delete().eq('id', u114MessageId)
     if (u122LeadId) await c.admin.from('leads').delete().eq('id', u122LeadId)

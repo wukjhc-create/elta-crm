@@ -9,13 +9,12 @@
  */
 
 import { NextResponse } from 'next/server'
+import { isInternalRequest } from '@/lib/security/internal-request'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  // Q10: timing-safe, fail-closed (før !==)
+  if (!isInternalRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
