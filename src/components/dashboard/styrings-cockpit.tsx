@@ -34,7 +34,9 @@ interface Props {
 }
 
 function fmtDateDK(iso: string): string {
+  // Server-komponent: uden timeZone blev tiden vist i serverens UTC (1–2 t forkert på Vercel)
   return new Date(iso).toLocaleDateString('da-DK', {
+    timeZone: 'Europe/Copenhagen',
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
