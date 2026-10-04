@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -406,6 +406,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u100OfferIds: string[] = []
   let u109OfferId: string | null = null
   let u109TokenId: string | null = null
+  let u134OfferId: string | null = null
+  let u134TokenId: string | null = null
   let u109InvoiceId: string | null = null
   let u110OfferId: string | null = null
   let u111OfferId: string | null = null
@@ -3842,6 +3844,41 @@ ${m.text()}`) })
         out.push({ id: 'U133 N95 henvendelse fra eksisterende kunde → kobl', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U134 Q10 sikkerhed (S1): kundeportalens sider sendte HELE company_settings-rækken (select '*' via admin) i sidens
+      // RSC-data → SMTP-adgangskode/SMS-nøgler synlige for enhver med et portallink. Kun portal-kolonner nu. Plus:
+      // /api/admin/setup-db kunne kaldes af alle med headeren x-internal-call (kørte DDL der genskabte en anon-policy).
+      if (want('U134') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-SEC-${stamp}`, title: '[HARNESS] U134 portal-sikkerhed',
+          created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(),
+          valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10) }]).select('id')
+        u134OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-sec-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u134TokenId = (pt.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const secretKeys = ['smtp_password', 'sms_gateway_api_key', 'sms_gateway_secret', 'smtp_user', 'time_cost_rate', 'bank_account']
+        const leaks: string[] = []
+        for (const [label, path] of [['forside', `/portal/${tok}`], ['tilbud', `/portal/${tok}/offers/${u134OfferId}`]] as Array<[string, string]>) {
+          const res = await fetch(`${base}${path}`, { redirect: 'manual' })
+          const html = await res.text()
+          r[`${label}_200`] = res.status === 200
+          // positiv kontrol: portal-indstillingerne er stadig med i siden (valuta/momssats bruges af komponenterne)
+          r[`${label}_har_portalfelter`] = html.includes('default_currency')
+          for (const k of secretKeys) if (html.includes(k)) leaks.push(`${label}:${k}`)
+        }
+        r.ingen_hemmelige_felter = leaks.length === 0
+        const bypass = await fetch(`${base}/api/admin/setup-db`, { method: 'POST', headers: { 'x-internal-call': 'true' } })
+        r.setup_db_header_afvist = bypass.status === 401
+        r.setup_db_get_kraever_secret = (await fetch(`${base}/api/admin/setup-db`)).status === 401
+        // PDF-ruterne var åbne (forfalsket fuldmagt/rapport + <Image src=URL> → SSRF): nu kun interne kald
+        const pdfBody = (b: unknown) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
+        r.fuldmagt_pdf_lukket = (await fetch(`${base}/api/fuldmagt/pdf`, pdfBody({ customer_name: 'X', date: '2026-10-04', signature_data: 'http://127.0.0.1/' }))).status === 401
+        r.besigtigelse_pdf_lukket = (await fetch(`${base}/api/besigtigelse/pdf`, pdfBody({ customer: { customer_number: 'X' }, formData: {}, date: '2026-10-04', images: [] }))).status === 401
+        out.push({ id: 'U134 Q10 portal lækker ikke firmahemmeligheder + setup-db lukket', ok: !!u134TokenId && Object.values(r).every(Boolean),
+          note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${leaks.length ? ` · læk: ${leaks.join(',')}` : ''}` })
+      }
+
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)
       // vises; en ulæst kundebesked gør "portal_unread" rød
       if (want('U114') && profitCustomerId) {
@@ -4644,6 +4681,8 @@ ${m.text()}`) })
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
     if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
+    if (u134TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u134TokenId)
+    if (u134OfferId) await c.admin.from('offers').delete().eq('id', u134OfferId)
     for (const id of u115CustomerIds) await c.admin.from('customers').delete().eq('id', id)
     if (u114MessageId) await c.admin.from('portal_messages').delete().eq('id', u114MessageId)
     if (u122LeadId) await c.admin.from('leads').delete().eq('id', u122LeadId)

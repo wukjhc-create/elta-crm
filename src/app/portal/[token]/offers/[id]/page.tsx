@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { validatePortalToken, getPortalOffer, getPortalMessages } from '@/lib/actions/portal'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { COMPANY_SETTINGS_PORTAL_COLUMNS } from '@/lib/settings/company-columns'
 import { OfferDetail } from '@/components/modules/portal/offer-detail'
 import type { CompanySettings } from '@/types/company-settings.types'
 
@@ -34,8 +35,8 @@ export default async function PortalOfferPage({ params }: OfferPageProps) {
   let companySettings: CompanySettings | null = null
   try {
     const supabase = createAdminClient()
-    const { data } = await supabase.from('company_settings').select('*').maybeSingle()
-    companySettings = data as CompanySettings | null
+    const { data } = await supabase.from('company_settings').select(COMPANY_SETTINGS_PORTAL_COLUMNS).maybeSingle()
+    companySettings = data as unknown as CompanySettings | null
   } catch {
     // Non-critical — portal works without it
   }

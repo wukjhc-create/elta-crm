@@ -88,28 +88,6 @@ async function generateQuoteReference(supabase: ReturnType<typeof getServiceClie
   return `ELS-${year}-${mmdd}-${rand}`
 }
 
-/**
- * Try to auto-create tables if they don't exist.
- * Calls the setup-db API endpoint internally.
- */
-async function ensureTablesExist(): Promise<void> {
-  try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    await fetch(`${appUrl}/api/admin/setup-db`, {
-      method: 'POST',
-      headers: {
-        'x-internal-call': 'true',
-        'Authorization': `Bearer ${process.env.CRON_SECRET || ''}`,
-      },
-    })
-  } catch {
-    // Non-critical — tables may already exist or setup may not be possible
-  }
-}
-
-// Track whether we've attempted setup (once per process lifetime)
-let setupAttempted = false
-
 export async function generateAndSendQuote(
   input: GenerateQuoteInput,
   userId: string,
@@ -117,11 +95,7 @@ export async function generateAndSendQuote(
 ): Promise<GenerateQuoteResult> {
   const supabase = getServiceClient()
 
-  // Auto-setup on first call
-  if (!setupAttempted) {
-    setupAttempted = true
-    ensureTablesExist().catch(() => {})
-  }
+  // Q10: ingen runtime-DDL herfra (kaldte /api/admin/setup-db, der genskabte en anon-policy) — tabellerne findes via migrationer
 
   try {
     // 1. Get company settings

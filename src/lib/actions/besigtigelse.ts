@@ -22,6 +22,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { BRAND } from '@/lib/brand'
 import type { ConfirmationRecipientRole } from '@/types/document-confirmations.types'
 import { escapeHtml } from '@/lib/utils/html-escape'
+import { internalRequestHeaders } from '@/lib/security/internal-request'
 
 /**
  * Sprint 9F Phase 6a — shadow-preview wrapper for besigtigelse.
@@ -199,7 +200,7 @@ export async function saveBesigtigelsesnotat(
 
     const pdfRes = await fetch(`${baseUrl}/api/besigtigelse/pdf`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...internalRequestHeaders() },
       body: JSON.stringify({
         customer,
         formData: input.formData,

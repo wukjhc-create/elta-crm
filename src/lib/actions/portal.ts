@@ -46,7 +46,7 @@ import {
   REJECTION_REASON_LABELS,
   type OfferRejectionInput,
 } from '@/types/offers.types'
-import { escapeHtml } from '@/lib/utils/html-escape'
+import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
 
 // =====================================================
 // Portal Token Management (for employees)
@@ -606,8 +606,8 @@ export async function acceptOffer(
           <h2>Tilbud accepteret</h2>
           <p>Kunden har accepteret et tilbud via kundeportalen.</p>
           <table style="border-collapse:collapse;margin:16px 0;">
-            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tilbud:</td><td style="font-weight:600;">${offer.title}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#666;">Underskrevet af:</td><td>${data.signer_name} (${data.signer_email})</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tilbud:</td><td style="font-weight:600;">${escapeHtml(offer.title)}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Underskrevet af:</td><td>${escapeHtml(data.signer_name)} (${escapeHtml(data.signer_email)})</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Beløb:</td><td style="font-weight:600;">${new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(offer.final_amount)}</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Tidspunkt:</td><td>${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</td></tr>
           </table>
@@ -942,9 +942,9 @@ export async function sendPortalMessage(
       const subject = `Ny besked fra ${contactPerson} (${companyName})`
       const html = `
         <h2>Ny besked fra kundeportalen</h2>
-        <p><strong>${contactPerson}</strong> fra <strong>${companyName}</strong> har sendt en besked:</p>
+        <p><strong>${escapeHtml(contactPerson)}</strong> fra <strong>${escapeHtml(companyName)}</strong> har sendt en besked:</p>
         <blockquote style="border-left:4px solid #2D8A2D;padding:12px 16px;margin:16px 0;background:#f8f9fa;color:#374151;">
-          ${data.message.replace(/\n/g, '<br />')}
+          ${escapeHtmlWithLineBreaks(data.message)}
         </blockquote>
         ${data.attachments && data.attachments.length > 0 ? `<p style="color:#666;">Vedhæftede filer: ${data.attachments.length}</p>` : ''}
         <p>Svar kunden i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/customers">Gå til Kunder</a></p>

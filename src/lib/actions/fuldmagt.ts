@@ -17,6 +17,8 @@ import type { ActionResult } from '@/types/common.types'
 import { logger } from '@/lib/utils/logger'
 import { BRAND } from '@/lib/brand'
 import { APP_URL } from '@/lib/constants'
+import { internalRequestHeaders } from '@/lib/security/internal-request'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 export interface FuldmagtData {
   id: string
@@ -384,7 +386,7 @@ export async function submitSignedFuldmagt(
 
     const pdfRes = await fetch(`${baseUrl}/api/fuldmagt/pdf`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...internalRequestHeaders() },
       body: JSON.stringify({
         customer_name: updatedDesc.customer_name,
         customer_address: updatedDesc.customer_address,
@@ -468,10 +470,10 @@ export async function submitSignedFuldmagt(
               <h1 style="color: white; margin: 0; font-size: 20px;">Fuldmagt underskrevet</h1>
             </div>
             <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-              <p style="font-size: 16px; color: #111827;"><strong>${input.signer_name}</strong> har underskrevet fuldmagten.</p>
+              <p style="font-size: 16px; color: #111827;"><strong>${escapeHtml(input.signer_name)}</strong> har underskrevet fuldmagten.</p>
               <table style="margin: 16px 0; font-size: 14px; color: #374151;">
-                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Ordrenr:</td><td>${updatedDesc.order_number}</td></tr>
-                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Fødselsdato/CVR:</td><td>${input.foedselsdato_cvr}</td></tr>
+                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Ordrenr:</td><td>${escapeHtml(updatedDesc.order_number)}</td></tr>
+                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Fødselsdato/CVR:</td><td>${escapeHtml(input.foedselsdato_cvr)}</td></tr>
                 <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Marketing:</td><td>${input.marketing_samtykke ? 'Ja — billeder må bruges' : 'Nej'}</td></tr>
               </table>
               <p style="color: #374151;">PDF'en er gemt under kundens dokumenter i ELTA Drift.</p>
