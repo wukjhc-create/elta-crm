@@ -7,8 +7,8 @@ import { CalendarPageClient } from './calendar-client'
 import { CalendarWorkforceClient } from './calendar-workforce-client'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
-import { getPlanningBacklogAction } from '@/lib/actions/planning-backlog'
-import { PlanningBacklogPanel } from './planning-backlog-panel'
+import { getJobsWithoutTimeAction, getPlanningBacklogAction } from '@/lib/actions/planning-backlog'
+import { JobsWithoutTimePanel, PlanningBacklogPanel } from './planning-backlog-panel'
 
 export const metadata: Metadata = {
   title: 'Kalender',
@@ -97,11 +97,14 @@ export default async function CalendarPage({ searchParams }: PageProps) {
 
   const workOrders = workOrdersRes.success && workOrdersRes.data ? workOrdersRes.data : []
   // N48: sager der mangler planlægning (kun planlæggere)
-  const backlog = (await pageHasPermission('work_orders.plan')) ? await getPlanningBacklogAction() : null
+  // N62: overståede job uden registreret tid (kun planlæggere)
+  const canPlan = await pageHasPermission('work_orders.plan')
+  const [backlog, noTime] = canPlan ? await Promise.all([getPlanningBacklogAction(), getJobsWithoutTimeAction()]) : [null, null]
 
   return (
     <>
     {backlog?.success && backlog.data && <div className="px-4 sm:px-6 pt-4"><PlanningBacklogPanel items={backlog.data.items} total={backlog.data.total} /></div>}
+    {noTime?.success && noTime.data && <div className="px-4 sm:px-6 pt-4"><JobsWithoutTimePanel items={noTime.data.items} total={noTime.data.total} /></div>}
     <CalendarWorkforceClient
       view={view}
       anchorDate={anchorDate}

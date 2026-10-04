@@ -670,6 +670,16 @@ async function main() {
     }
     return
   }
+  if (SUB === 'jobs-no-time') {
+    // Read-only (N62): overståede arbejdsordrer (60 d) med montør uden timer — samme regel som kalenderpanelet.
+    const rows = await stagingSql(`SELECT w.title, w.status, w.scheduled_date::text d FROM work_orders w WHERE w.status <> 'cancelled'
+      AND w.assigned_employee_id IS NOT NULL AND w.scheduled_date < (now() AT TIME ZONE 'Europe/Copenhagen')::date
+      AND w.scheduled_date >= (now() AT TIME ZONE 'Europe/Copenhagen')::date - 60
+      AND NOT EXISTS (SELECT 1 FROM time_logs t WHERE t.work_order_id = w.id) ORDER BY w.scheduled_date LIMIT 30`)
+    log(`${rows.length} (max 30 vist)`)
+    for (const r of rows) log(`${r.d} · ${r.status} · ${String(r.title).slice(0, 50)}`)
+    return
+  }
   if (SUB === 'columns') {
     // Read-only: kolonner for én eller flere tabeller på staging (schema-tjek før kode skrives mod en tabel).
     for (const raw of process.argv.slice(3)) {

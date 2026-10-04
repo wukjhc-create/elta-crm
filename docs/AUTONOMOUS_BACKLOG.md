@@ -153,6 +153,17 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N59 | Mail/drift | Prod (30 d): 70 mails, 50 ulæste (ældste 89 d), 25 ukoblede, 0 arkiveret — indbakken ryddes ikke. "Markér viste som læst" (masse, ikke-destruktiv, samme gate/RLS) | prod read-only (prod-mail-flow) | DONE (U113). Næste: multi-vælg + arkivér, filter "ukoblede" |
 | Q1 | Kvalitet | Rute-/fane-/mobil-crawls: U101–U110 (64 sider × admin/salg/montør, 14 sagsfaner, montør/salg/kundeportal ved 375 px) | — | DONE — fandt 2 fejl: Faktura-mail-indstillinger crashede (null.trim), kundeportalens rækker flød ud på mobil; begge rettet |
 
+## NEXT-5 (genereret 2026-10-04 13:40 — prod: 1 forfalden faktura uden rykker, 3 planlagte arbejdsordrer, 0 med tid; go-live-import af kunder)
+| # | Område | Opgave | Kilde | Status |
+|---|---|---|---|---|
+| N60 | Kunder/go-live | CSV-import af kunder (e-conomic/regneark): forhåndsvisning ny/dublet/ugyldig, server genvaliderer, max 500, audit | go-live | DONE (U115, unit) — pushet 4c5bfe5 |
+| N61 | Økonomi | Cockpit "Forfaldne fakturaer" (invoices.view.all): antal, beløb, dage over forfald, rykkere → fakturaen | prod-jobs-without-time (1 forfalden uden rykker) | DONE (U116) |
+| N62 | Planlægning/faktura | Kalender "Job uden registreret tid": overståede job (60 d) med montør uden timer → sagens Planlægning-fane (work_orders.plan) | kodeanalyse (glemte timer faktureres aldrig) | DONE (U117) |
+| N63 | Mail | Indbakke: filter "ukoblede" + arkivér valgte (ikke-destruktivt, is_archived) | N59 | NEXT |
+| N64 | Montør | "Mine job": påmindelse om job fra i går/tidligere uden registreret tid (egen tid, ingen kost) | N62 | NEXT |
+| N65 | Tilbud | Tilbudsdetalje: "Kunden har ikke åbnet tilbuddet" / sidst set (viewed_at) i opfølgningen | salg | NEXT |
+| Q2 | Kvalitet | U16/U38 seed-konflikter på uq_suppliers_external (efterladte [HARNESS]-leverandører) — unikt nr. pr. kørsel / frigiv før seed; præcis dubletbesked i leverandørformularen | regression | DONE |
+
 ### Checkpoint 2026-10-04 11:00
 - N40–N48 pushet (realiseret DB, vedhæft PDF, mangler-bilag, nye kunder uden tilbud, mail→tilbud, e-conomic-betalingsforhåndsvisning, leverandørprisændring, mangler planlægning). Hver med isoleret e2e ≤ 5 min.
 

@@ -7,6 +7,7 @@
 
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
+import { calendarDaysSince, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import type { ActionResult } from '@/types/common.types'
 
 export interface PlanningBacklogItem {
@@ -70,5 +71,78 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
     return { success: true, data: { items: items.slice(0, 20), total: items.length } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente planlægningsbehov') }
+  }
+}
+
+export interface JobWithoutTimeItem {
+  work_order_id: string
+  case_id: string | null
+  case_number: string | null
+  title: string
+  employee_name: string | null
+  scheduled_date: string
+  status: string
+  days_ago: number
+}
+
+/**
+ * N62: job der er overstået uden registreret tid — arbejdsordrer med montør og dato før i dag (dansk kalenderdag,
+ * seneste 60 dage), ikke annulleret, uden én eneste timelinje. Timer der aldrig registreres bliver aldrig faktureret.
+ * work_orders.plan; kun læsning.
+ */
+export async function getJobsWithoutTimeAction(): Promise<ActionResult<{ items: JobWithoutTimeItem[]; total: number }>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('work_orders.plan')) return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
+
+    const today = copenhagenParts(new Date()).date
+    const from = copenhagenParts(new Date(Date.now() - 60 * 86_400_000)).date
+    const { data: wos, error } = await supabase
+      .from('work_orders')
+      .select('id, case_id, title, status, scheduled_date, assigned_employee_id')
+      .neq('status', 'cancelled')
+      .not('assigned_employee_id', 'is', null)
+      .lt('scheduled_date', today)
+      .gte('scheduled_date', from)
+      .order('scheduled_date', { ascending: true })
+      .limit(500)
+    if (error) {
+      logger.error('getJobsWithoutTimeAction: work_orders failed', { error })
+      return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
+    }
+    const list = (wos ?? []) as Array<{ id: string; case_id: string | null; title: string; status: string; scheduled_date: string; assigned_employee_id: string }>
+    if (!list.length) return { success: true, data: { items: [], total: 0 } }
+
+    const { data: logs, error: logErr } = await supabase.from('time_logs').select('work_order_id').in('work_order_id', list.map((w) => w.id))
+    if (logErr) {
+      logger.error('getJobsWithoutTimeAction: time_logs failed', { error: logErr })
+      return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
+    }
+    const withTime = new Set(((logs ?? []) as Array<{ work_order_id: string }>).map((l) => l.work_order_id))
+    const missing = list.filter((w) => !withTime.has(w.id))
+    if (!missing.length) return { success: true, data: { items: [], total: 0 } }
+
+    const shown = missing.slice(0, 20)
+    const caseIds = Array.from(new Set(shown.map((w) => w.case_id).filter((x): x is string => !!x)))
+    const empIds = Array.from(new Set(shown.map((w) => w.assigned_employee_id)))
+    const [cs, emps] = await Promise.all([
+      caseIds.length ? supabase.from('service_cases').select('id, case_number').in('id', caseIds) : Promise.resolve({ data: [] }),
+      supabase.from('employees').select('id, name').in('id', empIds),
+    ])
+    const caseNo = new Map(((cs.data ?? []) as Array<{ id: string; case_number: string | null }>).map((c) => [c.id, c.case_number]))
+    const empName = new Map(((emps.data ?? []) as Array<{ id: string; name: string }>).map((e) => [e.id, e.name]))
+    return {
+      success: true,
+      data: {
+        total: missing.length,
+        items: shown.map((w) => ({
+          work_order_id: w.id, case_id: w.case_id, case_number: w.case_id ? caseNo.get(w.case_id) ?? null : null, title: w.title,
+          employee_name: empName.get(w.assigned_employee_id) ?? null, scheduled_date: w.scheduled_date, status: w.status,
+          days_ago: calendarDaysSince(w.scheduled_date),
+        })),
+      },
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente job uden tid') }
   }
 }

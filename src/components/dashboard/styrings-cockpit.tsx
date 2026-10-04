@@ -73,6 +73,7 @@ export function StyringsCockpit({ overview }: Props) {
         <NewCustomersCard overview={overview} />
         <PortalMessagesCard overview={overview} />
         <UnbilledCard overview={overview} />
+        {overview.overdueInvoices.allowed && <OverdueInvoicesCard overview={overview} />}
         <VisitsCard overview={overview} />
       </div>
     </section>
@@ -256,7 +257,13 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
                   <div className="truncate font-medium">
                     {o.offer_number} · {o.title}
                   </div>
-                  <div className="truncate text-gray-500">{o.customer_name || '—'}</div>
+                  <div className="truncate text-gray-500">
+                    {o.customer_name || '—'}
+                    {/* N65: åbnet (portal-visning) eller ej — afgør om sælger skal ringe eller gensende */}
+                    {o.status === 'viewed'
+                      ? <span className="text-emerald-700" data-testid="cockpit-offer-opened"> · åbnet af kunden</span>
+                      : o.status === 'sent' ? <span className="text-gray-400" data-testid="cockpit-offer-unopened"> · ikke åbnet</span> : null}
+                  </div>
                 </div>
                 <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(o.ageDays)}`}>
                   {o.ageDays}d
@@ -301,6 +308,47 @@ function UnbilledCard({ overview }: { overview: DashboardOverview }) {
                   <div className="truncate text-gray-500">{c.customer_name ?? '—'} · {c.lines} linje{c.lines === 1 ? '' : 'r'}</div>
                 </div>
                 <span className="shrink-0 tabular-nums font-medium">{kr(c.sale)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+// =====================================================
+// N61. Forfaldne fakturaer (kun invoices.view.all)
+// =====================================================
+
+function OverdueInvoicesCard({ overview }: { overview: DashboardOverview }) {
+  const { count, total, items } = overview.overdueInvoices
+  const err = overview.errors.overdueInvoices
+  const kr = (n: number) => new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 0 }).format(n)
+  return (
+    <Card
+      title="Forfaldne fakturaer"
+      icon={<FileText className="h-4 w-4" />}
+      tone={count > 0 ? 'red' : 'green'}
+      href="/dashboard/invoices?filter=overdue"
+      headline={count}
+      headlineLabel={count > 0 ? `fakturaer · ${kr(total)} over forfald` : 'fakturaer over forfald'}
+      error={err}
+    >
+      {items.length === 0 ? (
+        <EmptyRow text={err ? 'Kunne ikke hente data' : 'Ingen fakturaer over forfald.'} />
+      ) : (
+        <ul className="text-xs divide-y" data-testid="cockpit-overdue-invoices">
+          {items.map((i) => (
+            <li key={i.id}>
+              <Link href={`/dashboard/invoices/${i.id}`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{i.invoice_number ?? 'Faktura'} · {i.customer_name ?? '—'}</div>
+                  <div className="truncate text-gray-500">
+                    {i.daysOverdue} dage over forfald{i.reminders > 0 ? ` · ${i.reminders} rykker${i.reminders === 1 ? '' : 'e'}` : ' · ingen rykker'}
+                  </div>
+                </div>
+                <span className="shrink-0 tabular-nums font-medium">{kr(i.amount)}</span>
               </Link>
             </li>
           ))}

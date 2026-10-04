@@ -91,6 +91,14 @@ export interface DashboardOverview {
     saleTotal: number
     cases: Array<{ id: string; case_number: string | null; title: string; customer_name: string | null; lines: number; sale: number }>
   }
+  /** N61: sendte fakturaer over forfald (ikke betalt/annulleret/kreditnota; kun invoices.view.all). */
+  overdueInvoices: {
+    /** false = rollen må ikke se fakturaer → kortet skjules */
+    allowed: boolean
+    count: number
+    total: number
+    items: Array<{ id: string; invoice_number: string | null; customer_name: string | null; amount: number; daysOverdue: number; reminders: number }>
+  }
   /** N50: ulæste kundebeskeder fra kundeportalen pr. kunde (kun customers.edit). */
   portal: {
     unreadCount: number
@@ -107,7 +115,7 @@ export interface DashboardOverview {
     empty: boolean
   }
   /** Per-section fejl saa UI kan vise en diskret advarsel uden at crashe. */
-  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers' | 'portal' | 'unbilled', string>>
+  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers' | 'portal' | 'unbilled' | 'overdueInvoices', string>>
   generated_at: string
 }
 
@@ -130,6 +138,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     newCustomers: { count: 0, items: [] },
     portal: { unreadCount: 0, customers: [] },
     unbilled: { caseCount: 0, saleTotal: 0, cases: [] },
+    overdueInvoices: { allowed: false, count: 0, total: 0, items: [] },
     visits: { upcoming: [], empty: true },
     errors: {},
     generated_at: new Date().toISOString(),
@@ -386,6 +395,47 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       } catch (err) {
         logger.error('getDashboardOverview: unbilled failed', { error: err })
         overview.errors.unbilled = err instanceof Error ? err.message : 'failed'
+      }
+    })(),
+
+    // N61: forfaldne fakturaer — samme regel som fakturaoversigten: status='sent', ikke annulleret, ikke kreditnota,
+    // due_date før i dag (dansk kalenderdag). Ældste forfald først.
+    (async () => {
+      try {
+        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+        const ctx = await getAuthenticatedClientWithRole()
+        if (!ctx.hasPermission('invoices.view.all')) return
+        overview.overdueInvoices.allowed = true
+        const { calendarDaysSince } = await import('@/lib/utils/copenhagen-time')
+        const { data, error } = await supabase.from('invoices')
+          .select('id, invoice_number, invoice_type, final_amount, due_date, reminder_count, customer_id')
+          .eq('status', 'sent').is('voided_at', null).not('due_date', 'is', null)
+          .order('due_date', { ascending: true }).limit(500)
+        if (error) throw new Error(error.message)
+        const nowMs = Date.now()
+        const rows = ((data ?? []) as Array<{ id: string; invoice_number: string | null; invoice_type: string | null; final_amount: number | string | null; due_date: string; reminder_count: number | null; customer_id: string | null }>)
+          .filter((r) => r.invoice_type !== 'credit')
+          .map((r) => ({ ...r, days: calendarDaysSince(r.due_date, nowMs) }))
+          .filter((r) => r.days > 0)
+        if (!rows.length) return
+        const custIds = Array.from(new Set(rows.slice(0, TOP_N).map((r) => r.customer_id).filter((x): x is string => !!x)))
+        const names = new Map<string, string>()
+        if (custIds.length) {
+          const { data: cs } = await supabase.from('customers').select('id, company_name').in('id', custIds)
+          for (const c of (cs ?? []) as Array<{ id: string; company_name: string | null }>) names.set(c.id, c.company_name ?? '')
+        }
+        overview.overdueInvoices = {
+          allowed: true,
+          count: rows.length,
+          total: Math.round(rows.reduce((sum, r) => sum + (Number(r.final_amount ?? 0) || 0), 0) * 100) / 100,
+          items: rows.slice(0, TOP_N).map((r) => ({
+            id: r.id, invoice_number: r.invoice_number, customer_name: r.customer_id ? names.get(r.customer_id) ?? null : null,
+            amount: Number(r.final_amount ?? 0) || 0, daysOverdue: r.days, reminders: Number(r.reminder_count ?? 0),
+          })),
+        }
+      } catch (err) {
+        logger.error('getDashboardOverview: overdueInvoices failed', { error: err })
+        overview.errors.overdueInvoices = err instanceof Error ? err.message : 'failed'
       }
     })(),
 

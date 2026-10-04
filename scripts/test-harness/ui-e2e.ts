@@ -183,9 +183,9 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
-  economy: ['U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  sales: ['U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  montor: ['U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
+  economy: ['U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -379,6 +379,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u88OfferId: string | null = null
   let u89EmployeeId: string | null = null
   let u91InvoiceIds: string[] = []
+  let u116InvoiceId: string | null = null
+  let u117WorkOrderId: string | null = null
   let u91SeedErr = ''
   let u92InvoiceId: string | null = null
   let u93CustomerId: string | null = null
@@ -1414,6 +1416,9 @@ ${m.text()}`) })
       // U38 e-conomic-forhåndsvisning på leverandørfaktura før godkendelse (e-conomic foundation)
       if (want('U38')) {
         const r: Record<string, boolean> = {}
+        // e-conomic-nr. 12 er unikt (uq_suppliers_external): frigiv det fra efterladte [HARNESS]-leverandører fra afbrudte kørsler
+        await c.admin.from('suppliers').update({ external_supplier_id: null, external_provider: null })
+          .eq('external_provider', 'economic').eq('external_supplier_id', '12').like('name', '[HARNESS]%')
         const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U38 grossist ${stamp}`, code: `HU38${stamp}`, external_supplier_id: '12', external_provider: 'economic' }]).select('id')
         u38.supplierId = (sup.data?.[0] as { id?: string } | undefined)?.id
         const inv = u38.supplierId ? await c.admin.from('incoming_invoices').insert([{ source: 'manual', supplier_id: u38.supplierId, invoice_number: `UI-E2E-U38-${stamp}`,
@@ -3096,7 +3101,7 @@ ${m.text()}`) })
         await gotoSafe(a.page, `${base}/dashboard/calendar`, { waitUntil: 'networkidle', timeout: 120_000 })
         const panel = a.page.getByTestId('planning-backlog')
         await panel.waitFor({ timeout: 60_000 }).catch(() => {})
-        if (!(await panel.getAttribute('open').catch(() => null))) await panel.locator('summary').click().catch(() => {})
+        if ((await panel.getAttribute('open').catch(() => null)) === null) await panel.locator('summary').click().catch(() => {})
         const txt = (await panel.innerText().catch(() => '')) ?? ''
         r.uden_arbejdsordre = txt.includes(`[HARNESS] uplanlagt ${stamp}`) && /Ingen arbejdsordre/.test(txt)
         r.uden_dato = txt.includes(`[HARNESS] uden dato ${stamp}`) && /Arbejdsordre uden dato/.test(txt)
@@ -3529,6 +3534,81 @@ ${m.text()}`) })
         r.kilde_maerket = created?.[0]?.custom_fields?.source === 'csv-import' && typeof created?.[0]?.custom_fields?.import_customer_number === 'string'
         r.dublet_ikke_oprettet = ((await c.admin.from('customers').select('id').eq('company_name', `[HARNESS] Findes ${stamp}`)).data ?? []).length === 0
         out.push({ id: 'U115 N60 kundeimport fra CSV', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U116 N61: cockpit "Forfaldne fakturaer" — sendt faktura med forfald i 2000 (ældst → altid i top 5) vises med beløb og
+      // dage over forfald og linker til fakturaen; montør (ingen invoices.view.all) ser ikke kortet
+      if (want('U116') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const no = `UI-E2E-OV-${stamp}`
+        const ins = await c.admin.from('invoices').insert([{ invoice_number: no, customer_id: profitCustomerId, status: 'sent',
+          total_amount: 61728, tax_amount: 15432, final_amount: 77160, due_date: '2000-01-01' }]).select('id')
+        u116InvoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!u116InvoiceId
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const list = a.page.getByTestId('cockpit-overdue-invoices')
+        await list.getByText(no).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        const row = list.locator('li', { hasText: no }).first()
+        const txt = ((await row.innerText().catch(() => '')) ?? '')
+        r.kort_viser_faktura = txt.includes('77.160') && /\d+ dage over forfald/.test(txt)
+        await row.click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForURL(new RegExp(`/dashboard/invoices/${u116InvoiceId}`), { timeout: 60_000 }).catch(() => {})
+        r.link_faktura = a.page.url().includes(`/dashboard/invoices/${u116InvoiceId}`)
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.montoer_intet_kort = (await m.page.getByText('Forfaldne fakturaer').count()) === 0
+        await m.ctx.close().catch(() => {})
+        out.push({ id: 'U116 N61 forfaldne fakturaer i cockpittet', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${ins.error?.message ?? ''}` })
+      }
+
+      // U117 N62: kalenderens "Job uden registreret tid" — afsluttet arbejdsordre for 59 dage siden (ældst i 60-dages-vinduet
+      // → altid blandt de viste) uden timer vises med montør og "Afsluttet uden tid" og linker til sagens Planlægning-fane;
+      // montør (ingen work_orders.plan) ser ikke panelet. Kræver U11 (montør-medarbejder + sag).
+      if (want('U117') && jobCaseId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const title = `[HARNESS] glemt tid ${stamp}`
+        const d59 = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() - 59 * 86_400_000))
+        const wo = await c.admin.from('work_orders').insert([{ case_id: jobCaseId, title, status: 'done', scheduled_date: d59, assigned_employee_id: jobEmployeeId }]).select('id')
+        u117WorkOrderId = (wo.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!u117WorkOrderId
+        await gotoSafe(a.page, `${base}/dashboard/calendar`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const panel = a.page.getByTestId('jobs-without-time')
+        await panel.waitFor({ timeout: 60_000 }).catch(() => {})
+        if ((await panel.getAttribute('open').catch(() => null)) === null) await panel.locator('summary').click().catch(() => {})
+        const row = panel.locator('li', { hasText: title }).first()
+        const txt = ((await row.innerText().catch(() => '')) ?? '')
+        r.job_vises = txt.includes('Harness Montør') && txt.includes('Afsluttet uden tid')
+        const u117Diag = r.job_vises ? '' : `panel=${await panel.count()} tekst=${((await panel.innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').slice(0, 300)}`
+        if (!r.job_vises) await a.page.screenshot({ path: join(shots, 'u117-kalender.png'), fullPage: true }).catch(() => {})
+        await row.getByTestId('jobs-without-time-item').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForURL(/tab=planlaegning/, { timeout: 60_000 }).catch(() => {})
+        r.link_planlaegning = a.page.url().includes(`/dashboard/orders/${jobCaseId}`) && a.page.url().includes('tab=planlaegning')
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard/calendar`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.montoer_intet_panel = (await m.page.getByTestId('jobs-without-time').count()) === 0
+        await m.ctx.close().catch(() => {})
+        out.push({ id: 'U117 N62 job uden registreret tid', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${wo.error?.message ?? ''} ${u117Diag}` })
+      }
+
+      // U118 N65: cockpittets tilbudsopfølgning viser om kunden har åbnet tilbuddet (viewed) eller ej (sent).
+      // Seed oprettet 2019 → ældst → altid blandt de viste; ryddes med U100's tilbud.
+      if (want('U118') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const mk = async (suffix: string, status: 'sent' | 'viewed') => {
+          const o = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-${suffix}-${stamp}`, title: `[HARNESS] opfølgning ${suffix} ${stamp}`, customer_id: profitCustomerId,
+            status, created_by: adminUser.id, created_at: '2019-01-01T09:00:00Z', sent_at: '2019-01-02T09:00:00Z', ...(status === 'viewed' ? { viewed_at: '2019-01-03T09:00:00Z' } : {}) }]).select('id')
+          const id = (o.data?.[0] as { id?: string } | undefined)?.id
+          if (id) u100OfferIds.push(id)
+          return id
+        }
+        r.seed = !!(await mk('FS', 'sent')) && !!(await mk('FV', 'viewed'))
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const opened = a.page.locator('li', { hasText: `UI-E2E-FV-${stamp}` }).first()
+        const unopened = a.page.locator('li', { hasText: `UI-E2E-FS-${stamp}` }).first()
+        await opened.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.aabnet_vist = (await opened.getByTestId('cockpit-offer-opened').count()) === 1
+        r.ikke_aabnet_vist = (await unopened.getByTestId('cockpit-offer-unopened').count()) === 1
+        out.push({ id: 'U118 N65 tilbud åbnet/ikke åbnet i opfølgningen', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
@@ -4106,6 +4186,8 @@ ${m.text()}`) })
     if (u93OfferId) await c.admin.from('offers').delete().eq('id', u93OfferId)
     if (u93CustomerId) await c.admin.from('customers').delete().eq('id', u93CustomerId)
     if (u92InvoiceId) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', u92InvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u92InvoiceId) }
+    if (u116InvoiceId) await c.admin.from('invoices').delete().eq('id', u116InvoiceId)
+    if (u117WorkOrderId) await c.admin.from('work_orders').delete().eq('id', u117WorkOrderId)
     for (const id of u91InvoiceIds) { await c.admin.from('invoice_lines').delete().eq('invoice_id', id); await c.admin.from('invoices').delete().eq('id', id) }
     if (u89EmployeeId) { await c.admin.from('employee_compensation').delete().eq('employee_id', u89EmployeeId); await c.admin.from('employees').delete().eq('id', u89EmployeeId) }
     if (u88OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u88OfferId); await c.admin.from('offers').delete().eq('id', u88OfferId) }
