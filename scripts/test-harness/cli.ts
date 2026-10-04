@@ -501,8 +501,8 @@ async function main() {
     return
   }
   if (SUB === 'offer-invoice-discount') {
-    // Faktura-review (HØJ): faktura fra tilbud ignorerede rabat → rabat-tilbud afvises (negativ) ; uden rabat oprettes
-    // fakturaen stadig (positiv kontrol). Staging; alt seedet ryddes. Ingen mail (kun createInvoiceFromOffer, ikke "send").
+    // Faktura-review B7 / salgs-review T2 (00190): fakturaen skal svare præcis til det accepterede tilbud — med
+    // tilbuds- og linjerabat og manuelle linjer. Staging; alt seedet ryddes. Ingen mail (kun createInvoiceFromOffer).
     const { createInvoiceFromOffer } = await import('../../src/lib/services/invoices')
     const actors = await ensureActors(admin, seedBase)
     const cust = (await stagingSql(`SELECT id FROM customers WHERE custom_fields->>'harness' IS NOT NULL LIMIT 1`))[0]
@@ -517,17 +517,19 @@ async function main() {
       await admin.from('offer_line_items').insert([{ offer_id: id, position: 1, description: 'Linje', quantity: 1, unit: 'stk', unit_price: 1000, discount_percentage: lineDisc, total: 1000 * (1 - lineDisc / 100) }])
       return id
     }
+    // 00190: fakturaen = det accepterede tilbud (linjer uden sale_price = manuelle linjer → før 0 kr; rabatter medregnes)
     const res: Array<[string, boolean]> = []
     try {
-      for (const [tag, od, ld] of [['tilbudsrabat', 10, 0], ['linjerabat', 0, 15]] as Array<[string, number, number]>) {
+      for (const [tag, od, ld] of [['tilbudsrabat', 10, 0], ['linjerabat', 0, 15], ['uden', 0, 0]] as Array<[string, number, number]>) {
         const id = await mk(tag, od, ld)
         const err = await createInvoiceFromOffer(id).then(() => '', (e: Error) => e.message)
-        const n = (await stagingSql(`SELECT count(*)::int n FROM invoices WHERE offer_id = '${id}'`))[0].n
-        res.push([`${tag}_afvist`, /rabat/.test(err) && n === 0])
+        const [o] = await stagingSql(`SELECT final_amount::float f, tax_amount::float x FROM offers WHERE id = '${id}'`)
+        const [inv] = await stagingSql(`SELECT i.total_amount::float t, i.tax_amount::float x, i.final_amount::float f,
+          (SELECT sum(total_price)::float FROM invoice_lines l WHERE l.invoice_id = i.id) s FROM invoices i WHERE i.offer_id = '${id}'`)
+        const ok = !err && !!inv && inv.f === o.f && inv.x === o.x && Math.abs(inv.s - inv.t) < 0.005 && inv.f > 0
+        res.push([`${tag}_faktura_lig_tilbud`, ok])
+        if (!ok) log(`  ${tag}: err=${err} tilbud=${JSON.stringify(o)} faktura=${JSON.stringify(inv)}`)
       }
-      const plain = await mk('uden', 0, 0)
-      const invId = await createInvoiceFromOffer(plain).catch(() => '')
-      res.push(['uden_rabat_oprettes', !!invId])
     } finally {
       for (const id of offerIds) {
         const inv = await stagingSql(`SELECT id FROM invoices WHERE offer_id = '${id}'`)
