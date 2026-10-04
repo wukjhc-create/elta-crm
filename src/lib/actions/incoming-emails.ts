@@ -1096,6 +1096,38 @@ export async function triggerEmailSync(): Promise<EmailSyncResult> {
   return result
 }
 
+// N71: sidste forsøg pr. server-instans — værn mod at en fejlende Graph udløser en synk ved hver sidevisning
+let lastFreshnessAttempt = 0
+
+/**
+ * N71: synk mail, hvis en KONFIGURERET postkasse er ældre end `maxAgeMinutes` (cockpittet kalder ved visning).
+ * Samme synk som mail-siden/"Synkronisér" (inbox.view); intet sker uden Graph-opsætning. Højst ét forsøg pr. 5 min
+ * pr. instans. Returnerer om der blev synket, og hvor mange nye mails der kom ind.
+ */
+export async function syncMailIfStaleAction(maxAgeMinutes = 10): Promise<{ synced: boolean; inserted: number; reason?: string }> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { synced: false, inserted: 0, reason: 'denied' }
+  const { isGraphConfigured, getMailboxes } = await import('@/lib/services/microsoft-graph')
+  if (!isGraphConfigured()) return { synced: false, inserted: 0, reason: 'not_configured' }
+  if (Date.now() - lastFreshnessAttempt < 5 * 60_000) return { synced: false, inserted: 0, reason: 'throttled' }
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { data } = await createAdminClient().from('graph_sync_state').select('mailbox, last_sync_at')
+  const { staleMailboxes } = await import('@/lib/mail/sync-freshness')
+  const stale = staleMailboxes(getMailboxes().filter((m) => m.active).map((m) => m.email),
+    (data ?? []) as Array<{ mailbox: string; last_sync_at: string | null }>, Date.now(), Math.max(1, maxAgeMinutes))
+  if (!stale.length) return { synced: false, inserted: 0, reason: 'fresh' }
+  lastFreshnessAttempt = Date.now()
+  try {
+    const { runEmailSync } = await import('@/lib/services/email-sync-orchestrator')
+    const result = await runEmailSync()
+    if (result.emailsInserted > 0) revalidatePath('/dashboard')
+    return { synced: true, inserted: result.emailsInserted }
+  } catch (err) {
+    logger.warn('syncMailIfStale: synk fejlede', { error: err })
+    return { synced: false, inserted: 0, reason: 'error' }
+  }
+}
+
 /**
  * Test Microsoft Graph connection for the default mailbox.
  */

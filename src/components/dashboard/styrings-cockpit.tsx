@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import type { DashboardOverview } from '@/lib/actions/dashboard-overview'
 import { CockpitCreateLeadButton } from './cockpit-create-lead-button'
+import { MailFreshnessSync } from './mail-freshness-sync'
 
 interface Props {
   overview: DashboardOverview
@@ -54,8 +55,9 @@ export function StyringsCockpit({ overview }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Styringscockpit</h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 flex items-center gap-2">
             Hvad kræver din opmærksomhed lige nu
+            <MailFreshnessSync />
           </p>
         </div>
         {hasAnyError && (
