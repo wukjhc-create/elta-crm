@@ -49,7 +49,7 @@ export async function getRequiresResponseStatus(
     // 1. Hent input-emails med conversation_id + meta
     const { data: inputEmails, error: inputErr } = await supabase
       .from('incoming_emails')
-      .select('id, conversation_id, customer_id, link_status, sender_email, received_at')
+      .select('id, conversation_id, customer_id, link_status, sender_email, received_at, responded_at')
       .in('id', emailIds)
 
     if (inputErr || !inputEmails) {
@@ -68,7 +68,7 @@ export async function getRequiresResponseStatus(
     if (convIds.length > 0) {
       const { data: convMessages, error: convErr } = await supabase
         .from('incoming_emails')
-        .select('conversation_id, sender_email, received_at')
+        .select('conversation_id, sender_email, received_at, responded_at')
         .in('conversation_id', convIds)
         .eq('is_archived', false)
 
@@ -88,6 +88,9 @@ export async function getRequiresResponseStatus(
             if (!stats.lastInboundAt || ts > stats.lastInboundAt) {
               stats.lastInboundAt = ts
             }
+            // N69: "Markér som besvaret" tæller som et svar på tidspunktet (svaret blev sendt uden for CRM)
+            const answered = (msg as { responded_at?: string | null }).responded_at
+            if (answered && (!stats.lastOutboundAt || answered > stats.lastOutboundAt)) stats.lastOutboundAt = answered
           }
           convStats.set(cid, stats)
         }
@@ -107,6 +110,8 @@ export async function getRequiresResponseStatus(
       let lastOutboundAt = stats?.lastOutboundAt || null
       if (!stats && !isInternalSender(email.sender_email)) {
         lastInboundAt = email.received_at as string
+        const answered = (email as { responded_at?: string | null }).responded_at
+        if (answered) lastOutboundAt = answered // N69
       } else if (!stats && isInternalSender(email.sender_email)) {
         lastOutboundAt = email.received_at as string
       }

@@ -1,6 +1,7 @@
 'use client'
 
 import { CreateLeadFromMailButton } from './create-lead-from-mail-button'
+import { MarkAnsweredButton } from './mark-answered-button'
 import { WebInquiryCard } from './web-inquiry-card'
 import { useState, useEffect } from 'react'
 import {
@@ -451,6 +452,9 @@ export function MailDetail({
 
           {/* N35: ukoblet mail (fx webhenvendelse) → lead */}
           {!email.customer_id && <CreateLeadFromMailButton emailId={email.id} />}
+
+          {/* N69: svaret sendt uden for CRM (personlig postkasse) → ud af "Kræver svar" */}
+          {email.link_status === 'linked' && <MarkAnsweredButton emailId={email.id} />}
 
           {/* ★ LINKED: Now show work actions */}
           {email.link_status === 'linked' && onCreateServiceCase && (

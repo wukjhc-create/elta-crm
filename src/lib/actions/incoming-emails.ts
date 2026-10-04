@@ -2076,3 +2076,28 @@ export async function createLeadsForOpenWebInquiriesAction(): Promise<{ success:
     return { success: false, created: 0, skipped: 0, error: 'Kunne ikke oprette leads' }
   }
 }
+
+/**
+ * N69: "Markér som besvaret" — svaret blev sendt uden for CRM (fx fra en personlig postkasse, som ikke synkes).
+ * Sætter responded_at/responded_by på trådens indgående mails (eller kun mailen, uden conversation_id). En ny indgående
+ * mail i tråden har responded_at = NULL og kræver derfor svar igen. inbox.view; samme RLS-vej som is_read.
+ */
+export async function markThreadAnsweredAction(emailId: string): Promise<{ success: boolean; updated: number; error?: string }> {
+  try {
+    validateUUID(emailId, 'emailId')
+    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('inbox.view')) return { success: false, updated: 0, error: 'Manglende tilladelse: inbox.view' }
+    const { data: mail } = await supabase.from('incoming_emails').select('id, conversation_id').eq('id', emailId).maybeSingle()
+    if (!mail) return { success: false, updated: 0, error: 'Mail ikke fundet' }
+    const conv = (mail as { conversation_id: string | null }).conversation_id
+    const q = supabase.from('incoming_emails').update({ responded_at: new Date().toISOString(), responded_by: userId }).is('responded_at', null)
+    const { data, error } = await (conv ? q.eq('conversation_id', conv) : q.eq('id', emailId)).select('id')
+    if (error) return { success: false, updated: 0, error: 'Kunne ikke markere tråden' }
+    revalidatePath('/dashboard/mail')
+    revalidatePath('/dashboard')
+    return { success: true, updated: (data ?? []).length }
+  } catch (err) {
+    logger.error('markThreadAnswered failed', { error: err })
+    return { success: false, updated: 0, error: 'Kunne ikke markere tråden' }
+  }
+}
