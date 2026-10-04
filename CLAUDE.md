@@ -160,7 +160,7 @@ elta-crm/
 - `supplier_sync_schedules` - Cron-baseret synkroniseringsplaner
 - `supplier_product_cache` - Offline fallback prisdata
 - `price_alert_rules` - Konfiguration af prisadvarsler (tærskler, typer)
-- `system_alerts` - Runtime advarsler fra cron og overvågning
+- `system_alerts` - (FINDES IKKE i prod — se noter 2026-10-04; brug `system_health_log`)
 
 ### Ved nye tabeller:
 1. Vis mig CREATE TABLE SQL først
@@ -333,3 +333,26 @@ Ved hver opgave:
     - supplier_margin_rules (prisregler med prioritet)
     - supplier_sync_schedules (cron-baseret synkronisering)
     - supplier_product_cache (offline fallback data)
+- 2026-10-04: Fund og konventioner (prod read-only + delivery):
+  - `system_alerts` FINDES IKKE i prod (driftsfejl logges i `system_health_log`; cron-status via scripts/prod-cron-status-since.ts)
+  - Webhenvendelser kommer fra FormSubmit (`submissions@formsubmit.co`, emne "…henvendelse…"). Afsenderen er ALDRIG
+    kunden — kundens data står i formularen (felter name/phone/email/inquiry_type/message/postnr/adresse). Parseren
+    (`src/lib/mail/website-inquiry.ts` + `src/lib/utils/email-parser.ts`) håndterer celler på samme linje
+  - Mail-automatikken (email-intelligence) opretter kunder med tag `auto-email`; uden e-mail får de pladsholderen
+    `auto+<kundenr>@elta-crm.local` (.local afvises ved afsendelse). 92/107 prod-kunder er auto-oprettet
+  - Kun kontakt@ og ordre@ synkes (Graph); svar fra personlige postkasser ses ikke ("kræver svar" er derfor upålidelig)
+  - "I dag"/datoer: brug `copenhagenParts(new Date()).date` — ALDRIG `toISOString().slice(0,10)`; server-komponenter
+    der viser klokkeslæt skal have `timeZone: 'Europe/Copenhagen'`
+  - Harness: `npm run harness:ui-batches -- U1,U2 U3` (batches á 5), `npm run harness:ui-full [-- grupper]` (fuld
+    regression under 30-min-loftet), prod read-only scripts i `scripts/prod-*.ts` (kun SELECT, ingen personværdier ud)
+  - Commit/push KUN når check:rls-matrix, check:rbac og tsc har exit 0 (push til main = prod-deploy)
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
