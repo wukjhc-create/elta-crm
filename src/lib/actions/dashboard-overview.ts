@@ -13,7 +13,7 @@
  *   - customer_tasks, service_cases og offers direkte via supabase
  */
 
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import {
   countRequiresResponseEmails,
   getRequiresResponseEmailIds,
@@ -151,10 +151,12 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     generated_at: new Date().toISOString(),
   }
 
-  let supabase: Awaited<ReturnType<typeof getAuthenticatedClient>>['supabase']
+  // Én auth-/rolleopslag for hele cockpittet (før: ét pr. sektion → 6 ekstra Auth-kald + profilopslag pr. visning)
+  let roleCtx: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>
+  let supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase']
   try {
-    const ctx = await getAuthenticatedClient()
-    supabase = ctx.supabase
+    roleCtx = await getAuthenticatedClientWithRole()
+    supabase = roleCtx.supabase
   } catch (err) {
     logger.error('getDashboardOverview: not authenticated', { error: err })
     overview.errors.mails = 'auth'
@@ -288,8 +290,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           }
         }
         // N28: timer der afventer godkendelse (montør registrerer → serviceleder/admin godkender)
-        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
-        const ctx = await getAuthenticatedClientWithRole()
+        const ctx = roleCtx
         if (ctx.hasPermission('time_logs.approve')) {
           const { count } = await supabase.from('time_logs').select('id', { count: 'exact', head: true })
             .eq('approval_status', 'pending').not('end_time', 'is', null)
@@ -360,8 +361,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // invoice_line_id IS NULL; timer kun afsluttede). Salgsværdi (ingen kost).
     (async () => {
       try {
-        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
-        const ctx = await getAuthenticatedClientWithRole()
+        const ctx = roleCtx
         if (!ctx.hasPermission('invoices.create')) return
         const [tl, mat, oth] = await Promise.all([
           supabase.from('time_logs').select('sale_amount, work_order:work_orders!inner(case_id)')
@@ -410,8 +410,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // (leads.custom_fields.source_email_id); arkiverede tæller ikke. Nyeste først.
     (async () => {
       try {
-        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
-        const ctx = await getAuthenticatedClientWithRole()
+        const ctx = roleCtx
         if (!ctx.hasPermission('leads.create')) return
         overview.webInquiries.allowed = true
         const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
@@ -442,8 +441,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // due_date før i dag (dansk kalenderdag). Ældste forfald først.
     (async () => {
       try {
-        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
-        const ctx = await getAuthenticatedClientWithRole()
+        const ctx = roleCtx
         if (!ctx.hasPermission('invoices.view.all')) return
         overview.overdueInvoices.allowed = true
         const { calendarDaysSince } = await import('@/lib/utils/copenhagen-time')
@@ -482,8 +480,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // N50: ulæste kundebeskeder fra portalen (chat pr. kunde)
     (async () => {
       try {
-        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
-        const ctx = await getAuthenticatedClientWithRole()
+        const ctx = roleCtx
         if (!ctx.hasPermission('customers.edit')) return
         const { data } = await supabase.from('portal_messages').select('customer_id, created_at, customer:customers(company_name)')
           .eq('sender_type', 'customer').is('read_at', null).order('created_at', { ascending: true }).limit(500)
@@ -505,8 +502,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // N44: nye kunder (30 d) uden tilbud og uden sag — kun for roller der kan oprette tilbud
     (async () => {
       try {
-        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
-        const ctx = await getAuthenticatedClientWithRole()
+        const ctx = roleCtx
         if (!ctx.hasPermission('offers.create')) return
         const since = new Date(now - NEW_CUSTOMER_DAYS * 86_400_000).toISOString()
         const { data: custs } = await supabase.from('customers').select('id, company_name, created_at')
