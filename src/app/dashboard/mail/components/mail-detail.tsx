@@ -33,7 +33,9 @@ import { getCustomerServiceCases } from '@/lib/actions/service-cases'
 import { sanitizeEmailHtml } from '@/lib/utils/sanitize-email-html'
 import type { IncomingEmailWithCustomer, EmailLinkStatus } from '@/types/mail-bridge.types'
 import type { ServiceCase } from '@/types/service-cases.types'
-import { Briefcase } from 'lucide-react'
+import { Briefcase, FilePlus } from 'lucide-react'
+import Link from 'next/link'
+import { hasPermission } from '@/lib/auth/permissions'
 
 // =====================================================
 // Props
@@ -459,6 +461,18 @@ export function MailDetail({
               {isCreatingServiceCase ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
               Opret sag
             </button>
+          )}
+
+          {/* N45: tilbud direkte fra henvendelsen (kunden er koblet) — åbner kundens tilbudsformular */}
+          {email.link_status === 'linked' && email.customers?.id && currentRole && hasPermission(currentRole, 'offers.create') && (
+            <Link
+              href={`/dashboard/customers/${email.customers.id}?nytilbud=1`}
+              data-testid="mail-create-offer"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-emerald-600 text-emerald-700 rounded-md hover:bg-emerald-50"
+            >
+              <FilePlus className="w-4 h-4" />
+              Opret tilbud
+            </Link>
           )}
 
           {/* Read / Unread */}
