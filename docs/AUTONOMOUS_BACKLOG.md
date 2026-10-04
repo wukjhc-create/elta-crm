@@ -175,6 +175,12 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N75 | Salg/cockpit | "Nye kunder uden tilbud" viser ikke "kunder" hvis e-maildomæne tilhører en kendt leverandør (website/kontakt-mail; deterministisk, kun visning) — leverandør-"kunder" fra mail-automatikken (N74) fyldte kortet | N74 | DONE (U126; negativ kontrol på gammel kode fejler som forventet) |
 | Q2 | Kvalitet | U16/U38 seed-konflikter på uq_suppliers_external (efterladte [HARNESS]-leverandører) — unikt nr. pr. kørsel / frigiv før seed; præcis dubletbesked i leverandørformularen | regression | DONE |
 
+### Checkpoint 2026-10-04 16:30
+- Pushet siden 14:25: N63 (mail-arkiv + gendan), N66/N66b (leverandør på mail-faktura + samme-domæne-kobling + domæne-match), N67/N67b (webhenvendelser i cockpit + ét-klik lead), N68 ("Ikke en faktura?"), N71 (cockpit synker mail), N73 ("kræver svar" 14 dage), N74 (kunder oprettet fra mail), N75, go-live-punkter, perf (ét auth-opslag i cockpittet).
+- Regression i dag: economy, sales (30/30), montør + portal/mail (36/36), crawl/mobil (13/13) — alle grønne; nye tests U116–U126.
+- Nye Henrik-beslutninger: N68b (indtag springer privat-mail over), N69 (svar fra personlige postkasser), N74b (ingen auto-kunder fra leverandørdomæner); drift: opret mikma/aceve/fasetech/dccenergi som leverandører.
+- Prod-brug: kun mail (72/30 d) og kunder (13/30 d) er aktive; 1 aktiv bruger på 30 d; tilbud/sager/fakturaer stille siden juni (N72).
+
 ### Checkpoint 2026-10-04 14:25
 - Pushet: N60 (kundeimport), N61 (forfaldne fakturaer), N62 (job uden tid), N64 (Mine job uden timer), N65 (tilbud åbnet).
 - Klar (tests kører): N63 (mail-arkiv + gendan), N66 (leverandør på mail-faktura + domæne-match), N67 (webhenvendelser i cockpit).
