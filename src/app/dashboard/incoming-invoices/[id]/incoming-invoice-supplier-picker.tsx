@@ -21,6 +21,7 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
+  const [alsoSameDomain, setAlsoSameDomain] = useState(true)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
@@ -38,23 +39,25 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
 
   const save = async () => {
     setBusy(true); setMsg(null)
-    const r = await setIncomingInvoiceSupplierAction(invoiceId, choice || null)
+    const r = await setIncomingInvoiceSupplierAction(invoiceId, choice || null, { alsoSameDomain })
     setBusy(false)
     if (!r.success) { setMsg({ ok: false, text: r.error ?? 'Kunne ikke gemme' }); return }
-    setCtx({ ...ctx, supplierId: choice || null })
-    setMsg({ ok: true, text: choice ? 'Leverandør koblet' : 'Leverandør fjernet' })
+    const also = r.data?.alsoLinked ?? 0
+    setCtx({ ...ctx, supplierId: choice || null, sameDomainOpen: Math.max(0, ctx.sameDomainOpen - also) })
+    setMsg({ ok: true, text: choice ? `Leverandør koblet${also ? ` (+ ${also} andre fakturaer fra ${ctx.senderDomain})` : ''}` : 'Leverandør fjernet' })
     router.refresh()
   }
 
   const create = async () => {
     setBusy(true); setMsg(null)
-    const r = await createSupplierFromIncomingInvoiceAction(invoiceId, name)
+    const r = await createSupplierFromIncomingInvoiceAction(invoiceId, name, { alsoSameDomain })
     setBusy(false)
     if (!r.success || !r.data) { setMsg({ ok: false, text: r.error ?? 'Kunne ikke oprette' }); return }
     const id = r.data.supplierId
     setCtx({ ...ctx, supplierId: id, options: [...ctx.options, { id, name: name.trim(), code: null }].sort((a, b) => a.name.localeCompare(b.name, 'da')) })
     setChoice(id); setCreating(false)
-    setMsg({ ok: true, text: 'Leverandør oprettet og koblet' })
+    const also = r.data.alsoLinked
+    setMsg({ ok: true, text: `Leverandør oprettet og koblet${also ? ` (+ ${also} andre fakturaer fra ${ctx.senderDomain})` : ''}` })
     router.refresh()
   }
 
@@ -77,6 +80,12 @@ export function IncomingInvoiceSupplierPicker({ invoiceId }: { invoiceId: string
         )}
         {busy && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
       </div>
+      {ctx.sameDomainOpen > 0 && ctx.senderDomain && (
+        <label className="flex items-center gap-2 text-xs text-gray-700" data-testid="invoice-supplier-same-domain">
+          <input type="checkbox" checked={alsoSameDomain} onChange={(e) => setAlsoSameDomain(e.target.checked)} />
+          Kobl også {ctx.sameDomainOpen === 1 ? '1 anden åben faktura' : `${ctx.sameDomainOpen} andre åbne fakturaer`} fra {ctx.senderDomain}
+        </label>
+      )}
       {creating && (
         <div className="rounded-md ring-1 ring-gray-200 p-2 space-y-2 text-sm">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Leverandørens navn" data-testid="invoice-supplier-name"

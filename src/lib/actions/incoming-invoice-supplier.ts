@@ -26,6 +26,8 @@ export interface IncomingInvoiceSupplierContext {
   senderDomain: string | null
   locked: boolean
   canCreate: boolean
+  /** N66b: andre åbne fakturaer uden leverandør fra samme afsenderdomæne (kan kobles i samme omgang) */
+  sameDomainOpen: number
 }
 
 type Ctx = Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>
@@ -38,6 +40,24 @@ async function loadInvoice(ctx: Ctx, invoiceId: string) {
     .maybeSingle()
   if (error) logger.error('incoming-invoice-supplier: read failed', { error })
   return (data ?? null) as { id: string; status: string; supplier_id: string | null; supplier_name_extracted: string | null; source_email_id: string | null } | null
+}
+
+async function senderOf(ctx: Ctx, sourceEmailId: string | null): Promise<string | null> {
+  if (!sourceEmailId) return null
+  const { data } = await ctx.supabase.from('incoming_emails').select('sender_email').eq('id', sourceEmailId).maybeSingle()
+  return senderDomain((data as { sender_email?: string | null } | null)?.sender_email)
+}
+
+/** N66b: åbne fakturaer uden leverandør fra samme afsenderdomæne (ekskl. den aktuelle). Gratis-mail giver aldrig et domæne. */
+async function sameDomainOpenInvoices(ctx: Ctx, domain: string | null, excludeId: string): Promise<string[]> {
+  if (!domain) return []
+  const { data: mails } = await ctx.supabase.from('incoming_emails').select('id, sender_email')
+    .ilike('sender_email', `%@${domain.replace(/[%_\\]/g, (c) => `\\${c}`)}`).limit(500)
+  const ids = ((mails ?? []) as Array<{ id: string; sender_email: string | null }>).filter((m) => senderDomain(m.sender_email) === domain).map((m) => m.id)
+  if (!ids.length) return []
+  const { data: inv } = await ctx.supabase.from('incoming_invoices').select('id, status')
+    .in('source_email_id', ids).is('supplier_id', null).neq('id', excludeId).limit(500)
+  return ((inv ?? []) as Array<{ id: string; status: string }>).filter((i) => !TERMINAL.includes(i.status)).map((i) => i.id)
 }
 
 async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null, supplierId: string | null, label: string | null) {
@@ -58,6 +78,14 @@ async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null
   return null
 }
 
+/** N66b: kobl de øvrige åbne fakturaer uden leverandør fra samme afsenderdomæne (brugerens valg; audit pr. faktura). */
+async function linkSameDomain(ctx: Ctx, inv: { id: string; source_email_id: string | null }, supplierId: string, label: string | null): Promise<number> {
+  const ids = await sameDomainOpenInvoices(ctx, await senderOf(ctx, inv.source_email_id), inv.id)
+  let n = 0
+  for (const id of ids) if (!(await linkSupplier(ctx, id, null, supplierId, label))) n++
+  return n
+}
+
 export async function getIncomingInvoiceSupplierContextAction(invoiceId: string): Promise<ActionResult<IncomingInvoiceSupplierContext>> {
   try {
     validateUUID(invoiceId, 'faktura ID')
@@ -65,9 +93,9 @@ export async function getIncomingInvoiceSupplierContextAction(invoiceId: string)
     if (!ctx.hasPermission('incoming_invoices.edit')) return { success: false, error: 'Manglende tilladelse: incoming_invoices.edit' }
     const inv = await loadInvoice(ctx, invoiceId)
     if (!inv) return { success: false, error: 'Faktura ikke fundet' }
-    const [sup, mail] = await Promise.all([
+    const [sup, domain] = await Promise.all([
       ctx.supabase.from('suppliers').select('id, name, code').order('name').limit(500),
-      inv.source_email_id ? ctx.supabase.from('incoming_emails').select('sender_email').eq('id', inv.source_email_id).maybeSingle() : Promise.resolve({ data: null }),
+      senderOf(ctx, inv.source_email_id),
     ])
     return {
       success: true,
@@ -75,9 +103,10 @@ export async function getIncomingInvoiceSupplierContextAction(invoiceId: string)
         supplierId: inv.supplier_id,
         options: ((sup.data ?? []) as Array<{ id: string; name: string; code: string | null }>),
         suggestedName: inv.supplier_name_extracted,
-        senderDomain: senderDomain((mail.data as { sender_email?: string | null } | null)?.sender_email),
+        senderDomain: domain,
         locked: TERMINAL.includes(inv.status),
         canCreate: ctx.hasPermission('settings.suppliers'),
+        sameDomainOpen: (await sameDomainOpenInvoices(ctx, domain, inv.id)).length,
       },
     }
   } catch (err) {
@@ -85,7 +114,9 @@ export async function getIncomingInvoiceSupplierContextAction(invoiceId: string)
   }
 }
 
-export async function setIncomingInvoiceSupplierAction(invoiceId: string, supplierId: string | null): Promise<ActionResult<{ supplierId: string | null }>> {
+export async function setIncomingInvoiceSupplierAction(
+  invoiceId: string, supplierId: string | null, opts: { alsoSameDomain?: boolean } = {},
+): Promise<ActionResult<{ supplierId: string | null; alsoLinked: number }>> {
   try {
     validateUUID(invoiceId, 'faktura ID')
     if (supplierId) validateUUID(supplierId, 'leverandør ID')
@@ -102,13 +133,16 @@ export async function setIncomingInvoiceSupplierAction(invoiceId: string, suppli
     }
     const err = await linkSupplier(ctx, invoiceId, inv.supplier_id, supplierId, label)
     if (err) return { success: false, error: err }
-    return { success: true, data: { supplierId } }
+    const alsoLinked = supplierId && opts.alsoSameDomain ? await linkSameDomain(ctx, inv, supplierId, label) : 0
+    return { success: true, data: { supplierId, alsoLinked } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke gemme leverandøren') }
   }
 }
 
-export async function createSupplierFromIncomingInvoiceAction(invoiceId: string, name: string): Promise<ActionResult<{ supplierId: string }>> {
+export async function createSupplierFromIncomingInvoiceAction(
+  invoiceId: string, name: string, opts: { alsoSameDomain?: boolean } = {},
+): Promise<ActionResult<{ supplierId: string; alsoLinked: number }>> {
   try {
     validateUUID(invoiceId, 'faktura ID')
     const ctx = await getAuthenticatedClientWithRole()
@@ -119,8 +153,7 @@ export async function createSupplierFromIncomingInvoiceAction(invoiceId: string,
     const inv = await loadInvoice(ctx, invoiceId)
     if (!inv) return { success: false, error: 'Faktura ikke fundet' }
     if (TERMINAL.includes(inv.status)) return { success: false, error: `Fakturaen er ${inv.status} — leverandøren kan ikke ændres` }
-    const mail = inv.source_email_id ? (await ctx.supabase.from('incoming_emails').select('sender_email').eq('id', inv.source_email_id).maybeSingle()).data : null
-    const domain = senderDomain((mail as { sender_email?: string | null } | null)?.sender_email)
+    const domain = await senderOf(ctx, inv.source_email_id)
     const { data: created, error } = await ctx.supabase
       .from('suppliers')
       .insert({ name: clean, website: domain, is_active: true, created_by: ctx.userId, notes: 'Oprettet fra leverandørfaktura' })
@@ -133,8 +166,9 @@ export async function createSupplierFromIncomingInvoiceAction(invoiceId: string,
     const supplierId = (created as { id: string }).id
     const err = await linkSupplier(ctx, invoiceId, inv.supplier_id, supplierId, clean)
     if (err) return { success: false, error: err }
+    const alsoLinked = opts.alsoSameDomain ? await linkSameDomain(ctx, inv, supplierId, clean) : 0
     revalidatePath('/dashboard/settings/suppliers')
-    return { success: true, data: { supplierId } }
+    return { success: true, data: { supplierId, alsoLinked } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette leverandøren') }
   }

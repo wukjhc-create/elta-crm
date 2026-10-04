@@ -52,11 +52,35 @@ export interface IncomingInvoiceListItem {
   matched_work_order_id: string | null
   matched_case_id: string | null
   created_at: string
+  /** N68: privat-/gratis-mail uden leverandør og beløb — sandsynligvis ikke en leverandørfaktura (kun markering) */
+  probably_not_invoice: boolean
 }
 
 export interface ListFilter {
-  status?: 'all' | 'awaiting_approval' | 'needs_review' | 'approved' | 'rejected' | 'posted' | 'missing_file'
+  status?: 'all' | 'awaiting_approval' | 'needs_review' | 'approved' | 'rejected' | 'posted' | 'missing_file' | 'not_invoice'
   limit?: number
+}
+
+/**
+ * N68: afsender pr. mail-faktura (batch, ingen N+1) → funktion der markerer "sandsynligvis ikke en leverandørfaktura"
+ * (privat-/gratis-mail uden leverandør og beløb, ikke afsluttet). Kun markering.
+ */
+async function notInvoiceFlagger(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'],
+  sourceEmailIds: Array<string | null | undefined>,
+) {
+  const ids = Array.from(new Set(sourceEmailIds.filter((x): x is string => !!x)))
+  const sender = new Map<string, string | null>()
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data: em } = await supabase.from('incoming_emails').select('id, sender_email').in('id', ids.slice(i, i + 200))
+    for (const e of (em ?? []) as Array<{ id: string; sender_email: string | null }>) sender.set(e.id, e.sender_email)
+  }
+  const { isProbablyNotSupplierInvoice } = await import('@/lib/invoice-control/sender-domain')
+  return (r: { status: string; supplier_id: string | null; amount_incl_vat: number | string | null; source_email_id: string | null }) =>
+    !['approved', 'posted', 'rejected', 'cancelled'].includes(r.status) && isProbablyNotSupplierInvoice({
+      senderEmail: r.source_email_id ? sender.get(r.source_email_id) ?? null : null,
+      supplierId: r.supplier_id, amountInclVat: r.amount_incl_vat != null ? Number(r.amount_incl_vat) : null,
+    })
 }
 
 export async function listIncomingInvoicesAction(
@@ -73,7 +97,7 @@ export async function listIncomingInvoicesAction(
       amount_incl_vat, currency, invoice_date, due_date, status,
       parse_status, parse_confidence, match_confidence,
       requires_manual_review, matched_work_order_id, matched_case_id,
-      created_at,
+      created_at, source_email_id,
       suppliers:supplier_id ( name )
     `)
     .order('created_at', { ascending: false })
@@ -102,10 +126,15 @@ export async function listIncomingInvoicesAction(
       // N43: mail-fakturaer hvor kun mailteksten blev gemt (bilag ikke hentet) — kan vedhæftes på fakturaen
       q = q.eq('source', 'email').is('file_url', null).not('status', 'in', '(approved,posted,rejected,cancelled)')
       break
+    case 'not_invoice':
+      // N68: kandidater — åbne mail-fakturaer uden leverandør og beløb; afsender-reglen anvendes nedenfor
+      q = q.eq('source', 'email').is('supplier_id', null).is('amount_incl_vat', null).not('status', 'in', '(approved,posted,rejected,cancelled)')
+      break
   }
 
   const { data } = await q
-  return (data ?? []).map((r) => {
+  const notInvoice = await notInvoiceFlagger(supabase, (data ?? []).map((r) => (r as { source_email_id?: string | null }).source_email_id))
+  const rows = (data ?? []).map((r) => {
     const supplierJoin = (r as { suppliers?: { name?: string } | { name?: string }[] }).suppliers
     const supplierName = Array.isArray(supplierJoin)
       ? supplierJoin[0]?.name ?? null
@@ -127,8 +156,10 @@ export async function listIncomingInvoicesAction(
       matched_work_order_id: r.matched_work_order_id,
       matched_case_id: (r as { matched_case_id?: string | null }).matched_case_id ?? null,
       created_at: r.created_at,
+      probably_not_invoice: notInvoice({ ...r, source_email_id: (r as { source_email_id?: string | null }).source_email_id ?? null }),
     }
   })
+  return filter.status === 'not_invoice' ? rows.filter((r) => r.probably_not_invoice) : rows
 }
 
 export interface IncomingInvoiceDetail {
@@ -762,9 +793,10 @@ export async function getApprovalQueueCountsAction(): Promise<{
 
 // Re-export the queue helper for the list page's initial data fetch.
 export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem[]> {
-  const { hasPermission } = await getAuthenticatedClientWithRole()
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) return []
   const rows = await getApprovalQueue(200)
+  const notInvoice = await notInvoiceFlagger(supabase, rows.map((r) => (r as { source_email_id?: string | null }).source_email_id))
   return rows.map((r) => ({
     id: r.id,
     supplier_id: r.supplier_id,
@@ -782,6 +814,7 @@ export async function getInitialApprovalQueue(): Promise<IncomingInvoiceListItem
     matched_work_order_id: r.matched_work_order_id,
     matched_case_id: (r as { matched_case_id?: string | null }).matched_case_id ?? null,
     created_at: r.created_at,
+    probably_not_invoice: notInvoice({ status: r.status, supplier_id: r.supplier_id, amount_incl_vat: r.amount_incl_vat, source_email_id: (r as { source_email_id?: string | null }).source_email_id ?? null }),
   }))
 }
 

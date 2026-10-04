@@ -2,7 +2,7 @@
  * N66: unit-tests for afsenderdomæne → leverandør (src/lib/invoice-control/sender-domain.ts).
  *   npx tsx scripts/sender-domain-test.ts
  */
-import { senderDomain, suppliersForDomain, websiteHost } from '../src/lib/invoice-control/sender-domain'
+import { isFreeMailAddress, isProbablyNotSupplierInvoice, senderDomain, suppliersForDomain, websiteHost } from '../src/lib/invoice-control/sender-domain'
 
 let failed = 0
 function eq(name: string, got: unknown, want: unknown) {
@@ -35,6 +35,13 @@ eq('underdomæne matcher', suppliersForDomain('faktura.sieg.dk', sup).map((s) =>
 eq('kontakt-mail-match', suppliersForDomain('seva.dk', sup).map((s) => s.id), ['b'])
 eq('ingen delvis navne-match (xsieg ≠ sieg)', suppliersForDomain('xsieg.dk', sup).map((s) => s.id), ['c'])
 eq('gratis-mail på leverandøren matcher aldrig', suppliersForDomain('gmail.com', sup).map((s) => s.id), [])
+
+eq('gratis-mail genkendt', isFreeMailAddress('Kunde <k@hotmail.dk>'), true)
+eq('firma-mail er ikke gratis', isFreeMailAddress('faktura@sieg.dk'), false)
+eq('N68: privat afsender uden leverandør/beløb', isProbablyNotSupplierInvoice({ senderEmail: 'k@gmail.com', supplierId: null, amountInclVat: null }), true)
+eq('N68: privat afsender MED beløb markeres ikke', isProbablyNotSupplierInvoice({ senderEmail: 'k@gmail.com', supplierId: null, amountInclVat: 1250 }), false)
+eq('N68: privat afsender MED leverandør markeres ikke', isProbablyNotSupplierInvoice({ senderEmail: 'k@gmail.com', supplierId: 'x', amountInclVat: null }), false)
+eq('N68: firma-afsender markeres ikke', isProbablyNotSupplierInvoice({ senderEmail: 'faktura@sieg.dk', supplierId: null, amountInclVat: null }), false)
 
 if (failed) { console.log(`❌ ${failed} fejlede`); process.exit(1) }
 console.log('✅ alle afsenderdomæne-tests bestået')

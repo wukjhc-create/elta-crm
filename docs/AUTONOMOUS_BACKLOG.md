@@ -164,6 +164,10 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N65 | Tilbud | Tilbudsdetalje: "Kunden har ikke åbnet tilbuddet" / sidst set (viewed_at) i opfølgningen | salg | DONE (U118) — cockpittets opfølgning viser åbnet/ikke åbnet; "Set" fandtes på tilbuddet |
 | N66 | Leverandørfaktura/økonomi | Prod: 57/57 mail-fakturaer uden leverandør — kun 2 leverandører findes (AO, LM), fakturaer kommer fra ~25 domæner. "Vælg leverandør" på fakturaen (incoming_invoices.edit) + "Opret ny" (settings.suppliers) med afsenderdomænet som website; matcheren kobler næste faktura fra samme domæne (sender_domain_match, kun ét hit, aldrig gratis-mail) | prod-incoming-invoice-pipeline/-senders | DONE (unit sender-domain-test, U120) |
 | N67 | Salg/henvendelser | Prod: 43 webhenvendelser (23 på 90 d), 0 blev til kunde/lead, 31 ulæste — flowet "Opret lead/kunde fra mail" fandtes, men ingen så dem. Cockpit "Henvendelser fra hjemmesiden" (leads.create): 90 d, uden kunde og uden lead → mailen i fanen Webhenvendelser | prod-webform-funnel | DONE (U122) |
+| N68 | Leverandørfaktura | Godkendelseskøen markerer "Ikke en faktura?" (privat-/gratis-mail uden leverandør og beløb) + filter — prod: 13 af 36 åbne er kundemails/ansøgninger. Kun markering; automatisk frasortering = N68b (BLOCKED_APPROVAL) | prod-incoming-invoice-rejects | DONE (U123, unit) |
+| N66b | Leverandørfaktura | "Kobl også N andre åbne fakturaer fra <domæne>" (valgt som standard, audit pr. faktura) når leverandøren vælges/oprettes — de 6 fra mikma.dk kobles med ét klik | N66 + prod-senders | DONE (U120) |
+| N67b | Salg/henvendelser | "Opret lead" direkte på hver webhenvendelse i cockpittet (samme action/dublet-værn som mailens knap) → leadet åbnes | N67 | DONE (U122) |
+| N70 | Mail | Kundeforslag via firmadomæne for uidentificerede mails? Prod: 304 uidentificerede (78 gratis-mail, 196 firmadomæne, 30 fra eltasolar.dk); kun 7 har præcis én kunde med samme domæne (94 matcher flere) | prod-unidentified-mail-hints | ANALYSE — ikke værd at bygge (for få entydige; risiko for forkert kobling) |
 | Q2 | Kvalitet | U16/U38 seed-konflikter på uq_suppliers_external (efterladte [HARNESS]-leverandører) — unikt nr. pr. kørsel / frigiv før seed; præcis dubletbesked i leverandørformularen | regression | DONE |
 
 ### Checkpoint 2026-10-04 14:25
@@ -249,8 +253,11 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 | Prod 00186 (D28) — 00180 er kørt, så den kan køre nu | bogholderi ser kun kunde-/fakturamails | ✅ staging + pre |
 | e-conomic: API-nøgler + godkendelse af live-bogføring | eksport/betaling/leverandørfaktura (forhåndsvisninger klar) | foundation færdig |
 | Drift G11: knyt montør #2 til medarbejder | montør #2 ser ingen job | 1 klik (Medarbejder → Login) |
+| Drift (N66): opret de faste leverandører fra én faktura hver (Leverandørfaktura → "Vælg leverandør" → "Opret ny"): mikma.dk (6 fakturaer), aceve.com (5), fasetech.dk (4), dccenergi.dk (3) | de øvrige fakturaer fra samme domæne kobles derefter automatisk ved "Kør parse + match igen"/næste mail; 21/54 er fra gmail/hotmail → filteret "Ikke en faktura?" | 4 klik |
 | Drift: læs de 8 portal-kundebeskeder (ældste 199 d) | kunder venter på svar (fejl rettet: kan nu markeres læst) | cockpit "Kundebeskeder (portal)" |
 | Beslutning: kundemail-crons (offer-/invoice-reminders) og døde anon-crons | ændrer cron-adfærd | analyse færdig |
+| Beslutning (N69): "Kræver svar" kan ikke se svar sendt fra personlige postkasser | prod: kun kontakt@ og ordre@ synkes (crm@ stoppede 2026-02-28); 72 indgående/30 d men 2 udgående — medarbejderne svarer fra hc@/lj@/… → tråde står "kræver svar" for evigt (ældste ulæste 89 d). Valg: (a) synk "Sendt post" fra de personlige postkasser (privacy-beslutning: kun sendt post, kun tråde der allerede findes i CRM) eller (b) manuel "Markér som besvaret" (kræver migration: incoming_emails.responded_at timestamptz + responded_by uuid — SQL vises før kørsel) | scripts/prod-mail-sync-state.ts, prod-mail-outbound.ts |
+| Beslutning (N68b): mail→leverandørfaktura-indtag springer privat-/gratis-mail over, når mailen hverken har PDF-bilag eller "faktura" i emnet | prod: 13/36 åbne "fakturaer" er kundemails/ansøgninger fra gmail/hotmail; 11/19 afviste ligeså. Ændrer hvad der bliver til leverandørfakturaer → kræver godkendelse | N68 markerer dem allerede ("Ikke en faktura?"); regel klar i sender-domain.ts |
 
 **Samlet køreplan i rækkefølge:** docs/runbooks/PROD-GATE-BATCH-2026-10.md
 

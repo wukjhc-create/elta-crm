@@ -25,6 +25,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import type { DashboardOverview } from '@/lib/actions/dashboard-overview'
+import { CockpitCreateLeadButton } from './cockpit-create-lead-button'
 
 interface Props {
   overview: DashboardOverview
@@ -340,17 +341,18 @@ function WebInquiriesCard({ overview }: { overview: DashboardOverview }) {
       ) : (
         <ul className="text-xs divide-y" data-testid="cockpit-web-inquiries">
           {items.map((m) => (
-            <li key={m.id}>
-              <Link href={`/dashboard/mail?filter=webform&emailId=${m.id}`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+            <li key={m.id} className="flex items-center gap-2">
+              <Link href={`/dashboard/mail?filter=webform&emailId=${m.id}`} className="flex-1 min-w-0 py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
                 <div className="min-w-0">
                   <div className={`truncate ${m.unread ? 'font-semibold' : 'font-medium'}`}>{m.subject || 'Henvendelse'}</div>
-                  <div className="truncate text-gray-500">{fmtDateDK(m.received_at)}{m.unread ? ' · ulæst' : ''} · opret lead/kunde fra mailen</div>
+                  <div className="truncate text-gray-500">{fmtDateDK(m.received_at)}{m.unread ? ' · ulæst' : ''}</div>
                 </div>
                 <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(m.ageDays, 2)}`}>
                   {m.ageDays}d
                   <ChevronRight className="h-3 w-3 opacity-50" />
                 </span>
               </Link>
+              <CockpitCreateLeadButton emailId={m.id} />
             </li>
           ))}
         </ul>

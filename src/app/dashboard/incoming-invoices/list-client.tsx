@@ -30,7 +30,7 @@ function isTestRow(r: IncomingInvoiceListItem): boolean {
   )
 }
 
-type FilterKey = 'needs_review' | 'awaiting_approval' | 'approved' | 'rejected' | 'posted' | 'missing_file' | 'all'
+type FilterKey = 'needs_review' | 'awaiting_approval' | 'approved' | 'rejected' | 'posted' | 'missing_file' | 'not_invoice' | 'all'
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'needs_review',      label: 'Kræver gennemgang' },
@@ -39,6 +39,8 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'rejected',          label: 'Afvist' },
   { key: 'posted',            label: 'Bogført' },
   { key: 'missing_file',      label: 'Mangler bilag' },
+  // N68: privat afsender uden leverandør/beløb — gennemgå og afvis dem der ikke er leverandørfakturaer
+  { key: 'not_invoice',       label: 'Ikke en faktura?' },
   { key: 'all',               label: 'Alle' },
 ]
 
@@ -236,6 +238,12 @@ export function IncomingInvoicesListClient({
                     <Link href={`/dashboard/incoming-invoices/${r.id}`} className="font-medium text-emerald-700 hover:underline">
                       {r.supplier_name || '—'}
                     </Link>
+                    {r.probably_not_invoice && (
+                      <span className="inline-block text-[10px] bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded" data-testid="invoice-not-invoice-badge"
+                        title="Privat afsender (fx gmail/hotmail), ingen leverandør og intet beløb — sandsynligvis en kundemail, ikke en leverandørfaktura">
+                        Ikke en faktura?
+                      </span>
+                    )}
                     {isTest && (
                       <span className="inline-block text-[10px] uppercase tracking-wide bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
                         TEST
@@ -282,7 +290,7 @@ export function IncomingInvoicesListClient({
 }
 
 function countFor(c: CountMap, k: FilterKey): number | null {
-  if (k === 'all') return null
+  if (k === 'all' || k === 'not_invoice') return null // N68: tælles ikke på forhånd (kræver afsender-opslag)
   return c[k] ?? 0
 }
 

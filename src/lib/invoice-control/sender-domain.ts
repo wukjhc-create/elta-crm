@@ -12,6 +12,21 @@ const FREE_MAIL = new Set([
   'proton.me', 'gmx.com', 'gmx.net', 'tdcadsl.dk', 'post.tele.dk', 'stofanet.dk', 'youmail.dk', 'webspeed.dk', 'email.dk',
 ])
 
+/** true når adressen er en gratis-/privat-mail (gmail, hotmail, live …). */
+export function isFreeMailAddress(email: string | null | undefined): boolean {
+  const m = /@([a-z0-9.-]+\.[a-z]{2,})\s*>?\s*$/i.exec(String(email ?? '').trim())
+  return !!m && FREE_MAIL.has(m[1].toLowerCase().replace(/^www\./, ''))
+}
+
+/**
+ * N68: en mail-faktura er "sandsynligvis ikke en leverandørfaktura", når den kommer fra en privat-/gratis-mail og hverken
+ * fik leverandør eller beløb. Prod 2026-10-04: 13 af 36 åbne var kundehenvendelser, ansøgninger og svar på Eltas egne
+ * fakturaer. Kun en markering — intet afvises automatisk.
+ */
+export function isProbablyNotSupplierInvoice(i: { senderEmail: string | null | undefined; supplierId: string | null; amountInclVat: number | null }): boolean {
+  return isFreeMailAddress(i.senderEmail) && !i.supplierId && i.amountInclVat == null
+}
+
 /** Domænet fra en e-mailadresse (små bogstaver, uden www.) — null ved ugyldig adresse eller gratis-mail. */
 export function senderDomain(email: string | null | undefined): string | null {
   const m = /@([a-z0-9.-]+\.[a-z]{2,})\s*>?\s*$/i.exec(String(email ?? '').trim())

@@ -30,11 +30,19 @@ const log = (s: string) => { const line = `[watchdog ${new Date().toLocaleTimeSt
 type Result = { test: string; status: 'PASS' | 'FAIL' | 'FAILED_TIMEOUT' | 'NOT_RUN'; seconds: number; batch: number; note: string }
 const results: Result[] = []
 
-const batches = process.argv.slice(2).map((a) => {
+// En batch med afhængigheder (fx U11) over 5 tests deles automatisk op — hver del får sine egne afhængigheder med
+// (før: brugsfejl, og hele kørslen startede ikke).
+const batches = process.argv.slice(2).flatMap((a) => {
   const ids = a.split(',').map((x) => x.trim()).filter(Boolean)
-  const withDeps: string[] = []
-  for (const id of ids) for (const d of [...(DEPS[id] ?? []), id]) if (!withDeps.includes(d)) withDeps.push(d)
-  return withDeps
+  const parts: string[][] = []
+  let cur: string[] = []
+  for (const id of ids) {
+    const need = [...(DEPS[id] ?? []), id].filter((d) => !cur.includes(d))
+    if (cur.length && cur.length + need.length > 5) { parts.push(cur); cur = [] }
+    for (const d of [...(DEPS[id] ?? []), id]) if (!cur.includes(d)) cur.push(d)
+  }
+  if (cur.length) parts.push(cur)
+  return parts
 })
 if (!batches.length || batches.some((b) => b.length === 0 || b.length > 5)) {
   console.error('brug: ui-batches.ts U11,U40 U63,U66 …  (1–5 tests pr. batch)'); process.exit(2)
