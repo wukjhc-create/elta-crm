@@ -128,6 +128,7 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U97 N49: montørens "Mine job" har Navigér-link til jobbets adresse
  *   U96 N48: kalender "Mangler planlægning" (sag uden arbejdsordre / arbejdsordre uden dato) → Planlægning-fane; montør uden panel
  *   U95 N47: kladde-tilbud markerer linjer med ændret leverandørpris; "Opdater pris" sætter kost i begge felter + ny salgspris; salg ser intet
  *   U94 N46: e-conomic-forhåndsvisning af kundebetalingens kassekladde-postering (beløb, dato, ikke-eksporteret forklaret; intet sendt)
@@ -178,7 +179,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97'],
   economy: ['U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -3064,6 +3065,25 @@ ${m.text()}`) })
         await m.ctx.close().catch(() => {})
         if (noDate) await c.admin.from('work_orders').delete().eq('case_id', noDate)
         out.push({ id: 'U96 N48 kalender: mangler planlægning', ok: !!noWo && !!noDate && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U97 N49: montørens "Mine job" har "Navigér" direkte til jobbets adresse (Google Maps-rute)
+      if (want('U97') && jobCaseId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        await c.admin.from('service_cases').update({ address: `Harnessvej ${String(stamp).slice(-3)}`, postal_code: '8000', city: 'Aarhus C' }).eq('id', jobCaseId)
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Copenhagen' })
+        const wo = await c.admin.from('work_orders').insert([{ case_id: jobCaseId, title: `[HARNESS] nav-job ${stamp}`, status: 'planned', scheduled_date: today, assigned_employee_id: jobEmployeeId }]).select('id')
+        const woId = (wo.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const row = m.page.locator('li', { hasText: `[HARNESS] nav-job ${stamp}` }).first()
+        await row.waitFor({ timeout: 60_000 }).catch(() => {})
+        const href = (await row.getByTestId('my-job-navigate').getAttribute('href').catch(() => '')) ?? ''
+        r.navigér_link = href.startsWith('https://www.google.com/maps/dir/') && decodeURIComponent(href).includes(`Harnessvej ${String(stamp).slice(-3)}, 8000, Aarhus C`)
+        r.job_link_bevaret = (await row.getByTestId('my-job').count()) === 1
+        await m.ctx.close().catch(() => {})
+        if (woId) await c.admin.from('work_orders').delete().eq('id', woId)
+        out.push({ id: 'U97 N49 Mine job: Navigér til adresse', ok: !!woId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · href=${href.slice(0, 120)}` })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;

@@ -19,7 +19,7 @@ const BATCH_TIMEOUT = Number(process.env.UI_BATCH_TIMEOUT_S ?? 900) * 1000
 const TOTAL_TIMEOUT = Number(process.env.UI_BATCH_TOTAL_S ?? 1800) * 1000
 const BASE = new Set(['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U13']) // køres altid af harness'en (login/adgang/konsolfejl)
 /** Tests der genbruger en anden tests data (fx U11's montørsag) — afhængigheden tilføjes automatisk forrest i batchen. */
-const DEPS: Record<string, string[]> = { U40: ['U11'], U44: ['U11'], U63: ['U11'], U66: ['U11'], U71: ['U11'], U73: ['U11'], U79: ['U11'], U80: ['U11'], U62: ['U11'], U72: ['U11'], U90: ['U11'], U8: ['U7'], U9: ['U7', 'U8'], U16: ['U7', 'U8'] }
+const DEPS: Record<string, string[]> = { U40: ['U11'], U44: ['U11'], U63: ['U11'], U66: ['U11'], U71: ['U11'], U73: ['U11'], U79: ['U11'], U80: ['U11'], U62: ['U11'], U72: ['U11'], U90: ['U11'], U97: ['U11'], U8: ['U7'], U9: ['U7', 'U8'], U16: ['U7', 'U8'] }
 
 const dir = join(tmpdir(), 'elta-ui-e2e')
 mkdirSync(dir, { recursive: true })
