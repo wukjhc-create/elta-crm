@@ -77,7 +77,8 @@ export function csvDate(date: string | Date | null | undefined): string {
   if (!date) return ''
   const d = typeof date === 'string' ? new Date(date) : date
   if (isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('da-DK', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  // eksporter dannes på serveren (UTC) — dansk kalenderdag/tid eksplicit (N90)
+  return d.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 /**
@@ -88,6 +89,7 @@ export function csvDateTime(date: string | Date | null | undefined): string {
   const d = typeof date === 'string' ? new Date(date) : date
   if (isNaN(d.getTime())) return ''
   return d.toLocaleString('da-DK', {
+    timeZone: 'Europe/Copenhagen',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
