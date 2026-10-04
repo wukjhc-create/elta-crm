@@ -62,7 +62,8 @@ export async function linkLeadToCustomerAction(leadId: string, customerId: strin
     validateUUID(leadId, 'lead ID')
     validateUUID(customerId, 'kunde ID')
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('leads.edit') || !hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: leads.edit' }
+    if (!hasPermission('leads.edit')) return { success: false, error: 'Manglende tilladelse: leads.edit' }
+    // kundens eksistens/synlighed afgøres af RLS-opslaget nedenfor (leads.edit-roller kan se kunder)
     const [{ data: lead }, { data: cust }] = await Promise.all([
       supabase.from('leads').select('id, custom_fields').eq('id', leadId).maybeSingle(),
       supabase.from('customers').select('id, company_name').eq('id', customerId).maybeSingle(),
