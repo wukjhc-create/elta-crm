@@ -2002,7 +2002,13 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
       status: 'new',
       notes: `Fra mail: ${e.subject ?? '(intet emne)'}`,
       created_by: userId,
-      custom_fields: { source_email_id: e.id },
+      // N78: adresse fra formularen (leads har ingen adressekolonner) → bruges som kundens adresse ved konvertering
+      custom_fields: {
+        source_email_id: e.id,
+        ...(parsed.address ? { address: parsed.address } : {}),
+        ...(parsed.postalCode ? { postal_code: parsed.postalCode } : {}),
+        ...(parsed.city ? { city: parsed.city } : {}),
+      },
     }).select('id').single()
     if (error || !lead) {
       logger.error('createLeadFromEmail failed', { error, entityId: emailId })

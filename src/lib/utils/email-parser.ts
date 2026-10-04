@@ -298,19 +298,20 @@ function extractLabeledFields(text: string, senderEmail: string | null): Labeled
       }
     }
 
-    // City/Postal
-    if (!result.postalCode) {
+    // City/Postal — N78: postnr. og by udfyldes hver for sig (før blev "By: Roskilde" efter "Postnummer: 4000"
+    // sprunget over, fordi blokken kun kørte mens postnr. manglede). Første fund vinder; intet overskrives.
+    if (!result.postalCode || !result.city) {
       for (const pattern of cityPatterns) {
         const match = line.match(pattern)
         if (match) {
           const val = match[1].trim()
           const postalMatch = val.match(/^(\d{4})\s+(.+)/)
           if (postalMatch) {
-            result.postalCode = postalMatch[1]
-            result.city = postalMatch[2].trim()
+            if (!result.postalCode) result.postalCode = postalMatch[1]
+            if (!result.city) result.city = postalMatch[2].trim()
           } else if (/^\d{4}$/.test(val)) {
-            result.postalCode = val
-          } else {
+            if (!result.postalCode) result.postalCode = val
+          } else if (!result.city) {
             result.city = val
           }
           break

@@ -239,6 +239,7 @@ export function LeadDetailClient({ lead, activities }: LeadDetailClientProps) {
                     <p className="text-sm font-medium text-amber-900">{web ? 'Oprettet fra webhenvendelse' : 'Oprettet fra email'}</p>
                     <p className="text-xs text-amber-700 mt-0.5">
                       Emne: {cf.source_email_subject || lead.notes?.replace(/^Fra mail: /, '') || 'Ukendt'}
+                      {cf.address && <span className="block" data-testid="lead-source-address">Adresse: {[cf.address, [cf.postal_code, cf.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</span>}
                       {cf.source_email_received_at && (
                         <span className="ml-2">
                           — modtaget {format(new Date(cf.source_email_received_at), 'd. MMM yyyy HH:mm', { locale: da })}

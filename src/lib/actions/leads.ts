@@ -661,6 +661,10 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
         (customerNumber) => ({
           customer_number: customerNumber, company_name: company, contact_person: contact, email,
           phone: (lead.phone as string | null) ?? null, notes: (lead.notes as string | null) ?? null,
+          // N78: adresse fra webhenvendelsen (lead.custom_fields)
+          billing_address: typeof cf.address === 'string' ? cf.address : null,
+          billing_postal_code: typeof cf.postal_code === 'string' ? cf.postal_code : null,
+          billing_city: typeof cf.city === 'string' ? cf.city : null,
           billing_country: 'Danmark', shipping_country: 'Danmark', tags: [], is_active: true, created_by: userId,
           custom_fields: { source: 'lead', lead_id: leadId },
         }),

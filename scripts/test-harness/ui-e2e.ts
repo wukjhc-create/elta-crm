@@ -3607,7 +3607,7 @@ ${m.text()}`) })
         const r: Record<string, boolean> = {}
         const subj = `Ny henvendelse fra eltasolar.dk [HARNESS] ${stamp}`
         const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', sender_name: 'FormSubmit', subject: subj,
-          body_text: ['Navn: Harness Webkunde', `Email: web-${stamp}@harness.test`, 'Telefon: 12345678', 'Besked: Solceller på taget'].join('\n'), link_status: 'unidentified', received_at: new Date().toISOString(), is_archived: false, is_read: false }]).select('id')
+          body_text: ['Navn: Harness Webkunde', `Email: web-${stamp}@harness.test`, 'Telefon: 12345678', 'Adresse: Solvej 12', 'Postnummer: 4000', 'By: Roskilde', 'Besked: Solceller på taget'].join('\n'), link_status: 'unidentified', received_at: new Date().toISOString(), is_archived: false, is_read: false }]).select('id')
         const id = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
         if (id) u113EmailIds.push(id)
         r.seed = !!id
@@ -3637,8 +3637,11 @@ ${m.text()}`) })
           mailCust = ((await c.admin.from('incoming_emails').select('customer_id').eq('id', id ?? '').maybeSingle()).data as { customer_id: string | null } | null)?.customer_id ?? null
         }
         if (mailCust) u115CustomerIds.push(mailCust)
-        const newCust = mailCust ? (await c.admin.from('customers').select('email').eq('id', mailCust).maybeSingle()).data as { email: string } | null : null
+        const newCust = mailCust ? (await c.admin.from('customers').select('email, billing_address, billing_postal_code, billing_city').eq('id', mailCust).maybeSingle()).data as { email: string; billing_address: string | null; billing_postal_code: string | null; billing_city: string | null } | null : null
         r.mail_koblet_til_kunde = !!newCust && newCust.email === `web-${stamp}@harness.test`
+        // N78: formularens adresse følger med lead → kunde
+        r.adresse_paa_kunde = !!newCust && (newCust.billing_address ?? '').includes('Solvej 12') && newCust.billing_postal_code === '4000' && (newCust.billing_city ?? '').includes('Roskilde')
+        if (!r.adresse_paa_kunde) console.log(`[U122] kundeadresse: ${JSON.stringify({ a: newCust?.billing_address, p: newCust?.billing_postal_code, b: newCust?.billing_city })}`)
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
         await a.page.getByText('Henvendelser fra hjemmesiden').first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.vaek_med_lead = !!u122LeadId && (await a.page.getByTestId('cockpit-web-inquiries').getByText(subj).count()) === 0
