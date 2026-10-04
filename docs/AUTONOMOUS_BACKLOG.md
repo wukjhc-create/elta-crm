@@ -193,7 +193,7 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 |---|---|---|---|---|
 | Q4 | Kvalitet | `npm run harness:ui-full [-- grupper]`: fuld regression i kørsler under 30-min-loftet (første bygger, resten genbruger), ikke-nåede samles i ekstra kørsel, FAIL genkøres isoleret → FLAKY/FAIL | regression i dag ramte loftet 2× | DONE (smoke 8/8 via ui-full) |
 | N87 | Kunder | Dublet-forslag: lead → kunde matcher kun på e-mail; auto-kunde fra samme person (telefon) giver dublet → "Findes kunden allerede?" på leadet (samme telefon — sidste 8 cifre uanset format — eller samme fulde navn) + "Kobl til denne kunde" (kobler lead + kildemail; ingen fletning/ændring af kunden) | N74/N77 | DONE (U131) |
-| N88 | Mail | Uidentificerede mails fra privatpersoner (78 gratis-mail) — "Opret lead" findes; vis kontaktkort (N81) også for ikke-webform mails med udtrukne data? | N81 | NEXT (vurdér) |
+| N88 | Mail | Kontaktkortet (N81) vises også på ukoblede mails (fx privatpersoner, 78 fra gratis-mail) når parseren finder telefon eller adresse — "Kontaktdata i mailen"; ikke på kundekoblede mails | N81 | DONE (U132) |
 | N89 | Faktura | Forfaldne fakturaer (N61): hver faktura viser næste rykkertrin ("næste: rykker 1 om 2 d" / "manuel gennemgang" / "alle rykkere brugt") efter PRÆCIS cronens regler — reglerne flyttet til lib/invoices/reminder-plan.ts (én kilde for cron og cockpit); intet sendes herfra | N61 | DONE (unit reminder-plan-test i test:time; U116/U29/U36) |
 | N90 | Tid | Resten af server-side datoformatering uden tidszone (PDF-skabeloner, rapporter) — kun hvor tidspunkter (ikke datoer) vises | Q3 | NEXT (lav) |
 

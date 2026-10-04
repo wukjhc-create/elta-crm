@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3760,6 +3760,31 @@ ${m.text()}`) })
         r.lead_med_mail = lA.length === 1 && lA[0].email === `bulk-${stamp}@harness.test`
         r.uden_mail_sprunget_over = lB.length === 0
         out.push({ id: 'U130 N86 opret leads for alle webhenvendelser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U132 N88: ukoblet privatmail med telefon i signaturen viser "Kontaktdata i mailen"; en kundekoblet mail gør ikke
+      if (want('U132') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const mk = async (tag: string, customerId: string | null) => {
+          const em = await c.admin.from('incoming_emails').insert([{ sender_email: `privat-${tag}-${stamp}@gmail.com`, sender_name: 'Privat',
+            subject: `[HARNESS] U132 ${tag} ${stamp}`, body_text: ['Hej, kan I sætte solceller op?', '', 'Mvh Hans Hansen', 'Tlf: 12 34 56 78'].join(String.fromCharCode(10)),
+            link_status: customerId ? 'linked' : 'unidentified', customer_id: customerId, received_at: new Date().toISOString(), is_archived: false, is_read: true }]).select('id')
+          const id = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (id) u113EmailIds.push(id)
+          return id
+        }
+        const loose = await mk('ukoblet', null)
+        const linked = await mk('koblet', profitCustomerId)
+        r.seed = !!loose && !!linked
+        await gotoSafe(a.page, `${base}/dashboard/mail?filter=all&emailId=${loose}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('web-inquiry-card').waitFor({ timeout: 30_000 }).catch(() => {})
+        const txt = (await a.page.getByTestId('web-inquiry-card').textContent().catch(() => '')) ?? ''
+        r.kort_ukoblet = /Kontaktdata i mailen/.test(txt) && /12 34 56 78|12345678/.test(txt)
+        await gotoSafe(a.page, `${base}/dashboard/mail?filter=all&emailId=${linked}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByText(`[HARNESS] U132 koblet ${stamp}`).first().waitFor({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(1500)
+        r.intet_kort_koblet = (await a.page.getByTestId('web-inquiry-card').count()) === 0
+        out.push({ id: 'U132 N88 kontaktdata-kort på ukoblede mails', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${txt.slice(0, 80)}` })
       }
 
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)
