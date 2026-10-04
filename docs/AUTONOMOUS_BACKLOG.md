@@ -206,6 +206,11 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | Q9 | Kode-review (formiddagens commits) | 2. uafhængige review: (S2) medarbejderløn kunne udledes af totalen (employeeId-filter / én medarbejder) → skjult uden løn-adgang — lukket direkte (69756c0); portal-markér-læst kræver customers.edit + kun RLS-synlige beskeder; medarbejderøkonomi, "klar til fakturering" og salgstragt pagineret (1000-loftet); salgstragtens accepterede værdi ekskl. moms og faktura i udstedelsesmåneden; CSV-import afviser > 2000 rækker i stedet for at droppe tavst; samtidig vedhæftning kan ikke overskrive; "Markér viste som læst" ruller tilbage ved fejl; løn-sektionen mister ikke ulagrede rettelser ved skjult fane; CSV-eksport neutraliserer formel-injektion | review-agent | DONE (unit + U89/U90/U92/U98/U99/U100/U113/U115) |
 | N90 | Tid | Server-side datoformatering uden tidszone gennemgået: resten er talformater; CSV-eksportens dato/tid (dannes på serveren i UTC) nu dansk tid. N93: webhenvendelsens type + besked i leadets noter/banner (før kun "Fra mail: <emne>") | Q3 | DONE (unit csv-export-tz-test under TZ=UTC, website-inquiry-test) |
 
+### Checkpoint 2026-10-04 23:15
+- Fuld UI-regression grøn: 126/126 via `harness:ui-full` (portal-mail+sales 57, montør+economy+crawl+smoke 69).
+- To uafhængige kode-reviews: aftenens commits (Q7, 6 fejl) og formiddagens (Q9, inkl. S2-lønlæk lukket direkte i 69756c0) — alle rettet og testet. Sikkerhedsreview af kundeportal/offentlige ruter kører.
+- Nyt: N95 (henvendelser fra eksisterende kunder kobles), N96 (navn i mail-listen).
+
 ### Checkpoint 2026-10-04 22:00
 - Regression via `harness:ui-full`: portal-mail + sales 57/57; montør 24/24, economy 23/23 (resten kører).
 - Uafhængigt kode-review af aftenens commits: 2 middel + 4 lave fejl → alle rettet (Q7), testes efter regressionen sammen med N95 (henvendelser fra eksisterende kunder kobles).
