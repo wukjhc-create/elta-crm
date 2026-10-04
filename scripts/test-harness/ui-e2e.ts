@@ -128,6 +128,7 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U90 D50b: medarbejderøkonomi — kost/DB pr. medarbejder kun med løn-adgang; totaler sammenfoldet
  *   U89 PV16: Rediger medarbejder — løn/satser foldet og ikke hentet ved åbning; fold ud henter
  *   U88 N26d: Rapporter → Sagsrentabilitet med tilbudt/faktisk kost + afvigelse, sammenfoldet som standard
  *   U84 D48-audit: salg uden kost/avance i getOffer, tilføjet leverandørlinje, pakke-vælger, kundepriser, AI-indsigter; ingen Optimer
@@ -171,7 +172,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90'],
   economy: ['U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -2539,6 +2540,9 @@ ${m.text()}`) })
         const onResp = async (resp: { request(): { resourceType(): string }; text(): Promise<string> }) => { try { if (['script', 'stylesheet', 'image', 'font', 'media'].includes(resp.request().resourceType())) return; net.push(await resp.text()) } catch { /* lukket */ } }
         a.page.on('response', onResp)
         await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=oekonomi`, { waitUntil: 'networkidle', timeout: 180_000 })
+        // PV18: økonomien skjult til "Vis økonomi" — intet tilbud/forbrug i data før
+        r.oekonomi_skjult = (await a.page.getByTestId('economy-hidden').count()) === 1
+        await a.page.getByTestId('economy-reveal').click({ timeout: 30_000 }).catch(() => {})
         await a.page.getByTestId('offer-vs-actual-toggle').waitFor({ timeout: 60_000 }).catch(() => {})
         r.foldet_intet_hentet = (await a.page.getByTestId('offer-vs-actual-row').count()) === 0 && !net.join('\n').includes(`EK tavle ${stamp}`)
         await a.page.getByTestId('offer-vs-actual-toggle').click({ timeout: 30_000 }).catch(() => {})
@@ -2820,6 +2824,35 @@ ${m.text()}`) })
           && await a.page.locator('input').evaluateAll((els) => els.some((e) => ['314.15', '314,15'].includes((e as HTMLInputElement).value)))
         a.page.off('response', onResp)
         out.push({ id: 'U89 PV16 løn på Rediger medarbejder foldet + hentes ved åbning', ok: !!u89EmployeeId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U90 D50b: Medarbejderøkonomi — serviceleder (kostpris, ikke løn) får ingen kost/DB pr. medarbejder i data/UI,
+      // kun samlede totaler (sammenfoldet); admin (løn) ser kost pr. medarbejder efter "Vis kost/DB"
+      if (want('U90') && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const sl = await login(await mkUser('serviceleder'))
+        const bodies: string[] = []
+        sl.page.on('response', async (resp) => { try { if (['script', 'stylesheet', 'image', 'font', 'media'].includes(resp.request().resourceType())) return; bodies.push(await resp.text()) } catch { /* lukket */ } })
+        await gotoSafe(sl.page, `${base}/dashboard/economy/employees`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await sl.page.getByTestId('employee-economy-totals').waitFor({ timeout: 60_000 }).catch(() => {})
+        const slData = bodies.join('\n') + (await sl.page.content().catch(() => ''))
+        // pr. række (efter employee_name) — totals.labor_cost er et bevidst aggregat og må gerne findes
+        // RSC-data i HTML kan være escapet (\") — tolerér begge former
+        const rowCost = /\\?"employee_name\\?":\\?"[^"\\]*\\?",\\?"hours\\?":[-\d.]+,\\?"labor_sale\\?":[-\d.]+,\\?"labor_cost\\?":-?[1-9]/.test(slData)
+        const rowNull = /\\?"employee_name\\?":\\?"[^"\\]*\\?",\\?"hours\\?":[-\d.]+,\\?"labor_sale\\?":[-\d.]+,\\?"labor_cost\\?":null/.test(slData)
+        r.sl_ingen_kost_pr_medarbejder = !rowCost && rowNull
+        r.sl_totaler_foldet = ((await sl.page.getByTestId('employee-economy-totals').innerText().catch(() => '')) ?? '').includes('••••')
+        await sl.page.getByTestId('cost-reveal-toggle').first().click({ timeout: 30_000 }).catch(() => {})
+        await sl.page.waitForTimeout(600)
+        r.sl_ingen_kostkolonne = (await sl.page.getByRole('columnheader', { name: 'Kost', exact: true }).count()) === 0
+        await sl.ctx.close().catch(() => {})
+        await gotoSafe(a.page, `${base}/dashboard/economy/employees`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('employee-economy-totals').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.admin_foldet = (await a.page.getByRole('columnheader', { name: 'Kost', exact: true }).count()) === 0
+        await a.page.getByTestId('cost-reveal-toggle').first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(600)
+        r.admin_kost_pr_medarbejder = (await a.page.getByRole('columnheader', { name: 'Kost', exact: true }).count()) > 0
+        out.push({ id: 'U90 D50b medarbejderøkonomi: kost pr. medarbejder kun med løn-adgang', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;

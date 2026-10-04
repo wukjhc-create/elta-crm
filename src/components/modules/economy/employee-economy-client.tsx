@@ -11,15 +11,16 @@
 import { AlertTriangle } from 'lucide-react'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils/format'
 import type { ActionResult } from '@/types/common.types'
-import type { EmployeeEconomyResult } from '@/lib/services/employee-economy'
-
-const r2 = (n: number) => Math.round(n * 100) / 100
+import type { EmployeeEconomyView } from '@/lib/actions/employee-economy'
+import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 
 export function EmployeeEconomyClient({
   result,
 }: {
-  result: ActionResult<EmployeeEconomyResult>
+  result: ActionResult<EmployeeEconomyView>
 }) {
+  // PV8: kost/DB sammenfoldet som standard (shoulder-surfing); D50b: pr. medarbejder kun med løn-adgang
+  const [costOpen, toggleCost] = useCostReveal()
   if (!result.success || !result.data) {
     return (
       <div className="space-y-6">
@@ -31,22 +32,13 @@ export function EmployeeEconomyClient({
     )
   }
 
-  const { employees, missing_snapshot_count } = result.data
-
-  const sum = employees.reduce(
-    (acc, e) => {
-      acc.hours += e.hours
-      acc.labor_sale += e.labor_sale
-      acc.labor_cost += e.labor_cost
-      return acc
-    },
-    { hours: 0, labor_sale: 0, labor_cost: 0 }
-  )
-  const totalHours = r2(sum.hours)
-  const totalSale = r2(sum.labor_sale)
-  const totalCost = r2(sum.labor_cost)
-  const totalDb = r2(totalSale - totalCost)
-  const totalDbPct = totalSale > 0 ? r2((totalDb / totalSale) * 100) : 0
+  const { employees, missing_snapshot_count, totals, per_employee_cost } = result.data
+  const totalHours = totals.hours
+  const totalSale = totals.labor_sale
+  const totalCost = totals.labor_cost
+  const totalDb = totals.db_amount
+  const totalDbPct = totals.db_percentage
+  const showRowCost = per_employee_cost && costOpen
 
   return (
     <div className="space-y-6">
@@ -64,17 +56,26 @@ export function EmployeeEconomyClient({
         </div>
       )}
 
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-xs text-gray-500">
+          {per_employee_cost
+            ? 'Kost og DB pr. medarbejder vises kun foldet ud.'
+            : 'Kost og DB vises kun samlet — kost pr. medarbejder kræver løn-adgang.'}
+        </p>
+        <CostRevealToggle open={costOpen} onToggle={toggleCost} />
+      </div>
+
       {/* Nøgletal */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="employee-economy-totals">
         <StatCard label="Samlet timer" value={`${formatNumber(totalHours, 2)} t`} />
         <StatCard label="Samlet arbejdssalg" value={formatCurrency(totalSale)} />
-        <StatCard label="Samlet arbejdskost" value={formatCurrency(totalCost)} />
+        <StatCard label="Samlet arbejdskost" value={costOpen ? formatCurrency(totalCost) : '••••••'} />
         <StatCard
           label="Samlet DB"
-          value={formatCurrency(totalDb)}
-          tone={totalDb >= 0 ? 'pos' : 'neg'}
+          value={costOpen ? formatCurrency(totalDb) : '••••••'}
+          tone={!costOpen ? 'neutral' : totalDb >= 0 ? 'pos' : 'neg'}
         />
-        <StatCard label="Samlet DB %" value={formatPercent(totalDbPct, 1)} />
+        <StatCard label="Samlet DB %" value={costOpen ? formatPercent(totalDbPct, 1) : '••••••'} />
       </div>
 
       {/* Tabel */}
@@ -86,16 +87,20 @@ export function EmployeeEconomyClient({
                 <th className="px-4 py-2 font-medium">Medarbejder</th>
                 <th className="px-4 py-2 font-medium text-right">Timer</th>
                 <th className="px-4 py-2 font-medium text-right">Salg</th>
-                <th className="px-4 py-2 font-medium text-right">Kost</th>
-                <th className="px-4 py-2 font-medium text-right">DB</th>
-                <th className="px-4 py-2 font-medium text-right">DB %</th>
+                {showRowCost && (
+                  <>
+                    <th className="px-4 py-2 font-medium text-right">Kost</th>
+                    <th className="px-4 py-2 font-medium text-right">DB</th>
+                    <th className="px-4 py-2 font-medium text-right">DB %</th>
+                  </>
+                )}
                 <th className="px-4 py-2 font-medium text-right">Manglende snapshots</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={showRowCost ? 7 : 4} className="px-4 py-8 text-center text-gray-400">
                     Ingen lukkede timeregistreringer.
                   </td>
                 </tr>
@@ -109,19 +114,23 @@ export function EmployeeEconomyClient({
                     <td className="px-4 py-2 text-right tabular-nums">
                       {formatCurrency(e.labor_sale)}
                     </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {formatCurrency(e.labor_cost)}
-                    </td>
-                    <td
-                      className={`px-4 py-2 text-right tabular-nums font-medium ${
-                        e.db_amount >= 0 ? 'text-emerald-700' : 'text-red-700'
-                      }`}
-                    >
-                      {formatCurrency(e.db_amount)}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {formatPercent(e.db_percentage, 1)}
-                    </td>
+                    {showRowCost && (
+                      <>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {formatCurrency(e.labor_cost ?? 0)}
+                        </td>
+                        <td
+                          className={`px-4 py-2 text-right tabular-nums font-medium ${
+                            (e.db_amount ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'
+                          }`}
+                        >
+                          {formatCurrency(e.db_amount ?? 0)}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {formatPercent(e.db_percentage ?? 0, 1)}
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-2 text-right tabular-nums">
                       {e.missing_snapshot_count > 0 ? (
                         <span className="text-amber-700 font-medium">

@@ -20,8 +20,25 @@ import {
   getEmployeeEconomy,
   type GetEmployeeEconomyParams,
   type EmployeeEconomyResult,
+  type EmployeeEconomyRow,
 } from '@/lib/services/employee-economy'
 import type { ActionResult } from '@/types/common.types'
+
+/**
+ * D50b (privacy): kost/DB pr. medarbejder afslører medarbejderens kostsats (kost / timer) → kun employees.payroll.view.
+ * Øvrige kostpris-roller (serviceleder, bogholderi) får timer + salg pr. medarbejder og kost/DB som samlede totaler.
+ */
+export type EmployeeEconomyViewRow = Omit<EmployeeEconomyRow, 'labor_cost' | 'db_amount' | 'db_percentage'> & {
+  labor_cost: number | null
+  db_amount: number | null
+  db_percentage: number | null
+}
+export interface EmployeeEconomyView extends Omit<EmployeeEconomyResult, 'employees'> {
+  employees: EmployeeEconomyViewRow[]
+  totals: { hours: number; labor_sale: number; labor_cost: number; db_amount: number; db_percentage: number }
+  /** true = kost/DB pr. medarbejder (employees.payroll.view) */
+  per_employee_cost: boolean
+}
 
 /** Parse en valgfri ISO-dato/streng; kaster ved ugyldig værdi. */
 function parseOptionalDate(value: string | undefined, field: string): Date | null {
@@ -35,7 +52,7 @@ function parseOptionalDate(value: string | undefined, field: string): Date | nul
 
 export async function getEmployeeEconomyAction(
   params: GetEmployeeEconomyParams = {}
-): Promise<ActionResult<EmployeeEconomyResult>> {
+): Promise<ActionResult<EmployeeEconomyView>> {
   try {
     const { from, to, employeeId } = params
 
@@ -56,7 +73,16 @@ export async function getEmployeeEconomyAction(
 
     // --- Delegér til read-only service (RLS gælder) ---
     const data = await getEmployeeEconomy({ from, to, employeeId })
-    return { success: true, data }
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const hours = r2(data.employees.reduce((s, e) => s + e.hours, 0))
+    const sale = r2(data.employees.reduce((s, e) => s + e.labor_sale, 0))
+    const cost = r2(data.employees.reduce((s, e) => s + e.labor_cost, 0))
+    const totals = { hours, labor_sale: sale, labor_cost: cost, db_amount: r2(sale - cost), db_percentage: sale > 0 ? r2(((sale - cost) / sale) * 100) : 0 }
+    const perEmployeeCost = ctx.hasPermission('employees.payroll.view')
+    const employees: EmployeeEconomyViewRow[] = perEmployeeCost
+      ? data.employees
+      : data.employees.map((e) => ({ ...e, labor_cost: null, db_amount: null, db_percentage: null }))
+    return { success: true, data: { ...data, employees, totals, per_employee_cost: perEmployeeCost } }
   } catch (error) {
     logger.error('getEmployeeEconomyAction failed', { error })
     return { success: false, error: formatError(error, 'Kunne ikke hente medarbejderøkonomi') }

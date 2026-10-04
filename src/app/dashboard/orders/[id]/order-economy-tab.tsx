@@ -31,6 +31,7 @@ import {
 } from '@/lib/actions/service-case-economy'
 import { formatCurrency } from '@/lib/utils/format'
 import { CaseOfferVsActualPanel } from './case-offer-vs-actual-panel'
+import { useCostReveal } from '@/components/shared/sensitive-amounts'
 
 type SwitchTabFn = (tab: 'planlaegning' | 'materialer' | 'oevrige' | 'fakturakladde') => void
 
@@ -82,7 +83,40 @@ function marginPalette(pct: number): {
   }
 }
 
-export function OrderEconomyTab({
+/**
+ * PV18 (shoulder-surfing): sagens økonomi (kost, DB, budget, avance) vises først efter aktivt "Vis økonomi" — data
+ * hentes først da, og fanen foldes sammen igen ved vindues-/fanebytte.
+ */
+export function OrderEconomyTab(props: { caseId: string; onSwitchTab: SwitchTabFn }) {
+  const [open, toggle] = useCostReveal()
+  if (!open) {
+    return (
+      <div className="bg-white rounded-lg ring-1 ring-gray-200 p-8 text-center space-y-3" data-testid="economy-hidden">
+        <p className="text-sm text-gray-600">Sagens økonomi (kost, DB, budget) er skjult.</p>
+        <button
+          type="button"
+          onClick={toggle}
+          data-testid="economy-reveal"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+        >
+          Vis økonomi
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <button type="button" onClick={toggle} data-testid="economy-hide" className="text-xs text-gray-500 hover:underline">
+          Skjul økonomi
+        </button>
+      </div>
+      <OrderEconomyTabContent {...props} />
+    </div>
+  )
+}
+
+function OrderEconomyTabContent({
   caseId,
   onSwitchTab,
 }: {
