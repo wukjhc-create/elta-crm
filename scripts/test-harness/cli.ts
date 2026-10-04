@@ -654,6 +654,22 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'harness-ao') {
+    // Staging: AO-leverandører (U17 kræver at der ikke findes en); kun harness-oprettede ([HARNESS]-navn) må ryddes.
+    const rows = await stagingSql(`SELECT s.id, s.name, s.created_at::date d, (SELECT count(*)::int FROM supplier_products p WHERE p.supplier_id = s.id) varer
+      FROM suppliers s WHERE upper(s.code) = 'AO' ORDER BY s.created_at`)
+    for (const r of rows) log(`${r.id} · ${String(r.name).slice(0, 40)} · oprettet ${r.d} · ${r.varer} varer · ${String(r.name).startsWith('[HARNESS]') ? 'HARNESS-rest' : 'rigtig leverandør — rør ikke'}`)
+    if (process.argv[3] === '--ryd') {
+      for (const r of rows.filter((x) => String(x.name).startsWith('[HARNESS]'))) {
+        const ids = ((await admin.from('supplier_products').select('id').eq('supplier_id', r.id)).data ?? []).map((x: { id: string }) => x.id)
+        if (ids.length) await admin.from('price_history').delete().in('supplier_product_id', ids)
+        for (const t of ['supplier_products', 'import_batches', 'supplier_settings']) await admin.from(t).delete().eq('supplier_id', r.id)
+        const { error } = await admin.from('suppliers').delete().eq('id', r.id)
+        log(`ryddet ${r.id}: ${error ? `FEJL ${error.message}` : 'ok'}`)
+      }
+    }
+    return
+  }
   if (SUB === 'columns') {
     // Read-only: kolonner for én eller flere tabeller på staging (schema-tjek før kode skrives mod en tabel).
     for (const raw of process.argv.slice(3)) {
@@ -705,16 +721,6 @@ async function main() {
       FROM pg_constraint WHERE contype = 'f' AND connamespace = 'public'::regnamespace AND conrelid <> confrelid
     ) x GROUP BY a, b HAVING count(*) > 1 ORDER BY a, b`)
     for (const r of rows) log(`${String(r.a).padEnd(28)} ${String(r.b).padEnd(28)} ${r.n}  ${r.fks}`)
-    return
-  }
-  if (SUB === 'columns') {
-    // Read-only: faktisk skema for en tabel på staging (CLAUDE.md: tjek skema før kode). Brug: columns <tabel>
-    const table = String(process.argv[3] ?? '')
-    if (!/^[a-z_][a-z0-9_]*$/.test(table)) { log('Brug: columns <tabel>'); process.exitCode = 1; return }
-    const rows = await stagingSql(`SELECT column_name, data_type, is_nullable, is_generated, column_default
-      FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' ORDER BY ordinal_position`)
-    for (const r of rows) log(`${String(r.column_name).padEnd(36)} ${String(r.data_type).padEnd(28)} null=${r.is_nullable} gen=${r.is_generated}${r.column_default ? ` default=${String(r.column_default).slice(0, 40)}` : ''}`)
-    if (!rows.length) { log(`ingen kolonner — findes tabellen ${table}?`); process.exitCode = 1 }
     return
   }
   if (SUB === 'company-columns-probe') {

@@ -17,6 +17,9 @@ import {
 import { PaymentExportButton } from './payment-export-button'
 import { Pagination } from '@/components/shared/pagination'
 import { ExportButton } from '@/components/shared/export-button'
+import { CustomerImportDialog } from './customer-import-dialog'
+import { useUserRole } from '@/lib/hooks/use-user-role'
+import { hasPermission } from '@/lib/auth/permissions'
 import type { CustomerWithRelations } from '@/types/customers.types'
 
 interface PaginationData {
@@ -65,6 +68,9 @@ export function CustomersPageClient({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const { role } = useUserRole()
+  const canImport = !!role && hasPermission(role, 'customers.create')
   const [searchInput, setSearchInput] = useState(filters.search || '')
 
   const updateURL = useCallback(
@@ -145,6 +151,16 @@ export function CustomersPageClient({
           </div>
           <div className="flex items-center gap-2">
             <ExportButton type="customers" filters={{ search: filters.search, is_active: filters.is_active }} />
+            {canImport && (
+            <button
+              type="button"
+              onClick={() => setShowImport(true)}
+              data-testid="customer-import-open"
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+            >
+              Importér
+            </button>
+            )}
             <button
               onClick={() => setShowForm(true)}
               className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
@@ -290,6 +306,8 @@ export function CustomersPageClient({
           />
         </div>
       </div>
+
+      {showImport && <CustomerImportDialog onClose={() => setShowImport(false)} />}
 
       {showForm && (
         <CustomerCreateDialog

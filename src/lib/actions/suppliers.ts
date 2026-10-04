@@ -71,6 +71,16 @@ import { logger } from '@/lib/utils/logger'
 // Supplier CRUD
 // =====================================================
 
+/**
+ * 23505 på suppliers: skeln mellem e-conomic-leverandørnr. (uq_suppliers_external) og koden — før sagde beskeden altid
+ * "kode", også når det var e-conomic-nummeret der allerede var brugt af en anden leverandør.
+ */
+function duplicateSupplierMessage(error: { message?: string; details?: string }): string {
+  const text = `${error.message ?? ''} ${error.details ?? ''}`
+  if (/uq_suppliers_external|external_supplier_id/.test(text)) return 'e-conomic-leverandørnummeret bruges allerede af en anden leverandør'
+  return 'En leverandør med denne kode eksisterer allerede'
+}
+
 export async function getSuppliers(
   filters?: SupplierFilters
 ): Promise<ActionResult<Supplier[]>> {
@@ -159,7 +169,7 @@ export async function createSupplier(
 
     if (error) {
       if (error.code === '23505') {
-        return { success: false, error: 'En leverandør med denne kode eksisterer allerede' }
+        return { success: false, error: duplicateSupplierMessage(error) }
       }
       logger.error('Database error creating supplier', { error: error })
       throw new Error('DATABASE_ERROR')
@@ -197,7 +207,7 @@ export async function updateSupplier(
         return { success: false, error: 'Leverandøren blev ikke fundet' }
       }
       if (error.code === '23505') {
-        return { success: false, error: 'En leverandør med denne kode eksisterer allerede' }
+        return { success: false, error: duplicateSupplierMessage(error) }
       }
       logger.error('Database error updating supplier', { error: error })
       throw new Error('DATABASE_ERROR')

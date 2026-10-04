@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -398,6 +398,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u111SupplierId: string | null = null
   let u113EmailIds: string[] = []
   let u114MessageId: string | null = null
+  let u115CustomerIds: string[] = []
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -738,6 +739,7 @@ ${m.text()}`) })
       }
 
       // U16 e-conomic-opsætning (N12) — kun opsætning, ingen bogføring
+      const u16Diag: string[] = []
       if (want('U16') && (cmpSupplierIds[0])) {
         const r: Record<string, boolean> = {}
         const supId = cmpSupplierIds[0]
@@ -745,21 +747,35 @@ ${m.text()}`) })
           await gotoSafe(a.page, `${base}/dashboard/settings/suppliers/${supId}`, { waitUntil: 'networkidle', timeout: 180_000 })
           await a.page.getByRole('button', { name: 'Rediger' }).first().click({ timeout: 60_000 }).catch(() => {})
           await a.page.locator('#economic_supplier_number').fill(value).catch(() => {})
+          const editCount = await a.page.getByRole('button', { name: 'Rediger' }).count()
+          const fieldCount = await a.page.locator('#economic_supplier_number').count()
           await a.page.getByRole('button', { name: 'Gem ændringer' }).click().catch(() => {})
           await a.page.waitForTimeout(2500)
+          const dlg = ((await a.page.locator('[role="dialog"]').first().innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').slice(0, 160)
+          u16Diag.push(`${value}: rediger=${editCount} felt=${fieldCount} dialog="${dlg}"`)
+          await a.page.screenshot({ path: join(shots, `u16-${value}.png`), fullPage: false }).catch(() => {})
           return ((await c.admin.from('suppliers').select('external_supplier_id, external_provider').eq('id', supId).maybeSingle()).data ?? {}) as Record<string, string | null>
         }
-        const ok1 = await saveNo('1001')
-        r.leverandoernr_gemt = ok1.external_supplier_id === '1001' && ok1.external_provider === 'economic'
+        // unikt nr. pr. kørsel (uq_suppliers_external: nr. må kun bruges af én leverandør)
+        const ecoNo = `7${String(stamp).slice(-6)}`
+        const ok1 = await saveNo(ecoNo)
+        r.leverandoernr_gemt = ok1.external_supplier_id === ecoNo && ok1.external_provider === 'economic'
         const bad = await saveNo('abc')
-        r.ugyldigt_afvist = bad.external_supplier_id === '1001'
+        r.ugyldigt_afvist = bad.external_supplier_id === ecoNo
+        // dublet: nummeret er allerede brugt af en anden leverandør → præcis besked (før: "kode eksisterer allerede")
+        if (cmpSupplierIds[1]) {
+          const otherNo = `8${String(stamp).slice(-6)}`
+          await c.admin.from('suppliers').update({ external_supplier_id: otherNo, external_provider: 'economic' }).eq('id', cmpSupplierIds[1])
+          await saveNo(otherNo)
+          r.dublet_besked = (await a.page.getByText('e-conomic-leverandørnummeret bruges allerede af en anden leverandør').count()) > 0
+        }
         await gotoSafe(a.page, `${base}/dashboard/settings/economic`, { waitUntil: 'networkidle', timeout: 180_000 })
         const card = a.page.getByTestId('economic-readiness')
         await card.waitFor({ timeout: 60_000 }).catch(() => {})
         const txt = (await card.count()) ? await card.innerText() : ''
         r.tjekliste = /Klar til bogføring/.test(txt) && /Omkostningskonto/.test(txt) && /Kassekladde/.test(txt) && /Leverandører koblet/.test(txt) && /Kundefakturaer/.test(txt)
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u16-economic.png'), fullPage: true }).catch(() => {})
-        out.push({ id: 'U16 e-conomic-opsætning (admin)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+        out.push({ id: 'U16 e-conomic-opsætning (admin)', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${u16Diag.join(' | ')}` })
       }
 
       // U17 AO-prisfil-import (ISO-8859-1). Kræver en leverandør med kode 'AO' (AO-konfiguration vælges på koden).
@@ -3487,6 +3503,34 @@ ${m.text()}`) })
         out.push({ id: 'U114 Go-live-tjekliste med driftskøer', ok: !!u114MessageId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U115 N60: kundeimport fra CSV — forhåndsvisning (1 ny, 1 findes allerede, 1 ugyldig) → import opretter kun den nye
+      // med kilde-mærke og tidligere kundenr.
+      if (want('U115') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const newEmail = `import-${stamp}@harness.test`
+        const csv = [
+          'Kundenr;Firmanavn;Kontaktperson;E-mail;Telefon;Postnr;By',
+          `9${String(stamp).slice(-5)};[HARNESS] Importkunde ${stamp};Ida Import;${newEmail};;8000;Aarhus C`,
+          `9${String(stamp).slice(-4)}1;[HARNESS] Findes ${stamp};;ui-profit-${stamp}@harness.test;;;`,
+          `9${String(stamp).slice(-4)}2;[HARNESS] Uden mail ${stamp};;;;;`,
+        ].join('\r\n')
+        await gotoSafe(a.page, `${base}/dashboard/customers`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('customer-import-open').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByTestId('customer-import-input').setInputFiles({ name: `kunder-${stamp}.csv`, mimeType: 'text/csv', buffer: Buffer.from(csv, 'utf8') }).catch(() => {})
+        await a.page.getByTestId('customer-import-counts').waitFor({ timeout: 60_000 }).catch(() => {})
+        const cnt = async (id: string) => ((await a.page.getByTestId(id).textContent().catch(() => '')) ?? '').trim()
+        r.forhaandsvisning = (await cnt('import-count-new')) === '1' && (await cnt('import-count-duplicate')) === '1' && (await cnt('import-count-invalid')) === '1'
+        await a.page.getByTestId('customer-import-confirm').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByTestId('customer-import-result').waitFor({ timeout: 60_000 }).catch(() => {})
+        type CR = { id: string; custom_fields: Record<string, unknown> | null; contact_person: string; billing_city: string | null }
+        const created = (await c.admin.from('customers').select('id, custom_fields, contact_person, billing_city').eq('email', newEmail)).data as CR[] | null
+        u115CustomerIds = (created ?? []).map((x) => x.id)
+        r.oprettet_en = (created ?? []).length === 1 && created?.[0]?.contact_person === 'Ida Import' && created?.[0]?.billing_city === 'Aarhus C'
+        r.kilde_maerket = created?.[0]?.custom_fields?.source === 'csv-import' && typeof created?.[0]?.custom_fields?.import_customer_number === 'string'
+        r.dublet_ikke_oprettet = ((await c.admin.from('customers').select('id').eq('company_name', `[HARNESS] Findes ${stamp}`)).data ?? []).length === 0
+        out.push({ id: 'U115 N60 kundeimport fra CSV', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -4045,6 +4089,7 @@ ${m.text()}`) })
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
     if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
+    for (const id of u115CustomerIds) await c.admin.from('customers').delete().eq('id', id)
     if (u114MessageId) await c.admin.from('portal_messages').delete().eq('id', u114MessageId)
     if (u113EmailIds.length) await c.admin.from('incoming_emails').delete().in('id', u113EmailIds)
     if (u111OfferId) await c.admin.from('offers').delete().eq('id', u111OfferId)
