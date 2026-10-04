@@ -21,6 +21,24 @@ export interface ParsedCustomerData {
  * Parse email body to extract customer data.
  * Prioritizes labeled fields (Navn:, Adresse:, etc.) over heuristics.
  */
+/**
+ * N93: felterne fra en webhenvendelse (FormSubmit) som { Navn, Telefon, Email, Type, Besked, … } — samme tekstudtræk og
+ * normalisering som parseCustomerFromEmail. Tomt objekt hvis mailen ikke er en FormSubmit-tabel.
+ */
+export function extractFormSubmitFields(bodyText: string | null, bodyHtml: string | null): Record<string, string> {
+  let text = bodyText || ''
+  if (!text && bodyHtml) text = stripHtml(bodyHtml)
+  if (text.length < 50 && bodyHtml) { const h = stripHtml(bodyHtml); if (h.length > text.length) text = h }
+  const norm = normalizeFormSubmitTable(text)
+  if (norm === text) return {}
+  const out: Record<string, string> = {}
+  for (const line of norm.split('\n')) {
+    const m = /^([^:]+):\s*(.*)$/.exec(line)
+    if (m && !out[m[1]]) out[m[1]] = m[2].trim()
+  }
+  return out
+}
+
 export function parseCustomerFromEmail(
   bodyText: string | null,
   bodyHtml: string | null,

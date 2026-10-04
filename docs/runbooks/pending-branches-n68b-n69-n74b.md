@@ -43,3 +43,13 @@ npm run prod:apply-migration -- 00187 --approved-by-henrik
 ## Oprydning af eksisterende data (separat beslutning)
 Ingen af branchene ændrer eksisterende kunder/fakturaer. Oprydning sker manuelt med de nye værktøjer:
 kundelistens "Oprettet fra mail" (+ masse-deaktivering), leverandørfakturaernes "Ikke en faktura?" + "Ikke en faktura".
+
+## Lokale worktrees (udvikler-maskinen)
+Branchene er bygget i worktrees `C:\Dev\elta-n68b`, `C:\Dev\elta-n69`, `C:\Dev\elta-n74b`, `C:\Dev\elta-alerts`, hver med en
+**junction** `node_modules` → `C:\Dev\elta-crm
+ode_modules`. Fjern junctionen FØR worktreen slettes — ellers kan
+oprydningen følge junctionen og slette hovedrepoets node_modules:
+```
+cmd /c rmdir C:\Dev\elta-n69\node_modules
+git worktree remove C:/Dev/elta-n69
+```

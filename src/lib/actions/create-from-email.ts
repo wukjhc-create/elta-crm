@@ -17,6 +17,7 @@
  * Alle modes kobler mailen til betaler-kunden (og evt. sagen).
  */
 
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
@@ -105,7 +106,7 @@ async function findOrCreateCustomerByEmail(
   const { data: existing } = await supabase
     .from('customers')
     .select('id, company_name')
-    .ilike('email', emailLower)
+    .ilike('email', escapeLike(emailLower))
     .limit(1)
     .maybeSingle()
 

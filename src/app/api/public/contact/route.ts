@@ -1,3 +1,4 @@
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
@@ -183,7 +184,7 @@ export async function POST(request: NextRequest) {
     const { data: existingCustomer } = await supabase
       .from('customers')
       .select('id, company_name, customer_number')
-      .ilike('email', email)
+      .ilike('email', escapeLike(email))
       .eq('is_active', true)
       .limit(1)
       .maybeSingle()

@@ -6,6 +6,7 @@
  * Queries for offers, projects, leads, and sent quotes linked to a customer.
  */
 
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 
@@ -81,7 +82,7 @@ export async function getCustomerLeads(customerEmail: string): Promise<CustomerL
   const { data, error } = await supabase
     .from('leads')
     .select('id, company_name, status, source, created_at')
-    .ilike('email', customerEmail)
+    .ilike('email', escapeLike(customerEmail))
     .order('created_at', { ascending: false })
 
   if (error) {

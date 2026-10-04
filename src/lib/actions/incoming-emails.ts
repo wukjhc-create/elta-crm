@@ -810,7 +810,7 @@ export async function createCustomerFromEmail(
   const { data: existingCustomer } = await supabase
     .from('customers')
     .select('id, company_name, customer_number')
-    .ilike('email', senderEmail)
+    .ilike('email', escapeLike(senderEmail))
     .limit(1)
     .maybeSingle()
 
@@ -2008,7 +2008,7 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
     if (!email) return { success: false, error: 'Mail ikke fundet' }
     const e = email as { id: string; subject: string | null; sender_email: string; sender_name: string | null; reply_to: string | null; body_text: string | null; body_html: string | null }
     const { isWebsiteInquiry } = await import('@/lib/mail/website-inquiry')
-    const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
+    const { parseCustomerFromEmail, extractFormSubmitFields } = await import('@/lib/utils/email-parser')
     const web = isWebsiteInquiry({ senderEmail: e.sender_email, subject: e.subject })
     const parsed = parseCustomerFromEmail(e.body_text, e.body_html, web ? null : e.sender_email)
     const contactEmail = (parsed.email || (web ? e.reply_to : e.sender_email) || '').trim().toLowerCase()
@@ -2023,7 +2023,12 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
       phone: parsed.phone || null,
       source: web ? 'website' : 'email',
       status: 'new',
-      notes: `Fra mail: ${e.subject ?? '(intet emne)'}`,
+      // N93: webhenvendelsens type + besked i noterne (før kun "Fra mail: <emne>" — kundens ønske gik tabt)
+      notes: (() => {
+        const f = web ? extractFormSubmitFields(e.body_text, e.body_html) : {}
+        const parts = [f.Type ? `Type: ${f.Type}` : '', f.Besked ? `Besked: ${f.Besked}` : ''].filter(Boolean)
+        return parts.length ? `Webhenvendelse — ${parts.join(' · ')}`.slice(0, 2000) : `Fra mail: ${e.subject ?? '(intet emne)'}`
+      })(),
       created_by: userId,
       // N78: adresse fra formularen (leads har ingen adressekolonner) → bruges som kundens adresse ved konvertering
       custom_fields: {

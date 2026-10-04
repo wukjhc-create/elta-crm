@@ -3738,15 +3738,19 @@ ${m.text()}`) })
       // U130 N86: "Opret leads for alle" — henvendelse med e-mail får et lead, en uden læsbar e-mail springes over
       if (want('U130')) {
         const r: Record<string, boolean> = {}
-        const mk = async (tag: string, lines: string[]) => {
+        const mk = async (tag: string, lines: string[], html?: string) => {
           const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', sender_name: 'FormSubmit',
-            subject: `Ny henvendelse fra eltasolar.dk [HARNESS] U130 ${tag} ${stamp}`, body_text: lines.join(String.fromCharCode(10)),
+            subject: `Ny henvendelse fra eltasolar.dk [HARNESS] U130 ${tag} ${stamp}`, body_text: html ? null : lines.join(String.fromCharCode(10)), body_html: html ?? null,
             link_status: 'unidentified', received_at: new Date().toISOString(), is_archived: false, is_read: false }]).select('id')
           const id = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
           if (id) u113EmailIds.push(id)
           return id
         }
-        const withMail = await mk('med', [`Navn: Bulk Kunde ${stamp}`, `Email: bulk-${stamp}@harness.test`, 'Telefon: 11223344'])
+        // N92/N93: realistisk FormSubmit-HTML (cellerne havner på samme linje i parserens tekst) med type + besked
+        const fsRows = [['name', `Bulk Kunde ${stamp}`], ['phone', '11223344'], ['email', `bulk-${stamp}@harness.test`], ['inquiry_type', 'Solceller'], ['message', 'Ring gerne efter kl 16']]
+        const fsHtml = ["<p>Here's what they had to say</p>", '<table>', '<tr><th>Name</th><th>Value</th></tr>',
+          ...fsRows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`), '</table>'].join(String.fromCharCode(10))
+        const withMail = await mk('med', [], fsHtml)
         const noMail = await mk('uden', [`Navn: Uden Mail ${stamp}`, 'Telefon: 55667788'])
         r.seed = !!withMail && !!noMail
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
@@ -3754,10 +3758,16 @@ ${m.text()}`) })
         await a.page.getByTestId('cockpit-bulk-leads').click({ timeout: 60_000 }).catch(() => {})
         await a.page.getByTestId('cockpit-bulk-leads-result').waitFor({ timeout: 90_000 }).catch(() => {})
         r.resultat_vist = /oprettet/.test((await a.page.getByTestId('cockpit-bulk-leads-result').textContent().catch(() => '')) ?? '')
-        const lA = ((await c.admin.from('leads').select('id, email').eq('custom_fields->>source_email_id', withMail ?? '')).data ?? []) as Array<{ id: string; email: string }>
+        const lA = ((await c.admin.from('leads').select('id, email, contact_person, notes').eq('custom_fields->>source_email_id', withMail ?? '')).data ?? []) as Array<{ id: string; email: string; contact_person: string; notes: string | null }>
         const lB = ((await c.admin.from('leads').select('id').eq('custom_fields->>source_email_id', noMail ?? '')).data ?? []) as Array<{ id: string }>
         u128LeadIds.push(...lA.map((x) => x.id), ...lB.map((x) => x.id))
         r.lead_med_mail = lA.length === 1 && lA[0].email === `bulk-${stamp}@harness.test`
+        r.navn_fra_html_tabel = lA[0]?.contact_person === `Bulk Kunde ${stamp}`
+        r.noter_type_besked = /Type: Solceller/.test(lA[0]?.notes ?? '') && /Besked: Ring gerne efter kl 16/.test(lA[0]?.notes ?? '')
+        // N94: leadlisten viser type · besked under kontakten
+        await gotoSafe(a.page, `${base}/dashboard/leads?search=${encodeURIComponent(`Bulk Kunde ${stamp}`)}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('lead-row-inquiry').first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.liste_viser_henvendelse = /Type: Solceller · Besked: Ring gerne/.test((await a.page.getByTestId('lead-row-inquiry').first().textContent().catch(() => '')) ?? '')
         r.uden_mail_sprunget_over = lB.length === 0
         out.push({ id: 'U130 N86 opret leads for alle webhenvendelser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }

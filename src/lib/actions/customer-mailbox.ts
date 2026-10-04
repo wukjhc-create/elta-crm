@@ -77,7 +77,7 @@ async function recordOutgoingEmail(
       const { data: customer } = await supabase
         .from('customers')
         .select('id')
-        .ilike('email', data.to_email.toLowerCase())
+        .ilike('email', escapeLike(data.to_email.toLowerCase()))
         .eq('is_active', true)
         .limit(1)
         .maybeSingle()

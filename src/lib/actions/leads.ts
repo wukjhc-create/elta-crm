@@ -1,6 +1,6 @@
 'use server'
 
-import { pgQuote } from '@/lib/validations/postgrest-filter'
+import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
@@ -651,7 +651,7 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
     if (!company) return { success: false, error: 'Leadet mangler firma- eller kontaktnavn' }
 
     // Dublet-værn: eksisterende kunde med samme mail
-    const { data: same } = await supabase.from('customers').select('id').ilike('email', email).limit(1).maybeSingle()
+    const { data: same } = await supabase.from('customers').select('id').ilike('email', escapeLike(email)).limit(1).maybeSingle()
     let customerId = (same?.id as string | undefined) ?? null
     let created = false
     if (!customerId) {

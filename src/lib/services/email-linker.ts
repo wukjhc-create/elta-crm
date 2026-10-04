@@ -8,6 +8,7 @@
  * 4. Mark as 'linked' or 'unidentified'
  */
 
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import type { LinkResult, EmailLinkStatus } from '@/types/mail-bridge.types'
@@ -142,7 +143,7 @@ export async function matchCustomer(
   const { data: customerMatch } = await supabase
     .from('customers')
     .select('id')
-    .ilike('email', emailLower)
+    .ilike('email', escapeLike(emailLower))
     .eq('is_active', true)
     .limit(1)
     .maybeSingle()
@@ -160,7 +161,7 @@ export async function matchCustomer(
   const { data: contactMatch } = await supabase
     .from('customer_contacts')
     .select('id, customer_id')
-    .ilike('email', emailLower)
+    .ilike('email', escapeLike(emailLower))
     .limit(1)
     .maybeSingle()
 

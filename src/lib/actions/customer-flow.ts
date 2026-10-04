@@ -41,7 +41,7 @@ export async function getCustomerFlow(
       supabase
         .from('leads')
         .select('id, status, created_at')
-        .ilike('email', customerEmail)
+        .ilike('email', escapeLike(customerEmail))
         .order('created_at', { ascending: false })
         .limit(5),
       supabase
