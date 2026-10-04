@@ -159,6 +159,27 @@ export async function getEconomicInvoicePreviewAction(
   return res.ok ? { ok: true, data: res.data } : { ok: false, message: res.error }
 }
 
+/** N46: "Vis hvad der sendes" for kundebetalingen (kassekladde) — ingen netværk/skrivning. settings.economic. */
+export async function getEconomicPaymentPreviewAction(
+  invoiceId: string
+): Promise<
+  | { ok: true; data: Extract<Awaited<ReturnType<typeof import('@/lib/services/economic-client').previewPaymentForEconomic>>, { ok: true }>['data'] }
+  | { ok: false; message: string }
+> {
+  try {
+    validateUUID(invoiceId, 'id')
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Ugyldigt id' }
+  }
+  const { hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('settings.economic')) {
+    return { ok: false, message: 'Manglende tilladelse: settings.economic' }
+  }
+  const { previewPaymentForEconomic } = await import('@/lib/services/economic-client')
+  const res = await previewPaymentForEconomic(invoiceId)
+  return res.ok ? { ok: true, data: res.data } : { ok: false, message: res.error }
+}
+
 export async function exportInvoiceToEconomicAction(
   invoiceId: string
 ): Promise<ExportInvoiceResult> {

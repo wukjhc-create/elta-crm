@@ -613,6 +613,31 @@ export async function previewSupplierInvoiceForEconomic(
   }
 }
 
+/**
+ * N46: forhåndsvisning af kundebetalingens kassekladde-postering — PRÆCIS den postering markInvoicePaidInEconomic ville
+ * sende (samme builder), men uden netværk, uden log og uden at kræve tokens. Bruges til "Vis hvad der sendes" og
+ * klar-til-bogføring-tjek før e-conomic er tilkoblet.
+ */
+export async function previewPaymentForEconomic(invoiceId: string): Promise<
+  | { ok: true; data: { entry: ReturnType<typeof buildEconomicPaymentEntry>; synced: boolean; configured: boolean; alreadyMarkedPaid: boolean } }
+  | { ok: false; error: string }
+> {
+  const supabase = createAdminClient()
+  const [{ data: inv }, { data: settingsRow }, { data: prevPaid }] = await Promise.all([
+    supabase.from('invoices')
+      .select('id, currency, final_amount, amount_paid, payment_status, paid_at, external_invoice_id, external_provider')
+      .eq('id', invoiceId).maybeSingle(),
+    supabase.from('accounting_integration_settings').select('config').eq('provider', PROVIDER).maybeSingle(),
+    supabase.from('accounting_sync_log').select('id').eq('entity_type', 'invoice').eq('entity_id', invoiceId)
+      .eq('action', 'mark_paid').eq('status', 'success').limit(1).maybeSingle(),
+  ])
+  if (!inv) return { ok: false, error: 'Faktura ikke fundet' }
+  const cfg: EconomicConfig = ((settingsRow as { config?: EconomicConfig } | null)?.config) || {}
+  const synced = !!inv.external_invoice_id && inv.external_provider === PROVIDER
+  const entry = buildEconomicPaymentEntry({ invoice: inv, config: cfg })
+  return { ok: true, data: { entry, synced, configured: !!cfg.cashbookNumber && !!cfg.bankContraAccountNumber, alreadyMarkedPaid: !!prevPaid } }
+}
+
 // =====================================================
 // Mark paid (cashbook entry)
 // =====================================================

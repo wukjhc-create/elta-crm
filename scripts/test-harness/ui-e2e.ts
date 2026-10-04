@@ -128,6 +128,7 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U94 N46: e-conomic-forhåndsvisning af kundebetalingens kassekladde-postering (beløb, dato, ikke-eksporteret forklaret; intet sendt)
  *   U93 N44: cockpit "Nye kunder uden tilbud" (30 d, ingen tilbud/sag) + genvej åbner tilbudsformularen; montør uden kort
  *   U92 vedhæft PDF på mail-faktura uden bilag → privat fil, PDF-tekst, genlæst (nr./beløb), audit; knap væk med fil
  *   U91 realiseret DB pr. sag: netto faktureret ekskl. moms (udstedt − kredit; kladde/annulleret udelukket) mod faktisk kost
@@ -176,7 +177,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90'],
-  economy: ['U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -363,6 +364,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u93CustomerId: string | null = null
   let u93OfferId: string | null = null
   let u93EmailId: string | null = null
+  let u94InvoiceId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -2976,6 +2978,25 @@ ${m.text()}`) })
         out.push({ id: 'U93 N44 nye kunder uden tilbud i cockpittet', ok: !!u93CustomerId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U94 N46: e-conomic-forhåndsvisning af kundebetalingen (kassekladde) — beløb og dato som live-registreringen; ikke-
+      // eksporteret faktura forklares; intet sendes
+      if (want('U94') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-PP-${stamp}`, customer_id: profitCustomerId, status: 'paid',
+          payment_status: 'paid', total_amount: 1000, tax_amount: 250, final_amount: 1250, amount_paid: 1250, paid_at: '2026-10-02T10:00:00Z' }]).select('id')
+        u94InvoiceId = (ins.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await gotoSafe(a.page, `${base}/dashboard/invoices/${u94InvoiceId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('economic-payment-preview-toggle').click({ timeout: 60_000 }).catch(() => {})
+        const pv = a.page.getByTestId('economic-payment-preview')
+        await pv.getByTestId('economic-payment-amount').waitFor({ timeout: 60_000 }).catch(() => {})
+        const txt = (await pv.innerText().catch(() => '')) ?? ''
+        r.beloeb = ((await pv.getByTestId('economic-payment-amount').textContent().catch(() => '')) ?? '').includes('1.250,00')
+        r.dato_dansk = txt.includes('2026-10-02')
+        r.ikke_eksporteret_forklaret = /ikke eksporteret til e-conomic/i.test(txt)
+        r.intet_sendt = ((await c.admin.from('accounting_sync_log').select('id').eq('entity_id', u94InvoiceId ?? '')).data ?? []).length === 0
+        out.push({ id: 'U94 N46 e-conomic betalingspostering (forhåndsvisning)', ok: !!u94InvoiceId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · "${txt.replace(/\s+/g, ' ').slice(0, 220)}"` })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3533,6 +3554,7 @@ ${m.text()}`) })
     if (u84OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u84OfferId); await c.admin.from('offers').delete().eq('id', u84OfferId) }
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
+    if (u94InvoiceId) await c.admin.from('invoices').delete().eq('id', u94InvoiceId)
     if (u93EmailId) await c.admin.from('incoming_emails').delete().eq('id', u93EmailId)
     if (u93OfferId) await c.admin.from('offers').delete().eq('id', u93OfferId)
     if (u93CustomerId) await c.admin.from('customers').delete().eq('id', u93CustomerId)

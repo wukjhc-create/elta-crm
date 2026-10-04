@@ -9,6 +9,7 @@
  * integrationen ikke er opsat. Cost-free — ingen hemmeligheder, ingen kost.
  */
 
+import { InvoicePaymentEconomicPreview } from './invoice-payment-economic-preview'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import {
   AlertCircle, BookCheck, CloudUpload, Eye, Info, Loader2, Lock, RefreshCw,
@@ -239,6 +240,9 @@ export function InvoiceAccountingPanel({ invoiceId }: { invoiceId: string }) {
             )}
           </div>
         )}
+
+        {/* N46: betalingens kassekladde-postering (forhåndsvisning) */}
+        {canExport && <InvoicePaymentEconomicPreview invoiceId={invoiceId} />}
 
         {showExport && (
           <div className="pt-1">
