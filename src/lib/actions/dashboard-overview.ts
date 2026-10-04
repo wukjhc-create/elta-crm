@@ -96,7 +96,14 @@ export interface DashboardOverview {
   webInquiries: {
     allowed: boolean
     count: number
-    items: Array<{ id: string; subject: string | null; received_at: string; ageDays: number; unread: boolean }>
+    /** contact: navn · by fra formularen (N82 — alle emner er ens "Ny henvendelse fra eltasolar.dk") */
+    items: Array<{ id: string; subject: string | null; contact: string | null; received_at: string; ageDays: number; unread: boolean }>
+  }
+  /** N83: åbne leads (ikke vundet/tabt) uden ændring i > 7 dage — kun leads.edit */
+  staleLeads: {
+    allowed: boolean
+    count: number
+    items: Array<{ id: string; name: string; status: string; ageDays: number }>
   }
   /** N61: sendte fakturaer over forfald (ikke betalt/annulleret/kreditnota; kun invoices.view.all). */
   overdueInvoices: {
@@ -122,7 +129,7 @@ export interface DashboardOverview {
     empty: boolean
   }
   /** Per-section fejl saa UI kan vise en diskret advarsel uden at crashe. */
-  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers' | 'portal' | 'unbilled' | 'overdueInvoices' | 'webInquiries', string>>
+  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers' | 'portal' | 'unbilled' | 'overdueInvoices' | 'webInquiries' | 'staleLeads', string>>
   generated_at: string
 }
 
@@ -149,6 +156,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     unbilled: { caseCount: 0, saleTotal: 0, cases: [] },
     overdueInvoices: { allowed: false, count: 0, total: 0, items: [] },
     webInquiries: { allowed: false, count: 0, items: [] },
+    staleLeads: { allowed: false, count: 0, items: [] },
     visits: { upcoming: [], empty: true },
     errors: {},
     generated_at: new Date().toISOString(),
@@ -433,14 +441,49 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         if (leadErr) throw new Error(leadErr.message)
         const withLead = new Set(((leads ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>).map((l) => l.custom_fields?.source_email_id).filter(Boolean))
         const open = rows.filter((r) => !withLead.has(r.id))
+        // N82: navn · by fra formularen for de viste (kun TOP_N mails hentes med brødtekst)
+        const shown = open.slice(0, TOP_N)
+        const contactById = new Map<string, string | null>()
+        if (shown.length) {
+          const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
+          const { data: bodies } = await supabase.from('incoming_emails').select('id, body_text, body_html').in('id', shown.map((r) => r.id))
+          for (const b of (bodies ?? []) as Array<{ id: string; body_text: string | null; body_html: string | null }>) {
+            const p = parseCustomerFromEmail(b.body_text, b.body_html, null)
+            contactById.set(b.id, [p.name, p.city].filter(Boolean).join(' · ') || null)
+          }
+        }
         overview.webInquiries = {
           allowed: true,
           count: open.length,
-          items: open.slice(0, TOP_N).map((r) => ({ id: r.id, subject: r.subject, received_at: r.received_at, ageDays: daysBetween(r.received_at, now), unread: !r.is_read })),
+          items: shown.map((r) => ({ id: r.id, subject: r.subject, contact: contactById.get(r.id) ?? null, received_at: r.received_at, ageDays: daysBetween(r.received_at, now), unread: !r.is_read })),
         }
       } catch (err) {
         logger.error('getDashboardOverview: webInquiries failed', { error: err })
         overview.errors.webInquiries = err instanceof Error ? err.message : 'failed'
+      }
+    })(),
+
+    // N83: leads uden opfølgning — åbne (ikke won/lost) og ikke ændret i 7 dage; ældst først
+    (async () => {
+      try {
+        const ctx = roleCtx
+        if (!ctx.hasPermission('leads.edit')) return
+        overview.staleLeads.allowed = true
+        const cutoff = new Date(now - 7 * 86_400_000).toISOString()
+        const { data, count, error } = await supabase.from('leads')
+          .select('id, company_name, contact_person, status, updated_at', { count: 'exact' })
+          .not('status', 'in', '(won,lost)').lt('updated_at', cutoff)
+          .order('updated_at', { ascending: true }).limit(TOP_N)
+        if (error) throw new Error(error.message)
+        overview.staleLeads = {
+          allowed: true,
+          count: count ?? 0,
+          items: ((data ?? []) as Array<{ id: string; company_name: string | null; contact_person: string | null; status: string; updated_at: string }>)
+            .map((l) => ({ id: l.id, name: l.company_name || l.contact_person || '—', status: l.status, ageDays: daysBetween(l.updated_at, now) })),
+        }
+      } catch (err) {
+        logger.error('getDashboardOverview: staleLeads failed', { error: err })
+        overview.errors.staleLeads = err instanceof Error ? err.message : 'failed'
       }
     })(),
 

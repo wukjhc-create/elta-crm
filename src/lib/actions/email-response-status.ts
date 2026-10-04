@@ -159,6 +159,8 @@ export async function getRequiresResponseEmailIds(): Promise<string[]> {
       .select('id')
       .eq('is_archived', false)
       .eq('link_status', 'linked')
+      // nyeste først — uden rækkefølge var de 2000 kandidater tilfældige, så nye tråde kunne falde udenfor ved vækst
+      .order('received_at', { ascending: false })
       .limit(2000)
 
     if (error || !candidates || candidates.length === 0) return []

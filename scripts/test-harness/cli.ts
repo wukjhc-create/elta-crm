@@ -654,6 +654,13 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'mail-stats') {
+    // Read-only: mailvolumen på staging (kandidater til "kræver svar" = koblede, ikke arkiverede)
+    const [r] = await stagingSql(`SELECT count(*)::int alle, count(*) FILTER (WHERE link_status = 'linked' AND NOT is_archived)::int koblede_aktive,
+      count(*) FILTER (WHERE sender_email ILIKE '%@harness.test')::int harness FROM incoming_emails`)
+    log(JSON.stringify(r))
+    return
+  }
   if (SUB === 'harness-portal') {
     // Staging: ulæste portal-kundebeskeder fordelt på harness-kunder vs. øvrige; `--ryd` sletter KUN beskeder på
     // [HARNESS]-kunder (efterladt af afbrudte kørsler — fylder cockpittet og pilot-health på staging).

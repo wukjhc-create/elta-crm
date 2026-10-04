@@ -63,6 +63,7 @@ function runBatch(n: number, tests: string[], build: boolean, deadline: number):
     const batchStart = Date.now()
     let lastResultAt = Date.now()
     let tail: string[] = []
+    let current: string | null = null
     const done = new Set<string>()
     let finished = false
     log(`batch ${n} start PID=${child.pid} tests=${tests.join(',')}${build ? ' (+build)' : ''}`)
@@ -70,6 +71,8 @@ function runBatch(n: number, tests: string[], build: boolean, deadline: number):
       for (const line of String(d).split(/\r?\n/)) {
         if (!line.trim()) continue
         tail = [...tail.slice(-40), line]
+        const st = /^\s*\[ui-e2e start\] (U\d+)/.exec(line)
+        if (st) current = st[1]
         const m = /^\[ui-e2e [^\]]+\] (✓|❌) (U\d+)\b.*?\((\d+)s/.exec(line)
         if (m) {
           lastResultAt = Date.now()
@@ -86,7 +89,8 @@ function runBatch(n: number, tests: string[], build: boolean, deadline: number):
     const timer = setInterval(() => {
       const now = Date.now()
       const pending = tests.filter((t) => !done.has(t))
-      const active = pending[0] ?? '(oprydning/basistests)'
+      // test der faktisk kører (ui-e2e logger "[ui-e2e start] Uxx"); ellers første ventende i listen
+      const active = (current && !done.has(current) ? current : pending[0]) ?? '(oprydning/basistests)'
       const idle = now - lastResultAt
       const buildPhase = build && !tail.some((l) => /build færdig/.test(l))
       if (buildPhase) lastResultAt = now

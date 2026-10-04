@@ -183,9 +183,9 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
-  economy: ['U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -313,7 +313,14 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   for (const g of groups) if (!UI_E2E_GROUPS[g]) throw new Error(`ukendt UI_E2E_GROUP '${g}' (${Object.keys(UI_E2E_GROUPS).join('|')})`)
   const onlyEnv = (process.env.UI_E2E_ONLY ?? '').split(',').map((x) => x.trim()).filter(Boolean)
   const only = onlyEnv.length ? onlyEnv : [...new Set(groups.flatMap((g) => UI_E2E_GROUPS[g]))]
-  const want = (id: string) => only.length === 0 || only.includes(id)
+  // Første gang en valgt test går i gang, logges det — watchdog'en (ui-batches) kan så navngive den test der faktisk
+  // hænger (før gættede den på listens rækkefølge, som ikke er kodens rækkefølge)
+  const started = new Set<string>()
+  const want = (id: string) => {
+    const yes = only.length === 0 || only.includes(id)
+    if (yes && only.length > 0 && !started.has(id)) { started.add(id); console.log(`[ui-e2e start] ${id}`) }
+    return yes
+  }
   const loginFailures: string[] = []
   let profitOfferId: string | null = null
   let profitCustomerId: string | null = null
@@ -405,6 +412,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u111SupplierId: string | null = null
   let u113EmailIds: string[] = []
   let u122LeadId: string | null = null
+  const u128LeadIds: string[] = []
   let u114MessageId: string | null = null
   let u115CustomerIds: string[] = []
   let u77ProductId: string | null = null
@@ -741,7 +749,12 @@ ${m.text()}`) })
         const t3 = await waitTotals(1200) // den tilføjede kørsel slettes igen
         r.linje_slettet = Number(t3.total_amount) === 1200 && Number(t3.final_amount) === 1500
         await a.page.screenshot({ caret: 'initial', path: join(shots, 'u15-fakturakladde.png'), fullPage: true }).catch(() => {})
-        const audits = draftInvoiceId ? (await c.admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', draftInvoiceId)).count ?? 0 : 0
+        // audit-skrivningen efter sidste sletning kan lande et øjeblik efter UI'et — vent op til 10 s (før: race → flaky)
+        let audits = 0
+        for (let i = 0; i < 10 && audits < 3; i++) {
+          audits = draftInvoiceId ? (await c.admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', draftInvoiceId)).count ?? 0 : 0
+          if (audits < 3) await a.page.waitForTimeout(1000)
+        }
         r.audit = audits >= 3
         out.push({ id: 'U15 fakturakladde (admin)', ok: !seedErr && Object.values(r).every(Boolean), note: `${seedErr ? `SEED: ${seedErr} · ` : ''}${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}` })
       }
@@ -3074,6 +3087,28 @@ ${m.text()}`) })
         out.push({ id: 'U123 N68 "Ikke en faktura?" for privat afsender', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U127 N79: "Ikke en faktura" på leverandørfakturaen udfylder begrundelsen; bekræftelse afviser fakturaen med den
+      if (want('U127')) {
+        const r: Record<string, boolean> = {}
+        const ii = await c.admin.from('incoming_invoices').insert([{ source: 'manual', status: 'received', parse_status: 'needs_review',
+          file_name: `u127-${stamp}.txt`, mime_type: 'text/plain', raw_text: 'Hej, hvornår kan I komme?', file_hash: `u127-${stamp}`, supplier_name_extracted: `[HARNESS] U127 ${stamp}` }]).select('id')
+        const id = (ii.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (id) u120InvoiceIds.push(id)
+        r.seed = !!id
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('invoice-reject-not-invoice').click({ timeout: 60_000 }).catch(() => {})
+        r.begrundelse_udfyldt = /Ikke en leverandørfaktura/.test((await a.page.locator('textarea').first().inputValue().catch(() => '')) ?? '')
+        await a.page.getByRole('button', { name: 'Bekræft afvisning' }).click({ timeout: 30_000 }).catch(() => {})
+        type U127Row = { status: string; rejected_reason: string | null }
+        let row = null as U127Row | null
+        for (let i = 0; i < 15 && row?.status !== 'rejected'; i++) {
+          await a.page.waitForTimeout(1000)
+          row = (await c.admin.from('incoming_invoices').select('status, rejected_reason').eq('id', id ?? '').maybeSingle()).data as U127Row | null
+        }
+        r.afvist = row?.status === 'rejected' && (row.rejected_reason ?? '').startsWith('Ikke en leverandørfaktura')
+        out.push({ id: 'U127 N79 "Ikke en faktura" afviser med begrundelse', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U93 N44: styrings-cockpittet viser nye kunder (30 d) uden tilbud/sag; "Opret tilbud" åbner kundens tilbudsformular;
       // en kunde med tilbud vises ikke; montør ser ikke kortet
       if (want('U93')) {
@@ -3606,21 +3641,26 @@ ${m.text()}`) })
       if (want('U122')) {
         const r: Record<string, boolean> = {}
         const subj = `Ny henvendelse fra eltasolar.dk [HARNESS] ${stamp}`
+        // N82: cockpittet viser navn · by fra formularen (alle emner er ens) — rækken findes på navnet
+        const who = `Harness Webkunde ${stamp}`
         const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', sender_name: 'FormSubmit', subject: subj,
-          body_text: ['Navn: Harness Webkunde', `Email: web-${stamp}@harness.test`, 'Telefon: 12345678', 'Adresse: Solvej 12', 'Postnummer: 4000', 'By: Roskilde', 'Besked: Solceller på taget'].join('\n'), link_status: 'unidentified', received_at: new Date().toISOString(), is_archived: false, is_read: false }]).select('id')
+          body_text: [`Navn: Harness Webkunde ${stamp}`, `Email: web-${stamp}@harness.test`, 'Telefon: 12345678', 'Adresse: Solvej 12', 'Postnummer: 4000', 'By: Roskilde', 'Besked: Solceller på taget'].join('\n'), link_status: 'unidentified', received_at: new Date().toISOString(), is_archived: false, is_read: false }]).select('id')
         const id = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
         if (id) u113EmailIds.push(id)
         r.seed = !!id
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
         const list = a.page.getByTestId('cockpit-web-inquiries')
-        await list.getByText(subj).first().waitFor({ timeout: 60_000 }).catch(() => {})
-        r.vises = (await list.getByText(subj).count()) > 0
-        await list.getByText(subj).first().click({ timeout: 30_000 }).catch(() => {})
+        await list.getByText(who).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.vises = /Roskilde/.test((await list.locator('li', { hasText: who }).first().textContent().catch(() => '')) ?? '')
+        await list.getByText(who).first().click({ timeout: 30_000 }).catch(() => {})
         await a.page.waitForURL(/\/dashboard\/mail\?filter=webform/, { timeout: 60_000 }).catch(() => {})
         r.aabner_webform = a.page.url().includes('filter=webform')
+        // N81: kontaktkortet øverst i mailen viser formularens felter (telefon som ring-op-link)
+        await a.page.getByTestId('web-inquiry-card').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kontaktkort = /12345678/.test((await a.page.getByTestId('web-inquiry-phone').textContent().catch(() => '')) ?? '')
         // N67b: "Opret lead" direkte fra cockpittet → leadet åbnes (kontaktdata fra formularen, kilde website)
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
-        await a.page.getByTestId('cockpit-web-inquiries').locator('li', { hasText: subj }).getByTestId('cockpit-create-lead').click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('cockpit-web-inquiries').locator('li', { hasText: who }).getByTestId('cockpit-create-lead').click({ timeout: 60_000 }).catch(() => {})
         await a.page.waitForURL(/\/dashboard\/leads\/[0-9a-f-]{36}/, { timeout: 60_000 }).catch(() => {})
         const ldRow = (await c.admin.from('leads').select('id, email, source').eq('custom_fields->>source_email_id', id ?? '').maybeSingle()).data as { id: string; email: string; source: string } | null
         u122LeadId = ldRow?.id ?? null
@@ -3644,7 +3684,7 @@ ${m.text()}`) })
         if (!r.adresse_paa_kunde) console.log(`[U122] kundeadresse: ${JSON.stringify({ a: newCust?.billing_address, p: newCust?.billing_postal_code, b: newCust?.billing_city })}`)
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
         await a.page.getByText('Henvendelser fra hjemmesiden').first().waitFor({ timeout: 60_000 }).catch(() => {})
-        r.vaek_med_lead = !!u122LeadId && (await a.page.getByTestId('cockpit-web-inquiries').getByText(subj).count()) === 0
+        r.vaek_med_lead = !!u122LeadId && (await a.page.getByTestId('cockpit-web-inquiries').getByText(who).count()) === 0
         const m = await login(montor)
         await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
         r.montoer_intet_kort = (await m.page.getByText('Henvendelser fra hjemmesiden').count()) === 0
@@ -3833,6 +3873,13 @@ ${m.text()}`) })
         r.auto_vises = (await a.page.getByText(`[HARNESS] auto ${stamp}`).count()) > 0
         r.manuel_skjult = (await a.page.getByText(`[HARNESS] manuel ${stamp}`).count()) === 0
         r.maerke = /mangler e-mail/.test((await a.page.getByTestId('customer-auto-chip').first().textContent().catch(() => '')) ?? '')
+        // N80: kundekortet viser "Mangler e-mail" i stedet for pladsholder-adressen
+        const autoId = ((ins.data ?? []) as Array<{ id: string }>)[0]?.id
+        await gotoSafe(a.page, `${base}/dashboard/customers/${autoId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('customer-email-missing').waitFor({ timeout: 60_000 }).catch(() => {})
+        const placeholderShown = await a.page.getByText('@elta-crm.local').count()
+        r.kort_mangler_email = (await a.page.getByTestId('customer-email-missing').count()) === 1 && placeholderShown === 0
+        if (!r.kort_mangler_email) console.log(`[U125] mangler-email=${await a.page.getByTestId('customer-email-missing').count()} pladsholder-forekomster=${placeholderShown} html=${await a.page.getByText('@elta-crm.local').first().evaluate((e) => (e.parentElement?.outerHTML ?? e.outerHTML).slice(0, 400)).catch(() => '-')}`)
         out.push({ id: 'U125 N74 kunder oprettet fra mail', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} ${ins.error?.message ?? ''}` })
       }
 
@@ -3855,6 +3902,26 @@ ${m.text()}`) })
         r.aegte_vises = (await card.getByText(`[HARNESS] ægte kunde ${stamp}`).count()) > 0
         r.leverandoer_skjult = (await card.getByText(`[HARNESS] lev-kunde ${stamp}`).count()) === 0
         out.push({ id: 'U126 N75 leverandør-"kunder" ikke i nye kunder', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} ${sup.error?.message ?? ''} ${ins.error?.message ?? ''}` })
+      }
+
+      // U128 N83: cockpit "Leads — opfølgning" viser et åbent lead uden ændring i > 7 dage (ældst først); montør ser intet kort
+      if (want('U128')) {
+        const r: Record<string, boolean> = {}
+        const name = `[HARNESS] gammelt lead ${stamp}`
+        const ld = await c.admin.from('leads').insert([{ company_name: name, contact_person: 'Gammel', email: `lead-${stamp}@harness.test`, status: 'new', source: 'website',
+          created_by: adminUser.id, created_at: '2019-06-01T09:00:00Z', updated_at: '2019-06-01T09:00:00Z' }]).select('id, updated_at')
+        const lead = (ld.data?.[0] as { id?: string; updated_at?: string } | undefined)
+        if (lead?.id) u128LeadIds.push(lead.id)
+        r.seed = !!lead?.id && (lead.updated_at ?? '').startsWith('2019')
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const card = a.page.getByTestId('cockpit-stale-leads')
+        await card.getByText(name).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.lead_vises = (await card.getByText(name).count()) > 0
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.montoer_intet_kort = (await m.page.getByText('Leads — opfølgning').count()) === 0
+        await m.ctx.close().catch(() => {})
+        out.push({ id: 'U128 N83 leads uden opfølgning i cockpittet', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} ${ld.error?.message ?? ''} upd=${lead?.updated_at ?? '-'}` })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
@@ -4418,6 +4485,7 @@ ${m.text()}`) })
     for (const id of u115CustomerIds) await c.admin.from('customers').delete().eq('id', id)
     if (u114MessageId) await c.admin.from('portal_messages').delete().eq('id', u114MessageId)
     if (u122LeadId) await c.admin.from('leads').delete().eq('id', u122LeadId)
+    for (const id of u128LeadIds) await c.admin.from('leads').delete().eq('id', id)
     if (u113EmailIds.length) await c.admin.from('incoming_emails').delete().in('id', u113EmailIds)
     if (u111OfferId) await c.admin.from('offers').delete().eq('id', u111OfferId)
     if (u111SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u111SupplierId); await c.admin.from('suppliers').delete().eq('id', u111SupplierId) }

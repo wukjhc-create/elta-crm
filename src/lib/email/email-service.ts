@@ -54,6 +54,10 @@ export async function sendEmail(
   config?: Partial<SmtpConfig>
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
+    // N80: pladsholder-adresser (@elta-crm.local) kan aldrig leveres — afvis før SMTP
+    const { undeliverableRecipients, UNDELIVERABLE_MESSAGE } = await import('@/lib/email/undeliverable')
+    if (undeliverableRecipients(options.to).length) return { success: false, error: UNDELIVERABLE_MESSAGE }
+
     const transporter = createTransporter(config)
 
     // Get from address

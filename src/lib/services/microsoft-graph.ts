@@ -657,6 +657,11 @@ export async function sendEmailViaGraph(
     if (recipients.length === 0 || recipients.some((r) => !r || !r.includes('@'))) {
       return { success: false, error: 'Ugyldig modtager-adresse' }
     }
+    // N80: pladsholder-adresser (@elta-crm.local) kan aldrig leveres
+    const { undeliverableRecipients, UNDELIVERABLE_MESSAGE } = await import('@/lib/email/undeliverable')
+    if (undeliverableRecipients(recipients).length) {
+      return { success: false, error: UNDELIVERABLE_MESSAGE }
+    }
     if (!options.subject) {
       return { success: false, error: 'Emne mangler' }
     }

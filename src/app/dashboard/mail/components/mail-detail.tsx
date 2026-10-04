@@ -1,6 +1,7 @@
 'use client'
 
 import { CreateLeadFromMailButton } from './create-lead-from-mail-button'
+import { WebInquiryCard } from './web-inquiry-card'
 import { useState, useEffect } from 'react'
 import {
   Mail,
@@ -675,6 +676,7 @@ export function MailDetail({
       {/* EMAIL BODY                                     */}
       {/* ============================================== */}
       <div className="flex-1 overflow-y-auto p-5">
+        <div className="mb-4 empty:hidden"><WebInquiryCard email={email} /></div>
         {email.body_html ? (
           <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }} />
         ) : (

@@ -415,12 +415,19 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">E-mail</p>
-                    <a
-                      href={`mailto:${customer.email}`}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {customer.email}
-                    </a>
+                    {/* N80: pladsholder fra mail-automatikken (@elta-crm.local) — kan ikke modtage mail */}
+                    {(customer.email ?? '').toLowerCase().endsWith('@elta-crm.local') ? (
+                      <p className="font-medium text-amber-800" data-testid="customer-email-missing">
+                        Mangler e-mail <span className="text-xs font-normal text-amber-700">(oprettet automatisk fra en mail — ret via Rediger)</span>
+                      </p>
+                    ) : (
+                      <a
+                        href={`mailto:${customer.email}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {customer.email}
+                      </a>
+                    )}
                   </div>
                 </div>
                 {customer.phone && (

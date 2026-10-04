@@ -563,6 +563,12 @@ export function IncomingInvoiceDetailClient({
                 Forhåndsvis & godkend
               </Button>
               <Button variant="outline" onClick={() => setShowReject(true)} disabled={busy}>Afvis</Button>
+              {/* N79: genvej for kundemails/ansøgninger der er havnet som "faktura" (N68 "Ikke en faktura?") —
+                  udfylder kun begrundelsen; afvisningen bekræftes som altid */}
+              <Button variant="outline" data-testid="invoice-reject-not-invoice" disabled={busy}
+                onClick={() => { setRejectReason('Ikke en leverandørfaktura (kundemail/henvendelse — ikke et bilag)'); setShowReject(true) }}>
+                Ikke en faktura
+              </Button>
               <Button variant="outline" onClick={reparse} disabled={busy}>Kør parse + match igen</Button>
             </div>
           </div>

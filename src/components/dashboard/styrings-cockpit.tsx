@@ -74,6 +74,7 @@ export function StyringsCockpit({ overview }: Props) {
         <CasesCard overview={overview} />
         <OffersCard overview={overview} />
         {overview.webInquiries.allowed && <WebInquiriesCard overview={overview} />}
+        {overview.staleLeads.allowed && overview.staleLeads.count > 0 && <StaleLeadsCard overview={overview} />}
         <NewCustomersCard overview={overview} />
         <PortalMessagesCard overview={overview} />
         <UnbilledCard overview={overview} />
@@ -352,7 +353,7 @@ function WebInquiriesCard({ overview }: { overview: DashboardOverview }) {
             <li key={m.id} className="flex items-center gap-2">
               <Link href={`/dashboard/mail?filter=webform&emailId=${m.id}`} className="flex-1 min-w-0 py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
                 <div className="min-w-0">
-                  <div className={`truncate ${m.unread ? 'font-semibold' : 'font-medium'}`}>{m.subject || 'Henvendelse'}</div>
+                  <div className={`truncate ${m.unread ? 'font-semibold' : 'font-medium'}`} data-testid="cockpit-web-inquiry-title">{m.contact || m.subject || 'Henvendelse'}</div>
                   <div className="truncate text-gray-500">{fmtDateDK(m.received_at)}{m.unread ? ' · ulæst' : ''}</div>
                 </div>
                 <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(m.ageDays, 2)}`}>
@@ -365,6 +366,44 @@ function WebInquiriesCard({ overview }: { overview: DashboardOverview }) {
           ))}
         </ul>
       )}
+    </Card>
+  )
+}
+
+// =====================================================
+// N83. Leads uden opfølgning (kun leads.edit; vises kun når der er nogen)
+// =====================================================
+
+const LEAD_STATUS_DA: Record<string, string> = { new: 'Ny', contacted: 'Kontaktet', qualified: 'Kvalificeret', proposal: 'Tilbud', negotiation: 'Forhandling' }
+
+function StaleLeadsCard({ overview }: { overview: DashboardOverview }) {
+  const { count, items } = overview.staleLeads
+  return (
+    <Card
+      title="Leads — opfølgning"
+      icon={<ListChecks className="h-4 w-4" />}
+      tone="amber"
+      href="/dashboard/leads"
+      headline={count}
+      headlineLabel="åbne leads uden ændring i 7 dage"
+      error={overview.errors.staleLeads}
+    >
+      <ul className="text-xs divide-y" data-testid="cockpit-stale-leads">
+        {items.map((l) => (
+          <li key={l.id}>
+            <Link href={`/dashboard/leads/${l.id}`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{l.name}</div>
+                <div className="truncate text-gray-500">{LEAD_STATUS_DA[l.status] ?? l.status}</div>
+              </div>
+              <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(l.ageDays, 14)}`}>
+                {l.ageDays}d
+                <ChevronRight className="h-3 w-3 opacity-50" />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </Card>
   )
 }
