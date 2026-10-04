@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -396,6 +396,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u110OfferId: string | null = null
   let u111OfferId: string | null = null
   let u111SupplierId: string | null = null
+  let u113EmailIds: string[] = []
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -3450,6 +3451,26 @@ ${m.text()}`) })
         out.push({ id: 'U112 N58 Ny-sag med arbejde → Sæt til I gang', ok: !!withWork && !!empty && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U113 N59: "Markér viste som læst" i mailindbakken markerer de viste ulæste mails som læst i DB
+      if (want('U113') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const nowIso = new Date().toISOString()
+        const em = await c.admin.from('incoming_emails').insert([1, 2].map((n) => ({ sender_email: `ui-profit-${stamp}@harness.test`, sender_name: 'Harness Kunde',
+          subject: `[HARNESS] ulæst ${n} ${stamp}`, body_text: 'test', customer_id: profitCustomerId, link_status: 'linked', received_at: nowIso, is_archived: false, is_read: false }))).select('id')
+        u113EmailIds = ((em.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+        await gotoSafe(a.page, `${base}/dashboard/mail`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByText(`[HARNESS] ulæst 1 ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.knap_vist = (await a.page.getByTestId('mail-mark-visible-read').count()) === 1
+        await a.page.getByTestId('mail-mark-visible-read').click({ timeout: 30_000 }).catch(() => {})
+        let unread = u113EmailIds.length
+        for (let i = 0; i < 15 && unread > 0; i++) {
+          await new Promise((res) => setTimeout(res, 1000))
+          unread = ((await c.admin.from('incoming_emails').select('id').in('id', u113EmailIds).eq('is_read', false)).data ?? []).length
+        }
+        r.markeret_laest = u113EmailIds.length === 2 && unread === 0
+        out.push({ id: 'U113 N59 markér viste mails som læst', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ulæste tilbage=${unread}` })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -4008,6 +4029,7 @@ ${m.text()}`) })
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
     if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
+    if (u113EmailIds.length) await c.admin.from('incoming_emails').delete().in('id', u113EmailIds)
     if (u111OfferId) await c.admin.from('offers').delete().eq('id', u111OfferId)
     if (u111SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u111SupplierId); await c.admin.from('suppliers').delete().eq('id', u111SupplierId) }
     if (u110OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u110OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u110OfferId); await c.admin.from('offers').delete().eq('id', u110OfferId) }

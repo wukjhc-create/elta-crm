@@ -292,6 +292,27 @@ export async function markEmailAsRead(id: string): Promise<void> {
   revalidatePath('/dashboard/mail')
 }
 
+/**
+ * N59: markér flere mails som læst på én gang (de viste i listen) — samme gate og RLS som markEmailAsRead.
+ * Ikke-destruktivt; den enkelte mail kan markeres ulæst igen. Prod: 50 af 70 mails (30 d) stod ulæste.
+ */
+export async function markEmailsAsRead(ids: string[]): Promise<{ success: boolean; updated: number; error?: string }> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, updated: 0, error: denied }
+  const clean = (ids || []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500)
+  if (clean.length === 0) return { success: true, updated: 0 }
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('incoming_emails')
+    .update({ is_read: true })
+    .in('id', clean)
+    .eq('is_read', false)
+    .select('id')
+  if (error) return { success: false, updated: 0, error: 'Kunne ikke markere som læst' }
+  revalidatePath('/dashboard/mail')
+  return { success: true, updated: (data ?? []).length }
+}
+
 export async function markEmailAsUnread(id: string): Promise<void> {
   const denied = await gateDenied('inbox.view')
   if (denied) return // RBAC: stille afvisning (void)

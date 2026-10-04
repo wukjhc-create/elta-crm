@@ -24,6 +24,7 @@ import {
   getIncomingEmails,
   getIncomingEmailStats,
   markEmailAsRead,
+  markEmailsAsRead,
   markEmailAsUnread,
   archiveEmail,
   linkEmailToCustomer,
@@ -698,6 +699,22 @@ export function MailClient() {
           <h1 className="text-3xl font-bold text-gray-900">Mail</h1>
           <p className="text-gray-600 mt-1 flex items-center gap-2 flex-wrap">
             <span>Samlet indbakke ({stats.total} emails, {stats.unread} ulæste)</span>
+            {/* N59: ryd op i ulæste — markér de viste mails som læst (kan fortrydes pr. mail) */}
+            {emails.some((e) => !e.is_read) && (
+              <button
+                type="button"
+                data-testid="mail-mark-visible-read"
+                className="text-xs px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-50"
+                onClick={async () => {
+                  const ids = emails.filter((e) => !e.is_read).map((e) => e.id)
+                  setEmails((prev) => prev.map((e) => (ids.includes(e.id) ? { ...e, is_read: true } : e)))
+                  setStats((prev) => ({ ...prev, unread: Math.max(0, prev.unread - ids.length) }))
+                  await markEmailsAsRead(ids).catch(() => null)
+                }}
+              >
+                Markér viste som læst ({emails.filter((e) => !e.is_read).length})
+              </button>
+            )}
             {graphDiag && (
               <span className="inline-flex items-center gap-1 text-xs">
                 {(graphDiag.mailboxes || [graphDiag.mailbox]).map(mb => {
