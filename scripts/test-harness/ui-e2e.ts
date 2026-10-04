@@ -128,6 +128,8 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U96 N48: kalender "Mangler planlægning" (sag uden arbejdsordre / arbejdsordre uden dato) → Planlægning-fane; montør uden panel
+ *   U95 N47: kladde-tilbud markerer linjer med ændret leverandørpris; "Opdater pris" sætter kost i begge felter + ny salgspris; salg ser intet
  *   U94 N46: e-conomic-forhåndsvisning af kundebetalingens kassekladde-postering (beløb, dato, ikke-eksporteret forklaret; intet sendt)
  *   U93 N44: cockpit "Nye kunder uden tilbud" (30 d, ingen tilbud/sag) + genvej åbner tilbudsformularen; montør uden kort
  *   U92 vedhæft PDF på mail-faktura uden bilag → privat fil, PDF-tekst, genlæst (nr./beløb), audit; knap væk med fil
@@ -175,8 +177,8 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90'],
+  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96'],
   economy: ['U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -365,6 +367,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u93OfferId: string | null = null
   let u93EmailId: string | null = null
   let u94InvoiceId: string | null = null
+  let u95OfferId: string | null = null
+  let u95SupplierId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -2997,6 +3001,71 @@ ${m.text()}`) })
         out.push({ id: 'U94 N46 e-conomic betalingspostering (forhåndsvisning)', ok: !!u94InvoiceId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · "${txt.replace(/\s+/g, ' ').slice(0, 220)}"` })
       }
 
+      // U95 N47: kladde-tilbud viser linjer hvor leverandørprisen er ændret (+25 %); "Opdater pris" sætter ny kost BÅDE i
+      // cost_price og supplier_cost_price_at_creation og ny salgspris; salg ser ikke kortet
+      if (want('U95') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U95 grossist ${stamp}`, code: `HU95${stamp}`, is_active: true }]).select('id')
+        u95SupplierId = (sup.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const sp = u95SupplierId ? await c.admin.from('supplier_products').insert([{ supplier_id: u95SupplierId, supplier_sku: `H95-${stamp}`, supplier_name: `Harness U95 vare ${stamp}`, cost_price: 100, unit: 'stk', is_available: true }]).select('id') : null
+        const spId = (sp?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-PC-${stamp}`, title: `[HARNESS] prisændring ${stamp}`, customer_id: profitCustomerId, status: 'draft', created_by: salg.id, tax_percentage: 25 }]).select('id')
+        u95OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u95OfferId) await c.admin.from('offer_line_items').insert([{ offer_id: u95OfferId, position: 1, description: `PC vare ${stamp}`, quantity: 2, unit: 'stk',
+          unit_price: 100, total: 200, cost_price: 80, supplier_cost_price_at_creation: 80, supplier_margin_applied: 25, supplier_product_id: spId, margin_percentage: 25, sale_price: 100 }])
+        await gotoSafe(a.page, `${base}/dashboard/offers/${u95OfferId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const card = a.page.getByTestId('offer-supplier-price-changes')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kort_25pct = ((await card.getByTestId('supplier-price-delta').first().textContent().catch(() => '')) ?? '').includes('25')
+        await card.getByTestId('supplier-price-refresh').first().click({ timeout: 30_000 }).catch(() => {})
+        type PL = { cost_price: number; supplier_cost_price_at_creation: number; unit_price: number }
+        const readL = async () => ((await c.admin.from('offer_line_items').select('cost_price, supplier_cost_price_at_creation, unit_price').eq('offer_id', u95OfferId ?? '').maybeSingle()).data as PL | null)
+        let l = await readL()
+        for (let i = 0; i < 20 && Number(l?.cost_price) !== 100; i++) { await new Promise((res) => setTimeout(res, 1000)); l = await readL() }
+        r.kost_begge_felter = Number(l?.cost_price) === 100 && Number(l?.supplier_cost_price_at_creation) === 100
+        r.ny_salgspris = Number(l?.unit_price) > 100
+        await a.page.waitForTimeout(1500)
+        r.kort_vaek = (await a.page.getByTestId('offer-supplier-price-changes').count()) === 0
+        const s = await login(salg)
+        await gotoSafe(s.page, `${base}/dashboard/offers/${u95OfferId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await s.page.getByText(`PC vare ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.salg_intet_kort = (await s.page.getByTestId('offer-supplier-price-changes').count()) === 0
+        await s.ctx.close().catch(() => {})
+        out.push({ id: 'U95 N47 leverandørprisændring på kladde-tilbud', ok: !!u95OfferId && !!spId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · linje=${JSON.stringify(l)}` })
+      }
+
+      // U96 N48: kalenderen viser "Mangler planlægning" — aktiv sag uden arbejdsordre og sag med arbejdsordre uden dato;
+      // link til sagens Planlægning-fane; montør ser ikke panelet. (Seedet som gamle sager → øverst i ældste-først-listen.)
+      if (want('U96') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const mk = async (title: string) => {
+          const sc = await c.admin.from('service_cases').insert([{ title, customer_id: profitCustomerId, status: 'new', priority: 'medium', source: 'manual',
+            created_by: adminUser.id, created_at: '2020-01-01T08:00:00Z' }]).select('id')
+          const id = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (id) listCaseIds.push(id)
+          return id
+        }
+        const noWo = await mk(`[HARNESS] uplanlagt ${stamp}`)
+        const noDate = await mk(`[HARNESS] uden dato ${stamp}`)
+        if (noDate) await c.admin.from('work_orders').insert([{ case_id: noDate, title: `[HARNESS] job uden dato ${stamp}`, status: 'planned' }])
+        await gotoSafe(a.page, `${base}/dashboard/calendar`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const panel = a.page.getByTestId('planning-backlog')
+        await panel.waitFor({ timeout: 60_000 }).catch(() => {})
+        if (!(await panel.getAttribute('open').catch(() => null))) await panel.locator('summary').click().catch(() => {})
+        const txt = (await panel.innerText().catch(() => '')) ?? ''
+        r.uden_arbejdsordre = txt.includes(`[HARNESS] uplanlagt ${stamp}`) && /Ingen arbejdsordre/.test(txt)
+        r.uden_dato = txt.includes(`[HARNESS] uden dato ${stamp}`) && /Arbejdsordre uden dato/.test(txt)
+        await panel.getByText(`[HARNESS] uplanlagt ${stamp}`).first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForURL(/\/dashboard\/orders\/[0-9a-f-]{36}\?tab=planlaegning/, { timeout: 60_000 }).catch(() => {})
+        r.link_til_planlaegning = a.page.url().includes(`/dashboard/orders/${noWo}`) && a.page.url().includes('tab=planlaegning')
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard/calendar`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.montoer_intet_panel = (await m.page.getByTestId('planning-backlog').count()) === 0
+        await m.ctx.close().catch(() => {})
+        if (noDate) await c.admin.from('work_orders').delete().eq('case_id', noDate)
+        out.push({ id: 'U96 N48 kalender: mangler planlægning', ok: !!noWo && !!noDate && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3554,6 +3623,8 @@ ${m.text()}`) })
     if (u84OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u84OfferId); await c.admin.from('offers').delete().eq('id', u84OfferId) }
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
+    if (u95OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u95OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u95OfferId); await c.admin.from('offers').delete().eq('id', u95OfferId) }
+    if (u95SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u95SupplierId); await c.admin.from('suppliers').delete().eq('id', u95SupplierId) }
     if (u94InvoiceId) await c.admin.from('invoices').delete().eq('id', u94InvoiceId)
     if (u93EmailId) await c.admin.from('incoming_emails').delete().eq('id', u93EmailId)
     if (u93OfferId) await c.admin.from('offers').delete().eq('id', u93OfferId)

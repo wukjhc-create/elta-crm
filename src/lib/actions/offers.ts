@@ -1993,6 +1993,44 @@ export async function searchSupplierProductsLive(
  * Update line item with fresh supplier price.
  * Recalculates the unit price based on current supplier cost and margin.
  */
+export interface OfferSupplierPriceChange {
+  lineId: string
+  description: string
+  oldCost: number
+  newCost: number
+  deltaPct: number
+}
+
+/**
+ * N47: tilbudslinjer hvor leverandørens aktuelle nettopris afviger fra prisen da linjen blev lavet (±0,5 %). Kun
+ * kostpris-roller (nettopriser). Bruges til at advare før et kladde-tilbud sendes med forældede priser.
+ */
+export async function getOfferSupplierPriceChanges(offerId: string): Promise<ActionResult<OfferSupplierPriceChange[]>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
+    validateUUID(offerId, 'tilbud ID')
+    const { data: lines, error } = await supabase.from('offer_line_items')
+      .select('id, description, supplier_product_id, supplier_cost_price_at_creation').eq('offer_id', offerId).not('supplier_product_id', 'is', null)
+    if (error) return { success: false, error: 'Kunne ikke hente tilbudslinjer' }
+    const rows = (lines ?? []) as Array<{ id: string; description: string; supplier_product_id: string; supplier_cost_price_at_creation: number | string | null }>
+    if (!rows.length) return { success: true, data: [] }
+    const { data: sps } = await supabase.from('supplier_products').select('id, cost_price').in('id', Array.from(new Set(rows.map((r) => r.supplier_product_id))))
+    const current = new Map(((sps ?? []) as Array<{ id: string; cost_price: number | string | null }>).map((p) => [p.id, Number(p.cost_price ?? 0)]))
+    const out: OfferSupplierPriceChange[] = []
+    for (const r of rows) {
+      const oldCost = Number(r.supplier_cost_price_at_creation ?? 0)
+      const newCost = current.get(r.supplier_product_id) ?? 0
+      if (!(oldCost > 0) || !(newCost > 0)) continue
+      const deltaPct = Math.round(((newCost - oldCost) / oldCost) * 1000) / 10
+      if (Math.abs(deltaPct) >= 0.5) out.push({ lineId: r.id, description: r.description, oldCost, newCost, deltaPct })
+    }
+    return { success: true, data: out }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente prisændringer') }
+  }
+}
+
 export async function refreshLineItemPrice(
   lineItemId: string
 ): Promise<ActionResult<OfferLineItem>> {
@@ -2014,7 +2052,8 @@ export async function refreshLineItemPrice(
         supplier_product_id,
         supplier_margin_applied,
         offers!inner (
-          customer_id
+          customer_id,
+          status
         )
       `)
       .eq('id', lineItemId)
@@ -2022,6 +2061,12 @@ export async function refreshLineItemPrice(
 
     if (liError || !lineItem) {
       return { success: false, error: 'Linje ikke fundet' }
+    }
+
+    // N47: kun kladder — et sendt tilbud er et løfte til kunden; prisen ændres ikke bag kundens ryg
+    const offerStatus = (Array.isArray(lineItem.offers) ? lineItem.offers[0] : lineItem.offers)?.status
+    if (offerStatus && offerStatus !== 'draft') {
+      return { success: false, error: 'Kun kladder kan opdateres med ny leverandørpris' }
     }
 
     if (!lineItem.supplier_product_id) {
@@ -2074,6 +2119,8 @@ export async function refreshLineItemPrice(
       .update({
         unit_price: newUnitPrice,
         total,
+        // N47: kost opdateres begge steder — cost_price er det DB-beregningen bruger først
+        cost_price: Math.round(effectiveCostPrice * 100) / 100,
         supplier_cost_price_at_creation: supplierProduct.cost_price,
         supplier_margin_applied: marginPercentage,
       })

@@ -52,6 +52,7 @@ import { PackagePickerDialog } from '@/components/modules/packages/package-picke
 import { OfferTaskForm } from '@/components/modules/offers/offer-task-form'
 import { insertPackageIntoOffer } from '@/lib/actions/packages'
 import { fillMissingOfferLineCosts } from '@/lib/actions/profit'
+import { OfferSupplierPriceChanges } from '@/components/modules/offers/offer-supplier-price-changes'
 import { SendEmailModal, EmailTimeline } from '@/components/email'
 import {
   deleteOffer,
@@ -729,6 +730,11 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                   </button>
                 )}
               </div>
+            )}
+
+            {/* N47: leverandørpris ændret siden linjen blev lavet (kun kladder, kostpris-roller) */}
+            {showFinancials && offer.status === 'draft' && (
+              <OfferSupplierPriceChanges offerId={offer.id} showAmounts={showCostDetails} />
             )}
 
             {/* DB Warning Banner */}
