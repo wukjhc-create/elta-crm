@@ -441,6 +441,11 @@ function OverdueInvoicesCard({ overview }: { overview: DashboardOverview }) {
                   <div className="truncate font-medium">{i.invoice_number ?? 'Faktura'} · {i.customer_name ?? '—'}</div>
                   <div className="truncate text-gray-500">
                     {i.daysOverdue} dage over forfald{i.reminders > 0 ? ` · ${i.reminders} rykker${i.reminders === 1 ? '' : 'e'}` : ' · ingen rykker'}
+                    <span className="block" data-testid="cockpit-overdue-next">{
+                      i.next.kind === 'done' ? 'alle rykkere brugt — følg op manuelt'
+                        : i.next.kind === 'manual' ? `rykkertrin 3: manuel gennemgang${i.next.inDays ? ` om ${i.next.inDays} d` : ' nu'}`
+                        : `næste: rykker ${i.next.level}${i.next.inDays ? ` om ${i.next.inDays} d` : ' ved næste kørsel'}`
+                    }</span>
                   </div>
                 </div>
                 <span className="shrink-0 tabular-nums font-medium">{kr(i.amount)}</span>

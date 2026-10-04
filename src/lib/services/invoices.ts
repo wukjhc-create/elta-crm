@@ -8,6 +8,7 @@
  * transaction.
  */
 
+import { MIN_DAYS_BETWEEN_REMINDERS, pickReminderLevel } from '@/lib/invoices/reminder-plan' // regler delt med cockpittet (N89)
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
@@ -589,13 +590,6 @@ import {
   buildInvoiceReminderSubject,
 } from '@/lib/email/templates/invoice-reminder-email'
 
-const REMINDER_RULES = [
-  { level: 1 as const, minDaysOverdue: 3 },
-  { level: 2 as const, minDaysOverdue: 10 },
-  { level: 3 as const, minDaysOverdue: 20 },
-]
-
-const MIN_DAYS_BETWEEN_REMINDERS = 5
 const REMINDER_FROM_MAILBOX = 'kontakt@eltasolar.dk'
 
 /** Move invoice from draft → sent (sets sent_at). */
@@ -881,16 +875,6 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 function daysBetween(from: Date, to: Date): number {
   const ms = to.getTime() - from.getTime()
   return Math.floor(ms / (1000 * 60 * 60 * 24))
-}
-
-function pickReminderLevel(daysOverdue: number, currentCount: number): 1 | 2 | 3 | null {
-  // Use reminder_count to decide what's "next" — never repeat a level we
-  // already sent. count 0 → next is 1, count 1 → next is 2, count 2 → 3.
-  for (const rule of REMINDER_RULES) {
-    if (rule.level <= currentCount) continue
-    if (daysOverdue >= rule.minDaysOverdue) return rule.level
-  }
-  return null
 }
 
 async function logReminder(

@@ -111,7 +111,8 @@ export interface DashboardOverview {
     allowed: boolean
     count: number
     total: number
-    items: Array<{ id: string; invoice_number: string | null; customer_name: string | null; amount: number; daysOverdue: number; reminders: number }>
+    /** next: N89 — næste rykkertrin efter samme regler som invoice-reminders-cronen */
+    items: Array<{ id: string; invoice_number: string | null; customer_name: string | null; amount: number; daysOverdue: number; reminders: number; next: import('@/lib/invoices/reminder-plan').NextReminder }>
   }
   /** N50: ulæste kundebeskeder fra kundeportalen pr. kunde (kun customers.edit). */
   portal: {
@@ -495,13 +496,14 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         if (!ctx.hasPermission('invoices.view.all')) return
         overview.overdueInvoices.allowed = true
         const { calendarDaysSince } = await import('@/lib/utils/copenhagen-time')
+        const { nextReminder } = await import('@/lib/invoices/reminder-plan')
         const { data, error } = await supabase.from('invoices')
-          .select('id, invoice_number, invoice_type, final_amount, due_date, reminder_count, customer_id')
+          .select('id, invoice_number, invoice_type, final_amount, due_date, reminder_count, last_reminder_at, customer_id')
           .eq('status', 'sent').is('voided_at', null).not('due_date', 'is', null)
           .order('due_date', { ascending: true }).limit(500)
         if (error) throw new Error(error.message)
         const nowMs = Date.now()
-        const rows = ((data ?? []) as Array<{ id: string; invoice_number: string | null; invoice_type: string | null; final_amount: number | string | null; due_date: string; reminder_count: number | null; customer_id: string | null }>)
+        const rows = ((data ?? []) as Array<{ id: string; invoice_number: string | null; invoice_type: string | null; final_amount: number | string | null; due_date: string; reminder_count: number | null; last_reminder_at: string | null; customer_id: string | null }>)
           .filter((r) => r.invoice_type !== 'credit')
           .map((r) => ({ ...r, days: calendarDaysSince(r.due_date, nowMs) }))
           .filter((r) => r.days > 0)
@@ -519,6 +521,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           items: rows.slice(0, TOP_N).map((r) => ({
             id: r.id, invoice_number: r.invoice_number, customer_name: r.customer_id ? names.get(r.customer_id) ?? null : null,
             amount: Number(r.final_amount ?? 0) || 0, daysOverdue: r.days, reminders: Number(r.reminder_count ?? 0),
+            next: nextReminder(r.days, Number(r.reminder_count ?? 0), r.last_reminder_at ? calendarDaysSince(r.last_reminder_at.slice(0, 10), nowMs) : null),
           })),
         }
       } catch (err) {
