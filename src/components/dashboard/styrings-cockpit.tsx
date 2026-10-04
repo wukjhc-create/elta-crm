@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import type { DashboardOverview } from '@/lib/actions/dashboard-overview'
 import { CockpitCreateLeadButton } from './cockpit-create-lead-button'
+import { CockpitBulkLeadsButton } from './cockpit-bulk-leads-button'
 import { MailFreshnessSync } from './mail-freshness-sync'
 
 interface Props {
@@ -345,6 +346,7 @@ function WebInquiriesCard({ overview }: { overview: DashboardOverview }) {
       headlineLabel={count > 0 ? 'uden kunde eller lead (90 dage)' : 'henvendelser at følge op'}
       error={err}
     >
+      {count > 1 && <CockpitBulkLeadsButton count={count} />}
       {items.length === 0 ? (
         <EmptyRow text={err ? 'Kunne ikke hente data' : 'Alle henvendelser er fulgt op.'} />
       ) : (

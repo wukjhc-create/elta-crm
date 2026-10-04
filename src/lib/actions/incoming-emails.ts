@@ -2044,3 +2044,35 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
     return { success: false, error: err instanceof Error ? err.message : 'Der opstod en fejl' }
   }
 }
+
+/**
+ * N86: opret leads for alle åbne webhenvendelser (90 d, uden kunde, ikke arkiveret, uden lead) — samme afgrænsning
+ * som cockpittets kort. Hver mail går gennem createLeadFromEmailAction (samme gate, parser og dublet-værn);
+ * henvendelser uden læsbar e-mail springes over og tælles. Max 100 pr. kørsel. inbox.view + leads.create.
+ */
+export async function createLeadsForOpenWebInquiriesAction(): Promise<{ success: boolean; created: number; skipped: number; error?: string }> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('inbox.view') || !hasPermission('leads.create')) return { success: false, created: 0, skipped: 0, error: 'Manglende tilladelse: leads.create' }
+    const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+    const { data: mails, error } = await supabase.from('incoming_emails').select('id')
+      .ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null)
+      .eq('is_archived', false).gte('received_at', since).order('received_at', { ascending: false }).limit(200)
+    if (error) return { success: false, created: 0, skipped: 0, error: 'Kunne ikke hente henvendelser' }
+    const { data: leads } = await supabase.from('leads').select('custom_fields').not('custom_fields->>source_email_id', 'is', null).limit(5000)
+    const withLead = new Set(((leads ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>).map((l) => l.custom_fields?.source_email_id))
+    const open = ((mails ?? []) as Array<{ id: string }>).filter((m) => !withLead.has(m.id)).slice(0, 100)
+    let created = 0, skipped = 0
+    for (const m of open) {
+      const r = await createLeadFromEmailAction(m.id)
+      if (r.success && r.data && !r.data.existed) created++
+      else skipped++
+    }
+    revalidatePath('/dashboard')
+    revalidatePath('/dashboard/leads')
+    return { success: true, created, skipped }
+  } catch (err) {
+    logger.error('createLeadsForOpenWebInquiries failed', { error: err })
+    return { success: false, created: 0, skipped: 0, error: 'Kunne ikke oprette leads' }
+  }
+}
