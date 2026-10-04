@@ -43,6 +43,7 @@ const APPROVED: Record<string, string> = {
   '00178': '2026-10-03', // P-009 WAVE4 (kalkulations-/katalogtabeller), godkendt af Henrik i chat 2026-10-03
   '00182': '2026-10-03', // D2 audit-identitet, godkendt af Henrik i chat 2026-10-03
   '00183': '2026-10-03', // N4 trigram-indeks (uden for 02:00-sync), godkendt af Henrik i chat 2026-10-03
+  '00185': '2026-10-04', // N2 godkendelse af timer (time_logs.approval_status + guard-trigger), godkendt af Henrik i chat 2026-10-04
 }
 
 async function main() {
