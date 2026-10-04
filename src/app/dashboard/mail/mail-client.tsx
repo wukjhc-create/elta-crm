@@ -10,6 +10,7 @@ import {
   Clock,
   XCircle,
   ShieldAlert,
+  Archive,
   Bug,
   Loader2,
   ChevronDown,
@@ -27,6 +28,8 @@ import {
   markEmailsAsRead,
   markEmailAsUnread,
   archiveEmail,
+  archiveEmails,
+  unarchiveEmail,
   linkEmailToCustomer,
   unlinkEmailFromCustomer,
   ignoreIncomingEmail,
@@ -57,7 +60,7 @@ import type {
 // Filter tab config
 // =====================================================
 
-type FilterTab = 'all' | EmailLinkStatus | 'requires_response' | 'webform'
+type FilterTab = 'all' | EmailLinkStatus | 'requires_response' | 'webform' | 'archived'
 
 // Sprint 8E noise-cleanup: 'ignored'-tab er KUN synlig i debug-mode
 // (URL ?debug=1). Til daglig brug må støj/marketing/social-mails ikke
@@ -72,6 +75,8 @@ const BASE_FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[]
   { value: 'unidentified', label: 'Uidentificerede', icon: AlertCircle },
   { value: 'linked', label: 'Koblede', icon: CheckCircle2 },
   { value: 'pending', label: 'Afventer', icon: Clock },
+  // N63: arkiverede mails kan ses og gendannes (før forsvandt de uden vej tilbage)
+  { value: 'archived', label: 'Arkiveret', icon: Archive },
 ]
 
 const DEBUG_FILTER_TABS: { value: FilterTab; label: string; icon: typeof Mail }[] = [
@@ -120,6 +125,7 @@ export function MailClient() {
     ignored: 0,
     requiresResponse: 0,
     webform: 0,
+    archived: 0,
   })
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
@@ -190,6 +196,7 @@ export function MailClient() {
         ignored: statsResult.ignored,
         requiresResponse: statsResult.requiresResponse,
         webform: statsResult.webform,
+        archived: statsResult.archived,
       })
       setAllSyncStates(allStatesResult)
       setSyncState(syncStateResult)
@@ -318,6 +325,7 @@ export function MailClient() {
         ignored: statsResult.ignored,
         requiresResponse: statsResult.requiresResponse,
         webform: statsResult.webform,
+        archived: statsResult.archived,
       })
       setSyncState(syncStateResult)
       setLastRefresh(new Date())
@@ -532,6 +540,15 @@ export function MailClient() {
     // Fire and forget
     if (newRead) markEmailAsRead(id).catch(() => {})
     else markEmailAsUnread(id).catch(() => {})
+  }
+
+  const handleUnarchive = async (id: string) => {
+    const r = await unarchiveEmail(id).catch(() => null)
+    if (!r?.success) { toast.error('Kunne ikke gendanne', r?.error); return }
+    setEmails((prev) => prev.filter((e) => e.id !== id))
+    if (selectedEmail?.id === id) setSelectedEmail(null)
+    setStats((prev) => ({ ...prev, archived: Math.max(0, prev.archived - 1) }))
+    toast.success('Mailen er gendannet til indbakken')
   }
 
   const handleArchive = async (id: string) => {
@@ -1035,6 +1052,7 @@ export function MailClient() {
             tab.value === 'linked' ? stats.linked :
             tab.value === 'pending' ? stats.pending :
             tab.value === 'ignored' ? stats.ignored :
+            tab.value === 'archived' ? stats.archived :
             null
           return (
             <button
@@ -1064,6 +1082,30 @@ export function MailClient() {
           )
         })}
       </div>
+
+      {/* N63: ryd op i uidentificerede — arkivér de viste (ikke-destruktivt; kan gendannes under "Arkiveret") */}
+      {currentFilter === 'unidentified' && emails.length > 0 && (
+        <div className="flex items-center gap-3 rounded-lg bg-gray-50 ring-1 ring-gray-200 px-4 py-2 text-sm text-gray-700" data-testid="mail-archive-visible-bar">
+          <span>Uidentificerede mails der ikke skal bruges kan arkiveres — de kan altid gendannes under &quot;Arkiveret&quot;.</span>
+          <button
+            type="button"
+            data-testid="mail-archive-visible"
+            className="ml-auto px-3 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100"
+            onClick={async () => {
+              const ids = emails.map((e) => e.id)
+              if (!window.confirm(`Arkivér ${ids.length} viste mail(s)? De kan gendannes under "Arkiveret".`)) return
+              const r = await archiveEmails(ids).catch(() => null)
+              if (!r?.success) { toast.error('Kunne ikke arkivere', r?.error); return }
+              setEmails([])
+              setSelectedEmail(null)
+              setStats((prev) => ({ ...prev, archived: prev.archived + r.updated, unidentified: Math.max(0, prev.unidentified - r.updated) }))
+              toast.success(`${r.updated} mail(s) arkiveret`)
+            }}
+          >
+            Arkivér viste ({emails.length})
+          </button>
+        </div>
+      )}
 
       {/* N24b: aldrig-behandlede mails → kør matcheren (kun eksisterende kunder, opretter intet) */}
       {currentFilter === 'pending' && stats.pending > 0 && (
@@ -1110,6 +1152,15 @@ export function MailClient() {
 
         {/* Right panel: email detail */}
         <div className="flex-1 bg-white rounded-lg border overflow-hidden">
+          {selectedEmail && currentFilter === 'archived' && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 border-b text-sm text-gray-700" data-testid="mail-archived-bar">
+              <Archive className="w-4 h-4" /> Mailen er arkiveret.
+              <button type="button" onClick={() => void handleUnarchive(selectedEmail.id)} data-testid="mail-unarchive"
+                className="ml-auto px-3 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100">
+                Gendan til indbakken
+              </button>
+            </div>
+          )}
           {selectedEmail ? (
             <MailDetail
               key={selectedEmail.id}

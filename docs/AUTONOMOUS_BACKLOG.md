@@ -159,10 +159,18 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N60 | Kunder/go-live | CSV-import af kunder (e-conomic/regneark): forhåndsvisning ny/dublet/ugyldig, server genvaliderer, max 500, audit | go-live | DONE (U115, unit) — pushet 4c5bfe5 |
 | N61 | Økonomi | Cockpit "Forfaldne fakturaer" (invoices.view.all): antal, beløb, dage over forfald, rykkere → fakturaen | prod-jobs-without-time (1 forfalden uden rykker) | DONE (U116) |
 | N62 | Planlægning/faktura | Kalender "Job uden registreret tid": overståede job (60 d) med montør uden timer → sagens Planlægning-fane (work_orders.plan) | kodeanalyse (glemte timer faktureres aldrig) | DONE (U117) |
-| N63 | Mail | Indbakke: filter "ukoblede" + arkivér valgte (ikke-destruktivt, is_archived) | N59 | UDSKUDT — filteret findes ("Uidentificerede"); arkivering mangler visning/gendan → bulk-arkivér først når "Arkiveret"-visning + Gendan findes |
+| N63 | Mail | Indbakke: filter "ukoblede" + arkivér valgte (ikke-destruktivt, is_archived) | N59 | DONE (U121) — fanen "Arkiveret" (tæller) + "Gendan til indbakken"; "Arkivér viste" på Uidentificerede (bekræftelse, max 500, kan gendannes). Filteret "ukoblede" fandtes ("Uidentificerede") |
 | N64 | Montør | "Mine job": påmindelse om job fra i går/tidligere uden registreret tid (egen tid, ingen kost) | N62 | DONE (U119) — "Afsluttet uden timer — registrér din tid" |
 | N65 | Tilbud | Tilbudsdetalje: "Kunden har ikke åbnet tilbuddet" / sidst set (viewed_at) i opfølgningen | salg | DONE (U118) — cockpittets opfølgning viser åbnet/ikke åbnet; "Set" fandtes på tilbuddet |
+| N66 | Leverandørfaktura/økonomi | Prod: 57/57 mail-fakturaer uden leverandør — kun 2 leverandører findes (AO, LM), fakturaer kommer fra ~25 domæner. "Vælg leverandør" på fakturaen (incoming_invoices.edit) + "Opret ny" (settings.suppliers) med afsenderdomænet som website; matcheren kobler næste faktura fra samme domæne (sender_domain_match, kun ét hit, aldrig gratis-mail) | prod-incoming-invoice-pipeline/-senders | DONE (unit sender-domain-test, U120) |
+| N67 | Salg/henvendelser | Prod: 43 webhenvendelser (23 på 90 d), 0 blev til kunde/lead, 31 ulæste — flowet "Opret lead/kunde fra mail" fandtes, men ingen så dem. Cockpit "Henvendelser fra hjemmesiden" (leads.create): 90 d, uden kunde og uden lead → mailen i fanen Webhenvendelser | prod-webform-funnel | DONE (U122) |
 | Q2 | Kvalitet | U16/U38 seed-konflikter på uq_suppliers_external (efterladte [HARNESS]-leverandører) — unikt nr. pr. kørsel / frigiv før seed; præcis dubletbesked i leverandørformularen | regression | DONE |
+
+### Checkpoint 2026-10-04 14:25
+- Pushet: N60 (kundeimport), N61 (forfaldne fakturaer), N62 (job uden tid), N64 (Mine job uden timer), N65 (tilbud åbnet).
+- Klar (tests kører): N63 (mail-arkiv + gendan), N66 (leverandør på mail-faktura + domæne-match), N67 (webhenvendelser i cockpit).
+- Regression: economy del 2 grøn (U38 seed-konflikt rettet); sales kører i 5-test-batches.
+- Prod read-only fund: 57/57 mail-fakturaer uden leverandør (kun 2 leverandører), 43 webhenvendelser uden opfølgning, 1 forfalden faktura uden rykker.
 
 ### Checkpoint 2026-10-04 11:00
 - N40–N48 pushet (realiseret DB, vedhæft PDF, mangler-bilag, nye kunder uden tilbud, mail→tilbud, e-conomic-betalingsforhåndsvisning, leverandørprisændring, mangler planlægning). Hver med isoleret e2e ≤ 5 min.

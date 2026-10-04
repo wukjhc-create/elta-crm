@@ -70,6 +70,7 @@ export function StyringsCockpit({ overview }: Props) {
         <TasksCard overview={overview} />
         <CasesCard overview={overview} />
         <OffersCard overview={overview} />
+        {overview.webInquiries.allowed && <WebInquiriesCard overview={overview} />}
         <NewCustomersCard overview={overview} />
         <PortalMessagesCard overview={overview} />
         <UnbilledCard overview={overview} />
@@ -308,6 +309,47 @@ function UnbilledCard({ overview }: { overview: DashboardOverview }) {
                   <div className="truncate text-gray-500">{c.customer_name ?? '—'} · {c.lines} linje{c.lines === 1 ? '' : 'r'}</div>
                 </div>
                 <span className="shrink-0 tabular-nums font-medium">{kr(c.sale)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+// =====================================================
+// N67. Henvendelser fra hjemmesiden (kun leads.create)
+// =====================================================
+
+function WebInquiriesCard({ overview }: { overview: DashboardOverview }) {
+  const { count, items } = overview.webInquiries
+  const err = overview.errors.webInquiries
+  return (
+    <Card
+      title="Henvendelser fra hjemmesiden"
+      icon={<Mail className="h-4 w-4" />}
+      tone={count > 0 ? 'red' : 'green'}
+      href="/dashboard/mail?filter=webform"
+      headline={count}
+      headlineLabel={count > 0 ? 'uden kunde eller lead (90 dage)' : 'henvendelser at følge op'}
+      error={err}
+    >
+      {items.length === 0 ? (
+        <EmptyRow text={err ? 'Kunne ikke hente data' : 'Alle henvendelser er fulgt op.'} />
+      ) : (
+        <ul className="text-xs divide-y" data-testid="cockpit-web-inquiries">
+          {items.map((m) => (
+            <li key={m.id}>
+              <Link href={`/dashboard/mail?filter=webform&emailId=${m.id}`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+                <div className="min-w-0">
+                  <div className={`truncate ${m.unread ? 'font-semibold' : 'font-medium'}`}>{m.subject || 'Henvendelse'}</div>
+                  <div className="truncate text-gray-500">{fmtDateDK(m.received_at)}{m.unread ? ' · ulæst' : ''} · opret lead/kunde fra mailen</div>
+                </div>
+                <span className={`shrink-0 text-[11px] flex items-center gap-1 ${ageBadge(m.ageDays, 2)}`}>
+                  {m.ageDays}d
+                  <ChevronRight className="h-3 w-3 opacity-50" />
+                </span>
               </Link>
             </li>
           ))}

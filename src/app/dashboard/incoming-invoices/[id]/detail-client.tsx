@@ -22,6 +22,7 @@ const TEST_INVOICE_PREFIX = 'TEST-'
 const TEST_SUPPLIER_NAME = 'TEST Leverandør ApS'
 import { Button } from '@/components/ui/button'
 import { IncomingInvoiceCasePicker } from './incoming-invoice-case-picker'
+import { IncomingInvoiceSupplierPicker } from './incoming-invoice-supplier-picker'
 import { ApprovePreviewDialog, type LinePlan } from './approve-preview-dialog'
 import { ConversionPreviewPanel } from './conversion-preview-panel'
 import { InvoiceControlPanel } from './invoice-control-panel'
@@ -325,6 +326,7 @@ export function IncomingInvoiceDetailClient({
               <span>{detail.supplier.name} <span className="text-gray-400">({detail.supplier.code ?? '—'})</span></span>
             ) : <span className="text-amber-700">Ikke matchet</span>}
           />
+          <Row label="Vælg leverandør" value={<IncomingInvoiceSupplierPicker invoiceId={inv.id} />} />
           <Row label="Tilknyttet sag"
             value={
               <div className="flex items-start justify-between gap-2 w-full">

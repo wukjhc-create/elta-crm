@@ -17,6 +17,7 @@ import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { MatchBreakdown } from '@/types/incoming-invoices.types'
 import { normalizeVatNumber } from '@/lib/invoice-control/vat'
+import { senderDomain, suppliersForDomain } from '@/lib/invoice-control/sender-domain'
 
 export interface MatchResult {
   supplierId: string | null
@@ -45,6 +46,8 @@ export interface MatchInput {
   excludeInvoiceId?: string | null
   /** Leverandoer kendt fra en struktureret kilde (API-import). Vinder over CVR/navn-gaet. */
   knownSupplierId?: string | null
+  /** N66: mail-fakturaens afsender — domaenet matches mod leverandoerens website/kontakt-e-mail (sidste udvej). */
+  senderEmail?: string | null
 }
 
 const WEIGHTS = {
@@ -116,6 +119,25 @@ export async function matchSupplierInvoice(input: MatchInput): Promise<MatchResu
       } else {
         breakdown.reasons.push(`ambiguous_name:${byCode.length}_candidates`)
       }
+    }
+  }
+  // N66: afsenderdomaene (fx faktura@sieg.dk) → leverandoeren med det website/den kontakt-e-mail. Kun praecis ét hit;
+  // gratis-mail er aldrig et signal. Samme vaegt som navne-match (svagere end CVR).
+  const domain = !supplierId ? senderDomain(input.senderEmail) : null
+  if (domain) {
+    const like = `%${escapeIlike(domain.split('.').slice(-2).join('.'))}%`
+    const { data: cands } = await supabase
+      .from('suppliers')
+      .select('id, name, website, contact_email')
+      .or(`website.ilike.${pgQuote(like)},contact_email.ilike.${pgQuote(like)}`)
+      .limit(20)
+    const hits = suppliersForDomain(domain, (cands ?? []) as Array<{ id: string; name: string; website: string | null; contact_email: string | null }>)
+    if (hits.length === 1) {
+      supplierId = hits[0].id
+      breakdown.supplier_name_match = WEIGHTS.supplier_name_match
+      breakdown.reasons.push(`sender_domain_match:${domain}`)
+    } else if (hits.length > 1) {
+      breakdown.reasons.push(`ambiguous_sender_domain:${domain}`)
     }
   }
 

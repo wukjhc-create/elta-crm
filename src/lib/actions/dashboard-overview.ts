@@ -91,6 +91,12 @@ export interface DashboardOverview {
     saleTotal: number
     cases: Array<{ id: string; case_number: string | null; title: string; customer_name: string | null; lines: number; sale: number }>
   }
+  /** N67: webhenvendelser (hjemmesidens formular, 90 d) uden kunde og uden lead — kun leads.create. */
+  webInquiries: {
+    allowed: boolean
+    count: number
+    items: Array<{ id: string; subject: string | null; received_at: string; ageDays: number; unread: boolean }>
+  }
   /** N61: sendte fakturaer over forfald (ikke betalt/annulleret/kreditnota; kun invoices.view.all). */
   overdueInvoices: {
     /** false = rollen må ikke se fakturaer → kortet skjules */
@@ -115,7 +121,7 @@ export interface DashboardOverview {
     empty: boolean
   }
   /** Per-section fejl saa UI kan vise en diskret advarsel uden at crashe. */
-  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers' | 'portal' | 'unbilled' | 'overdueInvoices', string>>
+  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers' | 'portal' | 'unbilled' | 'overdueInvoices' | 'webInquiries', string>>
   generated_at: string
 }
 
@@ -139,6 +145,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     portal: { unreadCount: 0, customers: [] },
     unbilled: { caseCount: 0, saleTotal: 0, cases: [] },
     overdueInvoices: { allowed: false, count: 0, total: 0, items: [] },
+    webInquiries: { allowed: false, count: 0, items: [] },
     visits: { upcoming: [], empty: true },
     errors: {},
     generated_at: new Date().toISOString(),
@@ -395,6 +402,39 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       } catch (err) {
         logger.error('getDashboardOverview: unbilled failed', { error: err })
         overview.errors.unbilled = err instanceof Error ? err.message : 'failed'
+      }
+    })(),
+
+    // N67: henvendelser fra hjemmesiden — prod 2026-10-04: 43 i alt (23 på 90 d), 0 blev til kunde/lead, 31 ulæste.
+    // Samme afgrænsning som mail-fanen "Webhenvendelser" (formsubmit + "henvendelse" + ingen kunde); uden lead
+    // (leads.custom_fields.source_email_id); arkiverede tæller ikke. Nyeste først.
+    (async () => {
+      try {
+        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+        const ctx = await getAuthenticatedClientWithRole()
+        if (!ctx.hasPermission('leads.create')) return
+        overview.webInquiries.allowed = true
+        const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+        const { data, error } = await supabase.from('incoming_emails')
+          .select('id, subject, received_at, is_read')
+          .ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null)
+          .eq('is_archived', false).gte('received_at', since)
+          .order('received_at', { ascending: false }).limit(200)
+        if (error) throw new Error(error.message)
+        const rows = (data ?? []) as Array<{ id: string; subject: string | null; received_at: string; is_read: boolean }>
+        if (!rows.length) return
+        const { data: leads, error: leadErr } = await supabase.from('leads').select('custom_fields').not('custom_fields->>source_email_id', 'is', null).limit(5000)
+        if (leadErr) throw new Error(leadErr.message)
+        const withLead = new Set(((leads ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>).map((l) => l.custom_fields?.source_email_id).filter(Boolean))
+        const open = rows.filter((r) => !withLead.has(r.id))
+        overview.webInquiries = {
+          allowed: true,
+          count: open.length,
+          items: open.slice(0, TOP_N).map((r) => ({ id: r.id, subject: r.subject, received_at: r.received_at, ageDays: daysBetween(r.received_at, now), unread: !r.is_read })),
+        }
+      } catch (err) {
+        logger.error('getDashboardOverview: webInquiries failed', { error: err })
+        overview.errors.webInquiries = err instanceof Error ? err.message : 'failed'
       }
     })(),
 

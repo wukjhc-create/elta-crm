@@ -48,7 +48,7 @@ import type {
 // =====================================================
 
 export async function getIncomingEmails(options?: {
-  filter?: EmailLinkStatus | 'all' | 'ao_matches' | 'requires_response' | 'webform'
+  filter?: EmailLinkStatus | 'all' | 'ao_matches' | 'requires_response' | 'webform' | 'archived'
   readFilter?: 'all' | 'read' | 'unread'
   sortOrder?: 'newest' | 'oldest'
   search?: string
@@ -78,7 +78,8 @@ export async function getIncomingEmails(options?: {
     `,
       { count: 'exact' }
     )
-    .eq('is_archived', false)
+    // N63: "Arkiveret"-fanen viser de arkiverede (kan gendannes); alle andre faner kun ikke-arkiverede
+    .eq('is_archived', filter === 'archived')
     .order('received_at', { ascending: sortOrder === 'oldest' })
     .range(offset, offset + pageSize - 1)
 
@@ -109,6 +110,9 @@ export async function getIncomingEmails(options?: {
       return { data: [], count: 0 }
     }
     query = query.in('id', ids)
+  } else if (filter === 'archived') {
+    // N63: samme støjregel som "Alle" (ignorerede vises kun i debug-fanen)
+    query = query.neq('link_status', 'ignored')
   } else if (filter === 'all') {
     // Sprint 8E noise-cleanup: 'Alle' viser ALDRIG ignored/noise.
     // Brugeren skal aktivt vælge 'Ignorerede'-tab (debug) for at se dem.
@@ -183,13 +187,14 @@ export async function getIncomingEmailStats(): Promise<{
   aoMatches: number
   requiresResponse: number
   webform: number
+  archived: number
 }> {
   const supabase = await createClient()
 
   // Sprint 8E noise-cleanup: total + unread ekskluderer ignored/noise
   // så CRM-tæller afspejler den arbejds-relevante indbakke.
   // ignored-counter beholder rå count så debug-tab viser præcis tal.
-  const [totalRes, unreadRes, unidentifiedRes, linkedRes, pendingRes, ignoredRes, aoRes, webformRes] = await Promise.all([
+  const [totalRes, unreadRes, unidentifiedRes, linkedRes, pendingRes, ignoredRes, aoRes, webformRes, archivedRes] = await Promise.all([
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', false).neq('link_status', 'ignored'),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_read', false).eq('is_archived', false).neq('link_status', 'ignored'),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'unidentified').eq('is_archived', false),
@@ -198,6 +203,7 @@ export async function getIncomingEmailStats(): Promise<{
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('link_status', 'ignored').eq('is_archived', false),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('has_ao_matches', true).eq('is_archived', false).neq('link_status', 'ignored'),
     supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', false).ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null),
+    supabase.from('incoming_emails').select('id', { count: 'exact', head: true }).eq('is_archived', true).neq('link_status', 'ignored'),
   ])
 
   // Sprint 8E-1A: requires_response counter (live-beregnet via helper)
@@ -221,6 +227,7 @@ export async function getIncomingEmailStats(): Promise<{
     aoMatches: aoRes.count || 0,
     requiresResponse,
     webform: webformRes.count || 0,
+    archived: archivedRes.count || 0,
   }
 }
 
@@ -260,7 +267,9 @@ export async function getLeadsForEmails(
   const { data } = await supabase
     .from('leads')
     .select('id, status, custom_fields')
-    .in('source', ['email'])
+    // N67: alle leads oprettet fra en mail — også webhenvendelser (source='website'; før kun 'email')
+    .not('custom_fields->>source_email_id', 'is', null)
+    .limit(5000)
 
   if (!data) return {}
 
@@ -337,6 +346,31 @@ export async function archiveEmail(id: string): Promise<void> {
 
   if (error) throw new Error(`Kunne ikke arkivere: ${error.message}`)
   revalidatePath('/dashboard/mail')
+}
+
+/** N63: arkivér flere mails (fx alle viste uidentificerede) — ikke-destruktivt, kan gendannes fra "Arkiveret". */
+export async function archiveEmails(ids: string[]): Promise<{ success: boolean; updated: number; error?: string }> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, updated: 0, error: denied }
+  const clean = (ids || []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500)
+  if (clean.length === 0) return { success: true, updated: 0 }
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('incoming_emails').update({ is_archived: true }).in('id', clean).eq('is_archived', false).select('id')
+  if (error) return { success: false, updated: 0, error: 'Kunne ikke arkivere' }
+  revalidatePath('/dashboard/mail')
+  return { success: true, updated: (data ?? []).length }
+}
+
+/** N63: gendan en arkiveret mail til indbakken. */
+export async function unarchiveEmail(id: string): Promise<{ success: boolean; error?: string }> {
+  const denied = await gateDenied('inbox.view')
+  if (denied) return { success: false, error: denied }
+  if (!/^[0-9a-f-]{36}$/i.test(String(id))) return { success: false, error: 'Ugyldigt id' }
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('incoming_emails').update({ is_archived: false }).eq('id', id).select('id')
+  if (error || !(data ?? []).length) return { success: false, error: 'Kunne ikke gendanne mailen' }
+  revalidatePath('/dashboard/mail')
+  return { success: true }
 }
 
 export async function linkEmailToCustomer(

@@ -482,7 +482,7 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
 
   const { data: row } = await supabase
     .from('incoming_invoices')
-    .select('id, raw_text, file_hash, status, supplier_id, supplier_name_extracted, supplier_vat_number, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat, payment_reference, iban')
+    .select('id, raw_text, file_hash, status, supplier_id, supplier_name_extracted, supplier_vat_number, invoice_number, invoice_date, due_date, currency, amount_excl_vat, vat_amount, amount_incl_vat, payment_reference, iban, source_email_id')
     .eq('id', invoiceId)
     .maybeSingle()
   if (!row) return { parsed: false, matched: false, duplicate: false, message: 'not found' }
@@ -511,6 +511,10 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
     fileHash: row.file_hash,
     excludeInvoiceId: invoiceId,
     knownSupplierId: row.supplier_id,
+    // N66: mail-fakturaens afsender (domaene → leverandoer)
+    senderEmail: row.source_email_id
+      ? ((await supabase.from('incoming_emails').select('sender_email').eq('id', row.source_email_id).maybeSingle()).data?.sender_email as string | null | undefined) ?? null
+      : null,
   })
 
   // If duplicate of another row, mark and stop.
