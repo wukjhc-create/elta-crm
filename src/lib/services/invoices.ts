@@ -13,6 +13,7 @@ import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { getStandardSaleRate } from '@/lib/services/rates'
+import { computeOutstanding, finalizedCreditsByInvoice } from '@/lib/invoices/outstanding'
 import type {
   InvoiceLineRow,
   InvoicePaymentStatus,
@@ -155,26 +156,28 @@ async function recomputeOriginalVoidStatus(
 
   const { data: original } = await supabase
     .from('invoices')
-    .select('id, final_amount, voided_at')
+    .select('id, final_amount, total_amount, voided_at')
     .eq('id', originalInvoiceId)
     .maybeSingle()
   if (!original) return
 
-  const origFinal = Number((original as { final_amount: number | string }).final_amount)
+  // B5 (faktura-review): afgøres på beløb EKSKL. moms — momsen afrundes pr. kreditnota, så inkl.-moms-summen kunne
+  // ende 1 øre under originalen (fuldt krediteret ekskl. moms, men aldrig annulleret → rykkere fortsatte)
+  const origFinal = Number((original as { total_amount: number | string }).total_amount)
   if (!Number.isFinite(origFinal) || origFinal <= 0) return
 
   // Only count credit notes that are FINALIZED (sent or paid).
   // Drafts must not contribute to voiding.
   const { data: finalizedCredits } = await supabase
     .from('invoices')
-    .select('final_amount, status')
+    .select('total_amount, status')
     .eq('credit_of_invoice_id', originalInvoiceId)
     .eq('invoice_type', 'credit')
     .in('status', ['sent', 'paid'])
 
   let creditedAbsIncl = 0
-  for (const c of (finalizedCredits ?? []) as Array<{ final_amount: number | string }>) {
-    creditedAbsIncl += Math.abs(Number(c.final_amount))
+  for (const c of (finalizedCredits ?? []) as Array<{ total_amount: number | string }>) {
+    creditedAbsIncl += Math.abs(Number(c.total_amount))
   }
 
   const currentlyVoided = !!(original as { voided_at: string | null }).voided_at
@@ -670,7 +673,10 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
     return []
   }
 
-  return (data ?? []).map((inv) => {
+  // B1 (faktura-review): intet udestående efter betalinger + udstedte kreditnotaer → ingen rykker
+  const credits = await finalizedCreditsByInvoice(supabase, (data ?? []).map((inv) => inv.id as string)).catch(() => new Map<string, number>())
+  const open = (data ?? []).filter((inv) => computeOutstanding(inv.final_amount, inv.amount_paid, credits.get(inv.id as string) ?? 0) > 0)
+  return open.map((inv) => {
     const days = inv.due_date ? daysBetween(new Date(inv.due_date), today) : 0
     return {
       ...(inv as InvoiceRow),
@@ -834,6 +840,15 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     return { invoiceId, status: 'failed', level, error: 'Graph not configured' }
   }
 
+  // B1 (faktura-review): rykkeren lyder på det UDESTÅENDE (efter delbetalinger og udstedte kreditnotaer), ikke hele
+  // fakturabeløbet; intet udestående → ingen rykker
+  const creditedIncl = (await finalizedCreditsByInvoice(supabase, [invoiceId])).get(invoiceId) ?? 0
+  const outstanding = computeOutstanding(invoice.final_amount, invoice.amount_paid, creditedIncl)
+  if (outstanding <= 0) {
+    await logReminder(invoiceId, level, 'skipped', recipient, 'nothing outstanding')
+    return { invoiceId, status: 'skipped', level, reason: 'nothing outstanding' }
+  }
+
   const params = {
     customerName: cust?.contact_person || cust?.company_name || 'Kunde',
     invoiceNumber: invoice.invoice_number,
@@ -841,7 +856,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
       style: 'currency',
       currency: invoice.currency || 'DKK',
       maximumFractionDigits: 2,
-    }).format(Number(invoice.final_amount) || 0),
+    }).format(outstanding),
     dueDateFormatted: invoice.due_date
       ? new Date(invoice.due_date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
       : '',
@@ -1336,11 +1351,16 @@ export async function registerPayment(
 
   const { data: inv, error: readErr } = await supabase
     .from('invoices')
-    .select('id, status, payment_status, amount_paid, final_amount, currency')
+    .select('id, status, payment_status, amount_paid, final_amount, currency, voided_at, invoice_type')
     .eq('id', invoiceId)
     .maybeSingle()
   if (readErr || !inv) {
     throw new Error(`registerPayment: invoice ${invoiceId} not found`)
+  }
+  // B2 (faktura-review): kun sendte (eller allerede betalte) fakturaer — en kladde blev ellers "betalt" uden at være
+  // sendt, og en annulleret faktura/kreditnota kunne modtage betaling
+  if (!['sent', 'paid'].includes(String(inv.status)) || inv.voided_at || inv.invoice_type === 'credit') {
+    throw new Error(`registerPayment: betaling kan kun registreres på en sendt faktura (status=${inv.status}${inv.voided_at ? ', annulleret' : ''})`)
   }
 
   // Safety: never mark paid twice. If payment_status is already 'paid',
@@ -1373,9 +1393,11 @@ export async function registerPayment(
   }
 
   const newAmountPaid = round2(Number(inv.amount_paid) + amt)
-  const final = Number(inv.final_amount)
+  // B1 (faktura-review): udestående efter udstedte kreditnotaer — før blev en delvist krediteret faktura aldrig betalt
+  const credited = (await finalizedCreditsByInvoice(supabase, [invoiceId])).get(invoiceId) ?? 0
+  const remaining = computeOutstanding(inv.final_amount, newAmountPaid, credited)
   let nextPaymentStatus: InvoicePaymentStatus = 'pending'
-  if (newAmountPaid >= final) nextPaymentStatus = 'paid'
+  if (remaining === 0) nextPaymentStatus = 'paid'
   else if (newAmountPaid > 0) nextPaymentStatus = 'partial'
 
   const patch: Record<string, unknown> = {

@@ -353,6 +353,10 @@ async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
       .select('*')
       .in('invoice_number', Array.from(new Set(numberMatches)))
       .neq('payment_status', 'paid')
+      // B2 (faktura-review): kun sendte, ikke-annullerede fakturaer (ikke kladder/kreditnotaer)
+      .eq('status', 'sent')
+      .is('voided_at', null)
+      .or('invoice_type.is.null,invoice_type.neq.credit')
     if (data && data.length > 0) return data as InvoiceRow[]
   }
 
@@ -365,6 +369,10 @@ async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
     .select('*')
     .not('payment_reference', 'is', null)
     .neq('payment_status', 'paid')
+    // B2 (faktura-review): kun sendte, ikke-annullerede fakturaer (ikke kladder/kreditnotaer)
+    .eq('status', 'sent')
+    .is('voided_at', null)
+    .or('invoice_type.is.null,invoice_type.neq.credit')
     .limit(2000)
 
   if (!refCandidates) return []
@@ -383,7 +391,10 @@ async function findByAmount(amount: number): Promise<InvoiceRow[]> {
     .select('*')
     .eq('final_amount', amount)
     .neq('payment_status', 'paid')
-    .in('status', ['sent', 'draft'])
+    // B2 (faktura-review): før også kladder → en bankoverførsel kunne "betale" en ikke-sendt kladde
+    .eq('status', 'sent')
+    .is('voided_at', null)
+    .or('invoice_type.is.null,invoice_type.neq.credit')
     .limit(50)
   return (data ?? []) as InvoiceRow[]
 }

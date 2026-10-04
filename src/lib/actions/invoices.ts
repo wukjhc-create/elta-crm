@@ -45,6 +45,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { copenhagenParts, calendarDaysSince } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { computeOutstanding, finalizedCreditsByInvoice } from '@/lib/invoices/outstanding'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import {
   computePaymentHealth,
@@ -1586,7 +1587,7 @@ export async function getInvoiceDashboardAction(
       supabase
         .from('invoices')
         .select(
-          'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, paid_at, due_date, voided_at, customer_id, case_id'
+          'id, invoice_number, invoice_type, status, payment_status, final_amount, amount_paid, currency, paid_at, due_date, voided_at, customer_id, case_id'
         )
         .order('id')
         .range(from, to)
@@ -1612,6 +1613,10 @@ export async function getInvoiceDashboardAction(
   }
 
   const list = invRes.data ?? []
+  // B1 (faktura-review): udestående = beløb − betalt − udstedte kreditnotaer (før hele beløbet)
+  const sentIds = list.filter((r) => r.status === 'sent' && !r.voided_at && r.invoice_type !== 'credit').map((r) => r.id as string)
+  const creditMap = await finalizedCreditsByInvoice(supabase, sentIds).catch(() => new Map<string, number>())
+  const openOf = (r: (typeof list)[number]) => computeOutstanding(r.final_amount, r.amount_paid, creditMap.get(r.id as string) ?? 0)
   let outstanding = 0
   let sentUnpaid = 0
   let overdueTotal = 0
@@ -1624,16 +1629,16 @@ export async function getInvoiceDashboardAction(
     const active = !r.voided_at && !isCredit
     if (r.status === 'draft' && !r.voided_at) draftCount += 1
     if (active && r.status === 'sent') {
-      sentUnpaid += Number(r.final_amount ?? 0)
-      outstanding += Number(r.final_amount ?? 0)
+      sentUnpaid += openOf(r)
+      outstanding += openOf(r)
     }
     if (r.status === 'paid' && r.paid_at && copenhagenParts(String(r.paid_at)).date.slice(0, 7) === ym) {
       paidThisMonth += Number(r.final_amount ?? 0)
     }
-    if (r.due_date && r.status === 'sent' && active) {
+    if (r.due_date && r.status === 'sent' && active && openOf(r) > 0) {
       const days = calendarDaysSince(String(r.due_date), todayMs)
       if (days > 0) {
-        overdueTotal += Number(r.final_amount ?? 0)
+        overdueTotal += openOf(r)
         overdueRaw.push({ ...r, _days: days })
       }
     }

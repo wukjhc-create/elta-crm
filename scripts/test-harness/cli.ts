@@ -472,6 +472,38 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'invoice-outstanding') {
+    // Faktura-review B1/B2 (staging): faktura 12.500 + udstedt kreditnota 2.500 + betaling 10.000 → betalt (før: "delvis"
+    // for evigt); betaling på en kladde afvises (før: kladden blev "betalt"). Ingen e-conomic (intet external_invoice_id).
+    const { registerPayment } = await import('../../src/lib/services/invoices')
+    const cust = (await stagingSql(`SELECT id FROM customers WHERE custom_fields->>'harness' IS NOT NULL LIMIT 1`))[0]
+    const stamp = Date.now()
+    const ids: string[] = []
+    const mk = async (row: Record<string, unknown>) => {
+      const { data, error } = await admin.from('invoices').insert([{ customer_id: cust.id, currency: 'DKK', payment_status: 'pending', amount_paid: 0, reminder_count: 0, ...row }]).select('id')
+      const id = (data?.[0] as { id?: string } | undefined)?.id
+      if (!id) throw new Error(`seed: ${error?.message}`)
+      ids.push(id)
+      return id
+    }
+    const res: Array<[string, boolean, string]> = []
+    try {
+      const orig = await mk({ invoice_number: `UI-E2E-OUT-${stamp}`, status: 'sent', sent_at: new Date().toISOString(), total_amount: 10000, tax_amount: 2500, final_amount: 12500 })
+      await mk({ invoice_number: `UI-E2E-OUTC-${stamp}`, status: 'sent', invoice_type: 'credit', credit_of_invoice_id: orig, total_amount: -2000, tax_amount: -500, final_amount: -2500 })
+      const p = await registerPayment(orig, 10000, 'harness')
+      const row = (await stagingSql(`SELECT status, payment_status FROM invoices WHERE id = '${orig}'`))[0]
+      res.push(['kredit_plus_betaling_er_betalt', p.fullyPaid && row.status === 'paid' && row.payment_status === 'paid', JSON.stringify(row)])
+      const draft = await mk({ invoice_number: `UI-E2E-OUTD-${stamp}`, status: 'draft', total_amount: 800, tax_amount: 200, final_amount: 1000 })
+      const err = await registerPayment(draft, 1000, 'harness').then(() => '', (e: Error) => e.message)
+      const d = (await stagingSql(`SELECT status, payment_status, (SELECT count(*)::int FROM invoice_payments WHERE invoice_id = '${draft}') n FROM invoices WHERE id = '${draft}'`))[0]
+      res.push(['kladde_kan_ikke_betales', /sendt faktura/.test(err) && d.status === 'draft' && d.n === 0, JSON.stringify(d)])
+    } finally {
+      for (const id of ids.reverse()) { await admin.from('invoice_payments').delete().eq('invoice_id', id); await admin.from('invoices').delete().eq('id', id) }
+    }
+    for (const [k, v, note] of res) log(`${v ? 'PASS' : 'FAIL'}  ${k}  ${note}`)
+    process.exitCode = res.every(([, v]) => v) ? 0 : 2
+    return
+  }
   if (SUB === 'offer-invoice-discount') {
     // Faktura-review (HØJ): faktura fra tilbud ignorerede rabat → rabat-tilbud afvises (negativ) ; uden rabat oprettes
     // fakturaen stadig (positiv kontrol). Staging; alt seedet ryddes. Ingen mail (kun createInvoiceFromOffer, ikke "send").
