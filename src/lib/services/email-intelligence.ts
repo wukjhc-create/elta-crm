@@ -773,6 +773,29 @@ async function processEmailIntelligenceUnsafe(
     return { type, customerId: null, created: false, skipped: true }
   }
 
+  // -------- Stage 2b (N74b): aldrig auto-kunde fra leverandører/egne adresser --------
+  // Prod 2026-10-04: 92/107 kunder er auto-oprettet fra mail, flere ud fra leverandørers signatur (telefon/adresse).
+  // Når afsenderdomænet tilhører en kendt leverandør (suppliers.website/kontakt-mail — deterministisk, N66) eller er
+  // eltasolar.dk, oprettes/matches ingen kunde automatisk; mailen står som uidentificeret til manuel håndtering.
+  {
+    const { senderDomain, suppliersForDomain } = await import('@/lib/invoice-control/sender-domain')
+    const dom = senderDomain(email.senderEmail)
+    let reason: string | null = dom === 'eltasolar.dk' ? 'Intern afsender (eltasolar.dk)' : null
+    if (!reason && dom) {
+      const { data: sups } = await supabase.from('suppliers').select('id, website, contact_email').limit(1000)
+      if (suppliersForDomain(dom, (sups ?? []) as Array<{ id: string; website: string | null; contact_email: string | null }>).length) {
+        reason = `Afsender er leverandør (${dom})`
+      }
+    }
+    if (reason) {
+      await supabase.from('incoming_emails').update({ link_status: 'unidentified', processed_at: new Date().toISOString() }).eq('id', emailId)
+      await writeIntelligenceLog({ emailId, subject: email.subject, classification: type, extractedName: extracted.name,
+        extractedPhone: extracted.phone, extractedAddress: extracted.address, confidence: extracted.confidence,
+        action: 'skipped', reason: `${reason} — ingen automatisk kunde (N74b)` })
+      return { type, customerId: null, created: false, skipped: true }
+    }
+  }
+
   // -------- Stage 3: decide (match or create) --------
   // Suppress sender-as-customer-email when:
   //  (a) the email is from a supplier (sender is the supplier, not the customer)
