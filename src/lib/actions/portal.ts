@@ -1315,8 +1315,14 @@ export async function markCustomerMessagesAsRead(
   messageIds: string[]
 ): Promise<ActionResult> {
   try {
-    await requireGate('customers.view')
-    const ids = (messageIds || []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500)
+    // Kode-review: kun roller der arbejder med kundens sag (customers.edit — samme som cockpittets kort); montør/bogholderi
+    // (customers.view) må ikke kunne fjerne beskeder fra sælgernes kø
+    const ctx = await requireGate('customers.edit')
+    const requested = (messageIds || []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500)
+    if (requested.length === 0) return { success: true }
+    // Kun beskeder brugeren selv kan se (RLS via brugerens klient) — service-role-opdateringen nedenfor omgår RLS
+    const { data: visible } = await ctx.supabase.from('portal_messages').select('id').in('id', requested)
+    const ids = ((visible ?? []) as Array<{ id: string }>).map((m) => m.id)
     if (ids.length === 0) return { success: true }
 
     // N50-fix: RLS' UPDATE-policy tillader kun medarbejderen at rette SINE EGNE beskeder → markering af kundens
