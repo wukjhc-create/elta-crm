@@ -472,6 +472,46 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'offer-invoice-discount') {
+    // Faktura-review (HØJ): faktura fra tilbud ignorerede rabat → rabat-tilbud afvises (negativ) ; uden rabat oprettes
+    // fakturaen stadig (positiv kontrol). Staging; alt seedet ryddes. Ingen mail (kun createInvoiceFromOffer, ikke "send").
+    const { createInvoiceFromOffer } = await import('../../src/lib/services/invoices')
+    const actors = await ensureActors(admin, seedBase)
+    const cust = (await stagingSql(`SELECT id FROM customers WHERE custom_fields->>'harness' IS NOT NULL LIMIT 1`))[0]
+    const stamp = Date.now()
+    const offerIds: string[] = []
+    const mk = async (tag: string, offerDisc: number, lineDisc: number) => {
+      const { data, error } = await admin.from('offers').insert([{ offer_number: `UI-E2E-DISC-${tag}-${stamp}`, title: `[HARNESS] rabat ${tag}`,
+        created_by: actors.ownerUid, customer_id: cust.id, status: 'accepted', accepted_at: new Date().toISOString(), discount_percentage: offerDisc }]).select('id')
+      const id = (data?.[0] as { id?: string } | undefined)?.id
+      if (!id) throw new Error(`seed: ${error?.message}`)
+      offerIds.push(id)
+      await admin.from('offer_line_items').insert([{ offer_id: id, position: 1, description: 'Linje', quantity: 1, unit: 'stk', unit_price: 1000, discount_percentage: lineDisc, total: 1000 * (1 - lineDisc / 100) }])
+      return id
+    }
+    const res: Array<[string, boolean]> = []
+    try {
+      for (const [tag, od, ld] of [['tilbudsrabat', 10, 0], ['linjerabat', 0, 15]] as Array<[string, number, number]>) {
+        const id = await mk(tag, od, ld)
+        const err = await createInvoiceFromOffer(id).then(() => '', (e: Error) => e.message)
+        const n = (await stagingSql(`SELECT count(*)::int n FROM invoices WHERE offer_id = '${id}'`))[0].n
+        res.push([`${tag}_afvist`, /rabat/.test(err) && n === 0])
+      }
+      const plain = await mk('uden', 0, 0)
+      const invId = await createInvoiceFromOffer(plain).catch(() => '')
+      res.push(['uden_rabat_oprettes', !!invId])
+    } finally {
+      for (const id of offerIds) {
+        const inv = await stagingSql(`SELECT id FROM invoices WHERE offer_id = '${id}'`)
+        for (const i of inv) { await admin.from('invoice_lines').delete().eq('invoice_id', i.id); await admin.from('invoices').delete().eq('id', i.id) }
+        await admin.from('offer_line_items').delete().eq('offer_id', id)
+        await admin.from('offers').delete().eq('id', id)
+      }
+    }
+    for (const [k, v] of res) log(`${v ? 'PASS' : 'FAIL'}  ${k}`)
+    process.exitCode = res.every(([, v]) => v) ? 0 : 2
+    return
+  }
   if (SUB === 'invoice-pipeline') {
     const { runInvoicePipeline, formatInvoicePipeline } = await import('./invoice-pipeline')
     const actors = await ensureActors(admin, seedBase)

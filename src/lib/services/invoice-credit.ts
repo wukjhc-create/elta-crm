@@ -28,6 +28,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
@@ -496,9 +497,7 @@ export async function createCreditNoteForInvoice(
 
   // ---- Compute due_date ----
   const dueDays = input.due_days ?? 14
-  const dueDate = new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const dueDate = copenhagenDatePlusDays(dueDays)
 
   // ---- INSERT credit invoice header ----
   // Negative totals — total_amount / tax_amount / final_amount er

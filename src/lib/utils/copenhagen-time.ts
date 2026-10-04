@@ -49,3 +49,12 @@ export function calendarDaysSince(dateIso: string, now: Date | number = new Date
   const toUtc = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)))
   return Math.round((toUtc(today) - toUtc(from)) / 86_400_000)
 }
+
+/**
+ * Dansk kalenderdato `days` dage efter i dag (fx betalingsfrist). Kalenderaritmetik på den danske dato — ikke
+ * `new Date(now + n·24 t).toISOString()`, der mellem kl. 00 og 02 dansk tid giver dagen før (faktura-review).
+ */
+export function copenhagenDatePlusDays(days: number, now: Date | number = new Date()): string {
+  const [y, m, d] = copenhagenParts(new Date(now)).date.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
+}

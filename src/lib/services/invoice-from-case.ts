@@ -27,6 +27,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 
 export interface CaseInvoiceSelection {
   time_log_ids?: string[]
@@ -160,9 +161,7 @@ export async function createInvoiceDraftFromCase(
   const invoiceNumber = String(numData)
 
   // ---- 3. Insert invoice header (totals filled in later) ----
-  const dueDate = new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const dueDate = copenhagenDatePlusDays(dueDays)
 
   const { data: header, error: hdrErr } = await supabase
     .from('invoices')

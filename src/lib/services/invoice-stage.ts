@@ -23,6 +23,7 @@ import { logger } from '@/lib/utils/logger'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import { netStageAmount, netStagePercentage } from '@/lib/invoices/stage-net'
 import type { InvoiceRow, InvoiceLineRow } from '@/types/invoice.types'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 
 export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
 export type AmountBasis = 'contract_sum' | 'revised_sum' | 'lines'
@@ -165,9 +166,7 @@ export async function createStageInvoiceForCase(
   const final = r2(subtotal + tax)
 
   const dueDays = input.due_days ?? 14
-  const dueDate = new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const dueDate = copenhagenDatePlusDays(dueDays)
 
   // Auto-foreslået label hvis operatør ikke har valgt en
   const label =
@@ -551,9 +550,7 @@ export async function createFinalInvoiceForCase(
   const final = r2(subtotal + tax)
 
   const dueDays = input.due_days ?? 14
-  const dueDate = new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const dueDate = copenhagenDatePlusDays(dueDays)
 
   // 8. INSERT invoice header med UNIQUE-guard via DB
   const { data: header, error: hdrErr } = await supabase

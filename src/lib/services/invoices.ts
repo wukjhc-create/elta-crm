@@ -75,6 +75,20 @@ export async function createInvoiceFromOffer(
 ): Promise<string> {
   const supabase = createAdminClient()
 
+  // Faktura-review 2026-10-04 (HØJ): SQL-funktionen create_invoice_from_offer summerer sale_price/unit_price × antal og
+  // ignorerer linjerabat og tilbudsrabat → et tilbud med rabat ville blive faktureret til fuld pris (og automatik-reglen
+  // sender den). Indtil funktionen er rettet (migration → godkendelse) afvises rabat-tilbud her; de faktureres manuelt.
+  const { data: existing } = await supabase.from('invoices').select('id').eq('offer_id', offerId).limit(1)
+  if (!existing?.length) {
+    const [{ data: off }, { count: discountedLines }] = await Promise.all([
+      supabase.from('offers').select('discount_percentage, discount_amount').eq('id', offerId).maybeSingle(),
+      supabase.from('offer_line_items').select('id', { count: 'exact', head: true }).eq('offer_id', offerId).gt('discount_percentage', 0),
+    ])
+    if (Number(off?.discount_percentage) > 0 || Number(off?.discount_amount) > 0 || (discountedLines ?? 0) > 0) {
+      throw new Error('Tilbuddet har rabat — automatisk faktura fra tilbud medregner ikke rabat endnu. Opret fakturaen manuelt.')
+    }
+  }
+
   // Sprint 2E.2A: resolver betalingsfrist (customer → company → 14) når
   // caller ikke har angivet en eksplicit override.
   let dueDays = options.dueDays

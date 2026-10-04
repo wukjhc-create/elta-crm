@@ -4,6 +4,8 @@ import type { LeadStatus } from '@/types/leads.types'
 import type { OfferStatus } from '@/types/offers.types'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { DASHBOARD_LIMITS } from '@/lib/constants'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 export interface DashboardStats {
   leads: {
@@ -57,6 +59,11 @@ export interface RecentActivity {
   link?: string
 }
 
+/** Som før: en fejlende forespørgsel giver tomme tal frem for at vælte dashboardet. */
+function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
+  return fetchAllRows(page).catch(() => [] as T[])
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   const { supabase, userId } = await getAuthenticatedClient()
 
@@ -70,17 +77,15 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     messagesResult,
     customerEmailsResult,
   ] = await Promise.all([
-    // Leads stats
-    supabase.from('leads').select('status'),
-    // Customers stats
-    supabase.from('customers').select('is_active, created_at'),
-    // Offers stats
-    supabase.from('offers').select('status, total_amount').eq('is_proposal', false),
+    // Rækker hentes side for side — PostgREST giver højst 1.000 pr. kald (N36-rest: tallene stod stille ved 1.000)
+    allRows<{ status: string }>((f, t) => supabase.from('leads').select('id, status').order('id').range(f, t)),
+    allRows<{ is_active: boolean; created_at: string }>((f, t) => supabase.from('customers').select('id, is_active, created_at').order('id').range(f, t)),
+    allRows<{ status: string; total_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, total_amount').eq('is_proposal', false).order('id').range(f, t)),
     // N36: sager (ikke gamle projekter)
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
     supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")'),
     // N36: afsluttede timeregistreringer (time_logs — ikke gamle time_entries)
-    supabase.from('time_logs').select('hours, billable').not('end_time', 'is', null),
+    allRows<{ hours: number | string | null; billable: boolean | null }>((f, t) => supabase.from('time_logs').select('id, hours, billable').not('end_time', 'is', null).order('id').range(f, t)),
     // Unread messages for current user
     supabase
       .from('messages')
@@ -97,11 +102,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .not('customer_id', 'is', null),
   ])
 
-  const leads = leadsResult.data || []
-  const customers = customersResult.data || []
-  const offers = offersResult.data || []
+  const leads = leadsResult
+  const customers = customersResult
+  const offers = offersResult
   const activeCases = projectsResult.count || 0
-  const timeEntries = (timeEntriesResult.data || []) as Array<{ hours: number | string | null; billable: boolean | null }>
+  const timeEntries = timeEntriesResult
 
   // Calculate leads stats
   const leadsByStatus = leads.reduce(
@@ -119,11 +124,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const conversionRate = closedLeads > 0 ? Math.round((wonLeads / closedLeads) * 100) : 0
 
   // Calculate customers stats
-  const now = new Date()
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  // dansk kalendermåned (serveren kører i UTC — før talte kunder fra 1. kl. 00–02 med i forrige måned)
+  const thisMonth = copenhagenParts(new Date()).date.slice(0, 7)
   const activeCustomers = customers.filter((c) => c.is_active).length
   const newCustomersThisMonth = customers.filter(
-    (c) => new Date(c.created_at) >= firstDayOfMonth
+    (c) => copenhagenParts(c.created_at).date.slice(0, 7) === thisMonth
   ).length
 
   // Calculate offers stats

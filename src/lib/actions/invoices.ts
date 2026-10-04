@@ -44,6 +44,7 @@ import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { copenhagenParts, calendarDaysSince } from '@/lib/utils/copenhagen-time'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import {
   computePaymentHealth,
@@ -1575,16 +1576,21 @@ export async function getInvoiceDashboardAction(
   const now = nowIso ? new Date(nowIso) : new Date()
   const todayMs = now.getTime()
   const DAY = 1000 * 60 * 60 * 24
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  // dansk kalendermåned (serveren kører i UTC) — faktura-review
+  const ym = copenhagenParts(now).date.slice(0, 7)
   const cutoff30 = new Date(todayMs - 30 * DAY).toISOString()
 
+  // Faktura-review: .limit(2000) blev afkortet til 1.000 vilkårlige rækker af PostgREST → side for side
   const [invRes, evRes, remRes] = await Promise.all([
-    supabase
-      .from('invoices')
-      .select(
-        'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, paid_at, due_date, voided_at, customer_id, case_id'
-      )
-      .limit(2000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('invoices')
+        .select(
+          'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, paid_at, due_date, voided_at, customer_id, case_id'
+        )
+        .order('id')
+        .range(from, to)
+    ).then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
     supabase
       .from('audit_logs')
       .select('id, created_at, action, entity_name, metadata')
@@ -1621,7 +1627,7 @@ export async function getInvoiceDashboardAction(
       sentUnpaid += Number(r.final_amount ?? 0)
       outstanding += Number(r.final_amount ?? 0)
     }
-    if (r.status === 'paid' && r.paid_at && String(r.paid_at).slice(0, 7) === ym) {
+    if (r.status === 'paid' && r.paid_at && copenhagenParts(String(r.paid_at)).date.slice(0, 7) === ym) {
       paidThisMonth += Number(r.final_amount ?? 0)
     }
     if (r.due_date && r.status === 'sent' && active) {
