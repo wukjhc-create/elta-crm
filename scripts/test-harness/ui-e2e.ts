@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97'],
   economy: ['U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -394,6 +394,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u109TokenId: string | null = null
   let u109InvoiceId: string | null = null
   let u110OfferId: string | null = null
+  let u111OfferId: string | null = null
+  let u111SupplierId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -3392,6 +3394,32 @@ ${m.text()}`) })
         out.push({ id: 'U110 mobil 375px: sælgerens sider uden overløb/crash', ok: !!u110OfferId && issues.length === 0, note: issues.length ? issues.join(' · ') : '6 sider OK' })
       }
 
+      // U111 N57: leverandørsøgning på tilbud markerer forældede priser (> 60 dage) — frisk pris uden markering
+      if (want('U111') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U111 grossist ${stamp}`, code: `HU111${stamp}`, is_active: true }]).select('id')
+        u111SupplierId = (sup.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u111SupplierId) {
+          await c.admin.from('supplier_products').insert([
+            { supplier_id: u111SupplierId, supplier_sku: `H111-${stamp}-G`, supplier_name: `Harness U111 gammel ${stamp}`, cost_price: 50, unit: 'stk', is_available: true, updated_at: '2026-01-15T10:00:00Z' },
+            { supplier_id: u111SupplierId, supplier_sku: `H111-${stamp}-F`, supplier_name: `Harness U111 frisk ${stamp}`, cost_price: 60, unit: 'stk', is_available: true },
+          ])
+        }
+        const oldRow = (await c.admin.from('supplier_products').select('updated_at').eq('supplier_sku', `H111-${stamp}-G`).maybeSingle()).data as { updated_at?: string } | null
+        r.seed_gammel_dato = (oldRow?.updated_at ?? '').startsWith('2026-01-15')
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-ST-${stamp}`, title: `[HARNESS] forældet pris ${stamp}`, customer_id: profitCustomerId, status: 'draft', created_by: adminUser.id }]).select('id')
+        u111OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await gotoSafe(a.page, `${base}/dashboard/offers/${u111OfferId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByRole('button', { name: /Fra leverandør/ }).first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByPlaceholder(/Indtast varenummer eller produktnavn/).fill(`H111-${stamp}`).catch(() => {})
+        await a.page.getByText(`Harness U111 gammel ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        const oldItem = a.page.locator('div', { has: a.page.getByText(`Harness U111 gammel ${stamp}`, { exact: true }) }).last()
+        const freshItem = a.page.locator('div', { has: a.page.getByText(`Harness U111 frisk ${stamp}`, { exact: true }) }).last()
+        r.gammel_markeret = (await oldItem.getByTestId('supplier-price-stale').count()) > 0
+        r.frisk_umarkeret = (await freshItem.getByText(`Harness U111 frisk ${stamp}`).count()) > 0 && (await freshItem.getByTestId('supplier-price-stale').count()) === 0
+        out.push({ id: 'U111 N57 forældede leverandørpriser markeres', ok: !!u111OfferId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3950,6 +3978,8 @@ ${m.text()}`) })
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
     if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
+    if (u111OfferId) await c.admin.from('offers').delete().eq('id', u111OfferId)
+    if (u111SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u111SupplierId); await c.admin.from('suppliers').delete().eq('id', u111SupplierId) }
     if (u110OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u110OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u110OfferId); await c.admin.from('offers').delete().eq('id', u110OfferId) }
     if (u109InvoiceId) await c.admin.from('invoices').delete().eq('id', u109InvoiceId)
     if (u109OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u109OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u109OfferId); await c.admin.from('offers').delete().eq('id', u109OfferId) }

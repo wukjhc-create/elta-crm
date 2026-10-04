@@ -157,6 +157,7 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
     unit: string
     is_available: boolean
     image_url: string | null
+    price_updated_at?: string | null
   }>>([])
   const [isSearchingSupplier, setIsSearchingSupplier] = useState(false)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
@@ -879,6 +880,12 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                               )}
                             </div>
                             <p className="text-sm font-medium text-gray-900 truncate mt-0.5">{p.product_name}</p>
+                            {/* N57: forældet prisliste (fx AO opdateret for måneder siden) — tjek prisen før den bruges */}
+                            {p.price_updated_at && Date.now() - new Date(p.price_updated_at).getTime() > 60 * 86_400_000 && (
+                              <p className="text-[11px] text-amber-700 mt-0.5" data-testid="supplier-price-stale">
+                                Pris fra {new Date(p.price_updated_at).toLocaleDateString('da-DK', { month: 'short', year: 'numeric' })} — kan være forældet
+                              </p>
+                            )}
                           </div>
                           {showFinancials && (
                           <div className="text-right shrink-0">

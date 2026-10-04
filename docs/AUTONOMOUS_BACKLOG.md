@@ -137,6 +137,9 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N50 | Kundekommunikation | Portal-kundebeskeder: alle 8 i prod stod ulæste (ældste 199 d). Rod-årsag: RLS UPDATE tillod kun medarbejderens egne beskeder → markér-læst ramte 0 rækker tavst. Fix: read_at via service-role efter app-gate (kun kundebeskeder/valgte id'er); cockpit "Kundebeskeder (portal)"; #chat åbner chatten | prod read-only (prod-portal-unread) | DONE (U98) |
 | N51 | Faktura | Cockpit "Klar til fakturering": sager med fakturerbart arbejde uden faktura (timer/materialer/øvrige) med salgsværdi → fakturakladden (invoices.create). Prod: 2 accepterede tilbud uden faktura | prod read-only (prod-offer-pipeline) | DONE (U99) |
 
+### Checkpoint 2026-10-04 12:30
+- N49–N57 + Q1 pushet: navigation, portal-ulæste (RLS-fejl), klar til fakturering, salgstragt, gamle kladder, forældede priser, rute-/mobil-crawls (2 fejl fundet og rettet).
+
 ## NEXT-4 (genereret 2026-10-04 11:40 — prod: 7 kladde-tilbud > 14 d, 2 sendte uden svar > 14 d, 4 accepterede (2 ufaktureret), leads ubrugt (5, 0/30 d), kunder oprettes fra mail)
 | # | Område | Opgave | Kilde | Status |
 |---|---|---|---|---|
@@ -145,6 +148,8 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N54 | Tilbud | Accepteret tilbud uden faktura: "Fakturér" genvej fra tilbuddet (via sagens fakturakladde) | prod-offer-pipeline | ALLEREDE LØST — "Fakturér på sagen" findes på tilbuddets sagskort (N5) |
 | N55 | Drift | Pilot-health: tilføj portal-ulæste + klar-til-fakturering + mangler-bilag som nøgletal (read-only) | N43/N50/N51 | DONE — prod: portal 8 ulæste (199 d, ALARM), 36 mail-fakturaer uden bilag, 1 sag m. ufakt. materialer |
 | N56 | Data | Kundedubletter? 18 aktive kunder deler 5 e-mails — primært én partner-adresse (9 kunder) = bestiller for flere slutkunder (sagspartner-model), ikke dubletter; dubletværn ved oprettelse fra mail findes | prod read-only (prod-customer-duplicates, -dup-domains) | ANALYSE — ingen handling |
+| N57 | Grossist/priser | Prod: AO-prislisten (1.343 varer) sidst opdateret 2026-02-28 (7 mdr.), LM frisk → tilbuddets leverandørsøgning viser "Pris fra <måned> — kan være forældet" for priser > 60 dage | prod read-only (prod-supplier-freshness) | DONE (U111). Rod-årsag: AO-import/-sync kører ikke (cron-beslutning, BLOCKED Henrik) |
+| Q1 | Kvalitet | Rute-/fane-/mobil-crawls: U101–U110 (64 sider × admin/salg/montør, 14 sagsfaner, montør/salg/kundeportal ved 375 px) | — | DONE — fandt 2 fejl: Faktura-mail-indstillinger crashede (null.trim), kundeportalens rækker flød ud på mobil; begge rettet |
 
 ### Checkpoint 2026-10-04 11:00
 - N40–N48 pushet (realiseret DB, vedhæft PDF, mangler-bilag, nye kunder uden tilbud, mail→tilbud, e-conomic-betalingsforhåndsvisning, leverandørprisændring, mangler planlægning). Hver med isoleret e2e ≤ 5 min.

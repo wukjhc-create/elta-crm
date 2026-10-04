@@ -1511,6 +1511,8 @@ export async function searchSupplierProductsForOffer(
   unit: string
   is_available: boolean
   image_url: string | null
+  /** N57: hvornår leverandørprisen sidst blev opdateret (forældede prislister, fx AO) */
+  price_updated_at: string | null
   is_cheapest?: boolean
   alternatives?: Array<{
     supplier_code: string
@@ -1548,6 +1550,7 @@ export async function searchSupplierProductsForOffer(
         is_available,
         image_url,
         ean,
+        updated_at,
         suppliers!inner (
           name,
           code,
@@ -1607,6 +1610,7 @@ export async function searchSupplierProductsForOffer(
       unit: string
       is_available: boolean
       image_url: string | null
+      price_updated_at: string | null
       _ean?: string
       is_cheapest?: boolean
       alternatives?: Array<{
@@ -1645,6 +1649,7 @@ export async function searchSupplierProductsForOffer(
         unit: sp.unit || 'stk',
         is_available: sp.is_available,
         image_url: sp.image_url || null,
+        price_updated_at: (sp as { updated_at?: string | null }).updated_at ?? null,
         _ean: sp.ean || undefined,
       }
     })
@@ -1738,6 +1743,7 @@ export async function searchSupplierProductsForOffer(
               unit: lp.unit || 'stk',
               is_available: lp.isAvailable,
               image_url: null,
+              price_updated_at: new Date().toISOString(), // netop hentet live
               _ean: undefined,
             })
           }
