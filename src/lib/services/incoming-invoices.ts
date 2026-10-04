@@ -135,6 +135,13 @@ export async function ingestFromEmail(emailId: string): Promise<IngestEmailResul
   // suppliers email plain-text invoices). Skip if body is tiny.
   if (candidates.length === 0) {
     if (bodyText.trim().length < 200) return result
+    // N68b: privat-/gratis-mail uden faktura-bilag og uden "faktura" i emnet er ikke en leverandørfaktura (prod: 13 af
+    // 36 åbne "fakturaer" var kundemails/ansøgninger fra gmail/hotmail). Springes over i stedet for at fylde køen.
+    const { isFreeMailAddress } = await import('@/lib/invoice-control/sender-domain')
+    if (isFreeMailAddress(email.sender_email) && !/faktura|invoice|regning|kreditnota/i.test(email.subject ?? '')) {
+      result.skipped!.push('private_mail_no_invoice')
+      return logIngest(emailId, result)
+    }
     await insertEmailInvoice(supabase, emailId, email.sender_name, { name: bodyInvoiceName(emailId), mime: 'text/plain' }, bodyText, result)
     return logIngest(emailId, result)
   }
