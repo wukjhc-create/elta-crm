@@ -43,7 +43,7 @@ export function InvoiceEmailSettingsClient({
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null)
 
   // Sprint Ø3.8 — testmail-modtager (default = egen email). ALDRIG kunde.
-  const [testRecipient, setTestRecipient] = useState(userEmail)
+  const [testRecipient, setTestRecipient] = useState(userEmail ?? '')
   const [testingKey, setTestingKey] = useState<InvoiceTemplateKey | null>(null)
   const [testPending, startTestTransition] = useTransition()
 

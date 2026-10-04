@@ -128,6 +128,7 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U101/U102 rute-crawl (admin): 64 statiske dashboard-sider uden fejlgrænse/404/NoAccess (delt i to)
  *   U100 N52/N53: cockpit gamle kladder (> 14 d) + Rapporter salgstragt (6 mdr., indeværende måned tæller accepteret)
  *   U99 N51: cockpit "Klar til fakturering" (fakturerbart arbejde uden faktura, salgsværdi) → fakturakladden; montør uden kort
  *   U98 N50: ulæste portal-kundebeskeder i cockpittet → #chat åbner chatten → markeret læst i DB (RLS-fejl rettet)
@@ -180,6 +181,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  * U1–U4/U6/U13/U5 (login, adgang, konsolfejl) kører altid.
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
+  crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106'],
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97'],
@@ -3183,6 +3185,64 @@ ${m.text()}`) })
         r.tragt_vises = (await funnel.locator('[data-testid="funnel-row"]').count()) === 6
         r.maaned_accepteret = cells.length === 7 && Number(cells[4]) >= 1 && Number(cells[3]) >= 1
         out.push({ id: 'U100 N52/N53 gamle kladder + salgstragt', ok: u100OfferIds.length === 2 && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${month}=${cells.join('|')}` })
+      }
+
+      // U101/U102 rute-crawl (admin): alle statiske dashboard-sider indlæses uden fejlgrænse ("Der opstod en fejl"), uden
+      // 404 og uden "Du har ikke adgang" (admin har alle rettigheder) — delt i to så ingen test nærmer sig 5 min
+      const CRAWL_ROUTES = ['/dashboard', '/dashboard/agents', '/dashboard/ai-project', '/dashboard/bank', '/dashboard/calc', '/dashboard/calculations',
+        '/dashboard/calculations/kalkia', '/dashboard/calculations/profit-simulator', '/dashboard/calculations/quick', '/dashboard/calculations/room-calculator',
+        '/dashboard/calendar', '/dashboard/cti', '/dashboard/customers', '/dashboard/economy/employees', '/dashboard/employees', '/dashboard/employees/new',
+        '/dashboard/go-live', '/dashboard/inbox', '/dashboard/incoming-invoices', '/dashboard/invoices', '/dashboard/kalkia/intelligence', '/dashboard/leads',
+        '/dashboard/mail', '/dashboard/mail/proposals', '/dashboard/offers', '/dashboard/orders', '/dashboard/orders/new', '/dashboard/packages',
+        '/dashboard/pilot-health', '/dashboard/pricing', '/dashboard/products', '/dashboard/projects',
+        '/dashboard/purchase-operations', '/dashboard/reports', '/dashboard/service-cases', '/dashboard/settings', '/dashboard/settings/audit',
+        '/dashboard/settings/calculation', '/dashboard/settings/company', '/dashboard/settings/components', '/dashboard/settings/economic',
+        '/dashboard/settings/economic/log', '/dashboard/settings/email', '/dashboard/settings/integrations', '/dashboard/settings/invoice-email',
+        '/dashboard/settings/kalkia', '/dashboard/settings/kalkia/factors', '/dashboard/settings/kalkia/materials', '/dashboard/settings/kalkia/nodes',
+        '/dashboard/settings/kalkia/profiles', '/dashboard/settings/kalkia/rooms', '/dashboard/settings/kalkia/texts', '/dashboard/settings/learning',
+        '/dashboard/settings/materials', '/dashboard/settings/notifications', '/dashboard/settings/packages', '/dashboard/settings/profile',
+        '/dashboard/settings/reminders', '/dashboard/settings/security', '/dashboard/settings/solar', '/dashboard/settings/suppliers', '/dashboard/settings/team',
+        '/dashboard/tasks', '/dashboard/time-approval']
+      for (const [tid, part] of [['U101', CRAWL_ROUTES.slice(0, 32)], ['U102', CRAWL_ROUTES.slice(32)]] as Array<[string, string[]]>) {
+        if (!want(tid)) continue
+        const bad: string[] = []
+        for (const route of part) {
+          const resp = await gotoSafe(a.page, `${base}${route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+          await a.page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {})
+          const status = resp?.status() ?? 0
+          const body = (await a.page.locator('body').innerText().catch(() => '')) ?? ''
+          const problem = status >= 400 ? `HTTP ${status}`
+            : /Der opstod en fejl/.test(body) ? 'fejlgrænse'
+            : /^\s*404\s*$/m.test(body) ? '404'
+            : /Du har ikke adgang/.test(body) ? 'NoAccess'
+            : ''
+          if (problem) bad.push(`${route}: ${problem}`)
+        }
+        out.push({ id: `${tid} rute-crawl admin (${part.length} sider)`, ok: bad.length === 0, note: bad.length ? bad.join(' · ') : `${part.length} sider OK` })
+      }
+
+      // U103–U106 rute-crawl for begrænsede roller (salg, montør): ingen side må crashe (fejlgrænse/404/HTTP ≥ 500);
+      // "Du har ikke adgang" er korrekt adfærd og tælles kun
+      for (const [tid, who, part] of [
+        ['U103', 'salg', CRAWL_ROUTES.slice(0, 32)], ['U104', 'salg', CRAWL_ROUTES.slice(32)],
+        ['U105', 'montør', CRAWL_ROUTES.slice(0, 32)], ['U106', 'montør', CRAWL_ROUTES.slice(32)],
+      ] as Array<[string, 'salg' | 'montør', string[]]>) {
+        if (!want(tid)) continue
+        const s = await login(who === 'salg' ? salg : montor)
+        const bad: string[] = []
+        let noAccess = 0
+        for (const route of part) {
+          const resp = await gotoSafe(s.page, `${base}${route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+          await s.page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {})
+          const status = resp?.status() ?? 0
+          const body = (await s.page.locator('body').innerText().catch(() => '')) ?? ''
+          if (status >= 500) bad.push(`${route}: HTTP ${status}`)
+          else if (/Der opstod en fejl/.test(body)) bad.push(`${route}: fejlgrænse`)
+          else if (/^\s*404\s*$/m.test(body)) bad.push(`${route}: 404`)
+          else if (/Du har ikke adgang/.test(body)) noAccess += 1
+        }
+        await s.ctx.close().catch(() => {})
+        out.push({ id: `${tid} rute-crawl ${who} (${part.length} sider)`, ok: bad.length === 0, note: `${bad.length ? bad.join(' · ') : 'ingen crash'} · ingen adgang: ${noAccess}/${part.length}` })
       }
 
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;

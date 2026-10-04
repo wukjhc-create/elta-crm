@@ -212,6 +212,20 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 
 **KØRT I PROD 2026-10-03 09:52–10:00 (Henrik godkendt i chat):** 00180 → 00181 → 00175 → 00176 → 00177 → 00179 → 00178 → 00182 → 00183, én ad gangen med pre/post — alle grønne; samlet `prod:batch-check post` 6/6 ✅; prod-db-audit HØJ/MIDDEL/LAV = 0; produktsøgning 55–166 ms (før 2–7 s; 00183 tog 49 s). Udestår (Henrik, Vercel): `MONTOR_START_JOB_ENABLED=true` + redeploy (efter 00181). Tabellens rækker 1–6 herunder er hermed DONE.
 
+**KØRT I PROD 2026-10-04 (Henrik godkendt i chat):** 00185 (N2 timegodkendelse) — pre/post/personas ✅; branch n2-time-approval merget og deployet.
+
+**ÅBNE HENRIK-HANDLINGER (status 2026-10-04 11:50):**
+| Handling | Hvorfor / effekt | Klar? |
+|---|---|---|
+| Vercel: `INVOICE_ATTACHMENT_FETCH_ENABLED=true` + redeploy (godkendt 2026-09-29) | 36 mail-fakturaer uden bilag / 48 "needs_review" — bilag hentes og læses automatisk | ✅ runbook invoice-attachment-backfill.md (manuel vej imens: "Vedhæft PDF fra mailen") |
+| Vercel: `MONTOR_START_JOB_ENABLED=true` + redeploy | montør starter eget job → sag "I gang" automatisk | ✅ prod-RLS verificeret; runbook n11-montor-start-job-flag.md |
+| Prod 00184 (D26) → merge `d26-internal-case-docs` | sagsdokumenter interne som standard | ✅ staging |
+| Prod 00186 (D28) — 00180 er kørt, så den kan køre nu | bogholderi ser kun kunde-/fakturamails | ✅ staging + pre |
+| e-conomic: API-nøgler + godkendelse af live-bogføring | eksport/betaling/leverandørfaktura (forhåndsvisninger klar) | foundation færdig |
+| Drift G11: knyt montør #2 til medarbejder | montør #2 ser ingen job | 1 klik (Medarbejder → Login) |
+| Drift: læs de 8 portal-kundebeskeder (ældste 199 d) | kunder venter på svar (fejl rettet: kan nu markeres læst) | cockpit "Kundebeskeder (portal)" |
+| Beslutning: kundemail-crons (offer-/invoice-reminders) og døde anon-crons | ændrer cron-adfærd | analyse færdig |
+
 **Samlet køreplan i rækkefølge:** docs/runbooks/PROD-GATE-BATCH-2026-10.md
 
 | Gate | Forberedt | Runbook |

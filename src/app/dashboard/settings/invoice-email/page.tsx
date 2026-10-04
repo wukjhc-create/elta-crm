@@ -22,7 +22,7 @@ export default async function InvoiceEmailSettingsPage() {
   const initial = res.success && res.data ? res.data : {}
 
   const profileRes = await getProfile()
-  const userEmail = profileRes.success && profileRes.data ? profileRes.data.email : ''
+  const userEmail = (profileRes.success && profileRes.data ? profileRes.data.email : '') ?? '' // profil uden e-mail → '' (før: null → crash i .trim())
 
   return (
     <div className="space-y-5">
