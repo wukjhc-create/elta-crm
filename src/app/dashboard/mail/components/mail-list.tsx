@@ -290,7 +290,9 @@ export function MailList({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className={`text-sm truncate ${isUnread ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
-                            {email.sender_name || email.sender_email}
+                            {email.web_contact
+                              ? <span data-testid="mail-row-web-contact">{email.web_contact} <span className="text-xs font-normal text-emerald-700">· hjemmesiden</span></span>
+                              : (email.sender_name || email.sender_email)}
                           </span>
                           <span className={`text-xs shrink-0 ${isUnread ? 'font-semibold text-blue-600' : 'text-gray-400'}`}>
                             {formatDate(email.received_at)}

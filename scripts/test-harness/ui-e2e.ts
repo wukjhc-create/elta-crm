@@ -3727,6 +3727,8 @@ ${m.text()}`) })
         // N85: listen har ingen brødtekst — den hentes ved åbning (her via deeplink) og vises
         await a.page.getByText('Besked: Ladestander').first().waitFor({ timeout: 30_000 }).catch(() => {})
         r.broedtekst_hentet = (await a.page.getByText('Besked: Ladestander').count()) > 0 && (await a.page.getByTestId('mail-body-loading').count()) === 0
+        // N96: listen viser navnet fra formularen i stedet for afsenderen "FormSubmit"
+        r.liste_viser_navn = (await a.page.getByTestId('mail-row-web-contact').filter({ hasText: `Harness Formkunde ${stamp}` }).count()) > 0
         await a.page.getByRole('button', { name: /Opret som ny kunde/ }).first().click({ timeout: 60_000 }).catch(() => {})
         const bodyOnly = a.page.locator('input[name="create-mode"][value="body_only"]')
         await bodyOnly.waitFor({ timeout: 30_000 }).catch(() => {})

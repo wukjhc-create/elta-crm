@@ -149,10 +149,27 @@ export async function getIncomingEmails(options?: {
     return { data: [], count: 0 }
   }
 
-  return {
-    data: (data || []) as unknown as IncomingEmailWithCustomer[], // body_html/body_text er undefined (hentes ved åbning)
-    count: count || 0,
+  const rows = (data || []) as unknown as IncomingEmailWithCustomer[] // body_html/body_text er undefined (hentes ved åbning)
+  // N96: webhenvendelser har alle afsender "FormSubmit" og samme emne → listen viser navn · postnr. fra formularen.
+  // Kun disse rækker (højst en side) hentes med brødtekst og parses her; listen sender stadig ingen brødtekst.
+  try {
+    const { isWebsiteInquiry } = await import('@/lib/mail/website-inquiry')
+    const webIds = rows.filter((r) => isWebsiteInquiry({ senderEmail: r.sender_email, subject: r.subject })).map((r) => r.id)
+    if (webIds.length) {
+      const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
+      const { data: bodies } = await supabase.from('incoming_emails').select('id, body_text, body_html').in('id', webIds)
+      const label = new Map<string, string>()
+      for (const b of (bodies ?? []) as Array<{ id: string; body_text: string | null; body_html: string | null }>) {
+        const p = parseCustomerFromEmail(b.body_text, b.body_html, null)
+        const l = [p.name, p.city || p.postalCode].filter(Boolean).join(' · ')
+        if (l) label.set(b.id, l)
+      }
+      for (const r of rows) if (label.has(r.id)) r.web_contact = label.get(r.id)
+    }
+  } catch (err) {
+    logger.warn('getIncomingEmails: webhenvendelses-kontakt kunne ikke udledes', { error: err })
   }
+  return { data: rows, count: count || 0 }
 }
 
 export async function getIncomingEmail(
