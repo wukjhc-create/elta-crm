@@ -181,7 +181,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  * U1–U4/U6/U13/U5 (login, adgang, konsolfejl) kører altid.
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
-  crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109'],
+  crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97'],
@@ -393,6 +393,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u109OfferId: string | null = null
   let u109TokenId: string | null = null
   let u109InvoiceId: string | null = null
+  let u110OfferId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -3356,6 +3357,41 @@ ${m.text()}`) })
         out.push({ id: 'U109 mobil 375px: kundeportal uden overløb/crash', ok: !!u109OfferId && !!u109TokenId && issues.length === 0, note: issues.length ? issues.join(' · ') : '2 sider OK' })
       }
 
+      // U110 mobil (375 px): sælgerens sider (dashboard, tilbud, tilbudsdetalje, kunde, mail, leads) uden overløb/crash
+      if (want('U110') && profitCustomerId) {
+        const issues: string[] = []
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-SM-${stamp}`, title: '[HARNESS] salg mobil tilbud med en ret lang titel til test af layout',
+          created_by: salg.id, customer_id: profitCustomerId, status: 'draft' }]).select('id')
+        u110OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u110OfferId) await c.admin.from('offer_line_items').insert([{ offer_id: u110OfferId, position: 1, description: 'Hybrid-inverter 10 kW trefaset med batteritilslutning og app-overvågning', quantity: 1, unit: 'stk', unit_price: 18999, total: 18999, cost_price: 12000 }])
+        const s = await login(salg)
+        await s.page.setViewportSize({ width: 375, height: 812 })
+        for (const [label, path] of [['dashboard', '/dashboard'], ['tilbud', '/dashboard/offers'], ['tilbudsdetalje', `/dashboard/offers/${u110OfferId}`],
+          ['kunde', `/dashboard/customers/${profitCustomerId}`], ['mail', '/dashboard/mail'], ['leads', '/dashboard/leads']] as Array<[string, string]>) {
+          await gotoSafe(s.page, `${base}${path}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+          await s.page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {})
+          const body = (await s.page.locator('body').innerText().catch(() => '')) ?? ''
+          if (/Der opstod en fejl/.test(body)) { issues.push(`${label}: fejlgrænse`); continue }
+          const ov = await s.page.evaluate(() => {
+            const w = window.innerWidth
+            if (document.documentElement.scrollWidth <= w + 2) return null
+            let worst: { tag: string; cls: string; right: number } | null = null
+            for (const el of Array.from(document.querySelectorAll('body *'))) {
+              const r = (el as HTMLElement).getBoundingClientRect()
+              if (r.width === 0 || r.right <= w + 2) continue
+              const p = (el as HTMLElement).parentElement
+              if (p && ['auto', 'scroll', 'hidden'].includes(getComputedStyle(p).overflowX)) continue
+              if (!worst || r.right > worst.right) worst = { tag: el.tagName.toLowerCase(), cls: String((el as HTMLElement).className).slice(0, 70), right: Math.round(r.right) }
+            }
+            return { scrollWidth: document.documentElement.scrollWidth, worst }
+          }).catch(() => null)
+          if (ov) issues.push(`${label}: overløb ${ov.scrollWidth}px (${ov.worst ? `${ov.worst.tag}.${ov.worst.cls}` : '?'})`)
+          await s.page.screenshot({ path: join(shots, `u110-salg-mobil-${label}.png`), fullPage: false }).catch(() => {})
+        }
+        await s.ctx.close().catch(() => {})
+        out.push({ id: 'U110 mobil 375px: sælgerens sider uden overløb/crash', ok: !!u110OfferId && issues.length === 0, note: issues.length ? issues.join(' · ') : '6 sider OK' })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3914,6 +3950,7 @@ ${m.text()}`) })
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
     if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
+    if (u110OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u110OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u110OfferId); await c.admin.from('offers').delete().eq('id', u110OfferId) }
     if (u109InvoiceId) await c.admin.from('invoices').delete().eq('id', u109InvoiceId)
     if (u109OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u109OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u109OfferId); await c.admin.from('offers').delete().eq('id', u109OfferId) }
     for (const id of u100OfferIds) { await c.admin.from('offer_activities').delete().eq('offer_id', id); await c.admin.from('offers').delete().eq('id', id) }
