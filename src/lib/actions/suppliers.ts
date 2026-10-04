@@ -564,6 +564,9 @@ export async function getSupplierOptionsForMaterial(
   materialName: string
 ): Promise<ActionResult<SupplierOptionForMaterial[]>> {
   try {
+    // Leverandør-review (D48-hul): returnerer kostpris — før uden gate (tvillingen i kalkia-supplier-prices er gated)
+    const denied = await permissionDenied('products.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     const sanitized = sanitizeSearchTerm(materialName)

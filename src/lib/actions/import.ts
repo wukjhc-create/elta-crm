@@ -258,12 +258,19 @@ export async function executeImport(
       }
 
       // Get existing products by SKU
-      const skus = transformedRows.map((r) => r.parsed.sku).filter(Boolean)
-      const { data: existingProducts } = await supabase
-        .from('supplier_products')
-        .select('id, supplier_sku, cost_price, list_price')
-        .eq('supplier_id', supplierId)
-        .in('supplier_sku', skus)
+      // Leverandør-review: ét .in() med alle filens varenumre gav for lange URL'er / højst 1.000 rækker (fejlen blev
+      // ignoreret) → eksisterende varer blev behandlet som nye. Nu i bidder á 300.
+      const skus = Array.from(new Set(transformedRows.map((r) => r.parsed.sku).filter(Boolean)))
+      const existingProducts: Array<{ id: string; supplier_sku: string; cost_price: number | null; list_price: number | null }> = []
+      for (let k = 0; k < skus.length; k += 300) {
+        const { data: chunk, error: lookupError } = await supabase
+          .from('supplier_products')
+          .select('id, supplier_sku, cost_price, list_price')
+          .eq('supplier_id', supplierId)
+          .in('supplier_sku', skus.slice(k, k + 300))
+        if (lookupError) throw new Error(`Kunne ikke slå eksisterende varer op: ${lookupError.message}`)
+        existingProducts.push(...((chunk ?? []) as typeof existingProducts))
+      }
 
       const existingMap = new Map(
         (existingProducts || []).map((p) => [p.supplier_sku, p.id])
@@ -306,6 +313,8 @@ export async function executeImport(
       const BATCH_SIZE = 100
       let newProducts = 0
       let updatedProducts = 0
+      let failedInsertRows = 0
+      const insertErrors: Array<{ row: number; message: string }> = []
 
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
         const rowBatch = validRows.slice(i, i + BATCH_SIZE)
@@ -321,7 +330,9 @@ export async function executeImport(
             toUpdate.map((row) =>
               supabase
                 .from('supplier_products')
-                .update({
+                // Leverandør-review: tomme/ulæselige celler overskrev før eksisterende værdier med NULL (fx kostpris uden
+                // prishistorik) → kun felter med en værdi i filen opdateres
+                .update(withoutNulls({
                   supplier_name: row.parsed.name,
                   cost_price: row.parsed.cost_price,
                   list_price: row.parsed.list_price,
@@ -332,7 +343,7 @@ export async function executeImport(
                   ean: row.parsed.ean,
                   min_order_quantity: row.parsed.min_order_quantity,
                   last_synced_at: now,
-                })
+                }))
                 .eq('id', row.existingProductId)
             )
           )
@@ -407,6 +418,10 @@ export async function executeImport(
 
           if (!insertError) {
             newProducts += toInsert.length
+          } else {
+            // før ignoreret — importen meldte "fuldført" selvom en hel bid nye varer manglede
+            failedInsertRows += toInsert.length
+            insertErrors.push({ row: toInsert[0]?.rowNumber ?? 0, message: `${toInsert.length} nye varer kunne ikke oprettes: ${insertError.message}` })
           }
         }
       }
@@ -425,17 +440,21 @@ export async function executeImport(
         new_products: newProducts,
         updated_products: updatedProducts,
         skipped_rows: validatedRows.length - validRows.length,
-        errors: validatedRows
-          .filter((r) => !r.isValid)
-          .flatMap((r) =>
-            r.errors.map((message) => ({
-              row: r.rowNumber,
-              message,
-            }))
-          ),
+        errors: [
+          ...insertErrors,
+          ...validatedRows
+            .filter((r) => !r.isValid)
+            .flatMap((r) =>
+              r.errors.map((message) => ({
+                row: r.rowNumber,
+                message,
+              }))
+            ),
+        ],
         price_changes: priceChanges,
         status: 'completed',
       }
+      if (failedInsertRows > 0) result.skipped_rows += failedInsertRows
 
       // Update batch with final results
       await supabase
@@ -666,4 +685,9 @@ export async function getPriceChangesFromImport(
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente prisændringer') }
   }
+}
+
+/** Felter med null/undefined udelades fra en opdatering (bevarer eksisterende værdi). */
+function withoutNulls<T extends Record<string, unknown>>(patch: T): Partial<T> {
+  return Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== null && v !== undefined)) as Partial<T>
 }

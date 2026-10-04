@@ -625,7 +625,9 @@ export async function updateEconomicCredentialsAction(
     if (typeof input.config.autoBookOnCreate === 'boolean') mergedConfig.autoBookOnCreate = input.config.autoBookOnCreate
   }
 
-  const active = input.active ?? existing?.active ?? true
+  // leverandør-/e-conomic-review: aldrig aktiv som standard — at gemme nøgler må ikke tænde live-bogføring uden et
+  // eksplicit valg (UI'en sender altid sit afkrydsningsfelt)
+  const active = input.active ?? existing?.active ?? false
 
   const { error } = await admin
     .from('accounting_integration_settings')
