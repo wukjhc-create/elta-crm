@@ -248,11 +248,21 @@ async function resolveRecipients(): Promise<string[]> {
   const supabase = createAdminClient()
   const { data } = await supabase
     .from('profiles')
-    .select('email')
+    .select('id, email, is_active')
     .eq('role', 'admin')
-  return (data ?? [])
-    .map((r) => (r.email as string | null) ?? '')
-    .filter((e) => e.includes('@'))
+  const admins = ((data ?? []) as Array<{ id: string; email: string | null; is_active: boolean | null }>).filter((a) => a.is_active !== false)
+  // Prod 2026-10-04: profiles.email er tom for alle admins (e-mailen står kun i auth.users) → alarmerne nåede ingen
+  // ("no_recipients" hver dag). Fallback: admin-brugerens login-e-mail. Kun interne admin-alarmer.
+  const out: string[] = []
+  for (const a of admins) {
+    let email = (a.email ?? '').trim()
+    if (!email.includes('@')) {
+      const { data: u } = await supabase.auth.admin.getUserById(a.id)
+      email = (u?.user?.email ?? '').trim()
+    }
+    if (email.includes('@') && !out.includes(email.toLowerCase())) out.push(email.toLowerCase())
+  }
+  return out
 }
 
 async function markAttempted(
