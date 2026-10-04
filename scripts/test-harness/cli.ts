@@ -654,6 +654,18 @@ async function main() {
     process.exitCode = checks.some((c) => !c.ok) ? 2 : 0
     return
   }
+  if (SUB === 'harness-portal') {
+    // Staging: ulæste portal-kundebeskeder fordelt på harness-kunder vs. øvrige; `--ryd` sletter KUN beskeder på
+    // [HARNESS]-kunder (efterladt af afbrudte kørsler — fylder cockpittet og pilot-health på staging).
+    const rows = await stagingSql(`SELECT (c.company_name LIKE '[HARNESS]%') AS harness, count(*)::int n, min(m.created_at)::date aeldste
+      FROM portal_messages m JOIN customers c ON c.id = m.customer_id WHERE m.sender_type = 'customer' AND m.read_at IS NULL GROUP BY 1`)
+    for (const r of rows) log(`${r.harness ? 'HARNESS-kunder' : 'øvrige kunder'}: ${r.n} ulæste (ældste ${r.aeldste})`)
+    if (process.argv[3] === '--ryd') {
+      const res = await stagingSql(`DELETE FROM portal_messages m USING customers c WHERE c.id = m.customer_id AND c.company_name LIKE '[HARNESS]%' RETURNING m.id`)
+      log(`slettet ${res.length} harness-beskeder`)
+    }
+    return
+  }
   if (SUB === 'harness-ao') {
     // Staging: AO-leverandører (U17 kræver at der ikke findes en); kun harness-oprettede ([HARNESS]-navn) må ryddes.
     const rows = await stagingSql(`SELECT s.id, s.name, s.created_at::date d, (SELECT count(*)::int FROM supplier_products p WHERE p.supplier_id = s.id) varer
