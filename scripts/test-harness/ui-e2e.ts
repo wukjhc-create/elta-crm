@@ -3629,6 +3629,16 @@ ${m.text()}`) })
         await a.page.getByTestId('lead-source-mail').waitFor({ timeout: 60_000 }).catch(() => {})
         r.lead_banner = /webhenvendelse/.test((await a.page.getByTestId('lead-source-mail').textContent().catch(() => '')) ?? '')
           && ((await a.page.getByTestId('lead-source-mail-link').getAttribute('href').catch(() => '')) ?? '').includes(`emailId=${id}`)
+        // N77: "Opret kunde" fra leadet kobler webhenvendelsen til den nye kunde
+        await a.page.getByTestId('lead-convert').click({ timeout: 30_000 }).catch(() => {})
+        let mailCust: string | null = null
+        for (let i = 0; i < 15 && !mailCust; i++) {
+          await a.page.waitForTimeout(1000)
+          mailCust = ((await c.admin.from('incoming_emails').select('customer_id').eq('id', id ?? '').maybeSingle()).data as { customer_id: string | null } | null)?.customer_id ?? null
+        }
+        if (mailCust) u115CustomerIds.push(mailCust)
+        const newCust = mailCust ? (await c.admin.from('customers').select('email').eq('id', mailCust).maybeSingle()).data as { email: string } | null : null
+        r.mail_koblet_til_kunde = !!newCust && newCust.email === `web-${stamp}@harness.test`
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
         await a.page.getByText('Henvendelser fra hjemmesiden').first().waitFor({ timeout: 60_000 }).catch(() => {})
         r.vaek_med_lead = !!u122LeadId && (await a.page.getByTestId('cockpit-web-inquiries').getByText(subj).count()) === 0

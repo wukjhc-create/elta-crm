@@ -675,6 +675,15 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
     }
 
     await supabase.from('leads').update({ custom_fields: { ...cf, customer_id: customerId } }).eq('id', leadId)
+    // N77: kildemailen (fx webhenvendelsen) kobles til kunden, så den står i kundens mailhistorik og ikke længere tæller
+    // som "uden kunde". Kun en ukoblet mail, kun med indbakke-adgang; best-effort (konverteringen lykkes uanset).
+    if (typeof cf.source_email_id === 'string' && hasPermission('inbox.view')) {
+      const { error: linkErr } = await supabase.from('incoming_emails')
+        .update({ customer_id: customerId, link_status: 'linked', linked_by: 'lead-convert', linked_at: new Date().toISOString() })
+        .eq('id', cf.source_email_id).is('customer_id', null)
+      if (linkErr) logger.warn('convertLeadToCustomer: kildemail ikke koblet', { error: linkErr, entityId: leadId })
+      else revalidatePath('/dashboard/mail')
+    }
     await supabase.from('lead_activities').insert({
       lead_id: leadId, activity_type: 'note', performed_by: userId,
       description: created ? 'Kunde oprettet fra lead' : 'Lead koblet til eksisterende kunde (samme e-mail)',
