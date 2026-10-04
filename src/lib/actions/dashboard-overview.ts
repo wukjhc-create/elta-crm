@@ -82,6 +82,8 @@ export interface DashboardOverview {
   offers: {
     followupCount: number
     oldest: DashboardOverviewOffer[]
+    /** N52: kladder ældre end 14 dage (aldrig sendt) */
+    staleDraftCount: number
   }
   /** N51: sager med fakturerbart arbejde der ikke er faktureret (timer/materialer/øvrige; kun invoices.create). */
   unbilled: {
@@ -124,7 +126,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     mails: { requiresResponseCount: 0, oldest: [] },
     tasks: { openCount: 0, autoCount: 0, overdueCount: 0, overdue: [] },
     cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0, timesPendingApproval: 0 },
-    offers: { followupCount: 0, oldest: [] },
+    offers: { followupCount: 0, oldest: [], staleDraftCount: 0 },
     newCustomers: { count: 0, items: [] },
     portal: { unreadCount: 0, customers: [] },
     unbilled: { caseCount: 0, saleTotal: 0, cases: [] },
@@ -307,6 +309,11 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
             .limit(TOP_N),
         ])
         overview.offers.followupCount = countRes.count || 0
+        // N52: kladder der aldrig blev sendt (> 14 dage)
+        const staleCutoff = new Date(now - 14 * 86_400_000).toISOString()
+        const { count: staleCount } = await supabase.from('offers').select('id', { count: 'exact', head: true })
+          .eq('status', 'draft').eq('is_proposal', false).lt('created_at', staleCutoff)
+        overview.offers.staleDraftCount = staleCount || 0
         const rows = (listRes.data || []) as Array<{
           id: string
           offer_number: string

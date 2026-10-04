@@ -128,6 +128,7 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U100 N52/N53: cockpit gamle kladder (> 14 d) + Rapporter salgstragt (6 mdr., indeværende måned tæller accepteret)
  *   U99 N51: cockpit "Klar til fakturering" (fakturerbart arbejde uden faktura, salgsværdi) → fakturakladden; montør uden kort
  *   U98 N50: ulæste portal-kundebeskeder i cockpittet → #chat åbner chatten → markeret læst i DB (RLS-fejl rettet)
  *   U97 N49: montørens "Mine job" har Navigér-link til jobbets adresse
@@ -180,7 +181,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97'],
   economy: ['U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -386,6 +387,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u95SupplierId: string | null = null
   let u98CustomerId: string | null = null
   let u98SeedErr = ''
+  let u100OfferIds: string[] = []
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -3158,6 +3160,31 @@ ${m.text()}`) })
         out.push({ id: 'U99 N51 klar til fakturering i cockpittet', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U100 N52/N53: cockpit viser gamle kladder (> 14 d) med link; Rapporter viser salgstragt med indeværende måned,
+      // hvor et nyoprettet+sendt+accepteret tilbud tæller med
+      if (want('U100') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const old = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OD-${stamp}`, title: `[HARNESS] gammel kladde ${stamp}`, customer_id: profitCustomerId,
+          status: 'draft', created_by: adminUser.id, created_at: '2020-01-01T09:00:00Z' }]).select('id')
+        const nowIso = new Date().toISOString()
+        const won = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-OW-${stamp}`, title: `[HARNESS] vundet ${stamp}`, customer_id: profitCustomerId,
+          status: 'accepted', created_by: adminUser.id, sent_at: nowIso, accepted_at: nowIso, final_amount: 4242 }]).select('id')
+        u100OfferIds = [...((old.data ?? []) as Array<{ id: string }>), ...((won.data ?? []) as Array<{ id: string }>)].map((x) => x.id)
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const stale = a.page.getByTestId('cockpit-stale-drafts')
+        await stale.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.gamle_kladder = /ældre end 14 dage/.test((await stale.textContent().catch(() => '')) ?? '')
+        await gotoSafe(a.page, `${base}/dashboard/reports`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const funnel = a.page.getByTestId('report-sales-funnel')
+        await funnel.waitFor({ timeout: 60_000 }).catch(() => {})
+        const month = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Copenhagen' }).slice(0, 7)
+        const row = funnel.locator(`[data-month="${month}"]`)
+        const cells = await row.locator('td').allInnerTexts().catch(() => [] as string[])
+        r.tragt_vises = (await funnel.locator('[data-testid="funnel-row"]').count()) === 6
+        r.maaned_accepteret = cells.length === 7 && Number(cells[4]) >= 1 && Number(cells[3]) >= 1
+        out.push({ id: 'U100 N52/N53 gamle kladder + salgstragt', ok: u100OfferIds.length === 2 && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${month}=${cells.join('|')}` })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3715,6 +3742,7 @@ ${m.text()}`) })
     if (u84OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u84OfferId); await c.admin.from('offers').delete().eq('id', u84OfferId) }
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
+    for (const id of u100OfferIds) { await c.admin.from('offer_activities').delete().eq('offer_id', id); await c.admin.from('offers').delete().eq('id', id) }
     if (u98CustomerId) { await c.admin.from('portal_messages').delete().eq('customer_id', u98CustomerId); await c.admin.from('customers').delete().eq('id', u98CustomerId) }
     if (u95OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u95OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u95OfferId); await c.admin.from('offers').delete().eq('id', u95OfferId) }
     if (u95SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u95SupplierId); await c.admin.from('suppliers').delete().eq('id', u95SupplierId) }

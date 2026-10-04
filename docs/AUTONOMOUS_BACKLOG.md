@@ -140,10 +140,11 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 ## NEXT-4 (genereret 2026-10-04 11:40 — prod: 7 kladde-tilbud > 14 d, 2 sendte uden svar > 14 d, 4 accepterede (2 ufaktureret), leads ubrugt (5, 0/30 d), kunder oprettes fra mail)
 | # | Område | Opgave | Kilde | Status |
 |---|---|---|---|---|
-| N52 | Tilbud | Gamle kladder (> 14 d) i cockpit/tilbudsliste med "Fortsæt" — 7 i prod står hen | prod-offer-pipeline | TODO |
-| N53 | Ledelse | Salgstragt pr. måned (nye kunder → tilbud → sendt → accepteret → faktureret) i Rapporter | prod-customer-funnel | TODO |
-| N54 | Tilbud | Accepteret tilbud uden faktura: "Fakturér" genvej fra tilbuddet (via sagens fakturakladde) | prod-offer-pipeline | TODO |
+| N52 | Tilbud | Gamle kladder (> 14 d) i cockpit/tilbudsliste med "Fortsæt" — 7 i prod står hen | prod-offer-pipeline | DONE — cockpittets tilbudskort viser "N kladder ældre end 14 dage" → kladdelisten (U100) |
+| N53 | Ledelse | Salgstragt pr. måned (nye kunder → tilbud → sendt → accepteret → faktureret) i Rapporter | prod-customer-funnel | DONE — Rapporter → Salgstragt (6 mdr., dansk måned; forslag/kladder/annullerede udelukket; kreditnota fratrukket; sendt-/vinderrate) — unit + U100 |
+| N54 | Tilbud | Accepteret tilbud uden faktura: "Fakturér" genvej fra tilbuddet (via sagens fakturakladde) | prod-offer-pipeline | ALLEREDE LØST — "Fakturér på sagen" findes på tilbuddets sagskort (N5) |
 | N55 | Drift | Pilot-health: tilføj portal-ulæste + klar-til-fakturering + mangler-bilag som nøgletal (read-only) | N43/N50/N51 | DONE — prod: portal 8 ulæste (199 d, ALARM), 36 mail-fakturaer uden bilag, 1 sag m. ufakt. materialer |
+| N56 | Data | Kundedubletter? 18 aktive kunder deler 5 e-mails — primært én partner-adresse (9 kunder) = bestiller for flere slutkunder (sagspartner-model), ikke dubletter; dubletværn ved oprettelse fra mail findes | prod read-only (prod-customer-duplicates, -dup-domains) | ANALYSE — ingen handling |
 
 ### Checkpoint 2026-10-04 11:00
 - N40–N48 pushet (realiseret DB, vedhæft PDF, mangler-bilag, nye kunder uden tilbud, mail→tilbud, e-conomic-betalingsforhåndsvisning, leverandørprisændring, mangler planlægning). Hver med isoleret e2e ≤ 5 min.

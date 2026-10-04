@@ -225,7 +225,7 @@ function CasesCard({ overview }: { overview: DashboardOverview }) {
 // =====================================================
 
 function OffersCard({ overview }: { overview: DashboardOverview }) {
-  const { followupCount, oldest } = overview.offers
+  const { followupCount, oldest, staleDraftCount } = overview.offers
   const err = overview.errors.offers
   return (
     <Card
@@ -237,6 +237,11 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
       headlineLabel="ældre end 7 dage"
       error={err}
     >
+      {staleDraftCount > 0 && (
+        <Link href="/dashboard/offers?status=draft" className="block text-xs text-amber-800 hover:underline mb-1" data-testid="cockpit-stale-drafts">
+          {staleDraftCount} kladde{staleDraftCount === 1 ? '' : 'r'} ældre end 14 dage — aldrig sendt →
+        </Link>
+      )}
       {oldest.length === 0 ? (
         <EmptyRow text={err ? 'Kunne ikke hente data' : 'Ingen ventende opfølgning.'} />
       ) : (

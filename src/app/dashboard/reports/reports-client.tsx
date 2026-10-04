@@ -1,5 +1,7 @@
 'use client'
 
+import { SalesFunnelTable } from './sales-funnel-table'
+import type { SalesFunnel } from '@/lib/reports/sales-funnel'
 import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 import { useState, useEffect } from 'react'
 import { formatCurrency } from '@/lib/utils/format'
@@ -24,6 +26,7 @@ import {
   getProjectProfitability,
   getTeamProductivity,
   getRejectionStats,
+  getSalesFunnel,
   type ReportsSummary,
   type RevenueByPeriod,
   type RevenueByCustomer,
@@ -427,12 +430,13 @@ export default function ReportsClient() {
   const [projects, setProjects] = useState<ProjectProfitability[]>([])
   const [team, setTeam] = useState<TeamProductivity[]>([])
   const [rejections, setRejections] = useState<RejectionStats | null>(null)
+  const [funnel, setFunnel] = useState<SalesFunnel | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       setIsLoading(true)
-      const [summaryRes, revenueRes, customersRes, projectsRes, teamRes, rejectionsRes] =
+      const [summaryRes, revenueRes, customersRes, projectsRes, teamRes, rejectionsRes, funnelRes] =
         await Promise.allSettled([
           getReportsSummary(),
           getRevenueByPeriod(6),
@@ -440,6 +444,7 @@ export default function ReportsClient() {
           getProjectProfitability(),
           getTeamProductivity(1),
           getRejectionStats(),
+          getSalesFunnel(6),
         ])
 
       if (summaryRes.status === 'fulfilled' && summaryRes.value.success) {
@@ -459,6 +464,9 @@ export default function ReportsClient() {
       }
       if (rejectionsRes.status === 'fulfilled' && rejectionsRes.value.success) {
         setRejections(rejectionsRes.value.data || null)
+      }
+      if (funnelRes.status === 'fulfilled' && funnelRes.value.success) {
+        setFunnel(funnelRes.value.data || null)
       }
       setIsLoading(false)
     }
@@ -534,6 +542,9 @@ export default function ReportsClient() {
       <RejectionAnalyticsSection stats={rejections} />
 
       {/* Project Profitability */}
+      {/* N53: salgstragt pr. måned */}
+      <SalesFunnelTable data={funnel} />
+
       <ProjectTable data={projects} />
 
       {/* Team Productivity */}

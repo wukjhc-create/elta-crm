@@ -713,3 +713,39 @@ export async function getRecentRejections(
     return { success: false, error: formatError(err, 'Kunne ikke hente afviste tilbud') }
   }
 }
+
+// =====================================================
+// N53: Salgstragt pr. måned
+// =====================================================
+
+/** Salgstragt de seneste `months` måneder (nye kunder → tilbud → sendt → accepteret → faktureret). reports.view. */
+export async function getSalesFunnel(months: number = 6): Promise<ActionResult<import('@/lib/reports/sales-funnel').SalesFunnel>> {
+  try {
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('reports.view')) return { success: false, error: 'Manglende tilladelse: reports.view' }
+    const { computeSalesFunnel, lastMonths } = await import('@/lib/reports/sales-funnel')
+    const list = lastMonths(new Date(), Math.min(Math.max(Math.round(months) || 6, 1), 24))
+    // Fra første dag i den ældste måned (lidt før, så dansk tid omkring månedsskiftet er med)
+    const since = new Date(`${list[0]}-01T00:00:00Z`)
+    since.setUTCDate(since.getUTCDate() - 1)
+    const iso = since.toISOString()
+    const [cust, off, inv] = await Promise.all([
+      supabase.from('customers').select('created_at').gte('created_at', iso).limit(5000),
+      supabase.from('offers').select('created_at, sent_at, accepted_at, final_amount, is_proposal')
+        .or(`created_at.gte.${iso},sent_at.gte.${iso},accepted_at.gte.${iso}`).limit(5000),
+      supabase.from('invoices').select('created_at, status, invoice_type, voided_at, total_amount').gte('created_at', iso).limit(5000),
+    ])
+    if (cust.error || off.error || inv.error) return { success: false, error: 'Kunne ikke hente salgstragt' }
+    return {
+      success: true,
+      data: computeSalesFunnel({
+        months: list,
+        customers: (cust.data ?? []) as Array<{ created_at: string }>,
+        offers: (off.data ?? []) as import('@/lib/reports/sales-funnel').FunnelOffer[],
+        invoices: (inv.data ?? []) as import('@/lib/reports/sales-funnel').FunnelInvoice[],
+      }),
+    }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente salgstragt') }
+  }
+}
