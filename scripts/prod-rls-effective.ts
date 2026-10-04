@@ -27,6 +27,13 @@ async function main() {
       const totals = new Map<string, number>()
       for (const p of policies) totals.set(p.table, Number((await run(`SELECT count(*)::int n FROM public.${p.table}`))[0].n)) // som postgres (foer role-skift)
       await run(`SELECT set_config('role', 'authenticated', true)`)
+      // UPDATE/DELETE rammer kun rækker rollens SELECT-policy viser (fx montør-mailscope 00180) → forventning = synlige
+      const visible = new Map<string, number>()
+      for (const p of policies) {
+        // kun hvis rollen overhovedet må læse tabellen (læse-lockdown fjerner SELECT-grant) — ellers gammel forventning
+        const canRead = Boolean((await run(`SELECT has_table_privilege('authenticated', 'public.${p.table}', 'SELECT') ok`))[0].ok)
+        if (canRead) visible.set(p.table, Number((await run(`SELECT count(*)::int n FROM public.${p.table}`))[0].n))
+      }
       const res: string[] = []
       for (const p of policies) {
         for (const op of ['update', 'delete', 'insert'] as const) {
@@ -41,7 +48,7 @@ async function main() {
             if (ok !== base) res.push(`${p.table}.insert: ${ok ? 'TILLADT' : 'afvist'} (forventet ${base ? 'tilladt' : 'afvist'})`)
             continue
           }
-          const total = totals.get(p.table) ?? 0
+          const total = visible.get(p.table) ?? totals.get(p.table) ?? 0
           const using = pol.map((x) => x.q).filter(Boolean)
           const n = using.length ? Number((await run(`SELECT count(*)::int n FROM public.${p.table} WHERE (${using.join(') OR (')})`))[0].n) : 0
           const expect = base ? total : cond ? null : 0

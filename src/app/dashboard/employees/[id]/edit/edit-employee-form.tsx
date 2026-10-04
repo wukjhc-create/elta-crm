@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   updateEmployeeAction,
   setEmployeeCompensationAction,
+  getEmployeeCompensationAction,
 } from '@/lib/actions/employees'
+import { PayrollFold } from './payroll-fold'
 import {
   EmployeeIdentitySchema,
   EmployeeCompensationSchema,
@@ -22,15 +24,40 @@ import {
 
 export function EditEmployeeForm({
   employee,
+  canEditPayroll = false,
 }: {
   employee: EmployeeWithCompensation
+  /** employees.payroll.edit — PV16: løn/satser vises kun foldet ud og hentes først ved åbning */
+  canEditPayroll?: boolean
 }) {
   return (
     <div className="space-y-6">
       <IdentitySection employee={employee} />
-      <CompensationSection employee={employee} />
+      {canEditPayroll && (
+        <PayrollFold label="Løn og satser" testId="payroll-fold">
+          <LazyCompensationSection employee={employee} />
+        </PayrollFold>
+      )}
     </div>
   )
+}
+
+/** PV16: henter løn/satser (employees.payroll.view) først når sektionen foldes ud. */
+function LazyCompensationSection({ employee }: { employee: EmployeeWithCompensation }) {
+  const [loaded, setLoaded] = useState<EmployeeWithCompensation | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    getEmployeeCompensationAction(employee.id).then((res) => {
+      if (!alive) return
+      if (!res.ok) { setError(res.message); return }
+      setLoaded({ ...employee, hourly_rate: res.data.hourly_rate, cost_rate: res.data.cost_rate, compensation: res.data.compensation })
+    })
+    return () => { alive = false }
+  }, [employee])
+  if (error) return <p className="text-sm text-red-700">{error}</p>
+  if (!loaded) return <p className="text-sm text-gray-500">Henter løn og satser…</p>
+  return <CompensationSection employee={loaded} />
 }
 
 // =====================================================

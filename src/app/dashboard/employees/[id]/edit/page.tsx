@@ -7,6 +7,7 @@ import { pageHasPermission } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
 import { EmployeeLoginPanel } from '@/components/modules/employees/employee-login-panel'
 import { EmployeeOvertimeRatesPanel } from '@/components/modules/employees/employee-overtime-rates-panel'
+import { PayrollFold } from './payroll-fold'
 import {
   EmployeeEquipmentEditor,
   EmployeeCertificatesEditor,
@@ -35,7 +36,8 @@ export default async function EditEmployeePage({
   const { id } = await params
   if (!UUID_RE.test(id)) notFound()
 
-  const employee = await getEmployeeAction(id, { includeCompensation: canEditPayroll })
+  // PV16 (shoulder-surfing): løn hentes IKKE ved åbning af Rediger — først når "Løn og satser" foldes ud
+  const employee = await getEmployeeAction(id, { includeCompensation: false })
   if (!employee) notFound()
 
   return (
@@ -67,14 +69,16 @@ export default async function EditEmployeePage({
         </p>
       </header>
 
-      <EditEmployeeForm employee={employee} />
+      <EditEmployeeForm employee={employee} canEditPayroll={canEditPayroll} />
 
       {canManageLogin && <EmployeeLoginPanel employeeId={employee.id} employeeEmail={employee.email} />}
 
       {canEditPayroll && (
-        <section className="bg-white rounded-lg border p-4 sm:p-6">
-          <EmployeeOvertimeRatesPanel employeeId={employee.id} canEdit={canEditPayroll} />
-        </section>
+        <PayrollFold label="Overtids- og tillægssatser" testId="overtime-fold">
+          <section className="bg-white rounded-lg border p-4 sm:p-6">
+            <EmployeeOvertimeRatesPanel employeeId={employee.id} canEdit={canEditPayroll} />
+          </section>
+        </PayrollFold>
       )}
 
       <EmployeeEquipmentEditor employeeId={employee.id} />

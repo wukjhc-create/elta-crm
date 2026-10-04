@@ -128,6 +128,7 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U89 PV16: Rediger medarbejder — løn/satser foldet og ikke hentet ved åbning; fold ud henter
  *   U88 N26d: Rapporter → Sagsrentabilitet med tilbudt/faktisk kost + afvigelse, sammenfoldet som standard
  *   U84 D48-audit: salg uden kost/avance i getOffer, tilføjet leverandørlinje, pakke-vælger, kundepriser, AI-indsigter; ingen Optimer
  *   U72 N28: styringscockpittet viser antal timeregistreringer der afventer godkendelse (link til Godkend timer)
@@ -171,7 +172,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72'],
-  economy: ['U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -351,6 +352,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u87OfferId: string | null = null
   let u87SupplierId: string | null = null
   let u88OfferId: string | null = null
+  let u89EmployeeId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -2797,6 +2799,29 @@ ${m.text()}`) })
         out.push({ id: 'U88 N26d rapport: tilbudt vs. faktisk kost pr. sag (foldet)', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U89 PV16: Rediger medarbejder — løn/satser sammenfoldet og IKKE hentet ved åbning (intet lønbeløb i HTML/data);
+      // "Løn og satser" foldes ud → hentes og vises
+      if (want('U89')) {
+        const r: Record<string, boolean> = {}
+        const emp = await c.admin.from('employees').insert([{ name: `[HARNESS] U89 ${stamp}`, email: `u89-${stamp}@harness.test`, role: 'montør', active: true }]).select('id')
+        u89EmployeeId = (emp.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u89EmployeeId) await c.admin.from('employee_compensation').upsert([{ employee_id: u89EmployeeId, hourly_wage: 271.83, internal_cost_rate: 314.15, sales_rate: 627.18 }], { onConflict: 'employee_id' })
+        const secrets = ['271.83', '271,83', '314.15', '314,15']
+        const net: string[] = []
+        const onResp = async (resp: { request(): { resourceType(): string }; text(): Promise<string> }) => { try { if (['script', 'stylesheet', 'image', 'font', 'media'].includes(resp.request().resourceType())) return; net.push(await resp.text()) } catch { /* lukket */ } }
+        a.page.on('response', onResp)
+        await gotoSafe(a.page, `${base}/dashboard/employees/${u89EmployeeId}/edit`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('payroll-fold').waitFor({ timeout: 60_000 }).catch(() => {})
+        const before = net.join('\n') + (await a.page.content().catch(() => ''))
+        r.foldet_ikke_hentet = !secrets.some((v) => before.includes(v)) && (await a.page.getByText('Satser og økonomi (DKK / %)').count()) === 0
+        await a.page.getByTestId('payroll-fold').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByText('Satser og økonomi (DKK / %)').first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.fold_ud_henter = (await a.page.getByText('Satser og økonomi (DKK / %)').count()) > 0
+          && await a.page.locator('input').evaluateAll((els) => els.some((e) => ['314.15', '314,15'].includes((e as HTMLInputElement).value)))
+        a.page.off('response', onResp)
+        out.push({ id: 'U89 PV16 løn på Rediger medarbejder foldet + hentes ved åbning', ok: !!u89EmployeeId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3354,6 +3379,7 @@ ${m.text()}`) })
     if (u84OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u84OfferId); await c.admin.from('offers').delete().eq('id', u84OfferId) }
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
+    if (u89EmployeeId) { await c.admin.from('employee_compensation').delete().eq('employee_id', u89EmployeeId); await c.admin.from('employees').delete().eq('id', u89EmployeeId) }
     if (u88OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u88OfferId); await c.admin.from('offers').delete().eq('id', u88OfferId) }
     if (u87OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u87OfferId); await c.admin.from('offers').delete().eq('id', u87OfferId) }
     if (u87SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u87SupplierId); await c.admin.from('suppliers').delete().eq('id', u87SupplierId) }
