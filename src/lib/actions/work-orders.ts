@@ -28,6 +28,10 @@ export interface WorkOrderForCalendar extends WorkOrderRow {
     title: string
     project_name: string | null
     customer_name: string | null
+    /** N49: arbejdsadresse (montørens navigation fra "Mine job") */
+    address?: string | null
+    postal_code?: string | null
+    city?: string | null
   } | null
 }
 
@@ -510,7 +514,7 @@ export async function listWorkOrdersByDateRange(
         : supabase
             .from('service_cases')
             .select(`
-              id, case_number, title, project_name,
+              id, case_number, title, project_name, address, postal_code, city,
               customer:customers!service_cases_customer_id_fkey(id, company_name)
             `)
             .in('id', caseIds),
@@ -536,6 +540,9 @@ export async function listWorkOrdersByDateRange(
           title: (c.title as string) ?? '',
           project_name: (c.project_name as string | null) ?? null,
           customer_name: (c.customer?.company_name as string | null) ?? null,
+          address: (c.address as string | null) ?? null,
+          postal_code: (c.postal_code as string | null) ?? null,
+          city: (c.city as string | null) ?? null,
         },
       ])
     )

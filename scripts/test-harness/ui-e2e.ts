@@ -128,6 +128,8 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U99 N51: cockpit "Klar til fakturering" (fakturerbart arbejde uden faktura, salgsværdi) → fakturakladden; montør uden kort
+ *   U98 N50: ulæste portal-kundebeskeder i cockpittet → #chat åbner chatten → markeret læst i DB (RLS-fejl rettet)
  *   U97 N49: montørens "Mine job" har Navigér-link til jobbets adresse
  *   U96 N48: kalender "Mangler planlægning" (sag uden arbejdsordre / arbejdsordre uden dato) → Planlægning-fane; montør uden panel
  *   U95 N47: kladde-tilbud markerer linjer med ændret leverandørpris; "Opdater pris" sætter kost i begge felter + ny salgspris; salg ser intet
@@ -180,8 +182,8 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97'],
-  economy: ['U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  economy: ['U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  'portal-mail': ['U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -268,7 +270,19 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     const seq = (mkUserSeq[role] = (mkUserSeq[role] ?? 0) + 1)
     const email = `ui-e2e-${role === 'montør' ? 'montoer' : role}-${stamp}${seq > 1 ? `-${seq}` : ''}@harness.test`
     const password = `Ui!${randomBytes(15).toString('base64url')}`
-    const { data, error } = await c.admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: `UI E2E ${role}` } })
+    // Forbigående netværksfejl mod staging ("fetch failed") må ikke vælte en hel batch → op til 3 forsøg med backoff
+    let data: Awaited<ReturnType<typeof c.admin.auth.admin.createUser>>['data'] = { user: null }
+    let error: Awaited<ReturnType<typeof c.admin.auth.admin.createUser>>['error'] = null
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        ({ data, error } = await c.admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: `UI E2E ${role}` } }))
+        if (!error || !/fetch failed|network|ECONN|ETIMEDOUT/i.test(error.message)) break
+      } catch (e) {
+        if (attempt === 3) throw e
+      }
+      console.log(`[ui-e2e] createUser ${role}: netværksfejl — forsøg ${attempt}/3, venter ${attempt * 3}s`)
+      await new Promise((res) => setTimeout(res, attempt * 3000))
+    }
     if (error || !data.user) throw new Error(`createUser ${role}: ${error?.message}`)
     users.push({ id: data.user.id, email, password, role })
     const { error: pErr } = await c.admin.from('profiles').update({ role, is_active: true, full_name: `UI E2E ${role}` }).eq('id', data.user.id)
@@ -370,6 +384,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u94InvoiceId: string | null = null
   let u95OfferId: string | null = null
   let u95SupplierId: string | null = null
+  let u98CustomerId: string | null = null
+  let u98SeedErr = ''
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -3086,6 +3102,62 @@ ${m.text()}`) })
         out.push({ id: 'U97 N49 Mine job: Navigér til adresse', ok: !!woId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · href=${href.slice(0, 120)}` })
       }
 
+      // U98 N50: ulæste kundebeskeder fra portalen i cockpittet → link åbner kundens chat (#chat) → beskederne markeres
+      // FAKTISK som læst i DB (før: RLS lod medarbejderen kun rette egne beskeder → 0 rækker, ulæst for altid)
+      if (want('U98')) {
+        const r: Record<string, boolean> = {}
+        const name = `[HARNESS] Portalkunde ${stamp}`
+        const nc = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-PM-${stamp}`, company_name: name, contact_person: 'P', email: `pm-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        u98CustomerId = (nc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        // ældste-først i cockpittet (top 5) → seed som meget gamle beskeder, så kunden står øverst trods staging-rester
+        const pm = u98CustomerId ? await c.admin.from('portal_messages').insert([
+          { customer_id: u98CustomerId, sender_type: 'customer', sender_name: 'Kunde', message: `Hvornår kommer I? ${stamp}`, created_at: '2019-01-01T09:00:00Z' },
+          { customer_id: u98CustomerId, sender_type: 'customer', sender_name: 'Kunde', message: `Hallo? ${stamp}`, created_at: '2019-01-02T09:00:00Z' },
+        ]).select('id') : null
+        r.seed = (pm?.data ?? []).length === 2
+        if (!r.seed) u98SeedErr = (pm?.error?.message ?? 'ingen kunde').slice(0, 160)
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const list = a.page.getByTestId('cockpit-portal-unread')
+        await list.getByText(name).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.cockpit_viser_kunde = (await list.getByText(name).count()) > 0
+        await list.getByText(name).first().click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByText(`Hallo? ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.chat_aaben = (await a.page.getByText(`Hallo? ${stamp}`).count()) > 0
+        const readUnread = async () => ((await c.admin.from('portal_messages').select('id').eq('customer_id', u98CustomerId ?? '').is('read_at', null)).data ?? []).length
+        let unread = await readUnread()
+        for (let i = 0; i < 15 && unread > 0; i++) { await new Promise((res) => setTimeout(res, 1000)); unread = await readUnread() }
+        r.markeret_laest_i_db = unread === 0
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.vaek_fra_cockpit = (await a.page.getByTestId('cockpit-portal-unread').getByText(name).count()) === 0
+        out.push({ id: 'U98 N50 portalbeskeder: cockpit → chat → markeret læst', ok: !!u98CustomerId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ulæste=${unread}${u98SeedErr ? ` · SEED: ${u98SeedErr}` : ''}` })
+      }
+
+      // U99 N51: cockpit "Klar til fakturering" — sag med fakturerbart materiale uden faktura vises med salgsværdi og
+      // linker til fakturakladden; montør ser ikke kortet
+      if (want('U99') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const title = `[HARNESS] klar til fakturering ${stamp}`
+        const sc = await c.admin.from('service_cases').insert([{ title, customer_id: profitCustomerId, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) {
+          listCaseIds.push(caseId)
+          await c.admin.from('case_materials').insert([{ case_id: caseId, description: `KF anlæg ${stamp}`, quantity: 1, unit: 'stk', unit_cost: 500000, unit_sales_price: 987654, billable: true, source: 'manual', created_by: adminUser.id }])
+        }
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const list = a.page.getByTestId('cockpit-unbilled')
+        await list.getByText(title).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        const row = list.locator('li', { hasText: title }).first()
+        r.kort_viser_sag = (await row.count()) > 0 && ((await row.innerText().catch(() => '')) ?? '').includes('987.654')
+        await row.click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForURL(/tab=fakturakladde/, { timeout: 60_000 }).catch(() => {})
+        r.link_fakturakladde = a.page.url().includes(`/dashboard/orders/${caseId}`) && a.page.url().includes('tab=fakturakladde')
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.montoer_intet_kort = (await m.page.getByText('Klar til fakturering').count()) === 0
+        await m.ctx.close().catch(() => {})
+        out.push({ id: 'U99 N51 klar til fakturering i cockpittet', ok: !!caseId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3643,6 +3715,7 @@ ${m.text()}`) })
     if (u84OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u84OfferId); await c.admin.from('offers').delete().eq('id', u84OfferId) }
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
+    if (u98CustomerId) { await c.admin.from('portal_messages').delete().eq('customer_id', u98CustomerId); await c.admin.from('customers').delete().eq('id', u98CustomerId) }
     if (u95OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u95OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u95OfferId); await c.admin.from('offers').delete().eq('id', u95OfferId) }
     if (u95SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u95SupplierId); await c.admin.from('suppliers').delete().eq('id', u95SupplierId) }
     if (u94InvoiceId) await c.admin.from('invoices').delete().eq('id', u94InvoiceId)

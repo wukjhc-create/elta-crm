@@ -83,6 +83,17 @@ export interface DashboardOverview {
     followupCount: number
     oldest: DashboardOverviewOffer[]
   }
+  /** N51: sager med fakturerbart arbejde der ikke er faktureret (timer/materialer/øvrige; kun invoices.create). */
+  unbilled: {
+    caseCount: number
+    saleTotal: number
+    cases: Array<{ id: string; case_number: string | null; title: string; customer_name: string | null; lines: number; sale: number }>
+  }
+  /** N50: ulæste kundebeskeder fra kundeportalen pr. kunde (kun customers.edit). */
+  portal: {
+    unreadCount: number
+    customers: Array<{ id: string; name: string; unread: number; oldestDays: number }>
+  }
   /** N44: nye kunder (30 d) uden tilbud og uden sag — henvendelser der ikke er fulgt op (kun offers.create). */
   newCustomers: {
     count: number
@@ -94,7 +105,7 @@ export interface DashboardOverview {
     empty: boolean
   }
   /** Per-section fejl saa UI kan vise en diskret advarsel uden at crashe. */
-  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers', string>>
+  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers' | 'portal' | 'unbilled', string>>
   generated_at: string
 }
 
@@ -115,6 +126,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0, timesPendingApproval: 0 },
     offers: { followupCount: 0, oldest: [] },
     newCustomers: { count: 0, items: [] },
+    portal: { unreadCount: 0, customers: [] },
+    unbilled: { caseCount: 0, saleTotal: 0, cases: [] },
     visits: { upcoming: [], empty: true },
     errors: {},
     generated_at: new Date().toISOString(),
@@ -317,6 +330,78 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       } catch (err) {
         logger.error('getDashboardOverview: offers failed', { error: err })
         overview.errors.offers = err instanceof Error ? err.message : 'failed'
+      }
+    })(),
+
+    // N51: klar til fakturering — fakturerbart arbejde uden faktura (samme regel som fakturakladden: billable +
+    // invoice_line_id IS NULL; timer kun afsluttede). Salgsværdi (ingen kost).
+    (async () => {
+      try {
+        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+        const ctx = await getAuthenticatedClientWithRole()
+        if (!ctx.hasPermission('invoices.create')) return
+        const [tl, mat, oth] = await Promise.all([
+          supabase.from('time_logs').select('sale_amount, work_order:work_orders!inner(case_id)')
+            .eq('billable', true).is('invoice_line_id', null).not('end_time', 'is', null).limit(2000),
+          supabase.from('case_materials').select('case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).limit(2000),
+          supabase.from('case_other_costs').select('case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).limit(2000),
+        ])
+        const agg = new Map<string, { lines: number; sale: number }>()
+        const add = (caseId: string | null | undefined, sale: unknown) => {
+          if (!caseId) return
+          const cur = agg.get(caseId) ?? { lines: 0, sale: 0 }
+          cur.lines += 1
+          cur.sale += Number(sale ?? 0) || 0
+          agg.set(caseId, cur)
+        }
+        for (const t of (tl.data ?? []) as Array<{ sale_amount: number | string | null; work_order: { case_id: string | null } | Array<{ case_id: string | null }> | null }>) {
+          const wo = Array.isArray(t.work_order) ? t.work_order[0] : t.work_order
+          add(wo?.case_id, t.sale_amount)
+        }
+        for (const m of (mat.data ?? []) as Array<{ case_id: string; total_sales_price: number | string | null }>) add(m.case_id, m.total_sales_price)
+        for (const o of (oth.data ?? []) as Array<{ case_id: string; total_sales_price: number | string | null }>) add(o.case_id, o.total_sales_price)
+        if (!agg.size) return
+        const { data: cs } = await supabase.from('service_cases')
+          .select('id, case_number, title, status, customer:customers!service_cases_customer_id_fkey(company_name)')
+          .in('id', Array.from(agg.keys())).neq('status', 'converted')
+        const list = ((cs ?? []) as Array<{ id: string; case_number: string | null; title: string; status: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>)
+          .map((c) => {
+            const a = agg.get(c.id)!
+            const cust = Array.isArray(c.customer) ? c.customer[0] : c.customer
+            return { id: c.id, case_number: c.case_number, title: c.title, customer_name: cust?.company_name ?? null, lines: a.lines, sale: Math.round(a.sale * 100) / 100 }
+          })
+          .sort((x, y) => y.sale - x.sale)
+        overview.unbilled = {
+          caseCount: list.length,
+          saleTotal: Math.round(list.reduce((s, c) => s + c.sale, 0) * 100) / 100,
+          cases: list.slice(0, TOP_N),
+        }
+      } catch (err) {
+        logger.error('getDashboardOverview: unbilled failed', { error: err })
+        overview.errors.unbilled = err instanceof Error ? err.message : 'failed'
+      }
+    })(),
+
+    // N50: ulæste kundebeskeder fra portalen (chat pr. kunde)
+    (async () => {
+      try {
+        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+        const ctx = await getAuthenticatedClientWithRole()
+        if (!ctx.hasPermission('customers.edit')) return
+        const { data } = await supabase.from('portal_messages').select('customer_id, created_at, customer:customers(company_name)')
+          .eq('sender_type', 'customer').is('read_at', null).order('created_at', { ascending: true }).limit(500)
+        const rows = (data ?? []) as Array<{ customer_id: string; created_at: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>
+        const byCustomer = new Map<string, { id: string; name: string; unread: number; oldestDays: number }>()
+        for (const m of rows) {
+          const cust = Array.isArray(m.customer) ? m.customer[0] : m.customer
+          const cur = byCustomer.get(m.customer_id) ?? { id: m.customer_id, name: cust?.company_name || '—', unread: 0, oldestDays: daysBetween(m.created_at, now) }
+          cur.unread += 1
+          byCustomer.set(m.customer_id, cur)
+        }
+        overview.portal = { unreadCount: rows.length, customers: Array.from(byCustomer.values()).slice(0, TOP_N) }
+      } catch (err) {
+        logger.error('getDashboardOverview: portal failed', { error: err })
+        overview.errors.portal = err instanceof Error ? err.message : 'failed'
       }
     })(),
 

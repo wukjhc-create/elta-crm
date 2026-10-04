@@ -4,7 +4,7 @@
  * Hvert job linker direkte til sagens Planlægning/Timer-fane (afslut + timer + fotos).
  */
 import Link from 'next/link'
-import { CalendarCheck, ChevronRight, AlertTriangle } from 'lucide-react'
+import { CalendarCheck, ChevronRight, AlertTriangle, Navigation } from 'lucide-react'
 import { listWorkOrdersByDateRange, type WorkOrderForCalendar } from '@/lib/actions/work-orders'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
@@ -61,10 +61,10 @@ function JobGroup({ title, jobs, warn, emptyText }: { title: string; jobs: WorkO
       ) : (
         <ul className="divide-y rounded-md ring-1 ring-gray-100">
           {jobs.map((w) => (
-            <li key={w.id}>
+            <li key={w.id} className="flex items-stretch">
               <Link
                 href={w.case ? `/dashboard/orders/${w.case.id}?tab=planlaegning` : '/dashboard/calendar'}
-                className="flex items-center gap-3 px-3 py-3 hover:bg-gray-50 active:bg-gray-100"
+                className="flex flex-1 min-w-0 items-center gap-3 px-3 py-3 hover:bg-gray-50 active:bg-gray-100"
                 data-testid="my-job"
               >
                 <div className="min-w-0 flex-1">
@@ -80,6 +80,20 @@ function JobGroup({ title, jobs, warn, emptyText }: { title: string; jobs: WorkO
                 </span>
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               </Link>
+              {/* N49: navigation direkte fra dagsoversigten (stor trykflade til mobil) */}
+              {w.case?.address && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([w.case.address, w.case.postal_code, w.case.city].filter(Boolean).join(', '))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 flex flex-col items-center justify-center px-3 text-emerald-700 hover:bg-emerald-50 border-l text-[11px]"
+                  data-testid="my-job-navigate"
+                  aria-label={`Navigér til ${w.case.address}`}
+                >
+                  <Navigation className="w-4 h-4" />
+                  Navigér
+                </a>
+              )}
             </li>
           ))}
         </ul>

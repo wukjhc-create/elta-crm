@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
@@ -86,6 +86,10 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null)
   const [showChat, setShowChat] = useState(false)
+  // N50: links med #chat (styrings-cockpittets portalbeskeder, mailens "aktiv portal") åbner chatten direkte
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#chat') setShowChat(true)
+  }, [])
   const [showBesigtigelse, setShowBesigtigelse] = useState(false)
   const [activeTab, setActiveTab] = useState<'oversigt' | 'sager' | 'fakturaer' | 'besigtigelse' | 'dokumenter' | 'status'>('oversigt')
   const [showFuldmagtModal, setShowFuldmagtModal] = useState(false)

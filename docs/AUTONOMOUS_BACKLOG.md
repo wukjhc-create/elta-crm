@@ -124,13 +124,29 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 ## NEXT-3 (genereret 2026-10-04 — high-speed long-run; prod read-only: 107 kunder (13/30d), 813 mails (72/30d), 57 leverandørfakturaer (9/30d, kun 3 med linjer), 15 tilbud (0/30d), 8 sager, 5 fakturaer)
 | # | Område | Opgave (vertikalt flow) | Kilde/fund | Status |
 |---|---|---|---|---|
-| N40 | Profit/økonomi | Realiseret DB pr. sag: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret udelukket) mod faktisk kost, på Økonomi-fanen | produktmål (tilbudt vs. faktisk) | IN_PROGRESS — computeRealizedDb + unit, kort på Økonomi-fanen, U91 |
-| N41 | Leverandørfaktura/drift | 48 mail-fakturaer står "needs_review" med kun mailtekst (47/54 havde vedhæftning, 1 hentet) → "Vedhæft PDF fra mailen" på fakturaen: privat fil, PDF-tekst, genlæsning, audit | prod read-only (prod-invoice-sources) | IN_PROGRESS — U92. Rod-årsag: INVOICE_ATTACHMENT_FETCH_ENABLED ikke sat i Vercel → BLOCKED_APPROVAL (Henrik, godkendt 2026-09-29) |
-| N42 | Rapporter | Sagsrentabilitet: realiseret DB pr. sag i rapporten (sammenfoldet) | N40 | TODO |
-| N43 | Leverandørfaktura | Indbakke-filter "mangler bilag" (mail-fakturaer uden fil) + antal i bogholderiets overblik, så de 48 kan tages én for én | N41 | TODO |
-| N44 | Salg | 0 tilbud på 30 dage i prod — gennemgå salgsflowet for friktion (lead→tilbud, kunde→tilbud, opfølgning) og find manglende genveje | prod read-only | TODO (analyse) |
-| N45 | Kundekommunikation | 72 mails/30d: mail → opgave/sag-genveje og svar-skabeloner (ingen live afsendelse uden flag) | prod read-only | TODO |
-| N46 | e-conomic | Forhåndsvisning af kreditnota/betaling som e-conomic-kladde (ingen posting) — samme mønster som fakturaens "Vis hvad der sendes" | N12-rest | TODO |
+| N40 | Profit/økonomi | Realiseret DB pr. sag: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret udelukket) mod faktisk kost, på Økonomi-fanen | produktmål (tilbudt vs. faktisk) | DONE — computeRealizedDb (unit) + kort på Økonomi-fanen (U91) |
+| N41 | Leverandørfaktura/drift | 48 mail-fakturaer står "needs_review" med kun mailtekst (47/54 havde vedhæftning, 1 hentet) → "Vedhæft PDF fra mailen" på fakturaen: privat fil, PDF-tekst, genlæsning, audit | prod read-only (prod-invoice-sources) | DONE — "Vedhæft PDF fra mailen" (U92). Rod-årsag stadig BLOCKED_APPROVAL: INVOICE_ATTACHMENT_FETCH_ENABLED (Vercel, Henrik) |
+| N42 | Rapporter | Sagsrentabilitet: realiseret DB pr. sag i rapporten (sammenfoldet) | N40 | DONE — faktureret netto + realiseret DB pr. sag i Sagsrentabilitet (U91) |
+| N43 | Leverandørfaktura | Indbakke-filter "mangler bilag" (mail-fakturaer uden fil) + antal i bogholderiets overblik, så de 48 kan tages én for én | N41 | DONE — filter + tæller "Mangler bilag" (U92) |
+| N44 | Salg | 0 tilbud på 30 dage i prod — gennemgå salgsflowet for friktion (lead→tilbud, kunde→tilbud, opfølgning) og find manglende genveje | prod read-only | DONE — analyse: 50 nye kunder/90 d, alle med mail, 0 med tilbud/sag (seneste tilbud 2026-06-23) → cockpit "Nye kunder uden tilbud" + "Opret tilbud" åbner kundens tilbudsformular (U93) |
+| N45 | Kundekommunikation | 72 mails/30d: mail → opgave/sag-genveje og svar-skabeloner (ingen live afsendelse uden flag) | prod read-only | DONE — "Opret tilbud" fra koblet mail (U93); svar-skabeloner fandtes allerede (hurtigsvar) |
+| N46 | e-conomic | Forhåndsvisning af kreditnota/betaling som e-conomic-kladde (ingen posting) — samme mønster som fakturaens "Vis hvad der sendes" | N12-rest | DONE — betalingens kassekladde-postering kan forhåndsvises (U94); kreditnota håndteres allerede af fakturakladden |
+| N47 | Grossist/priser | Kladde-tilbud markerer linjer med ændret leverandørpris (±0,5 %) + "Opdater pris"; refreshLineItemPrice opdaterer nu også cost_price og afviser sendte tilbud | kodeanalyse (DB blev stående med gammel kost) | DONE (U95) |
+| N48 | Planlægning | Kalender "Mangler planlægning": aktive sager uden arbejdsordre / arbejdsordre uden dato eller montør → Planlægning-fanen | kodeanalyse | DONE (U96) |
+| N49 | Montør | "Mine job": Navigér-knap direkte til jobbets adresse (før kun inde på sagen) | kodeanalyse | DONE (U97) |
+| N50 | Kundekommunikation | Portal-kundebeskeder: alle 8 i prod stod ulæste (ældste 199 d). Rod-årsag: RLS UPDATE tillod kun medarbejderens egne beskeder → markér-læst ramte 0 rækker tavst. Fix: read_at via service-role efter app-gate (kun kundebeskeder/valgte id'er); cockpit "Kundebeskeder (portal)"; #chat åbner chatten | prod read-only (prod-portal-unread) | DONE (U98) |
+| N51 | Faktura | Cockpit "Klar til fakturering": sager med fakturerbart arbejde uden faktura (timer/materialer/øvrige) med salgsværdi → fakturakladden (invoices.create). Prod: 2 accepterede tilbud uden faktura | prod read-only (prod-offer-pipeline) | DONE (U99) |
+
+## NEXT-4 (genereret 2026-10-04 11:40 — prod: 7 kladde-tilbud > 14 d, 2 sendte uden svar > 14 d, 4 accepterede (2 ufaktureret), leads ubrugt (5, 0/30 d), kunder oprettes fra mail)
+| # | Område | Opgave | Kilde | Status |
+|---|---|---|---|---|
+| N52 | Tilbud | Gamle kladder (> 14 d) i cockpit/tilbudsliste med "Fortsæt" — 7 i prod står hen | prod-offer-pipeline | TODO |
+| N53 | Ledelse | Salgstragt pr. måned (nye kunder → tilbud → sendt → accepteret → faktureret) i Rapporter | prod-customer-funnel | TODO |
+| N54 | Tilbud | Accepteret tilbud uden faktura: "Fakturér" genvej fra tilbuddet (via sagens fakturakladde) | prod-offer-pipeline | TODO |
+| N55 | Drift | Pilot-health: tilføj portal-ulæste + klar-til-fakturering + mangler-bilag som nøgletal (read-only) | N43/N50/N51 | DONE — prod: portal 8 ulæste (199 d, ALARM), 36 mail-fakturaer uden bilag, 1 sag m. ufakt. materialer |
+
+### Checkpoint 2026-10-04 11:00
+- N40–N48 pushet (realiseret DB, vedhæft PDF, mangler-bilag, nye kunder uden tilbud, mail→tilbud, e-conomic-betalingsforhåndsvisning, leverandørprisændring, mangler planlægning). Hver med isoleret e2e ≤ 5 min.
 
 ### Checkpoint 2026-10-04 (formiddag)
 - 00185 i prod (pre/post/personas grønne) · N2/N28 merget og deployet · pilot-health viser godkendelseskøen

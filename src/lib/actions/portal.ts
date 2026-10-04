@@ -1315,13 +1315,20 @@ export async function markCustomerMessagesAsRead(
   messageIds: string[]
 ): Promise<ActionResult> {
   try {
-    const { supabase, userId } = await requireGate('customers.view')
+    await requireGate('customers.view')
+    const ids = (messageIds || []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500)
+    if (ids.length === 0) return { success: true }
 
+    // N50-fix: RLS' UPDATE-policy tillader kun medarbejderen at rette SINE EGNE beskeder → markering af kundens
+    // beskeder ramte 0 rækker uden fejl, og alle kundebeskeder stod som ulæste for altid (prod: 8/8, ældste 199 d).
+    // Efter app-gaten skrives KUN read_at, KUN på kundebeskeder, KUN de valgte id'er (service-role).
+    const supabase = createAdminClient()
     const { error } = await supabase
       .from('portal_messages')
       .update({ read_at: new Date().toISOString() })
-      .in('id', messageIds)
+      .in('id', ids)
       .eq('sender_type', 'customer')
+      .is('read_at', null)
 
     if (error) {
       logger.error('Error marking customer messages as read', { error: error })

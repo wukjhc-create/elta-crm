@@ -33,6 +33,12 @@ export const PILOT_METRIC_QUERIES = {
       count(*) FILTER (WHERE approval_status = 'approved' AND approved_at > now() - interval '7 days' AND approved_by IS NOT NULL) AS approved_7d,
       count(*) FILTER (WHERE approval_status = 'rejected' AND approved_at > now() - interval '7 days') AS rejected_7d
     FROM public.time_logs`,
+  // N55: driftskøer der kræver handling (N43/N50/N51)
+  workQueues: `SELECT
+      (SELECT count(*) FROM public.portal_messages WHERE sender_type = 'customer' AND read_at IS NULL) AS portal_unread,
+      (SELECT coalesce(floor(extract(epoch FROM now() - min(created_at)) / 86400), 0) FROM public.portal_messages WHERE sender_type = 'customer' AND read_at IS NULL) AS portal_oldest_days,
+      (SELECT count(*) FROM public.incoming_invoices WHERE source = 'email' AND file_url IS NULL AND status NOT IN ('approved', 'posted', 'rejected', 'cancelled')) AS invoices_missing_file,
+      (SELECT count(DISTINCT case_id) FROM public.case_materials WHERE billable AND invoice_line_id IS NULL) AS cases_unbilled_materials`,
 } as const
 for (const [k, sql] of Object.entries(PILOT_METRIC_QUERIES)) {
   if (!/^SELECT\s/i.test(sql) || sql.includes(';')) throw new Error(`pilot-metrics: '${k}' er ikke en ren SELECT`)
@@ -47,6 +53,7 @@ export interface PilotHealth {
   agentActions24h: { actions: number; executed: number; failed: number; needs_verification: number }
   activity24h: { cases_created: number; offers_created: number; audit_events: number; tasks_created: number }
   timeApproval: { pending: number; oldest_pending_days: number; approved_7d: number; rejected_7d: number }
+  workQueues: { portal_unread: number; portal_oldest_days: number; invoices_missing_file: number; cases_unbilled_materials: number }
   alarms: string[]
 }
 
@@ -59,6 +66,7 @@ export async function collectPilotHealth(target: string, run: Runner): Promise<P
   const agentActions24h = num((await run(PILOT_METRIC_QUERIES.agentActions24h))[0]) as PilotHealth['agentActions24h']
   const activity24h = num((await run(PILOT_METRIC_QUERIES.activity24h))[0]) as PilotHealth['activity24h']
   const timeApproval = num((await run(PILOT_METRIC_QUERIES.timeApproval))[0]) as PilotHealth['timeApproval']
+  const workQueues = num((await run(PILOT_METRIC_QUERIES.workQueues))[0]) as PilotHealth['workQueues']
   const alarms: string[] = []
   // Alarmgraenser for pilotperioden (se docs/pilot/PILOT_OPERATIONS.md §Overvaagning)
   for (const h of health) if (Number(h.errors) >= 5) alarms.push(`${h.service}: ${h.errors} fejl/24t`)
@@ -67,7 +75,8 @@ export async function collectPilotHealth(target: string, run: Runner): Promise<P
   if (Number(agentActions24h.needs_verification) > 0) alarms.push(`${agentActions24h.needs_verification} agent-action(s) needs_verification`)
   if (Number(agentActions24h.failed) > 0) alarms.push(`${agentActions24h.failed} fejlede agent-action(s)/24t`)
   if (Number(timeApproval.oldest_pending_days) > 7) alarms.push(`timer har ventet på godkendelse i ${timeApproval.oldest_pending_days} dage`)
-  return { target, at: new Date().toISOString(), health, users, agents, agentActions24h, activity24h, timeApproval, alarms }
+  if (Number(workQueues.portal_oldest_days) > 3) alarms.push(`portal-kundebesked ubesvaret i ${workQueues.portal_oldest_days} dage`)
+  return { target, at: new Date().toISOString(), health, users, agents, agentActions24h, activity24h, timeApproval, workQueues, alarms }
 }
 
 export function formatPilotHealth(h: PilotHealth): string {
@@ -80,6 +89,7 @@ export function formatPilotHealth(h: PilotHealth): string {
   l.push(`Agent-actions 24t: ${h.agentActions24h.actions} (udført ${h.agentActions24h.executed}, fejlet ${h.agentActions24h.failed}, needs_verification ${h.agentActions24h.needs_verification})`)
   l.push(`Aktivitet 24t: sager=${h.activity24h.cases_created} tilbud=${h.activity24h.offers_created} opgaver=${h.activity24h.tasks_created} audit=${h.activity24h.audit_events}`)
   l.push(`Timegodkendelse: afventer=${h.timeApproval.pending} (ældste ${h.timeApproval.oldest_pending_days} d) · godkendt 7d=${h.timeApproval.approved_7d} · afvist 7d=${h.timeApproval.rejected_7d}`)
+  l.push(`Arbejdskøer: portal ulæste=${h.workQueues.portal_unread} (ældste ${h.workQueues.portal_oldest_days} d) · mail-fakturaer uden bilag=${h.workQueues.invoices_missing_file} · sager m. ufakt. materialer=${h.workQueues.cases_unbilled_materials}`)
   l.push(h.alarms.length ? `🔴 ALARM: ${h.alarms.join('; ')}` : '🟢 ingen alarmer')
   return l.join('\n')
 }

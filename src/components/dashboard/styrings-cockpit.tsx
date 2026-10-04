@@ -71,6 +71,8 @@ export function StyringsCockpit({ overview }: Props) {
         <CasesCard overview={overview} />
         <OffersCard overview={overview} />
         <NewCustomersCard overview={overview} />
+        <PortalMessagesCard overview={overview} />
+        <UnbilledCard overview={overview} />
         <VisitsCard overview={overview} />
       </div>
     </section>
@@ -255,6 +257,80 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
                   {o.ageDays}d
                   <ChevronRight className="h-3 w-3 opacity-50" />
                 </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+// =====================================================
+// N51. Klar til fakturering (ufaktureret arbejde pr. sag)
+// =====================================================
+
+function UnbilledCard({ overview }: { overview: DashboardOverview }) {
+  const { caseCount, saleTotal, cases } = overview.unbilled
+  const err = overview.errors.unbilled
+  const kr = (n: number) => new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 0 }).format(n)
+  return (
+    <Card
+      title="Klar til fakturering"
+      icon={<FileText className="h-4 w-4" />}
+      tone={caseCount > 0 ? 'amber' : 'green'}
+      href="/dashboard/orders"
+      headline={caseCount}
+      headlineLabel={caseCount > 0 ? `sager · ${kr(saleTotal)} ufaktureret` : 'sager med ufaktureret arbejde'}
+      error={err}
+    >
+      {cases.length === 0 ? (
+        <EmptyRow text={err ? 'Kunne ikke hente data' : 'Alt registreret arbejde er faktureret.'} />
+      ) : (
+        <ul className="text-xs divide-y" data-testid="cockpit-unbilled">
+          {cases.map((c) => (
+            <li key={c.id}>
+              <Link href={`/dashboard/orders/${c.id}?tab=fakturakladde`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{c.case_number ? `${c.case_number} · ` : ''}{c.title}</div>
+                  <div className="truncate text-gray-500">{c.customer_name ?? '—'} · {c.lines} linje{c.lines === 1 ? '' : 'r'}</div>
+                </div>
+                <span className="shrink-0 tabular-nums font-medium">{kr(c.sale)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+// =====================================================
+// N50. Ulæste kundebeskeder fra kundeportalen
+// =====================================================
+
+function PortalMessagesCard({ overview }: { overview: DashboardOverview }) {
+  const { unreadCount, customers } = overview.portal
+  const err = overview.errors.portal
+  return (
+    <Card
+      title="Kundebeskeder (portal)"
+      icon={<Mail className="h-4 w-4" />}
+      tone={unreadCount > 0 ? 'amber' : 'green'}
+      href="/dashboard/customers"
+      headline={unreadCount}
+      headlineLabel="ulæste fra kunder"
+      error={err}
+    >
+      {customers.length === 0 ? (
+        <EmptyRow text={err ? 'Kunne ikke hente data' : 'Ingen ulæste kundebeskeder.'} />
+      ) : (
+        <ul className="text-xs divide-y" data-testid="cockpit-portal-unread">
+          {customers.map((c) => (
+            <li key={c.id}>
+              <Link href={`/dashboard/customers/${c.id}#chat`} className="py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 rounded -mx-1 px-1">
+                <span className="truncate font-medium">{c.name}</span>
+                <span className={`shrink-0 text-[11px] ${ageBadge(c.oldestDays)}`}>{c.unread} · {c.oldestDays}d</span>
               </Link>
             </li>
           ))}
