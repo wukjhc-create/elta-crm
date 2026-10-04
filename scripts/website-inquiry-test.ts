@@ -28,6 +28,17 @@ ok(parsed.email === 'test.testesen@example.dk', 'parser: kundens mail (ikke Form
 ok((parsed.name ?? '').includes('Test Testesen'), 'parser: navn', String(parsed.name))
 ok(!!parsed.phone && parsed.phone.replace(/\D/g, '').endsWith('11223344'), 'parser: telefon', String(parsed.phone))
 
+// N92: rigtige mails (HTML) — parserens stripHtml lægger cellerne på samme linje (</td> → mellemrum); postnr-feltet
+const html = ['<p>Here\'s what they had to say</p>', '<table>', '<tr><th>Name</th><th>Value</th></tr>',
+  '<tr><td>name</td><td>Hanne Holm Jensen</td></tr>', '<tr><td>phone</td><td>12345678</td></tr>', '<tr><td>email</td><td>hanne@example.dk</td></tr>',
+  '<tr><td>inquiry_type</td><td>Solceller</td></tr>', '<tr><td>message</td><td>Hej med jer</td></tr>', '<tr><td>postnr</td><td>4000 Roskilde</td></tr>',
+  '<tr><td>adresse</td><td>Solvej 12</td></tr>', '</table>', '<p>Your friends from, FormSubmit Team</p>'].join('\n')
+const ph = parseCustomerFromEmail(null, html, null)
+ok(ph.name === 'Hanne Holm Jensen', 'HTML-tabel (samme linje): navn', String(ph.name))
+ok(ph.email === 'hanne@example.dk', 'HTML-tabel: e-mail', String(ph.email))
+ok(ph.address === 'Solvej 12', 'HTML-tabel: adresse løber ikke ind i FormSubmits tekst', String(ph.address))
+ok(ph.postalCode === '4000' && ph.city === 'Roskilde', 'HTML-tabel: postnr + by fra "postnr"', `${ph.postalCode} ${ph.city}`)
+
 // Regressionsværn: andre FormSubmit-/noreply-mails scores fortsat ned (støjfiltret er uændret for dem)
 ok(scoreEmail({ subject: 'Action Required: Activate FormSubmit', senderEmail: 'noreply@formsubmit.co', senderName: null, bodyText: 'activate', bodyHtml: null, bodyPreview: null } as never) < 2, 'systemmail fortsat lav score')
 
