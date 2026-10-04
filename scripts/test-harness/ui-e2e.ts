@@ -3795,7 +3795,7 @@ ${m.text()}`) })
         u114MessageId = (pm.data?.[0] as { id?: string } | undefined)?.id ?? null
         await gotoSafe(a.page, `${base}/dashboard/go-live`, { waitUntil: 'networkidle', timeout: 120_000 })
         await a.page.getByTestId('pilot-setup').waitFor({ timeout: 60_000 }).catch(() => {})
-        for (const k of ['portal_unread', 'invoice_attachments', 'supplier_prices', 'case_status', 'invoice_suppliers', 'web_inquiries']) {
+        for (const k of ['portal_unread', 'invoice_attachments', 'supplier_prices', 'case_status', 'invoice_suppliers', 'web_inquiries', 'customer_emails']) {
           r[`punkt_${k}`] = (await a.page.getByTestId(`pilot-setup-${k}`).count()) === 1
         }
         r.portal_roed = (await a.page.getByTestId('pilot-setup-portal_unread').getAttribute('data-ok').catch(() => '')) === 'nej'

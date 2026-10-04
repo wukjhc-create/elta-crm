@@ -93,7 +93,7 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
 
   // Driftskøer fundet 2026-10-04 (N41/N50/N57/N58) — kun antal
   const since90 = new Date(Date.now() - 90 * 86_400_000).toISOString()
-  const [portalUnread, mailInvoicesNoFile, aoFresh, newCases, invoicesNoSupplier, webInquiries] = await Promise.all([
+  const [portalUnread, mailInvoicesNoFile, aoFresh, newCases, invoicesNoSupplier, webInquiries, placeholderCustomers] = await Promise.all([
     admin.from('portal_messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').is('read_at', null),
     admin.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('source', 'email').is('file_url', null)
       .not('status', 'in', '(approved,posted,rejected,cancelled)'),
@@ -105,6 +105,8 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     // N67: webhenvendelser (90 d) uden kunde — lead-tjek sker nedenfor
     admin.from('incoming_emails').select('id').ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%')
       .is('customer_id', null).eq('is_archived', false).gte('received_at', since90).limit(500),
+    // N74/N80: aktive kunder uden rigtig e-mail (pladsholder fra mail-automatikken) — kan ikke modtage tilbud/faktura
+    admin.from('customers').select('id', { count: 'exact', head: true }).eq('is_active', true).ilike('email', '%@elta-crm.local'),
   ])
   const webIds = ((webInquiries.data ?? []) as Array<{ id: string }>).map((w) => w.id)
   let openWeb = 0
@@ -166,6 +168,14 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
       detail: openWeb === 0 ? 'alle henvendelser fra hjemmesiden har kunde eller lead' : `${openWeb} henvendelse(r) fra hjemmesiden uden kunde eller lead`,
       fixHint: 'Dashboard → "Henvendelser fra hjemmesiden" → "Opret lead"',
       href: '/dashboard',
+    },
+    {
+      key: 'customer_emails',
+      label: 'Aktive kunder har en rigtig e-mail',
+      ok: (placeholderCustomers.count ?? 0) === 0,
+      detail: (placeholderCustomers.count ?? 0) === 0 ? 'alle aktive kunder har e-mail' : `${placeholderCustomers.count} aktiv(e) kunde(r) oprettet fra mail uden e-mail — kan ikke modtage tilbud/faktura`,
+      fixHint: 'Kunder → "Oprettet fra mail" → ret e-mail eller deaktivér (leverandører/dubletter)',
+      href: '/dashboard/customers?origin=auto',
     },
     {
       key: 'case_status',
