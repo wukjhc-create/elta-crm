@@ -13,9 +13,11 @@ import {
 interface CalculatorFormProps {
   defaultValues: CalculatorInput
   onCalculate: (input: CalculatorInput) => void
+  /** D51: avance-skyderen kun for kostpris-roller (salg bruger standardavancen) */
+  showInternal?: boolean
 }
 
-export function CalculatorForm({ defaultValues, onCalculate }: CalculatorFormProps) {
+export function CalculatorForm({ defaultValues, onCalculate, showInternal = true }: CalculatorFormProps) {
   const [values, setValues] = useState<CalculatorInput>(defaultValues)
 
   useEffect(() => {
@@ -156,8 +158,8 @@ export function CalculatorForm({ defaultValues, onCalculate }: CalculatorFormPro
       <div className="space-y-4">
         <h3 className="font-semibold text-lg border-b pb-2">Prissætning</h3>
 
-        {/* Margin */}
-        <div className="space-y-1">
+        {/* Margin — D51: kun kostpris-roller */}
+        {showInternal && <div className="space-y-1">
           <label htmlFor="margin" className="text-sm font-medium">
             {CALCULATOR_LABELS.margin}: {Math.round(values.margin * 100)}%
           </label>
@@ -175,7 +177,7 @@ export function CalculatorForm({ defaultValues, onCalculate }: CalculatorFormPro
             <span>0%</span>
             <span>50%</span>
           </div>
-        </div>
+        </div>}
 
         {/* Discount */}
         <div className="space-y-1">

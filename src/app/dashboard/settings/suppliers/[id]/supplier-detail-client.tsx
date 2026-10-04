@@ -40,9 +40,11 @@ import type { Supplier } from '@/types/suppliers.types'
 
 interface SupplierDetailClientProps {
   supplier: Supplier
+  /** PV10 — suppliers.credentials (admin): API-/FTP-login-fanen */
+  canManageCredentials?: boolean
 }
 
-export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
+export function SupplierDetailClient({ supplier, canManageCredentials = false }: SupplierDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -171,10 +173,12 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
             <Settings className="w-4 h-4 mr-2" />
             Indstillinger
           </TabsTrigger>
-          <TabsTrigger value="credentials">
+          {canManageCredentials && (
+          <TabsTrigger value="credentials" data-testid="supplier-credentials-tab">
             <Key className="w-4 h-4 mr-2" />
             {isLM ? 'FTP Login' : 'API Login'}
           </TabsTrigger>
+          )}
           <TabsTrigger value="margins">
             <Percent className="w-4 h-4 mr-2" />
             Marginer
@@ -210,6 +214,7 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
           </div>
         </TabsContent>
 
+        {canManageCredentials && (
         <TabsContent value="credentials" className="mt-6">
           <div className="bg-white rounded-lg border p-6">
             <SupplierCredentialsForm
@@ -223,6 +228,7 @@ export function SupplierDetailClient({ supplier }: SupplierDetailClientProps) {
             </div>
           )}
         </TabsContent>
+        )}
 
         <TabsContent value="margins" className="mt-6">
           <MarginRulesManager

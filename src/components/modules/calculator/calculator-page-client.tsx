@@ -27,7 +27,8 @@ const defaultInput: CalculatorInput = {
   includeVat: true,
 }
 
-export function CalculatorPageClient() {
+/** D51: showInternal = offers.view.cost_prices (komponentkost, arbejdsløn, avance) */
+export function CalculatorPageClient({ showInternal = false }: { showInternal?: boolean } = {}) {
   const [results, setResults] = useState<CalculatorResults>(() =>
     calculateSolarSystem(defaultInput)
   )
@@ -145,13 +146,14 @@ export function CalculatorPageClient() {
               key={formKey}
               defaultValues={currentInput}
               onCalculate={handleCalculate}
+              showInternal={showInternal}
             />
           </div>
         </div>
 
         {/* Right Column - Results */}
         <div className="lg:col-span-2 space-y-6">
-          <ResultsPanel results={results} />
+          <ResultsPanel results={results} showInternal={showInternal} />
           <SavingsChart projections={results.yearlyProjections} totalPrice={results.totalPrice} />
         </div>
       </div>

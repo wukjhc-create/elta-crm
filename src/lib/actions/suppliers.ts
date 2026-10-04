@@ -20,7 +20,7 @@ import type {
   SupplierProductFilters,
   SupplierOptionForMaterial,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import { normalizeVatNumber, isValidVatFormat } from '@/lib/invoice-control/vat'
 
 /**
@@ -317,6 +317,9 @@ export async function getSupplierProducts(
   filters?: SupplierProductFilters
 ): Promise<ActionResult<PaginatedResponse<SupplierProductWithSupplier>>> {
   try {
+    // D48 (privacy): kost/avance-data — kun products.view.cost_prices
+    const denied = await permissionDenied('products.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     const page = filters?.page || 1
@@ -410,6 +413,9 @@ export async function searchSupplierProducts(
   options?: { supplier_id?: string; limit?: number }
 ): Promise<ActionResult<SupplierProductWithSupplier[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun products.view.cost_prices
+    const denied = await permissionDenied('products.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     const sanitized = sanitizeSearchTerm(query)
@@ -448,6 +454,9 @@ export async function getSupplierProduct(
   id: string
 ): Promise<ActionResult<SupplierProductWithSupplier>> {
   try {
+    // D48 (privacy): kost/avance-data — kun products.view.cost_prices
+    const denied = await permissionDenied('products.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
 
@@ -511,6 +520,9 @@ export async function getPriceHistory(
   options?: { limit?: number }
 ): Promise<ActionResult<PriceHistory[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun products.view.cost_prices
+    const denied = await permissionDenied('products.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierProductId, 'produkt ID')
 

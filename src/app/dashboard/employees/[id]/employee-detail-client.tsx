@@ -17,16 +17,12 @@ import {
 import {
   EmployeeProfileBadges,
   EmployeeLoginSummary,
-  EmployeeOvertimeRatesView,
   EmployeeEquipmentView,
   EmployeeCertificatesView,
   EmployeeHistoryView,
 } from '@/components/modules/employees/employee-profile-sections'
+import { EmployeeTabBar, EmployeeEconomyTab, EmployeeJobTab, useEmployeeTab, type EmployeeTab } from './employee-tabs'
 
-const fmtAmount = (n: number | null | undefined) =>
-  n == null ? '—' : new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2 }).format(Number(n))
-const fmtPct = (n: number | null | undefined) =>
-  n == null ? '—' : `${Number(n).toLocaleString('da-DK', { maximumFractionDigits: 2 })} %`
 const fmtDate = (s: string | null | undefined) => (s ? s.slice(0, 10) : '—')
 const fmtDateLong = (s: string | null | undefined) => {
   if (!s) return '—'
@@ -57,7 +53,9 @@ export function EmployeeDetailClient({
   canManageLogin?: boolean
 }) {
   const roleLabel = ROLE_LABEL.get(employee.role as any) ?? employee.role
-  const comp = employee.compensation
+  // Privacy (Henrik 2026-10-03): faner — følsomme data kun i "Økonomi & løn" (hentes først når fanen åbnes)
+  const tabs: EmployeeTab[] = ['overblik', 'job', 'dokumenter', ...(canSeePayroll ? ['oekonomi' as const] : []), ...(canManageLogin ? ['login' as const] : [])]
+  const [tab, setTab] = useEmployeeTab(tabs)
   const fullAddress = [employee.address, employee.postal_code, employee.city].filter(Boolean).join(', ')
 
   return (
@@ -112,6 +110,10 @@ export function EmployeeDetailClient({
         <EmployeeProfileBadges employeeId={employee.id} employeeActive={employee.active} />
       </div>
 
+      <EmployeeTabBar tabs={tabs} active={tab} onSelect={setTab} />
+
+      {tab === 'overblik' && (
+        <>
       {/* Overblik + Kontakt */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Panel title="Overblik">
@@ -133,50 +135,28 @@ export function EmployeeDetailClient({
         </Panel>
       </div>
 
-      {/* Login/adgang (read-only) */}
-      {canManageLogin && <EmployeeLoginSummary employeeId={employee.id} />}
-
-      {/* Økonomi/satser (read-only, payroll-gated) */}
-      {canSeePayroll && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <Panel title="Satser og økonomi">
-            {comp ? (
-              <>
-                <Row label="Timeløn" value={fmtAmount(comp.hourly_wage)} />
-                <Row label="Intern kostpris / time" value={fmtAmount(comp.internal_cost_rate)} />
-                <Row label="Salgspris / time" value={fmtAmount(comp.sales_rate)} />
-                <Row label="Pension" value={fmtPct(comp.pension_pct)} />
-                <Row label="Fritvalg" value={fmtPct(comp.free_choice_pct)} />
-                <Row label="Feriepenge" value={fmtPct(comp.vacation_pct)} />
-                <Row label="SH" value={fmtPct(comp.sh_pct)} />
-                <Row label="Overhead" value={fmtPct(comp.overhead_pct)} />
-                <Row label="Sociale omkostninger" value={fmtAmount(comp.social_costs)} />
-                <Row label="Kørselssats / km" value={fmtAmount(comp.mileage_rate)} />
-                <Row label="Reel timekost (beregnet)" value={<strong className="text-gray-900">{fmtAmount(comp.real_hourly_cost)}</strong>} />
-              </>
-            ) : (
-              <p className="text-sm text-gray-500 py-2">Ingen satser registreret. Sættes på Rediger medarbejder-siden.</p>
-            )}
-          </Panel>
-          <EmployeeOvertimeRatesView employeeId={employee.id} />
-        </div>
-      )}
-      {!canSeePayroll && (
-        <Panel title="Satser og økonomi">
-          <p className="text-sm text-gray-500 py-2 italic">Løn og satser er kun synlige for administrator-rollen.</p>
-        </Panel>
-      )}
-
-      {/* Udstyr / Certifikater / Historik (read-only) */}
-      <EmployeeEquipmentView employeeId={employee.id} />
-      <EmployeeCertificatesView employeeId={employee.id} />
-      <EmployeeHistoryView employeeId={employee.id} />
-
+          <EmployeeHistoryView employeeId={employee.id} />
       {employee.notes && (
         <Panel title="Noter">
           <p className="text-sm whitespace-pre-wrap text-gray-800">{employee.notes}</p>
         </Panel>
       )}
+        </>
+      )}
+
+      {tab === 'job' && <EmployeeJobTab employeeId={employee.id} />}
+
+      {tab === 'dokumenter' && (
+        <>
+          <EmployeeCertificatesView employeeId={employee.id} />
+          <EmployeeEquipmentView employeeId={employee.id} />
+        </>
+      )}
+
+      {/* Kun for employees.payroll.view; komponenten henter først data her og glemmer dem når fanen forlades */}
+      {tab === 'oekonomi' && canSeePayroll && <EmployeeEconomyTab employeeId={employee.id} />}
+
+      {tab === 'login' && canManageLogin && <EmployeeLoginSummary employeeId={employee.id} />}
     </div>
   )
 }

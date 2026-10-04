@@ -7,6 +7,7 @@
  * All data is scoped to the authenticated user's org.
  */
 
+import { compareOfferToActual, type ActualMaterialInput, type OfferLineInput } from '@/lib/cases/offer-vs-actual'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import {
@@ -45,6 +46,10 @@ export interface ProjectProfitability {
   actual_hours: number
   billable_hours: number
   estimated_hours: number | null
+  /** N26d: tilbudt kost (tilbudslinjer) vs. faktisk kost (materialer + aggregeret timekost) — null uden tilbud/forbrug */
+  offered_cost: number | null
+  actual_cost: number | null
+  cost_deviation: number | null
 }
 
 export interface TeamProductivity {
@@ -375,7 +380,7 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     // længere → rapporten var tom/forkert for alle rigtige sager.
     const { data: cases } = await supabase
       .from('service_cases')
-      .select('id, case_number, title, status, budget, planned_hours, customer:customers!service_cases_customer_id_fkey(company_name)')
+      .select('id, case_number, title, status, budget, planned_hours, source_offer_id, customer:customers!service_cases_customer_id_fkey(company_name)')
       .neq('status', 'converted')
       .order('created_at', { ascending: false })
       .limit(50)
@@ -387,18 +392,37 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     const caseIds = cases.map((c) => c.id as string)
     const { data: logs } = await supabase
       .from('time_logs')
-      .select('hours, billable, end_time, work_order:work_orders!inner(case_id)')
+      .select('hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
       .in('work_order.case_id', caseIds)
       .not('end_time', 'is', null)
 
     const actual = new Map<string, number>()
     const billable = new Map<string, number>()
-    for (const l of (logs ?? []) as unknown as Array<{ hours: number | string | null; billable: boolean | null; work_order: { case_id: string } | Array<{ case_id: string }> }>) {
+    const labourCost = new Map<string, number>()
+    for (const l of (logs ?? []) as unknown as Array<{ hours: number | string | null; billable: boolean | null; cost_amount: number | string | null; work_order: { case_id: string } | Array<{ case_id: string }> }>) {
       const wo = Array.isArray(l.work_order) ? l.work_order[0] : l.work_order
       if (!wo) continue
       const h = Number(l.hours ?? 0) || 0
       actual.set(wo.case_id, (actual.get(wo.case_id) ?? 0) + h)
       if (l.billable !== false) billable.set(wo.case_id, (billable.get(wo.case_id) ?? 0) + h)
+      if (l.cost_amount != null) labourCost.set(wo.case_id, (labourCost.get(wo.case_id) ?? 0) + (Number(l.cost_amount) || 0))
+    }
+
+    // N26d: tilbudt vs. faktisk kost pr. sag (samme matching som Økonomi-fanens linjevisning; timekost aggregeret, D50)
+    const offerIds = Array.from(new Set(cases.map((c) => c.source_offer_id as string | null).filter((x): x is string => !!x)))
+    const [linesRes, matsRes] = await Promise.all([
+      offerIds.length
+        ? supabase.from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+      supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds),
+    ])
+    const linesByOffer = new Map<string, OfferLineInput[]>()
+    for (const l of (linesRes.data ?? []) as Array<OfferLineInput & { offer_id: string }>) {
+      linesByOffer.set(l.offer_id, [...(linesByOffer.get(l.offer_id) ?? []), l])
+    }
+    const matsByCase = new Map<string, ActualMaterialInput[]>()
+    for (const m of (matsRes.data ?? []) as Array<ActualMaterialInput & { case_id: string }>) {
+      matsByCase.set(m.case_id, [...(matsByCase.get(m.case_id) ?? []), m])
     }
     const r1 = (n: number) => Math.round(n * 10) / 10
 
@@ -414,6 +438,19 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
         actual_hours: r1(actual.get(c.id as string) ?? 0),
         billable_hours: r1(billable.get(c.id as string) ?? 0),
         estimated_hours: c.planned_hours == null ? null : Number(c.planned_hours),
+        ...(() => {
+          const id = c.id as string
+          const lines = c.source_offer_id ? linesByOffer.get(c.source_offer_id as string) ?? [] : []
+          const mats = matsByCase.get(id) ?? []
+          const cmp = compareOfferToActual(lines, mats, { hours: actual.get(id) ?? 0, cost: labourCost.has(id) ? labourCost.get(id)! : null })
+          const hasOffered = cmp.rows.some((r) => r.offered_cost != null)
+          const hasActual = cmp.rows.some((r) => r.actual_cost != null)
+          return {
+            offered_cost: hasOffered ? cmp.totals.offered_cost : null,
+            actual_cost: hasActual ? cmp.totals.actual_cost : null,
+            cost_deviation: hasOffered && hasActual ? cmp.totals.deviation : null,
+          }
+        })(),
       }
     })
 

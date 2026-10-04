@@ -35,6 +35,7 @@ import {
   getAuthenticatedClientWithRole,
 } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
+import type { Permission } from '@/lib/auth/permissions'
 
 // Get all offers with optional filtering and pagination
 export async function getOffers(filters?: {
@@ -168,6 +169,19 @@ export async function getOffers(filters?: {
   }
 }
 
+/** D43/D44: synlighed af kost/avance (navngivet: check:rls-matrix læser literal-strenge i skrivefunktioner som skrive-gates). */
+const OFFER_COST_VISIBILITY_PERMISSION = 'offers.view.cost_prices' as const
+
+/**
+ * D43 (privacy/RBAC): fjern kost/leverandørkost/avance fra en tilbudslinje for roller uden offers.view.cost_prices.
+ * margin_percentage + unit_price afslører kostprisen (kost = salg / (1 + avance)) → også fjernet. Bruges af getOffer og
+ * alle handlinger, der returnerer en linje (ellers får salg kosten tilbage efter at have tilføjet/rettet en linje).
+ */
+function stripLineCost<T extends Partial<OfferLineItem>>(li: T, hasPermission: (p: Permission) => boolean): T {
+  if (hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) return li
+  return { ...li, cost_price: null, supplier_cost_price_at_creation: null, supplier_margin_applied: null, margin_percentage: null }
+}
+
 // Get single offer by ID with all relations
 export async function getOffer(id: string): Promise<ActionResult<OfferWithRelations>> {
   try {
@@ -200,6 +214,11 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
     // Sort line items by position
     if (data.line_items) {
       data.line_items.sort((a: OfferLineItem, b: OfferLineItem) => a.position - b.position)
+      // D43 (privacy/RBAC): kost/leverandørkost/avance kun for offers.view.cost_prices — før lå de i payloaden til
+      // salg og blev kun skjult i UI'et
+      if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
+        data.line_items = data.line_items.map((li: OfferLineItem) => stripLineCost(li, hasPermission))
+      }
     }
 
     return { success: true, data: data as OfferWithRelations }
@@ -875,7 +894,7 @@ export async function createLineItem(
     }
 
     revalidatePath(`/offers/${validated.data.offer_id}`)
-    return { success: true, data: data as OfferLineItem }
+    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette linje') }
   }
@@ -930,7 +949,10 @@ export async function updateLineItem(
     // cost_price er NOT NULL DEFAULT 0 — undlad at sende feltet hvis det ikke
     // er i payloaden, saa eksisterende vaerdi bevares (i stedet for at saette
     // det til 0 paa update af ikke-leverandoer-linjer).
-    const costPriceRaw = formData.get('cost_price')
+    // D43: uden offers.view.cost_prices (salg) har klienten aldrig set kost/avance → rør dem ikke (ellers ville en
+    // redigering nulstille de skjulte værdier)
+    const mayTouchCost = hasPermission(OFFER_COST_VISIBILITY_PERMISSION)
+    const costPriceRaw = mayTouchCost ? formData.get('cost_price') : null
     const costPrice = costPriceRaw ? Number(costPriceRaw) : undefined
     const supplierMargin = formData.get('supplier_margin_applied') ? Number(formData.get('supplier_margin_applied')) : null
     const supplierCostAtCreation = formData.get('supplier_cost_price_at_creation') ? Number(formData.get('supplier_cost_price_at_creation')) : null
@@ -942,8 +964,8 @@ export async function updateLineItem(
         ...updateData,
         total,
         ...(costPrice !== undefined ? { cost_price: costPrice } : {}),
-        supplier_margin_applied: supplierMargin,
-        supplier_cost_price_at_creation: supplierCostAtCreation,
+        ...(mayTouchCost ? { supplier_margin_applied: supplierMargin } : {}),
+        ...(mayTouchCost ? { supplier_cost_price_at_creation: supplierCostAtCreation } : {}),
         ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
       })
       .eq('id', lineItemId)
@@ -959,7 +981,7 @@ export async function updateLineItem(
     }
 
     revalidatePath(`/offers/${offerId}`)
-    return { success: true, data: data as OfferLineItem }
+    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere linje') }
   }
@@ -1136,7 +1158,7 @@ export async function addProductToOffer(
     )
 
     revalidatePath(`/offers/${offerId}`)
-    return { success: true, data: data as OfferLineItem }
+    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke tilføje produkt til tilbud') }
   }
@@ -1157,6 +1179,10 @@ export async function importCalculationToOffer(
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('offers.edit')) {
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
+    // D48: kalkulationer er kun for tools.calculations (ikke salg)
+    if (!hasPermission('tools.calculations')) {
+      return { success: false, error: 'Manglende tilladelse: tools.calculations' }
     }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(calculationId, 'kalkulation ID')
@@ -1454,7 +1480,7 @@ export async function createLineItemFromSupplierProduct(
     )
 
     revalidatePath(`/offers/${offerId}`)
-    return { success: true, data: data as OfferLineItem }
+    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette linje fra leverandør produkt') }
   }
@@ -1775,6 +1801,14 @@ export async function searchSupplierProductsForOffer(
     // Sort: cheapest cost_price first
     results.sort((a, b) => (a.cost_price || Infinity) - (b.cost_price || Infinity))
 
+    // D44 (privacy/RBAC): netto-/kostpris og avance kun for offers.view.cost_prices — salg ser salgspris (rækkefølge
+    // og "billigst"-markering bevares)
+    if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
+      return { success: true, data: results.map((r) => ({
+        ...r, cost_price: 0, margin_percentage: 0,
+        alternatives: r.alternatives?.map((x) => ({ ...x, cost_price: 0 })),
+      })) }
+    }
     return { success: true, data: results }
   } catch (err) {
     return { success: false, error: formatError(err, 'Søgning fejlede') }
@@ -1943,7 +1977,13 @@ export async function searchSupplierProductsLive(
       }
     }
 
-    return { success: true, data: allProducts.slice(0, limit * 2) }
+    const live = allProducts.slice(0, limit * 2)
+    // D44 (privacy/RBAC): live-API-priser er netto — kost/avance kun for offers.view.cost_prices (fallback-grenene
+    // stripper allerede via searchSupplierProductsForOffer)
+    if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
+      return { success: true, data: live.map((p) => ({ ...p, cost_price: 0, margin_percentage: 0 })) }
+    }
+    return { success: true, data: live }
   } catch (err) {
     return { success: false, error: formatError(err, 'Live søgning fejlede') }
   }
@@ -2055,7 +2095,7 @@ export async function refreshLineItemPrice(
     )
 
     revalidatePath(`/offers/${lineItem.offer_id}`)
-    return { success: true, data: data as OfferLineItem }
+    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere pris') }
   }
@@ -2093,6 +2133,10 @@ export async function optimizeOfferPrices(
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('offers.edit')) {
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
+    // D48: resultatet er gammel/ny nettokost og besparelse pr. linje → kun kostpris-roller
+    if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
+      return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
     }
     validateUUID(offerId, 'tilbuds ID')
 

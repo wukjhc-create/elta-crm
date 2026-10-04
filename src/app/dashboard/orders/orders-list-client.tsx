@@ -208,13 +208,12 @@ export function OrdersListClient({
                 <th className="px-3 py-2 text-right">Tilbudt</th>
                 <th className="px-3 py-2 text-right">Revideret</th>
                 {canSeeBilling && <th className="px-3 py-2 text-right">Faktureret / Udestående</th>}
-                <th className="px-3 py-2 text-center">Lav DB</th>
               </tr>
             </thead>
             <tbody>
               {cases.length === 0 ? (
                 <tr>
-                  <td colSpan={canSeeBilling ? 14 : 13} className="px-3 py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={canSeeBilling ? 13 : 12} className="px-3 py-12 text-center text-gray-400 text-sm">
                     {filters.search || filters.status || filters.type
                       ? 'Ingen sager matcher filtrene.'
                       : 'Ingen sager endnu — opret din første sag fra et tilbud, en email eller manuelt.'}
@@ -297,13 +296,7 @@ export function OrdersListClient({
                           })()}
                         </td>
                       )}
-                      <td className="px-3 py-2 text-center">
-                        {c.low_profit ? (
-                          <span title="Margin under 15 %" className="inline-block w-2 h-2 rounded-full bg-red-500" />
-                        ) : (
-                          <span className="inline-block w-2 h-2 rounded-full bg-gray-200" />
-                        )}
-                      </td>
+                      {/* Privacy (Henrik 2026-10-03): lav-DB vises ikke på sagslisten — se sagens Økonomi-fane */}
                     </tr>
                   )
                 })

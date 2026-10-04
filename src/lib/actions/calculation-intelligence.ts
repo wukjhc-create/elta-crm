@@ -18,7 +18,7 @@ import type {
   ProfitSimulationResult,
 } from '@/types/calculation-intelligence.types'
 import { CalculationIntelligenceEngine, detectAnomalies } from '@/lib/services/calculation-intelligence'
-import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -196,6 +196,9 @@ export async function getRoomCalculations(
   calculationId: string
 ): Promise<ActionResult<RoomCalculation[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.calculations
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -290,6 +293,9 @@ export async function getCalculationAnomalies(
   calculationId: string
 ): Promise<ActionResult<CalculationAnomaly[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.calculations
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -345,7 +351,10 @@ export async function getSystemAlerts(
   filters?: { is_read?: boolean; alert_type?: string; limit?: number }
 ): Promise<ActionResult<SystemAlert[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // D49: systemadvarsler (bl.a. lav margin) kun for economy.cost_prices — før kun login-tjek
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('economy.cost_prices')) return { success: true, data: [] }
+    const { supabase } = ctx
 
     let query = supabase
       .from('system_alerts')

@@ -113,11 +113,10 @@ export async function listEmployeesAction(filter: ListFilter = {}): Promise<Empl
   }
 
   const { data } = await q
-  const rows = (data ?? []).map(normaliseEmployee)
-  if (!canSeeRates) {
-    return rows.map((r) => ({ ...r, hourly_rate: null, cost_rate: null }))
-  }
-  return rows
+  void canSeeRates
+  // Privacy (Henrik 2026-10-03): satser vises aldrig på oversigter — heller ikke for løn-roller. De hentes kun i
+  // fanen "Økonomi & løn" via getEmployeeCompensationAction.
+  return (data ?? []).map(normaliseEmployee).map((r) => ({ ...r, hourly_rate: null, cost_rate: null }))
 }
 
 /**
@@ -133,10 +132,15 @@ export async function listCalendarEmployeesAction(): Promise<EmployeeRow[]> {
   return (data ?? []).map(normaliseEmployee).map((r) => ({ ...r, hourly_rate: null, cost_rate: null }))
 }
 
-export async function getEmployeeAction(id: string): Promise<EmployeeWithCompensation | null> {
+/**
+ * Medarbejder til detalje-/redigeringssiden. Privacy (Henrik 2026-10-03): løn/satser følger KUN med når kalderen
+ * eksplicit beder om det (redigeringssiden med employees.payroll.edit) — detaljesidens overblik henter dem aldrig;
+ * fanen "Økonomi & løn" bruger getEmployeeCompensationAction når den åbnes.
+ */
+export async function getEmployeeAction(id: string, opts: { includeCompensation?: boolean } = {}): Promise<EmployeeWithCompensation | null> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('employees.view')) return null
-  const canSeePayroll = hasPermission('employees.payroll.view')
+  const canSeePayroll = !!opts.includeCompensation && hasPermission('employees.payroll.view')
 
   const { data: emp } = await supabase
     .from('employees')
@@ -469,4 +473,40 @@ function zodFieldErrors(err: import('zod').ZodError): Record<string, string[]> {
     out[key].push(issue.message)
   }
   return out
+}
+
+/**
+ * Privacy: løn/satser for én medarbejder — kun employees.payroll.view, kun når fanen "Økonomi & løn" åbnes.
+ */
+export async function getEmployeeCompensationAction(id: string): Promise<{ ok: true; data: { hourly_rate: number | null; cost_rate: number | null; compensation: EmployeeWithCompensation['compensation'] } } | { ok: false; message: string }> {
+  const ctx = await requirePayrollView()
+  if ('ok' in ctx) return ctx
+  const [{ data: emp }, { data: comp }] = await Promise.all([
+    ctx.supabase.from('employees').select('*').eq('id', id).maybeSingle(),
+    ctx.supabase.from('employee_compensation').select('*').eq('employee_id', id).maybeSingle(),
+  ])
+  if (!emp) return { ok: false, message: 'Medarbejder ikke fundet' }
+  const n = normaliseEmployee(emp)
+  return { ok: true, data: { hourly_rate: n.hourly_rate, cost_rate: n.cost_rate, compensation: (comp ?? null) as EmployeeWithCompensation['compensation'] } }
+}
+
+/** Privacy-fane "Job / Timer": medarbejderens job og timer (ingen beløb). employees.view. */
+export async function getEmployeeWorkSummaryAction(id: string): Promise<{ jobs: Array<{ id: string; title: string | null; status: string; scheduled_date: string | null; case_id: string | null; case_number: string | null }>; hours30: number; billable30: number }> {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('employees.view')) return { jobs: [], hours30: 0, billable30: 0 }
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString()
+  const [{ data: wos }, { data: logs }] = await Promise.all([
+    supabase.from('work_orders').select('id, title, status, scheduled_date, case:service_cases(id, case_number)')
+      .eq('assigned_employee_id', id).order('scheduled_date', { ascending: false, nullsFirst: false }).limit(15),
+    supabase.from('time_logs').select('hours, billable').eq('employee_id', id).gte('start_time', since).not('end_time', 'is', null),
+  ])
+  const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null)
+  const jobs = ((wos ?? []) as unknown as Array<{ id: string; title: string | null; status: string; scheduled_date: string | null; case: { id: string; case_number: string | null } | Array<{ id: string; case_number: string | null }> | null }>).map((w) => {
+    const c = one(w.case)
+    return { id: w.id, title: w.title, status: w.status, scheduled_date: w.scheduled_date, case_id: c?.id ?? null, case_number: c?.case_number ?? null }
+  })
+  const r1 = (n: number) => Math.round(n * 10) / 10
+  let h = 0, b = 0
+  for (const l of (logs ?? []) as Array<{ hours: number | string | null; billable: boolean | null }>) { const x = Number(l.hours) || 0; h += x; if (l.billable !== false) b += x }
+  return { jobs, hours30: r1(h), billable30: r1(b) }
 }

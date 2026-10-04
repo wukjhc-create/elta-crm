@@ -25,6 +25,7 @@ import {
 } from '@/types/case-other-costs.types'
 import { formatCurrency } from '@/lib/utils/format'
 import { CaseOtherCostDialog } from './case-other-cost-dialog'
+import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 
 const SOURCE_LABEL: Record<string, string> = {
   manual: 'Manuel',
@@ -75,6 +76,9 @@ export function OrderOtherCostsTab({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<CaseOtherCostRow | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  // PV8 shoulder-surfing: kost/DB foldet sammen som standard, også for roller med adgang
+  const [costOpen, toggleCost] = useCostReveal()
+  const showCost = canSeeCost && costOpen
 
   const reload = useCallback(async () => {
     setLoadError(null)
@@ -121,6 +125,8 @@ export function OrderOtherCostsTab({
             Kørsel, leje, underleverandør, fragt m.m. Snapshot-priser — ændringer påvirker ikke historik.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        {canSeeCost && <CostRevealToggle open={costOpen} onToggle={toggleCost} />}
         <button
           type="button"
           onClick={() => {
@@ -132,6 +138,7 @@ export function OrderOtherCostsTab({
           <Plus className="w-4 h-4" />
           Tilføj omkostning
         </button>
+        </div>
       </div>
 
       {loadError && (
@@ -199,9 +206,9 @@ export function OrderOtherCostsTab({
                 <th className="px-2 py-2 text-left">Leverandør</th>
                 <th className="px-2 py-2 text-right">Antal</th>
                 <th className="px-2 py-2 text-left">Enhed</th>
-                {canSeeCost && <th className="px-2 py-2 text-right">Kostpris</th>}
+                {showCost && <th className="px-2 py-2 text-right">Kostpris</th>}
                 <th className="px-2 py-2 text-right">Salgspris</th>
-                {canSeeCost && <th className="px-2 py-2 text-right">Sum kost</th>}
+                {showCost && <th className="px-2 py-2 text-right">Sum kost</th>}
                 <th className="px-2 py-2 text-right">Sum salg</th>
                 <th className="px-2 py-2 text-center w-20">Handling</th>
               </tr>
@@ -248,7 +255,7 @@ export function OrderOtherCostsTab({
                         )}
                         {r.receipt_url && (
                           <a
-                            href={r.receipt_url}
+                            href={r.receipt_view_url ?? r.receipt_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wide bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded hover:bg-blue-200"
@@ -272,7 +279,7 @@ export function OrderOtherCostsTab({
                       {fmtNum(r.quantity, 2)}
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-600">{r.unit}</td>
-                    {canSeeCost && (
+                    {showCost && (
                       <td className="px-2 py-2 text-right tabular-nums">
                         {formatCurrency(r.unit_cost, 'DKK', 2)}
                       </td>
@@ -280,7 +287,7 @@ export function OrderOtherCostsTab({
                     <td className="px-2 py-2 text-right tabular-nums">
                       {formatCurrency(r.unit_sales_price, 'DKK', 2)}
                     </td>
-                    {canSeeCost && (
+                    {showCost && (
                       <td className="px-2 py-2 text-right tabular-nums font-medium">
                         {formatCurrency(r.total_cost, 'DKK', 2)}
                       </td>
@@ -324,18 +331,21 @@ export function OrderOtherCostsTab({
             {summary && canSeeCost && (
               <tfoot className="bg-gray-50 text-sm">
                 <tr className="border-t-2 border-gray-200">
-                  <td colSpan={8} className="px-3 py-2 text-right text-xs text-gray-600 uppercase tracking-wide">
+                  <td colSpan={showCost ? 8 : 7} className="px-3 py-2 text-right text-xs text-gray-600 uppercase tracking-wide">
                     Total ({summary.count} {summary.count === 1 ? 'linje' : 'linjer'})
                   </td>
+                  {showCost && (
                   <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-900">
                     {formatCurrency(summary.total_cost, 'DKK', 2)}
                   </td>
+                  )}
                   <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-900">
                     {formatCurrency(summary.total_sales_price, 'DKK', 2)}
                   </td>
                   <td />
                 </tr>
-                <tr>
+                {showCost && (
+                <tr data-testid="other-costs-db-row">
                   <td colSpan={8} className="px-3 py-1 text-right text-xs text-gray-600 uppercase tracking-wide">
                     Foreløbig DB
                   </td>
@@ -365,6 +375,7 @@ export function OrderOtherCostsTab({
                   </td>
                   <td />
                 </tr>
+                )}
               </tfoot>
             )}
           </table>

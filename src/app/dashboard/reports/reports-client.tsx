@@ -1,5 +1,6 @@
 'use client'
 
+import { CostRevealToggle, useCostReveal } from '@/components/shared/sensitive-amounts'
 import { useState, useEffect } from 'react'
 import { formatCurrency } from '@/lib/utils/format'
 import {
@@ -162,12 +163,29 @@ function TopCustomersTable({ data }: { data: RevenueByCustomer[] }) {
 // =====================================================
 
 function ProjectTable({ data }: { data: ProjectProfitability[] }) {
+  // PV8/N26d: budget og tilbudt/faktisk kost er interne tal → sammenfoldet som standard (shoulder-surfing)
+  const [costOpen, toggleCost] = useCostReveal()
+  const [byDeviation, setByDeviation] = useState(false)
+  const rows = byDeviation
+    ? [...data].sort((a, b) => Math.abs(b.cost_deviation ?? 0) - Math.abs(a.cost_deviation ?? 0))
+    : data
   return (
-    <div className="bg-white rounded-lg border p-6">
-      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <Briefcase className="w-5 h-5 text-gray-400" />
-        Sagsrentabilitet
-      </h3>
+    <div className="bg-white rounded-lg border p-6" data-testid="report-case-profitability">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+          <Briefcase className="w-5 h-5 text-gray-400" />
+          Sagsrentabilitet
+        </h3>
+        <div className="flex items-center gap-2">
+          {costOpen && (
+            <label className="text-xs text-gray-600 flex items-center gap-1">
+              <input type="checkbox" checked={byDeviation} onChange={(e) => setByDeviation(e.target.checked)} data-testid="report-sort-deviation" />
+              Største afvigelse først
+            </label>
+          )}
+          <CostRevealToggle open={costOpen} onToggle={toggleCost} />
+        </div>
+      </div>
       {data.length === 0 ? (
         <p className="text-sm text-gray-400 py-8 text-center">Ingen sager endnu</p>
       ) : (
@@ -177,14 +195,21 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
               <tr className="border-b text-left">
                 <th className="pb-2 font-medium text-gray-500">Sag</th>
                 <th className="pb-2 font-medium text-gray-500">Kunde</th>
-                <th className="pb-2 font-medium text-gray-500 text-right">Budget</th>
+                {costOpen && (
+                  <>
+                    <th className="pb-2 font-medium text-gray-500 text-right">Budget</th>
+                    <th className="pb-2 font-medium text-gray-500 text-right">Tilbudt kost</th>
+                    <th className="pb-2 font-medium text-gray-500 text-right">Faktisk kost</th>
+                    <th className="pb-2 font-medium text-gray-500 text-right">Afvigelse</th>
+                  </>
+                )}
                 <th className="pb-2 font-medium text-gray-500 text-right">Est. timer</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Faktiske timer</th>
                 <th className="pb-2 font-medium text-gray-500 text-right">Udnyttelse</th>
               </tr>
             </thead>
             <tbody>
-              {data.slice(0, 15).map((p) => {
+              {rows.slice(0, 15).map((p) => {
                 const utilization =
                   p.estimated_hours && p.estimated_hours > 0
                     ? (p.actual_hours / p.estimated_hours) * 100
@@ -196,9 +221,18 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
                       <div className="text-xs text-gray-400">{p.project_number}</div>
                     </td>
                     <td className="py-2.5 text-gray-600">{p.customer_name || '—'}</td>
-                    <td className="py-2.5 text-right text-gray-600">
-                      {p.budget ? formatCurrency(p.budget) : '—'}
-                    </td>
+                    {costOpen && (
+                      <>
+                        <td className="py-2.5 text-right text-gray-600">
+                          {p.budget ? formatCurrency(p.budget) : '—'}
+                        </td>
+                        <td className="py-2.5 text-right text-gray-600">{p.offered_cost != null ? formatCurrency(p.offered_cost) : '—'}</td>
+                        <td className="py-2.5 text-right text-gray-600">{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</td>
+                        <td className={`py-2.5 text-right font-medium ${p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}`} data-testid="report-case-deviation">
+                          {p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : '—'}
+                        </td>
+                      </>
+                    )}
                     <td className="py-2.5 text-right text-gray-600">
                       {p.estimated_hours != null ? `${p.estimated_hours}t` : '—'}
                     </td>

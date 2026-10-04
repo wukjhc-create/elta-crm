@@ -20,7 +20,7 @@ import {
   type TierConfig,
   type VolumeBracket,
 } from '@/lib/services/price-engine'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -78,6 +78,9 @@ export async function compareProductPrices(
   customerId?: string
 ): Promise<ActionResult<PriceComparisonResult>> {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     if (customerId) {
@@ -175,6 +178,9 @@ export async function analyzeOfferMargins(
   offerId: string
 ): Promise<ActionResult<MarginAnalysis>> {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(offerId, 'offerId')
 
@@ -220,6 +226,9 @@ export async function getProductPriceSuggestions(
   productId?: string
 ): Promise<ActionResult<PriceSuggestion[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     let historicalPrices: number[] = []

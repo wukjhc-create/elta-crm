@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSupplier } from '@/lib/actions/suppliers'
 import { SupplierDetailClient } from './supplier-detail-client'
+import { pageHasPermission } from '@/lib/auth/page-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,8 @@ export default async function SupplierPage({ params }: SupplierPageProps) {
   if (!result.success || !result.data) {
     notFound()
   }
+  // PV10: API-/FTP-login (krypterede credentials) kun for suppliers.credentials — serveren afviser alligevel
+  const canManageCredentials = await pageHasPermission('suppliers.credentials')
 
   return (
     <div className="space-y-6">
@@ -45,7 +48,7 @@ export default async function SupplierPage({ params }: SupplierPageProps) {
         <span className="text-gray-900">{result.data.name}</span>
       </div>
 
-      <SupplierDetailClient supplier={result.data} />
+      <SupplierDetailClient supplier={result.data} canManageCredentials={canManageCredentials} />
     </div>
   )
 }

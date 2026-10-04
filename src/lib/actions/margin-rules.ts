@@ -8,7 +8,7 @@ import type {
   CreateMarginRuleData,
   MarginRuleType,
 } from '@/types/suppliers.types'
-import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -32,6 +32,9 @@ export async function getSupplierMarginRules(
   supplierId: string
 ): Promise<ActionResult<SupplierMarginRule[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 
@@ -270,6 +273,9 @@ export async function getEffectiveMargin(
   rule_id: string
 } | null>> {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 
@@ -436,6 +442,9 @@ export async function getMarginRuleSummary(
   rulesByType: Record<MarginRuleType, number>
 }>> {
   try {
+    // D48 (privacy): kost/avance-data — kun offers.view.cost_prices
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 

@@ -78,6 +78,7 @@ export function OrderDetailClient({
   creator,
   plannedWorkOrderCount = 0,
   canSeeCost = false,
+  canSeeLaborCostDetail = false,
   canSeeBilling = false,
   canCreateInvoice = false,
   canAddNote = false,
@@ -91,6 +92,8 @@ export function OrderDetailClient({
   plannedWorkOrderCount?: number
   /** Sprint Ø2.10 — economy.cost_prices: gate til intern kost / DB. */
   canSeeCost?: boolean
+  /** D50 — employees.payroll.view: kost pr. timeregistrering (ellers kun aggregeret). */
+  canSeeLaborCostDetail?: boolean
   /** Sprint Ø3.1 — invoices.view.own_cases: kost-fri faktureringsstatus + fakturakladde. */
   canSeeBilling?: boolean
   /** Sprint Ø3.4 — invoices.create: styrer om opret-knapper er aktive. */
@@ -149,11 +152,6 @@ export function OrderDetailClient({
             >
               {SERVICE_CASE_PRIORITY_LABELS[sag.priority]}
             </span>
-            {sag.low_profit && (
-              <span className="inline-block px-3 py-1 rounded text-xs font-medium bg-red-100 text-red-800">
-                Lav DB
-              </span>
-            )}
             <Link
               href={`/dashboard/orders/${sag.case_number}/edit`}
               className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50"
@@ -254,6 +252,7 @@ export function OrderDetailClient({
               caseTitle={sag.title}
               caseDefaultEmployeeId={sag.formand_id ?? null}
               canSeeCost={canSeeCost}
+              canSeeLaborCostDetail={canSeeLaborCostDetail}
             />
           )}
           {active === 'aflevering' && <OrderHandoverTab caseId={sag.id} />}
@@ -661,9 +660,8 @@ function OverblikTab({
       <Panel title="Økonomi">
         <Row label="Tilbudt beløb" value={fmtAmount(sag.contract_sum)} />
         <Row label="Revideret beløb" value={fmtAmount(sag.revised_sum)} />
-        <Row label="Internt budget" value={fmtAmount(sag.budget)} />
+        {/* Privacy (Henrik 2026-10-03): internt budget og lav-DB står ikke på overblikket — se fanen Økonomi */}
         <Row label="Planlagt timer" value={sag.planned_hours == null ? '—' : `${sag.planned_hours}`} />
-        <Row label="Lav DB markeret" value={sag.low_profit ? 'JA' : 'nej'} />
         {sag.source_offer_id && (
           <Row label="Fra tilbud" value={
             <Link href={`/dashboard/offers/${sag.source_offer_id}`} className="text-emerald-700 hover:underline font-mono text-xs">

@@ -9,7 +9,7 @@
  */
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
-import { analyzeOfferProfit, type OfferProfitAnalysis } from '@/lib/profit/offer-analysis'
+import { analyzeOfferProfit, isLabourUnit, type OfferProfitAnalysis } from '@/lib/profit/offer-analysis'
 import type { ActionResult } from '@/types/common.types'
 
 export interface OfferProfitResult extends OfferProfitAnalysis {
@@ -104,5 +104,49 @@ export async function getCheaperAlternativesForOffer(offerId: string): Promise<A
     return { success: true, data: findCheaperAlternatives(lines, products) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke sammenligne leverandørpriser') }
+  }
+}
+
+/** Navngivet (check:rls-matrix læser literal-strenge i skrivefunktioner som skrive-gates). */
+const OFFER_COST_PERMISSION = 'offers.view.cost_prices' as const
+
+/**
+ * N25: udfyld kostpris på kladde-tilbuddets linjer UDEN kost — leverandørvare → leverandørens aktuelle kostpris,
+ * timelinje (t/time/timer) → firmaets timekost (samme kilde som Profit Engine). Salgsprisen ændres IKKE; kun kost, så
+ * DB'en bliver retvisende. Øvrige linjer uden kost tælles som tilbageværende.
+ */
+export async function fillMissingOfferLineCosts(offerId: string): Promise<ActionResult<{ filled: number; remaining: number; hourlySource: string }>> {
+  try {
+    validateUUID(offerId, 'tilbud-ID')
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('offers.edit')) return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    if (!ctx.hasPermission(OFFER_COST_PERMISSION)) return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
+    const { supabase } = ctx
+    const { data: offer } = await supabase.from('offers').select('id, status').eq('id', offerId).maybeSingle()
+    if (!offer) return { success: false, error: 'Tilbud ikke fundet' }
+    if (offer.status !== 'draft') return { success: false, error: 'Kun kladder kan opdateres' }
+    const { data: items, error } = await supabase.from('offer_line_items')
+      .select('id, unit, total, cost_price, supplier_cost_price_at_creation, supplier_product_id').eq('offer_id', offerId)
+    if (error) return { success: false, error: 'Kunne ikke hente tilbudslinjer' }
+    const missing = (items ?? []).filter((i) => Number(i.total ?? 0) > 0 && !(Number(i.cost_price ?? 0) > 0) && !(Number(i.supplier_cost_price_at_creation ?? 0) > 0))
+    const spIds = Array.from(new Set(missing.map((i) => i.supplier_product_id as string | null).filter((x): x is string => !!x)))
+    const spCost = new Map<string, number>()
+    if (spIds.length) {
+      const { data: sps } = await supabase.from('supplier_products').select('id, cost_price').in('id', spIds)
+      for (const p of sps ?? []) if (Number(p.cost_price ?? 0) > 0) spCost.set(p.id as string, Number(p.cost_price))
+    }
+    const hourly = missing.some((i) => isLabourUnit(i.unit as string | null)) ? await resolveHourlyCost(supabase) : { cost: null, source: '—' }
+    let filled = 0
+    for (const i of missing) {
+      const cost = i.supplier_product_id && spCost.has(i.supplier_product_id as string)
+        ? spCost.get(i.supplier_product_id as string)!
+        : isLabourUnit(i.unit as string | null) && hourly.cost ? hourly.cost : null
+      if (cost == null) continue
+      const { error: upErr } = await supabase.from('offer_line_items').update({ cost_price: cost }).eq('id', i.id as string)
+      if (!upErr) filled += 1
+    }
+    return { success: true, data: { filled, remaining: missing.length - filled, hourlySource: hourly.source } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke udfylde kostpriser') }
   }
 }

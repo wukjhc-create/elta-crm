@@ -30,7 +30,7 @@ export async function getCustomerSupplierPrices(
   customerId: string
 ): Promise<ActionResult<CustomerSupplierPrice[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.pricing') // D48: kostpris/avance/leverandørrabat
     validateUUID(customerId, 'kunde ID')
 
     const { data, error } = await supabase
@@ -116,7 +116,7 @@ export async function getCustomerProductPrices(
   supplierProductId?: string
 ): Promise<ActionResult<CustomerProductPrice[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.pricing') // D48: kostpris/avance/leverandørrabat
     validateUUID(customerId, 'kunde ID')
 
     let query = supabase
@@ -199,7 +199,7 @@ export async function getCustomerEffectivePrice(
   supplierProductId: string
 ): Promise<ActionResult<CustomerEffectivePrice>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.pricing') // D48: kostpris/avance/leverandørrabat
     validateUUID(customerId, 'kunde ID')
     validateUUID(supplierProductId, 'leverandørprodukt ID')
 
@@ -241,7 +241,7 @@ export async function getBestPriceForCustomer(
   price_source: string
 }>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase } = await requireGate('tools.pricing') // D48: kostpris/avance/leverandørrabat
     validateUUID(customerId, 'kunde ID')
 
     const { data, error } = await supabase

@@ -9,7 +9,7 @@
 
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
 
 // =====================================================
@@ -239,6 +239,9 @@ export async function exportProjects(filters?: {
   priority?: string
 }): Promise<ActionResult<ExportProject[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun economy.cost_prices
+    const denied = await permissionDenied('economy.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     let query = supabase

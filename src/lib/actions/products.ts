@@ -253,7 +253,9 @@ export async function getProducts(
   filters?: ProductFilters
 ): Promise<ActionResult<PaginatedResponse<ProductWithCategory>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // D47 (privacy/RBAC): før intet tilladelsestjek → enhver indlogget kunne hente kostpriser
+    const { supabase, hasPermission } = await requireGate('tools.products')
+    const showCost = hasPermission('products.view.cost_prices')
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -319,7 +321,7 @@ export async function getProducts(
     return {
       success: true,
       data: {
-        data: dataResult.data as ProductWithCategory[],
+        data: (dataResult.data as ProductWithCategory[]).map((p) => (showCost ? p : { ...p, cost_price: null })),
         total,
         page,
         pageSize,
@@ -333,7 +335,7 @@ export async function getProducts(
 
 export async function getProduct(id: string): Promise<ActionResult<ProductWithCategory>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await requireGate('tools.products') // D47
     validateUUID(id, 'produkt ID')
 
     const { data, error } = await supabase
@@ -354,7 +356,8 @@ export async function getProduct(id: string): Promise<ActionResult<ProductWithCa
       return { success: false, error: 'Produktet blev ikke fundet' }
     }
 
-    return { success: true, data: data as ProductWithCategory }
+    const prod = data as ProductWithCategory
+    return { success: true, data: hasPermission('products.view.cost_prices') ? prod : { ...prod, cost_price: null } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente produkt') }
   }
@@ -776,7 +779,8 @@ export async function getSupplierProducts(
   filters?: SupplierProductFilters
 ): Promise<ActionResult<PaginatedResponse<SupplierProductWithRelations>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // D47: leverandørprodukter med indkøbspriser — før intet tilladelsestjek (enhver indlogget, også montør)
+    const { supabase } = await requireGate('products.view.cost_prices')
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize

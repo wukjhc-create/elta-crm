@@ -9,7 +9,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { formatError, getAuthenticatedClientWithRole, permissionDenied } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { logger } from '@/lib/utils/logger'
@@ -133,6 +133,8 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
 
 export async function approveTimeLogsAction(ids: string[]): Promise<ActionResult<{ updated: number; skipped: number }>> {
   try {
+    const denied = await permissionDenied('time_logs.approve') // eksplicit (decide() gater også)
+    if (denied) return { success: false, error: denied }
     return await decide(ids, 'approved', null)
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
@@ -141,6 +143,8 @@ export async function approveTimeLogsAction(ids: string[]): Promise<ActionResult
 
 export async function rejectTimeLogAction(id: string, reason: string): Promise<ActionResult<{ updated: number; skipped: number }>> {
   try {
+    const denied = await permissionDenied('time_logs.approve') // eksplicit (decide() gater også)
+    if (denied) return { success: false, error: denied }
     const r = (reason ?? '').trim()
     if (r.length < 3) return { success: false, error: 'Skriv en begrundelse til montøren' }
     return await decide([id], 'rejected', r.slice(0, 500))

@@ -3,6 +3,7 @@
  *   npx tsx scripts/offer-low-db-test.ts
  */
 import { evaluateOfferLowDb, lowDbAckMessage, LOW_DB_ACK_REQUIRED } from '../src/lib/offers/low-db-warning'
+import { computeOfferDB } from '../src/lib/logic/pricing'
 
 let bad = 0
 const ok = (c: boolean, label: string, extra = '') => { if (!c) bad++; console.log(`${c ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`) }
@@ -33,6 +34,11 @@ ok(!e.low && e.dbPercentage === 40, 'DB 40% er ikke lav', `${e.dbPercentage}%`)
 // 6) Fejlbesked har fast præfiks (klienten genkender den) og dansk tekst med tal
 const m = lowDbAckMessage(a)
 ok(m.startsWith(`${LOW_DB_ACK_REQUIRED}:`) && m.includes('1%') && m.includes('minimum 10%'), 'bekræftelses-besked', m)
+
+// 7) N25: salgslinjer uden kost tælles (DB overvurderet); linjer med 0 kr salg tælles ikke
+const n = computeOfferDB([line(1000, 600), line(500, null), line(300, 0), line(0, null)])
+ok(n.linesWithoutCost === 2, 'N25: 2 salgslinjer uden kostpris', String(n.linesWithoutCost))
+ok(computeOfferDB([line(1000, 600)]).linesWithoutCost === 0, 'N25: alle linjer med kost → 0')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle lav-DB-tests bestået')
 process.exitCode = bad ? 1 : 0

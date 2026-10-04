@@ -15,9 +15,11 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format'
 
 interface ResultsPanelProps {
   results: CalculatorResults
+  /** D51: offers.view.cost_prices — uden: kun kundepris (før/efter moms, rabat) */
+  showInternal?: boolean
 }
 
-export function ResultsPanel({ results }: ResultsPanelProps) {
+export function ResultsPanel({ results, showInternal = true }: ResultsPanelProps) {
   return (
     <div className="space-y-6">
       {/* System Overview */}
@@ -92,6 +94,8 @@ export function ResultsPanel({ results }: ResultsPanelProps) {
           Prisspecifikation
         </h4>
         <div className="space-y-2 text-sm">
+          {/* D51: komponent-/arbejdsløn-kost, subtotal og avance kun for kostpris-roller (ikke salg) */}
+          {showInternal && (<>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Solpaneler</span>
             <span>{formatCurrency(results.panelsCost)}</span>
@@ -128,6 +132,7 @@ export function ResultsPanel({ results }: ResultsPanelProps) {
               <span>{formatCurrency(results.margin)}</span>
             </div>
           )}
+          </>)}
           {results.discount > 0 && (
             <div className="flex justify-between text-green-600">
               <span>Rabat</span>

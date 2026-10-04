@@ -21,6 +21,7 @@
  *    authenticated users to INSERT/SELECT.
  */
 
+import type { Permission } from '@/lib/auth/permissions'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
@@ -29,6 +30,7 @@ import {
   formatError,
 } from '@/lib/actions/action-helpers'
 import { getWorkOrderScope } from '@/lib/auth/case-scope'
+import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import type { ActionResult } from '@/types/common.types'
@@ -87,12 +89,8 @@ export async function listTimeLogsForWorkOrder(
 
     const rows = (data || []) as TimeLogRow[]
     const enriched = await enrichWithEmployees(supabase, rows)
-    // Sprint Ø2.10 — defense in depth: fjern interne kostfelter server-side
-    // for brugere uden economy.cost_prices (ikke bare skjul i UI).
-    const safe = hasPermission('economy.cost_prices')
-      ? enriched
-      : enriched.map((r) => ({ ...r, cost_amount: null, cost_rate_snapshot: null }))
-    return { success: true, data: safe }
+    // Sprint Ø2.10 / D42 — defense in depth: fjern pris-/kostfelter server-side (ikke bare skjul i UI)
+    return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -150,7 +148,8 @@ export async function listTimeLogsForCase(
 
     const rows = (data || []) as TimeLogRow[]
     const enriched = await enrichWithEmployees(supabase, rows)
-    return { success: true, data: enriched }
+    // D42: før blev kost (cost_amount, kostsats) og medarbejdersats sendt til alle med time_logs.view.own (montør)
+    return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -445,7 +444,65 @@ export async function updateTimeLog(
   }
 }
 
+// ===== Read — aggregeret kost (D50) =====
+
+/**
+ * D50: aggregeret intern timekost for én sag (sum af frosne cost_amount) — economy.cost_prices + time_logs.view.all.
+ * Kost pr. række/medarbejder kræver employees.payroll.view (se stripTimeLogPrices).
+ */
+export async function getCaseLaborCostTotal(caseId: string): Promise<ActionResult<{ cost: number }>> {
+  try {
+    validateUUID(caseId, 'sag ID')
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('economy.cost_prices') || !hasPermission('time_logs.view.all')) {
+      return { success: false, error: 'Manglende tilladelse: economy.cost_prices' }
+    }
+    const { data: wos, error: woErr } = await supabase.from('work_orders').select('id').eq('case_id', caseId)
+    if (woErr) {
+      logger.error('getCaseLaborCostTotal: work_orders failed', { error: woErr })
+      return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
+    }
+    const ids = (wos || []).map((w: { id: string }) => w.id)
+    if (ids.length === 0) return { success: true, data: { cost: 0 } }
+    let cost = 0
+    // paginér (PostgREST-loft 1000 rækker)
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('time_logs').select('cost_amount').in('work_order_id', ids)
+        .order('id').range(from, from + 999)
+      if (error) {
+        logger.error('getCaseLaborCostTotal: time_logs failed', { error })
+        return { success: false, error: 'Kunne ikke hente timeregistreringer' }
+      }
+      for (const r of data || []) cost += Number((r as { cost_amount: number | string | null }).cost_amount ?? 0)
+      if (!data || data.length < 1000) break
+    }
+    return { success: true, data: { cost: Math.round(cost * 100) / 100 } }
+  } catch (error) {
+    return { success: false, error: formatError(error, 'Uventet fejl') }
+  }
+}
+
 // ===== Helpers =====
+
+/**
+ * D42 (privacy/RBAC, Henrik 2026-10-03): uden economy.cost_prices ingen kost (cost_amount, kostsats) og ingen
+ * medarbejdersats; uden invoices.view.own_cases heller ingen salgsbeløb. Montør ser timer, ikke penge (jf. D18).
+ */
+function stripTimeLogPrices(rows: TimeLogWithEmployee[], hasPermission: (p: Permission) => boolean): TimeLogWithEmployee[] {
+  const cost = hasPermission('economy.cost_prices')
+  const sale = cost || hasPermission('invoices.view.own_cases')
+  // D50 (privacy): kost pr. række afslører medarbejderens kostsats (kost / timer) — kun employees.payroll.view.
+  // Kostpris-roller uden løn-adgang (serviceleder, bogholderi) får aggregeret kost via getCaseLaborCostTotal.
+  if (cost && hasPermission('employees.payroll.view')) return rows
+  if (cost) return rows.map((r) => ({ ...r, cost_amount: null, cost_rate_snapshot: null }))
+  return rows.map((r) => ({
+    ...r,
+    cost_amount: null,
+    cost_rate_snapshot: null,
+    ...(sale ? {} : { sale_amount: null, sale_rate_snapshot: null }),
+    employee: r.employee ? { ...r.employee, hourly_rate: null } : r.employee,
+  }))
+}
 
 async function enrichWithEmployees(
   supabase: Awaited<ReturnType<typeof getAuthenticatedClient>>['supabase'],

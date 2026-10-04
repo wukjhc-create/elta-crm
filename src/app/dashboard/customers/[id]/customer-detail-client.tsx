@@ -72,9 +72,11 @@ interface CustomerDetailClientProps {
   portalTokens: PortalAccessToken[]
   partnerTokens: PartnerAccessToken[]
   companySettings?: CompanySettings | null
+  /** D48 — tools.pricing: kundespecifikke aftaler (kost/avance/rabat) */
+  canManagePricing?: boolean
 }
 
-export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false }: CustomerDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -708,10 +710,12 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
             </div>
 
             {/* Customer Pricing */}
+            {canManagePricing && (
             <CustomerPricing
               customerId={customer.id}
               customerName={customer.company_name}
             />
+            )}
 
             {/* Portal Access */}
             <PortalAccess

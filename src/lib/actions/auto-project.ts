@@ -18,7 +18,7 @@ import type {
   OfferTextTemplate,
   CalculationFeedback,
 } from '@/types/auto-project.types'
-import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { requireAuth, getAuthenticatedClient, formatError, getAuthenticatedClientWithRole, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -241,6 +241,9 @@ export async function quickAnalyzeProject(
  */
 export async function getAnalysis(id: string): Promise<ActionResult<SavedAnalysis>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.ai_project
+    const denied = await permissionDenied('tools.ai_project')
+    if (denied) return { success: false, error: denied }
     validateUUID(id, 'analyse ID')
     const { supabase } = await getAuthenticatedClient()
 
@@ -411,6 +414,9 @@ export async function listAnalyses(
   options?: { limit?: number }
 ): Promise<ActionResult<{ id: string; description: string; total_price: number; created_at: string }[]>> {
   try {
+    // D48 (privacy): kost/avance-data — kun tools.ai_project
+    const denied = await permissionDenied('tools.ai_project')
+    if (denied) return { success: false, error: denied }
     const { supabase, userId } = await getAuthenticatedClient()
     const limit = options?.limit || 20
 
