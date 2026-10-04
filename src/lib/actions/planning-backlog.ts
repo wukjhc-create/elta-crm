@@ -74,6 +74,24 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
   }
 }
 
+/**
+ * Arbejdsordrer (blandt ids) med mindst én timelinje. I bidder á 100 ordrer og pagineret — PostgREST giver højst 1000
+ * rækker pr. kald, så med mange timer blev resultatet afkortet og ordrer MED tid vist som "uden tid" (kode-review).
+ */
+async function workOrdersWithTime(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'], ids: string[]): Promise<Set<string> | null> {
+  const out = new Set<string>()
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100)
+    for (let from = 0; from < 100_000; from += 1000) {
+      const { data, error } = await supabase.from('time_logs').select('id, work_order_id').in('work_order_id', chunk).order('id').range(from, from + 999)
+      if (error) { logger.error('workOrdersWithTime: time_logs failed', { error }); return null }
+      for (const l of (data ?? []) as Array<{ work_order_id: string }>) out.add(l.work_order_id)
+      if (!data || data.length < 1000) break
+    }
+  }
+  return out
+}
+
 export interface JobWithoutTimeItem {
   work_order_id: string
   case_id: string | null
@@ -113,12 +131,8 @@ export async function getJobsWithoutTimeAction(): Promise<ActionResult<{ items: 
     const list = (wos ?? []) as Array<{ id: string; case_id: string | null; title: string; status: string; scheduled_date: string; assigned_employee_id: string }>
     if (!list.length) return { success: true, data: { items: [], total: 0 } }
 
-    const { data: logs, error: logErr } = await supabase.from('time_logs').select('work_order_id').in('work_order_id', list.map((w) => w.id))
-    if (logErr) {
-      logger.error('getJobsWithoutTimeAction: time_logs failed', { error: logErr })
-      return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
-    }
-    const withTime = new Set(((logs ?? []) as Array<{ work_order_id: string }>).map((l) => l.work_order_id))
+    const withTime = await workOrdersWithTime(supabase, list.map((w) => w.id))
+    if (!withTime) return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
     const missing = list.filter((w) => !withTime.has(w.id))
     if (!missing.length) return { success: true, data: { items: [], total: 0 } }
 
@@ -161,12 +175,8 @@ export async function getWorkOrdersWithoutTimeAction(workOrderIds: string[]): Pr
     const ids = Array.from(new Set((Array.isArray(workOrderIds) ? workOrderIds : [])
       .filter((id) => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)))).slice(0, 200)
     if (!ids.length) return { success: true, data: [] }
-    const { data, error } = await supabase.from('time_logs').select('work_order_id').in('work_order_id', ids)
-    if (error) {
-      logger.error('getWorkOrdersWithoutTimeAction: time_logs failed', { error })
-      return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
-    }
-    const withTime = new Set(((data ?? []) as Array<{ work_order_id: string }>).map((l) => l.work_order_id))
+    const withTime = await workOrdersWithTime(supabase, ids)
+    if (!withTime) return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
     return { success: true, data: ids.filter((id) => !withTime.has(id)) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente tidsregistreringer') }

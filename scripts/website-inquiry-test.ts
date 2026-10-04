@@ -41,6 +41,13 @@ ok(ph.email === 'hanne@example.dk', 'HTML-tabel: e-mail', String(ph.email))
 ok(ph.address === 'Solvej 12', 'HTML-tabel: adresse løber ikke ind i FormSubmits tekst', String(ph.address))
 ok(ph.postalCode === '4000' && ph.city === 'Roskilde', 'HTML-tabel: postnr + by fra "postnr"', `${ph.postalCode} ${ph.city}`)
 
+// Kode-review: flerlinjet besked (sidste felt) beholder alle linjer, men ikke FormSubmits sidefod
+const multi = ["<p>Here's what they had to say</p>", '<table>', '<tr><th>Name</th><th>Value</th></tr>', '<tr><td>name</td><td>Ole Hansen</td></tr>',
+  '<tr><td>email</td><td>ole@example.dk</td></tr>', '<tr><td>message</td><td>Hej<br>Vi vil gerne have solceller<br>Mvh Ole</td></tr>', '</table>',
+  '<p>Your friends from, FormSubmit Team</p>'].join('\n')
+const fm = extractFormSubmitFields(null, multi)
+ok(fm.Besked === 'Hej Vi vil gerne have solceller Mvh Ole', 'flerlinjet besked bevares uden sidefod', JSON.stringify(fm.Besked))
+
 // Regressionsværn: andre FormSubmit-/noreply-mails scores fortsat ned (støjfiltret er uændret for dem)
 ok(scoreEmail({ subject: 'Action Required: Activate FormSubmit', senderEmail: 'noreply@formsubmit.co', senderName: null, bodyText: 'activate', bodyHtml: null, bodyPreview: null } as never) < 2, 'systemmail fortsat lav score')
 

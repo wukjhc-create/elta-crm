@@ -7,6 +7,7 @@
  * Kun admin; data læses via service-role efter gaten.
  */
 
+import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 
@@ -111,8 +112,7 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
   const webIds = ((webInquiries.data ?? []) as Array<{ id: string }>).map((w) => w.id)
   let openWeb = 0
   if (webIds.length) {
-    const { data: leads } = await admin.from('leads').select('custom_fields').not('custom_fields->>source_email_id', 'is', null).limit(5000)
-    const withLead = new Set(((leads ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>).map((l) => l.custom_fields?.source_email_id))
+    const withLead = await leadSourceEmailIds(admin)
     openWeb = webIds.filter((id) => !withLead.has(id)).length
   }
   // Frisk = mindst én vare opdateret inden for 60 dage (eksistens-tjek stopper ved første match: ~50–80 ms i prod;

@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3795,6 +3795,49 @@ ${m.text()}`) })
         await a.page.waitForTimeout(1500)
         r.intet_kort_koblet = (await a.page.getByTestId('web-inquiry-card').count()) === 0
         out.push({ id: 'U132 N88 kontaktdata-kort på ukoblede mails', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${txt.slice(0, 80)}` })
+      }
+
+      // U133 N95: webhenvendelse fra en eksisterende kunde (samme e-mail) vises "findes som kunde" + "Kobl til kunde" i
+      // cockpittet; "Opret leads for alle" kobler en anden sådan henvendelse til kunden i stedet for at oprette et lead
+      if (want('U133')) {
+        const r: Record<string, boolean> = {}
+        const custEmail = `kunde95-${stamp}@harness.test`
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-95-${stamp}`, company_name: `[HARNESS] eksisterende ${stamp}`, contact_person: 'E',
+          email: custEmail, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (custId) u115CustomerIds.push(custId)
+        const mk = async (tag: string) => {
+          const rows = [['name', `Eksisterende ${tag} ${stamp}`], ['phone', '99887766'], ['email', custEmail], ['message', 'Igen']]
+          const html = ["<p>Here's what they had to say</p>", '<table>', '<tr><th>Name</th><th>Value</th></tr>', ...rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`), '</table>'].join(String.fromCharCode(10))
+          const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', sender_name: 'FormSubmit',
+            subject: `Ny henvendelse fra eltasolar.dk [HARNESS] U133 ${tag} ${stamp}`, body_html: html, link_status: 'unidentified',
+            received_at: new Date().toISOString(), is_archived: false, is_read: false }]).select('id')
+          const id = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (id) u113EmailIds.push(id)
+          return id
+        }
+        const viaCard = await mk('kort')
+        const viaBulk = await mk('bulk')
+        r.seed = !!custId && !!viaCard && !!viaBulk
+        const mailCustomer = async (id: string | null) => ((await c.admin.from('incoming_emails').select('customer_id').eq('id', id ?? '').maybeSingle()).data as { customer_id: string | null } | null)?.customer_id ?? null
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const row = a.page.getByTestId('cockpit-web-inquiries').locator('li', { hasText: `Eksisterende kort ${stamp}` }).first()
+        await row.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.vist_som_kunde = (await row.getByTestId('cockpit-web-existing').count()) === 1
+        await row.getByTestId('cockpit-link-customer').click({ timeout: 30_000 }).catch(() => {})
+        let linked: string | null = null
+        for (let i = 0; i < 15 && !linked; i++) { await a.page.waitForTimeout(1000); linked = await mailCustomer(viaCard) }
+        r.kort_kobler = linked === custId
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        a.page.once('dialog', (d) => d.accept().catch(() => {}))
+        await a.page.getByTestId('cockpit-bulk-leads').click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('cockpit-bulk-leads-result').waitFor({ timeout: 90_000 }).catch(() => {})
+        r.bulk_kobler = (await mailCustomer(viaBulk)) === custId
+        const leads = ((await c.admin.from('leads').select('id').eq('custom_fields->>source_email_id', viaBulk ?? '')).data ?? []) as Array<{ id: string }>
+        u128LeadIds.push(...leads.map((x) => x.id))
+        r.intet_lead_for_kunde = leads.length === 0
+        r.resultat_naevner_kobling = /koblet til eksisterende kunde/.test((await a.page.getByTestId('cockpit-bulk-leads-result').textContent().catch(() => '')) ?? '')
+        out.push({ id: 'U133 N95 henvendelse fra eksisterende kunde → kobl', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)

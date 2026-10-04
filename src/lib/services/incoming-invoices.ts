@@ -513,7 +513,11 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
     knownSupplierId: row.supplier_id,
     // N66: mail-fakturaens afsender (domaene → leverandoer)
     senderEmail: row.source_email_id
-      ? ((await supabase.from('incoming_emails').select('sender_email').eq('id', row.source_email_id).maybeSingle()).data?.sender_email as string | null | undefined) ?? null
+      ? await (async () => {
+          const { data: m } = await supabase.from('incoming_emails').select('sender_email, original_sender_email').eq('id', row.source_email_id).maybeSingle()
+          const r = m as { sender_email?: string | null; original_sender_email?: string | null } | null
+          return r?.original_sender_email || r?.sender_email || null // videresendt → oprindelig afsender
+        })()
       : null,
   })
 

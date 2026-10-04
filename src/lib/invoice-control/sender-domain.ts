@@ -27,12 +27,20 @@ export function isProbablyNotSupplierInvoice(i: { senderEmail: string | null | u
   return isFreeMailAddress(i.senderEmail) && !i.supplierId && i.amountInclVat == null
 }
 
-/** Domænet fra en e-mailadresse (små bogstaver, uden www.) — null ved ugyldig adresse eller gratis-mail. */
+/** Eltas egne domæner — medarbejdere videresender rigtige leverandørfakturaer herfra; aldrig et leverandørsignal. */
+export const INTERNAL_MAIL_DOMAINS = ['eltasolar.dk']
+
+/**
+ * Domænet fra en e-mailadresse (små bogstaver, uden www.) — null ved ugyldig adresse, gratis-mail eller eget domæne
+ * (eltasolar.dk; ellers kunne en videresendt faktura gøre Eltas domæne til en "leverandør").
+ */
 export function senderDomain(email: string | null | undefined): string | null {
   const m = /@([a-z0-9.-]+\.[a-z]{2,})\s*>?\s*$/i.exec(String(email ?? '').trim())
   if (!m) return null
   const dom = m[1].toLowerCase().replace(/^www\./, '')
-  return FREE_MAIL.has(dom) ? null : dom
+  if (FREE_MAIL.has(dom)) return null
+  if (INTERNAL_MAIL_DOMAINS.some((d) => dom === d || dom.endsWith(`.${d}`))) return null
+  return dom
 }
 
 /** Host fra et website-felt ("https://www.sieg.dk/kontakt", "sieg.dk") uden www. — null hvis det ikke ligner en host. */

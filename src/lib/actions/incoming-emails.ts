@@ -6,6 +6,7 @@
  * CRUD operations + sync trigger + manual link for incoming emails.
  */
 
+import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
@@ -271,14 +272,15 @@ export async function getLeadsForEmails(
   if (emailIds.length === 0) return {}
   const supabase = await createClient()
 
-  const { data } = await supabase
-    .from('leads')
-    .select('id, status, custom_fields')
-    // N67: alle leads oprettet fra en mail — også webhenvendelser (source='website'; før kun 'email')
-    .not('custom_fields->>source_email_id', 'is', null)
-    .limit(5000)
-
-  if (!data) return {}
+  // N67: alle leads oprettet fra en mail — også webhenvendelser (source='website'; før kun 'email').
+  // Pagineret: PostgREST giver højst 1000 rækker pr. kald (kode-review 2026-10-04)
+  const data: Array<{ id: string; status: string; custom_fields: unknown }> = []
+  for (let from = 0; from < 50_000; from += 1000) {
+    const { data: page } = await supabase.from('leads').select('id, status, custom_fields')
+      .not('custom_fields->>source_email_id', 'is', null).order('id').range(from, from + 999)
+    data.push(...((page ?? []) as typeof data))
+    if (!page || page.length < 1000) break
+  }
 
   const map: Record<string, { leadId: string; status: string }> = {}
   for (const lead of data) {
@@ -2000,7 +2002,7 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
   try {
     validateUUID(emailId, 'emailId')
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('inbox.view') || !hasPermission('leads.create')) return { success: false, error: 'Manglende tilladelse: leads.create' }
+    if (!hasPermission('inbox.view') || !hasPermission('leads.create')) return { success: false, error: 'Manglende tilladelse: indbakke + leads.create' }
     const { data: existing } = await supabase.from('leads').select('id').eq('custom_fields->>source_email_id', emailId).limit(1).maybeSingle()
     if (existing) return { success: true, data: { leadId: (existing as { id: string }).id, existed: true } }
     const { data: email } = await supabase.from('incoming_emails')
@@ -2055,27 +2057,37 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
  * som cockpittets kort. Hver mail går gennem createLeadFromEmailAction (samme gate, parser og dublet-værn);
  * henvendelser uden læsbar e-mail springes over og tælles. Max 100 pr. kørsel. inbox.view + leads.create.
  */
-export async function createLeadsForOpenWebInquiriesAction(): Promise<{ success: boolean; created: number; skipped: number; error?: string }> {
+export async function createLeadsForOpenWebInquiriesAction(): Promise<{ success: boolean; created: number; skipped: number; linked?: number; error?: string }> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('inbox.view') || !hasPermission('leads.create')) return { success: false, created: 0, skipped: 0, error: 'Manglende tilladelse: leads.create' }
+    if (!hasPermission('inbox.view') || !hasPermission('leads.create')) return { success: false, created: 0, skipped: 0, error: 'Manglende tilladelse: indbakke + leads.create' }
     const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
     const { data: mails, error } = await supabase.from('incoming_emails').select('id')
       .ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null)
       .eq('is_archived', false).gte('received_at', since).order('received_at', { ascending: false }).limit(200)
     if (error) return { success: false, created: 0, skipped: 0, error: 'Kunne ikke hente henvendelser' }
-    const { data: leads } = await supabase.from('leads').select('custom_fields').not('custom_fields->>source_email_id', 'is', null).limit(5000)
-    const withLead = new Set(((leads ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>).map((l) => l.custom_fields?.source_email_id))
+    const withLead = await leadSourceEmailIds(supabase)
     const open = ((mails ?? []) as Array<{ id: string }>).filter((m) => !withLead.has(m.id)).slice(0, 100)
-    let created = 0, skipped = 0
+    let created = 0, skipped = 0, linked = 0
+    const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
+    const { manuallyLinkEmail } = await import('@/lib/services/email-linker')
     for (const m of open) {
+      // N95: personen findes allerede som kunde (samme e-mail) → kobl mailen til kunden i stedet for et nyt lead
+      const { data: body } = await supabase.from('incoming_emails').select('body_text, body_html').eq('id', m.id).maybeSingle()
+      const formEmail = (parseCustomerFromEmail((body as { body_text?: string | null } | null)?.body_text ?? null,
+        (body as { body_html?: string | null } | null)?.body_html ?? null, null).email ?? '').trim().toLowerCase()
+      if (formEmail.includes('@')) {
+        const { data: cust } = await supabase.from('customers').select('id').eq('is_active', true).ilike('email', escapeLike(formEmail)).limit(1).maybeSingle()
+        if (cust) { await manuallyLinkEmail(m.id, (cust as { id: string }).id); linked++; continue }
+      }
       const r = await createLeadFromEmailAction(m.id)
       if (r.success && r.data && !r.data.existed) created++
       else skipped++
     }
     revalidatePath('/dashboard')
     revalidatePath('/dashboard/leads')
-    return { success: true, created, skipped }
+    revalidatePath('/dashboard/mail')
+    return { success: true, created, skipped, linked }
   } catch (err) {
     logger.error('createLeadsForOpenWebInquiries failed', { error: err })
     return { success: false, created: 0, skipped: 0, error: 'Kunne ikke oprette leads' }
