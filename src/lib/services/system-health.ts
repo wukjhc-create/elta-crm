@@ -9,6 +9,7 @@
  * snapshot for dashboards and the cron health-check.
  */
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type {
   HealthService,
@@ -239,7 +240,7 @@ export async function runHealthProbes(): Promise<ProbeOutcome[]> {
 
   // ---- 4. AI usage cap (00074_phase1_dedup_and_ai_cap)
   try {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = copenhagenParts(new Date()).date
     const { data: aiToday } = await supabase
       .from('ai_usage_daily')
       .select('day, call_count')

@@ -7,6 +7,7 @@
  * src/lib/services/incoming-invoices.ts — no business logic added.
  */
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
@@ -1008,7 +1009,7 @@ export async function getIncomingInvoiceDueSummaryAction(): Promise<IncomingDueS
   }
 
   const { matchesIncomingDueFilter } = await import('@/lib/invoices/incoming-invoice-due')
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = copenhagenParts(new Date()).date
 
   // Ét cost-bounded query: godkendte fakturaer (afventer bogføring/betaling).
   const { data } = await supabase

@@ -5,6 +5,7 @@
  * Read: employees.view. Write: employees.edit. Logger events.
  */
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
@@ -99,7 +100,7 @@ export async function setEquipmentStatus(id: string, status: EquipmentStatus): P
     if (!ctx.hasPermission('employees.edit')) return { success: false, error: 'Manglende tilladelse: employees.edit' }
     const admin = createAdminClient()
     const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
-    if (status === 'returneret') patch.returned_date = new Date().toISOString().slice(0, 10)
+    if (status === 'returneret') patch.returned_date = copenhagenParts(new Date()).date
     const { data, error } = await admin.from('employee_equipment').update(patch).eq('id', id).select('employee_id, name').maybeSingle()
     if (error || !data) return { success: false, error: 'Kunne ikke ændre status' }
     await logEmployeeEvent({ employeeId: data.employee_id as string, eventType: 'equipment_status', title: `Udstyr "${data.name}" markeret: ${status}`, createdBy: ctx.userId })

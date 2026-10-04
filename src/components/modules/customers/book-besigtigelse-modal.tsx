@@ -1,5 +1,6 @@
 'use client'
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { useState } from 'react'
 import { X, CalendarCheck, Loader2 } from 'lucide-react'
 import { bookBesigtigelse } from '@/lib/actions/customer-tasks'
@@ -85,7 +86,7 @@ export function BookBesigtigelseModal({
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 required
-                min={new Date().toISOString().slice(0, 10)}
+                min={copenhagenParts(new Date()).date}
                 className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 autoFocus
               />

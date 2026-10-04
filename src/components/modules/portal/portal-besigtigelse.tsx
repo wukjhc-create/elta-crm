@@ -1,5 +1,6 @@
 'use client'
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { useState, useEffect } from 'react'
 import {
   CalendarCheck,
@@ -45,7 +46,7 @@ export function PortalBesigtigelseSection({ token, customerName }: PortalBesigti
   }, [token])
 
   // Find next upcoming besigtigelse (not done)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = copenhagenParts(new Date()).date
   const upcoming = bookings
     .filter((b) => b.status !== 'done' && b.due_date && b.due_date >= today)
     .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))

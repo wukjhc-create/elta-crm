@@ -9,6 +9,7 @@
  * back-calculation works.
  */
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
@@ -305,7 +306,7 @@ export async function setEmployeeActiveAction(
   if ('ok' in ctx) return ctx
   const { error } = await ctx.supabase
     .from('employees')
-    .update({ active, termination_date: active ? null : new Date().toISOString().slice(0, 10) })
+    .update({ active, termination_date: active ? null : copenhagenParts(new Date()).date })
     .eq('id', id)
   if (error) return { ok: false, message: error.message }
   await logEmployeeEvent({

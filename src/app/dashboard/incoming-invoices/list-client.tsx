@@ -1,5 +1,6 @@
 'use client'
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
@@ -82,7 +83,7 @@ export function IncomingInvoicesListClient({
     dueParam && (INCOMING_DUE_FILTERS as readonly string[]).includes(dueParam)
       ? (dueParam as IncomingDueFilter)
       : null
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = copenhagenParts(new Date()).date
 
   const [rows, setRows] = useState<IncomingInvoiceListItem[]>(initialRows)
   const [filter, setFilter] = useState<FilterKey>('needs_review')

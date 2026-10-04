@@ -29,6 +29,7 @@
  * ingen e-conomic-push, ingen auto-konvertering, ingen salg/margin/DB.
  */
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { formatError } from '@/lib/actions/action-helpers'
 import { incomingDueBadge } from '@/lib/invoices/incoming-invoice-due'
@@ -158,7 +159,7 @@ async function scanPurchaseOpsLegacy(): Promise<{ result?: ScanResult; error?: s
     return { forbidden: true, canViewAmounts: false }
   }
   const canViewAmounts = hasPermission('economy.cost_prices')
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = copenhagenParts(new Date()).date
 
   // --- Query 1: ikke-døde fakturaer matchet til en sag + linjer + leverandør ---
   const { data: invData, error: invErr } = await supabase
@@ -375,7 +376,7 @@ async function fetchPurchaseOpsViaRpc(opts: {
     return { forbidden: true, canViewAmounts: false }
   }
   const canViewAmounts = hasPermission('economy.cost_prices')
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = copenhagenParts(new Date()).date
   const escapedTokens = opts.searchTokens.map(escapeLike)
 
   const { data, error } = await supabase.rpc('get_purchase_operations_page', {

@@ -1,5 +1,6 @@
 'use client'
 
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, CalendarCheck, MapPin, Clock, User, Navigation, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -57,7 +58,7 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
     return map
   }, [tasks])
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = copenhagenParts(new Date()).date
 
   const prevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1))
