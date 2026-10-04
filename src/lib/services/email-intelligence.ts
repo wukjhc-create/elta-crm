@@ -780,7 +780,9 @@ async function processEmailIntelligenceUnsafe(
   {
     const { senderDomain, suppliersForDomain } = await import('@/lib/invoice-control/sender-domain')
     const dom = senderDomain(email.senderEmail)
-    let reason: string | null = dom === 'eltasolar.dk' ? 'Intern afsender (eltasolar.dk)' : null
+    // internt domæne tjekkes på den rå adresse (senderDomain returnerer null for eltasolar.dk på main efter kode-review)
+    const rawDom = String(email.senderEmail ?? '').toLowerCase().split('@')[1] ?? ''
+    let reason: string | null = rawDom === 'eltasolar.dk' || rawDom.endsWith('.eltasolar.dk') ? 'Intern afsender (eltasolar.dk)' : null
     if (!reason && dom) {
       const { data: sups } = await supabase.from('suppliers').select('id, website, contact_email').limit(1000)
       if (suppliersForDomain(dom, (sups ?? []) as Array<{ id: string; website: string | null; contact_email: string | null }>).length) {
