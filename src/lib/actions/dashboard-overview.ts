@@ -83,18 +83,24 @@ export interface DashboardOverview {
     followupCount: number
     oldest: DashboardOverviewOffer[]
   }
+  /** N44: nye kunder (30 d) uden tilbud og uden sag — henvendelser der ikke er fulgt op (kun offers.create). */
+  newCustomers: {
+    count: number
+    items: Array<{ id: string; name: string; created_at: string; ageDays: number }>
+  }
   visits: {
     upcoming: DashboardOverviewVisit[]
     /** True hvis intet besigtigelses-data fundet — UI viser placeholder. */
     empty: boolean
   }
   /** Per-section fejl saa UI kan vise en diskret advarsel uden at crashe. */
-  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits', string>>
+  errors: Partial<Record<'mails' | 'tasks' | 'cases' | 'offers' | 'visits' | 'newCustomers', string>>
   generated_at: string
 }
 
 const OFFER_FOLLOWUP_DAYS = 7
 const TOP_N = 5
+const NEW_CUSTOMER_DAYS = 30
 
 function daysBetween(iso: string, now: number): number {
   const diff = now - new Date(iso).getTime()
@@ -108,6 +114,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     tasks: { openCount: 0, autoCount: 0, overdueCount: 0, overdue: [] },
     cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0, timesPendingApproval: 0 },
     offers: { followupCount: 0, oldest: [] },
+    newCustomers: { count: 0, items: [] },
     visits: { upcoming: [], empty: true },
     errors: {},
     generated_at: new Date().toISOString(),
@@ -310,6 +317,37 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       } catch (err) {
         logger.error('getDashboardOverview: offers failed', { error: err })
         overview.errors.offers = err instanceof Error ? err.message : 'failed'
+      }
+    })(),
+
+    // N44: nye kunder (30 d) uden tilbud og uden sag — kun for roller der kan oprette tilbud
+    (async () => {
+      try {
+        const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+        const ctx = await getAuthenticatedClientWithRole()
+        if (!ctx.hasPermission('offers.create')) return
+        const since = new Date(now - NEW_CUSTOMER_DAYS * 86_400_000).toISOString()
+        const { data: custs } = await supabase.from('customers').select('id, company_name, created_at')
+          .gte('created_at', since).eq('is_active', true).order('created_at', { ascending: false }).limit(200)
+        const list = (custs ?? []) as Array<{ id: string; company_name: string | null; created_at: string }>
+        if (!list.length) return
+        const ids = list.map((c) => c.id)
+        const [offRes, caseRes] = await Promise.all([
+          supabase.from('offers').select('customer_id').in('customer_id', ids),
+          supabase.from('service_cases').select('customer_id').in('customer_id', ids),
+        ])
+        const handled = new Set<string>([
+          ...((offRes.data ?? []) as Array<{ customer_id: string | null }>).map((r) => r.customer_id ?? ''),
+          ...((caseRes.data ?? []) as Array<{ customer_id: string | null }>).map((r) => r.customer_id ?? ''),
+        ])
+        const open = list.filter((c) => !handled.has(c.id))
+        overview.newCustomers = {
+          count: open.length,
+          items: open.slice(0, TOP_N).map((c) => ({ id: c.id, name: c.company_name || '—', created_at: c.created_at, ageDays: daysBetween(c.created_at, now) })),
+        }
+      } catch (err) {
+        logger.error('getDashboardOverview: newCustomers failed', { error: err })
+        overview.errors.newCustomers = err instanceof Error ? err.message : 'failed'
       }
     })(),
 

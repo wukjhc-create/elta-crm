@@ -20,6 +20,7 @@ import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type { ServiceCaseStatus } from '@/types/service-cases.types'
+import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
 
 export interface ServiceCaseEconomy {
   case_id: string
@@ -70,6 +71,9 @@ export interface ServiceCaseEconomy {
     invoiced_paid: number
     remaining_to_invoice: number | null
   }
+
+  /** Realiseret DB: netto faktureret ekskl. moms (udstedt − kredit) mod faktisk kost. */
+  realized: RealizedDb
 
   /** Sprint Ø3.0 — klar-til-fakturering-status (beregnet ud fra invoice_line_id). */
   billing: {
@@ -205,7 +209,7 @@ export async function getServiceCaseEconomy(
       // selv om der laa faktureret beloeb. Fix: join paa case_id direkte.
       supabase
         .from('invoices')
-        .select('total_amount, amount_paid')
+        .select('total_amount, amount_paid, status, invoice_type, voided_at')
         .eq('case_id', caseId),
       supabase
         .from('incoming_invoices')
@@ -323,6 +327,9 @@ export async function getServiceCaseEconomy(
     const invRows = (invoicesRes.data ?? []) as Array<{
       total_amount: number | string | null
       amount_paid: number | string | null
+      status: string | null
+      invoice_type: string | null
+      voided_at: string | null
     }>
     let invoiced_total = 0
     let invoiced_paid = 0
@@ -503,6 +510,7 @@ export async function getServiceCaseEconomy(
         invoiced_paid: r2(invoiced_paid),
         remaining_to_invoice,
       },
+      realized: computeRealizedDb(invRows, total_cost, billing_status === 'fully_billed'),
       billing: {
         status: billing_status,
         unbilled_time_logs,

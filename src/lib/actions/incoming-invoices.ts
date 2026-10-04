@@ -55,7 +55,7 @@ export interface IncomingInvoiceListItem {
 }
 
 export interface ListFilter {
-  status?: 'all' | 'awaiting_approval' | 'needs_review' | 'approved' | 'rejected' | 'posted'
+  status?: 'all' | 'awaiting_approval' | 'needs_review' | 'approved' | 'rejected' | 'posted' | 'missing_file'
   limit?: number
 }
 
@@ -97,6 +97,10 @@ export async function listIncomingInvoicesAction(
       break
     case 'posted':
       q = q.eq('status', 'posted')
+      break
+    case 'missing_file':
+      // N43: mail-fakturaer hvor kun mailteksten blev gemt (bilag ikke hentet) — kan vedhæftes på fakturaen
+      q = q.eq('source', 'email').is('file_url', null).not('status', 'in', '(approved,posted,rejected,cancelled)')
       break
   }
 
@@ -722,12 +726,13 @@ export async function getApprovalQueueCountsAction(): Promise<{
   approved: number
   rejected: number
   posted: number
+  missing_file: number
 }> {
   const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('incoming_invoices.view')) {
-    return { awaiting_approval: 0, needs_review: 0, approved: 0, rejected: 0, posted: 0 }
+    return { awaiting_approval: 0, needs_review: 0, approved: 0, rejected: 0, posted: 0, missing_file: 0 }
   }
-  const [aw, nr, ap, rj, pst] = await Promise.all([
+  const [aw, nr, ap, rj, pst, mf] = await Promise.all([
     supabase
       .from('incoming_invoices')
       .select('id', { count: 'exact', head: true })
@@ -742,6 +747,8 @@ export async function getApprovalQueueCountsAction(): Promise<{
     supabase.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
     supabase.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
     supabase.from('incoming_invoices').select('id', { count: 'exact', head: true }).eq('status', 'posted'),
+    supabase.from('incoming_invoices').select('id', { count: 'exact', head: true })
+      .eq('source', 'email').is('file_url', null).not('status', 'in', '(approved,posted,rejected,cancelled)'),
   ])
   return {
     awaiting_approval: aw.count ?? 0,
@@ -749,6 +756,7 @@ export async function getApprovalQueueCountsAction(): Promise<{
     approved: ap.count ?? 0,
     rejected: rj.count ?? 0,
     posted: pst.count ?? 0,
+    missing_file: mf.count ?? 0,
   }
 }
 
@@ -1202,6 +1210,53 @@ export async function uploadIncomingInvoiceAction(formData: FormData): Promise<{
     return { ok: true, invoiceId: res.invoiceId, message: rawText ? 'Faktura oprettet og læst' : 'Faktura oprettet — ingen tekst i filen, udfyld felterne manuelt' }
   } catch (err) {
     logger.error('uploadIncomingInvoiceAction failed', { error: err })
+    return { ok: false, message: 'Der opstod en fejl ved upload' }
+  }
+}
+
+/**
+ * Vedhæft bilag til en eksisterende leverandørfaktura uden fil (mail-fakturaer hvor kun mailteksten blev gemt).
+ * Samme filregler som upload; privat storage; fakturaen læses igen. incoming_invoices.edit.
+ */
+export async function attachIncomingInvoiceFileAction(id: string, formData: FormData): Promise<{ ok: boolean; message: string }> {
+  const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+  if (!hasPermission('incoming_invoices.edit')) return { ok: false, message: 'Manglende tilladelse: incoming_invoices.edit' }
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, message: 'Ugyldigt faktura-id' }
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) return { ok: false, message: 'Ingen fil valgt' }
+  if (file.size > UPLOAD_MAX_BYTES) return { ok: false, message: 'Filen er for stor (max 15 MB)' }
+  if (!UPLOAD_MIME.test(file.type || '')) return { ok: false, message: 'Kun PDF, JPG eller PNG' }
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer())
+    const isPdf = /pdf/i.test(file.type)
+    let rawText = ''
+    if (isPdf) {
+      try {
+        const { extractPdfText } = await import('@/lib/invoice-control/pdf-text')
+        rawText = (await extractPdfText(bytes)) ?? ''
+      } catch (e) {
+        logger.warn('attachIncomingInvoiceFile: PDF-tekst kunne ikke udtrækkes (scannet?)', { error: e })
+      }
+    }
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const ext = isPdf ? 'pdf' : file.type.toLowerCase().includes('png') ? 'png' : 'jpg'
+    const { randomUUID } = await import('crypto')
+    const path = `supplier-invoices/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${ext}`
+    const { error: upErr } = await admin.storage.from('attachments').upload(path, bytes, { contentType: file.type, upsert: false })
+    if (upErr) {
+      logger.error('attachIncomingInvoiceFile: storage upload failed', { error: upErr })
+      return { ok: false, message: 'Upload af fil fejlede' }
+    }
+    const { attachFileToInvoice } = await import('@/lib/services/incoming-invoices')
+    const res = await attachFileToInvoice({
+      invoiceId: id, fileName: file.name.slice(0, 200), mime: file.type, rawText, fileBytes: bytes, fileUrl: `attachments/${path}`, uploadedBy: userId,
+    })
+    if (!res.ok) await admin.storage.from('attachments').remove([path]) // ikke brugt → ryd op
+    revalidatePath(`/dashboard/incoming-invoices/${id}`)
+    return { ok: res.ok, message: res.message }
+  } catch (err) {
+    logger.error('attachIncomingInvoiceFileAction failed', { error: err })
     return { ok: false, message: 'Der opstod en fejl ved upload' }
   }
 }

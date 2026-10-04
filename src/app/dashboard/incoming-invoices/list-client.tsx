@@ -30,7 +30,7 @@ function isTestRow(r: IncomingInvoiceListItem): boolean {
   )
 }
 
-type FilterKey = 'needs_review' | 'awaiting_approval' | 'approved' | 'rejected' | 'posted' | 'all'
+type FilterKey = 'needs_review' | 'awaiting_approval' | 'approved' | 'rejected' | 'posted' | 'missing_file' | 'all'
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'needs_review',      label: 'Kræver gennemgang' },
@@ -38,6 +38,7 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'approved',          label: 'Godkendt' },
   { key: 'rejected',          label: 'Afvist' },
   { key: 'posted',            label: 'Bogført' },
+  { key: 'missing_file',      label: 'Mangler bilag' },
   { key: 'all',               label: 'Alle' },
 ]
 
@@ -47,6 +48,7 @@ interface CountMap {
   approved: number
   rejected: number
   posted: number
+  missing_file: number
 }
 
 const fmtAmount = (n: number | null, ccy = 'DKK') =>

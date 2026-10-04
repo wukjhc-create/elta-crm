@@ -26,6 +26,7 @@ import { ApprovePreviewDialog, type LinePlan } from './approve-preview-dialog'
 import { ConversionPreviewPanel } from './conversion-preview-panel'
 import { InvoiceControlPanel } from './invoice-control-panel'
 import { SupplierEconomicPreview } from './supplier-economic-preview'
+import { AttachInvoiceFile } from './attach-invoice-file'
 
 const fmtAmount = (n: number | null | undefined, ccy = 'DKK') =>
   n == null
@@ -506,7 +507,10 @@ export function IncomingInvoiceDetailClient({
             <span className="text-[11px] text-gray-400">Sikkert link genereres ved klik</span>
           </div>
         ) : (
-          <p className="text-xs text-gray-400">Ingen fil tilknyttet (kilde: {inv.source}).</p>
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400">Ingen fil tilknyttet (kilde: {inv.source}).</p>
+            {!terminal && <AttachInvoiceFile invoiceId={inv.id} />}
+          </div>
         )}
       </Panel>
 

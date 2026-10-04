@@ -201,6 +201,8 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
                     <th className="pb-2 font-medium text-gray-500 text-right">Tilbudt kost</th>
                     <th className="pb-2 font-medium text-gray-500 text-right">Faktisk kost</th>
                     <th className="pb-2 font-medium text-gray-500 text-right">Afvigelse</th>
+                    <th className="pb-2 font-medium text-gray-500 text-right">Faktureret netto</th>
+                    <th className="pb-2 font-medium text-gray-500 text-right">Realiseret DB</th>
                   </>
                 )}
                 <th className="pb-2 font-medium text-gray-500 text-right">Est. timer</th>
@@ -230,6 +232,10 @@ function ProjectTable({ data }: { data: ProjectProfitability[] }) {
                         <td className="py-2.5 text-right text-gray-600">{p.actual_cost != null ? formatCurrency(p.actual_cost) : '—'}</td>
                         <td className={`py-2.5 text-right font-medium ${p.cost_deviation != null && p.cost_deviation > 0 ? 'text-red-600' : 'text-gray-700'}`} data-testid="report-case-deviation">
                           {p.cost_deviation != null ? `${p.cost_deviation > 0 ? '+' : ''}${formatCurrency(p.cost_deviation)}` : '—'}
+                        </td>
+                        <td className="py-2.5 text-right text-gray-600">{p.net_invoiced ? formatCurrency(p.net_invoiced) : '—'}</td>
+                        <td className={`py-2.5 text-right font-medium ${p.realized_db == null ? 'text-gray-400' : p.realized_db >= 0 ? 'text-green-700' : 'text-red-600'}`} data-testid="report-case-realized">
+                          {p.realized_db == null ? '—' : `${formatCurrency(p.realized_db)}${p.realized_db_pct != null ? ` (${p.realized_db_pct.toFixed(1)} %)` : ''}`}
                         </td>
                       </>
                     )}

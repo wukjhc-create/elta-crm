@@ -70,6 +70,7 @@ export function StyringsCockpit({ overview }: Props) {
         <TasksCard overview={overview} />
         <CasesCard overview={overview} />
         <OffersCard overview={overview} />
+        <NewCustomersCard overview={overview} />
         <VisitsCard overview={overview} />
       </div>
     </section>
@@ -255,6 +256,42 @@ function OffersCard({ overview }: { overview: DashboardOverview }) {
                   <ChevronRight className="h-3 w-3 opacity-50" />
                 </span>
               </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+// =====================================================
+// N44. Nye kunder uden tilbud/sag (henvendelser der ikke er fulgt op)
+// =====================================================
+
+function NewCustomersCard({ overview }: { overview: DashboardOverview }) {
+  const { count, items } = overview.newCustomers
+  const err = overview.errors.newCustomers
+  return (
+    <Card
+      title="Nye kunder uden tilbud"
+      icon={<FileText className="h-4 w-4" />}
+      tone={count > 0 ? 'amber' : 'green'}
+      href="/dashboard/customers"
+      headline={count}
+      headlineLabel="seneste 30 dage — intet tilbud/sag"
+      error={err}
+    >
+      {items.length === 0 ? (
+        <EmptyRow text={err ? 'Kunne ikke hente data' : 'Alle nye kunder har tilbud eller sag.'} />
+      ) : (
+        <ul className="text-xs divide-y" data-testid="cockpit-new-customers">
+          {items.map((c) => (
+            <li key={c.id} className="py-1.5 flex items-center justify-between gap-2">
+              <Link href={`/dashboard/customers/${c.id}`} className="min-w-0 truncate font-medium hover:underline">{c.name}</Link>
+              <span className="shrink-0 flex items-center gap-2">
+                <Link href={`/dashboard/customers/${c.id}?nytilbud=1`} className="text-emerald-700 hover:underline" data-testid="cockpit-new-customer-offer">Opret tilbud</Link>
+                <span className={`text-[11px] ${ageBadge(c.ageDays)}`}>{c.ageDays}d</span>
+              </span>
             </li>
           ))}
         </ul>

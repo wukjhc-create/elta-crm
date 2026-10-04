@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { da } from 'date-fns/locale'
 import { Breadcrumb } from '@/components/shared/breadcrumb'
@@ -89,7 +89,9 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
   const [showBesigtigelse, setShowBesigtigelse] = useState(false)
   const [activeTab, setActiveTab] = useState<'oversigt' | 'sager' | 'fakturaer' | 'besigtigelse' | 'dokumenter' | 'status'>('oversigt')
   const [showFuldmagtModal, setShowFuldmagtModal] = useState(false)
-  const [showOfferForm, setShowOfferForm] = useState(false)
+  // N44: "Opret tilbud" fra styrings-cockpittet åbner formularen direkte (?nytilbud=1)
+  const searchParams = useSearchParams()
+  const [showOfferForm, setShowOfferForm] = useState(() => searchParams?.get('nytilbud') === '1')
   const [showCaseModal, setShowCaseModal] = useState(false)
 
   const handleDelete = async () => {

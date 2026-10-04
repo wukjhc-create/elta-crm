@@ -8,6 +8,7 @@
  */
 
 import { compareOfferToActual, type ActualMaterialInput, type OfferLineInput } from '@/lib/cases/offer-vs-actual'
+import { computeRealizedDb, type RealizedInvoiceInput } from '@/lib/cases/realized-db'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import {
@@ -50,6 +51,10 @@ export interface ProjectProfitability {
   offered_cost: number | null
   actual_cost: number | null
   cost_deviation: number | null
+  /** N42: netto faktureret ekskl. moms og realiseret DB (faktisk kost inkl. øvrige omkostninger) */
+  net_invoiced: number
+  realized_db: number | null
+  realized_db_pct: number | null
 }
 
 export interface TeamProductivity {
@@ -410,12 +415,18 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
 
     // N26d: tilbudt vs. faktisk kost pr. sag (samme matching som Økonomi-fanens linjevisning; timekost aggregeret, D50)
     const offerIds = Array.from(new Set(cases.map((c) => c.source_offer_id as string | null).filter((x): x is string => !!x)))
-    const [linesRes, matsRes] = await Promise.all([
+    const [linesRes, matsRes, invRes, otherRes] = await Promise.all([
       offerIds.length
         ? supabase.from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
       supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds),
+      supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds),
+      supabase.from('case_other_costs').select('case_id, total_cost').in('case_id', caseIds),
     ])
+    const invByCase = new Map<string, RealizedInvoiceInput[]>()
+    for (const i of (invRes.data ?? []) as Array<RealizedInvoiceInput & { case_id: string }>) invByCase.set(i.case_id, [...(invByCase.get(i.case_id) ?? []), i])
+    const otherCost = new Map<string, number>()
+    for (const o of (otherRes.data ?? []) as Array<{ case_id: string; total_cost: number | string | null }>) otherCost.set(o.case_id, (otherCost.get(o.case_id) ?? 0) + (Number(o.total_cost ?? 0) || 0))
     const linesByOffer = new Map<string, OfferLineInput[]>()
     for (const l of (linesRes.data ?? []) as Array<OfferLineInput & { offer_id: string }>) {
       linesByOffer.set(l.offer_id, [...(linesByOffer.get(l.offer_id) ?? []), l])
@@ -445,10 +456,15 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
           const cmp = compareOfferToActual(lines, mats, { hours: actual.get(id) ?? 0, cost: labourCost.has(id) ? labourCost.get(id)! : null })
           const hasOffered = cmp.rows.some((r) => r.offered_cost != null)
           const hasActual = cmp.rows.some((r) => r.actual_cost != null)
+          const invs = invByCase.get(id) ?? []
+          const realized = computeRealizedDb(invs, (hasActual ? cmp.totals.actual_cost : 0) + (otherCost.get(id) ?? 0), false)
           return {
             offered_cost: hasOffered ? cmp.totals.offered_cost : null,
             actual_cost: hasActual ? cmp.totals.actual_cost : null,
             cost_deviation: hasOffered && hasActual ? cmp.totals.deviation : null,
+            net_invoiced: realized.net_invoiced_ex_vat,
+            realized_db: realized.issued_invoice_count > 0 ? realized.realized_db : null,
+            realized_db_pct: realized.issued_invoice_count > 0 ? realized.realized_db_pct : null,
           }
         })(),
       }

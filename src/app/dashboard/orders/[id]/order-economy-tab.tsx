@@ -356,6 +356,9 @@ function OrderEconomyTabContent({
         />
       </div>
 
+      {/* Realiseret DB — faktureret (ekskl. moms, minus kreditnotaer) mod faktisk kost */}
+      <RealizedDbCard realized={data.realized} />
+
       {/* Supplier invoices (Sprint 5E-4) */}
       <SupplierInvoicesPanel data={data} />
 
@@ -582,6 +585,35 @@ function SupplierInvoicesPanel({ data }: { data: ServiceCaseEconomy }) {
 // =====================================================
 // Hero card
 // =====================================================
+
+function RealizedDbCard({ realized }: { realized: ServiceCaseEconomy['realized'] }) {
+  const tone = realized.state === 'not_invoiced'
+    ? 'text-gray-500'
+    : realized.realized_db >= 0 ? 'text-emerald-700' : 'text-red-700'
+  const stateText = realized.state === 'not_invoiced'
+    ? 'Intet faktureret endnu — realiseret DB opgøres når der er udstedt faktura.'
+    : realized.state === 'partially_invoiced'
+      ? 'Delvist faktureret — tallet stiger når resten faktureres.'
+      : 'Alt fakturerbart arbejde er faktureret.'
+  return (
+    <div className="rounded-lg ring-1 ring-gray-200 bg-white p-4" data-testid="realized-db-card">
+      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-2">
+        <Banknote className="w-4 h-4 text-gray-500" />
+        Realiseret DB
+      </h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <Mini label="Netto faktureret ekskl. moms" value={fmtKr(realized.net_invoiced_ex_vat)} hint={realized.credited_ex_vat > 0 ? `heraf kreditnota −${fmtKr(realized.credited_ex_vat)}` : undefined} />
+        <Mini label="Faktisk kost" value={fmtKr(realized.actual_cost)} />
+        <div>
+          <div className="text-xs text-gray-500">Realiseret DB</div>
+          <div className={`font-semibold tabular-nums ${tone}`} data-testid="realized-db-value">{fmtKr(realized.realized_db)}</div>
+        </div>
+        <Mini label="Realiseret DB %" value={realized.realized_db_pct == null ? '—' : fmtPct(realized.realized_db_pct)} />
+      </div>
+      <p className="text-xs text-gray-500 mt-2" data-testid="realized-db-state">{stateText}</p>
+    </div>
+  )
+}
 
 function HeroCard({
   label,

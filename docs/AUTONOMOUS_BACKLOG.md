@@ -121,6 +121,22 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | N28 | Timer (efter N2-merge) | Serviceleder: tæller "timer afventer godkendelse" på dashboard + påmindelse | N2 | DONE — i main efter 00185 (cockpit-tæller, time_logs.approve, count-query); U72 grøn |
 | N29 | Opgaver | 26 åbne kundeopgaver i prod: "Mine forfaldne opgaver" + dagens liste på landingssiden | prod read-only; opgavelisten har allerede ansvarlig-filter + forfalden-tæller | NÆSTEN DÆKKET — lav prioritet |
 
+## NEXT-3 (genereret 2026-10-04 — high-speed long-run; prod read-only: 107 kunder (13/30d), 813 mails (72/30d), 57 leverandørfakturaer (9/30d, kun 3 med linjer), 15 tilbud (0/30d), 8 sager, 5 fakturaer)
+| # | Område | Opgave (vertikalt flow) | Kilde/fund | Status |
+|---|---|---|---|---|
+| N40 | Profit/økonomi | Realiseret DB pr. sag: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret udelukket) mod faktisk kost, på Økonomi-fanen | produktmål (tilbudt vs. faktisk) | IN_PROGRESS — computeRealizedDb + unit, kort på Økonomi-fanen, U91 |
+| N41 | Leverandørfaktura/drift | 48 mail-fakturaer står "needs_review" med kun mailtekst (47/54 havde vedhæftning, 1 hentet) → "Vedhæft PDF fra mailen" på fakturaen: privat fil, PDF-tekst, genlæsning, audit | prod read-only (prod-invoice-sources) | IN_PROGRESS — U92. Rod-årsag: INVOICE_ATTACHMENT_FETCH_ENABLED ikke sat i Vercel → BLOCKED_APPROVAL (Henrik, godkendt 2026-09-29) |
+| N42 | Rapporter | Sagsrentabilitet: realiseret DB pr. sag i rapporten (sammenfoldet) | N40 | TODO |
+| N43 | Leverandørfaktura | Indbakke-filter "mangler bilag" (mail-fakturaer uden fil) + antal i bogholderiets overblik, så de 48 kan tages én for én | N41 | TODO |
+| N44 | Salg | 0 tilbud på 30 dage i prod — gennemgå salgsflowet for friktion (lead→tilbud, kunde→tilbud, opfølgning) og find manglende genveje | prod read-only | TODO (analyse) |
+| N45 | Kundekommunikation | 72 mails/30d: mail → opgave/sag-genveje og svar-skabeloner (ingen live afsendelse uden flag) | prod read-only | TODO |
+| N46 | e-conomic | Forhåndsvisning af kreditnota/betaling som e-conomic-kladde (ingen posting) — samme mønster som fakturaens "Vis hvad der sendes" | N12-rest | TODO |
+
+### Checkpoint 2026-10-04 (formiddag)
+- 00185 i prod (pre/post/personas grønne) · N2/N28 merget og deployet · pilot-health viser godkendelseskøen
+- Privacy: D50b, PV16, PV17, PV18 (negative kontroller grønne inden for 10 min) · MONTOR_START_JOB_ENABLED: runbook klar, flag OFF (Henrik/Vercel)
+- BLOCKED_APPROVAL: INVOICE_ATTACHMENT_FETCH_ENABLED (Vercel), MONTOR_START_JOB_ENABLED (Vercel), e-conomic-nøgler, live mail/SMS
+
 ## Fund registreret i delivery mode
 | # | Sev | Fund | Status |
 |---|---|---|---|

@@ -381,6 +381,42 @@ export interface UploadInput {
   supplierIdHint?: string | null
 }
 
+/**
+ * Vedhæft bilag (PDF/billede) til en EKSISTERENDE leverandørfaktura uden fil — typisk mail-fakturaer hvor kun
+ * mailteksten blev gemt (vedhæftningshentning slået fra). Udtrukket PDF-tekst erstatter mailteksten (bedre grundlag),
+ * og fakturaen læses igen. Låste fakturaer (godkendt/bogført/afvist/annulleret) og fakturaer med fil afvises.
+ * Dedup-nøglen (file_hash) bevares, så samme mail ikke kan oprette fakturaen igen.
+ */
+export async function attachFileToInvoice(input: UploadInput & { invoiceId: string }): Promise<{ ok: boolean; message: string; parsed?: boolean }> {
+  const supabase = createAdminClient()
+  const { data: row, error } = await supabase.from('incoming_invoices').select('id, status, file_url, raw_text').eq('id', input.invoiceId).maybeSingle()
+  if (error || !row) return { ok: false, message: 'Faktura ikke fundet' }
+  if (LOCKED_INVOICE_STATUSES.includes(row.status as string)) return { ok: false, message: `Fakturaen er ${row.status} — bilag kan ikke ændres` }
+  if (row.file_url) return { ok: false, message: 'Fakturaen har allerede et bilag' }
+  const text = input.rawText.trim()
+  const { error: upErr } = await supabase.from('incoming_invoices').update({
+    file_name: input.fileName,
+    file_url: input.fileUrl ?? null,
+    mime_type: input.mime,
+    file_size_bytes: input.fileBytes?.length ?? null,
+    ...(text ? { raw_text: input.rawText } : {}),
+    parse_status: 'pending',
+  }).eq('id', input.invoiceId)
+  if (upErr) return { ok: false, message: 'Kunne ikke gemme bilaget' }
+  await auditLog({
+    incomingInvoiceId: input.invoiceId,
+    action: 'file_attached',
+    message: `bilag vedhæftet: ${input.fileName}${text ? '' : ' (ingen tekst — scannet?)'}`,
+    actorId: input.uploadedBy ?? null,
+  })
+  const r = await parseAndMatch(input.invoiceId)
+  return {
+    ok: true,
+    parsed: r.parsed,
+    message: text ? (r.parsed ? 'Bilag vedhæftet og fakturaen læst igen' : `Bilag vedhæftet — ${r.message}`) : 'Bilag vedhæftet — ingen tekst i filen, udfyld felterne manuelt',
+  }
+}
+
 export async function ingestFromUpload(input: UploadInput): Promise<{ invoiceId: string | null; duplicate: boolean; error?: string }> {
   const supabase = createAdminClient()
   // Samme dedup-nøgle som mail-flowet (hash af udtrukket tekst), så samme faktura via mail OG upload kun

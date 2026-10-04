@@ -128,6 +128,9 @@
  *   U85 shoulder-surfing (lille, målrettet): admin-tilbud foldet som standard + fold ud; serviceleder uden login-fane
  *   U86 privacy-rollematrix del 2 (serviceleder/bogholderi) — U83 er nu admin/salg/montør
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
+ *   U93 N44: cockpit "Nye kunder uden tilbud" (30 d, ingen tilbud/sag) + genvej åbner tilbudsformularen; montør uden kort
+ *   U92 vedhæft PDF på mail-faktura uden bilag → privat fil, PDF-tekst, genlæst (nr./beløb), audit; knap væk med fil
+ *   U91 realiseret DB pr. sag: netto faktureret ekskl. moms (udstedt − kredit; kladde/annulleret udelukket) mod faktisk kost
  *   U90 D50b: medarbejderøkonomi — kost/DB pr. medarbejder kun med løn-adgang; totaler sammenfoldet
  *   U89 PV16: Rediger medarbejder — løn/satser foldet og ikke hentet ved åbning; fold ud henter
  *   U88 N26d: Rapporter → Sagsrentabilitet med tilbudt/faktisk kost + afvigelse, sammenfoldet som standard
@@ -171,9 +174,9 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90'],
-  economy: ['U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -354,6 +357,12 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u87SupplierId: string | null = null
   let u88OfferId: string | null = null
   let u89EmployeeId: string | null = null
+  let u91InvoiceIds: string[] = []
+  let u91SeedErr = ''
+  let u92InvoiceId: string | null = null
+  let u93CustomerId: string | null = null
+  let u93OfferId: string | null = null
+  let u93EmailId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -2855,6 +2864,118 @@ ${m.text()}`) })
         out.push({ id: 'U90 D50b medarbejderøkonomi: kost pr. medarbejder kun med løn-adgang', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U91 realiseret DB: netto faktureret ekskl. moms (udstedt − kreditnota; kladde/annulleret tæller ikke) mod faktisk
+      // kost — materialer 600, faktura 1.000 + kreditnota 200 + kladde 5.000 → netto 800, realiseret DB 200 (25 %)
+      if (want('U91') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] realiseret ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) {
+          listCaseIds.push(caseId)
+          await c.admin.from('case_materials').insert([{ case_id: caseId, description: `RDB kabel ${stamp}`, quantity: 1, unit: 'stk', unit_cost: 600, unit_sales_price: 1000, billable: true, source: 'manual', created_by: adminUser.id }])
+          const ins = await c.admin.from('invoices').insert([
+            { invoice_number: `UI-E2E-RD1-${stamp}`, customer_id: profitCustomerId, case_id: caseId, status: 'sent', total_amount: 1000, tax_amount: 250, final_amount: 1250 },
+            { invoice_number: `UI-E2E-RD3-${stamp}`, customer_id: profitCustomerId, case_id: caseId, status: 'draft', total_amount: 5000, tax_amount: 1250, final_amount: 6250 },
+          ]).select('id, invoice_number')
+          const std = ((ins.data ?? []) as Array<{ id: string; invoice_number: string }>)
+          const origId = std.find((x) => x.invoice_number.startsWith('UI-E2E-RD1'))?.id ?? null
+          const cr = origId ? await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-RD2-${stamp}`, customer_id: profitCustomerId, case_id: caseId, status: 'sent',
+            invoice_type: 'credit', credit_of_invoice_id: origId, total_amount: 200, tax_amount: 50, final_amount: 250 }]).select('id') : null
+          // kreditnota først i oprydningen (credit_of_invoice_id er ON DELETE RESTRICT)
+          u91InvoiceIds = [...((cr?.data ?? []) as Array<{ id: string }>).map((x) => x.id), ...std.map((x) => x.id)]
+          r.seed = u91InvoiceIds.length === 3
+          if (!r.seed) u91SeedErr = `${ins.error?.message ?? ''} ${cr?.error?.message ?? ''}`.trim().slice(0, 160)
+        }
+        await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}?tab=oekonomi`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('economy-reveal').click({ timeout: 30_000 }).catch(() => {})
+        const card = a.page.getByTestId('realized-db-card')
+        await card.waitFor({ timeout: 60_000 }).catch(() => {})
+        const txt = (await card.innerText().catch(() => '')) ?? ''
+        r.netto_800 = /800\skr/.test(txt) // Intl-beløb bruger hårdt mellemrum ( ) && /kreditnota/.test(txt)
+        r.db_200 = ((await card.getByTestId('realized-db-value').textContent().catch(() => '')) ?? '').includes('200')
+        r.pct_25 = /25,0\s?%/.test(txt)
+        // N42: samme sag i Rapporter → Sagsrentabilitet (sammenfoldet → fold ud)
+        await gotoSafe(a.page, `${base}/dashboard/reports`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const rep = a.page.getByTestId('report-case-profitability')
+        await rep.getByText(`[HARNESS] realiseret ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        await rep.getByTestId('cost-reveal-toggle').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(600)
+        const repRow = rep.locator('tr', { hasText: `[HARNESS] realiseret ${stamp}` }).first()
+        r.rapport_realiseret = ((await repRow.getByTestId('report-case-realized').textContent().catch(() => '')) ?? '').includes('200')
+        out.push({ id: 'U91 realiseret DB pr. sag', ok: !!caseId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${u91SeedErr ? ` · SEED: ${u91SeedErr}` : ''} · "${txt.replace(/\s+/g, ' ').slice(0, 200)}"` })
+      }
+
+      // U92 Vedhæft PDF på mail-faktura uden fil: bilag gemmes privat, PDF-teksten erstatter mailteksten, fakturaen læses
+      // igen (nr. + beløb), audit 'file_attached'; knappen findes ikke når der allerede er et bilag
+      if (want('U92')) {
+        const r: Record<string, boolean> = {}
+        const invNo = `HV92-${stamp}`
+        const ii = await c.admin.from('incoming_invoices').insert([{ source: 'email', status: 'received', parse_status: 'needs_review',
+          file_name: `mail-${stamp}.txt`, mime_type: 'text/plain', raw_text: 'Hej, se vedhæftede faktura. Mvh grossisten', file_hash: `u92-${stamp}`,
+          supplier_name_extracted: `[HARNESS] U92 ${stamp}` }]).select('id')
+        u92InvoiceId = (ii.data?.[0] as { id?: string } | undefined)?.id ?? null
+        // N43: listefilteret "Mangler bilag" viser fakturaen
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByRole('button', { name: /^Mangler bilag/ }).click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByText(`[HARNESS] U92 ${stamp}`).first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.filter_mangler_bilag = (await a.page.getByText(`[HARNESS] U92 ${stamp}`).count()) > 0
+        await gotoSafe(a.page, `${base}/dashboard/incoming-invoices/${u92InvoiceId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('invoice-attach-file').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.knap_vist = (await a.page.getByTestId('invoice-attach-file').count()) === 1
+        const pdf = makeTextPdf(['HARNESS Vedhaeft-grossist A/S', `Faktura ${invNo}`, `Fakturanummer: ${invNo}`, 'Fakturadato: 02-10-2026',
+          'Forfaldsdato: 01-11-2026', 'Beloeb i alt inkl. moms: 2.500,00 DKK'])
+        await a.page.getByTestId('invoice-attach-input').setInputFiles({ name: `faktura-${invNo}.pdf`, mimeType: 'application/pdf', buffer: pdf }).catch(() => {})
+        await a.page.getByTestId('invoice-attach-result').waitFor({ timeout: 90_000 }).catch(() => {})
+        type IR = { file_url: string | null; raw_text: string | null; invoice_number: string | null; amount_incl_vat: number | null }
+        const row = (await c.admin.from('incoming_invoices').select('file_url, raw_text, invoice_number, amount_incl_vat').eq('id', u92InvoiceId ?? '').maybeSingle()).data as IR | null
+        r.fil_privat = !!row?.file_url && row.file_url.startsWith('attachments/supplier-invoices/')
+        r.tekst_fra_pdf = (row?.raw_text ?? '').includes(invNo)
+        r.laest_igen = row?.invoice_number === invNo && Number(row?.amount_incl_vat) === 2500
+        const aud = ((await c.admin.from('incoming_invoice_audit_log').select('action').eq('incoming_invoice_id', u92InvoiceId ?? '')).data ?? []) as Array<{ action: string }>
+        r.audit = aud.some((x) => x.action === 'file_attached')
+        await a.page.reload({ waitUntil: 'networkidle' }).catch(() => {})
+        r.knap_vaek_med_fil = (await a.page.getByTestId('invoice-attach-file').count()) === 0
+        out.push({ id: 'U92 vedhæft PDF på mail-faktura uden bilag', ok: !!u92InvoiceId && Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · nr=${row?.invoice_number ?? '-'} beløb=${row?.amount_incl_vat ?? '-'}` })
+      }
+
+      // U93 N44: styrings-cockpittet viser nye kunder (30 d) uden tilbud/sag; "Opret tilbud" åbner kundens tilbudsformular;
+      // en kunde med tilbud vises ikke; montør ser ikke kortet
+      if (want('U93')) {
+        const r: Record<string, boolean> = {}
+        const name = `[HARNESS] Ny henvendelse ${stamp}`
+        const nc = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-N-${stamp}`, company_name: name, contact_person: 'N', email: `ny-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        u93CustomerId = (nc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const list = a.page.getByTestId('cockpit-new-customers')
+        await list.getByText(name).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.kort_viser_kunde = (await list.getByText(name).count()) > 0
+        await list.locator('li', { hasText: name }).getByTestId('cockpit-new-customer-offer').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.locator('#offer-form-title').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.tilbudsformular_aaben = a.page.url().includes(`/dashboard/customers/${u93CustomerId}`) && (await a.page.locator('#offer-form-title').count()) > 0
+        // med et tilbud forsvinder kunden fra kortet
+        if (u93CustomerId) {
+          const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-NO-${stamp}`, title: `[HARNESS] ny ${stamp}`, customer_id: u93CustomerId, status: 'draft', created_by: adminUser.id }]).select('id')
+          u93OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        }
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.waitForTimeout(1000)
+        r.vaek_med_tilbud = (await a.page.getByTestId('cockpit-new-customers').getByText(name).count()) === 0
+        // N45: "Opret tilbud" direkte fra en koblet mail åbner samme kundes tilbudsformular
+        const em = u93CustomerId ? await c.admin.from('incoming_emails').insert([{ sender_email: `ny-${stamp}@harness.test`, sender_name: 'Ny henvendelse', subject: `[HARNESS] Tilbud på solceller ${stamp}`,
+          body_text: 'Hej, kan I give et tilbud?', customer_id: u93CustomerId, link_status: 'linked', received_at: new Date().toISOString(), is_archived: false }]).select('id') : null
+        u93EmailId = (em?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${u93EmailId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('mail-create-offer').click({ timeout: 60_000 }).catch(() => {})
+        await a.page.locator('#offer-form-title').waitFor({ timeout: 60_000 }).catch(() => {})
+        r.mail_opret_tilbud = a.page.url().includes(`/dashboard/customers/${u93CustomerId}`) && (await a.page.locator('#offer-form-title').count()) > 0
+        const m = await login(montor)
+        await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        r.montoer_intet_kort = (await m.page.getByText('Nye kunder uden tilbud').count()) === 0
+        await m.ctx.close().catch(() => {})
+        out.push({ id: 'U93 N44 nye kunder uden tilbud i cockpittet', ok: !!u93CustomerId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3412,6 +3533,11 @@ ${m.text()}`) })
     if (u84OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u84OfferId); await c.admin.from('offers').delete().eq('id', u84OfferId) }
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
+    if (u93EmailId) await c.admin.from('incoming_emails').delete().eq('id', u93EmailId)
+    if (u93OfferId) await c.admin.from('offers').delete().eq('id', u93OfferId)
+    if (u93CustomerId) await c.admin.from('customers').delete().eq('id', u93CustomerId)
+    if (u92InvoiceId) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', u92InvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u92InvoiceId) }
+    for (const id of u91InvoiceIds) { await c.admin.from('invoice_lines').delete().eq('invoice_id', id); await c.admin.from('invoices').delete().eq('id', id) }
     if (u89EmployeeId) { await c.admin.from('employee_compensation').delete().eq('employee_id', u89EmployeeId); await c.admin.from('employees').delete().eq('id', u89EmployeeId) }
     if (u88OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u88OfferId); await c.admin.from('offers').delete().eq('id', u88OfferId) }
     if (u87OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u87OfferId); await c.admin.from('offers').delete().eq('id', u87OfferId) }

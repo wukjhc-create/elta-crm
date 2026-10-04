@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 const EMPTY_COUNTS = {
+  missing_file: 0,
   awaiting_approval: 0,
   needs_review: 0,
   approved: 0,
