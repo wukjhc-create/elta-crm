@@ -36,6 +36,11 @@ export async function MyHoursCard() {
           <AlertTriangle className="w-3.5 h-3.5" /> Du har en kørende timer — den tæller med når den stoppes.
         </p>
       )}
+      {week.entries.some((e) => e.approval_status === 'rejected') && (
+        <p className="text-xs text-red-800 flex items-center gap-1 mb-2">
+          <AlertTriangle className="w-3.5 h-3.5" /> Nogle timer er afvist — se begrundelsen (hold musen over &quot;Afvist&quot;) og ret registreringen.
+        </p>
+      )}
       {week.entries.length === 0 ? (
         <p className="text-sm text-gray-500">Ingen timer registreret i denne uge.</p>
       ) : (
@@ -47,6 +52,18 @@ export async function MyHoursCard() {
                 {e.case_number ? <span className="font-mono text-xs text-gray-600 mr-1">{e.case_number}</span> : null}
                 {e.work_order_title ?? e.case_title ?? e.description ?? 'Timer'}
               </span>
+              {/* N2: godkendelsesstatus */}
+              {e.end_time && e.approval_status === 'rejected' && (
+                <span className="text-[10px] uppercase bg-red-100 text-red-800 px-1.5 py-0.5 rounded shrink-0" title={e.rejection_reason ?? undefined} data-testid="my-hours-rejected">
+                  Afvist
+                </span>
+              )}
+              {e.end_time && e.approval_status === 'pending' && (
+                <span className="text-[10px] uppercase bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded shrink-0" data-testid="my-hours-pending">Afventer</span>
+              )}
+              {e.end_time && e.approval_status === 'approved' && (
+                <span className="text-[10px] uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded shrink-0" data-testid="my-hours-approved">Godkendt</span>
+              )}
               <span className="ml-auto tabular-nums font-medium">{e.end_time ? `${fmtH(e.hoursNum)} t` : 'kører'}</span>
             </li>
           ))}

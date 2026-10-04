@@ -15,6 +15,9 @@ export interface WeekLogInput {
   case_title?: string | null
   work_order_title?: string | null
   description?: string | null
+  /** N2: godkendelse (pending/approved/rejected) + evt. afvisningsbegrundelse */
+  approval_status?: string | null
+  rejection_reason?: string | null
 }
 
 export interface WeekDay {

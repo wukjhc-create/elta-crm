@@ -96,6 +96,8 @@
  *       bekræftelse (afvist → stadig kladde) og audit-logges
  *   U61 D28: bogholderi ser kundens koblede mails på kundekortet (kun læsning, ingen Ny Mail) men ikke ukoblede
  *       adresse-match-mails; kontoret ser begge
+ *   U62 N2: montørens timer afventer godkendelse; admin afviser med begrundelse (montør ser "Afvist") og godkender;
+ *       montør har ikke adgang til godkendelsessiden; audit
  *   U64 webhenvendelser: kontaktformular-mail (også en tidligere fejl-ignoreret) vises under "Webhenvendelser"; andre
  *       ignorerede mails gør ikke
  *   U65 N24a: ukoblet mail fra kundens adresse → "Kobl tidligere mails" på kundekortet kobler den (linked_by retro)
@@ -128,6 +130,7 @@
  *   U87 N25: banner for tilbudslinjer uden kostpris (kontor) + "Udfyld kost" sætter leverandørkost; salg ser intet banner
  *   U88 N26d: Rapporter → Sagsrentabilitet med tilbudt/faktisk kost + afvigelse, sammenfoldet som standard
  *   U84 D48-audit: salg uden kost/avance i getOffer, tilføjet leverandørlinje, pakke-vælger, kundepriser, AI-indsigter; ingen Optimer
+ *   U72 N28: styringscockpittet viser antal timeregistreringer der afventer godkendelse (link til Godkend timer)
  *   U12 admin: upload leverandørfaktura (PDF) -> fakturaen åbnes, læst (nr. + beløb), fil gemt privat; samme fil igen
  *       -> dublet (ingen ny række, ingen efterladt fil) (G8)
  *   U13 salg: "Opret sag fra tilbud" på eget tilbud -> lander på sagen og kan se den; "Sager / Ordrer" i menuen (G6)
@@ -167,7 +170,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
-  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73'],
+  montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72'],
   economy: ['U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -2385,6 +2388,71 @@ ${m.text()}`) })
         r.kontor_ser_priser = (await a.page.getByRole('columnheader', { name: 'Kostpris' }).count()) > 0 && (await a.page.getByRole('button', { name: /^Handlinger/ }).count()) > 0
         await m.page.screenshot({ caret: 'initial', path: join(shots, 'u40-montor-materialer.png'), fullPage: true }).catch(() => {})
         out.push({ id: 'U40 montør: egen sag uden priser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U72 N28: styringscockpittet viser antal timeregistreringer der afventer godkendelse (time_logs.approve)
+      if (want('U72') && jobCaseId && jobEmployeeId) {
+        const r: Record<string, boolean> = {}
+        const { data: wo } = await c.admin.from('work_orders').select('id').eq('case_id', jobCaseId).limit(1).maybeSingle()
+        const woId = (wo as { id?: string } | null)?.id
+        const t0 = new Date(Date.now() - 5 * 3600_000).toISOString(), t1 = new Date(Date.now() - 4 * 3600_000).toISOString()
+        const ins = woId ? await c.admin.from('time_logs').insert([{ employee_id: jobEmployeeId, work_order_id: woId, start_time: t0, end_time: t1 }]).select('id') : null
+        const tlId = (ins?.data?.[0] as { id?: string } | undefined)?.id
+        const { count } = await c.admin.from('time_logs').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending').not('end_time', 'is', null)
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const el = a.page.getByTestId('cockpit-times-pending')
+        await el.waitFor({ timeout: 60_000 }).catch(() => {})
+        const txt = (await el.innerText().catch(() => '')).trim()
+        r.cockpit_viser_antal = !!tlId && txt.startsWith(`${count} `)
+        r.linker_til_godkendelse = (await el.getAttribute('href').catch(() => '')) === '/dashboard/time-approval'
+        if (tlId) await c.admin.from('time_logs').delete().eq('id', tlId)
+        out.push({ id: 'U72 N28 cockpit: timer afventer godkendelse', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · vist="${txt}" forventet=${count}` })
+      }
+
+      // U62 N2: timegodkendelse — montør registrerer (U11) → admin afviser med begrundelse → montør ser "Afvist" → godkend
+      if (want('U62') && jobCaseId) {
+        const r: Record<string, boolean> = {}
+        type TL = { id: string; approval_status: string; rejection_reason: string | null; approved_by: string | null }
+        const readTl = async (): Promise<TL | null> => ((await c.admin.from('time_logs').select('id, approval_status, rejection_reason, approved_by, work_order:work_orders!inner(case_id)')
+          .eq('work_order.case_id', jobCaseId ?? '').not('end_time', 'is', null).limit(1).maybeSingle()).data as TL | null)
+        const tl0 = await readTl()
+        r.registrering_afventer = tl0?.approval_status === 'pending'
+        const caseNo = ((await c.admin.from('service_cases').select('case_number').eq('id', jobCaseId).maybeSingle()).data as { case_number?: string } | null)?.case_number ?? ''
+        // montør: "Afventer" i Mine timer; ingen adgang til godkendelsessiden
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.montoer_ser_afventer = (await m.page.getByTestId('my-hours-pending').count()) > 0
+        await gotoSafe(m.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.montoer_ingen_adgang = (await m.page.getByTestId('time-approval-row').count()) === 0 && (await m.page.getByText(/adgang/i).count()) > 0
+        // admin: afvis med begrundelse
+        await gotoSafe(a.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })
+        const row = a.page.getByTestId('time-approval-row').filter({ hasText: caseNo })
+        await row.first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.admin_ser_raekken = caseNo !== '' && (await row.count()) > 0
+        await row.first().getByTestId('time-approval-reject').click({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByTestId('time-approval-reason').fill('Forkert sag — ret venligst').catch(() => {})
+        await a.page.getByTestId('time-approval-reject-confirm').click({ timeout: 30_000 }).catch(() => {})
+        let tl1: TL | null = null
+        for (let i = 0; i < 20; i++) { tl1 = await readTl(); if (tl1?.approval_status === 'rejected') break; await new Promise((res) => setTimeout(res, 1000)) }
+        r.afvist_med_begrundelse = tl1?.approval_status === 'rejected' && tl1?.rejection_reason === 'Forkert sag — ret venligst'
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        await gotoSafe(m.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 180_000 })
+        r.montoer_ser_afvist = (await m.page.getByTestId('my-hours-rejected').count()) > 0
+        await m.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        // admin: godkend fra fanen Afvist
+        await gotoSafe(a.page, `${base}/dashboard/time-approval`, { waitUntil: 'networkidle', timeout: 180_000 })
+        await a.page.getByTestId('time-approval-tab-rejected').click({ timeout: 30_000 }).catch(() => {})
+        const row2 = a.page.getByTestId('time-approval-row').filter({ hasText: caseNo })
+        await row2.first().waitFor({ timeout: 60_000 }).catch(() => {})
+        await row2.first().getByTestId('time-approval-approve').click({ timeout: 30_000 }).catch(() => {})
+        let tl2: TL | null = null
+        for (let i = 0; i < 20; i++) { tl2 = await readTl(); if (tl2?.approval_status === 'approved') break; await new Promise((res) => setTimeout(res, 1000)) }
+        r.godkendt_af_admin = tl2?.approval_status === 'approved' && tl2?.approved_by === adminUser.id && tl2?.rejection_reason === null
+        const aud = ((await c.admin.from('audit_logs').select('action').eq('entity_id', tl2?.id ?? '')).data ?? []) as Array<{ action: string }>
+        r.auditlogget = aud.some((x) => x.action === 'time_log_rejected') && aud.some((x) => x.action === 'time_log_approved')
+        await a.page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u62-godkend-timer.png'), fullPage: true }).catch(() => {})
+        if (tl2?.id) await c.admin.from('audit_logs').delete().eq('entity_id', tl2.id)
+        out.push({ id: 'U62 N2 timegodkendelse', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U79 PV8 shoulder-surfing: kost/DB foldet sammen som standard for kontoret på Materialer, Øvrige og Planlægning;
