@@ -262,22 +262,23 @@ export function PortalDashboard({
               <Link
                 key={offer.id}
                 href={`/portal/${token}/offers/${offer.id}`}
-                className="flex items-center justify-between p-6 hover:bg-gray-50 transition-colors"
+                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6 hover:bg-gray-50 transition-colors"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                {/* Mobil: stablet (titel øverst, beløb/status under) — før flød status/pil ud over skærmkanten */}
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-10 h-10 shrink-0 bg-gray-100 rounded-lg flex items-center justify-center">
                     {getStatusIcon(offer.status)}
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 break-words">
                       {offer.offer_number}
                     </p>
-                    <p className="text-sm text-gray-600">{offer.title}</p>
+                    <p className="text-sm text-gray-600 break-words">{offer.title}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
+                <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
+                  <div className="text-left sm:text-right">
                     <p className="font-semibold text-gray-900">
                       {formatCurrency(offer.final_amount, currency)}
                     </p>
@@ -388,10 +389,10 @@ export function PortalDashboard({
             {invoices.map((inv) => (
               <div
                 key={inv.id}
-                className="flex items-center justify-between p-6"
+                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-10 h-10 shrink-0 bg-emerald-50 rounded-lg flex items-center justify-center">
                     <Receipt className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
@@ -407,8 +408,8 @@ export function PortalDashboard({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
+                <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
+                  <div className="text-left sm:text-right">
                     <p className="font-semibold text-gray-900">
                       {formatCurrency(inv.final_amount, currency)}
                     </p>

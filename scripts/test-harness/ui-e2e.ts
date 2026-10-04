@@ -181,7 +181,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
  * U1–U4/U6/U13/U5 (login, adgang, konsolfejl) kører altid.
  */
 export const UI_E2E_GROUPS: Record<string, string[]> = {
-  crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106'],
+  crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109'],
   smoke: ['U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97'],
@@ -390,6 +390,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u98CustomerId: string | null = null
   let u98SeedErr = ''
   let u100OfferIds: string[] = []
+  let u109OfferId: string | null = null
+  let u109TokenId: string | null = null
+  let u109InvoiceId: string | null = null
   let u77ProductId: string | null = null
   let u77SupplierId: string | null = null
   let u73Diag = ''
@@ -3245,6 +3248,114 @@ ${m.text()}`) })
         out.push({ id: `${tid} rute-crawl ${who} (${part.length} sider)`, ok: bad.length === 0, note: `${bad.length ? bad.join(' · ') : 'ingen crash'} · ingen adgang: ${noAccess}/${part.length}` })
       }
 
+      // U107 fane-crawl (admin): alle 14 faner på en sag med data (materiale, øvrig omkostning, arbejdsordre, note) samt
+      // tilbud, kunde og faktura — ingen fejlgrænse/404/konsolfejl (U5 fanger konsolfejl)
+      if (want('U107') && profitCustomerId) {
+        const bad: string[] = []
+        const sc = await c.admin.from('service_cases').insert([{ title: `[HARNESS] fane-crawl ${stamp}`, customer_id: profitCustomerId, status: 'in_progress',
+          priority: 'medium', source: 'manual', created_by: adminUser.id, address: 'Crawlvej 1', postal_code: '8000', city: 'Aarhus C' }]).select('id')
+        const caseId = (sc.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (caseId) {
+          listCaseIds.push(caseId)
+          await c.admin.from('case_materials').insert([{ case_id: caseId, description: `FC kabel ${stamp}`, quantity: 2, unit: 'm', unit_cost: 10, unit_sales_price: 15, billable: true, source: 'manual', created_by: adminUser.id }])
+          await c.admin.from('case_other_costs').insert([{ case_id: caseId, category: 'koersel', description: `FC kørsel ${stamp}`, quantity: 1, unit_cost: 50, unit_sales_price: 80, created_by: adminUser.id }])
+          await c.admin.from('work_orders').insert([{ case_id: caseId, title: `[HARNESS] FC job ${stamp}`, status: 'planned' }])
+          await c.admin.from('case_notes').insert([{ case_id: caseId, content: `FC note ${stamp}`, created_by: adminUser.id }])
+        }
+        const tabs = ['overblik', 'planlaegning', 'aflevering', 'materialer', 'oevrige', 'mails', 'dokumenter', 'oekonomi', 'opgaver', 'noter', 'aktivitet', 'dokumentation', 'fakturakladde', 'handlinger']
+        const visit = async (label: string, url: string) => {
+          const resp = await gotoSafe(a.page, url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+          await a.page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {})
+          const body = (await a.page.locator('body').innerText().catch(() => '')) ?? ''
+          const status = resp?.status() ?? 0
+          if (status >= 400) bad.push(`${label}: HTTP ${status}`)
+          else if (/Der opstod en fejl/.test(body)) bad.push(`${label}: fejlgrænse`)
+          else if (/^\s*404\s*$/m.test(body)) bad.push(`${label}: 404`)
+        }
+        for (const t of tabs) await visit(`sag/${t}`, `${base}/dashboard/orders/${caseId}?tab=${t}`)
+        await visit('kunde', `${base}/dashboard/customers/${profitCustomerId}`)
+        const anyOffer = ((await c.admin.from('offers').select('id').eq('customer_id', profitCustomerId).limit(1)).data ?? [])[0] as { id?: string } | undefined
+        if (anyOffer?.id) await visit('tilbud', `${base}/dashboard/offers/${anyOffer.id}`)
+        const anyInv = ((await c.admin.from('invoices').select('id').limit(1)).data ?? [])[0] as { id?: string } | undefined
+        if (anyInv?.id) await visit('faktura', `${base}/dashboard/invoices/${anyInv.id}`)
+        const anyInc = ((await c.admin.from('incoming_invoices').select('id').limit(1)).data ?? [])[0] as { id?: string } | undefined
+        if (anyInc?.id) await visit('leverandørfaktura', `${base}/dashboard/incoming-invoices/${anyInc.id}`)
+        out.push({ id: 'U107 fane-crawl admin (sag 14 faner + kunde/tilbud/faktura)', ok: !!caseId && bad.length === 0, note: bad.length ? bad.join(' · ') : 'ingen crash' })
+      }
+
+      // U108 mobil (375 px): montørens sider (Mine job, kalender, sagens faner) uden vandret overløb og uden crash —
+      // montøren bruger telefonen
+      if (want('U108') && jobCaseId) {
+        const issues: string[] = []
+        const m = await login(montor)
+        await m.page.setViewportSize({ width: 375, height: 812 })
+        const pages: Array<[string, string]> = [
+          ['mine-job', '/dashboard/tasks'], ['kalender', '/dashboard/calendar'],
+          ['planlaegning', `/dashboard/orders/${jobCaseId}?tab=planlaegning`], ['materialer', `/dashboard/orders/${jobCaseId}?tab=materialer`],
+          ['oevrige', `/dashboard/orders/${jobCaseId}?tab=oevrige`], ['dokumentation', `/dashboard/orders/${jobCaseId}?tab=dokumentation`],
+          ['aflevering', `/dashboard/orders/${jobCaseId}?tab=aflevering`], ['overblik', `/dashboard/orders/${jobCaseId}?tab=overblik`],
+        ]
+        for (const [label, path] of pages) {
+          await gotoSafe(m.page, `${base}${path}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+          await m.page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {})
+          const body = (await m.page.locator('body').innerText().catch(() => '')) ?? ''
+          if (/Der opstod en fejl/.test(body)) { issues.push(`${label}: fejlgrænse`); continue }
+          const ov = await m.page.evaluate(() => {
+            const w = window.innerWidth
+            if (document.documentElement.scrollWidth <= w + 2) return null
+            let worst: { tag: string; cls: string; right: number } | null = null
+            for (const el of Array.from(document.querySelectorAll('body *'))) {
+              const r = (el as HTMLElement).getBoundingClientRect()
+              if (r.width === 0 || r.right <= w + 2) continue
+              // kun elementer hvis forælder ikke selv er en vandret scroll-container
+              const p = (el as HTMLElement).parentElement
+              if (p && ['auto', 'scroll'].includes(getComputedStyle(p).overflowX)) continue
+              if (!worst || r.right > worst.right) worst = { tag: el.tagName.toLowerCase(), cls: String((el as HTMLElement).className).slice(0, 60), right: Math.round(r.right) }
+            }
+            return { scrollWidth: document.documentElement.scrollWidth, worst }
+          }).catch(() => null)
+          if (ov) issues.push(`${label}: overløb ${ov.scrollWidth}px (${ov.worst ? `${ov.worst.tag}.${ov.worst.cls}` : '?'})`)
+          await m.page.screenshot({ path: join(shots, `u108-mobil-${label}.png`), fullPage: false }).catch(() => {})
+        }
+        await m.ctx.close().catch(() => {})
+        out.push({ id: 'U108 mobil 375px: montørens sider uden overløb/crash', ok: issues.length === 0, note: issues.length ? issues.join(' · ') : `${pages.length} sider OK` })
+      }
+
+      // U109 mobil (375 px): kundeportalen (forside, tilbud, tilbudsdetalje med linjer) uden vandret overløb og uden
+      // crash — kunderne åbner portal-linket fra mail på telefonen
+      if (want('U109') && profitCustomerId) {
+        const issues: string[] = []
+        const tok = randomBytes(32).toString('hex')
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-PM-${stamp}`, title: '[HARNESS] portal mobil med en lang titel der kunne bryde layoutet på en smal skærm',
+          created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(),
+          valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10) }]).select('id')
+        u109OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (u109OfferId) await c.admin.from('offer_line_items').insert([
+          { offer_id: u109OfferId, position: 1, description: 'Solcellepanel 440 Wp sort/sort fuld-sort monokrystallinsk med 30 års produktgaranti', quantity: 24, unit: 'stk', unit_price: 1234.5, total: 29628, cost_price: 800 },
+          { offer_id: u109OfferId, position: 2, description: 'Montage', quantity: 16, unit: 'timer', unit_price: 650, total: 10400, cost_price: 400 },
+        ])
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-profit-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u109TokenId = (pt.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const iv = await c.admin.from('invoices').insert([{ invoice_number: `UI-E2E-PMI-${stamp}`, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(),
+          due_date: new Date(Date.now() + 8 * 86400_000).toISOString().slice(0, 10), total_amount: 40028, tax_amount: 10007, final_amount: 50035 }]).select('id')
+        u109InvoiceId = (iv.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const kctx = await browser.newContext({ viewport: { width: 375, height: 812 } })
+        const kp = await kctx.newPage()
+        for (const [label, path] of [['forside', `/portal/${tok}`], ['tilbudsdetalje', `/portal/${tok}/offers/${u109OfferId}`]] as Array<[string, string]>) {
+          const resp = await gotoSafe(kp, `${base}${path}`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+          await kp.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {})
+          const body = (await kp.locator('body').innerText().catch(() => '')) ?? ''
+          if ((resp?.status() ?? 0) >= 400) { issues.push(`${label}: HTTP ${resp?.status()}`); continue }
+          if (/Der opstod en fejl|Application error/i.test(body)) { issues.push(`${label}: fejl`); continue }
+          const ov = await kp.evaluate(() => (document.documentElement.scrollWidth > window.innerWidth + 2 ? document.documentElement.scrollWidth : 0)).catch(() => 0)
+          if (ov) issues.push(`${label}: overløb ${ov}px`)
+          await kp.screenshot({ path: join(shots, `u109-portal-mobil-${label}.png`), fullPage: true }).catch(() => {})
+        }
+        await kctx.close().catch(() => {})
+        out.push({ id: 'U109 mobil 375px: kundeportal uden overløb/crash', ok: !!u109OfferId && !!u109TokenId && issues.length === 0, note: issues.length ? issues.join(' · ') : '2 sider OK' })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -3802,6 +3913,9 @@ ${m.text()}`) })
     if (u84OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u84OfferId); await c.admin.from('offers').delete().eq('id', u84OfferId) }
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
+    if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
+    if (u109InvoiceId) await c.admin.from('invoices').delete().eq('id', u109InvoiceId)
+    if (u109OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u109OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u109OfferId); await c.admin.from('offers').delete().eq('id', u109OfferId) }
     for (const id of u100OfferIds) { await c.admin.from('offer_activities').delete().eq('offer_id', id); await c.admin.from('offers').delete().eq('id', id) }
     if (u98CustomerId) { await c.admin.from('portal_messages').delete().eq('customer_id', u98CustomerId); await c.admin.from('customers').delete().eq('id', u98CustomerId) }
     if (u95OfferId) { await c.admin.from('offer_activities').delete().eq('offer_id', u95OfferId); await c.admin.from('offer_line_items').delete().eq('offer_id', u95OfferId); await c.admin.from('offers').delete().eq('id', u95OfferId) }
@@ -3818,7 +3932,7 @@ ${m.text()}`) })
     if (u87SupplierId) { await c.admin.from('supplier_products').delete().eq('supplier_id', u87SupplierId); await c.admin.from('suppliers').delete().eq('id', u87SupplierId) }
     if (u81OfferId) { await c.admin.from('offer_line_items').delete().eq('offer_id', u81OfferId); await c.admin.from('offers').delete().eq('id', u81OfferId) }
     if (u77OfferId) { for (const t of ['offer_line_items', 'offer_activities']) await c.admin.from(t).delete().eq('offer_id', u77OfferId); await c.admin.from('offers').delete().eq('id', u77OfferId) }
-    for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('case_materials').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
+    for (const id of listCaseIds) { await c.admin.from('case_notes').delete().eq('case_id', id); await c.admin.from('case_materials').delete().eq('case_id', id); await c.admin.from('case_other_costs').delete().eq('case_id', id); { const { data: ws } = await c.admin.from('work_orders').select('id').eq('case_id', id); for (const w of (ws ?? []) as Array<{ id: string }>) await c.admin.from('time_logs').delete().eq('work_order_id', w.id) } await c.admin.from('work_orders').delete().eq('case_id', id); await c.admin.from('service_cases').delete().eq('id', id) }
     if (u57OfferId) await c.admin.from('offers').delete().eq('id', u57OfferId)
     if (searchCustomerId) await c.admin.from('customers').delete().eq('id', searchCustomerId)
     if (u30.employeeId) await c.admin.from('employees').delete().eq('id', u30.employeeId)
