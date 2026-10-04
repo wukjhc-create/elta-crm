@@ -512,9 +512,16 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const ctx = roleCtx
         if (!ctx.hasPermission('offers.create')) return
         const since = new Date(now - NEW_CUSTOMER_DAYS * 86_400_000).toISOString()
-        const { data: custs } = await supabase.from('customers').select('id, company_name, created_at')
+        const { data: custs } = await supabase.from('customers').select('id, company_name, created_at, email')
           .gte('created_at', since).eq('is_active', true).order('created_at', { ascending: false }).limit(200)
-        const list = (custs ?? []) as Array<{ id: string; company_name: string | null; created_at: string }>
+        let list = (custs ?? []) as Array<{ id: string; company_name: string | null; created_at: string; email: string | null }>
+        if (!list.length) return
+        // N75: "kunder" hvis e-maildomæne tilhører en kendt leverandør (fx oprettet af mail-automatikken ud fra en
+        // leverandørs signatur, N74) er ikke salgsemner — vises ikke her. Deterministisk via suppliers.website/kontakt.
+        const { senderDomain, suppliersForDomain } = await import('@/lib/invoice-control/sender-domain')
+        const { data: sups } = await supabase.from('suppliers').select('id, website, contact_email').limit(1000)
+        const supplierList = (sups ?? []) as Array<{ id: string; website: string | null; contact_email: string | null }>
+        if (supplierList.length) list = list.filter((c) => { const d = senderDomain(c.email); return !d || suppliersForDomain(d, supplierList).length === 0 })
         if (!list.length) return
         const ids = list.map((c) => c.id)
         const [offRes, caseRes] = await Promise.all([

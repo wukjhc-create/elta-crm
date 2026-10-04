@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -387,6 +387,7 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const u120InvoiceIds: string[] = []
   const u120EmailIds: string[] = []
   let u120SupplierId: string | null = null
+  const u120SupplierIds: string[] = []
   let u93CustomerId: string | null = null
   let u93OfferId: string | null = null
   let u93EmailId: string | null = null
@@ -3818,6 +3819,27 @@ ${m.text()}`) })
         out.push({ id: 'U125 N74 kunder oprettet fra mail', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} ${ins.error?.message ?? ''}` })
       }
 
+      // U126 N75: cockpittets "Nye kunder uden tilbud" viser ikke en "kunde" hvis e-maildomæne tilhører en kendt leverandør
+      // (website); en almindelig ny kunde vises stadig
+      if (want('U126')) {
+        const r: Record<string, boolean> = {}
+        const dom = `u126-${stamp}.dk`
+        const sup = await c.admin.from('suppliers').insert([{ name: `[HARNESS] U126 grossist ${stamp}`, code: `HU126${stamp}`, website: `https://www.${dom}` }]).select('id')
+        u120SupplierIds.push(...((sup.data ?? []) as Array<{ id: string }>).map((x) => x.id))
+        const ins = await c.admin.from('customers').insert([
+          { customer_number: `UI-E2E-S-${stamp}`, company_name: `[HARNESS] lev-kunde ${stamp}`, contact_person: 'S', email: `info@${dom}`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+          { customer_number: `UI-E2E-K-${stamp}`, company_name: `[HARNESS] ægte kunde ${stamp}`, contact_person: 'K', email: `kunde-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+        ]).select('id')
+        u115CustomerIds.push(...((ins.data ?? []) as Array<{ id: string }>).map((x) => x.id))
+        r.seed = (sup.data ?? []).length === 1 && (ins.data ?? []).length === 2
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const card = a.page.getByTestId('cockpit-new-customers')
+        await card.getByText(`[HARNESS] ægte kunde ${stamp}`).first().waitFor({ timeout: 60_000 }).catch(() => {})
+        r.aegte_vises = (await card.getByText(`[HARNESS] ægte kunde ${stamp}`).count()) > 0
+        r.leverandoer_skjult = (await card.getByText(`[HARNESS] lev-kunde ${stamp}`).count()) === 0
+        out.push({ id: 'U126 N75 leverandør-"kunder" ikke i nye kunder', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} ${sup.error?.message ?? ''} ${ins.error?.message ?? ''}` })
+      }
+
       // U63 N23: sagsstatus følger arbejdet — U11's sag (montør startede job/registrerede tid) er "I gang" + audit;
       // en sag med alle job udført og intet ufaktureret viser "Klar til lukning" → Luk sagen
       if (want('U63') && jobCaseId && profitCustomerId) {
@@ -4396,6 +4418,7 @@ ${m.text()}`) })
     for (const id of u120InvoiceIds) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', id); await c.admin.from('incoming_invoices').delete().eq('id', id) }
     if (u120EmailIds.length) await c.admin.from('incoming_emails').delete().in('id', u120EmailIds)
     if (u120SupplierId) await c.admin.from('suppliers').delete().eq('id', u120SupplierId)
+    for (const id of u120SupplierIds) await c.admin.from('suppliers').delete().eq('id', id)
     if (u92InvoiceId) { await c.admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', u92InvoiceId); await c.admin.from('incoming_invoices').delete().eq('id', u92InvoiceId) }
     if (u116InvoiceId) await c.admin.from('invoices').delete().eq('id', u116InvoiceId)
     if (u117WorkOrderId) await c.admin.from('work_orders').delete().eq('id', u117WorkOrderId)
