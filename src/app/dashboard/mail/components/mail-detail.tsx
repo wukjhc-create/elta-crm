@@ -1,5 +1,5 @@
 'use client'
-
+
 import { CreateLeadFromMailButton } from './create-lead-from-mail-button'
 import { WebInquiryCard } from './web-inquiry-card'
 import { useState, useEffect } from 'react'
@@ -680,9 +680,15 @@ export function MailDetail({
         {email.body_html ? (
           <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }} />
         ) : (
-          <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans">
-            {email.body_text || email.body_preview || '(Tom email)'}
-          </pre>
+          <>
+            {/* N85: brødteksten hentes ved åbning — vis forhåndsvisningen imens */}
+            {email.body_html === undefined && email.body_text === undefined && (
+              <p className="text-xs text-gray-400 mb-2 flex items-center gap-1" data-testid="mail-body-loading"><Loader2 className="w-3 h-3 animate-spin" /> Henter hele mailen…</p>
+            )}
+            <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans">
+              {email.body_text || email.body_preview || '(Tom email)'}
+            </pre>
+          </>
         )}
 
         {/* ============================================ */}

@@ -47,6 +47,11 @@ import type {
 // READ operations
 // =====================================================
 
+/** N85: kolonner til mail-listen — alt undtagen body_html/body_text (hentes pr. mail ved åbning). */
+const LIST_COLUMNS = 'id, graph_message_id, conversation_id, subject, sender_email, sender_name, original_sender_email, original_sender_name, ' +
+  'to_email, cc, reply_to, body_preview, attachment_urls, has_attachments, link_status, customer_id, customer_contact_id, linked_by, linked_at, ' +
+  'ao_product_matches, has_ao_matches, is_read, is_archived, is_forwarded, processed_at, received_at, created_at, updated_at, service_case_id'
+
 export async function getIncomingEmails(options?: {
   filter?: EmailLinkStatus | 'all' | 'ao_matches' | 'requires_response' | 'webform' | 'archived'
   readFilter?: 'all' | 'read' | 'unread'
@@ -66,8 +71,10 @@ export async function getIncomingEmails(options?: {
   let query = supabase
     .from('incoming_emails')
     .select(
+      // N85: listen henter IKKE body_html/body_text (prod: ~400 KB pr. side à 25 mails, også ved hver
+      // baggrundsopdatering) — mail-siden henter brødteksten, når en mail åbnes (getIncomingEmail)
       `
-      *,
+      ${LIST_COLUMNS},
       customers (
         id,
         company_name,
@@ -142,7 +149,7 @@ export async function getIncomingEmails(options?: {
   }
 
   return {
-    data: (data || []) as unknown as IncomingEmailWithCustomer[],
+    data: (data || []) as unknown as IncomingEmailWithCustomer[], // body_html/body_text er undefined (hentes ved åbning)
     count: count || 0,
   }
 }

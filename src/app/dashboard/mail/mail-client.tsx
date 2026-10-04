@@ -519,6 +519,20 @@ export function MailClient() {
     setGraphDiag(diag)
   }
 
+  // N85: listen har ikke brødtekst (body_html/body_text er undefined) — hent den, når en mail vælges (alle veje:
+  // klik, deeplink, auto-valg efter synk). Kun brødteksten flettes ind, så anden lokal tilstand bevares.
+  const selectedId = selectedEmail?.id
+  const selectedNeedsBody = !!selectedEmail && selectedEmail.body_html === undefined && selectedEmail.body_text === undefined
+  useEffect(() => {
+    if (!selectedId || !selectedNeedsBody) return
+    let alive = true
+    void import('@/lib/actions/incoming-emails').then(({ getIncomingEmail }) => getIncomingEmail(selectedId)).then((full) => {
+      if (!alive || !full) return
+      setSelectedEmail((prev) => (prev?.id === full.id ? { ...prev, body_html: full.body_html ?? null, body_text: full.body_text ?? null } : prev))
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [selectedId, selectedNeedsBody])
+
   const handleSelectEmail = async (email: IncomingEmailWithCustomer) => {
     setSelectedEmail(email)
     if (!email.is_read) {

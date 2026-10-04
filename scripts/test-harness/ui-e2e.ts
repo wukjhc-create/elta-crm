@@ -3724,6 +3724,9 @@ ${m.text()}`) })
         if (id) u113EmailIds.push(id)
         r.seed = !!id
         await gotoSafe(a.page, `${base}/dashboard/mail?filter=webform&emailId=${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        // N85: listen har ingen brødtekst — den hentes ved åbning (her via deeplink) og vises
+        await a.page.getByText('Besked: Ladestander').first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.broedtekst_hentet = (await a.page.getByText('Besked: Ladestander').count()) > 0 && (await a.page.getByTestId('mail-body-loading').count()) === 0
         await a.page.getByRole('button', { name: /Opret som ny kunde/ }).first().click({ timeout: 60_000 }).catch(() => {})
         const bodyOnly = a.page.locator('input[name="create-mode"][value="body_only"]')
         await bodyOnly.waitFor({ timeout: 30_000 }).catch(() => {})
