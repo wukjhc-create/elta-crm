@@ -15,7 +15,6 @@
 
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import {
-  countRequiresResponseEmails,
   getRequiresResponseEmailIds,
 } from '@/lib/actions/email-response-status'
 import { logger } from '@/lib/utils/logger'
@@ -61,6 +60,8 @@ export interface DashboardOverviewVisit {
 export interface DashboardOverview {
   mails: {
     requiresResponseCount: number
+    /** N73: tråde der har ventet > REPLY_WINDOW_DAYS — typisk besvaret fra en personlig postkasse (ses ikke i CRM) */
+    olderCount: number
     oldest: DashboardOverviewMail[]
   }
   tasks: {
@@ -127,6 +128,8 @@ export interface DashboardOverview {
 
 const OFFER_FOLLOWUP_DAYS = 7
 const TOP_N = 5
+/** N73: "Mails kræver svar" i cockpittet tæller kun tråde fra de seneste 14 dage */
+const REPLY_WINDOW_DAYS = 14
 const NEW_CUSTOMER_DAYS = 30
 
 function daysBetween(iso: string, now: number): number {
@@ -137,7 +140,7 @@ function daysBetween(iso: string, now: number): number {
 export async function getDashboardOverview(): Promise<DashboardOverview> {
   const now = Date.now()
   const overview: DashboardOverview = {
-    mails: { requiresResponseCount: 0, oldest: [] },
+    mails: { requiresResponseCount: 0, olderCount: 0, oldest: [] },
     tasks: { openCount: 0, autoCount: 0, overdueCount: 0, overdue: [] },
     cases: { new: 0, in_progress: 0, pending: 0, total: 0, readyToClose: 0, timesPendingApproval: 0 },
     offers: { followupCount: 0, oldest: [], staleDraftCount: 0 },
@@ -171,28 +174,32 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     // Mails — kraever svar
     (async () => {
       try {
-        const count = await countRequiresResponseEmails()
-        overview.mails.requiresResponseCount = count
-        if (count > 0) {
-          const ids = await getRequiresResponseEmailIds()
-          const top = ids.slice(0, TOP_N * 4)
-          if (top.length > 0) {
-            const { data } = await supabase
-              .from('incoming_emails')
-              .select('id, subject, sender_name, sender_email, received_at')
-              .in('id', top)
-              .order('received_at', { ascending: true })
-              .limit(TOP_N)
-            overview.mails.oldest = (data || []).map((r) => ({
-              id: r.id as string,
-              subject: (r.subject as string | null) ?? null,
-              sender_name: (r.sender_name as string | null) ?? null,
-              sender_email: (r.sender_email as string | null) ?? null,
-              received_at: r.received_at as string,
-              ageDays: daysBetween(r.received_at as string, now),
-            }))
-          }
+        // N73: prod 2026-10-04: 117 tråde "kræver svar", 95 ældre end 30 dage — svar sendt fra personlige postkasser
+        // ses ikke i CRM (N69), så den samlede tæller var støj. Overskriften tæller nu kun tråde fra de seneste
+        // REPLY_WINDOW_DAYS (pr. tråd, ikke pr. mail; én beregning i stedet for to); ældre vises som note.
+        const ids = await getRequiresResponseEmailIds()
+        type Row = { id: string; conversation_id: string | null; subject: string | null; sender_name: string | null; sender_email: string | null; received_at: string }
+        const rows: Row[] = []
+        for (let i = 0; i < ids.length; i += 500) {
+          const { data } = await supabase.from('incoming_emails')
+            .select('id, conversation_id, subject, sender_name, sender_email, received_at').in('id', ids.slice(i, i + 500))
+          rows.push(...((data ?? []) as Row[]))
         }
+        const latestPerThread = new Map<string, Row>()
+        for (const r of rows) {
+          const key = r.conversation_id ?? r.id
+          const cur = latestPerThread.get(key)
+          if (!cur || r.received_at > cur.received_at) latestPerThread.set(key, r)
+        }
+        const threads = Array.from(latestPerThread.values())
+        const recent = threads.filter((r) => daysBetween(r.received_at, now) < REPLY_WINDOW_DAYS)
+          .sort((a, b) => a.received_at.localeCompare(b.received_at))
+        overview.mails.requiresResponseCount = recent.length
+        overview.mails.olderCount = threads.length - recent.length
+        overview.mails.oldest = recent.slice(0, TOP_N).map((r) => ({
+          id: r.id, subject: r.subject, sender_name: r.sender_name, sender_email: r.sender_email,
+          received_at: r.received_at, ageDays: daysBetween(r.received_at, now),
+        }))
       } catch (err) {
         logger.error('getDashboardOverview: mails failed', { error: err })
         overview.errors.mails = err instanceof Error ? err.message : 'failed'

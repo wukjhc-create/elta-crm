@@ -91,7 +91,7 @@ export function StyringsCockpit({ overview }: Props) {
 const MAIL_HREF = '/dashboard/mail?filter=requires_response'
 
 function MailsCard({ overview }: { overview: DashboardOverview }) {
-  const { requiresResponseCount, oldest } = overview.mails
+  const { requiresResponseCount, olderCount, oldest } = overview.mails
   const err = overview.errors.mails
   return (
     <Card
@@ -100,9 +100,15 @@ function MailsCard({ overview }: { overview: DashboardOverview }) {
       tone={requiresResponseCount > 0 ? 'amber' : 'green'}
       href={MAIL_HREF}
       headline={requiresResponseCount}
-      headlineLabel="ubesvarede tråde"
+      headlineLabel="ubesvarede tråde (seneste 14 dage)"
       error={err}
     >
+      {/* N73: ældre tråde er typisk besvaret fra en personlig postkasse, som CRM ikke ser — vises adskilt, ikke i tallet */}
+      {olderCount > 0 && (
+        <Link href={MAIL_HREF} className="block text-[11px] text-gray-500 hover:underline mb-1" data-testid="cockpit-mails-older">
+          + {olderCount} ældre tråd{olderCount === 1 ? '' : 'e'} uden svar i CRM (svar fra egen postkasse ses ikke) →
+        </Link>
+      )}
       {oldest.length === 0 ? (
         <EmptyRow text={err ? 'Kunne ikke hente data' : 'Alle tråde er besvaret.'} />
       ) : (
