@@ -729,6 +729,16 @@ async function main() {
     log(JSON.stringify(r))
     return
   }
+  if (SUB === 'cron-log-volume') {
+    // Staging (read-only): hvor mange cron-logrækker ligger i Pilot Healths 9-dages vindue, og hvor lang tid tager et opslag
+    const [c] = await stagingSql(`SELECT count(*)::int n FROM system_health_log WHERE service = 'cron' AND created_at > now() - interval '9 days'`)
+    const t0 = Date.now()
+    const { error } = await admin.from('system_health_log').select('id, status, message, metadata, created_at')
+      .eq('service', 'cron').gte('created_at', new Date(Date.now() - 9 * 86_400_000).toISOString())
+      .order('created_at', { ascending: false }).order('id').range(0, 999)
+    log(JSON.stringify({ cron_rows_9d: c.n, first_page_ms: Date.now() - t0, error: error?.message ?? null }))
+    return
+  }
   if (SUB === 'pilot-snapshot') {
     // Staging (read-only): Pilot Health-snapshot som siden bygger den — sektioner, niveau og antal punkter (inkl. cron)
     const { collectPilotHealthSnapshot } = await import('../../src/lib/ops/pilot-health')
