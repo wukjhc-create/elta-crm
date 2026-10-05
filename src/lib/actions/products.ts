@@ -29,6 +29,7 @@ import type { PaginatedResponse, ActionResult } from '@/types/common.types'
 import { DEFAULT_PAGE_SIZE } from '@/types/common.types'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
@@ -780,7 +781,9 @@ export async function getSupplierProducts(
 ): Promise<ActionResult<PaginatedResponse<SupplierProductWithRelations>>> {
   try {
     // D47: leverandørprodukter med indkøbspriser — før intet tilladelsestjek (enhver indlogget, også montør)
-    const { supabase } = await requireGate('products.view.cost_prices')
+    await requireGate('products.view.cost_prices')
+    // 00192: kostkolonner — admin-klient bag products.view.cost_prices
+    const supabase = createAdminClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
@@ -895,11 +898,16 @@ export async function createSupplierProduct(
       return { success: false, error: errors }
     }
 
-    const { data, error } = await supabase
+    // 00192: return=representation kun med id (kostkolonner er ikke læsbare for authenticated);
+    // hele rækken læses derefter med admin-klienten bag settings.suppliers
+    const { data: inserted, error } = await supabase
       .from('supplier_products')
       .insert(validated.data)
-      .select()
+      .select('id')
       .single()
+    const data = inserted
+      ? (await createAdminClient().from('supplier_products').select('*').eq('id', inserted.id).single()).data
+      : null
 
     if (error) {
       if (error.code === '23505') {
@@ -962,12 +970,17 @@ export async function updateSupplierProduct(
     }
     const { id: supplierProductId, ...updateData } = validated.data
 
-    const { data, error } = await supabase
+    // 00192: return=representation kun med id (kostkolonner er ikke læsbare for authenticated);
+    // hele rækken læses derefter med admin-klienten bag settings.suppliers
+    const { data: updated, error } = await supabase
       .from('supplier_products')
       .update(updateData)
       .eq('id', supplierProductId)
-      .select()
+      .select('id')
       .single()
+    const data = updated
+      ? (await createAdminClient().from('supplier_products').select('*').eq('id', updated.id).single()).data
+      : null
 
     if (error) {
       if (error.code === 'PGRST116') {

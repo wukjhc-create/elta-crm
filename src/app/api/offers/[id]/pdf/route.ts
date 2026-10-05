@@ -5,6 +5,7 @@ import { OfferPdfDocument } from '@/lib/pdf/offer-pdf-template'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
+import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import type { OfferWithRelations } from '@/types/offers.types'
@@ -37,16 +38,18 @@ export async function GET(
     }
 
     // Get offer with relations
+    // 00192: kun offentlige linjekolonner — PDF'en er tilgængelig for salg og viser ingen kost
     const supabase = await createClient()
-    const { data: offer, error: offerError } = await supabase
+    const { data: offerRaw, error: offerError } = await supabase
       .from('offers')
       .select(`
         *,
-        line_items:offer_line_items(*),
+        line_items:offer_line_items(${OFFER_LINE_PUBLIC_COLUMNS}),
         customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
       `)
       .eq('id', id)
       .single()
+    const offer = offerRaw as unknown as OfferWithRelations | null
 
     if (offerError || !offer) {
       logger.error('Error fetching offer for PDF', { error: offerError })
@@ -79,7 +82,7 @@ export async function GET(
 
     // Generate PDF
     const pdfDocument = OfferPdfDocument({
-      offer: offer as OfferWithRelations,
+      offer,
       companySettings: companyData as unknown as CompanySettings,
     }) as ReactElement<DocumentProps, string | JSXElementConstructor<DocumentProps>>
 

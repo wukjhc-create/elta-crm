@@ -34,6 +34,7 @@ async function requireGate(permission: Permission) {
 }
 import { DEFAULT_PAGE_SIZE, CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -638,7 +639,11 @@ export async function insertPackageIntoOffer(
     validateUUID(packageId, 'pakke ID')
     validateUUID(offerId, 'tilbud ID')
 
-    const { data, error } = await supabase
+    // 00192: DB-funktionen læser kostkolonner (invoker) → kaldes med admin-klienten. Først tjekkes at brugeren må se
+    // tilbuddet via sin egen klient (RLS), så scope bevares.
+    const { data: visibleOffer } = await supabase.from('offers').select('id').eq('id', offerId).maybeSingle()
+    if (!visibleOffer) return { success: false, error: 'Tilbud ikke fundet' }
+    const { data, error } = await createAdminClient()
       .rpc('insert_package_into_offer', {
         p_package_id: packageId,
         p_offer_id: offerId,

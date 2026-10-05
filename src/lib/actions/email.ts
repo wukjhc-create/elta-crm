@@ -32,6 +32,10 @@ import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'
+import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
+
+/** 00192: kost-synlighed (navngivet: check:rls-matrix læser literal-strenge i skrivefunktioner som skrive-gates). */
+const OFFER_COST_VISIBILITY_PERMISSION = 'offers.view.cost_prices' as const
 import { lowDbAckMessage } from '@/lib/offers/low-db-warning'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { createPortalToken } from '@/lib/actions/portal'
@@ -588,9 +592,10 @@ export async function generateEmailPreview(
       : `${appUrl}/view-offer/${offer.id}`
 
     // Fetch line items for the branded template
+    // 00192: kun offentlige linjekolonner — salg kan sende tilbud, mailen viser ingen kost
     const { data: lineItems } = await supabase
       .from('offer_line_items')
-      .select('*')
+      .select(OFFER_LINE_PUBLIC_COLUMNS)
       .eq('offer_id', offer.id)
       .order('position', { ascending: true })
 
@@ -665,7 +670,7 @@ export async function sendOfferEmail(
   input: SendOfferEmailInput
 ): Promise<SendOfferEmailResult> {
   try {
-    const { supabase, userId } = await requireGate('offers.send')
+    const { supabase, userId, hasPermission } = await requireGate('offers.send')
 
     // Resolve sender name: explicit > profile > fallback
     let senderName = input.sender_name
@@ -697,9 +702,9 @@ export async function sendOfferEmail(
     }
 
     // N8a: lav DB er en advarsel — et kladde-tilbud under minimum-DB sendes kun med aktiv bekræftelse
-    const lowDb = offer.status === 'draft' ? await getOfferLowDbStatus(supabase, input.offer_id) : null
+    const lowDb = offer.status === 'draft' ? await getOfferLowDbStatus(input.offer_id) : null
     if (lowDb?.low && !input.acknowledge_low_db) {
-      return { success: false, error: lowDbAckMessage(lowDb) }
+      return { success: false, error: lowDbAckMessage(lowDb, hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) }
     }
 
     // Generate preview (includes all variables and rendered content)
@@ -737,11 +742,13 @@ export async function sendOfferEmail(
 
         if (settingsResult.success && settingsResult.data) {
           // Fetch full offer with line items for PDF
-          const { data: fullOffer } = await supabase
+          // 00192: kun offentlige linjekolonner (salg kan sende tilbud)
+          const { data: fullOfferRaw } = await supabase
             .from('offers')
-            .select(`*, line_items:offer_line_items(*), customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)`)
+            .select(`*, line_items:offer_line_items(${OFFER_LINE_PUBLIC_COLUMNS}), customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)`)
             .eq('id', input.offer_id)
             .single()
+          const fullOffer = fullOfferRaw as unknown as { offer_number?: string | null; line_items?: Array<{ position: number }> | null } | null
 
           if (fullOffer) {
             if (fullOffer.line_items) {
