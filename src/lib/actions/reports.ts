@@ -15,7 +15,6 @@ import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-ti
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { lastMonths } from '@/lib/reports/sales-funnel'
-import { createAdminClient } from '@/lib/supabase/admin'
 import {
   REJECTION_REASON_LABELS,
   type RejectionReasonCode,

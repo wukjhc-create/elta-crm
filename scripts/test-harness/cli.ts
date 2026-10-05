@@ -759,7 +759,7 @@ async function main() {
     const wo = (await stagingSql(`SELECT id FROM work_orders LIMIT 1`))[0]
     let profitId: string | null = null
     if (wo) {
-      const ins = await admin.from('work_order_profit').insert({ work_order_id: wo.id, revenue: 1000, labor_cost: 400, material_cost: 100, total_cost: 500, profit: 500, margin_percentage: 50, source: 'harness' }).select('id').single()
+      const ins = await admin.from('work_order_profit').insert({ work_order_id: wo.id, revenue: 1000, labor_cost: 400, material_cost: 100, total_cost: 500, profit: 500, margin_percentage: 50, source: 'manual' }).select('id').single()
       profitId = (ins.data as { id?: string } | null)?.id ?? null
       if (!profitId) res.push(['seed work_order_profit', false, ins.error?.message ?? ''])
     }

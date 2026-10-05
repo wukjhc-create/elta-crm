@@ -31,6 +31,8 @@ export function evaluateOfferLowDb(
   }
 }
 
-export function lowDbAckMessage(s: OfferLowDbStatus): string {
+export function lowDbAckMessage(s: OfferLowDbStatus, showNumbers = true): string {
+  // 00192/D43: roller uden kostadgang (salg) skal stadig bekræfte, men ser ikke DB-procenten
+  if (!showNumbers) return `${LOW_DB_ACK_REQUIRED}: Dækningsbidraget er under virksomhedens minimum. Bekræft advarslen for at sende tilbuddet.`
   return `${LOW_DB_ACK_REQUIRED}: Dækningsbidraget er ${s.dbPercentage}% (minimum ${s.threshold}%). Bekræft advarslen for at sende tilbuddet.`
 }

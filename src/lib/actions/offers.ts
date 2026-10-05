@@ -687,9 +687,9 @@ export async function updateOfferStatus(
     // N8a (Henrik 2026-10-02): lav DB er en ADVARSEL, ikke en blokering — 'sent' med DB under minimum kræver bekræftelse
     let lowDbSent: OfferLowDbStatus | null = null
     if (status === 'sent') {
-      const lowDb = await getOfferLowDbStatus(id, hasPermission(OFFER_COST_VISIBILITY_PERMISSION))
+      const lowDb = await getOfferLowDbStatus(id)
       if (lowDb?.low) {
-        if (!options?.acknowledgeLowDb) return { success: false, error: lowDbAckMessage(lowDb) }
+        if (!options?.acknowledgeLowDb) return { success: false, error: lowDbAckMessage(lowDb, hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) }
         lowDbSent = lowDb
       }
     }
@@ -1396,7 +1396,8 @@ export async function createLineItemFromSupplierProduct(
     let roundTo: number | null = null
 
     // Try margin rules engine first, then fall back to customer pricing
-    const { data: marginData } = await supabase.rpc('get_effective_margin', {
+    // 00192: DB-funktionen læser kostkolonner (invoker) → admin-klienten (kost/avance returneres ikke til salg)
+    const { data: marginData } = await createAdminClient().rpc('get_effective_margin', {
       p_supplier_id: supplierProduct.supplier_id,
       p_supplier_product_id: supplierProductId,
       p_category: null,

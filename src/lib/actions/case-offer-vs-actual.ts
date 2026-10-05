@@ -12,7 +12,6 @@ import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { compareOfferToActual, type OfferVsActualResult } from '@/lib/cases/offer-vs-actual'
 import type { ActionResult } from '@/types/common.types'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface CaseOfferVsActual extends OfferVsActualResult {
   offer: { id: string; offer_number: string | null } | null

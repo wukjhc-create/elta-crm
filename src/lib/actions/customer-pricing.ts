@@ -22,6 +22,7 @@ async function requireGate(permission: Permission) {
   return ctx
 }
 import { logger } from '@/lib/utils/logger'
+import { createAdminClient } from '@/lib/supabase/admin'
 // =====================================================
 // Customer-Supplier Price Agreements
 // =====================================================
@@ -203,7 +204,8 @@ export async function getCustomerEffectivePrice(
     validateUUID(customerId, 'kunde ID')
     validateUUID(supplierProductId, 'leverandørprodukt ID')
 
-    const { data, error } = await supabase
+    // 00192: DB-funktionen læser kostkolonner (invoker) → admin-klienten bag tools.pricing
+    const { data, error } = await createAdminClient()
       .rpc('get_customer_product_price', {
         p_customer_id: customerId,
         p_supplier_product_id: supplierProductId,
@@ -244,7 +246,8 @@ export async function getBestPriceForCustomer(
     const { supabase } = await requireGate('tools.pricing') // D48: kostpris/avance/leverandørrabat
     validateUUID(customerId, 'kunde ID')
 
-    const { data, error } = await supabase
+    // 00192: DB-funktionen læser kostkolonner (invoker) → admin-klienten bag tools.pricing
+    const { data, error } = await createAdminClient()
       .rpc('get_best_price_for_customer', {
         p_customer_id: customerId,
         p_product_sku: productSku,

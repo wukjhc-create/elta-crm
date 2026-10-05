@@ -702,9 +702,9 @@ export async function sendOfferEmail(
     }
 
     // N8a: lav DB er en advarsel — et kladde-tilbud under minimum-DB sendes kun med aktiv bekræftelse
-    const lowDb = offer.status === 'draft' ? await getOfferLowDbStatus(input.offer_id, hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) : null
+    const lowDb = offer.status === 'draft' ? await getOfferLowDbStatus(input.offer_id) : null
     if (lowDb?.low && !input.acknowledge_low_db) {
-      return { success: false, error: lowDbAckMessage(lowDb) }
+      return { success: false, error: lowDbAckMessage(lowDb, hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) }
     }
 
     // Generate preview (includes all variables and rendered content)
