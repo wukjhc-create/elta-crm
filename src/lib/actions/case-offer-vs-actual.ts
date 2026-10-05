@@ -7,6 +7,7 @@
  */
 
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { compareOfferToActual, type OfferVsActualResult } from '@/lib/cases/offer-vs-actual'
@@ -43,7 +44,8 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
     const [offerRes, linesRes, materialsRes, logsRes] = await Promise.all([
       offerId ? supabase.from('offers').select('id, offer_number').eq('id', offerId).maybeSingle() : Promise.resolve({ data: null, error: null }),
       offerId
-        ? supabase.from('offer_line_items')
+        // 00192: kostkolonner — admin-klient bag economy.cost_prices
+        ? createAdminClient().from('offer_line_items')
             .select('id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id, position')
             .eq('offer_id', offerId).order('position')
         : Promise.resolve({ data: [], error: null }),

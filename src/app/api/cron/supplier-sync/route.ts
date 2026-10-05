@@ -9,7 +9,7 @@
 
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { SupplierAPIClientFactory } from '@/lib/services/supplier-api-client'
 import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp-sync'
 import { decryptCredentials } from '@/lib/utils/encryption'
@@ -38,7 +38,8 @@ async function handleCron(request: Request): Promise<Response> {
     }
 
     const startTime = Date.now()
-    const supabase = await createClient()
+    // 00192: kostkolonner — cron uden session (kørte som anon og fik 0 rækker) → admin-klient
+    const supabase = createAdminClient()
 
     // Get all active sync schedules that are due
     const { data: schedules, error: scheduleError } = await supabase
@@ -339,7 +340,7 @@ type SyncResult = {
  * Downloads catalog CSV from FTP, parses it, and upserts products.
  */
 async function executeFtpSyncSchedule(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
   schedule: ScheduleRecord,
   supplier: SupplierRecord,
   syncStartTime: number

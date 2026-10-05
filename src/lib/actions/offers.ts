@@ -14,6 +14,9 @@ import { CALC_DEFAULTS } from '@/lib/constants'
 import { calculateSalePrice, calculateLineTotal, calculateMarginFromPrices, resolveMargin } from '@/lib/logic/pricing'
 import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'
 import { lowDbAckMessage, type OfferLowDbStatus } from '@/lib/offers/low-db-warning'
+import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
+import { mergeOfferLineCost, fetchOfferLineCostById } from '@/lib/offers/line-cost'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
@@ -174,13 +177,15 @@ export async function getOffers(filters?: {
 const OFFER_COST_VISIBILITY_PERMISSION = 'offers.view.cost_prices' as const
 
 /**
- * D43 (privacy/RBAC): fjern kost/leverandørkost/avance fra en tilbudslinje for roller uden offers.view.cost_prices.
- * margin_percentage + unit_price afslører kostprisen (kost = salg / (1 + avance)) → også fjernet. Bruges af getOffer og
- * alle handlinger, der returnerer en linje (ellers får salg kosten tilbage efter at have tilføjet/rettet en linje).
+ * D43 (privacy/RBAC): kost/leverandørkost/avance på en tilbudslinje kun for offers.view.cost_prices.
+ * margin_percentage + unit_price afslører kostprisen (kost = salg / (1 + avance)) → også skjult. Bruges af alle
+ * handlinger, der returnerer en linje (ellers får salg kosten tilbage efter at have tilføjet/rettet en linje).
+ * 00192 (erstatter stripLineCost): linjen er hentet med OFFER_LINE_PUBLIC_COLUMNS (insert/update `.select(...)`) og
+ * mangler kostfelterne — med offers.view.cost_prices hentes de via admin-klienten, ellers sættes de til null.
  */
-function stripLineCost<T extends Partial<OfferLineItem>>(li: T, hasPermission: (p: Permission) => boolean): T {
-  if (hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) return li
-  return { ...li, cost_price: null, supplier_cost_price_at_creation: null, supplier_margin_applied: null, margin_percentage: null }
+async function withLineCost(li: OfferLineItem, hasPermission: (p: Permission) => boolean): Promise<OfferLineItem> {
+  const [merged] = await mergeOfferLineCost([li], hasPermission(OFFER_COST_VISIBILITY_PERMISSION))
+  return merged
 }
 
 // Get single offer by ID with all relations
@@ -192,11 +197,12 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
     }
     validateUUID(id, 'tilbud ID')
 
-    const { data, error } = await supabase
+    // 00192: kun offentlige linjekolonner (salg når getOffer); kost flettes ind nedenfor bag offers.view.cost_prices
+    const { data: raw, error } = await supabase
       .from('offers')
       .select(`
         *,
-        line_items:offer_line_items(*),
+        line_items:offer_line_items(${OFFER_LINE_PUBLIC_COLUMNS}),
         customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country),
         lead:leads(id, company_name, contact_person, email)
       `)
@@ -208,21 +214,20 @@ export async function getOffer(id: string): Promise<ActionResult<OfferWithRelati
       throw new Error('DATABASE_ERROR')
     }
 
-    if (!data) {
+    if (!raw) {
       return { success: false, error: 'Tilbuddet blev ikke fundet' }
     }
+    const data = raw as unknown as OfferWithRelations
 
     // Sort line items by position
     if (data.line_items) {
       data.line_items.sort((a: OfferLineItem, b: OfferLineItem) => a.position - b.position)
       // D43 (privacy/RBAC): kost/leverandørkost/avance kun for offers.view.cost_prices — før lå de i payloaden til
-      // salg og blev kun skjult i UI'et
-      if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
-        data.line_items = data.line_items.map((li: OfferLineItem) => stripLineCost(li, hasPermission))
-      }
+      // salg og blev kun skjult i UI'et. 00192: kost hentes nu separat via admin-klienten (null uden permission).
+      data.line_items = await mergeOfferLineCost(data.line_items, hasPermission(OFFER_COST_VISIBILITY_PERMISSION))
     }
 
-    return { success: true, data: data as OfferWithRelations }
+    return { success: true, data }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente tilbud') }
   }
@@ -682,7 +687,7 @@ export async function updateOfferStatus(
     // N8a (Henrik 2026-10-02): lav DB er en ADVARSEL, ikke en blokering — 'sent' med DB under minimum kræver bekræftelse
     let lowDbSent: OfferLowDbStatus | null = null
     if (status === 'sent') {
-      const lowDb = await getOfferLowDbStatus(supabase, id)
+      const lowDb = await getOfferLowDbStatus(id, hasPermission(OFFER_COST_VISIBILITY_PERMISSION))
       if (lowDb?.low) {
         if (!options?.acknowledgeLowDb) return { success: false, error: lowDbAckMessage(lowDb) }
         lowDbSent = lowDb
@@ -766,7 +771,6 @@ export async function updateOfferStatus(
     if (status === 'accepted' && current.status !== 'accepted') {
       // Salgspipeline: tilknyttede leads → vundet (service-role efter offers-gaten; kaster aldrig)
       {
-        const { createAdminClient } = await import('@/lib/supabase/admin')
         const { markLeadsWonForAcceptedOffer } = await import('@/lib/services/lead-won')
         await markLeadsWonForAcceptedOffer(createAdminClient(), id, userId)
       }
@@ -809,9 +813,10 @@ export async function getOfferLineItems(
     }
     validateUUID(offerId, 'tilbud ID')
 
+    // 00192: kun offentlige linjekolonner; kost flettes ind bag offers.view.cost_prices (før fik salg kosten her)
     const { data, error } = await supabase
       .from('offer_line_items')
-      .select('*')
+      .select(OFFER_LINE_PUBLIC_COLUMNS)
       .eq('offer_id', offerId)
       .order('position')
 
@@ -820,7 +825,8 @@ export async function getOfferLineItems(
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: (data || []) as OfferLineItem[] }
+    const lines = (data || []) as unknown as OfferLineItem[]
+    return { success: true, data: await mergeOfferLineCost(lines, hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente linjer') }
   }
@@ -883,7 +889,7 @@ export async function createLineItem(
         supplier_name_at_creation: supplierNameAtCreation,
         image_url: imageUrl,
       })
-      .select()
+      .select(OFFER_LINE_PUBLIC_COLUMNS) // 00192: ikke kostkolonner i return=representation
       .single()
 
     if (error) {
@@ -895,7 +901,7 @@ export async function createLineItem(
     }
 
     revalidatePath(`/offers/${validated.data.offer_id}`)
-    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
+    return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette linje') }
   }
@@ -970,7 +976,7 @@ export async function updateLineItem(
         ...(imageUrl !== undefined ? { image_url: imageUrl } : {}),
       })
       .eq('id', lineItemId)
-      .select()
+      .select(OFFER_LINE_PUBLIC_COLUMNS) // 00192: ikke kostkolonner i return=representation
       .single()
 
     if (error) {
@@ -982,7 +988,7 @@ export async function updateLineItem(
     }
 
     revalidatePath(`/offers/${offerId}`)
-    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
+    return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere linje') }
   }
@@ -1139,7 +1145,7 @@ export async function addProductToOffer(
         discount_percentage: 0,
         total,
       })
-      .select()
+      .select(OFFER_LINE_PUBLIC_COLUMNS) // 00192: ikke kostkolonner i return=representation
       .single()
 
     if (error) {
@@ -1159,7 +1165,7 @@ export async function addProductToOffer(
     )
 
     revalidatePath(`/offers/${offerId}`)
-    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
+    return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke tilføje produkt til tilbud') }
   }
@@ -1353,7 +1359,9 @@ export async function createLineItemFromSupplierProduct(
       .maybeSingle()
 
     // Get supplier product with supplier info
-    const { data: supplierProduct, error: spError } = await supabase
+    // 00192: kostkolonner — admin-klient: serverintern prisberegning bag offers.edit (salg tilføjer
+    // leverandørvarer); kost/avance returneres ikke til salg (linjen strippes via withLineCost)
+    const { data: supplierProduct, error: spError } = await createAdminClient()
       .from('supplier_products')
       .select(`
         id,
@@ -1464,7 +1472,7 @@ export async function createLineItemFromSupplierProduct(
         supplier_name_at_creation: supplierInfo?.name || null,
         image_url: supplierProduct.image_url || null,
       })
-      .select()
+      .select(OFFER_LINE_PUBLIC_COLUMNS) // 00192: ikke kostkolonner i return=representation
       .single()
 
     if (error) {
@@ -1481,7 +1489,7 @@ export async function createLineItemFromSupplierProduct(
     )
 
     revalidatePath(`/offers/${offerId}`)
-    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
+    return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette linje fra leverandør produkt') }
   }
@@ -1537,7 +1545,10 @@ export async function searchSupplierProductsForOffer(
 
     // Search across ALL suppliers — increased limit for cross-supplier comparison
     const searchLimit = (options?.limit || 20) * 2
-    let dbQuery = supabase
+    // 00192: kostkolonner — admin-klient: kost bruges serverinternt til salgspris/sortering/"billigst" (bag
+    // offers.view); kost/avance fjernes fra svaret for roller uden offers.view.cost_prices (D44 nedenfor).
+    // RLS på supplier_products er USING (true) → samme rækker som bruger-klienten.
+    let dbQuery = createAdminClient()
       .from('supplier_products')
       .select(`
         id,
@@ -1692,7 +1703,6 @@ export async function searchSupplierProductsForOffer(
           // Auto-import live results into supplier_products so they get a DB id.
           // P-009: priserne kommer fra leverandoer-API'et (ikke brugeren) -> skrives som service-role; RLS laaser
           // supplier_products til admin. Laesning sker stadig med brugerens klient.
-          const { createAdminClient } = await import('@/lib/supabase/admin')
           const sys = createAdminClient()
           for (const lp of liveResults.slice(0, 15)) {
             const { data: existing } = await supabase
@@ -2014,15 +2024,17 @@ export interface OfferSupplierPriceChange {
  */
 export async function getOfferSupplierPriceChanges(offerId: string): Promise<ActionResult<OfferSupplierPriceChange[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
     validateUUID(offerId, 'tilbud ID')
-    const { data: lines, error } = await supabase.from('offer_line_items')
+    // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
+    const admin = createAdminClient()
+    const { data: lines, error } = await admin.from('offer_line_items')
       .select('id, description, supplier_product_id, supplier_cost_price_at_creation').eq('offer_id', offerId).not('supplier_product_id', 'is', null)
     if (error) return { success: false, error: 'Kunne ikke hente tilbudslinjer' }
     const rows = (lines ?? []) as Array<{ id: string; description: string; supplier_product_id: string; supplier_cost_price_at_creation: number | string | null }>
     if (!rows.length) return { success: true, data: [] }
-    const { data: sps } = await supabase.from('supplier_products').select('id, cost_price').in('id', Array.from(new Set(rows.map((r) => r.supplier_product_id))))
+    const { data: sps } = await admin.from('supplier_products').select('id, cost_price').in('id', Array.from(new Set(rows.map((r) => r.supplier_product_id))))
     const current = new Map(((sps ?? []) as Array<{ id: string; cost_price: number | string | null }>).map((p) => [p.id, Number(p.cost_price ?? 0)]))
     const out: OfferSupplierPriceChange[] = []
     for (const r of rows) {
@@ -2046,9 +2058,14 @@ export async function refreshLineItemPrice(
     if (!hasPermission('offers.edit')) {
       return { success: false, error: 'Manglende tilladelse: offers.edit' }
     }
+    // 00192: prisopdateringen kræver leverandørkost + anvendt avance (kostkolonner). Kun kostpris-roller — UI'et
+    // (N47 offer-supplier-price-changes) vises allerede kun bag offers.view.cost_prices.
+    if (!hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) {
+      return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
+    }
     validateUUID(lineItemId, 'linje ID')
 
-    // Get line item with supplier product link
+    // Get line item with supplier product link (00192: supplier_margin_applied hentes separat via admin-klient)
     const { data: lineItem, error: liError } = await supabase
       .from('offer_line_items')
       .select(`
@@ -2057,7 +2074,6 @@ export async function refreshLineItemPrice(
         quantity,
         discount_percentage,
         supplier_product_id,
-        supplier_margin_applied,
         offers!inner (
           customer_id,
           status
@@ -2081,11 +2097,13 @@ export async function refreshLineItemPrice(
     }
 
     // Get current supplier product price
-    const { data: supplierProduct, error: spError } = await supabase
+    // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
+    const { data: supplierProduct, error: spError } = await createAdminClient()
       .from('supplier_products')
       .select('cost_price, supplier_id')
       .eq('id', lineItem.supplier_product_id)
       .maybeSingle()
+    const lineCost = (await fetchOfferLineCostById([lineItem.id])).get(lineItem.id)
 
     if (spError || !supplierProduct?.cost_price) {
       return { success: false, error: 'Kunne ikke hente leverandør pris' }
@@ -2094,7 +2112,7 @@ export async function refreshLineItemPrice(
     // Get customer-specific pricing if applicable
     const offerInfo = Array.isArray(lineItem.offers) ? lineItem.offers[0] : lineItem.offers
     let effectiveCostPrice = supplierProduct.cost_price
-    let marginPercentage = lineItem.supplier_margin_applied || CALC_DEFAULTS.MARGINS.MATERIALS
+    let marginPercentage = lineCost?.supplier_margin_applied || CALC_DEFAULTS.MARGINS.MATERIALS
 
     if (offerInfo?.customer_id) {
       const { data: customerPricing } = await supabase
@@ -2132,7 +2150,7 @@ export async function refreshLineItemPrice(
         supplier_margin_applied: marginPercentage,
       })
       .eq('id', lineItemId)
-      .select()
+      .select(OFFER_LINE_PUBLIC_COLUMNS) // 00192: ikke kostkolonner i return=representation
       .single()
 
     if (error) {
@@ -2149,7 +2167,7 @@ export async function refreshLineItemPrice(
     )
 
     revalidatePath(`/offers/${lineItem.offer_id}`)
-    return { success: true, data: stripLineCost(data as OfferLineItem, hasPermission) }
+    return { success: true, data: await withLineCost(data as unknown as OfferLineItem, hasPermission) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere pris') }
   }
@@ -2193,6 +2211,8 @@ export async function optimizeOfferPrices(
       return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
     }
     validateUUID(offerId, 'tilbuds ID')
+    // 00192: kostkolonner — admin-klient bag offers.view.cost_prices (kun læsninger; skrivninger med bruger-klienten)
+    const admin = createAdminClient()
 
     // Get offer with line items
     const { data: offer, error: offerError } = await supabase
@@ -2210,7 +2230,7 @@ export async function optimizeOfferPrices(
     }
 
     // Get all line items with supplier links
-    const { data: lineItems, error: liError } = await supabase
+    const { data: lineItems, error: liError } = await admin
       .from('offer_line_items')
       .select(`
         id,
@@ -2251,7 +2271,7 @@ export async function optimizeOfferPrices(
     }
 
     // Fetch current supplier products with EAN + supplier info
-    const { data: supplierProducts } = await supabase
+    const { data: supplierProducts } = await admin
       .from('supplier_products')
       .select(`
         id,
@@ -2305,7 +2325,7 @@ export async function optimizeOfferPrices(
 
       if (currentSP.ean && currentSP.ean.length > 5) {
         // Search by EAN across all suppliers
-        const { data: alternatives } = await supabase
+        const { data: alternatives } = await admin
           .from('supplier_products')
           .select(`
             id,
@@ -2332,7 +2352,7 @@ export async function optimizeOfferPrices(
       if (!cheaperProduct && currentSP.supplier_name) {
         const searchName = currentSP.supplier_name.substring(0, 30).replace(/[%_]/g, '')
         if (searchName.length >= 5) {
-          const { data: nameAlts } = await supabase
+          const { data: nameAlts } = await admin
             .from('supplier_products')
             .select(`
               id,
@@ -2605,7 +2625,9 @@ export async function duplicateOfferAction(offerId: string): Promise<ActionResul
     if (srcErr || !src) return { success: false, error: 'Tilbud ikke fundet' }
     const source = src as unknown as Record<string, unknown> & { title: string; offer_number: string }
 
-    const { data: lines, error: linesErr } = await supabase
+    // 00192: kostkolonner — admin-klient bag offers.create+offers.view: kosten kopieres 1:1 til kopien (skrivning),
+    // værdierne returneres aldrig til brugeren. Kildetilbuddet er læst med bruger-klienten ovenfor.
+    const { data: lines, error: linesErr } = await createAdminClient()
       .from('offer_line_items')
       .select(DUPLICATE_LINE_FIELDS.join(', '))
       .eq('offer_id', offerId)
@@ -2670,7 +2692,6 @@ export async function getOfferFormDefaultsAction(): Promise<{
 } | null> {
   const { hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('offers.create')) return null
-  const { createAdminClient } = await import('@/lib/supabase/admin')
   const { data } = await createAdminClient()
     .from('company_settings')
     .select('default_offer_validity_days, default_tax_percentage, default_terms_and_conditions')

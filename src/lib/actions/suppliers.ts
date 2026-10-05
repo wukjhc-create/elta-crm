@@ -22,6 +22,7 @@ import type {
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import { normalizeVatNumber, isValidVatFormat } from '@/lib/invoice-control/vat'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * P3 #17 / P-005: skrivende leverandoer-/prisimport-actions var ugatede (enhver indlogget kunne overskrive
@@ -330,7 +331,9 @@ export async function getSupplierProducts(
     // D48 (privacy): kost/avance-data — kun products.view.cost_prices
     const denied = await permissionDenied('products.view.cost_prices')
     if (denied) return { success: false, error: denied }
-    const { supabase } = await getAuthenticatedClient()
+    await getAuthenticatedClient()
+    // 00192: kostkolonner — admin-klient bag products.view.cost_prices
+    const supabase = createAdminClient()
 
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
@@ -426,7 +429,9 @@ export async function searchSupplierProducts(
     // D48 (privacy): kost/avance-data — kun products.view.cost_prices
     const denied = await permissionDenied('products.view.cost_prices')
     if (denied) return { success: false, error: denied }
-    const { supabase } = await getAuthenticatedClient()
+    await getAuthenticatedClient()
+    // 00192: kostkolonner — admin-klient bag products.view.cost_prices
+    const supabase = createAdminClient()
 
     const sanitized = sanitizeSearchTerm(query)
     if (!sanitized || sanitized.length < 2) {
@@ -467,10 +472,11 @@ export async function getSupplierProduct(
     // D48 (privacy): kost/avance-data — kun products.view.cost_prices
     const denied = await permissionDenied('products.view.cost_prices')
     if (denied) return { success: false, error: denied }
-    const { supabase } = await getAuthenticatedClient()
+    await getAuthenticatedClient()
     validateUUID(id, 'produkt ID')
 
-    const { data, error } = await supabase
+    // 00192: kostkolonner — admin-klient bag products.view.cost_prices
+    const { data, error } = await createAdminClient()
       .from('v_supplier_products_with_supplier')
       .select('*')
       .eq('id', id)
@@ -499,12 +505,17 @@ export async function updateSupplierProduct(
     const { supabase } = await requireSupplierWrite()
     validateUUID(id, 'produkt ID')
 
-    const { data: product, error } = await supabase
+    // 00192: return=representation kun med id (kostkolonner er ikke læsbare for authenticated);
+    // hele rækken læses derefter med admin-klienten bag settings.suppliers
+    const { data: updated, error } = await supabase
       .from('supplier_products')
       .update(data)
       .eq('id', id)
-      .select()
+      .select('id')
       .single()
+    const product = updated
+      ? (await createAdminClient().from('supplier_products').select('*').eq('id', updated.id).single()).data
+      : null
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -567,14 +578,15 @@ export async function getSupplierOptionsForMaterial(
     // Leverandør-review (D48-hul): returnerer kostpris — før uden gate (tvillingen i kalkia-supplier-prices er gated)
     const denied = await permissionDenied('products.view.cost_prices')
     if (denied) return { success: false, error: denied }
-    const { supabase } = await getAuthenticatedClient()
+    await getAuthenticatedClient()
 
     const sanitized = sanitizeSearchTerm(materialName)
     if (!sanitized || sanitized.length < 2) {
       return { success: true, data: [] }
     }
 
-    const { data, error } = await supabase
+    // 00192: kostkolonner — admin-klient bag products.view.cost_prices
+    const { data, error } = await createAdminClient()
       .from('v_supplier_products_with_supplier')
       .select(`
         id,

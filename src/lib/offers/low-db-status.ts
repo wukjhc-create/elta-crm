@@ -1,13 +1,19 @@
 /**
  * N8a: server-side opslag af et tilbuds DB-status mod Trafiklys' røde grænse (calculation settings).
  * Bruges af sendOfferEmail og updateOfferStatus. Ikke en server action — kaldes kun fra gatede actions.
+ *
+ * 00192: linjernes kostkolonner er ikke læsbare for `authenticated` — de hentes med admin-klienten, og
+ * KUN når kalderen har offers.view.cost_prices (`canSeeCost`). Uden kost-permission returneres null
+ * (ingen DB-vurdering/advarsel), så DB-procenten ikke lækker til salg.
  */
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { evaluateOfferLowDb, type OfferLowDbStatus } from '@/lib/offers/low-db-warning'
 import type { LineItemForDB } from '@/lib/logic/pricing'
 
-export async function getOfferLowDbStatus(supabase: SupabaseClient, offerId: string): Promise<OfferLowDbStatus | null> {
-  const { data } = await supabase
+export async function getOfferLowDbStatus(offerId: string, canSeeCost: boolean): Promise<OfferLowDbStatus | null> {
+  if (!canSeeCost) return null
+  // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
+  const { data } = await createAdminClient()
     .from('offers')
     .select('discount_percentage, line_items:offer_line_items(quantity, unit_price, total, cost_price, supplier_cost_price_at_creation, supplier_margin_applied)')
     .eq('id', offerId)

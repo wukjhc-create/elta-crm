@@ -13,6 +13,7 @@ import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { lastMonths } from '@/lib/reports/sales-funnel'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
@@ -424,7 +425,8 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     const offerIds = Array.from(new Set(cases.map((c) => c.source_offer_id as string | null).filter((x): x is string => !!x)))
     const [linesRes, matsRes, invRes, otherRes] = await Promise.all([
       offerIds.length
-        ? supabase.from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
+        // 00192: kostkolonner — admin-klient bag economy.view
+        ? createAdminClient().from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
       fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
       supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds),

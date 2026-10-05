@@ -3,6 +3,7 @@
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * D49 (privacy/RBAC): prisovervågning viser leverandørernes kost-/indkøbspriser — før kun login-tjek, så alle roller
@@ -211,7 +212,8 @@ export async function getAffectedOffers(
     const changedProductIds = [...new Set(priceChanges.map((pc) => pc.supplier_product_id))]
 
     // Get affected offers
-    const { data: lineItems, error: liError } = await supabase
+    // 00192: kostkolonner — admin-klient bag economy.cost_prices
+    const { data: lineItems, error: liError } = await createAdminClient()
       .from('offer_line_items')
       .select(`
         id,
@@ -343,7 +345,8 @@ export async function getPriceTrends(
     date90DaysAgo.setDate(date90DaysAgo.getDate() - 90)
 
     // Get products with price history
-    const { data: products, error: prodError } = await supabase
+    // 00192: kostkolonner — admin-klient bag economy.cost_prices
+    const { data: products, error: prodError } = await createAdminClient()
       .from('supplier_products')
       .select(`
         id,
