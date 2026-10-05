@@ -38,6 +38,7 @@ App'en skjuler felterne, men databasen gør ikke. Forslag: ét samlet migrations
 | F2 | Ingen loft/overlap ved timeregistrering | Maks. 24 t + overlap-advarsel |
 | K1 | Tilbudsrykker-cronen sender i dag ALDRIG (fejl i opslag) — at rette den starter live kundemails | Beslut om rykkere skal ud |
 | K2 | Besigtigelses-påmindelse går også til medarbejder-bookede besøg ("vi mangler din bekræftelse") | Kun portal-bookinger der afventer |
+| K5 | Mail-linkeren (kobling på e-mail/kontakt/domæne) kører som anon i sync-cronen og kobler derfor næsten intet automatisk (prod: 2 mails på 30 dage mod AI'ens 28). Rettelse = admin-klient → automatisk kobling genoptages for alle synkede mails | Ja — gratis-mail-listen (Q14) og tråd-rettelsen (Q22) er på plads |
 | L3 | Kundeaftaler (rabat/margin) anvendes aldrig i pakker/salgsmotor (forkert funktionskald); prod har 0 aftaler | Ret, før første aftale oprettes |
 | L4 | e-conomic bogfører alle linjer med standardmoms | Bloker fakturaer med anden sats end 25 % |
 | — | Automatikreglen "Auto-faktura ved arbejdsordre færdig" udløses aldrig (kun fra død kode, nu fjernet) | Bevidst? |
