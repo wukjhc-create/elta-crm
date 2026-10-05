@@ -346,6 +346,20 @@ Ved hver opgave:
   - Harness: `npm run harness:ui-batches -- U1,U2 U3` (batches á 5), `npm run harness:ui-full [-- grupper]` (fuld
     regression under 30-min-loftet), prod read-only scripts i `scripts/prod-*.ts` (kun SELECT, ingen personværdier ud)
   - Commit/push KUN når check:rls-matrix, check:rbac og tsc har exit 0 (push til main = prod-deploy)
+- 2026-10-05: Konventioner fra kode-reviews Q10–Q19 (se docs/runbooks/review-decisions-2026-10-04.md):
+  - `service_cases.contract_sum` er EKSKL. moms (rate-/slutfakturaer lægger moms på). Tilbud→sag sætter
+    `final_amount − tax_amount`. "Netto faktureret" pr. sag: `lib/invoices/net-invoiced.ts` (kun sendt/betalt,
+    ikke annulleret, kreditnotaer trækkes fra uanset fortegn)
+  - PostgREST giver højst 1.000 rækker: `.limit(5000)` virker IKKE — brug `fetchAllRows` (`lib/supabase/fetch-all.ts`)
+    med `.order('id').range()` hvor totaler/fuldstændighed afhænger af det
+  - Kost/avance/løn: databasen skjuler IKKE kolonnerne for salg/montør (RLS `USING (true)` på flere tabeller) —
+    hver server-action der returnerer kost skal have en permission-gate; plan for DB-niveau i
+    docs/runbooks/rls-cost-columns.md
+  - Gratis-/privat-maildomæner: ÉN liste i `lib/email/free-mail-domains.ts` (domæne-kobling og leverandørsignal)
+  - Kundetekst i udgående mail-HTML escapes altid (`lib/utils/html-escape.ts`); skabelonerne tager almindelig tekst
+  - Mail-vedhæftninger arkiveret på kunden (`customer_documents.source_email_id`) er INTERNE — aldrig i portalen
+  - Portal: et tilbuds-id er ingen adgangsnøgle (`/view-offer` udleverer aldrig token); kun sendte tilbud vises
+  - Staging kan falde ud i perioder → `npx tsx scripts/test-harness/cli.ts auth-probe --create` før UI-batches
 
 <!-- BEGIN:nextjs-agent-rules -->
 

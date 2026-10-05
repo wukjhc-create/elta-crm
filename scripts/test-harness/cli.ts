@@ -502,6 +502,32 @@ async function main() {
     }
     for (const [k, v, note] of res) log(`${v ? 'PASS' : 'FAIL'}  ${k}  ${note}`)
     process.exitCode = res.every(([, v]) => v) ? 0 : 2
+  if (SUB === 'offer-recompute') {
+    // Salgs-review T3 (staging): recomputeOfferTotals skal give PRÆCIS DB-triggerens totaler (update_offer_totals).
+    // Før: rabatten blev trukket fra to gange og total_amount gemt som netto.
+    const mod = await import(process.env.OUT_MOD || '../../src/lib/services/offer-pricing')
+    const actors = await ensureActors(admin, seedBase)
+    const cust = (await stagingSql(`SELECT id FROM customers WHERE custom_fields->>'harness' IS NOT NULL LIMIT 1`))[0]
+    const { data, error } = await admin.from('offers').insert([{ offer_number: `UI-E2E-RC-${Date.now()}`, title: '[HARNESS] recompute',
+      created_by: actors.ownerUid, customer_id: cust.id, status: 'draft', discount_percentage: 10, tax_percentage: 25 }]).select('id')
+    const id = (data?.[0] as { id?: string } | undefined)?.id
+    if (!id) throw new Error(`seed: ${error?.message}`)
+    try {
+      await admin.from('offer_line_items').insert([
+        { offer_id: id, position: 1, description: 'A', quantity: 3, unit: 'stk', unit_price: 333.33 },
+        { offer_id: id, position: 2, description: 'B', quantity: 1, unit: 'stk', unit_price: 1000.01 },
+      ])
+      const read = async () => (await stagingSql(`SELECT total_amount::float t, discount_amount::float d, tax_amount::float x, final_amount::float f FROM offers WHERE id = '${id}'`))[0]
+      const byTrigger = await read()
+      await mod.recomputeOfferTotals(id)
+      const byRecompute = await read()
+      const same = JSON.stringify(byTrigger) === JSON.stringify(byRecompute)
+      log(`${same ? 'PASS' : 'FAIL'}  recompute = trigger  trigger=${JSON.stringify(byTrigger)} recompute=${JSON.stringify(byRecompute)}`)
+      process.exitCode = same ? 0 : 2
+    } finally {
+      await admin.from('offer_line_items').delete().eq('offer_id', id)
+      await admin.from('offers').delete().eq('id', id)
+    }
     return
   }
   if (SUB === 'offer-invoice-discount') {
@@ -731,6 +757,86 @@ async function main() {
     const [r] = await stagingSql(`SELECT count(*)::int alle, count(*) FILTER (WHERE link_status = 'linked' AND NOT is_archived)::int koblede_aktive,
       count(*) FILTER (WHERE sender_email ILIKE '%@harness.test')::int harness FROM incoming_emails`)
     log(JSON.stringify(r))
+    return
+  }
+  if (SUB === 'pilot-snapshot') {
+    // Staging (read-only): Pilot Health-snapshot som siden bygger den — sektioner, niveau og antal punkter (inkl. cron)
+    const { collectPilotHealthSnapshot } = await import('../../src/lib/ops/pilot-health')
+    const t0 = Date.now()
+    const snap = await collectPilotHealthSnapshot(admin)
+    for (const s of snap.sections as Array<{ key?: string; title: string; level?: string; error?: string | null; items?: unknown[] }>) {
+      log(`${String(s.level ?? '?').padEnd(8)} ${s.title}  punkter=${s.items?.length ?? 0}${s.error ? `  FEJL ${s.error}` : ''}`)
+    }
+    log(`samlet=${snap.overall} på ${Date.now() - t0} ms`)
+    return
+  }
+  if (SUB === 'payment-export-probe') {
+    // Staging (read-only): betalingseksportens rækker for hvert filter (pagineret build) — kun antal/fejl
+    const { buildPaymentExportRows } = await import('../../src/lib/services/payment-report')
+    for (const f of ['all', 'overdue', 'outstanding', 'late_payer', 'on_time', 'no_data'] as const) {
+      const r = await buildPaymentExportRows(admin, f as never)
+      log(`${f}: ${r.error ? `FEJL ${r.error}` : `${r.rows.length} rækker`}`)
+    }
+    return
+  }
+  if (SUB === 'export-probe') {
+    // Staging (read-only): virker lead-eksportens select (alias description:notes + profil-join)?
+    const { data, error } = await admin.from('leads')
+      .select('id, company_name, contact_person, email, phone, status, source, value, probability, description:notes, assigned_to, created_at')
+      .order('created_at', { ascending: false }).order('id').range(0, 1)
+    log(JSON.stringify({ ok: !error, rows: data?.length ?? null, error: error?.message ?? null, code: (error as { code?: string } | null)?.code ?? null }))
+    // øvrige eksporters select (samme strenge som src/lib/actions/export.ts)
+    const others: Array<[string, string]> = [
+      ['offers', 'offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, final_amount, valid_until, notes, created_at'],
+      ['projects', 'project_number, name, customer:customers(company_name, customer_number), status, priority, start_date, end_date, estimated_hours, actual_hours, budget, actual_cost, description, created_at'],
+      ['calculations', 'name, calculation_type, customer:customers(company_name, customer_number), is_template, total_amount:subtotal, final_amount, created_by_profile:profiles!created_by(full_name), created_at'],
+    ]
+    for (const [t, sel] of others) {
+      const r = await admin.from(t).select(sel).range(0, 0)
+      log(`${t}: ${r.error ? `FEJL ${r.error.message}` : 'ok'}`)
+    }
+    return
+  }
+  if (SUB === 'auth-probe') {
+    // Staging: svarer Auth-admin-API'et? Kun status/fejlnavn — ingen hemmeligheder, ingen oprettelse.
+    const t0 = Date.now()
+    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1 })
+    const e = error as { status?: number; name?: string; message?: string; code?: string } | null
+    log(JSON.stringify({ ms: Date.now() - t0, ok: !error, users: data?.users?.length ?? null, status: e?.status ?? null, name: e?.name ?? null, code: e?.code ?? null, message: e?.message?.slice(0, 120) ?? null }))
+    if (process.argv[3] === '--create') {
+      // opret + slet straks én harness-bruger (som ui-e2e gør) og vis fejlstatus
+      const t1 = Date.now()
+      const r = await admin.auth.admin.createUser({ email: `probe-${Date.now()}@harness.test`, password: `Pr!${Math.random().toString(36).slice(2)}A9`, email_confirm: true })
+      const ce = r.error as { status?: number; name?: string; message?: string; code?: string } | null
+      log(JSON.stringify({ create_ms: Date.now() - t1, ok: !r.error, status: ce?.status ?? null, name: ce?.name ?? null, code: ce?.code ?? null, message: ce?.message?.slice(0, 160) ?? null }))
+      if (r.data?.user?.id) await admin.auth.admin.deleteUser(r.data.user.id)
+    }
+    return
+  }
+  if (SUB === 'db-activity') {
+    // Staging (read-only): langvarige forespørgsler/låse — kun tilstand, varighed og forespørgslens første 80 tegn
+    const rows = await stagingSql(`SELECT pid, state, wait_event_type, wait_event, usename, application_name,
+      extract(epoch FROM now() - coalesce(xact_start, query_start))::int sek, left(regexp_replace(query, '\\s+', ' ', 'g'), 80) q
+      FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state <> 'idle'
+      ORDER BY sek DESC NULLS LAST LIMIT 15`)
+    for (const r of rows) log(`${String(r.sek).padStart(6)}s  ${r.state}  ${r.wait_event_type ?? ''}/${r.wait_event ?? ''}  ${r.usename}  ${r.application_name}  ${r.q}`)
+    const [l] = await stagingSql(`SELECT count(*)::int blokerede FROM pg_locks WHERE NOT granted`)
+    log(`ventende låse: ${l.blokerede}`)
+    return
+  }
+  if (SUB === 'auth-stats') {
+    // Staging (read-only): antal auth-brugere — harness-brugere (@harness.test) pr. dag de seneste 7 dage + i alt
+    const [t] = await stagingSql(`SELECT count(*)::int alle, count(*) FILTER (WHERE email ILIKE '%@harness.test')::int harness,
+      count(*) FILTER (WHERE email ILIKE '%@harness.test' AND created_at > now() - interval '1 day')::int harness_24t FROM auth.users`)
+    log(JSON.stringify(t))
+    return
+  }
+  if (SUB === 'harness-mails') {
+    // Staging (read-only): harness-mails (afsender @harness.test) fordelt på emne-præfiks + ældste. NB: ~5.500
+    // "[HARNESS_SYNTHETIC] Forespørgsel …" over et år er et bevidst volumen-fixture — slettes ikke.
+    const rows = await stagingSql(`SELECT left(regexp_replace(coalesce(subject, ''), '[0-9].*$', ''), 40) praefiks, count(*)::int n,
+      min(received_at)::date aeldste FROM incoming_emails WHERE sender_email ILIKE '%@harness.test' GROUP BY 1 ORDER BY 2 DESC LIMIT 15`)
+    for (const r of rows) log(`${String(r.n).padStart(5)}  ${r.aeldste}  ${r.praefiks}`)
     return
   }
   if (SUB === 'harness-portal') {

@@ -111,6 +111,19 @@ export async function createStageInvoiceForCase(
     }
   }
 
+  // 1b. Værn (rapport-review): sager oprettet fra tilbud før rettelsen fik kontraktsummen INKL. moms. Er den lig med
+  // kildetilbuddets beløb inkl. moms (og der er moms), ville raten blive 25 % for høj → stop med en klar besked.
+  if (input.amount_basis === 'contract_sum') {
+    const { data: src } = await supabase.from('offers').select('final_amount, tax_amount')
+      .eq('converted_case_id', input.case_id).limit(1).maybeSingle()
+    if (src && Number(src.tax_amount ?? 0) > 0 && Math.abs(Number(src.final_amount) - basisValue) < 0.005) {
+      return {
+        ...empty,
+        message: 'Sagens kontraktsum er tilbuddets beløb INKL. moms — ret den til beløbet ekskl. moms på sagen, før der laves rater på kontraktsummen',
+      }
+    }
+  }
+
   // 2. Slut-gate — ingen ny deposit/progress når slut findes
   const { count: finalCount } = await supabase
     .from('invoices')

@@ -7,6 +7,8 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { copenhagenParts, copenhagenLocalToIso, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface DailySummary {
   date: string
@@ -21,19 +23,22 @@ export interface DailySummary {
 export async function runDailyEmailIntelligenceSummary(targetDate?: Date): Promise<DailySummary> {
   const supabase = createAdminClient()
 
+  // automatik-review: dansk kalenderdag (før UTC-døgn) og side for side (.limit(50000) gav højst 1.000 rækker)
   const day = targetDate || new Date()
-  const dayStr = day.toISOString().substring(0, 10)
-  const dayStart = new Date(`${dayStr}T00:00:00.000Z`).toISOString()
-  const dayEnd = new Date(new Date(dayStart).getTime() + 24 * 60 * 60 * 1000).toISOString()
+  const dayStr = copenhagenParts(day).date
+  const dayStart = copenhagenLocalToIso(dayStr, '00:00')
+  const dayEnd = copenhagenLocalToIso(copenhagenDatePlusDays(1, day), '00:00')
 
-  const { data: rows, error } = await supabase
-    .from('email_intelligence_logs')
-    .select('action, reason, classification')
-    .gte('created_at', dayStart)
-    .lt('created_at', dayEnd)
-    .limit(50000)
-
-  if (error) {
+  let rows: Array<{ action: string | null; reason: string | null; classification: string | null }>
+  try {
+    rows = await fetchAllRows((from, to) => supabase
+      .from('email_intelligence_logs')
+      .select('id, action, reason, classification')
+      .gte('created_at', dayStart)
+      .lt('created_at', dayEnd)
+      .order('id')
+      .range(from, to))
+  } catch (error) {
     logger.error('Failed to load email_intelligence_logs for daily summary', { error })
     throw error
   }

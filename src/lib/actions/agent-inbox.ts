@@ -215,6 +215,11 @@ export async function selectLinkCandidateAction(
     if (['executed', 'rejected', 'failed', 'rolled_back'].includes(action.status)) {
       return { success: false, error: `Action er allerede afsluttet (${action.status})` }
     }
+    // Automatik-review: valget må kun ændres FØR godkendelse — ellers udføres en kobling til en kunde ingen har godkendt
+    // (godkendt kandidat A, derefter valgt B i en anden fane → B blev koblet)
+    if (!['planned', 'awaiting_approval'].includes(action.status)) {
+      return { success: false, error: 'Forslaget er allerede godkendt — afvis det og lav et nyt valg' }
+    }
 
     const payload = (action.payload ?? {}) as {
       email_id?: string
@@ -237,11 +242,15 @@ export async function selectLinkCandidateAction(
     const v = validateCandidateSelection(storedIds, freshIds, customerId)
     if (!v.ok) return { success: false, error: v.reason }
 
-    const { error: upErr } = await admin
+    const { data: upRow, error: upErr } = await admin
       .from('agent_actions')
       .update({ payload: { ...payload, selected_customer_id: customerId }, updated_at: new Date().toISOString() })
       .eq('id', actionId)
+      .in('status', ['planned', 'awaiting_approval'])
+      .select('id')
+      .maybeSingle()
     if (upErr) return { success: false, error: formatError(upErr, 'Kunne ikke gemme valg') }
+    if (!upRow) return { success: false, error: 'Forslaget blev godkendt imens — afvis det og lav et nyt valg' }
 
     await logAgentAudit({
       admin,

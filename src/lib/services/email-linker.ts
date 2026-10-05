@@ -12,6 +12,7 @@ import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import type { LinkResult, EmailLinkStatus } from '@/types/mail-bridge.types'
+import { isFreeMailDomain } from '@/lib/email/free-mail-domains'
 
 // =====================================================
 // Original Sender Extraction (forwarded emails)
@@ -176,7 +177,8 @@ export async function matchCustomer(
 
   // 3. Domain match — extract domain and match against customer emails
   const domain = emailLower.split('@')[1]
-  if (domain && !isFreemailDomain(domain)) {
+  // gratis-/privat-mail (hotmail.dk, gmail …) kobles aldrig på domæne — fælles liste i lib/email/free-mail-domains.ts
+  if (domain && !isFreeMailDomain(domain)) {
     const { data: domainMatches } = await supabase
       .from('customers')
       .select('id')
@@ -204,23 +206,6 @@ export async function matchCustomer(
   }
 }
 
-/**
- * Freemail domains that should NOT be used for domain matching
- * (many different customers can share gmail.com etc.)
- */
-const FREEMAIL_DOMAINS = new Set([
-  'gmail.com', 'googlemail.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
-  'yahoo.com', 'yahoo.dk',
-  'icloud.com', 'me.com', 'mac.com',
-  'protonmail.com', 'proton.me',
-  'mail.dk', 'jubii.dk', 'ofir.dk', 'stofanet.dk', 'tdcadsl.dk',
-  'email.dk', 'webspeed.dk', 'telenet.dk',
-])
-
-function isFreemailDomain(domain: string): boolean {
-  return FREEMAIL_DOMAINS.has(domain.toLowerCase())
-}
 
 // =====================================================
 // Sprint 8C-3 Noise filter

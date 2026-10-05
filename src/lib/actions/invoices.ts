@@ -1772,11 +1772,13 @@ export async function getInvoiceLiquidityChartAction(
   }
   const earliest = order[0] // 'YYYY-MM' — kun rækker fra denne måned og frem er relevante
 
-  const { data, error } = await supabase
+  // side for side (PostgREST max_rows 1000 — .limit(5000) gav for lave månedstal ved mange fakturaer)
+  const { data, error } = await fetchAllRows((from, to) => supabase
     .from('invoices')
-    .select('status, invoice_type, final_amount, voided_at, sent_at, paid_at, created_at')
+    .select('id, status, invoice_type, final_amount, voided_at, sent_at, paid_at, created_at')
     .gte('created_at', earliest + '-01T00:00:00')
-    .limit(5000)
+    .order('id')
+    .range(from, to)).then((rows) => ({ data: rows, error: null }), (e: Error) => ({ data: null, error: e }))
 
   if (error) {
     logger.error('getInvoiceLiquidityChartAction: query failed', { error })

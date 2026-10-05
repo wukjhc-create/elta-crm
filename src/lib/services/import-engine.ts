@@ -26,6 +26,14 @@ export function parseDanishNumber(value: string): number | null {
   // Remove whitespace
   let cleaned = value.trim()
 
+  // Leverandør-review: mellemrum/hårdt mellemrum som tusindtalsseparator ("1 234,56") gav 1 — fjernes mellem cifre
+  cleaned = cleaned.replace(/(\d)[\s  ]+(?=\d)/g, '$1')
+  // Flere punktummer uden komma ("1.234.567") er altid tusindtalsseparatorer (gav før 1.234). Ét punktum uden komma
+  // ("1.234" / "12.50") er tvetydigt og behandles som før (decimalpunktum).
+  if (!cleaned.includes(',') && /^-?\d{1,3}(\.\d{3}){2,}$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\./g, '')
+  }
+
   // Handle Danish format: replace dots (thousands sep) and commas (decimal)
   // Check if the format looks Danish (has comma as decimal separator)
   if (cleaned.includes(',')) {

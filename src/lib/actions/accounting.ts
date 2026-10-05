@@ -17,6 +17,7 @@ import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { AccountingAction, AccountingEntityType, AccountingStatus } from '@/types/accounting.types'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import {
   friendlyEconomicError,
   computeAccountingHealthSummary,
@@ -426,13 +427,15 @@ async function economicReadiness(credentials: boolean, testOk: boolean | null, c
   ])
   // Kunder med sendte/betalte (ikke-eksporterede) fakturaer uden e-conomic-kobling
   // — de ville blive oprettet som NYE debitorer ved eksport.
-  const { data: billed } = await admin
+  // side for side (PostgREST max_rows 1000 — .limit(5000) gav et udsnit)
+  const billed = await fetchAllRows<{ id: string; customer_id: string }>((from, to) => admin
     .from('invoices')
-    .select('customer_id')
+    .select('id, customer_id')
     .in('status', ['sent', 'paid'])
     .is('external_invoice_id', null)
     .not('customer_id', 'is', null)
-    .limit(5000)
+    .order('id')
+    .range(from, to))
   const billedIds = [...new Set(((billed ?? []) as Array<{ customer_id: string }>).map((b) => b.customer_id))]
   let unlinkedCustomers = 0
   for (let i = 0; i < billedIds.length; i += 200) {
@@ -625,7 +628,9 @@ export async function updateEconomicCredentialsAction(
     if (typeof input.config.autoBookOnCreate === 'boolean') mergedConfig.autoBookOnCreate = input.config.autoBookOnCreate
   }
 
-  const active = input.active ?? existing?.active ?? true
+  // leverandør-/e-conomic-review: aldrig aktiv som standard — at gemme nøgler må ikke tænde live-bogføring uden et
+  // eksplicit valg (UI'en sender altid sit afkrydsningsfelt)
+  const active = input.active ?? existing?.active ?? false
 
   const { error } = await admin
     .from('accounting_integration_settings')

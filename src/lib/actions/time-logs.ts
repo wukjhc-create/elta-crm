@@ -376,8 +376,12 @@ export async function updateTimeLog(
       } else if (typeof input.hours === 'number' && Number.isFinite(input.hours) && input.hours > 0) {
         endTimeIso = new Date(new Date(startTimeIso).getTime() + input.hours * 3600_000).toISOString()
       } else if (cur.end_time) {
-        // keep existing end_time
-        endTimeIso = cur.end_time as string
+        // behold sluttidspunktet (klokkeslæt) — men på den NYE dato (montør-review: kun dato flyttet bagud gav ellers
+        // en registrering over flere døgn, fx 08–16 flyttet fra 5/10 til 4/10 = 32 t). Løb den over midnat, bevares det.
+        const oldEnd = copenhagenParts(cur.end_time as string)
+        const dayOffset = Math.round((Date.parse(`${oldEnd.date}T00:00:00Z`) - Date.parse(`${curLocal.date}T00:00:00Z`)) / 86_400_000)
+        const endDate = new Date(Date.parse(`${dateStr}T00:00:00Z`) + dayOffset * 86_400_000).toISOString().slice(0, 10)
+        endTimeIso = copenhagenLocalToIso(endDate, oldEnd.clock)
       }
 
       if (endTimeIso) {
@@ -409,9 +413,14 @@ export async function updateTimeLog(
       .from('time_logs')
       .update(patch)
       .eq('id', timeLogId)
+      // montør-review: faktureret mellem læsning og opdatering → ingen ændring (før kun tjekket ved læsning)
+      .is('invoice_line_id', null)
       .select('*')
-      .single()
+      .maybeSingle()
 
+    if (!error && !data) {
+      return { success: false, error: 'Kan ikke ændre — timeregistreringen er allerede faktureret' }
+    }
     if (error || !data) {
       logger.error('updateTimeLog failed', { error })
       return { success: false, error: 'Kunne ikke opdatere timeregistrering' }

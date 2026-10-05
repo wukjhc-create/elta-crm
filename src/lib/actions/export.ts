@@ -11,6 +11,7 @@ import { pgQuote } from '@/lib/validations/postgrest-filter'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 // =====================================================
 // Types
@@ -99,13 +100,16 @@ export async function exportCustomers(filters?: {
   is_active?: boolean
 }): Promise<ActionResult<ExportCustomer[]>> {
   try {
+    // Kunde-review: eksporten fejlede ALTID (kolonnen billing_zip findes ikke — den hedder billing_postal_code) og
+    // havde ingen gate; .limit(10000) gav højst 1.000 rækker. Nu: gate, rigtig kolonne (alias), side for side.
+    const denied = await permissionDenied('customers.view')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
+    const build = () => {
     let query = supabase
       .from('customers')
-      .select('customer_number, company_name, contact_person, email, phone, vat_number, billing_address, billing_city, billing_zip, is_active, notes, created_at')
-      .order('created_at', { ascending: false })
-      .limit(MAX_EXPORT_ROWS)
+      .select('id, customer_number, company_name, contact_person, email, phone, vat_number, billing_address, billing_city, billing_zip:billing_postal_code, is_active, notes, created_at')
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
@@ -115,14 +119,17 @@ export async function exportCustomers(filters?: {
     if (filters?.is_active !== undefined) {
       query = query.eq('is_active', filters.is_active)
     }
+    return query
+    }
 
-    const { data, error } = await query
-
-    if (error) {
+    let data: ExportCustomer[]
+    try {
+      data = await fetchAllRows<ExportCustomer>((from, to) => build().order('created_at', { ascending: false }).order('id').range(from, to) as never, MAX_EXPORT_ROWS)
+    } catch {
       return { success: false, error: 'Kunne ikke hente kundedata til eksport' }
     }
 
-    return { success: true, data: data || [] }
+    return { success: true, data }
   } catch (err) {
     return { success: false, error: formatError(err, 'Eksport af kunder fejlede') }
   }
@@ -134,13 +141,16 @@ export async function exportLeads(filters?: {
   source?: string
 }): Promise<ActionResult<ExportLead[]>> {
   try {
+    // Kunde-review: eksporten fejlede ALTID (leads.description findes ikke — feltet hedder notes) og havde ingen gate
+    // (bogholderi uden leads.view kunne eksportere alle leads). Nu: gate, rigtig kolonne (alias), side for side.
+    const denied = await permissionDenied('leads.view')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
+    const build = () => {
     let query = supabase
       .from('leads')
-      .select('company_name, contact_person, email, phone, status, source, value, probability, description, assigned_to_profile:profiles!assigned_to(full_name), created_at')
-      .order('created_at', { ascending: false })
-      .limit(MAX_EXPORT_ROWS)
+      .select('id, company_name, contact_person, email, phone, status, source, value, probability, description:notes, assigned_to, created_at')
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
@@ -154,14 +164,24 @@ export async function exportLeads(filters?: {
     if (filters?.source) {
       query = query.eq('source', filters.source)
     }
+    return query
+    }
 
-    const { data, error } = await query
-
-    if (error) {
+    let data: Array<Record<string, unknown>>
+    try {
+      data = await fetchAllRows<Record<string, unknown>>((from, to) => build().order('created_at', { ascending: false }).order('id').range(from, to) as never, MAX_EXPORT_ROWS)
+    } catch {
       return { success: false, error: 'Kunne ikke hente leads til eksport' }
     }
 
-    // Flatten the assigned_to profile join
+    // Kunde-review: join'et profiles!assigned_to findes ikke (ingen FK leads→profiles) — eksporten fejlede derfor altid.
+    // Navne slås op separat.
+    const assigneeIds = Array.from(new Set(data.map((r) => r.assigned_to).filter((v): v is string => typeof v === 'string')))
+    const nameById = new Map<string, string>()
+    for (let i = 0; i < assigneeIds.length; i += 200) {
+      const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', assigneeIds.slice(i, i + 200))
+      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) if (p.full_name) nameById.set(p.id, p.full_name)
+    }
     const flat: ExportLead[] = (data || []).map((row: Record<string, unknown>) => ({
       company_name: row.company_name as string | null,
       contact_person: row.contact_person as string | null,
@@ -172,7 +192,7 @@ export async function exportLeads(filters?: {
       value: row.value as number | null,
       probability: row.probability as number | null,
       description: row.description as string | null,
-      assigned_to_name: (row.assigned_to_profile as { full_name: string } | null)?.full_name || null,
+      assigned_to_name: typeof row.assigned_to === 'string' ? nameById.get(row.assigned_to) ?? null : null,
       created_at: row.created_at as string,
     }))
 
@@ -187,6 +207,9 @@ export async function exportOffers(filters?: {
   status?: string
 }): Promise<ActionResult<ExportOffer[]>> {
   try {
+    // Kunde-review: tilbudsbeløb — kun roller med offers.view (før uden gate)
+    const denied = await permissionDenied('offers.view')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
     let query = supabase
@@ -305,7 +328,7 @@ export async function exportCalculations(filters?: {
 
     let query = supabase
       .from('calculations')
-      .select('name, calculation_type, customer:customers(company_name, customer_number), is_template, total_amount, final_amount, created_by_profile:profiles!created_by(full_name), created_at')
+      .select('name, calculation_type, customer:customers(company_name, customer_number), is_template, total_amount:subtotal, final_amount, created_by_profile:profiles!created_by(full_name), created_at')
       .order('created_at', { ascending: false })
       .limit(MAX_EXPORT_ROWS)
 
