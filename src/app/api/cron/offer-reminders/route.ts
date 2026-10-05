@@ -15,6 +15,8 @@ import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_EMAIL, BRAND_WEBSITE, BRAND_GREEN } from '@/lib/brand'
 import { withCronRun } from '@/lib/services/cron-run'
 import { isOfferExpired } from '@/lib/offers/validity'
+import { markReminderSent, reminderAlreadySent } from '@/lib/tasks/reminder-marker'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -278,9 +280,8 @@ async function handleCron(request: Request): Promise<Response> {
             const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
             if (!customer?.email) continue
 
-            // Check if we already sent a reminder (use description field)
-            const descData = (() => { try { return JSON.parse(task.description || '{}') } catch { return {} } })()
-            if (descData.reminder_sent) continue
+            // Allerede sendt? Markeres i beskrivelsen — teksten bevares (lib/tasks/reminder-marker.ts)
+            if (reminderAlreadySent(task.description)) continue
 
             const html = buildFollowUpEmail(
               customer.contact_person || customer.company_name,
@@ -311,10 +312,8 @@ async function handleCron(request: Request): Promise<Response> {
             )
 
             if (result.success) {
-              descData.reminder_sent = new Date().toISOString()
-              await supabase.from('customer_tasks').update({
-                description: JSON.stringify(descData),
-              }).eq('id', task.id)
+              const description = markReminderSent(task.description)
+              await supabase.from('customer_tasks').update({ description }).eq('id', task.id)
               totalSent++
             }
           } catch (err) {
@@ -356,7 +355,7 @@ function buildFollowUpEmail(
         <h1 style="color: white; margin: 0; font-size: 20px;">Venlig påmindelse — ${typeLabel}</h1>
       </div>
       <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-        <p style="font-size: 16px; color: #111827;">Kære ${customerName},</p>
+        <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(customerName)},</p>
         <p style="color: #374151;">${mainMessage}</p>
         <p style="color: #374151;">${ctaMessage}</p>
         <p style="color: #374151; margin-top: 24px;">

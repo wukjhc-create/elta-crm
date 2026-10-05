@@ -16,6 +16,7 @@ import { decryptCredentials } from '@/lib/utils/encryption'
 import { BATCH_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,10 +109,13 @@ async function handleCron(request: Request): Promise<Response> {
           }
 
           // Get products to sync - load all at once to avoid N+1 queries
-          const { data: products } = await supabase
+          // leverandør-review: side for side — før kun de første 1.000 varer (PostgREST max_rows)
+          const products = await fetchAllRows<{ id: string; supplier_sku: string; cost_price: number | null; list_price: number | null }>((from, to) => supabase
             .from('supplier_products')
             .select('id, supplier_sku, cost_price, list_price')
             .eq('supplier_id', schedule.supplier_id)
+            .order('id')
+            .range(from, to), 2_000_000)
 
           const skus = products?.map((p) => p.supplier_sku) || []
           const productsBySkU = new Map((products || []).map((p) => [p.supplier_sku, p]))
@@ -375,10 +379,13 @@ async function executeFtpSyncSchedule(
   }
 
   // Load existing products for this supplier (for upsert matching)
-  const { data: existingProducts } = await supabase
+  // leverandør-review: side for side — før kun 1.000 → resten blev forsøgt indsat som nye varer
+  const existingProducts = await fetchAllRows<{ id: string; supplier_sku: string; cost_price: number | null; list_price: number | null }>((from, to) => supabase
     .from('supplier_products')
     .select('id, supplier_sku, cost_price, list_price')
     .eq('supplier_id', schedule.supplier_id)
+    .order('id')
+    .range(from, to), 2_000_000)
 
   const productsBySku = new Map((existingProducts || []).map((p) => [p.supplier_sku, p]))
   const now = new Date().toISOString()
@@ -421,8 +428,9 @@ async function executeFtpSyncSchedule(
               .from('supplier_products')
               .update({
                 supplier_name: row.parsed.name || undefined,
-                cost_price: newCost,
-                list_price: row.parsed.list_price,
+                // leverandør-review: tom/ulæselig pris i filen overskrev før kostprisen med NULL → feltet udelades
+                cost_price: newCost ?? undefined,
+                list_price: row.parsed.list_price ?? undefined,
                 unit: row.parsed.unit || undefined,
                 category: row.parsed.category || undefined,
                 ean: row.parsed.ean || undefined,

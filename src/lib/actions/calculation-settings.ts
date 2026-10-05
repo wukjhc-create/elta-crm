@@ -481,6 +481,9 @@ export async function getComponentsWithPricing(): Promise<ActionResult<{
   variants: { code: string; name: string; time_multiplier: number; extra_minutes: number }[]
 }[]>> {
   try {
+    // Rapport-review (S1): returnerer kostpriser/DB — kun med kalkulationsadgang (samme gate som modulet)
+    const __costDenied = await permissionDenied('tools.calculations')
+    if (__costDenied) return { success: false, error: __costDenied }
     const { supabase } = await getAuthenticatedClient()
 
     const { data: components, error } = await supabase

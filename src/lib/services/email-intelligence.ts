@@ -11,7 +11,7 @@
  * Used by email-sync-orchestrator after each email is inserted.
  */
 
-import { pgQuote } from '@/lib/validations/postgrest-filter'
+import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -445,7 +445,7 @@ Svar KUN med rå JSON.`,
     const address = typeof parsed.address === 'string' && parsed.address.trim() ? parsed.address.trim() : null
     const confidence = (phone ? 0.5 : 0) + (address ? 0.3 : 0) + (name ? 0.2 : 0)
     const result = { name, phone, address, confidence }
-    console.log('EXTRACTED:', { name, phone, address })
+    console.log('EXTRACTED:', { name: !!name, phone: !!phone, address: !!address }) // automatik-review: ingen personværdier i logs
     console.log('CONFIDENCE:', confidence)
     return result
   } catch {
@@ -532,7 +532,9 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
   const nameTrimmed = (data.name || '').trim()
   const looksLikeFullName = nameTrimmed.includes(' ') && nameTrimmed.length >= 5
   if (looksLikeFullName) {
-    const safeName = nameTrimmed.replace(/[%,()]/g, ' ').trim()
+    // automatik-review: AI-udtrukket navn er kundestyret tekst — jokertegn (* _ %) escapes, ellers matchede fx "** **"
+    // enhver kunde med mellemrum i navnet
+    const safeName = escapeLike(nameTrimmed.replace(/[%,()*]/g, ' ').replace(/\s+/g, ' ').trim())
     const { data: byName } = await supabase
       .from('customers')
       .select('id')
@@ -545,14 +547,14 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
       return { customerId: byName.id, created: false }
     }
   } else if (nameTrimmed.length >= 3) {
-    console.log('CUSTOMER NAME-MATCH SKIPPED (single token):', nameTrimmed)
+    console.log('CUSTOMER NAME-MATCH SKIPPED (single token)')
   }
 
   // 3. Create — REQUIRES phone (>= 8 digits) OR address (>= 5 chars). Name alone is NOT enough.
   const hasPhone = !!(data.phone && data.phone.replace(/\D/g, '').length >= 8)
   const hasAddress = !!(data.address && data.address.trim().length >= 5)
   if (!hasPhone && !hasAddress) {
-    console.log('SKIP: NO VALID CUSTOMER DATA', { name: data.name, phone: data.phone, address: data.address })
+    console.log('SKIP: NO VALID CUSTOMER DATA', { name: !!data.name, phone: !!data.phone, address: !!data.address })
     return { customerId: null, created: false }
   }
 
@@ -604,7 +606,7 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
     return { customerId: null, created: false }
   }
 
-  console.log('CUSTOMER CREATED:', result.data.id, result.data.customer_number, displayName)
+  console.log('CUSTOMER CREATED:', result.data.id, result.data.customer_number)
   return { customerId: result.data.id, created: true }
 }
 
@@ -800,6 +802,9 @@ async function processEmailIntelligenceUnsafe(
   }
 
   if (customerId) {
+    // Automatik-review (HØJ): et almindeligt citeret svar ("Fra:"-linje) tolkes som videresendt, og udtrækket rammer så
+    // det citerede (fx Eltas egen signatur) → en allerede korrekt koblet mail blev flyttet til en forkert/ny kunde.
+    // AI'en kobler derfor KUN ukoblede mails; behandlet-markeringen sættes altid.
     await supabase
       .from('incoming_emails')
       .update({
@@ -807,8 +812,12 @@ async function processEmailIntelligenceUnsafe(
         link_status: 'linked',
         linked_by: 'auto-ai',
         linked_at: new Date().toISOString(),
-        processed_at: new Date().toISOString(),
       })
+      .eq('id', emailId)
+      .is('customer_id', null)
+    await supabase
+      .from('incoming_emails')
+      .update({ processed_at: new Date().toISOString() })
       .eq('id', emailId)
 
     // Feature flag: auto-oprettelse af cases/tilbud/tasks er som default
@@ -917,7 +926,7 @@ async function processEmailIntelligenceUnsafe(
               kind: 'ai_summary',
               urgency: summary.urgency,
             })
-            console.log('CASE SUMMARY NOTE:', summary.urgency, '—', summary.summary.substring(0, 80))
+            console.log('CASE SUMMARY NOTE:', summary.urgency)
           }
         } catch (sumErr) {
           console.warn('AI SUMMARY FAILED:', email.subject, sumErr instanceof Error ? sumErr.message : '')

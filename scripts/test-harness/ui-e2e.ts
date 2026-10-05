@@ -155,7 +155,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { spawn, execSync, type ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
 import { makeTextPdf } from './pdf-fixture'
-import { mkdirSync, writeFileSync, appendFileSync } from 'fs'
+import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3893,6 +3893,68 @@ ${m.text()}`) })
         r.sendt_pdf_ok = (await fetch(`${base}/api/portal/offers/pdf?token=${tok}&offerId=${u134OfferId}`)).status === 200
         out.push({ id: 'U134 Q10 portal lækker ikke firmahemmeligheder + setup-db lukket', ok: !!u134TokenId && Object.values(r).every(Boolean),
           note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${leaks.length ? ` · læk: ${leaks.join(',')}` : ''}` })
+      }
+
+      // U135 kunde-review (HØJ): sletning af en kunde med tilbud slettede stille tilbud + underskrifter (ON DELETE
+      // CASCADE) og efterlod fakturaer/sager uden kunde → afvises med "deaktivér i stedet"; kunde uden tilknytning slettes
+      if (want('U135')) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('customers').insert([
+          { customer_number: `UI-E2E-DL-${stamp}`, company_name: `[HARNESS] slet-med-tilbud ${stamp}`, contact_person: 'D', email: `dl-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+          { customer_number: `UI-E2E-DF-${stamp}`, company_name: `[HARNESS] slet-fri ${stamp}`, contact_person: 'F', email: `df-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+        ]).select('id, customer_number')
+        const rows = (ins.data ?? []) as Array<{ id: string; customer_number: string }>
+        const withOffer = rows.find((x) => x.customer_number.startsWith('UI-E2E-DL'))?.id ?? null
+        const free = rows.find((x) => x.customer_number.startsWith('UI-E2E-DF'))?.id ?? null
+        u115CustomerIds.push(...rows.map((x) => x.id))
+        const off = withOffer ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-DLO-${stamp}`, title: '[HARNESS] U135', created_by: adminUser.id, customer_id: withOffer, status: 'sent' }]).select('id') : null
+        const offerId = (off?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!withOffer && !!free && !!offerId
+        const tryDelete = async (id: string) => {
+          await gotoSafe(a.page, `${base}/dashboard/customers/${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.getByRole('button', { name: /^Slet$/ }).first().click({ timeout: 60_000 }).catch(() => {})
+          await a.page.getByRole('alertdialog').getByRole('button', { name: /^Slet$/ }).click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForTimeout(2500)
+        }
+        if (withOffer) {
+          await tryDelete(withOffer)
+          r.afvist_med_besked = (await a.page.getByText(/kan ikke slettes — deaktivér kunden i stedet/).count()) > 0
+          r.kunde_bevaret = !!(await c.admin.from('customers').select('id').eq('id', withOffer).maybeSingle()).data
+          r.tilbud_bevaret = !!offerId && !!(await c.admin.from('offers').select('id').eq('id', offerId).maybeSingle()).data
+        }
+        if (free) {
+          await tryDelete(free)
+          r.fri_kunde_slettet = !(await c.admin.from('customers').select('id').eq('id', free).maybeSingle()).data
+        }
+        if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
+        out.push({ id: 'U135 kunde med tilbud kan ikke slettes (cascade)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U136 kunde-review: kunde- og lead-eksport fejlede ALTID (kolonnerne billing_zip og leads.description findes ikke)
+      // → CSV med postnr. og leadets noter
+      if (want('U136')) {
+        const r: Record<string, boolean> = {}
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-EX-${stamp}`, company_name: `[HARNESS] eksport ${stamp}`, contact_person: 'E',
+          email: `ex-${stamp}@harness.test`, billing_postal_code: '8999', created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        const cuId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (cuId) u115CustomerIds.push(cuId)
+        const ld = await c.admin.from('leads').insert([{ company_name: `[HARNESS] lead-eksport ${stamp}`, contact_person: 'L', email: `lx-${stamp}@harness.test`,
+          status: 'new', source: 'website', notes: `Noter ${stamp}`, created_by: adminUser.id }]).select('id')
+        const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (leadId) u128LeadIds.push(leadId)
+        const grab = async (path: string, label: string) => {
+          await gotoSafe(a.page, `${base}${path}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const dl = a.page.waitForEvent('download', { timeout: 60_000 }).catch(() => null)
+          await a.page.getByRole('button', { name: label }).first().click({ timeout: 60_000 }).catch(() => {})
+          const d = await dl
+          const fp = d ? await d.path().catch(() => null) : null
+          return fp ? readFileSync(fp, 'utf8') : ''
+        }
+        const csvC = await grab(`/dashboard/customers?search=${stamp}`, 'Eksportér kunder')
+        r.kunde_csv = csvC.includes(`[HARNESS] eksport ${stamp}`) && csvC.includes('8999')
+        const csvL = await grab(`/dashboard/leads?search=${stamp}`, 'Eksportér leads')
+        r.lead_csv = csvL.includes(`[HARNESS] lead-eksport ${stamp}`) && csvL.includes(`Noter ${stamp}`)
+        out.push({ id: 'U136 kunde-/lead-eksport virker (rigtige kolonner)', ok: !!cuId && !!leadId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)

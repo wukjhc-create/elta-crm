@@ -1699,6 +1699,9 @@ export async function getPortalDocuments(
       .from('customer_documents')
       .select('id, title, description, document_type, file_url, storage_path, file_name, mime_type, created_at')
       .eq('customer_id', customerId)
+      // Kommunikations-review (S1): mail-vedhæftninger arkiveres automatisk på kunden ("Download" i mailen) — også fra
+      // leverandørmails (ordrebekræftelser, kostpriser), der er koblet til kunden. De er INTERNE og vises ikke i portalen.
+      .is('source_email_id', null)
       .order('created_at', { ascending: false })
 
     if (error) {

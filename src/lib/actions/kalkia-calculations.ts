@@ -53,6 +53,9 @@ export async function getKalkiaCalculations(
   filters?: KalkiaCalculationFilters
 ): Promise<ActionResult<PaginatedResponse<KalkiaCalculationSummary>>> {
   try {
+    // Rapport-review (S1): returnerer kostpriser/DB — kun med kalkulationsadgang (samme gate som modulet)
+    const __costDenied = await permissionDenied('tools.calculations')
+    if (__costDenied) return { success: false, error: __costDenied }
     const { supabase } = await getAuthenticatedClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
@@ -132,6 +135,9 @@ export async function getKalkiaCalculation(
   id: string
 ): Promise<ActionResult<KalkiaCalculationWithRelations>> {
   try {
+    // Rapport-review (S1): returnerer kostpriser/DB — kun med kalkulationsadgang (samme gate som modulet)
+    const __costDenied = await permissionDenied('tools.calculations')
+    if (__costDenied) return { success: false, error: __costDenied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(id, 'kalkulation ID')
 
@@ -527,6 +533,9 @@ export async function calculateFromNodes(
   riskPercentage: number = 0
 ): Promise<ActionResult<{ items: unknown[]; result: CalculationResult }>> {
   try {
+    // Rapport-review (S1): returnerer kostpriser/DB — kun med kalkulationsadgang (samme gate som modulet)
+    const __costDenied = await permissionDenied('tools.calculations')
+    if (__costDenied) return { success: false, error: __costDenied }
     const { supabase } = await getAuthenticatedClient()
 
     // Parallelize all initial data loading
@@ -748,7 +757,7 @@ export async function createOfferFromCalculation(
         quantity: item.quantity,
         unit: 'stk',
         unit_price: item.salePrice,
-        cost_price: itemCostPrice / item.quantity,
+        cost_price: item.quantity > 0 ? itemCostPrice / item.quantity : null, // rapport-review: antal 0 gav NaN
         discount_percentage: 0,
         total: itemSalePrice,
         line_type: 'calculation' as const,

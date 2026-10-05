@@ -345,9 +345,11 @@ async function syncOneMailbox(
           result.emailsInserted++
           mailboxInserted++
           const toAddresses = (msg.toRecipients || []).map(r => r.emailAddress.address.toLowerCase())
+          // Kommunikations-review: stop ved første kunde-match — hver linkEmail skriver koblingen, så en senere
+          // modtager (fx leverandør eller anden kunde) overskrev før den rigtige kunde (sidste match vandt / blev null)
           for (const toAddr of toAddresses) {
             const lr = await linkEmail(inserted.id, toAddr, null, msg.subject || '(Intet emne)', msg.body?.content || null, null)
-            if (lr.status === 'linked') result.emailsLinked++
+            if (lr.status === 'linked') { result.emailsLinked++; break }
           }
         }
       } catch (sentError) {

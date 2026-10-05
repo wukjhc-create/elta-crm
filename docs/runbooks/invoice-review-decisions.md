@@ -21,5 +21,6 @@ falder tilbage til 25 % moms ved 0-subtotal; to samtidige kreditnotaer kan begge
 redigering af kreditnota-kladder. B7 sammen med næste migrations-batch.
 
 **Klar til godkendelse:** B1, B2 og B5 er implementeret på branch `invoice-review-b` (976f251) — ingen migration.
-Staging-scenarie (`npm run harness -- invoice-outstanding` på branchen): main fejler begge (kladde blev "betalt";
+Staging-scenarie (`npx tsx scripts/test-harness/cli.ts invoice-outstanding` på branchen): main fejler begge (kladde blev "betalt";
 kredit + betaling stod som "delvis"), branchen består begge. Merge = ja til B1/B2/B5 (inkl. cockpittets "forfaldne fakturaer" på udestående, 89a609c).
+B7 er klar som migration 00190 på branch `offer-invoice-amounts` (37dac22) — løser også salgs-reviewets T2 (manuelle linjer faktureret til 0 kr).

@@ -750,10 +750,15 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 
   // Level 3 = warning, manual review only — no email.
   if (level === 3) {
-    await supabase
+    // automatik-review: betinget af den læste tæller (samtidige kørsler eskalerer kun én gang)
+    const { data: esc } = await supabase
       .from('invoices')
       .update({ reminder_count: (invoice.reminder_count ?? 0) + 1, last_reminder_at: today.toISOString() })
       .eq('id', invoiceId)
+      .eq('reminder_count', invoice.reminder_count ?? 0)
+      .select('id')
+      .maybeSingle()
+    if (!esc) return { invoiceId, status: 'skipped', level: 3, reason: 'claimed by parallel run' }
     await logReminder(invoiceId, 3, 'manual_review', null, `${days} days overdue — escalated`)
     console.log('INVOICE WARNING (manual review):', invoice.invoice_number, days, 'days overdue')
     return { invoiceId, status: 'manual_review', level: 3 }
@@ -843,6 +848,22 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     caseNumber: reminderCaseNumber,
   } as const
 
+  // Automatik-review: rykkeren "gøres krav på" FØR afsendelse — samtidige kørsler (cron + "Kør rykkere nu", dobbeltklik)
+  // læste før samme cooldown og sendte begge. Kun den kørsel der hæver tælleren fra den læste værdi sender; fejler
+  // afsendelsen, rulles kravet tilbage.
+  const prevCount = invoice.reminder_count ?? 0
+  const { data: claim } = await supabase
+    .from('invoices')
+    .update({ reminder_count: prevCount + 1, last_reminder_at: today.toISOString() })
+    .eq('id', invoiceId)
+    .eq('reminder_count', prevCount)
+    .select('id')
+    .maybeSingle()
+  if (!claim) {
+    await logReminder(invoiceId, level, 'skipped', recipient, 'claimed by parallel run')
+    return { invoiceId, status: 'skipped', level, reason: 'claimed by parallel run' }
+  }
+
   const result = await sendEmailViaGraph({
     to: recipient,
     subject: buildInvoiceReminderSubject(params, emailCfg),
@@ -853,18 +874,16 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
   })
 
   if (!result.success) {
+    await supabase
+      .from('invoices')
+      .update({ reminder_count: prevCount, last_reminder_at: invoice.last_reminder_at ?? null })
+      .eq('id', invoiceId)
+      .eq('reminder_count', prevCount + 1)
     await logReminder(invoiceId, level, 'failed', recipient, null, result.error || 'send failed')
     await logMailRoute(route, 'failed', { invoiceId, level, error: result.error })
     return { invoiceId, status: 'failed', level, error: result.error }
   }
 
-  await supabase
-    .from('invoices')
-    .update({
-      reminder_count: (invoice.reminder_count ?? 0) + 1,
-      last_reminder_at: today.toISOString(),
-    })
-    .eq('id', invoiceId)
   await logReminder(invoiceId, level, 'sent', recipient, null)
   await logMailRoute(route, 'sent', { invoiceId, level, messageId: result.messageId })
   console.log('INVOICE REMINDER SENT:', invoice.invoice_number, 'level', level, '→', recipient)

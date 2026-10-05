@@ -755,6 +755,27 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       .eq('id', id)
       .maybeSingle()
 
+    // Kunde-review (HØJ): offers.customer_id er ON DELETE CASCADE → sletning fjernede stille tilbud, UNDERSKRIFTER,
+    // portal-links og dokumenter, mens fakturaer og sager blev efterladt uden kunde. 23503-beskeden nåede man aldrig.
+    // Kunder med tilbud, fakturaer eller sager kan derfor ikke slettes — de deaktiveres. Optælling med admin-klienten,
+    // så RLS ikke skjuler rækker (kun antal).
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const [offersRes, invoicesRes, casesRes] = await Promise.all([
+      admin.from('offers').select('id', { count: 'exact', head: true }).eq('customer_id', id),
+      admin.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_id', id),
+      admin.from('service_cases').select('id', { count: 'exact', head: true }).eq('customer_id', id),
+    ])
+    if (offersRes.error || invoicesRes.error || casesRes.error) throw new Error('DATABASE_ERROR')
+    const linked = [
+      offersRes.count ? `${offersRes.count} tilbud` : '',
+      invoicesRes.count ? `${invoicesRes.count} faktura${invoicesRes.count === 1 ? '' : 'er'}` : '',
+      casesRes.count ? `${casesRes.count} sag${casesRes.count === 1 ? '' : 'er'}` : '',
+    ].filter(Boolean)
+    if (linked.length) {
+      return { success: false, error: `Kunden har ${linked.join(', ')} og kan ikke slettes — deaktivér kunden i stedet` }
+    }
+
     const { error } = await supabase.from('customers').delete().eq('id', id)
 
     if (error) {

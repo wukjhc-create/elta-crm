@@ -6,11 +6,10 @@
  * leverandørsignal — her sender privatpersoner og montører også fra.
  */
 
-const FREE_MAIL = new Set([
-  'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.dk', 'live.com', 'live.dk', 'outlook.com', 'outlook.dk', 'msn.com',
-  'yahoo.com', 'yahoo.dk', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'mail.dk', 'jubii.dk', 'privat.dk', 'protonmail.com',
-  'proton.me', 'gmx.com', 'gmx.net', 'tdcadsl.dk', 'post.tele.dk', 'stofanet.dk', 'youmail.dk', 'webspeed.dk', 'email.dk',
-])
+import { FREE_MAIL_DOMAINS } from '@/lib/email/free-mail-domains'
+
+// fælles liste (kommunikations-review 2026-10-04: linker og leverandørsignal havde hver sin, ufuldstændige liste)
+const FREE_MAIL = FREE_MAIL_DOMAINS
 
 /** true når adressen er en gratis-/privat-mail (gmail, hotmail, live …). */
 export function isFreeMailAddress(email: string | null | undefined): boolean {
