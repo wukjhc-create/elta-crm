@@ -74,6 +74,17 @@ T2/B7 (00190). Alle med vist SQL før kørsel, staging først, pre/post-tjek som
 | R3 | "Omsætning" er inkl. moms i Rapporter, ekskl. moms i salgstragten og før rabat på dashboardet | Ekskl. moms efter rabat overalt |
 | R4 | Cockpittets forfaldne: antal = top-N, beløb uden delbetalinger | Tæl i DB; beløb løses af B1 (`invoice-review-b`) |
 
+R0 — SELECT kørt 2026-10-05 (`npx tsx scripts/prod-r0-contract-sum-preview.ts`, read-only, intet ændret):
+
+| Sag | Tilbud | Nu | Tilbud inkl. moms | Moms | Efter (ekskl. moms) | Rettes | Fakturaer på sagen |
+|---|---|---|---|---|---|---|---|
+| SVC-01002 | TILBUD-2026-0009 | 0 | 0 | 0 | 0 | nej (0 moms) | 0 |
+| SVC-01003 | TILBUD-2026-0010 | 131,34 | 131,34 | 26,27 | 105,07 | ja | 4 |
+| SVC-01019 | TILBUD-2026-0020 | 2.214,00 | 2.214,00 | 442,80 | 1.771,20 | ja | 0 |
+| SVC-01228 | TILBUD-2026-0036 | 6.250,00 | 6.250,00 | 1.250,00 | 5.000,00 | ja | 1 |
+
+Ingen af fakturaerne er rater på kontraktsummen (0 i prod) — rettelsen ændrer kun "Kontraktsum"/"Rest at fakturere". UPDATE kun efter særskilt ja.
+
 R0-SQL (kør først som SELECT med samme WHERE; forventet 3 rækker — den 4. har 0 moms):
 ```sql
 UPDATE public.service_cases s SET contract_sum = round(o.final_amount - o.tax_amount, 2), updated_at = now()
