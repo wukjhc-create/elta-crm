@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3878,7 +3878,7 @@ ${m.text()}`) })
         r.besigtigelse_pdf_lukket = (await fetch(`${base}/api/besigtigelse/pdf`, pdfBody({ customer: { customer_number: 'X' }, formData: {}, date: '2026-10-04', images: [] }))).status === 401
         // Q10 lave: vejr-proxy kun for indloggede; migrate-roles timing-safe/fail-closed; kladde-tilbud ikke via UUID
         r.vejr_kraever_login = (await fetch(`${base}/api/weather?lat=55.6&lon=12.5`, { redirect: 'manual' })).status !== 200
-        r.migrate_roles_lukket = (await fetch(`${base}/api/admin/migrate-roles`, { method: 'POST', headers: { Authorization: 'Bearer ' } })).status === 401
+        r.migrate_roles_lukket = [401, 404].includes((await fetch(`${base}/api/admin/migrate-roles`, { method: 'POST', headers: { Authorization: 'Bearer ' } })).status) // ruten fjernet (auth-review)
         const draft = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-SECD-${stamp}`, title: '[HARNESS] U134 kladde', created_by: adminUser.id,
           customer_id: profitCustomerId, status: 'draft' }]).select('id')
         u134DraftId = (draft.data?.[0] as { id?: string } | undefined)?.id ?? null
@@ -3955,6 +3955,30 @@ ${m.text()}`) })
         const csvL = await grab(`/dashboard/leads?search=${stamp}`, 'Eksportér leads')
         r.lead_csv = csvL.includes(`[HARNESS] lead-eksport ${stamp}`) && csvL.includes(`Noter ${stamp}`)
         out.push({ id: 'U136 kunde-/lead-eksport virker (rigtige kolonner)', ok: !!cuId && !!leadId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U137 auth-review (HØJ): en bruger kunne sætte sit eget avatar_storage_path (via updateProfile eller REST) til en
+      // vilkårlig fil i attachments — profilsiden signerede den med admin-klienten → læsning af enhver fil. Kun
+      // avatars/<eget id>- signeres nu. (Stien sættes her via admin = det et direkte REST-kald kan i dag.)
+      if (want('U137')) {
+        const r: Record<string, boolean> = {}
+        const foreign = `customer-documents/u137-${stamp}/fremmed.txt`
+        const up = await c.admin.storage.from('attachments').upload(foreign, new Blob([`[HARNESS] U137 ${stamp}`], { type: 'text/plain' }), { upsert: true })
+        r.seed = !up.error
+        await c.admin.from('profiles').update({ avatar_storage_path: foreign }).eq('id', montor.id)
+        try {
+          const m = await login(montor)
+          await gotoSafe(m.page, `${base}/dashboard/settings/profile`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const html = await m.page.content()
+          // det farlige er en SIGNERET URL til filen (rå stiværdi i sidens data giver ingen adgang)
+          r.fremmed_fil_ikke_signeret = !html.includes(`/object/sign/attachments/${foreign}`) && !html.includes(`/object/sign/attachments/${encodeURI(foreign)}`)
+          r.sti_i_html = html.includes(`u137-${stamp}`) // kun info
+          await m.ctx.close().catch(() => {})
+        } finally {
+          await c.admin.from('profiles').update({ avatar_storage_path: null }).eq('id', montor.id)
+          await c.admin.storage.from('attachments').remove([foreign])
+        }
+        out.push({ id: 'U137 profil signerer ikke fremmede filer (avatar-sti)', ok: r.seed && r.fremmed_fil_ikke_signeret, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)

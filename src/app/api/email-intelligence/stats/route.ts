@@ -12,6 +12,14 @@ import { logger } from '@/lib/utils/logger'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
+  // Auth-review: før uden godkendelse (statistik over mailbehandlingen for alle) → indlogget med inbox.view
+  try {
+    const { getAuthenticatedClientWithRole } = await import('@/lib/actions/action-helpers')
+    const { hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('inbox.view')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const url = new URL(request.url)
     const days = Math.min(parseInt(url.searchParams.get('days') || '7', 10) || 7, 90)
