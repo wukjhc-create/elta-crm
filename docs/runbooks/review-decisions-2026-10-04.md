@@ -85,5 +85,5 @@ WHERE o.converted_case_id = s.id AND s.contract_sum = o.final_amount AND coalesc
 
 | # | Hvad | Hvorfor |
 |---|---|---|
-| P1 | Supabase-dashboard → Authentication → Sign In / Providers: slå "Allow new users to sign up" FRA (kun invitationer) | `supabase/config.toml` har signup slået til; er det også tilfældet i prod, kan enhver oprette en konto og få en aktiv montør-session. Kan ikke ses eller ændres fra koden |
+| P1 | **VERIFICERET 2026-10-05: selvregistrering er SLÅET TIL i prod (og nye konti auto-bekræftes).** Slå "Allow new users to sign up" FRA — trin-for-trin + verifikation: `docs/runbooks/supabase-disable-signup.md` | Enhver kan i dag oprette en konto og straks få en aktiv montør-session. Ingen tegn på misbrug (ingen nye konti siden maj) |
 | P2 | Migration: `REVOKE UPDATE ON profiles FROM authenticated; GRANT UPDATE (full_name, phone, department, notification_preferences, updated_at) ON profiles TO authenticated;` (kolonnenavne tjekkes i prod først) | App'en skriver nu kun de felter, men via direkte REST kan en bruger stadig ændre fx sin profil-e-mail og avatar-sti (læk lukket i app'en, men bør lukkes i databasen) |
