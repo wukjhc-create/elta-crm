@@ -22,6 +22,7 @@ import type { ActionResult } from '@/types/common.types'
 import type { ServiceCaseStatus } from '@/types/service-cases.types'
 import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { netInvoicedExVat, isIssuedActiveInvoice, type InvoiceAmountRow } from '@/lib/invoices/net-invoiced'
 
 export interface ServiceCaseEconomy {
   case_id: string
@@ -335,11 +336,12 @@ export async function getServiceCaseEconomy(
       invoice_type: string | null
       voided_at: string | null
     }>
-    let invoiced_total = 0
+    // Sags-review: før summeret over ALLE fakturaer (kladder, annullerede, kreditnotaer som +) → "Faktureret"/"Rest at
+    // fakturere" forkert (60k + kredit 60k + 40k viste 160k). Nu netto udstedt ekskl. moms (som projektøkonomien).
+    const invoiced_total = netInvoicedExVat(invRows)
     let invoiced_paid = 0
     for (const i of invRows) {
-      invoiced_total += Number(i.total_amount ?? 0)
-      invoiced_paid += Number(i.amount_paid ?? 0)
+      if (isIssuedActiveInvoice(i) && i.invoice_type !== 'credit') invoiced_paid += Number(i.amount_paid ?? 0)
     }
     const has_invoice_data = invRows.length > 0
 
@@ -594,7 +596,7 @@ export async function getServiceCaseBillingStatus(
           fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data })),
       supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
-      supabase.from('invoices').select('total_amount').eq('case_id', caseId),
+      supabase.from('invoices').select('total_amount, status, invoice_type, voided_at').eq('case_id', caseId),
     ])
 
     const tl = (tlRes.data ?? []) as Array<{ end_time: string | null; sale_amount: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
@@ -624,8 +626,8 @@ export async function getServiceCaseBillingStatus(
     else if (unbilled > 0) status = 'ready_to_bill'
     else status = 'fully_billed'
 
-    const invoiced_total = ((invRes.data ?? []) as Array<{ total_amount: number | string | null }>)
-      .reduce((s, i) => s + Number(i.total_amount ?? 0), 0)
+    // sags-review: netto udstedt ekskl. moms (før alle fakturaer inkl. kladder/annullerede/kreditnotaer)
+    const invoiced_total = netInvoicedExVat((invRes.data ?? []) as InvoiceAmountRow[])
     const refSum = sag.revised_sum != null ? Number(sag.revised_sum)
       : sag.contract_sum != null ? Number(sag.contract_sum) : null
 
@@ -869,11 +871,14 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
     }
 
     // Udstedte, ikke-voided fakturaer (cost-free felter).
-    const { data: invs } = await supabase
+    // sags-review: side for side (før højst 1.000 fakturaer → totaler for lave)
+    const invs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
       .from('invoices')
-      .select('case_id, final_amount, amount_paid, status, invoice_type, voided_at, currency')
+      .select('id, case_id, final_amount, amount_paid, status, invoice_type, voided_at, currency')
       .in('status', ['sent', 'paid'])
       .is('voided_at', null)
+      .order('id')
+      .range(from, to))
 
     const agg = new Map<string, { invoiced: number; credited: number; paid: number }>()
     let currency = 'DKK'
@@ -968,11 +973,14 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
     const { caseMatchesBillingFilter } = await import('@/lib/invoices/case-billing-status')
 
     // 1) Udstedte, ikke-voided fakturaer (cost-free) → aggreger pr. sag.
-    const { data: invs } = await supabase
+    // sags-review: side for side (før højst 1.000 fakturaer → totaler for lave)
+    const invs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
       .from('invoices')
-      .select('case_id, final_amount, amount_paid, status, invoice_type, voided_at')
+      .select('id, case_id, final_amount, amount_paid, status, invoice_type, voided_at')
       .in('status', ['sent', 'paid'])
       .is('voided_at', null)
+      .order('id')
+      .range(from, to))
 
     const agg = new Map<string, { invoiced: number; credited: number; paid: number; count: number }>()
     for (const r of (invs ?? []) as Array<{ case_id: string | null; final_amount: number | string | null; amount_paid: number | string | null; invoice_type: string | null }>) {

@@ -729,6 +729,66 @@ async function main() {
     log(JSON.stringify(r))
     return
   }
+  if (SUB === 'export-probe') {
+    // Staging (read-only): virker lead-eksportens select (alias description:notes + profil-join)?
+    const { data, error } = await admin.from('leads')
+      .select('id, company_name, contact_person, email, phone, status, source, value, probability, description:notes, assigned_to, created_at')
+      .order('created_at', { ascending: false }).order('id').range(0, 1)
+    log(JSON.stringify({ ok: !error, rows: data?.length ?? null, error: error?.message ?? null, code: (error as { code?: string } | null)?.code ?? null }))
+    // øvrige eksporters select (samme strenge som src/lib/actions/export.ts)
+    const others: Array<[string, string]> = [
+      ['offers', 'offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, final_amount, valid_until, notes, created_at'],
+      ['projects', 'project_number, name, customer:customers(company_name, customer_number), status, priority, start_date, end_date, estimated_hours, actual_hours, budget, actual_cost, description, created_at'],
+      ['calculations', 'name, calculation_type, customer:customers(company_name, customer_number), is_template, total_amount:subtotal, final_amount, created_by_profile:profiles!created_by(full_name), created_at'],
+    ]
+    for (const [t, sel] of others) {
+      const r = await admin.from(t).select(sel).range(0, 0)
+      log(`${t}: ${r.error ? `FEJL ${r.error.message}` : 'ok'}`)
+    }
+    return
+  }
+  if (SUB === 'auth-probe') {
+    // Staging: svarer Auth-admin-API'et? Kun status/fejlnavn — ingen hemmeligheder, ingen oprettelse.
+    const t0 = Date.now()
+    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1 })
+    const e = error as { status?: number; name?: string; message?: string; code?: string } | null
+    log(JSON.stringify({ ms: Date.now() - t0, ok: !error, users: data?.users?.length ?? null, status: e?.status ?? null, name: e?.name ?? null, code: e?.code ?? null, message: e?.message?.slice(0, 120) ?? null }))
+    if (process.argv[3] === '--create') {
+      // opret + slet straks én harness-bruger (som ui-e2e gør) og vis fejlstatus
+      const t1 = Date.now()
+      const r = await admin.auth.admin.createUser({ email: `probe-${Date.now()}@harness.test`, password: `Pr!${Math.random().toString(36).slice(2)}A9`, email_confirm: true })
+      const ce = r.error as { status?: number; name?: string; message?: string; code?: string } | null
+      log(JSON.stringify({ create_ms: Date.now() - t1, ok: !r.error, status: ce?.status ?? null, name: ce?.name ?? null, code: ce?.code ?? null, message: ce?.message?.slice(0, 160) ?? null }))
+      if (r.data?.user?.id) await admin.auth.admin.deleteUser(r.data.user.id)
+    }
+    return
+  }
+  if (SUB === 'db-activity') {
+    // Staging (read-only): langvarige forespørgsler/låse — kun tilstand, varighed og forespørgslens første 80 tegn
+    const rows = await stagingSql(`SELECT pid, state, wait_event_type, wait_event, usename, application_name,
+      extract(epoch FROM now() - coalesce(xact_start, query_start))::int sek, left(regexp_replace(query, '\\s+', ' ', 'g'), 80) q
+      FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state <> 'idle'
+      ORDER BY sek DESC NULLS LAST LIMIT 15`)
+    for (const r of rows) log(`${String(r.sek).padStart(6)}s  ${r.state}  ${r.wait_event_type ?? ''}/${r.wait_event ?? ''}  ${r.usename}  ${r.application_name}  ${r.q}`)
+    const [l] = await stagingSql(`SELECT count(*)::int blokerede FROM pg_locks WHERE NOT granted`)
+    log(`ventende låse: ${l.blokerede}`)
+    return
+  }
+  if (SUB === 'auth-stats') {
+    // Staging (read-only): antal auth-brugere — harness-brugere (@harness.test) pr. dag de seneste 7 dage + i alt
+    const [t] = await stagingSql(`SELECT count(*)::int alle, count(*) FILTER (WHERE email ILIKE '%@harness.test')::int harness,
+      count(*) FILTER (WHERE email ILIKE '%@harness.test' AND created_at > now() - interval '1 day')::int harness_24t FROM auth.users`)
+    log(JSON.stringify(t))
+    return
+  }
+  if (SUB === 'harness-mails') {
+    // Staging (read-only): harness-mails (afsender @harness.test) fordelt på emne-præfiks + ældste. NB: ~5.500
+    // "[HARNESS_SYNTHETIC] Forespørgsel …" over et år er et bevidst volumen-fixture — slettes ikke.
+    const rows = await stagingSql(`SELECT left(regexp_replace(coalesce(subject, ''), '[0-9].*$', ''), 40) praefiks, count(*)::int n,
+      min(received_at)::date aeldste FROM incoming_emails WHERE sender_email ILIKE '%@harness.test' GROUP BY 1 ORDER BY 2 DESC LIMIT 15`)
+    for (const r of rows) log(`${String(r.n).padStart(5)}  ${r.aeldste}  ${r.praefiks}`)
+    return
+  }
   if (SUB === 'harness-portal') {
     // Staging: ulæste portal-kundebeskeder fordelt på harness-kunder vs. øvrige; `--ryd` sletter KUN beskeder på
     // [HARNESS]-kunder (efterladt af afbrudte kørsler — fylder cockpittet og pilot-health på staging).

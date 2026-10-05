@@ -47,3 +47,19 @@ App'en skjuler felterne, men databasen gør ikke. Forslag: ét samlet migrations
 
 M2/M3/M4 (time_logs/arbejdsordre-triggere, sats-tjek), L2 (`get_customer_product_price` bruger `IF rec IS NOT NULL`),
 T2/B7 (00190). Alle med vist SQL før kørsel, staging først, pre/post-tjek som 00185.
+
+## 5. Data-sikring (migration)
+
+| # | Problem | Forslag |
+|---|---|---|
+| S1 | `customers.created_by` er ON DELETE CASCADE (verificeret i prod) → sletter man en tidligere medarbejders bruger (fx i Supabase), forsvinder alle de kunder vedkommende oprettede — og via kaskaden deres tilbud og underskrifter | SET NULL |
+| S2 | `offers.customer_id` er ON DELETE CASCADE (app'en spærrer nu sletning af kunder med tilbud/fakturaer/sager, men databasen gør ikke) | RESTRICT — S1+S2 klar som 00191 på branch `fk-delete-safety` |
+
+## 6. Automatik/AI/agent
+
+| # | Spørgsmål | Anbefaling |
+|---|---|---|
+| A1 | Agenternes dry_run-kørsler kan i dag godkendes og udføres (bruges af harness til at teste udførelse; i prod oprettes ingen) | dry_run = kan aldrig udføres; harness tester med separat test-flag |
+| A2 | Mail-AI'en tolker citerede svar som videresendte | Kun Fwd/VS-emne eller "Videresendt"-separator |
+| A3 | AI-dagsbudget tæller ikke atomisk og tillader kald hvis tælleren ikke kan læses | Atomisk tæller + pr. bruger-loft |
+| A4 | Prisadvarsels-cron skriver til `system_alerts` (findes ikke i prod); læringscron gør intet | Afklares med D27 |
