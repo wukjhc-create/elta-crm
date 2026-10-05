@@ -731,6 +731,91 @@ async function main() {
     log(JSON.stringify(r))
     return
   }
+  if (SUB === 'cost-columns-check') {
+    // STAGING: 00192 verificeret med RIGTIGE rolle-sessioner (persona-login via Auth). Forventet efter migrationen:
+    //  - ingen persona kan læse kost-/løn-kolonnerne direkte (42501), ikke-kost-kolonner virker uændret
+    //  - work_order_profit: kun admin/serviceleder/bogholderi ser rækker
+    //  - calculate_work_order_profit kan ikke kaldes af brugere
+    //  - en bruger kan ikke selv PATCH'e profiles.email / avatar_storage_path (men full_name virker)
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
+    const res: Array<[string, boolean, string]> = []
+    const COST: Array<[string, string, string]> = [
+      ['offer_line_items', 'cost_price, supplier_cost_price_at_creation, supplier_margin_applied, margin_percentage', 'id, description, unit_price, total'],
+      ['supplier_products', 'cost_price, margin_percentage', 'id, supplier_sku, list_price'],
+      ['time_logs', 'cost_amount, cost_rate_snapshot', 'id, hours, sale_amount'],
+    ]
+    for (const [role, cl] of personas) {
+      for (const [t, costCols, publicCols] of COST) {
+        for (const col of costCols.split(', ')) {
+          const { error } = await cl.from(t).select(col).limit(1)
+          res.push([`${role} ${t}.${col} nægtet`, !!error && /permission denied/i.test(error.message), error ? error.code ?? '' : 'LÆSBAR'])
+        }
+        const ok = await cl.from(t).select(publicCols).limit(1)
+        res.push([`${role} ${t} ikke-kost læsbar`, !ok.error, ok.error?.message ?? ''])
+      }
+      const rpc = await cl.rpc('calculate_work_order_profit', { p_work_order_id: '00000000-0000-0000-0000-000000000000' })
+      res.push([`${role} calculate_work_order_profit nægtet`, !!rpc.error && /permission denied/i.test(rpc.error.message), rpc.error?.code ?? 'KALDBAR'])
+    }
+    // work_order_profit: seed én række (staging er tom), tjek synlighed pr. rolle, ryd op
+    const wo = (await stagingSql(`SELECT id FROM work_orders LIMIT 1`))[0]
+    let profitId: string | null = null
+    if (wo) {
+      const ins = await admin.from('work_order_profit').insert({ work_order_id: wo.id, revenue: 1000, labor_cost: 400, material_cost: 100, total_cost: 500, profit: 500, margin_percentage: 50, source: 'manual' }).select('id').single()
+      profitId = (ins.data as { id?: string } | null)?.id ?? null
+      if (!profitId) res.push(['seed work_order_profit', false, ins.error?.message ?? ''])
+    }
+    if (profitId) {
+      for (const [role, cl] of personas) {
+        const { data } = await cl.from('work_order_profit').select('id').eq('id', profitId)
+        const sees = (data ?? []).length > 0
+        const shouldSee = ['admin', 'serviceleder', 'bogholderi'].includes(role)
+        res.push([`${role} work_order_profit ${shouldSee ? 'synlig' : 'skjult'}`, sees === shouldSee, sees ? 'ser' : 'ser ikke'])
+      }
+      await admin.from('work_order_profit').delete().eq('id', profitId)
+    }
+    // P2: egen profil — e-mail/avatar-sti må ikke kunne sættes direkte; navn må
+    for (const [role, cl] of personas) {
+      const { data: me } = await cl.auth.getUser()
+      const uid = me.user?.id
+      if (!uid) continue
+      const before = (await stagingSql(`SELECT email, avatar_storage_path, full_name FROM profiles WHERE id = '${uid}'`))[0]
+      const e1 = await cl.from('profiles').update({ email: `x-${Date.now()}@harness.test` }).eq('id', uid)
+      const e2 = await cl.from('profiles').update({ avatar_storage_path: 'customer-documents/x/y.pdf' }).eq('id', uid)
+      const n1 = await cl.from('profiles').update({ full_name: before?.full_name ?? 'Harness' }).eq('id', uid)
+      const after = (await stagingSql(`SELECT email, avatar_storage_path FROM profiles WHERE id = '${uid}'`))[0]
+      res.push([`${role} kan ikke sætte egen profil-e-mail/avatar-sti`, after?.email === before?.email && after?.avatar_storage_path === before?.avatar_storage_path, `${e1.error?.code ?? 'ok'}/${e2.error?.code ?? 'ok'}`])
+      res.push([`${role} kan opdatere eget navn`, !n1.error, n1.error?.message ?? ''])
+      if (after?.email !== before?.email || after?.avatar_storage_path !== before?.avatar_storage_path) {
+        await admin.from('profiles').update({ email: before?.email ?? null, avatar_storage_path: before?.avatar_storage_path ?? null }).eq('id', uid)
+      }
+    }
+    for (const [k, v, note] of res) log(`${v ? 'PASS' : 'FAIL'}  ${k}${note ? `  (${note})` : ''}`)
+    const bad = res.filter(([, v]) => !v).length
+    log(bad ? `❌ ${bad} af ${res.length} ikke som forventet` : `✅ alle ${res.length} som forventet`)
+    process.exitCode = bad ? 2 : 0
+    return
+  }
+  if (SUB === 'table-policies') {
+    // Staging (read-only): SELECT-policies + rettigheder for én tabel
+    const t = String(process.argv[3] || '')
+    if (!/^[a-z_0-9]+$/.test(t)) { log('brug: table-policies <tabel>'); process.exit(2) }
+    const pols = await stagingSql(`SELECT policyname, cmd, roles::text, left(qual, 160) q FROM pg_policies WHERE schemaname = 'public' AND tablename = '${t}' ORDER BY cmd`)
+    for (const p of pols) log(`${p.cmd.padEnd(7)} ${p.policyname}  roles=${p.roles}  USING ${p.q}`)
+    const [g] = await stagingSql(`SELECT has_table_privilege('authenticated', 'public.${t}', 'SELECT') auth_select, has_table_privilege('anon', 'public.${t}', 'SELECT') anon_select`)
+    log(JSON.stringify(g))
+    return
+  }
+  if (SUB === 'cron-log-volume') {
+    // Staging (read-only): hvor mange cron-logrækker ligger i Pilot Healths 9-dages vindue, og hvor lang tid tager et opslag
+    const [c] = await stagingSql(`SELECT count(*)::int n FROM system_health_log WHERE service = 'cron' AND created_at > now() - interval '9 days'`)
+    const t0 = Date.now()
+    const { error } = await admin.from('system_health_log').select('id, status, message, metadata, created_at')
+      .eq('service', 'cron').gte('created_at', new Date(Date.now() - 9 * 86_400_000).toISOString())
+      .order('created_at', { ascending: false }).order('id').range(0, 999)
+    log(JSON.stringify({ cron_rows_9d: c.n, first_page_ms: Date.now() - t0, error: error?.message ?? null }))
+    return
+  }
   if (SUB === 'pilot-snapshot') {
     // Staging (read-only): Pilot Health-snapshot som siden bygger den — sektioner, niveau og antal punkter (inkl. cron)
     const { collectPilotHealthSnapshot } = await import('../../src/lib/ops/pilot-health')

@@ -9,6 +9,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // =====================================================
 // Types
@@ -66,7 +67,8 @@ export class SupplierFallbackService {
    */
   async getCachedPrice(supplierProductId: string): Promise<CachedPrice | null> {
     try {
-      const supabase = await createClient()
+      // 00192: kostkolonner — admin-klient (baggrundsservice; supplier_product_cache/supplier_products er kostdata)
+      const supabase = createAdminClient()
 
       // First try the dedicated cache table
       const { data: cache } = await supabase
@@ -131,7 +133,8 @@ export class SupplierFallbackService {
     const result = new Map<string, CachedPrice>()
 
     try {
-      const supabase = await createClient()
+      // 00192: kostkolonner — admin-klient (baggrundsservice; supplier_product_cache/supplier_products er kostdata)
+      const supabase = createAdminClient()
 
       // Try cache table first
       const { data: cacheData } = await supabase

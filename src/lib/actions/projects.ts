@@ -739,7 +739,13 @@ export async function createProjectFromOffer(
   offerFinalAmount: number
 ): Promise<ActionResult<Project>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // 00192/RBAC: før uden tilladelsestjek — samme gate som createProject (projects.edit)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('projects.edit')) {
+      return { success: false, error: 'Manglende tilladelse: projects.edit' }
+    }
+    validateUUID(offerId, 'tilbud ID')
+    validateUUID(customerId, 'kunde ID')
 
     // Generate project number
     const projectNumber = await generateProjectNumber()
@@ -767,9 +773,10 @@ export async function createProjectFromOffer(
     }
 
     // Load offer line items to build detailed description and tasks
+    // 00192: kun offentlige linjekolonner (cost_price blev ikke brugt)
     const { data: lineItems } = await supabase
       .from('offer_line_items')
-      .select('description, quantity, unit, unit_price, total, cost_price, section')
+      .select('description, quantity, unit, unit_price, total, section')
       .eq('offer_id', offerId)
       .order('position', { ascending: true })
 

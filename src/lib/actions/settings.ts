@@ -21,6 +21,8 @@ import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferenc
 import { logger } from '@/lib/utils/logger'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
+import { isValidRole, lastAdminBlock } from '@/lib/auth/role-guard'
+import { isOwnAvatarPath } from '@/lib/auth/avatar-path'
 import {
   parseInvoiceEmailConfig,
   type InvoiceEmailConfig,
@@ -636,7 +638,7 @@ export async function getProfile(): Promise<ActionResult<Profile>> {
     // Phase C: lazy-refresh avatar_url fra storage_path (source of truth),
     // saa den virker uanset om den gemte cache-URL er udloebet.
     const profile = data as Profile
-    if (profile.avatar_storage_path) {
+    if (profile.avatar_storage_path && isOwnAvatarPath(profile.avatar_storage_path, profile.id)) {
       profile.avatar_url =
         (await getStorageSignedUrlOrNull('attachments', profile.avatar_storage_path, SIGNED_URL_TTL.SHORT)) ??
         profile.avatar_url
@@ -658,8 +660,12 @@ export async function updateProfile(
 
     const { data, error } = await supabase
       .from('profiles')
+      // Auth-review (HØJ): før blev HELE klient-objektet skrevet (fx avatar_storage_path = en kundes fuldmagt-sti →
+      // getProfile signerede den med admin-klienten; email → kunne styre "sæt kode"-links). Kun disse felter.
       .update({
-        ...input,
+        ...(input.full_name !== undefined ? { full_name: input.full_name } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone } : {}),
+        ...(input.department !== undefined ? { department: input.department } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId)
@@ -714,7 +720,8 @@ export async function uploadProfileAvatar(
       currentProfile?.avatar_storage_path ||
       currentProfile?.avatar_url?.split('/attachments/')[1] ||
       null
-    if (oldAvatarPath) {
+    // kun brugerens egne avatar-filer slettes (stien kunne før pege på vilkårlige filer)
+    if (oldAvatarPath && isOwnAvatarPath(oldAvatarPath, userId)) {
       await supabase.storage.from('attachments').remove([oldAvatarPath])
     }
 
@@ -733,7 +740,8 @@ export async function uploadProfileAvatar(
     // cache/fallback (1 år) — laesestierne lazy-refresher fra storage_path.
     const signedUrl = await getStorageSignedUrlOrNull('attachments', filePath, SIGNED_URL_TTL.YEAR)
 
-    const { error: updateError } = await supabase
+    // 00192 (P2): brugere må ikke selv skrive avatar-felterne (kolonne-rettigheder) — stien er bygget her af eget id
+    const { error: updateError } = await createAdminClient()
       .from('profiles')
       .update({
         avatar_url: signedUrl ?? '',
@@ -767,11 +775,12 @@ export async function deleteProfileAvatar(): Promise<ActionResult<void>> {
       currentProfile?.avatar_storage_path ||
       currentProfile?.avatar_url?.split('/attachments/')[1] ||
       null
-    if (filePath) {
+    if (filePath && isOwnAvatarPath(filePath, userId)) {
       await supabase.storage.from('attachments').remove([filePath])
     }
 
-    const { error: updateError } = await supabase
+    // 00192 (P2): avatar-felterne skrives kun server-side
+    const { error: updateError } = await createAdminClient()
       .from('profiles')
       .update({ avatar_url: null, avatar_storage_path: null, updated_at: new Date().toISOString() })
       .eq('id', userId)
@@ -1019,7 +1028,10 @@ export async function getTeamMembers(): Promise<ActionResult<Profile[]>> {
     const rows = data ?? []
     const freshAvatars = await getStorageSignedUrls(
       'attachments',
-      rows.map((p) => (p.avatar_storage_path as string | null) || ''),
+      rows.map((p) => {
+        const path = (p.avatar_storage_path as string | null) || ''
+        return isOwnAvatarPath(path, p.id as string) ? path : ''
+      }),
       SIGNED_URL_TTL.SHORT,
     )
 
@@ -1045,6 +1057,14 @@ export async function updateTeamMember(
     const { hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('users.edit')) {
       return { success: false, error: 'Manglende tilladelse: users.edit' }
+    }
+
+    // Auth-review: kun kendte roller, og den sidste aktive admin kan ikke degraderes/deaktiveres
+    if (input.role !== undefined && !isValidRole(input.role)) return { success: false, error: 'Ukendt rolle' }
+    {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const block = await lastAdminBlock(createAdminClient(), memberId, { role: input.role, isActive: input.is_active })
+      if (block) return { success: false, error: block }
     }
 
     // Sprint Ø2.2: is_active håndhæves via central helper (sætter flag OG

@@ -7,6 +7,7 @@
 
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { CredentialInput } from '@/lib/actions/credentials'
 import { loadDecryptedSupplierCredentials } from '@/lib/services/supplier-credential-secrets'
 import { SUPPLIER_API_CONFIG } from '@/lib/constants'
@@ -300,7 +301,6 @@ export abstract class BaseSupplierAPIClient {
     try {
       // P-009: systemdata fra leverandoer-API skrives som service-role (actionen er allerede gatet); RLS laaser
       // supplier_products/supplier_product_cache til admin/service-role.
-      const { createAdminClient } = await import('@/lib/supabase/admin')
       const supabase = createAdminClient()
 
       // Get supplier product IDs for these SKUs
@@ -660,7 +660,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
       const prices = await this.fetchPrices(skus)
 
       // For each SKU, build a ProductPrice from DB product info + live price
-      const supabase = await createClient()
+      const supabase = createAdminClient() // 00192: katalog-/kostopslag — admin-klient (kaldes også fra cron uden session)
       const { data: products } = await supabase
         .from('supplier_products')
         .select('supplier_sku, supplier_name, unit, is_available')
@@ -700,7 +700,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
    */
   private async getCachedProducts(params: ProductSearchParams): Promise<ProductSearchResult> {
     try {
-      const supabase = await createClient()
+      const supabase = createAdminClient() // 00192: kostkolonner — admin-klient (cache-fallback; kost strippes af kalderens D44-gate)
       let query = supabase
         .from('supplier_products')
         .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available')
@@ -744,7 +744,7 @@ export class AOAPIClient extends BaseSupplierAPIClient {
    */
   private async getCachedProductPrice(sku: string): Promise<ProductPrice | null> {
     try {
-      const supabase = await createClient()
+      const supabase = createAdminClient() // 00192: kostkolonner — admin-klient (cache-fallback; kost strippes af kalderens D44-gate)
       const { data } = await supabase
         .from('supplier_products')
         .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available')
@@ -799,7 +799,7 @@ export class LMClassicClient extends BaseSupplierAPIClient {
 
   async testConnection(): Promise<{ success: boolean; message: string; error?: string }> {
     try {
-      const supabase = await createClient()
+      const supabase = createAdminClient() // 00192: admin-klient (kaldes også fra cron uden session)
 
       // Count products
       const { count } = await supabase
@@ -842,7 +842,7 @@ export class LMClassicClient extends BaseSupplierAPIClient {
 
   async searchProducts(params: ProductSearchParams): Promise<ProductSearchResult> {
     try {
-      const supabase = await createClient()
+      const supabase = createAdminClient() // 00192: kostkolonner — admin-klient (kost strippes af kalderens D44-gate)
       const limit = params.limit || 50
       let query = supabase
         .from('supplier_products')
@@ -888,7 +888,7 @@ export class LMClassicClient extends BaseSupplierAPIClient {
 
   async getProductPrice(sku: string): Promise<ProductPrice | null> {
     try {
-      const supabase = await createClient()
+      const supabase = createAdminClient() // 00192: kostkolonner — admin-klient (kost strippes af kalderens D44-gate)
       const { data } = await supabase
         .from('supplier_products')
         .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available, lead_time_days')
@@ -920,7 +920,7 @@ export class LMClassicClient extends BaseSupplierAPIClient {
     if (skus.length === 0) return result
 
     try {
-      const supabase = await createClient()
+      const supabase = createAdminClient() // 00192: kostkolonner — admin-klient (kost strippes af kalderens D44-gate)
       const { data } = await supabase
         .from('supplier_products')
         .select('supplier_sku, supplier_name, cost_price, list_price, unit, is_available, lead_time_days')

@@ -23,6 +23,7 @@ import type { ServiceCaseStatus } from '@/types/service-cases.types'
 import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { netInvoicedExVat, isIssuedActiveInvoice, type InvoiceAmountRow } from '@/lib/invoices/net-invoiced'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface ServiceCaseEconomy {
   case_id: string
@@ -193,7 +194,8 @@ export async function getServiceCaseEconomy(
       woIds.length === 0
         ? Promise.resolve({ data: [] as Array<{ hours: number | null; end_time: string | null; cost_amount: number | null; sale_amount: number | null; billable: boolean | null; invoice_line_id: string | null; employee: { hourly_rate: number | null } | null }> })
         : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
-          fetchAllRows((f, t) => supabase
+          // 00192: kostkolonnen læses med admin-klienten bag economy.cost_prices-gaten ovenfor
+          fetchAllRows((f, t) => createAdminClient()
             .from('time_logs')
             .select('id, hours, end_time, cost_amount, sale_amount, billable, invoice_line_id, employee:employees(hourly_rate)')
             .in('work_order_id', woIds)

@@ -2,6 +2,7 @@
 
 import { SUPPLIER_SETTINGS_PUBLIC_COLUMNS } from '@/lib/services/supplier-settings-columns'
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { validateUUID } from '@/lib/validations/common'
 import { ImportEngine, decodeFileContent, detectColumnMappings, createImportResult, calculatePriceChange } from '@/lib/services/import-engine'
 import { AOImporter, AO_DEFAULT_CONFIG, AO_COLUMN_MAPPINGS } from '@/lib/services/importers/ao-importer'
@@ -263,7 +264,8 @@ export async function executeImport(
       const skus = Array.from(new Set(transformedRows.map((r) => r.parsed.sku).filter(Boolean)))
       const existingProducts: Array<{ id: string; supplier_sku: string; cost_price: number | null; list_price: number | null }> = []
       for (let k = 0; k < skus.length; k += 300) {
-        const { data: chunk, error: lookupError } = await supabase
+        // 00192: kostkolonner — admin-klient bag settings.suppliers
+        const { data: chunk, error: lookupError } = await createAdminClient()
           .from('supplier_products')
           .select('id, supplier_sku, cost_price, list_price')
           .eq('supplier_id', supplierId)

@@ -8,6 +8,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 
@@ -236,7 +237,8 @@ export async function triggerLemuSync(): Promise<ActionResult<{
     }
 
     // Load existing products for upsert
-    const { data: existingProducts } = await supabase
+    // 00192: kostkolonner — admin-klient bag settings.suppliers
+    const { data: existingProducts } = await createAdminClient()
       .from('supplier_products')
       .select('id, supplier_sku, cost_price, list_price')
       .eq('supplier_id', supplier.id)

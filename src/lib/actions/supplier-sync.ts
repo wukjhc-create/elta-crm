@@ -5,6 +5,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { SupplierAPIClientFactory, type ProductPrice } from '@/lib/services/supplier-api-client'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -127,7 +128,8 @@ export async function syncSupplierPrices(
 
         for (const [sku, price] of prices) {
           // Get existing product
-          const { data: existingProduct, error: productError } = await supabase
+          // 00192: kostkolonner — admin-klient bag settings.suppliers
+          const { data: existingProduct, error: productError } = await createAdminClient()
             .from('supplier_products')
             .select('id, cost_price, list_price')
             .eq('supplier_id', supplierId)

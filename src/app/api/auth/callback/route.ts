@@ -24,9 +24,11 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/reset-password`)
     }
 
-    // Handle custom next parameter
-    if (next) {
-      return NextResponse.redirect(`${origin}${next}`)
+    // Handle custom next parameter — kun en relativ sti på samme vært (auth-review: "@evil.com"/".evil.com"/"//evil"
+    // gav før et redirect til en anden vært)
+    if (next && /^\/(?![\/\\])/.test(next)) {
+      const target = new URL(next, origin)
+      if (target.origin === origin) return NextResponse.redirect(target.toString())
     }
   }
 

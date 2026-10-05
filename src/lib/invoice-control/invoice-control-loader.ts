@@ -18,7 +18,11 @@ export interface InvoiceControlResult { control: InvoiceControl; matches: Invoic
 
 type Client = { from: (t: string) => any }
 
-export async function loadInvoiceControl(client: Client, invoiceId: string): Promise<InvoiceControlResult | null> {
+/**
+ * 00192: supplier_products.cost_price er ikke læsbar for `authenticated` → katalogopslag (kostpriser) sker med
+ * `catalogClient` (kalderen giver admin-klienten bag sin gate); faktura og linjer læses fortsat med `client` (RLS).
+ */
+export async function loadInvoiceControl(client: Client, invoiceId: string, catalogClient: Client = client): Promise<InvoiceControlResult | null> {
   const { data: inv } = await client.from('incoming_invoices').select('id, supplier_id').eq('id', invoiceId).maybeSingle()
   if (!inv) return null
   const { data: rows } = await client.from('incoming_invoice_lines')
@@ -32,14 +36,14 @@ export async function loadInvoiceControl(client: Client, invoiceId: string): Pro
     for (let k = 0; k < codes.length; k += 200) {
       const chunk = codes.slice(k, k + 200)
       const [a, b] = await Promise.all([
-        client.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', inv.supplier_id).in('supplier_sku', chunk),
-        client.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', inv.supplier_id).in('ean', chunk),
+        catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', inv.supplier_id).in('supplier_sku', chunk),
+        catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').eq('supplier_id', inv.supplier_id).in('ean', chunk),
       ])
       products.push(...((a.data ?? []) as ProductRef[]), ...((b.data ?? []) as ProductRef[]))
     }
   }
   const storedIds = [...new Set(lines.map((l) => l.supplier_product_id).filter(Boolean) as string[])]
-  const stored = storedIds.length ? (((await client.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds)).data ?? []) as ProductRef[]) : []
+  const stored = storedIds.length ? (((await catalogClient.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds)).data ?? []) as ProductRef[]) : []
   const storedById = new Map(stored.map((p) => [p.id, p]))
   products = [...new Map(products.map((p) => [p.id, p])).values()]
 
