@@ -713,7 +713,7 @@ export async function getServiceCaseProjectEconomy(
     // Ét cost-free invoice-query (kun salgs-/status-felter).
     const { data: invs } = await supabase
       .from('invoices')
-      .select('id, invoice_number, final_amount, amount_paid, status, invoice_type, voided_at, currency, created_at')
+      .select('id, invoice_number, final_amount, total_amount, amount_paid, status, invoice_type, voided_at, currency, created_at')
       .eq('case_id', caseId)
       .order('created_at', { ascending: false })
 
@@ -763,7 +763,8 @@ export async function getServiceCaseProjectEconomy(
         net_invoiced: r2(netInvoiced),
         paid_total: r2(paid),
         outstanding_total: r2(outstanding),
-        remaining_to_invoice: refSum != null ? r2(refSum - netInvoiced) : null,
+        // rapport-review: kontraktsummen er ekskl. moms → rest beregnes mod netto faktureret EKSKL. moms (før inkl. moms)
+        remaining_to_invoice: refSum != null ? r2(refSum - netInvoicedExVat(rows as unknown as InvoiceAmountRow[])) : null,
         invoice_count: invoiceCount,
         voided_count: voidedCount,
         currency,

@@ -59,7 +59,7 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       .from('offers')
       .select(
         // Sprint 12A — laes parti-roller saa de kan kopieres til sagen.
-        'id, offer_number, title, description, scope, status, customer_id, final_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode'
+        'id, offer_number, title, description, scope, status, customer_id, final_amount, tax_amount, orderer_customer_id, end_customer_id, payer_customer_id, billing_mode'
       )
       .eq('id', offerId)
       .maybeSingle()
@@ -92,6 +92,13 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       .eq('offer_id', offerId)
     const offerBudget = deriveCaseBudgetFromOffer((offerLines ?? []) as never[])
 
+    // Rapport-review (HØJ): kontraktsummen er EKSKL. moms i resten af systemet (rate-/slutfakturaer lægger moms på,
+    // sagsøkonomien sammenligner med fakturering ekskl. moms). Før blev tilbuddets beløb INKL. moms kopieret → en
+    // 100 %-rate fakturerede 156.250 for et tilbud på 125.000.
+    const contractSumExVat = offer.final_amount != null
+      ? Math.round((Number(offer.final_amount) - Number(offer.tax_amount ?? 0)) * 100) / 100
+      : null
+
     const insertPayload = {
       source_offer_id: offer.id as string,
       customer_id: customerId,
@@ -105,7 +112,7 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
       billing_mode: (offer.billing_mode as string | null) ?? 'same_as_customer',
       title: (offer.title as string) || 'Sag fra tilbud',
       project_name: (offer.title as string) || null,
-      contract_sum: (offer.final_amount as number | null) ?? null,
+      contract_sum: contractSumExVat,
       planned_hours: offerBudget.plannedHours,
       budget: offerBudget.budget,
       description,
@@ -242,7 +249,7 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
         case_number: sag.case_number as string,
         created: true,
         audit: { offer_id: offer.id as string, offer_number: offerNumber, customer_id: customerId,
-          contract_sum: (offer.final_amount as number | null) ?? null, document_count: documentCount, startup_task_count: startupTaskCount },
+          contract_sum: contractSumExVat, document_count: documentCount, startup_task_count: startupTaskCount },
       },
     }
 }

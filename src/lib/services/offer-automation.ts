@@ -200,7 +200,9 @@ export class OfferAutomationEngine {
         discount_percentage: 0,
         total: row.total_sale,
         is_optional: row.is_optional,
-        cost_price: row.total_cost,
+        // rapport-review: offer_line_items.cost_price er PR. ENHED — før blev rækkens samlede kost gemt og ganget med
+        // antal igen i DB-beregningerne (antal 10, kost 1.000 → 10.000)
+        cost_price: Number(row.quantity) > 0 ? Math.round((Number(row.total_cost) / Number(row.quantity)) * 100) / 100 : null,
         notes: null,
       }))
 

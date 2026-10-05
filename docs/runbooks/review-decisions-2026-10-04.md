@@ -63,3 +63,20 @@ T2/B7 (00190). Alle med vist SQL før kørsel, staging først, pre/post-tjek som
 | A2 | Mail-AI'en tolker citerede svar som videresendte | Kun Fwd/VS-emne eller "Videresendt"-separator |
 | A3 | AI-dagsbudget tæller ikke atomisk og tillader kald hvis tælleren ikke kan læses | Atomisk tæller + pr. bruger-loft |
 | A4 | Prisadvarsels-cron skriver til `system_alerts` (findes ikke i prod); læringscron gør intet | Afklares med D27 |
+
+## 7. Rapporter/kalkulation
+
+| # | Spørgsmål | Anbefaling |
+|---|---|---|
+| R0 | 4 prod-sager har kontraktsum = tilbuddets beløb INKL. moms (rater på kontraktsum spærres nu med besked, nye sager får ekskl. moms) | Ret de 4 med SQL nedenfor (prod-data — kræver ja) |
+| R1 | Tilbud oprettet fra en kalkulation får en anden total end den viste (overhead/margin/overstyrede salgspriser kommer ikke på linjerne) | Byg linjerne fra motorens resultat og tjek sum = vist total |
+| R2 | Kalkulatorens timer koster med salgssatsen (495) — DB undervurderes | Kostsats (time_cost_basis) til kost, salgssats til pris |
+| R3 | "Omsætning" er inkl. moms i Rapporter, ekskl. moms i salgstragten og før rabat på dashboardet | Ekskl. moms efter rabat overalt |
+| R4 | Cockpittets forfaldne: antal = top-N, beløb uden delbetalinger | Tæl i DB; beløb løses af B1 (`invoice-review-b`) |
+
+R0-SQL (kør først som SELECT med samme WHERE; forventet 3 rækker — den 4. har 0 moms):
+```sql
+UPDATE public.service_cases s SET contract_sum = round(o.final_amount - o.tax_amount, 2), updated_at = now()
+FROM public.offers o
+WHERE o.converted_case_id = s.id AND s.contract_sum = o.final_amount AND coalesce(o.tax_amount, 0) > 0;
+```
