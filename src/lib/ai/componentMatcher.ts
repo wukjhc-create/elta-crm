@@ -10,6 +10,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CALC_DEFAULTS } from '@/lib/constants'
 import type {
   ProjectInterpretation,
@@ -336,7 +337,9 @@ async function fetchDatabaseComponents(): Promise<Map<string, ComponentMatch>> {
 
 async function fetchSupplierMaterials(names: string[]): Promise<Map<string, MaterialMatch>> {
   try {
-    const supabase = await createClient()
+    // 00192: kostkolonner — admin-klient: intern motor (kost bruges kun til aggregerede beregninger og
+    // returneres ikke rå); bruger-klienten kan ikke længere læse cost_price
+    const supabase = createAdminClient()
 
     // Search for materials in supplier products
     const { data: products } = await supabase

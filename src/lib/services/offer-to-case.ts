@@ -86,7 +86,10 @@ export async function convertOfferToCase(supabase: SupabaseLike, offerId: string
 
     // N26a: planlagte timer + internt kostbudget fra tilbudslinjerne (grundlag for efterkalkulation)
     const { deriveCaseBudgetFromOffer, offerBudgetNote } = await import('@/lib/cases/offer-budget')
-    const { data: offerLines } = await supabase
+    // 00192: kostkolonner — admin-klient: kostbudgettet beregnes serverinternt og skrives på sagen (returneres ikke);
+    // kalderen har gatet (cases.create / portal-accept). Tilbuddet er læst med kalderens klient ovenfor.
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { data: offerLines } = await createAdminClient()
       .from('offer_line_items')
       .select('quantity, unit, cost_price, supplier_cost_price_at_creation')
       .eq('offer_id', offerId)

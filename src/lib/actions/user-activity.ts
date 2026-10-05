@@ -3,6 +3,7 @@
 import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
 import { getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import type { ActionResult } from '@/types/common.types'
+import { isOwnAvatarPath } from '@/lib/auth/avatar-path'
 
 export interface UserActivityEntry {
   id: string
@@ -62,7 +63,8 @@ export async function getUserActivityList(): Promise<ActionResult<UserActivityEn
     const profileRows = profiles || []
     const freshAvatars = await getStorageSignedUrls(
       'attachments',
-      profileRows.map((p) => (p.avatar_storage_path as string | null) || ''),
+      // auth-review: kun brugerens egen avatar-sti signeres
+      profileRows.map((p) => (isOwnAvatarPath(p.avatar_storage_path as string | null, p.id as string) ? (p.avatar_storage_path as string) : '')),
       SIGNED_URL_TTL.SHORT,
     )
 

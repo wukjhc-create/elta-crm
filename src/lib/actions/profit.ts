@@ -8,6 +8,7 @@
  *   medarbejdere (aggregeret med service-role; ingen individuelle lønoplysninger forlader serveren).
  */
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { validateUUID } from '@/lib/validations/common'
 import { analyzeOfferProfit, isLabourUnit, type OfferProfitAnalysis } from '@/lib/profit/offer-analysis'
 import type { ActionResult } from '@/types/common.types'
@@ -51,7 +52,8 @@ export async function getOfferProfitAnalysis(offerId: string): Promise<ActionRes
 
     const { data: offer, error: offerErr } = await supabase.from('offers').select('id, discount_percentage').eq('id', offerId).maybeSingle()
     if (offerErr || !offer) return { success: false, error: 'Tilbud ikke fundet' }
-    const { data: items, error: itemsErr } = await supabase.from('offer_line_items')
+    // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
+    const { data: items, error: itemsErr } = await createAdminClient().from('offer_line_items')
       .select('description, quantity, unit, total, cost_price, supplier_cost_price_at_creation').eq('offer_id', offerId).order('position')
     if (itemsErr) return { success: false, error: 'Kunne ikke hente tilbudslinjer' }
 
@@ -79,7 +81,8 @@ export async function getCheaperAlternativesForOffer(offerId: string): Promise<A
     validateUUID(offerId, 'tilbud-ID')
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('offers.view.cost_prices')) return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
-    const { supabase } = ctx
+    // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
+    const supabase = createAdminClient()
     const { findCheaperAlternatives, normalizeEan } = await import('@/lib/pricing/supplier-compare')
 
     const { data: items } = await supabase.from('offer_line_items')
@@ -125,14 +128,16 @@ export async function fillMissingOfferLineCosts(offerId: string): Promise<Action
     const { data: offer } = await supabase.from('offers').select('id, status').eq('id', offerId).maybeSingle()
     if (!offer) return { success: false, error: 'Tilbud ikke fundet' }
     if (offer.status !== 'draft') return { success: false, error: 'Kun kladder kan opdateres' }
-    const { data: items, error } = await supabase.from('offer_line_items')
+    // 00192: kostkolonner — admin-klient bag offers.view.cost_prices (kun læsninger; opdateringen sker med bruger-klienten)
+    const admin = createAdminClient()
+    const { data: items, error } = await admin.from('offer_line_items')
       .select('id, unit, total, cost_price, supplier_cost_price_at_creation, supplier_product_id').eq('offer_id', offerId)
     if (error) return { success: false, error: 'Kunne ikke hente tilbudslinjer' }
     const missing = (items ?? []).filter((i) => Number(i.total ?? 0) > 0 && !(Number(i.cost_price ?? 0) > 0) && !(Number(i.supplier_cost_price_at_creation ?? 0) > 0))
     const spIds = Array.from(new Set(missing.map((i) => i.supplier_product_id as string | null).filter((x): x is string => !!x)))
     const spCost = new Map<string, number>()
     if (spIds.length) {
-      const { data: sps } = await supabase.from('supplier_products').select('id, cost_price').in('id', spIds)
+      const { data: sps } = await admin.from('supplier_products').select('id, cost_price').in('id', spIds)
       for (const p of sps ?? []) if (Number(p.cost_price ?? 0) > 0) spCost.set(p.id as string, Number(p.cost_price))
     }
     const hourly = missing.some((i) => isLabourUnit(i.unit as string | null)) ? await resolveHourlyCost(supabase) : { cost: null, source: '—' }

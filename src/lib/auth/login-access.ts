@@ -13,6 +13,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { lastAdminBlock } from '@/lib/auth/role-guard'
 
 // ~100 år = de facto permanent. Supabase forventer en Go-duration-streng.
 const PERMANENT_BAN = '876000h'
@@ -22,6 +23,12 @@ export async function setProfileLoginActive(
   active: boolean
 ): Promise<{ ok: boolean; error?: string }> {
   const admin = createAdminClient()
+
+  // Auth-review: den sidste aktive administrator kan ikke deaktiveres (gælder alle veje — team, medarbejder, login)
+  if (!active) {
+    const block = await lastAdminBlock(admin, profileId, { isActive: false })
+    if (block) return { ok: false, error: block }
+  }
 
   // 1) Auth-ban (hård håndhævelse på selve auth.users)
   const { error: banErr } = await admin.auth.admin.updateUserById(profileId, {
