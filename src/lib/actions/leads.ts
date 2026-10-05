@@ -323,6 +323,13 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
 
     const { id: leadId, ...updateData } = validated.data
 
+    // Kunde-review: redigeringsformularen sprang statusreglerne over (fx vundet/tabt → hvilken som helst status) —
+    // samme regel som updateLeadStatus
+    const newStatus = (updateData as { status?: LeadStatus }).status
+    if (oldLead && newStatus && newStatus !== oldLead.status && !isValidLeadTransition(oldLead.status as LeadStatus, newStatus)) {
+      return { success: false, error: `Status kan ikke ændres fra ${LEAD_STATUS_LABELS[oldLead.status as LeadStatus] ?? oldLead.status} til ${LEAD_STATUS_LABELS[newStatus] ?? newStatus}` }
+    }
+
     const { data, error } = await supabase
       .from('leads')
       .update(updateData)
@@ -634,7 +641,7 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
       return { success: false, error: 'Manglende tilladelse: customers.create + leads.edit' }
     }
     const { data: lead } = await supabase.from('leads')
-      .select('id, company_name, contact_person, email, phone, notes, custom_fields').eq('id', leadId).maybeSingle()
+      .select('id, company_name, contact_person, email, phone, notes, custom_fields, updated_at').eq('id', leadId).maybeSingle()
     if (!lead) return { success: false, error: 'Lead ikke fundet' }
     const cf = (lead.custom_fields ?? {}) as Record<string, unknown>
 
@@ -649,6 +656,12 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
     const company = String(lead.company_name ?? '').trim() || String(lead.contact_person ?? '').trim()
     const contact = String(lead.contact_person ?? '').trim() || company
     if (!company) return { success: false, error: 'Leadet mangler firma- eller kontaktnavn' }
+
+    // Kunde-review: dobbeltklik/to brugere samtidig oprettede to kunder (læs → tjek → indsæt uden lås). Optimistisk lås:
+    // kun den anmodning der "rører" leadet med den læste updated_at fortsætter.
+    const { data: claimed } = await supabase.from('leads').update({ updated_at: new Date().toISOString() })
+      .eq('id', leadId).eq('updated_at', lead.updated_at as string).select('id').maybeSingle()
+    if (!claimed) return { success: false, error: 'Leadet er netop ændret eller konverteres allerede — genindlæs siden' }
 
     // Dublet-værn: eksisterende kunde med samme mail
     const { data: same } = await supabase.from('customers').select('id').ilike('email', escapeLike(email)).limit(1).maybeSingle()

@@ -11,6 +11,9 @@ import { compareOfferToActual, type ActualMaterialInput, type OfferLineInput } f
 import { computeRealizedDb, type RealizedInvoiceInput } from '@/lib/cases/realized-db'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { lastMonths } from '@/lib/reports/sales-funnel'
 import {
   REJECTION_REASON_LABELS,
   type RejectionReasonCode,
@@ -133,9 +136,8 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       return { success: false, error: 'Manglende tilladelse: economy.view' }
     }
 
-    const monthStart = new Date()
-    monthStart.setDate(1)
-    monthStart.setHours(0, 0, 0, 0)
+    // rapport-review: dansk månedsstart (før serverens lokale tid = UTC)
+    const monthStartIso = copenhagenLocalToIso(`${copenhagenParts(new Date()).date.slice(0, 7)}-01`, '00:00')
 
     // Execute all queries in parallel
     const [
@@ -154,7 +156,10 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'rejected').eq('is_proposal', false),
       supabase.from('offers').select('final_amount').not('status', 'eq', 'draft').eq('is_proposal', false),
       supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-      supabase.from('time_entries').select('hours, billable').gte('date', monthStart.toISOString()),
+      // rapport-review: time_entries er den gamle model (≈ 0 i prod) — timer registreres i time_logs
+      fetchAllRows<{ hours: number | string | null; billable: boolean | null }>((from, to) => supabase.from('time_logs')
+        .select('id, hours, billable').not('end_time', 'is', null).gte('start_time', monthStartIso).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
       supabase.from('offers').select('customer_id, final_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted').eq('is_proposal', false),
     ])
 
@@ -174,9 +179,9 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
 
     // Hours
     const monthEntries = monthEntriesResult.data || []
-    const total_hours_this_month = monthEntries.reduce((sum, e) => sum + (e.hours || 0), 0)
+    const total_hours_this_month = monthEntries.reduce((sum, e) => sum + (Number(e.hours) || 0), 0)
     const billable_hours_this_month = monthEntries.reduce(
-      (sum, e) => sum + (e.billable ? e.hours || 0 : 0),
+      (sum, e) => sum + (e.billable !== false ? Number(e.hours) || 0 : 0),
       0,
     )
 
@@ -237,8 +242,9 @@ export async function getRevenueByPeriod(
       return { success: false, error: 'Manglende tilladelse: economy.view' }
     }
 
-    const now = new Date()
-    const rangeStart = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
+    // rapport-review: danske kalendermåneder (før serverens UTC — accept kl. 00:30 d. 1. talte i forrige måned)
+    const monthKeys = lastMonths(new Date(), months)
+    const rangeStartIso = copenhagenLocalToIso(`${monthKeys[0]}-01`, '00:00')
 
     // Fetch all relevant offers in a single query instead of 2*N queries
     const [acceptedResult, sentResult] = await Promise.all([
@@ -247,23 +253,21 @@ export async function getRevenueByPeriod(
         .select('final_amount, accepted_at')
         .eq('status', 'accepted')
         .eq('is_proposal', false)
-        .gte('accepted_at', rangeStart.toISOString()),
+        .gte('accepted_at', rangeStartIso),
       supabase
         .from('offers')
         .select('final_amount, created_at')
         .in('status', ['sent', 'viewed'])
         .eq('is_proposal', false)
-        .gte('created_at', rangeStart.toISOString()),
+        .gte('created_at', rangeStartIso),
     ])
 
     // Build period map
     const periodMap = new Map<string, RevenueByPeriod>()
     const periodKeys: string[] = []
 
-    for (let i = months - 1; i >= 0; i--) {
-      const periodStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const label = periodStart.toLocaleDateString('da-DK', { year: 'numeric', month: 'short' })
-      const key = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, '0')}`
+    for (const key of monthKeys) {
+      const label = new Date(`${key}-15T12:00:00Z`).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', year: 'numeric', month: 'short' })
       periodKeys.push(key)
       periodMap.set(key, {
         period: label,
@@ -277,8 +281,7 @@ export async function getRevenueByPeriod(
     // Group accepted offers by month
     for (const offer of acceptedResult.data || []) {
       if (!offer.accepted_at) continue
-      const d = new Date(offer.accepted_at)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const key = copenhagenParts(offer.accepted_at).date.slice(0, 7)
       const period = periodMap.get(key)
       if (period) {
         period.accepted_count++
@@ -289,8 +292,7 @@ export async function getRevenueByPeriod(
     // Group sent offers by month
     for (const offer of sentResult.data || []) {
       if (!offer.created_at) continue
-      const d = new Date(offer.created_at)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const key = copenhagenParts(offer.created_at).date.slice(0, 7)
       const period = periodMap.get(key)
       if (period) {
         period.sent_count++
@@ -395,11 +397,14 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     }
 
     const caseIds = cases.map((c) => c.id as string)
-    const { data: logs } = await supabase
+    // rapport-review: side for side (> 1.000 timeregistreringer på 50 sager blev skåret af → realiseret DB for høj)
+    const logs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
       .from('time_logs')
-      .select('hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
+      .select('id, hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
       .in('work_order.case_id', caseIds)
       .not('end_time', 'is', null)
+      .order('id')
+      .range(from, to))
 
     const actual = new Map<string, number>()
     const billable = new Map<string, number>()
@@ -419,7 +424,7 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
       offerIds.length
         ? supabase.from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-      supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds),
+      fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
       supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds),
       supabase.from('case_other_costs').select('case_id, total_cost').in('case_id', caseIds),
     ])
@@ -432,7 +437,7 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
       linesByOffer.set(l.offer_id, [...(linesByOffer.get(l.offer_id) ?? []), l])
     }
     const matsByCase = new Map<string, ActualMaterialInput[]>()
-    for (const m of (matsRes.data ?? []) as Array<ActualMaterialInput & { case_id: string }>) {
+    for (const m of (matsRes.data ?? []) as unknown as Array<ActualMaterialInput & { case_id: string }>) {
       matsByCase.set(m.case_id, [...(matsByCase.get(m.case_id) ?? []), m])
     }
     const r1 = (n: number) => Math.round(n * 10) / 10

@@ -15,7 +15,7 @@ Prod-tal er read-only optællinger; ingen af punkterne har ramt kunder i et omfa
 
 ## 2. RLS — data læsbar via direkte API for roller, der ikke må se den (S1 latent)
 
-App'en skjuler felterne, men databasen gør ikke. Forslag: ét samlet migrationssæt med kolonne-/rækkebegrænsning.
+App'en skjuler felterne, men databasen gør ikke. Forslag: ét samlet migrationssæt med kolonne-/rækkebegrænsning. Fuld analyse, berørte kodesteder og SQL-udkast: `docs/runbooks/rls-cost-columns.md` (trin 1: rækkebegrænsning for dokumenter/mails; trin 2: kolonne-REVOKE + ~45 kodesteder).
 
 | # | Tabel | Hvem ser hvad | Prod i dag |
 |---|---|---|---|
@@ -47,3 +47,36 @@ App'en skjuler felterne, men databasen gør ikke. Forslag: ét samlet migrations
 
 M2/M3/M4 (time_logs/arbejdsordre-triggere, sats-tjek), L2 (`get_customer_product_price` bruger `IF rec IS NOT NULL`),
 T2/B7 (00190). Alle med vist SQL før kørsel, staging først, pre/post-tjek som 00185.
+
+## 5. Data-sikring (migration)
+
+| # | Problem | Forslag |
+|---|---|---|
+| S1 | `customers.created_by` er ON DELETE CASCADE (verificeret i prod) → sletter man en tidligere medarbejders bruger (fx i Supabase), forsvinder alle de kunder vedkommende oprettede — og via kaskaden deres tilbud og underskrifter | SET NULL |
+| S2 | `offers.customer_id` er ON DELETE CASCADE (app'en spærrer nu sletning af kunder med tilbud/fakturaer/sager, men databasen gør ikke) | RESTRICT — S1+S2 klar som 00191 på branch `fk-delete-safety` |
+
+## 6. Automatik/AI/agent
+
+| # | Spørgsmål | Anbefaling |
+|---|---|---|
+| A1 | Agenternes dry_run-kørsler kan i dag godkendes og udføres (bruges af harness til at teste udførelse; i prod oprettes ingen) | dry_run = kan aldrig udføres; harness tester med separat test-flag |
+| A2 | Mail-AI'en tolker citerede svar som videresendte | Kun Fwd/VS-emne eller "Videresendt"-separator |
+| A3 | AI-dagsbudget tæller ikke atomisk og tillader kald hvis tælleren ikke kan læses | Atomisk tæller + pr. bruger-loft |
+| A4 | Prisadvarsels-cron skriver til `system_alerts` (findes ikke i prod); læringscron gør intet | Afklares med D27 |
+
+## 7. Rapporter/kalkulation
+
+| # | Spørgsmål | Anbefaling |
+|---|---|---|
+| R0 | 4 prod-sager har kontraktsum = tilbuddets beløb INKL. moms (rater på kontraktsum spærres nu med besked, nye sager får ekskl. moms) | Ret de 4 med SQL nedenfor (prod-data — kræver ja) |
+| R1 | Tilbud oprettet fra en kalkulation får en anden total end den viste (overhead/margin/overstyrede salgspriser kommer ikke på linjerne) | Byg linjerne fra motorens resultat og tjek sum = vist total |
+| R2 | Kalkulatorens timer koster med salgssatsen (495) — DB undervurderes | Kostsats (time_cost_basis) til kost, salgssats til pris |
+| R3 | "Omsætning" er inkl. moms i Rapporter, ekskl. moms i salgstragten og før rabat på dashboardet | Ekskl. moms efter rabat overalt |
+| R4 | Cockpittets forfaldne: antal = top-N, beløb uden delbetalinger | Tæl i DB; beløb løses af B1 (`invoice-review-b`) |
+
+R0-SQL (kør først som SELECT med samme WHERE; forventet 3 rækker — den 4. har 0 moms):
+```sql
+UPDATE public.service_cases s SET contract_sum = round(o.final_amount - o.tax_amount, 2), updated_at = now()
+FROM public.offers o
+WHERE o.converted_case_id = s.id AND s.contract_sum = o.final_amount AND coalesce(o.tax_amount, 0) > 0;
+```

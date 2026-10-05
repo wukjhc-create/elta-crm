@@ -1782,9 +1782,14 @@ export interface CaseNoteEntry {
 export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNoteEntry[]>> {
   try {
     if (!caseId) return { success: false, error: 'caseId mangler' }
-    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
       return { success: false, error: 'Manglende tilladelse: cases.view' }
+    }
+    // Sags-review: uden cases.view.all kun sager i brugerens scope (som sagens mails) — før kunne montør/salg læse alle
+    // noter (inkl. AI-resuméer af kundemails) på enhver sag ud fra sags-id'et
+    if (!hasPermission('cases.view.all') && !(await userCanViewCase(caseId, { role, userId, supabase }))) {
+      return { success: false, error: 'Sagen er ikke tildelt dig' }
     }
 
     const { data, error } = await supabase
