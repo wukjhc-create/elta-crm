@@ -99,7 +99,7 @@ Kodeændringer (~45 steder, liste i analysen nedenfor):
 Lukket i kode 2026-10-05 (app-niveau): `getKalkiaNode`/`getKalkiaVariants` (indlejrede leverandør-kostpris uden gate)
 → `settings.view` som siden.
 
-## Status 2026-10-05: migration 00192 på STAGING (prod: afventer godkendelse)
+## Status 2026-10-05: migration 00192 — STAGING og PROD (prod godkendt af Henrik i chat 2026-10-05)
 
 `supabase/migrations/00192_cost_columns_lockdown.sql` (anvendt på staging med `npm run harness:migrate-staging -- 00192`):
 - kolonne-REVOKE af kostkolonner for `authenticated`/`anon`: offer_line_items (cost_price, supplier_cost_price_at_creation, supplier_margin_applied, margin_percentage), supplier_products (cost_price, margin_percentage), time_logs (cost_amount, cost_rate_snapshot) — alle øvrige kolonner genudlevet (genereret fra skemaet)
@@ -121,3 +121,13 @@ brugerens klient. Lav-DB-advarslen gælder fortsat alle roller; salg ser ikke DB
 Prod-rækkefølge (kræver Henriks godkendelse af migrationen): 1) app-koden pushes (allerede bagudkompatibel), 2)
 `npm run prod:apply-migration -- 00192 --approved-by-henrik` (+ allowlist-post), 3) `cost-columns-check`-svarende
 read-only tjek i prod + U7/U8/U51/U66/U88/U91/U77/U50 mod staging.
+
+### Prod-kørsel 2026-10-05
+
+1. Forudsætning: app-koden (a57177d, d433c4a) deployet — GitHub-status `Vercel=success` for begge commits.
+2. Pre-check (`npx tsx scripts/prod-verify-00192.ts pre`): 25/25 som forventet (alle kunne læse kostkolonnerne m.m.).
+3. `npm run prod:apply-migration -- 00192 --approved-by-henrik` → COMMIT gennemført.
+4. Post-check (`… post`): 33/33; rækkeantal uændret (offer_line_items 14, supplier_products 323.860, time_logs 1, work_order_profit 0, profiles 5).
+5. Rolle-tjek SOM rigtige prod-brugere (`npx tsx scripts/prod-role-check-00192.ts` — SET LOCAL ROLE authenticated + JWT-claims i READ ONLY-transaktion): 28/28 for admin og montør (salg/serviceleder/bogholderi findes ikke i prod).
+6. Løndata (`npx tsx scripts/prod-wage-check.ts`): montør ser 0 medarbejdere/0 lønposter; admin ser alt.
+7. `npm run prod:db-audit`: HØJ=0 · MIDDEL=0 · LAV=0.

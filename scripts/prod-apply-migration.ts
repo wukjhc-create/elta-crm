@@ -44,6 +44,7 @@ const APPROVED: Record<string, string> = {
   '00182': '2026-10-03', // D2 audit-identitet, godkendt af Henrik i chat 2026-10-03
   '00183': '2026-10-03', // N4 trigram-indeks (uden for 02:00-sync), godkendt af Henrik i chat 2026-10-03
   '00185': '2026-10-04', // N2 godkendelse af timer (time_logs.approval_status + guard-trigger), godkendt af Henrik i chat 2026-10-04
+  '00192': '2026-10-05', // kost-/løndata-lockdown (T1/L1/M1/P2), godkendt af Henrik i chat 2026-10-05 ("00192 Godkendt til PROD")
 }
 
 async function main() {
