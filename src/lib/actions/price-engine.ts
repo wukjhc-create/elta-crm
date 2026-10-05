@@ -22,6 +22,7 @@ import {
 } from '@/lib/services/price-engine'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * P3 #17 / P-005: rettighedstjek for pris-/leverandoerdomaenet. Server actions kan kaldes direkte af enhver
@@ -89,7 +90,8 @@ export async function compareProductPrices(
 
     // Search for matching products across suppliers
     const safeTerm = sanitizeSearchTerm(searchTerm)
-    const { data: products, error } = await supabase
+    // 00192: kostkolonner — admin-klient bag offers.view.cost_prices
+    const { data: products, error } = await createAdminClient()
       .from('supplier_products')
       .select(`
         id,

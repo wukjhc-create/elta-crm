@@ -7,6 +7,7 @@
  */
 
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { compareOfferToActual, type OfferVsActualResult } from '@/lib/cases/offer-vs-actual'
@@ -42,7 +43,8 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
     const [offerRes, linesRes, materialsRes, logsRes] = await Promise.all([
       offerId ? supabase.from('offers').select('id, offer_number').eq('id', offerId).maybeSingle() : Promise.resolve({ data: null, error: null }),
       offerId
-        ? supabase.from('offer_line_items')
+        // 00192: kostkolonner — admin-klient bag economy.cost_prices
+        ? createAdminClient().from('offer_line_items')
             .select('id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id, position')
             .eq('offer_id', offerId).order('position')
         : Promise.resolve({ data: [], error: null }),
@@ -51,7 +53,8 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
         .eq('case_id', caseId).order('created_at'),
       woIds.length === 0
         ? Promise.resolve({ data: [], error: null })
-        : supabase.from('time_logs').select('hours, cost_amount').in('work_order_id', woIds),
+        : // 00192: kostkolonner læses med admin-klienten bag gaten ovenfor (bruger-klienten kan ikke læse dem)
+          createAdminClient().from('time_logs').select('hours, cost_amount').in('work_order_id', woIds),
     ])
     for (const [name, res] of [['offer', offerRes], ['offer_line_items', linesRes], ['case_materials', materialsRes], ['time_logs', logsRes]] as const) {
       if (res.error) {

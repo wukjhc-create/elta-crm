@@ -98,3 +98,26 @@ Kodeændringer (~45 steder, liste i analysen nedenfor):
 
 Lukket i kode 2026-10-05 (app-niveau): `getKalkiaNode`/`getKalkiaVariants` (indlejrede leverandør-kostpris uden gate)
 → `settings.view` som siden.
+
+## Status 2026-10-05: migration 00192 på STAGING (prod: afventer godkendelse)
+
+`supabase/migrations/00192_cost_columns_lockdown.sql` (anvendt på staging med `npm run harness:migrate-staging -- 00192`):
+- kolonne-REVOKE af kostkolonner for `authenticated`/`anon`: offer_line_items (cost_price, supplier_cost_price_at_creation, supplier_margin_applied, margin_percentage), supplier_products (cost_price, margin_percentage), time_logs (cost_amount, cost_rate_snapshot) — alle øvrige kolonner genudlevet (genereret fra skemaet)
+- `work_order_profit`: SELECT kun admin/serviceleder/bogholderi (før `USING (true)`)
+- `calculate_work_order_profit`: EXECUTE fjernet fra brugere
+- P2: brugere må kun selv opdatere `profiles.full_name, phone, department, updated_at` (avatar skrives server-side)
+
+Verifikation med rigtige rolle-sessioner (`npx tsx scripts/test-harness/cli.ts cost-columns-check`, persona-login via Auth for admin/serviceleder/montør/salg/bogholderi):
+- FØR migrationen: 51 af 71 tjek fejlede (alle roller kunne læse kostkolonnerne; salg/montør kunne selv sætte profil-e-mail/avatar-sti)
+- EFTER: **75/75 som forventet** — ingen rolle kan læse kost/løn direkte, ikke-kost-kolonner virker, work_order_profit kun for kostroller, profil-e-mail/avatar afvist, navn tilladt
+
+App-kode (udrulles FØR migrationen i prod; virker også uden migrationen): bruger-klienten vælger kun ikke-kost-kolonner
+(`lib/offers/line-columns.ts`, `lib/suppliers/product-columns.ts`, `lib/time-logs/columns.ts`); kost læses med admin-klienten
+efter de eksisterende gates (offers.view.cost_prices, economy.cost_prices, products.view.cost_prices, tools.*); DB-funktioner
+der læser kost (invoker: apply/insert_package, get_effective_margin, calculate_sale_price, get_customer_product_price,
+get_best_price_for_customer) kaldes med admin-klienten — `insertPackageIntoOffer` tjekker først tilbuddets synlighed via
+brugerens klient. Lav-DB-advarslen gælder fortsat alle roller; salg ser ikke DB-procenten.
+
+Prod-rækkefølge (kræver Henriks godkendelse af migrationen): 1) app-koden pushes (allerede bagudkompatibel), 2)
+`npm run prod:apply-migration -- 00192 --approved-by-henrik` (+ allowlist-post), 3) `cost-columns-check`-svarende
+read-only tjek i prod + U7/U8/U51/U66/U88/U91/U77/U50 mod staging.

@@ -22,6 +22,7 @@ import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/common.types'
 import type { UserRole } from '@/types/auth.types'
+import { isValidRole, lastAdminBlock } from '@/lib/auth/role-guard'
 
 export interface EmployeeLoginStatus {
   has_login: boolean
@@ -256,6 +257,10 @@ export async function setEmployeeAuthRole(
     const admin = createAdminClient()
     const { data: emp } = await admin.from('employees').select('profile_id').eq('id', employeeId).maybeSingle()
     if (!emp?.profile_id) return { success: false, error: 'Medarbejderen har intet login' }
+    // Auth-review: kun kendte roller; den sidste aktive admin kan ikke degraderes
+    if (!isValidRole(role)) return { success: false, error: 'Ukendt rolle' }
+    const block = await lastAdminBlock(admin, emp.profile_id as string, { role })
+    if (block) return { success: false, error: block }
 
     const { error } = await admin
       .from('profiles')
@@ -295,12 +300,10 @@ export async function getEmployeeSetPasswordLink(
       .maybeSingle()
     if (!emp) return { success: false, error: 'Medarbejder ikke fundet' }
     if (!emp.profile_id) return { success: false, error: 'Medarbejderen har intet login endnu' }
-    const { data: prof } = await admin
-      .from('profiles')
-      .select('email')
-      .eq('id', emp.profile_id as string)
-      .maybeSingle()
-    const email = (prof?.email as string | null) ?? (emp.email as string | null)
+    // Auth-review (account takeover): e-mailen til "sæt kode"-linket skal være LOGIN-e-mailen fra Auth for netop denne
+    // profil — aldrig profiles.email (som brugeren selv kunne ændre, fx til en admins adresse → linket loggede ind som
+    // admin). Kun hvis profilen ikke findes i Auth, bruges medarbejderens e-mail.
+    const email = await authEmailForProfile(admin, emp.profile_id as string) ?? (emp.email as string | null)
     if (!email) return { success: false, error: 'Medarbejderen mangler e-mail' }
 
     const { link, error } = await buildSetPasswordLink(admin, email)
@@ -335,12 +338,10 @@ export async function sendEmployeeAccessEmail(
     if (!emp.profile_id) {
       return { success: false, error: 'Medarbejderen har intet login endnu — brug Inviter' }
     }
-    const { data: prof } = await admin
-      .from('profiles')
-      .select('email')
-      .eq('id', emp.profile_id as string)
-      .maybeSingle()
-    const email = (prof?.email as string | null) ?? (emp.email as string | null)
+    // Auth-review (account takeover): e-mailen til "sæt kode"-linket skal være LOGIN-e-mailen fra Auth for netop denne
+    // profil — aldrig profiles.email (som brugeren selv kunne ændre, fx til en admins adresse → linket loggede ind som
+    // admin). Kun hvis profilen ikke findes i Auth, bruges medarbejderens e-mail.
+    const email = await authEmailForProfile(admin, emp.profile_id as string) ?? (emp.email as string | null)
     if (!email) return { success: false, error: 'Medarbejderen mangler e-mail' }
 
     const { link, error: linkErr } = await buildSetPasswordLink(admin, email)
@@ -393,4 +394,11 @@ export async function sendEmployeeAccessEmail(
   } catch (e) {
     return { success: false, error: formatError(e, 'Kunne ikke sende mail') }
   }
+}
+
+/** Login-e-mail fra Supabase Auth for en profil (profil-id = auth-bruger-id). */
+async function authEmailForProfile(admin: ReturnType<typeof createAdminClient>, profileId: string): Promise<string | null> {
+  const { data, error } = await admin.auth.admin.getUserById(profileId)
+  if (error || !data?.user?.email) return null
+  return data.user.email
 }

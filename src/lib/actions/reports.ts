@@ -13,6 +13,7 @@ import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { lastMonths } from '@/lib/reports/sales-funnel'
 import {
   REJECTION_REASON_LABELS,
@@ -398,7 +399,8 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
 
     const caseIds = cases.map((c) => c.id as string)
     // rapport-review: side for side (> 1.000 timeregistreringer på 50 sager blev skåret af → realiseret DB for høj)
-    const logs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
+    // 00192: kostkolonnen (cost_amount) læses med admin-klienten bag economy.view (samme roller som economy.cost_prices)
+    const logs = await fetchAllRows<Record<string, unknown>>((from, to) => createAdminClient()
       .from('time_logs')
       .select('id, hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
       .in('work_order.case_id', caseIds)
@@ -422,7 +424,8 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     const offerIds = Array.from(new Set(cases.map((c) => c.source_offer_id as string | null).filter((x): x is string => !!x)))
     const [linesRes, matsRes, invRes, otherRes] = await Promise.all([
       offerIds.length
-        ? supabase.from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
+        // 00192: kostkolonner — admin-klient bag economy.view
+        ? createAdminClient().from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
       fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
       supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds),

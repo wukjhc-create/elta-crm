@@ -15,7 +15,9 @@ export async function getInvoiceControl(invoiceId: string): Promise<ActionResult
     const ctx = await getAuthenticatedClientWithRole()
     if (!ctx.hasPermission('incoming_invoices.view')) return { success: false, error: 'Manglende tilladelse: incoming_invoices.view' }
     const { loadInvoiceControl } = await import('@/lib/invoice-control/invoice-control-loader')
-    const r = await loadInvoiceControl(ctx.supabase, invoiceId)
+    // 00192: kostkolonner — admin-klient (kun katalogopslag) bag incoming_invoices.view (admin/serviceleder/bogholderi)
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const r = await loadInvoiceControl(ctx.supabase, invoiceId, createAdminClient())
     if (!r) return { success: false, error: 'Faktura ikke fundet' }
     return { success: true, data: r }
   } catch (err) {
