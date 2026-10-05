@@ -729,6 +729,26 @@ async function main() {
     log(JSON.stringify(r))
     return
   }
+  if (SUB === 'pilot-snapshot') {
+    // Staging (read-only): Pilot Health-snapshot som siden bygger den — sektioner, niveau og antal punkter (inkl. cron)
+    const { collectPilotHealthSnapshot } = await import('../../src/lib/ops/pilot-health')
+    const t0 = Date.now()
+    const snap = await collectPilotHealthSnapshot(admin)
+    for (const s of snap.sections as Array<{ key?: string; title: string; level?: string; error?: string | null; items?: unknown[] }>) {
+      log(`${String(s.level ?? '?').padEnd(8)} ${s.title}  punkter=${s.items?.length ?? 0}${s.error ? `  FEJL ${s.error}` : ''}`)
+    }
+    log(`samlet=${snap.overall} på ${Date.now() - t0} ms`)
+    return
+  }
+  if (SUB === 'payment-export-probe') {
+    // Staging (read-only): betalingseksportens rækker for hvert filter (pagineret build) — kun antal/fejl
+    const { buildPaymentExportRows } = await import('../../src/lib/services/payment-report')
+    for (const f of ['all', 'overdue', 'outstanding', 'late_payer', 'on_time', 'no_data'] as const) {
+      const r = await buildPaymentExportRows(admin, f as never)
+      log(`${f}: ${r.error ? `FEJL ${r.error}` : `${r.rows.length} rækker`}`)
+    }
+    return
+  }
   if (SUB === 'export-probe') {
     // Staging (read-only): virker lead-eksportens select (alias description:notes + profil-join)?
     const { data, error } = await admin.from('leads')
