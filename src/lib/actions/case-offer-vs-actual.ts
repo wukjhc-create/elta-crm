@@ -11,6 +11,7 @@ import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 import { compareOfferToActual, type OfferVsActualResult } from '@/lib/cases/offer-vs-actual'
 import type { ActionResult } from '@/types/common.types'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface CaseOfferVsActual extends OfferVsActualResult {
   offer: { id: string; offer_number: string | null } | null
@@ -51,7 +52,8 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
         .eq('case_id', caseId).order('created_at'),
       woIds.length === 0
         ? Promise.resolve({ data: [], error: null })
-        : supabase.from('time_logs').select('hours, cost_amount').in('work_order_id', woIds),
+        : // 00192: kostkolonner læses med admin-klienten bag gaten ovenfor (bruger-klienten kan ikke læse dem)
+          createAdminClient().from('time_logs').select('hours, cost_amount').in('work_order_id', woIds),
     ])
     for (const [name, res] of [['offer', offerRes], ['offer_line_items', linesRes], ['case_materials', materialsRes], ['time_logs', logsRes]] as const) {
       if (res.error) {

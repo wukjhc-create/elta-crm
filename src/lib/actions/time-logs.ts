@@ -35,6 +35,8 @@ import { logger } from '@/lib/utils/logger'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import type { ActionResult } from '@/types/common.types'
 import { type TimeLogRow, type PayRateType, PAY_RATE_TYPE_LABEL } from '@/types/workforce.types'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { TIME_LOG_PUBLIC_COLUMNS } from '@/lib/time-logs/columns'
 
 export interface TimeLogWithEmployee extends TimeLogRow {
   employee?: {
@@ -74,11 +76,8 @@ export async function listTimeLogsForWorkOrder(
 
     const { data, error } = await supabase
       .from('time_logs')
-      .select(`
-        id, employee_id, work_order_id, start_time, end_time, hours,
-        cost_amount, pay_rate_type, employee_rate_id, cost_rate_snapshot,
-        sale_rate_snapshot, sale_amount, description, billable, invoice_line_id, created_at
-      `)
+      // 00192: bruger-klienten må ikke læse kostkolonnerne — kost flettes ind for løn-berettigede (withCostColumns)
+      .select(TIME_LOG_PUBLIC_COLUMNS)
       .eq('work_order_id', workOrderId)
       .order('start_time', { ascending: false })
 
@@ -87,7 +86,7 @@ export async function listTimeLogsForWorkOrder(
       return { success: false, error: 'Kunne ikke hente timeregistreringer' }
     }
 
-    const rows = (data || []) as TimeLogRow[]
+    const rows = await withCostColumns((data || []) as unknown as TimeLogRow[], hasPermission)
     const enriched = await enrichWithEmployees(supabase, rows)
     // Sprint Ø2.10 / D42 — defense in depth: fjern pris-/kostfelter server-side (ikke bare skjul i UI)
     return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
@@ -133,11 +132,8 @@ export async function listTimeLogsForCase(
 
     const { data, error } = await supabase
       .from('time_logs')
-      .select(`
-        id, employee_id, work_order_id, start_time, end_time, hours,
-        cost_amount, pay_rate_type, employee_rate_id, cost_rate_snapshot,
-        sale_rate_snapshot, sale_amount, description, billable, invoice_line_id, created_at
-      `)
+      // 00192: bruger-klienten må ikke læse kostkolonnerne — kost flettes ind for løn-berettigede (withCostColumns)
+      .select(TIME_LOG_PUBLIC_COLUMNS)
       .in('work_order_id', woIds)
       .order('start_time', { ascending: false })
 
@@ -146,7 +142,7 @@ export async function listTimeLogsForCase(
       return { success: false, error: 'Kunne ikke hente timeregistreringer' }
     }
 
-    const rows = (data || []) as TimeLogRow[]
+    const rows = await withCostColumns((data || []) as unknown as TimeLogRow[], hasPermission)
     const enriched = await enrichWithEmployees(supabase, rows)
     // D42: før blev kost (cost_amount, kostsats) og medarbejdersats sendt til alle med time_logs.view.own (montør)
     return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
@@ -271,7 +267,7 @@ export async function createTimeLog(
         description: input.description?.trim() || null,
         billable: input.billable !== false,
       })
-      .select('*')
+      .select(TIME_LOG_PUBLIC_COLUMNS)
       .single()
 
     if (error || !data) {
@@ -285,7 +281,7 @@ export async function createTimeLog(
       const { autoStartCaseOnWork } = await import('@/lib/cases/case-auto-start')
       await autoStartCaseOnWork(wo.case_id as string, 'time_logged', userId)
     }
-    return { success: true, data: data as TimeLogRow }
+    return { success: true, data: { ...(data as unknown as TimeLogRow), cost_amount: null, cost_rate_snapshot: null } as TimeLogRow }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -415,7 +411,7 @@ export async function updateTimeLog(
       .eq('id', timeLogId)
       // montør-review: faktureret mellem læsning og opdatering → ingen ændring (før kun tjekket ved læsning)
       .is('invoice_line_id', null)
-      .select('*')
+      .select(TIME_LOG_PUBLIC_COLUMNS)
       .maybeSingle()
 
     if (!error && !data) {
@@ -447,7 +443,7 @@ export async function updateTimeLog(
       revalidatePath(`/dashboard/orders/${wo.case_id}`)
     }
 
-    return { success: true, data: data as TimeLogRow }
+    return { success: true, data: { ...(data as unknown as TimeLogRow), cost_amount: null, cost_rate_snapshot: null } as TimeLogRow }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -476,7 +472,8 @@ export async function getCaseLaborCostTotal(caseId: string): Promise<ActionResul
     let cost = 0
     // paginér (PostgREST-loft 1000 rækker)
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from('time_logs').select('cost_amount').in('work_order_id', ids)
+      // 00192: kostkolonnen læses med admin-klienten (gaten economy.cost_prices + time_logs.view.all er tjekket ovenfor)
+      const { data, error } = await createAdminClient().from('time_logs').select('cost_amount').in('work_order_id', ids)
         .order('id').range(from, from + 999)
       if (error) {
         logger.error('getCaseLaborCostTotal: time_logs failed', { error })
@@ -541,4 +538,20 @@ async function enrichWithEmployees(
     ...r,
     employee: empMap.get(r.employee_id) ?? null,
   }))
+}
+
+/**
+ * 00192: kostkolonnerne (cost_amount, cost_rate_snapshot) kan ikke læses af bruger-klienten. Kun roller der må se kost
+ * pr. række (economy.cost_prices + employees.payroll.view — se stripTimeLogPrices) får dem flettet ind via admin-klienten.
+ */
+async function withCostColumns(rows: TimeLogRow[], hasPermission: (p: Permission) => boolean): Promise<TimeLogRow[]> {
+  const blank = rows.map((r) => ({ ...r, cost_amount: null, cost_rate_snapshot: null }) as TimeLogRow)
+  if (!rows.length || !hasPermission('economy.cost_prices') || !hasPermission('employees.payroll.view')) return blank
+  const costById = new Map<string, { cost_amount: unknown; cost_rate_snapshot: unknown }>()
+  const ids = rows.map((r) => r.id)
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await createAdminClient().from('time_logs').select('id, cost_amount, cost_rate_snapshot').in('id', ids.slice(i, i + 200))
+    for (const c of (data ?? []) as Array<{ id: string; cost_amount: unknown; cost_rate_snapshot: unknown }>) costById.set(c.id, c)
+  }
+  return rows.map((r) => ({ ...r, ...(costById.get(r.id) ?? { cost_amount: null, cost_rate_snapshot: null }) }) as TimeLogRow)
 }

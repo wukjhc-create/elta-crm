@@ -14,6 +14,7 @@ import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/actio
 import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { lastMonths } from '@/lib/reports/sales-funnel'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   REJECTION_REASON_LABELS,
   type RejectionReasonCode,
@@ -398,7 +399,8 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
 
     const caseIds = cases.map((c) => c.id as string)
     // rapport-review: side for side (> 1.000 timeregistreringer på 50 sager blev skåret af → realiseret DB for høj)
-    const logs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
+    // 00192: kostkolonnen (cost_amount) læses med admin-klienten bag economy.view (samme roller som economy.cost_prices)
+    const logs = await fetchAllRows<Record<string, unknown>>((from, to) => createAdminClient()
       .from('time_logs')
       .select('id, hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
       .in('work_order.case_id', caseIds)

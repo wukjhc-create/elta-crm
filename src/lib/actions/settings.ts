@@ -740,7 +740,8 @@ export async function uploadProfileAvatar(
     // cache/fallback (1 år) — laesestierne lazy-refresher fra storage_path.
     const signedUrl = await getStorageSignedUrlOrNull('attachments', filePath, SIGNED_URL_TTL.YEAR)
 
-    const { error: updateError } = await supabase
+    // 00192 (P2): brugere må ikke selv skrive avatar-felterne (kolonne-rettigheder) — stien er bygget her af eget id
+    const { error: updateError } = await createAdminClient()
       .from('profiles')
       .update({
         avatar_url: signedUrl ?? '',
@@ -778,7 +779,8 @@ export async function deleteProfileAvatar(): Promise<ActionResult<void>> {
       await supabase.storage.from('attachments').remove([filePath])
     }
 
-    const { error: updateError } = await supabase
+    // 00192 (P2): avatar-felterne skrives kun server-side
+    const { error: updateError } = await createAdminClient()
       .from('profiles')
       .update({ avatar_url: null, avatar_storage_path: null, updated_at: new Date().toISOString() })
       .eq('id', userId)
