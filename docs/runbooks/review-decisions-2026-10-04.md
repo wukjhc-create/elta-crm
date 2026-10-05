@@ -15,7 +15,7 @@ Prod-tal er read-only optællinger; ingen af punkterne har ramt kunder i et omfa
 
 ## 2. RLS — data læsbar via direkte API for roller, der ikke må se den (S1 latent)
 
-App'en skjuler felterne, men databasen gør ikke. Forslag: ét samlet migrationssæt med kolonne-/rækkebegrænsning.
+App'en skjuler felterne, men databasen gør ikke. Forslag: ét samlet migrationssæt med kolonne-/rækkebegrænsning. Fuld analyse, berørte kodesteder og SQL-udkast: `docs/runbooks/rls-cost-columns.md` (trin 1: rækkebegrænsning for dokumenter/mails; trin 2: kolonne-REVOKE + ~45 kodesteder).
 
 | # | Tabel | Hvem ser hvad | Prod i dag |
 |---|---|---|---|
