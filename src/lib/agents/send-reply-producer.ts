@@ -14,6 +14,8 @@
  *   - ét aktivt afsendelsesforslag pr. mail (generations-noegle mail-send:<mail>:<n>)
  */
 import { prepareSendReply } from '@/lib/agents/send-reply'
+import { isWebsiteInquiry } from '@/lib/mail/website-inquiry'
+import { extractFormSubmitFields } from '@/lib/utils/email-parser'
 
 export const SEND_CAPABILITY = 'mail.send_reply'
 export const TEMPLATE_PLACEHOLDER = '[BRUGER UDFYLDER'
@@ -58,11 +60,20 @@ export async function produceSendReplyProposal(
 
   const emailId = draft.payload?.email_id as string | undefined
   if (!emailId) return { ok: false, error: 'udkastet mangler reference til mailen' }
-  const { data: mail } = await admin.from('incoming_emails').select('id, subject, sender_email').eq('id', emailId).maybeSingle()
+  const { data: mail } = await admin.from('incoming_emails').select('id, subject, sender_email, body_text, body_html').eq('id', emailId).maybeSingle()
   if (!mail) return { ok: false, error: 'mailen findes ikke længere' }
 
+  // Automatik-review: en webhenvendelse kommer fra submissions@formsubmit.co — svaret skal til kundens e-mail fra
+  // formularen (vises i forslaget og godkendes), aldrig til FormSubmit. Uden gyldig e-mail i formularen: intet forslag.
+  let to = String(mail.sender_email ?? '')
+  if (isWebsiteInquiry({ senderEmail: mail.sender_email, subject: mail.subject })) {
+    const formEmail = String(extractFormSubmitFields(mail.body_text ?? null, mail.body_html ?? null).email ?? '').trim()
+    if (!/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(formEmail)) return { ok: false, error: 'webhenvendelse uden gyldig kunde-e-mail i formularen' }
+    to = formEmail
+  }
+
   const body = String(draft.result?.draft ?? '')
-  const prepared = prepareSendReply({ to: mail.sender_email, subject: replySubject(mail.subject), body })
+  const prepared = prepareSendReply({ to, subject: replySubject(mail.subject), body })
   if (!prepared.ok) return { ok: false, error: `kan ikke forberedes: ${prepared.error}` }
 
   const { data: existing } = await admin.from('agent_actions').select('status').eq('capability', SEND_CAPABILITY).eq('payload->>email_id', emailId)

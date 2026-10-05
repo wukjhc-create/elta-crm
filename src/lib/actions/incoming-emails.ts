@@ -1358,9 +1358,8 @@ export async function sendQuickReply(
     : `Re: ${email.subject || '(Intet emne)'}`
 
   // 5. Build professional HTML using CRM email template
-  const originalBody = email.body_text?.replace(/\n/g, '<br />') || email.body_preview || ''
-  const safeOriginalBody = originalBody
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // Strip control chars
+  // almindelig tekst — skabelonen escaper og laver linjeskift (kommunikations-review)
+  const safeOriginalBody = email.body_text || email.body_preview || ''
 
   const dateStr = new Date(email.received_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',

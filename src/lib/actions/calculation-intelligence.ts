@@ -533,6 +533,9 @@ export async function generateOfferFromCalculation(
   upsell_suggestions: Array<{ title: string; description: string; estimated_cost: number }>
 }>> {
   try {
+    // Rapport-review (S1): returnerer kostpriser/DB — kun med kalkulationsadgang (samme gate som modulet)
+    const __costDenied = await permissionDenied('tools.calculations')
+    if (__costDenied) return { success: false, error: __costDenied }
     const { supabase } = await getAuthenticatedClient()
 
     // Get calculation with rows

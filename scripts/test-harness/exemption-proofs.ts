@@ -96,6 +96,17 @@ export async function runExemptionProofs(c: { admin: SupabaseClient; sql: Sql; o
       const ext = await portal.sendPortalMessage(validTok, { customer_id: cust.id, message: `[HARNESS-EX] ekstern bilag ${stamp}`,
         attachments: [{ name: 'faktura.pdf', url: 'https://evil.example/login', size: 1, type: 'application/pdf' }] } as never)
       out.push({ id: 'T ekstern vedhæftning', ok: !ext.success, note: ext.success ? 'ACCEPTERET (eksternt link gemt)' : 'afvist' })
+      // Kommunikations-review (S1): mail-vedhæftninger arkiveret på kunden må ikke vises i portalen; almindelige dokumenter
+      // vises stadig (positiv kontrol)
+      const anyMail = (await c.sql(`SELECT id FROM incoming_emails LIMIT 1`))[0]
+      if (anyMail?.id) {
+        const mailDoc = await ins('customer_documents', { customer_id: cust.id, title: `[HARNESS-EX] maildok ${stamp}`, document_type: 'other', source_email_id: anyMail.id, file_name: 'x.pdf', file_url: 'harness/x.pdf' })
+        const plainDoc = await ins('customer_documents', { customer_id: cust.id, title: `[HARNESS-EX] dok ${stamp}`, document_type: 'other', file_name: 'y.pdf', file_url: 'harness/y.pdf' })
+        const docs = await portal.getPortalDocuments(validTok)
+        const ids = ((docs as { data?: Array<{ id: string }> }).data ?? []).map((d) => d.id)
+        out.push({ id: 'T maildokument ikke i portal', ok: !!docs.success && !ids.includes(mailDoc) && ids.includes(plainDoc),
+          note: !docs.success ? 'FEJL' : ids.includes(mailDoc) ? 'MAILDOKUMENT VIST' : ids.includes(plainDoc) ? 'skjult; alm. dokument vist' : 'alm. dokument mangler' })
+      }
       // positiv: eget tilbud accepteres stadig
       const own = await portal.sendPortalMessage(validTok, { customer_id: cust.id, offer_id: offerId, message: `[HARNESS-EX] eget tilbud ${stamp}` } as never)
       out.push({ id: 'T eget tilbud i besked', ok: !!own.success, note: own.success ? 'gemt' : `FEJL: ${(own as { error?: string }).error}` })

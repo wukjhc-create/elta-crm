@@ -62,7 +62,9 @@ export interface ProposalsBundle {
 
 export async function getProposals(): Promise<ActionResult<ProposalsBundle>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // Salgs-review 2026-10-04: forslag (fra mails) ligger under indbakken — før uden gate (alle roller fik beløb + kundenavne)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('inbox.view')) return { success: false, error: 'Manglende tilladelse: inbox.view' }
 
     const [casesRes, offersRes] = await Promise.all([
       supabase
@@ -143,7 +145,8 @@ export async function getProposals(): Promise<ActionResult<ProposalsBundle>> {
 
 export async function getProposalsCount(): Promise<number> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('inbox.view')) return 0
     const [c, o] = await Promise.all([
       supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', true),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('is_proposal', true),

@@ -348,6 +348,15 @@ export async function createInvoiceInEconomic(
     return { ok: true, status: 'skipped', externalId: inv.external_invoice_id }
   }
 
+  // Leverandør-/e-conomic-review: kun udstedte, ikke-annullerede almindelige fakturaer bogføres — før havde kun bulk- og
+  // enkelteksport-stierne dette tjek; exportInvoiceToEconomicAction kunne bogføre en kladde eller en kreditnota som en
+  // almindelig faktura. Tjekket ligger nu ved kilden, så alle veje er dækket.
+  if (!['sent', 'paid'].includes(String(inv.status)) || inv.voided_at || inv.invoice_type === 'credit') {
+    const reason = `not exportable: status=${inv.status}${inv.voided_at ? ', voided' : ''}${inv.invoice_type === 'credit' ? ', credit note' : ''}`
+    await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'create', status: 'skipped', error_message: reason })
+    return { ok: false, status: 'skipped', reason }
+  }
+
   // Required config defaults check.
   const layoutNumber = cfg.layoutNumber
   const paymentTermsNumber = cfg.paymentTermsNumber

@@ -9,6 +9,7 @@ import type { OfferWithRelations } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { formatDateLongDK, formatCurrency } from '@/lib/utils/format'
 import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE } from '@/lib/brand'
+import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
 
 interface OfferEmailParams {
   offer: OfferWithRelations
@@ -21,8 +22,9 @@ export function generateOfferEmailHtml({
   companySettings,
   portalUrl,
 }: OfferEmailParams): string {
-  const customerName = offer.customer?.contact_person || 'Kunde'
-  const companyName = offer.customer?.company_name || ''
+  // kommunikations-review: kundefelter kan komme fra webformularer/AI-udtræk → escapes i HTML-versionen
+  const customerName = escapeHtml(offer.customer?.contact_person || 'Kunde')
+  const companyName = escapeHtml(offer.customer?.company_name || '')
 
   // Build detail rows
   const detailRows: string[] = []
@@ -154,10 +156,10 @@ export function generateOfferEmailHtml({
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                       <tr>
                         <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 20px; font-weight: 700; color: ${BRAND_GREEN}; padding-bottom: 12px;">
-                          ${offer.title}
+                          ${escapeHtml(offer.title)}
                         </td>
                       </tr>
-                      ${offer.description ? `<tr><td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; color: #4b5563; line-height: 1.6; padding-bottom: 16px;">${offer.description}</td></tr>` : ''}
+                      ${offer.description ? `<tr><td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; color: #4b5563; line-height: 1.6; padding-bottom: 16px;">${escapeHtmlWithLineBreaks(offer.description)}</td></tr>` : ''}
                     </table>
 
                     <!-- Detail rows -->
