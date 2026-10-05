@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { orIlikeContains } from '@/lib/validations/postgrest-filter'
 import {
   Search,
   LayoutDashboard,
@@ -111,25 +112,26 @@ export function CommandPalette() {
         supabase
           .from('customers')
           .select('id, company_name, contact_person, email, customer_number')
-          .or(`company_name.ilike.%${q}%,contact_person.ilike.%${q}%,email.ilike.%${q}%,customer_number.ilike.%${q}%`)
+          .or(orIlikeContains(['company_name', 'contact_person', 'email', 'customer_number'], q))
           .limit(5)
           .then(({ data }) => data || []),
         supabase
           .from('leads')
           .select('id, company_name, contact_person, email, status')
-          .or(`company_name.ilike.%${q}%,contact_person.ilike.%${q}%,email.ilike.%${q}%`)
+          .or(orIlikeContains(['company_name', 'contact_person', 'email'], q))
           .limit(5)
           .then(({ data }) => data || []),
         supabase
           .from('offers')
-          .select('id, offer_number, title, status, total')
-          .or(`title.ilike.%${q}%,offer_number.ilike.%${q}%`)
+          // kolonnen hedder final_amount ("total" fandtes ikke → tilbudssøgningen fejlede altid og viste intet)
+          .select('id, offer_number, title, status, total:final_amount')
+          .or(orIlikeContains(['title', 'offer_number'], q))
           .limit(5)
           .then(({ data }) => data || []),
         supabase
           .from('projects')
           .select('id, project_number, name, status')
-          .or(`name.ilike.%${q}%,project_number.ilike.%${q}%`)
+          .or(orIlikeContains(['name', 'project_number'], q))
           .limit(5)
           .then(({ data }) => data || []),
       ])
