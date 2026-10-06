@@ -86,6 +86,8 @@ R0 — SELECT kørt 2026-10-05 (`npx tsx scripts/prod-r0-contract-sum-preview.ts
 
 Ingen af fakturaerne er rater på kontraktsummen (0 i prod) — rettelsen ændrer kun "Kontraktsum"/"Rest at fakturere". UPDATE kun efter særskilt ja.
 
+**UDFØRT 2026-10-06** efter Henriks godkendelse: SELECT bekræftede præcis de 3 ændringer → data-migration 00193 (værn: kun de 3 sager, kun ved præcis forventet værdi, præcis 3 rækker) → post-check `scripts/prod-r0-postcheck.ts`: SVC-01003 105,07 · SVC-01019 1.771,20 · SVC-01228 5.000,00 · SVC-01002 uændret 0; 0 sager tilbage med kontraktsum inkl. moms.
+
 R0-SQL (kør først som SELECT med samme WHERE; forventet 3 rækker — den 4. har 0 moms):
 ```sql
 UPDATE public.service_cases s SET contract_sum = round(o.final_amount - o.tax_amount, 2), updated_at = now()
