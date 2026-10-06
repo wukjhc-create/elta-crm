@@ -38,6 +38,11 @@ App'en skjuler felterne, men databasen gør ikke. Forslag: ét samlet migrations
 | F2 | Ingen loft/overlap ved timeregistrering | Maks. 24 t + overlap-advarsel |
 | K1 | Tilbudsrykker-cronen sender i dag ALDRIG (fejl i opslag) — at rette den starter live kundemails | Beslut om rykkere skal ud |
 | K2 | Besigtigelses-påmindelse går også til medarbejder-bookede besøg ("vi mangler din bekræftelse") | Kun portal-bookinger der afventer |
+| K5 | Mail-linkeren (kobling på e-mail/kontakt/domæne) kører som anon i sync-cronen og kobler derfor næsten intet automatisk (prod: 2 mails på 30 dage mod AI'ens 28). Rettelse = admin-klient → automatisk kobling genoptages for alle synkede mails | Ja — gratis-mail-listen (Q14) og tråd-rettelsen (Q22) er på plads |
+|  | **K5 bygget 2026-10-06 (bag flag, default fra):** `MAIL_AUTOLINK_ENABLED=true` aktiverer `autoLinkEmail` (admin-klient) i sync-cronen. Præcis e-mail/kontakt eller entydig samtale → kobles; kun domæne → forslag (audit `email_link_suggested`); tvetydigt → aldrig; eksisterende kobling overskrives aldrig (`customer_id IS NULL`-betingelse); hver kobling → audit `email_auto_linked`. Staging: `npx tsx scripts/test-harness/cli.ts autolink-scenario` 13/13. **Prod-aktivering = sæt env-flaget i Vercel — kræver Henriks godkendelse.** Bemærk: domæne-match koblede før automatisk; nu kun forslag | Godkend flag i prod? |
+| S1 | **Notifikationsklokken er altid tom i prod**: tabellen `system_alerts` findes ikke, så "Fuldmagt underskrevet" og "Besigtigelse bekræftet" fra kundeportalen går tabt (statisk skematjek 2026-10-06). Forslag: migration `00194_system_alerts.sql` (vist SQL, IKKE anvendt): kun service_role opretter; kontor-roller læser/afviser; montør ser ikke. NB: prisadvarsler fra cron/intelligence-check begynder også at dukke op | Godkend 00194 (staging → prod)? |
+| S2 | AI-projektmotoren (`componentMatcher`) læser kolonner der ikke findes i `calc_components` (price/time_estimate/unit/category) og falder derfor ALTID tilbage til indbyggede standardpriser/-tider. Rettes den, bruger auto-tilbud jeres egne komponentpriser (`default_sale_price`, `base_time_minutes`) — ændret forretningsadfærd | Skal egne komponentpriser bruges? |
+| S3 | Selvlærende feedback (cron learning-feedback) kan aldrig indsamle noget: `auto_calculations` har ingen kobling til tilbud. Nu stoppet eksplicit (e7cb40a) i stedet for fejlende opslag. Kræver ny kolonne for at virke | Prioritér? (ellers lad ligge) |
 | L3 | Kundeaftaler (rabat/margin) anvendes aldrig i pakker/salgsmotor (forkert funktionskald); prod har 0 aftaler | Ret, før første aftale oprettes |
 | L4 | e-conomic bogfører alle linjer med standardmoms | Bloker fakturaer med anden sats end 25 % |
 | — | Automatikreglen "Auto-faktura ved arbejdsordre færdig" udløses aldrig (kun fra død kode, nu fjernet) | Bevidst? |
@@ -84,6 +89,8 @@ R0 — SELECT kørt 2026-10-05 (`npx tsx scripts/prod-r0-contract-sum-preview.ts
 | SVC-01228 | TILBUD-2026-0036 | 6.250,00 | 6.250,00 | 1.250,00 | 5.000,00 | ja | 1 |
 
 Ingen af fakturaerne er rater på kontraktsummen (0 i prod) — rettelsen ændrer kun "Kontraktsum"/"Rest at fakturere". UPDATE kun efter særskilt ja.
+
+**UDFØRT 2026-10-06** efter Henriks godkendelse: SELECT bekræftede præcis de 3 ændringer → data-migration 00193 (værn: kun de 3 sager, kun ved præcis forventet værdi, præcis 3 rækker) → post-check `scripts/prod-r0-postcheck.ts`: SVC-01003 105,07 · SVC-01019 1.771,20 · SVC-01228 5.000,00 · SVC-01002 uændret 0; 0 sager tilbage med kontraktsum inkl. moms.
 
 R0-SQL (kør først som SELECT med samme WHERE; forventet 3 rækker — den 4. har 0 moms):
 ```sql
