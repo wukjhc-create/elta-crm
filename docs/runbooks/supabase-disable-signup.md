@@ -44,6 +44,7 @@ Forventet: `"disable_signup":true` og `"selvregistrering_slaaet_til":false`.
 |---|---|---|---|
 | 2026-10-05 ~10:00 | false | true | SLÅET TIL (første måling) |
 | 2026-10-06 09:30 | false | true | stadig SLÅET TIL — afventer Henriks ændring |
+| 2026-10-06 09:52 | false | true | stadig SLÅET TIL — afventer Henriks ændring |
 
 Forventet efter ændringen: `"er_prod_projekt":true, "disable_signup":true, "selvregistrering_slaaet_til":false`.
 Status regnes først som lukket, når målingen viser det (ingen antagelse).
