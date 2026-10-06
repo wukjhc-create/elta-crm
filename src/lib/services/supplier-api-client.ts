@@ -810,7 +810,7 @@ export class LMClassicClient extends BaseSupplierAPIClient {
       // Get latest import
       const { data: latestImport } = await supabase
         .from('import_batches')
-        .select('created_at, total_rows, new_products, updated_prices')
+        .select('created_at, total_rows, new_products, updated_products') // updated_prices findes ikke (skematjek 2026-10-06) → "Seneste import: ukendt"
         .eq('supplier_id', this.supplierId)
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
