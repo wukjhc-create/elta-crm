@@ -30,6 +30,7 @@ async function requireGate(permission: Permission) {
 }
 import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/utils/logger'
 
 // =====================================================
 // Helpers
@@ -138,17 +139,18 @@ export async function applyCalibration(
     // Get current value for history
     const { data: currentComponent } = await supabase
       .from('calc_components')
-      .select('time_estimate')
+      .select('base_time_minutes')
       .eq('code', calibration.code)
       .maybeSingle()
 
-    const oldValue = currentComponent?.time_estimate || 0
+    const oldValue = currentComponent?.base_time_minutes || 0
 
     // Update calc_components time estimate
     const { error } = await supabase
       .from('calc_components')
       .update({
-        time_estimate: calibration.suggested_time_minutes,
+        // Statisk skematjek 2026-10-06: kolonnen hedder base_time_minutes (time_estimate findes ikke → knappen fejlede altid)
+        base_time_minutes: Math.round(calibration.suggested_time_minutes),
         updated_at: new Date().toISOString(),
       })
       .eq('code', calibration.code)
@@ -323,12 +325,10 @@ export async function collectProjectFeedback(): Promise<
       if (offer?.id) offerIds.push(offer.id)
     }
 
-    // Batch: get all auto_calculations for these offers
-    const { data: allCalcs } = await supabase
-      .from('auto_calculations')
-      .select('id, offer_id, total_hours, material_cost')
-      .in('offer_id', offerIds)
-      .limit(200)
+    // Statisk skematjek 2026-10-06: auto_calculations har INGEN kobling til tilbud (ingen offer_id-kolonne) — opslaget
+    // fejlede altid. Indtil koblingen findes (kræver migration + godkendelse) kan feedback ikke indsamles automatisk.
+    const allCalcs: Array<{ id: string; offer_id: string; total_hours: number; material_cost: number }> = []
+    if (offerIds.length) logger.info('collectProjectFeedback: auto_calculations kan ikke kobles til tilbud (ingen offer_id) — springer over')
 
     const calcsByOfferId = new Map<string, { id: string; total_hours: number; material_cost: number }>()
     for (const calc of allCalcs || []) {
@@ -446,11 +446,11 @@ export async function runAutoCalibrationAndApply(): Promise<
         continue
       }
 
-      // Update calc_components time_estimate
+      // Update calc_components base_time_minutes
       const { error: compError } = await supabase
         .from('calc_components')
         .update({
-          time_estimate: cal.suggested_time_minutes,
+          base_time_minutes: Math.round(cal.suggested_time_minutes),
           updated_at: new Date().toISOString(),
         })
         .eq('code', cal.code)

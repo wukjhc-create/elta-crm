@@ -377,10 +377,11 @@ export async function linkEmail(
 ): Promise<LinkResult> {
   const supabase = await createClient()
 
-  // 0. Thread-based matching: check conversation_id and in_reply_to first
+  // 0. Thread-based matching på conversation_id. Statisk skematjek 2026-10-05: kolonnerne in_reply_to og
+  //    internet_message_id findes ikke i prod → hele forespørgslen fejlede, så HELLER IKKE samtale-koblingen kørte.
   const { data: thisEmail } = await supabase
     .from('incoming_emails')
-    .select('conversation_id, in_reply_to')
+    .select('conversation_id')
     .eq('id', emailId)
     .maybeSingle()
 
@@ -407,21 +408,7 @@ export async function linkEmail(
     }
   }
 
-  // 0b. Match by in_reply_to → find the original email by its internet_message_id
-  if (!threadCustomerId && thisEmail?.in_reply_to) {
-    const { data: replyMatch } = await supabase
-      .from('incoming_emails')
-      .select('customer_id, service_case_id')
-      .eq('internet_message_id', thisEmail.in_reply_to)
-      .not('customer_id', 'is', null)
-      .limit(1)
-      .maybeSingle()
-
-    if (replyMatch?.customer_id) {
-      threadCustomerId = replyMatch.customer_id
-      threadServiceCaseId = replyMatch.service_case_id || null
-    }
-  }
+  // (0b in_reply_to → internet_message_id fjernet: kolonnerne findes ikke — se ovenfor)
 
   // 1. Extract original sender (handles forwarded emails)
   const extracted = extractOriginalSender(

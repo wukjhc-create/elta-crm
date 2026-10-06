@@ -806,6 +806,138 @@ async function main() {
     log(JSON.stringify(g))
     return
   }
+  if (SUB === 'pending-invites') {
+    // Staging (read-only): afventende invitationer som Brugerstyring nu viser dem (auth: invited_at uden første login) — kun antal
+    const all: Array<{ invited_at?: string | null; last_sign_in_at?: string | null; email?: string }> = []
+    for (let page = 1; page <= 20; page++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
+      if (error) throw new Error(error.message)
+      all.push(...(data?.users ?? []))
+      if ((data?.users ?? []).length < 200) break
+    }
+    log(JSON.stringify({ auth_users: all.length, invited: all.filter((u) => !!u.invited_at).length, pending: all.filter((u) => !!u.invited_at && !u.last_sign_in_at && !!u.email).length }))
+    return
+  }
+  if (SUB === 'autolink-scenario') {
+    // K5 (staging): autoLinkEmail() mod rigtige rækker — præcis/kontakt/samtale kobles, domæne/tvetydigt kun forslag,
+    // eksisterende kobling overskrives aldrig, FormSubmit/eget domæne matches ikke, audit for hver kobling. Rydder op.
+    const { autoLinkEmail } = await import('../../src/lib/services/email-autolink')
+    const stamp = Date.now()
+    const owner = ((await admin.from('profiles').select('id').limit(1)).data as Array<{ id: string }> | null)?.[0]?.id
+    const dom = (k: string) => `k5${k}${stamp}.dk`
+    const custIds: string[] = []
+    const mailIds: string[] = []
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const mkCust = async (key: string, email: string) => {
+      const { data, error } = await admin.from('customers').insert([{ customer_number: `K5-${stamp}-${key}`, company_name: `[HARNESS] K5 ${key}`, contact_person: 'x', email, created_by: owner }]).select('id')
+      if (error) throw new Error(error.message)
+      const id = (data as Array<{ id: string }>)[0].id
+      custIds.push(id)
+      return id
+    }
+    const mkMail = async (sender: string, subject: string, extra: Record<string, unknown> = {}) => {
+      const { data, error } = await admin.from('incoming_emails').insert([{ sender_email: sender, subject, body_text: (extra.body_text as string) ?? 'Hej', received_at: new Date().toISOString(), is_archived: false, link_status: 'pending', customer_id: null, ...extra }]).select('id')
+      if (error) throw new Error(error.message)
+      const id = (data as Array<{ id: string }>)[0].id
+      mailIds.push(id)
+      return id
+    }
+    const row = async (id: string) => (await admin.from('incoming_emails').select('link_status, customer_id, customer_contact_id, linked_by, is_forwarded').eq('id', id).single()).data as { link_status: string; customer_id: string | null; customer_contact_id: string | null; linked_by: string | null; is_forwarded: boolean | null }
+    const audits = async (id: string) => ((await admin.from('audit_logs').select('action, metadata').eq('entity_id', id)).data ?? []) as Array<{ action: string; metadata: Record<string, unknown> }>
+    const run = async (id: string, sender: string, subject: string, body: string | null = null) => autoLinkEmail(id, sender, null, subject, null, body)
+    try {
+      const A = await mkCust('A', `kunde@${dom('a')}`)
+      const B = await mkCust('B', `info@${dom('b')}`)
+      const { data: ct, error: ctErr } = await admin.from('customer_contacts').insert([{ customer_id: B, name: 'Kontakt B', email: `kontakt@${dom('b')}` }]).select('id')
+      if (ctErr) throw new Error(ctErr.message)
+      const contactB = (ct as Array<{ id: string }>)[0].id
+      const C = await mkCust('C', `info@${dom('c')}`)
+      const D = await mkCust('D', `dublet@${dom('d')}`)
+      const E = await mkCust('E', `dublet@${dom('d')}`)
+      await mkCust('F', `henvendelse${stamp}@formsubmit.co`)
+
+      // 1. præcis kunde-e-mail
+      const m1 = await mkMail(`Kunde@${dom('a')}`, 'K5 præcis')
+      await run(m1, `Kunde@${dom('a')}`, 'K5 præcis')
+      const r1 = await row(m1); const a1 = await audits(m1)
+      check('præcis e-mail → koblet til A', r1.link_status === 'linked' && r1.customer_id === A && r1.linked_by === 'auto', JSON.stringify(r1))
+      check('  audit email_auto_linked (email)', a1.length === 1 && a1[0].action === 'email_auto_linked' && a1[0].metadata?.matched_on === 'email', JSON.stringify(a1))
+
+      // 2. kontakt-e-mail
+      const m2 = await mkMail(`kontakt@${dom('b')}`, 'K5 kontakt')
+      await run(m2, `kontakt@${dom('b')}`, 'K5 kontakt')
+      const r2 = await row(m2)
+      check('kontakt-e-mail → koblet til B med kontakt', r2.customer_id === B && r2.customer_contact_id === contactB, JSON.stringify(r2))
+
+      // 3. kun domæne → forslag
+      const m3 = await mkMail(`anden@${dom('c')}`, 'K5 domæne')
+      await run(m3, `anden@${dom('c')}`, 'K5 domæne')
+      const r3 = await row(m3); const a3 = await audits(m3)
+      check('kun domæne → IKKE koblet', r3.customer_id === null && r3.link_status === 'unidentified' && r3.linked_by === null, JSON.stringify(r3))
+      check('  audit email_link_suggested med C', a3.length === 1 && a3[0].action === 'email_link_suggested' && JSON.stringify(a3[0].metadata?.candidate_customer_ids) === JSON.stringify([C]), JSON.stringify(a3))
+
+      // 4. tvetydig e-mail (2 kunder)
+      const m4 = await mkMail(`dublet@${dom('d')}`, 'K5 tvetydig')
+      await run(m4, `dublet@${dom('d')}`, 'K5 tvetydig')
+      const r4 = await row(m4); const a4 = await audits(m4)
+      const cands = ((a4[0]?.metadata?.candidate_customer_ids as string[] | undefined) ?? []).slice().sort()
+      check('tvetydig → ALDRIG koblet', r4.customer_id === null, JSON.stringify(r4))
+      check('  forslag med begge kandidater', a4[0]?.metadata?.matched_on === 'ambiguous' && JSON.stringify(cands) === JSON.stringify([D, E].sort()), JSON.stringify(a4))
+
+      // 5. samtale: tidligere mail manuelt koblet til A → svar fra gratis-mail kobles via tråden
+      const conv = `k5-conv-${stamp}`
+      await mkMail(`kunde@${dom('a')}`, 'K5 tråd 1', { conversation_id: conv, customer_id: A, link_status: 'linked', linked_by: 'manual' })
+      const m5 = await mkMail(`privat${stamp}@gmail.com`, 'SV: K5 tråd 1', { conversation_id: conv })
+      await run(m5, `privat${stamp}@gmail.com`, 'SV: K5 tråd 1')
+      const r5 = await row(m5); const a5 = await audits(m5)
+      check('samme samtale → koblet til A', r5.customer_id === A && a5[0]?.metadata?.matched_on === 'thread', JSON.stringify({ r5, a5 }))
+
+      // 6. allerede manuelt koblet til E → overskrives ikke (selv om afsender præcist matcher A)
+      const m6 = await mkMail(`kunde@${dom('a')}`, 'K5 manuel', { customer_id: E, link_status: 'linked', linked_by: 'manual' })
+      const res6 = await run(m6, `kunde@${dom('a')}`, 'K5 manuel')
+      const r6 = await row(m6); const a6 = await audits(m6)
+      check('manuel kobling bevares (E, manual)', r6.customer_id === E && r6.linked_by === 'manual' && res6.customerId === E, JSON.stringify(r6))
+      check('  ingen audit ved urørt mail', a6.length === 0)
+
+      // 7. FormSubmit-relæ matches aldrig på afsender
+      const m7 = await mkMail(`henvendelse${stamp}@formsubmit.co`, 'Ny henvendelse')
+      await run(m7, `henvendelse${stamp}@formsubmit.co`, 'Ny henvendelse')
+      const r7 = await row(m7)
+      check('FormSubmit-afsender → ikke koblet', r7.customer_id === null, JSON.stringify(r7))
+
+      // 8. videresendt fra eget domæne → oprindelig afsender (A) kobles
+      const body8 = `---------- Videresendt besked ----------\nFra: Kunde A <kunde@${dom('a')}>\nEmne: hjælp`
+      const m8 = await mkMail('henrik@eltasolar.dk', 'VS: hjælp', { body_text: body8 })
+      await run(m8, 'henrik@eltasolar.dk', 'VS: hjælp', body8)
+      const r8 = await row(m8)
+      check('videresendt → koblet til oprindelig afsender A', r8.customer_id === A && r8.is_forwarded === true, JSON.stringify(r8))
+
+      // 9. internt (eget domæne, ikke videresendt) → ikke koblet
+      const m9 = await mkMail('kollega@eltasolar.dk', 'Intern note')
+      await run(m9, 'kollega@eltasolar.dk', 'Intern note')
+      check('intern afsender → ikke koblet', (await row(m9)).customer_id === null)
+    } finally {
+      if (mailIds.length) {
+        await admin.from('audit_logs').delete().in('entity_id', mailIds)
+        await admin.from('incoming_emails').delete().in('id', mailIds)
+      }
+      if (custIds.length) await admin.from('customers').delete().in('id', custIds)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ K5 autolink-scenarie bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'table-columns') {
+    // Staging (read-only): kolonner (type/nullable/default) + CHECK-constraints for én tabel
+    const t = String(process.argv[3] || '')
+    if (!/^[a-z_0-9]+$/.test(t)) { log('brug: table-columns <tabel>'); process.exit(2) }
+    const cols = await stagingSql(`SELECT column_name, data_type, is_nullable, left(coalesce(column_default, ''), 60) d FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${t}' ORDER BY ordinal_position`)
+    for (const c of cols) log(`${c.column_name.padEnd(28)} ${c.data_type.padEnd(26)} null=${c.is_nullable} ${c.d}`)
+    const checks = await stagingSql(`SELECT conname, left(pg_get_constraintdef(oid), 200) def FROM pg_constraint WHERE conrelid = 'public.${t}'::regclass AND contype IN ('c', 'f')`)
+    for (const c of checks) log(`CONSTRAINT ${c.conname}: ${c.def}`)
+    return
+  }
   if (SUB === 'cron-log-volume') {
     // Staging (read-only): hvor mange cron-logrækker ligger i Pilot Healths 9-dages vindue, og hvor lang tid tager et opslag
     const [c] = await stagingSql(`SELECT count(*)::int n FROM system_health_log WHERE service = 'cron' AND created_at > now() - interval '9 days'`)

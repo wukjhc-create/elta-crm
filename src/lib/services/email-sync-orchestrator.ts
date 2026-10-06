@@ -21,6 +21,7 @@ import {
   fetchMessageHeaders,
 } from '@/lib/services/microsoft-graph'
 import { linkEmail } from '@/lib/services/email-linker'
+import { autoLinkEmail, isAutoLinkEnabled } from '@/lib/services/email-autolink'
 import { processEmailIntelligence, isForwardedEmail } from '@/lib/services/email-intelligence'
 import { detectAOProducts, applyKalkiaPriceUpdates } from '@/lib/services/email-ao-detector'
 import { processEmailAttachments } from '@/lib/services/email-attachment-storage'
@@ -287,7 +288,7 @@ async function syncOneMailbox(
     // Link to customer (non-critical — wrapped in try/catch)
     if (inserted?.id) {
       try {
-        const linkResult = await linkEmail(
+        const linkResult = await (isAutoLinkEnabled() ? autoLinkEmail : linkEmail)(
           inserted.id,
           senderEmail,
           msg.from.emailAddress.name || null,
@@ -348,7 +349,7 @@ async function syncOneMailbox(
           // Kommunikations-review: stop ved første kunde-match — hver linkEmail skriver koblingen, så en senere
           // modtager (fx leverandør eller anden kunde) overskrev før den rigtige kunde (sidste match vandt / blev null)
           for (const toAddr of toAddresses) {
-            const lr = await linkEmail(inserted.id, toAddr, null, msg.subject || '(Intet emne)', msg.body?.content || null, null)
+            const lr = await (isAutoLinkEnabled() ? autoLinkEmail : linkEmail)(inserted.id, toAddr, null, msg.subject || '(Intet emne)', msg.body?.content || null, null)
             if (lr.status === 'linked') { result.emailsLinked++; break }
           }
         }
