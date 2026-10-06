@@ -19,6 +19,7 @@ import type { ActionResult } from '@/types/common.types'
 import { MAX_IMAGE_SIZE, APP_URL } from '@/lib/constants'
 import type { Profile, UpdateProfileInput, TeamInvitation, NotificationPreferences } from '@/types/settings.types'
 import { logger } from '@/lib/utils/logger'
+import { validateUUID } from '@/lib/validations/common'
 import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { setProfileLoginActive } from '@/lib/auth/login-access'
 import { isValidRole, lastAdminBlock } from '@/lib/auth/role-guard'
@@ -1113,17 +1114,35 @@ export async function updateTeamMember(
 // Team Invitations
 // =====================================================
 
+// Invitationer bygger på Supabase Auth (statisk skematjek 2026-10-06: tabellen team_invitations findes ikke i prod —
+// listen var altid tom, og gensend/annullér virkede aldrig). En afventende invitation = auth-bruger med invited_at og
+// uden første login. Ingen ny tabel; intet slettes herfra.
+type AuthInviteUser = { id: string; email?: string; invited_at?: string | null; last_sign_in_at?: string | null; user_metadata?: Record<string, unknown> }
+
+async function listPendingInviteUsers(admin: ReturnType<typeof createAdminClient>): Promise<AuthInviteUser[]> {
+  const out: AuthInviteUser[] = []
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
+    if (error) throw error
+    const users = (data?.users ?? []) as AuthInviteUser[]
+    out.push(...users.filter((u) => !!u.invited_at && !u.last_sign_in_at && !!u.email))
+    if (users.length < 200) break
+  }
+  return out
+}
+
 export async function inviteTeamMember(
   email: string,
   role: string = 'montør',
-): Promise<ActionResult<{ email: string }>> {
+): Promise<ActionResult<{ email: string; id: string | null }>> {
   try {
     const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('users.create')) {
       return { success: false, error: 'Manglende tilladelse: users.create' }
     }
+    if (!isValidRole(role)) return { success: false, error: 'Ukendt rolle' }
 
-    // Check if user already exists
+    // Findes brugeren allerede (også en afventende invitation har en profil) → afvis
     const { data: existing } = await supabase
       .from('profiles')
       .select('id')
@@ -1131,25 +1150,13 @@ export async function inviteTeamMember(
       .maybeSingle()
 
     if (existing) {
-      return { success: false, error: 'Denne email er allerede registreret' }
-    }
-
-    // Check if there's already a pending invite
-    const { data: pendingInvite } = await supabase
-      .from('team_invitations')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .eq('status', 'pending')
-      .maybeSingle()
-
-    if (pendingInvite) {
-      return { success: false, error: 'Der er allerede en afventende invitation til denne email' }
+      return { success: false, error: 'Denne email er allerede registreret eller inviteret' }
     }
 
     // Send invite via Supabase Auth Admin
     const admin = createAdminClient()
     const inviteRedirectTo = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/reset-password`
-    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email.toLowerCase(), {
+    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email.toLowerCase(), {
       data: { role, invited_by: userId },
       redirectTo: inviteRedirectTo,
     })
@@ -1159,16 +1166,21 @@ export async function inviteTeamMember(
       return { success: false, error: 'Kunne ikke sende invitation. Tjek at email er gyldig.' }
     }
 
-    // Store invitation record
-    await supabase.from('team_invitations').insert({
-      email: email.toLowerCase(),
-      role,
-      invited_by: userId,
-      status: 'pending',
-    })
+    // handle_new_user opretter profilen som montør; den valgte rolle sættes her (kræver users.edit som rolleskift i øvrigt)
+    const newId = invited?.user?.id ?? null
+    if (newId && role !== 'montør') {
+      if (!hasPermission('users.edit')) {
+        return { success: true, data: { email: email.toLowerCase(), id: newId } }
+      }
+      const { error: roleErr } = await admin.from('profiles').update({ role, updated_at: new Date().toISOString() }).eq('id', newId)
+      if (roleErr) {
+        logger.error('Invitation sendt, men rollen kunne ikke sættes', { error: roleErr, entityId: newId })
+        return { success: false, error: 'Invitation sendt, men rollen kunne ikke sættes — ret den under brugerlisten' }
+      }
+    }
 
     revalidatePath('/dashboard/settings/team')
-    return { success: true, data: { email: email.toLowerCase() } }
+    return { success: true, data: { email: email.toLowerCase(), id: newId } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke sende invitation') }
   }
@@ -1176,33 +1188,33 @@ export async function inviteTeamMember(
 
 export async function getTeamInvitations(): Promise<ActionResult<TeamInvitation[]>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('users.view')) {
       return { success: false, error: 'Manglende tilladelse: users.view' }
     }
 
-    const { data, error } = await supabase
-      .from('team_invitations')
-      .select('*, inviter:profiles!invited_by(full_name)')
-      .order('created_at', { ascending: false })
+    const admin = createAdminClient()
+    const pending = await listPendingInviteUsers(admin)
+    const ids = Array.from(new Set(pending.flatMap((u) => [u.id, String(u.user_metadata?.invited_by ?? '')]).filter(Boolean)))
+    const { data: profs } = ids.length
+      ? await admin.from('profiles').select('id, full_name, role').in('id', ids)
+      : { data: [] as Array<{ id: string; full_name: string | null; role: string | null }> }
+    const byId = new Map(((profs ?? []) as Array<{ id: string; full_name: string | null; role: string | null }>).map((p) => [p.id, p]))
 
-    if (error) {
-      logger.error('Error fetching invitations', { error: error })
-      return { success: false, error: 'Kunne ikke hente invitationer' }
-    }
-
-    const invitations: TeamInvitation[] = (data || []).map((inv) => {
-      const inviter = inv.inviter as unknown as { full_name: string | null } | null
-      return {
-        id: inv.id,
-        email: inv.email,
-        role: inv.role,
-        invited_by: inv.invited_by,
-        invited_by_name: inviter?.full_name || null,
-        created_at: inv.created_at,
-        status: inv.status,
-      }
-    })
+    const invitations: TeamInvitation[] = pending
+      .map((u) => {
+        const invitedBy = String(u.user_metadata?.invited_by ?? '')
+        return {
+          id: u.id,
+          email: u.email as string,
+          role: byId.get(u.id)?.role || String(u.user_metadata?.role ?? 'montør'),
+          invited_by: invitedBy,
+          invited_by_name: byId.get(invitedBy)?.full_name ?? null,
+          created_at: u.invited_at as string,
+          status: 'pending' as const,
+        }
+      })
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
     return { success: true, data: invitations }
   } catch (err) {
@@ -1211,27 +1223,10 @@ export async function getTeamInvitations(): Promise<ActionResult<TeamInvitation[
 }
 
 export async function cancelInvitation(invitationId: string): Promise<ActionResult<null>> {
-  try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
-    if (!hasPermission('users.edit')) {
-      return { success: false, error: 'Manglende tilladelse: users.edit' }
-    }
-
-    const { error } = await supabase
-      .from('team_invitations')
-      .delete()
-      .eq('id', invitationId)
-
-    if (error) {
-      logger.error('Error canceling invitation', { error: error })
-      return { success: false, error: 'Kunne ikke annullere invitation' }
-    }
-
-    revalidatePath('/dashboard/settings/team')
-    return { success: true, data: null }
-  } catch (err) {
-    return { success: false, error: formatError(err, 'Kunne ikke annullere invitation') }
-  }
+  // En invitation er en auth-bruger; den fjernes ikke herfra (ingen sletning). Deaktivér brugeren i brugerlisten,
+  // så linket i invitationen ikke giver adgang.
+  void invitationId
+  return { success: false, error: 'Invitationen kan ikke annulleres her — deaktivér brugeren i brugerlisten i stedet' }
 }
 
 // ============================================
@@ -1289,28 +1284,22 @@ export async function saveNotificationPreferences(
 
 export async function resendInvitation(invitationId: string): Promise<ActionResult<null>> {
   try {
-    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    const { userId, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('users.edit')) {
       return { success: false, error: 'Manglende tilladelse: users.edit' }
     }
+    validateUUID(invitationId, 'invitationId')
 
-    // Get invitation
-    const { data: invitation } = await supabase
-      .from('team_invitations')
-      .select('email, role')
-      .eq('id', invitationId)
-      .eq('status', 'pending')
-      .maybeSingle()
-
-    if (!invitation) {
-      return { success: false, error: 'Invitation ikke fundet' }
+    const admin = createAdminClient()
+    const { data: got, error: getErr } = await admin.auth.admin.getUserById(invitationId)
+    const u = got?.user as AuthInviteUser | undefined
+    if (getErr || !u?.email || !u.invited_at || u.last_sign_in_at) {
+      return { success: false, error: 'Invitation ikke fundet (brugeren er måske allerede logget ind)' }
     }
 
-    // Resend via Supabase Auth Admin
-    const admin = createAdminClient()
     const resendRedirectTo = `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')}/reset-password`
-    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(invitation.email, {
-      data: { role: invitation.role, invited_by: userId },
+    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(u.email, {
+      data: { ...(u.user_metadata ?? {}), invited_by: userId },
       redirectTo: resendRedirectTo,
     })
 
@@ -1318,12 +1307,6 @@ export async function resendInvitation(invitationId: string): Promise<ActionResu
       logger.error('Error resending invitation', { error: inviteError })
       return { success: false, error: 'Kunne ikke gensende invitation' }
     }
-
-    // Update timestamp
-    await supabase
-      .from('team_invitations')
-      .update({ created_at: new Date().toISOString() })
-      .eq('id', invitationId)
 
     revalidatePath('/dashboard/settings/team')
     return { success: true, data: null }

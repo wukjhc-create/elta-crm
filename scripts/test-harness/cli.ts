@@ -804,6 +804,18 @@ async function main() {
     log(JSON.stringify(g))
     return
   }
+  if (SUB === 'pending-invites') {
+    // Staging (read-only): afventende invitationer som Brugerstyring nu viser dem (auth: invited_at uden første login) — kun antal
+    const all: Array<{ invited_at?: string | null; last_sign_in_at?: string | null; email?: string }> = []
+    for (let page = 1; page <= 20; page++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
+      if (error) throw new Error(error.message)
+      all.push(...(data?.users ?? []))
+      if ((data?.users ?? []).length < 200) break
+    }
+    log(JSON.stringify({ auth_users: all.length, invited: all.filter((u) => !!u.invited_at).length, pending: all.filter((u) => !!u.invited_at && !u.last_sign_in_at && !!u.email).length }))
+    return
+  }
   if (SUB === 'autolink-scenario') {
     // K5 (staging): autoLinkEmail() mod rigtige rækker — præcis/kontakt/samtale kobles, domæne/tvetydigt kun forslag,
     // eksisterende kobling overskrives aldrig, FormSubmit/eget domæne matches ikke, audit for hver kobling. Rydder op.
