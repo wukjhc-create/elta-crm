@@ -3,7 +3,7 @@
  *
  * Bag flaget AI_PROJECT_ELTA_COMPONENTS='true' (default fra = uændret adfærd: motoren har hidtil ALTID brugt de
  * indbyggede værdier, fordi den læste kolonner der ikke findes). Kun entydige koblinger er med; motor-koder uden et
- * klart ELTA-modstykke (udendørs lampeudtag, kraftstik 16A/32A, elbillader, ny tavle) bruger fortsat standardværdier
+ * klart ELTA-modstykke (udendørs lampeudtag, kraftstik 16A/32A, ny tavle) bruger fortsat standardværdier
  * og vises som "standard" i resultatet. Prisen påvirkes via tiden (timer × timesats); stykprisen er visning.
  */
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -27,10 +27,19 @@ export const ELTA_COMPONENT_MAP: Record<string, EltaComponentLink> = {
   data_outlet: { code: 'NET-CAT6-NY' },
   tv_outlet: { code: 'STIK-ANTENNE' },
   panel_group: { code: 'TAVLE-GRP' },
+  // Motorens elbillader-komponent er selve montagen (kabel 6 mm² og tavlegruppe beregnes separat i motoren) →
+  // ELTAs eneste ladestander-komponent "Montering ladestander" dækker samme omfang (afklaret 2026-10-07)
+  ev_charger: { code: 'MONT-LADESTAND' },
 }
 
-/** Motor-koder der bevidst IKKE kobles (intet entydigt ELTA-modstykke) — til visning/beslutning */
-export const ELTA_UNMAPPED = ['outdoor_light', 'power_16a', 'power_32a', 'ev_charger', 'panel_new'] as const
+/**
+ * Motor-koder der bevidst IKKE kobles (gennemgået mod prod-kataloget 2026-10-07, 70 aktive komponenter):
+ *   outdoor_light — intet udendørs lampeudtag (VAEG-LAMPE-NY er indendørs vægudtag; STIK-UD* er stikkontakter)
+ *   power_16a / power_32a — ingen kraftstik/CEE-komponent
+ *   panel_new — flere kandidater (TAVLE-NY, TAVLE-S, TAVLE-L, TAVLE-LILLE) → tvetydigt
+ * De bruger motorens standardværdier og vises som "standard" i resultatet.
+ */
+export const ELTA_UNMAPPED = ['outdoor_light', 'power_16a', 'power_32a', 'panel_new'] as const
 
 export function isEltaComponentsEnabled(): boolean {
   return process.env.AI_PROJECT_ELTA_COMPONENTS === 'true'

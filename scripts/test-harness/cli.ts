@@ -894,10 +894,18 @@ async function main() {
       panel_requirements: { upgrade_needed: false, required_groups: 0, required_amperage: 25, new_panel_needed: false, ...panel },
       complexity_score: 3, complexity_factors: [], risk_score: 2, risk_factors: [], ai_model: 'harness', ai_confidence: 1, interpretation_time_ms: 0, created_at: new Date().toISOString(),
     })
+    // 10 realistiske opgavetyper (samme interpretation FØR/EFTER; kun komponentkilden skifter)
     const cases: Interp[] = [
-      base('k1', 'Køkkenrenovering: 6 dobbelte stik, 2 enkelte, 4 spots, 1 dæmper, 1 afbryder', { double_outlets: 6, outlets: 2, spots: 4, dimmers: 1, switches: 1 }, { nym_1_5mm: 30, nym_2_5mm: 40 }, { upgrade_needed: true, current_groups: 8, required_groups: 10 }),
-      base('k2', 'Stue + kontor: 8 stik, 3 afbrydere, 2 korrespondance, 2 loftudtag, 4 netværk, 1 TV', { outlets: 8, switches: 3, multi_switches: 2, ceiling_lights: 2, data_outlets: 4, tv_outlets: 1 }, { nym_1_5mm: 40, nym_2_5mm: 50, data_cable: 80 }),
-      base('k3', 'Carport: elbillader, 2 udendørs lamper, 1 kraftstik 16A', { ev_charger: 1, outdoor_lights: 2, power_16a: 1 }, { nym_6mm: 25, outdoor_cable: 20 }),
+      base('e1', 'Køkkenrenovering: 6 dobbelte stik, 2 enkelte, 4 spots, 1 dæmper, 1 afbryder, +2 grupper', { double_outlets: 6, outlets: 2, spots: 4, dimmers: 1, switches: 1 }, { nym_1_5mm: 30, nym_2_5mm: 40 }, { upgrade_needed: true, current_groups: 8, required_groups: 10 }),
+      base('e2', 'Stue + kontor: 8 stik, 3 afbrydere, 2 korrespondance, 2 loftudtag, 4 netværk, 1 TV', { outlets: 8, switches: 3, multi_switches: 2, ceiling_lights: 2, data_outlets: 4, tv_outlets: 1 }, { nym_1_5mm: 40, nym_2_5mm: 50, data_cable: 80 }),
+      base('e3', 'Carport: elbillader, 2 udendørs lamper, 1 kraftstik 16A, +2 grupper', { ev_charger: 1, outdoor_lights: 2, power_16a: 1 }, { nym_6mm: 25, outdoor_cable: 20 }, { upgrade_needed: true, current_groups: 10, required_groups: 12 }),
+      base('e4', 'Elbillader alene: 1 lader, 15 m 6 mm², +1 gruppe', { ev_charger: 1 }, { nym_6mm: 15 }, { upgrade_needed: true, current_groups: 10, required_groups: 11 }),
+      base('e5', 'Badeværelse: 10 spots, 1 dæmper, 2 stik, 1 afbryder', { spots: 10, dimmers: 1, outlets: 2, switches: 1 }, { nym_1_5mm: 25, nym_2_5mm: 10 }),
+      base('e6', 'Værksted/garage: 1 kraftstik 32A, 2 kraftstik 16A, 4 dobbelte stik, 2 loftudtag', { power_32a: 1, power_16a: 2, double_outlets: 4, ceiling_lights: 2 }, { nym_2_5mm: 40, nym_4mm: 20, nym_6mm: 15 }, { upgrade_needed: true, current_groups: 8, required_groups: 11 }),
+      base('e7', 'Nyt hus 140 m² komplet: 30 stik, 10 dobbelte, 15 afbrydere, 4 korrespondance, 12 spots, 10 loftudtag, 4 netværk, 2 TV, ny tavle', { outlets: 30, double_outlets: 10, switches: 15, multi_switches: 4, spots: 12, ceiling_lights: 10, data_outlets: 4, tv_outlets: 2 }, { nym_1_5mm: 250, nym_2_5mm: 300, data_cable: 120 }, { new_panel_needed: true, required_groups: 16 }),
+      base('e8', 'Tavleudskiftning: ny tavle', {}, {}, { new_panel_needed: true, required_groups: 12 }),
+      base('e9', 'Udendørs belysning: 6 udendørs lamper, 1 afbryder', { outdoor_lights: 6, switches: 1 }, { outdoor_cable: 40 }),
+      base('e10', 'Hjemmekontor: 4 dobbelte stik, 2 netværk, 1 loftudtag, 1 afbryder, +1 gruppe', { double_outlets: 4, data_outlets: 2, ceiling_lights: 1, switches: 1 }, { nym_1_5mm: 10, nym_2_5mm: 20, data_cable: 30 }, { upgrade_needed: true, current_groups: 9, required_groups: 10 }),
     ]
     const runCase = async (it: Interp) => {
       const m = await matchComponents(it)
@@ -917,7 +925,7 @@ async function main() {
       ['DIM-NY', 'Lysdæmper - ny', 645, 35], ['SPOT-IND-1', 'Indbygningsspot - første', 595, 30],
       ['SPOT-IND-X', 'Indbygningsspot - ekstra', 445, 18], ['LOFT-NY', 'Loftudtag - ny', 495, 35],
       ['NET-CAT6-NY', 'Netværksudtag Cat6', 595, 40], ['STIK-ANTENNE', 'Antenne-udtag', 175, 15],
-      ['TAVLE-GRP', 'Ekstra gruppe i tavle', 395, 25],
+      ['TAVLE-GRP', 'Ekstra gruppe i tavle', 395, 25], ['MONT-LADESTAND', 'Montering ladestander', 2495, 90],
     ]
     const existingCodes = new Set(((await admin.from('calc_components').select('code').in('code', PROD_CATALOG.map((r) => r[0]))).data ?? []).map((r: { code: string }) => r.code))
     for (const [code, name, sale, min] of PROD_CATALOG) {
@@ -932,21 +940,44 @@ async function main() {
     log(`staging calc_components: ${cc.total} (STIK-*: ${cc.stik}) · indlæste ELTA-koblinger: ${(await loadEltaComponents()).size}`)
     let fails = 0
     try {
+    const rows: string[] = []
     for (const it of cases) {
       delete process.env.AI_PROJECT_ELTA_COMPONENTS
       const before = await runCase(it)
       process.env.AI_PROJECT_ELTA_COMPONENTS = 'true'
       const after = await runCase(it)
       delete process.env.AI_PROJECT_ELTA_COMPONENTS
-      log(`\n■ ${it.raw_description}`)
-      log(`  FØR : ${before.comps.map((c) => `${c.quantity}× ${c.name} (${c.time_minutes / c.quantity} min, ${fmt(c.unit_price)} kr)`).join(' · ')}`)
-      log(`  EFTER: ${after.comps.map((c) => `${c.quantity}× ${c.name} (${c.time_minutes / c.quantity} min, ${fmt(c.unit_price)} kr)`).join(' · ')}`)
       const b = before.calc as unknown as { time: { total_hours: number }; price: { labor_cost: number; material_cost: number; total_price: number } }
       const a = after.calc as unknown as { time: { total_hours: number }; price: { labor_cost: number; material_cost: number; total_price: number } }
-      log(`  timer ${b.time.total_hours} → ${a.time.total_hours} · arbejdsløn ${fmt(b.price.labor_cost)} → ${fmt(a.price.labor_cost)} kr · materialer ${fmt(b.price.material_cost)} → ${fmt(a.price.material_cost)} kr · TOTAL ${fmt(b.price.total_price)} → ${fmt(a.price.total_price)} kr`)
-      log(`  komponent-match: ${Math.round(before.m.matchConfidence * 100)}% → ${Math.round(after.m.matchConfidence * 100)}%`)
+      const pct = b.price.total_price ? ((a.price.total_price - b.price.total_price) / b.price.total_price) * 100 : 0
+      const elta = after.m.components.filter((c) => c.source === 'database').map((c) => `${c.quantity}× ${c.name}`)
+      const fallback = after.m.components.filter((c) => c.source !== 'database').map((c) => `${c.quantity}× ${c.name}`)
+      log(`\n■ ${it.raw_description}`)
+      log(`  materialer ${fmt(b.price.material_cost)} → ${fmt(a.price.material_cost)} kr · timer ${b.time.total_hours} → ${a.time.total_hours} · salgspris ${fmt(b.price.total_price)} → ${fmt(a.price.total_price)} kr (${pct >= 0 ? '+' : ''}${pct.toFixed(1)} %)`)
+      log(`  fra ELTA: ${elta.join(', ') || '—'}`)
+      log(`  standard (fallback): ${fallback.join(', ') || '—'}`)
+      rows.push(`| ${it.raw_description} | ${fmt(b.price.material_cost)} → ${fmt(a.price.material_cost)} | ${b.time.total_hours} → ${a.time.total_hours} | ${fmt(b.price.total_price)} → ${fmt(a.price.total_price)} | ${pct >= 0 ? '+' : ''}${pct.toFixed(1)} % | ${elta.join(', ') || '—'} | ${fallback.join(', ') || '—'} |`)
       if (before.m.components.some((c) => c.source === 'database')) { fails++; log('  ❌ FØR brugte DB-komponenter (flag fra skal give standard)') }
+      if (Math.round(a.price.material_cost) !== Math.round(b.price.material_cost)) { fails++; log('  ❌ materialer ændret (kun tid/pris må ændres)') }
     }
+    const { writeFileSync } = await import('fs')
+    writeFileSync('docs/runbooks/s2-elta-components-examples.md', [
+      '# S2 — før/efter: AI-auto-tilbud med ELTAs egne komponenter',
+      '',
+      `Genereret ${new Date().toISOString().slice(0, 10)} af \`npx tsx scripts/test-harness/cli.ts elta-components-compare\` (staging med prod-katalogets`,
+      'værdier for de koblede komponenter; standard-timesats og -margin). **Flaget `AI_PROJECT_ELTA_COMPONENTS` er FRA i prod.**',
+      'FØR = motorens indbyggede standardværdier (sådan prod regner i dag). EFTER = ELTAs tider/salgspriser for entydigt koblede',
+      'komponenter. Materialer beregnes ens (prisen ændres via timerne).',
+      '',
+      `Koblinger: ${Object.entries(ELTA_COMPONENT_MAP).map(([k, v]) => `${k} → ${v.firstCode ? v.firstCode + '/' : ''}${v.code}`).join(', ')}.`,
+      `Bevidst ikke koblet (standard, intet entydigt ELTA-modstykke): ${ELTA_UNMAPPED.join(', ')}.`,
+      '',
+      '| Opgave | Materialer kr | Timer | Salgspris kr | Forskel | Fra ELTA | Standard (fallback) |',
+      '|---|---|---|---|---|---|---|',
+      ...rows,
+      '',
+    ].join('\n'))
+    log('\nskrevet: docs/runbooks/s2-elta-components-examples.md')
     } finally {
       await cleanup()
       const [left] = await stagingSql(`SELECT count(*)::int n FROM calc_components WHERE notes = '[HARNESS] S2 elta-components-compare'`)
