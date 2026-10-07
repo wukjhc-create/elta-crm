@@ -1412,7 +1412,10 @@ export async function createLineItemFromSupplierProduct(
     }
 
     // Get effective margin from rules engine (DB function with full hierarchy)
-    let marginPercentage = options?.customMarginPercentage ?? supplierProduct.margin_percentage ?? CALC_DEFAULTS.MARGINS.PRODUCTS
+    // RBAC-review 2026-10-07: egen avance kun for kost-roller — salg kunne ellers sende ~0 % og læse den eksakte
+    // kostpris som linjens salgspris (ingen UI sender feltet)
+    const customMargin = hasPermission(OFFER_COST_VISIBILITY_PERMISSION) ? options?.customMarginPercentage : undefined
+    let marginPercentage = customMargin ?? supplierProduct.margin_percentage ?? CALC_DEFAULTS.MARGINS.PRODUCTS
     let effectiveCostPrice = supplierProduct.cost_price
     let fixedMarkup = 0
     let roundTo: number | null = null
@@ -1427,11 +1430,11 @@ export async function createLineItemFromSupplierProduct(
       p_customer_id: offer?.customer_id || null,
     })
 
-    if (marginData && marginData.length > 0 && !options?.customMarginPercentage) {
+    if (marginData && marginData.length > 0 && !customMargin) {
       marginPercentage = marginData[0].margin_percentage
       fixedMarkup = marginData[0].fixed_markup || 0
       roundTo = marginData[0].round_to
-    } else if (offer?.customer_id && !options?.customMarginPercentage) {
+    } else if (offer?.customer_id && !customMargin) {
       // Fallback: check customer-specific pricing
       const { data: customerPricing } = await supabase
         .from('customer_supplier_prices')
