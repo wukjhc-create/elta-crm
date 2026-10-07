@@ -591,6 +591,43 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'automation-claim-check') {
+    // R-MAIL-B #11: regelmotoren kræver (rule, entitet) FØR handlingen. 3 samtidige hændelser → præcis én udførelse;
+    // fejlende handling → 'failed' (pladsen frigives). Handling create_task (ingen mail). Unik trigger → kun testreglen.
+    const { evaluateAndRunAutomations } = await import('../../src/lib/automation/rule-engine')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `AC-${stamp}`, company_name: `[HARNESS] ac ${stamp}`, contact_person: 'X', email: `ac-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const trigger = `harness_claim_${stamp}`
+    const { data: ru, error: rErr } = await admin.from('automation_rules').insert({ name: `[HARNESS] claim ${stamp}`, trigger, condition_json: {}, action: 'create_task',
+      action_config: { title: `[HARNESS] claim ${stamp}` }, active: true, dry_run: false }).select('id').single()
+    if (rErr) throw new Error(`regel: ${rErr.message}`)
+    const ruleId = (ru as { id: string }).id
+    try {
+      const ev = { trigger, entityType: 'customer', entityId: custId, payload: { customer_id: custId } } as never
+      await Promise.all([evaluateAndRunAutomations(ev), evaluateAndRunAutomations(ev), evaluateAndRunAutomations(ev)])
+      const ex = (await admin.from('automation_executions').select('status').eq('rule_id', ruleId)).data as Array<{ status: string }>
+      const tasks = (await admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', custId).eq('title', `[HARNESS] claim ${stamp}`)).count
+      check('3 samtidige hændelser → præcis én udførelse', ex.filter((e) => e.status === 'executed').length === 1, JSON.stringify(ex.map((e) => e.status)))
+      check('præcis én opgave oprettet', tasks === 1, String(tasks))
+      // fejlende handling (ingen kunde) → failed, ingen 'executed'-række tilbage
+      const ev2 = { trigger, entityType: 'offer', entityId: crypto.randomUUID(), payload: {} } as never
+      await evaluateAndRunAutomations(ev2)
+      const ex2 = (await admin.from('automation_executions').select('status').eq('rule_id', ruleId).eq('entity_type', 'offer')).data as Array<{ status: string }>
+      check('fejlende handling → failed (pladsen frigivet)', ex2.length === 1 && ex2[0].status === 'failed', JSON.stringify(ex2))
+    } finally {
+      await admin.from('automation_executions').delete().eq('rule_id', ruleId)
+      await admin.from('automation_rules').delete().eq('id', ruleId)
+      await admin.from('customer_tasks').delete().eq('customer_id', custId)
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ regelmotor-krav ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'offer-revisions-check') {
     // 00203 (STAGING): revisioner — snapshot ved afsendelse, ny revision, afløsning, uforanderligt snapshot (RLS),
     // portal viser gældende revision, afløst kan ikke accepteres (afvises FØR underskrift/mail), accepteret kan ikke
