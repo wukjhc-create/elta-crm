@@ -591,6 +591,37 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'offer-invoice-unit-price-check') {
+    // 00198 (STAGING): create_invoice_from_offer prissætter med unit_price — en linje med sale_price 0 (manuel linje før
+    // rettelsen) faktureres til tilbudsprisen, ikke 0 kr. RPC kaldes direkte (uden app-værnet). Ingen mail.
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `OIU-${stamp}`, company_name: `[HARNESS] oiu ${stamp}`, contact_person: 'X', email: `oiu-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const { data: of, error: oErr } = await admin.from('offers').insert([{ offer_number: `UI-E2E-OIU-${stamp}`, title: '[HARNESS] 00198', created_by: owner, customer_id: custId, status: 'accepted', accepted_at: new Date().toISOString() }]).select('id').single()
+    if (oErr) throw new Error(oErr.message)
+    const offerId = (of as { id: string }).id
+    let invId: string | null = null
+    try {
+      await admin.from('offer_line_items').insert([{ offer_id: offerId, position: 1, description: 'Manuel linje', quantity: 2, unit: 'stk', unit_price: 1000, sale_price: 0, total: 2000 }])
+      const { data, error } = await admin.rpc('create_invoice_from_offer', { p_offer_id: offerId, p_due_days: 14 })
+      invId = data ? String(data) : null
+      const inv = invId ? ((await admin.from('invoices').select('total_amount, final_amount').eq('id', invId).single()).data as { total_amount: number; final_amount: number }) : null
+      const lines = invId ? ((await admin.from('invoice_lines').select('unit_price, total_price').eq('invoice_id', invId)).data as Array<{ unit_price: number; total_price: number }>) : []
+      check('faktura = tilbudspris (2 × 1.000 = 2.000 ekskl. moms), ikke 0 kr', !error && Number(inv?.total_amount) === 2000 && Number(lines[0]?.unit_price) === 1000, error?.message ?? JSON.stringify({ inv, lines }))
+      check('moms 25 % → 2.500 inkl. moms', Number(inv?.final_amount) === 2500, String(inv?.final_amount))
+    } finally {
+      if (invId) { await admin.from('invoice_lines').delete().eq('invoice_id', invId); await admin.from('invoices').delete().eq('id', invId) }
+      await admin.from('offer_line_items').delete().eq('offer_id', offerId)
+      await admin.from('offers').delete().eq('id', offerId)
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ 00198 ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'rejected-hours-check') {
     // Henrik 2026-10-07 (00202 + app-filtre): én godkendt (2 t) og én AFVIST (3 t) time på samme arbejdsordre →
     // avance-funktion, faktura fra arbejdsordre og faktura fra sag tæller kun 2 t. Alt seedet ryddes.
