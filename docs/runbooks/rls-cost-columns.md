@@ -131,3 +131,38 @@ read-only tjek i prod + U7/U8/U51/U66/U88/U91/U77/U50 mod staging.
 5. Rolle-tjek SOM rigtige prod-brugere (`npx tsx scripts/prod-role-check-00192.ts` — SET LOCAL ROLE authenticated + JWT-claims i READ ONLY-transaktion): 28/28 for admin og montør (salg/serviceleder/bogholderi findes ikke i prod).
 6. Løndata (`npx tsx scripts/prod-wage-check.ts`): montør ser 0 medarbejdere/0 lønposter; admin ser alt.
 7. `npm run prod:db-audit`: HØJ=0 · MIDDEL=0 · LAV=0.
+
+## Bølge 2 — kost-/rabat-/avancetabeller uden for 00192 (BLOCKED_APPROVAL, Henrik)
+
+Fundet 2026-10-07 (RBAC-review, 6 read-only audits) og **verificeret i prod** med `npx tsx scripts/prod-cost-table-read-policies.ts`
+(kun metadata): følgende tabeller har `SELECT … USING (true)` for `authenticated` og kost-kolonner med kolonne-SELECT →
+enhver indlogget medarbejder (i prod i dag: montør) kan læse dem direkte via REST, uden om app-gates:
+
+| Tabel | Læsbare kost-kolonner |
+|---|---|
+| price_history | old_cost_price, new_cost_price |
+| supplier_product_cache | cached_cost_price |
+| customer_supplier_prices | discount_percentage, custom_margin_percentage |
+| supplier_margin_rules | margin_percentage |
+| product_catalog | cost_price |
+| materials_catalog / material_price_history | cost_price |
+| calc_components | default_cost_price |
+| calc_component_materials | cost_price |
+| kalkia_nodes | default_cost_price |
+| kalkia_variant_materials | cost_price |
+| package_items | cost_price |
+| calculations | margin_percentage, discount_percentage |
+| calculation_rows | cost_price, margin_percentage, discount_percentage, hourly_rate |
+| kalkia_calculations | hourly_rate, cost_price, margin_percentage, discount_percentage |
+| calibration_presets | hourly_rate, margin_percentage |
+| quick_jobs | estimated_cost_price |
+
+Allerede korrekte: supplier_products/offer_line_items.cost_price/time_logs (00192), work_order_profit (kost-roller),
+employee_compensation (admin/egen), employees (admin/serviceleder/egen — rater læsbare for serviceleder; app nuller dem).
+
+App-laget er lukket for de klient-eksponerede actions (2026-10-07: dc5ac3a, b05e558, 62628db). DB-niveauet kræver en
+migration i 00192-mønsteret: pr. tabel `REVOKE SELECT … FROM authenticated` + `GRANT SELECT (<ikke-kost-kolonner>)`,
+eller rolle-scopet SELECT-politik for rene kost-tabeller (price_history, supplier_product_cache, customer_supplier_prices,
+supplier_margin_rules, material_price_history). **Forudsætning:** read-site-analyse (`scripts/rls/read-sites.ts`) af alle
+bruger-klient-læsninger af tabellerne → flyt kost-læsninger til admin-klient bag gate (ellers "permission denied" i UI),
+staging-regression, derefter prod pre/post som 00192. Estimat: 1 arbejdsdag inkl. test. Afventer godkendelse.
