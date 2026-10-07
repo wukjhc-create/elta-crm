@@ -809,8 +809,13 @@ export async function refreshSupplierPricesForCalculation(
         // Collect updates and history records
         const productUpdates: Array<() => Promise<unknown>> = []
         const historyRecords: Array<Record<string, unknown>> = []
+        // X4e (pris-review 2026-10-07): ét leverandørprodukt kan være koblet til flere materialer → før flere
+        // opdateringer og dublet-price_history pr. kørsel. Hvert produkt behandles nu én gang.
+        const seenProducts = new Set<string>()
 
         for (const material of supplierMaterials) {
+          if (seenProducts.has(material.supplierProductId)) { refreshed++; continue }
+          seenProducts.add(material.supplierProductId)
           const newPrice = prices.get(material.sku)
           if (!newPrice) {
             failed++
