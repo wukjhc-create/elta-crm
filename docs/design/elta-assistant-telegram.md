@@ -48,3 +48,19 @@ Se `supabase/migrations/00195_assistant_links.sql` (udkast).
   rolle-tjek, da webhook ikke har browser-session). Montør ser kun eget scope.
 - Ingen persondata i Telegram ud over det brugeren selv spørger om; ingen kost/løn i svar.
 - Alle handlinger audit-logges (T9).
+
+## T14 Regelbaseret opfølgning — FORSLAG (afventer Henrik, intet bygget)
+Spec mangler ("regelbaseret opfølgning" uden regler). Forslag der KUN genbruger eksisterende signaler (ingen nye
+tabeller, ingen live-afsendelse til kunder — kun besked til den ansvarlige medarbejder via assistenten):
+
+| # | Regel | Signal (findes i dag) | Handling | Modtager |
+|---|-------|------------------------|----------|----------|
+| R1 | Tilbud sendt, ikke åbnet efter 3 dage | offers.sent_at / viewed (N65) | "Ring til X om tilbud #…" (assistant_callback) | tilbuddets created_by |
+| R2 | Tilbud åbnet, ingen svar efter 5 dage | offers.status = viewed | callback-forslag med knappen Ring nu | created_by |
+| R3 | Besigtigelse i morgen | customer_tasks "Besigtigelse hos …" (besigtigelse-task.ts) | påmindelse kl. 07:00 dagen før | assigned_to |
+| R4 | Faktura forfalden uden rykker | getOverdueInvoices (N61) | "Faktura #… forfalden N dage" (kun admin/bogholderi) | rolle bogholderi |
+| R5 | Webhenvendelse uden lead > 24 t | N67-cockpittets forespørgsel | "Ny henvendelse fra <navn> venter" | salg/admin |
+| R6 | Mail kræver svar > 2 dage | email-response-status (tråde) | "Svar <kunde>" | kobling til sagens ansvarlige |
+
+Beslutninger der kræver Henrik: hvilke regler (R1–R6), tidsgrænser, modtager pr. regel, om reglerne må køre som
+cron (i dag ingen assistent-cron i vercel.json), og om forslaget skal oprette opgaver automatisk eller kun foreslå.

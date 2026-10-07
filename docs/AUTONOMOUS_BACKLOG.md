@@ -354,7 +354,7 @@ parallelt med øvrige NEXT-flows, når core gates (tsc, check:rls-matrix, check:
 | T11 | 2 | Talebeskeder (voice commands) → transskription → samme kommandoer som tekst | TODO |
 | T12 | 2 | Ubesvaret opkald/telefonsvarer → transskription → kunde-/sagsmatch → forslag/opgave om tilbageringning | TODO |
 | T13 | 2 | Relatel-/SMS-integration (live kræver godkendelse) | TODO |
-| T14 | 2 | Regelbaseret opfølgning | TODO |
+| T14 | 2 | Regelbaseret opfølgning | BLOCKED_APPROVAL — spec mangler; forslag R1–R6 (genbruger eksisterende signaler, kun besked til medarbejder) i docs/design/elta-assistant-telegram.md § T14. Henrik vælger regler/grænser/modtagere/cron |
 | T15 | 3 | Live AI-telefonreceptionist | LATER |
 
 ## Fund registreret i delivery mode
