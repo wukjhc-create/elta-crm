@@ -12,6 +12,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { isInvoiceAttachmentFetchEnabled } from '@/lib/invoice-control/attachment-gate'
+import { selectInChunks, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export const BACKFILL_AUDIT_ACTION = 'attachment_backfill'
 const MAX_ATTEMPTS = 3
@@ -49,14 +51,22 @@ export async function findBackfillCandidates(limit: number, onlyEmailIds?: strin
   if (open.length === 0) return { total: 0, batch: [] }
 
   const emailIds = [...new Set(open.map((i) => i.source_email_id as string))]
-  const { data: mails } = await supabase.from('incoming_emails').select('id, has_attachments, graph_message_id').in('id', emailIds)
-  const withAtt = new Set((mails ?? []).filter((m) => m.has_attachments && m.graph_message_id).map((m) => m.id as string))
+  // X4n: i bidder af 200 (alle kandidater i én .in() sprængte URL-grænsen ~350 → ingen kandidater fundet)
+  const mails = await selectInChunks<{ id: string; has_attachments: boolean | null; graph_message_id: string | null }>(emailIds, (chunk) =>
+    supabase.from('incoming_emails').select('id, has_attachments, graph_message_id').in('id', chunk))
+  const withAtt = new Set(mails.filter((m) => m.has_attachments && m.graph_message_id).map((m) => m.id))
 
-  const { data: audits } = await supabase.from('incoming_invoice_audit_log').select('incoming_invoice_id, ok')
-    .eq('action', BACKFILL_AUDIT_ACTION).in('incoming_invoice_id', open.map((i) => i.id as string))
+  const openIds = open.map((i) => i.id as string)
+  const audits: Array<{ id: string; incoming_invoice_id: string; ok: boolean | null }> = []
+  for (let k = 0; k < openIds.length; k += IN_CHUNK_SIZE) {
+    const chunk = openIds.slice(k, k + IN_CHUNK_SIZE)
+    audits.push(...await fetchAllRows<{ id: string; incoming_invoice_id: string; ok: boolean | null }>((from, to) => supabase
+      .from('incoming_invoice_audit_log').select('id, incoming_invoice_id, ok')
+      .eq('action', BACKFILL_AUDIT_ACTION).in('incoming_invoice_id', chunk).order('id').range(from, to)))
+  }
   const done = new Set<string>()
   const failures = new Map<string, number>()
-  for (const a of audits ?? []) {
+  for (const a of audits) {
     const id = a.incoming_invoice_id as string
     if (a.ok) done.add(id)
     else failures.set(id, (failures.get(id) ?? 0) + 1)

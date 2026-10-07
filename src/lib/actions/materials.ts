@@ -25,6 +25,7 @@ import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { selectInChunks } from '@/lib/supabase/in-chunks'
 
 export interface BindMaterialResult {
   success: boolean
@@ -327,10 +328,11 @@ async function countOfferLineUsage(materialIds: string[]): Promise<Map<string, n
   const zeroMaterialIds = materialIds.filter((id) => !out.get(id))
   if (zeroMaterialIds.length === 0) return out
 
-  const { data: materials } = await supabase
+  // X4n: i bidder af 200 (op til 500 id'er i én .in() sprængte URL-grænsen → fallback-tælling sprunget over)
+  const materials = await selectInChunks<{ id: string; slug: string | null }>(zeroMaterialIds, (chunk) => supabase
     .from('materials')
     .select('id, slug')
-    .in('id', zeroMaterialIds)
+    .in('id', chunk)).catch((error) => { logger.warn('countOfferLineUsage fallback lookup failed', { error }); return null })
   if (!materials) return out
 
   await Promise.all(

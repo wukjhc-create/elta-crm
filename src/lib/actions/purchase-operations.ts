@@ -33,6 +33,8 @@ import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { formatError } from '@/lib/actions/action-helpers'
 import { incomingDueBadge } from '@/lib/invoices/incoming-invoice-due'
+import { selectInChunks } from '@/lib/supabase/in-chunks'
+import { logger } from '@/lib/utils/logger'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
@@ -274,11 +276,13 @@ async function scanPurchaseOpsLegacy(): Promise<{ result?: ScanResult; error?: s
   const caseIds = Array.from(cases.keys())
   const caseMeta = new Map<string, { case_number: string | null; title: string | null; customer_label: string | null }>()
   if (caseIds.length > 0) {
-    const { data: caseData } = await supabase
+    // X4n: i bidder af 200 (> ~350 sager i én .in() sprængte URL-grænsen → rækker uden sagsnr./titel/kunde)
+    // best-effort som før (rækkerne vises uden metadata), men fejlen logges i stedet for at forsvinde
+    const caseData = await selectInChunks<Record<string, unknown>>(caseIds, (chunk) => supabase
       .from('service_cases')
       .select('id, case_number, title, customer:customers!customer_id(company_name)')
-      .in('id', caseIds)
-    for (const c of (caseData ?? []) as Array<{ id: string; case_number: string | null; title: string | null; customer: { company_name: string | null } | { company_name: string | null }[] | null }>) {
+      .in('id', chunk)).catch((error) => { logger.error('purchase-ops: case metadata failed', { error }); return [] as Record<string, unknown>[] })
+    for (const c of caseData as unknown as Array<{ id: string; case_number: string | null; title: string | null; customer: { company_name: string | null } | { company_name: string | null }[] | null }>) {
       const cust = Array.isArray(c.customer) ? c.customer[0] : c.customer
       caseMeta.set(c.id, { case_number: c.case_number, title: c.title, customer_label: cust?.company_name ?? null })
     }
