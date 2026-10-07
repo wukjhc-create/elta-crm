@@ -302,6 +302,15 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 - Privacy: D50b, PV16, PV17, PV18 (negative kontroller grønne inden for 10 min) · MONTOR_START_JOB_ENABLED: runbook klar, flag OFF (Henrik/Vercel)
 - BLOCKED_APPROVAL: INVOICE_ATTACHMENT_FETCH_ENABLED (Vercel), MONTOR_START_JOB_ENABLED (Vercel), e-conomic-nøgler, live mail/SMS
 
+## NEXT-7 (long-run 2026-10-07 13:30 — Henrik: parkér approvals, arbejd kontinuerligt)
+
+| # | Område | Opgave | Status |
+|---|---|---|---|
+| S2 | AI-tilbud | ELTA-komponenter i auto-tilbud (flag AI_PROJECT_ELTA_COMPONENTS) | BLOCKED_APPROVAL — mangler: (1) godkendelse af tavleintervaller (forslag ≤12 grp → TAVLE-S, 13–36 → TAVLE-L, >36 Ikke prissat; TAVLE-NY/-LILLE aldrig automatisk), (2) bekræftelse af tavlepriser i kataloget (TAVLE-S kost 800 kr virker lavt), (3) flag i prod. Alt andet færdigt: docs/runbooks/s2-elta-components-examples.md |
+| X1 | Økonomi | Read-only fejlreview af faktura/Profit Engine/tilbudt vs faktisk/leverandørfakturakontrol (agent) → ret bekræftede fund | IN_PROGRESS |
+| X2 | Telegram | Kommandoer: hjælp, "i dag" (mine opkald/påmindelser), flyt tidspunkt via kommando; opslag med næste arbejdsordre | TODO |
+| X3 | Static-check | Død kode: lib/actions/price-engine.ts + project-estimation.ts (ingen kaldere, ukendte kolonner) | DONE — fjernet (+ types); tsc/rbac/rls-matrix grønne |
+
 ## NEXT-HIGH — ELTA ASSISTANT / TELEGRAM (Henrik 2026-10-07)
 
 **Formål:** Telegram = hurtigt personligt assistent-interface til ELTA CRM. **CRM er altid source of truth** — Telegram
