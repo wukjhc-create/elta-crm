@@ -6,7 +6,7 @@
  * permission tilgaar /dashboard/<modul> via direct URL, render
  * NoAccess komponenten i stedet for tom liste.
  *
- * Default-rolle ved manglende profile = 'montør' (fail-safe — laaser
+ * Default-rolle ved manglende/deaktiveret profile = ingen rettigheder (fail-safe — laaser
  * ude i stedet for at give privilege escalation).
  */
 
@@ -15,16 +15,20 @@ import { createClient } from '@/lib/supabase/server'
 import { hasPermission, type Permission } from '@/lib/auth/permissions'
 import type { UserRole } from '@/types/auth.types'
 
+/** Auth-review 2026-10-07: fail-safe uden rettigheder (før 'montør') — manglende bruger/profil eller deaktiveret profil */
+const NO_ACCESS_ROLE = 'ingen_adgang' as UserRole
+
 export async function getUserRoleForPage(): Promise<UserRole> {
   const user = await getUser()
-  if (!user) return 'montør'
+  if (!user) return NO_ACCESS_ROLE
   const supabase = await createClient()
   const { data } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, is_active')
     .eq('id', user.id)
     .maybeSingle()
-  return (data?.role as UserRole) ?? 'montør'
+  if (!data?.role || data.is_active === false) return NO_ACCESS_ROLE
+  return data.role as UserRole
 }
 
 export async function pageHasPermission(perm: Permission): Promise<boolean> {

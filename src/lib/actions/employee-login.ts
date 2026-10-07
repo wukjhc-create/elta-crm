@@ -133,6 +133,8 @@ export async function inviteEmployeeLogin(
     if (!ctx.hasPermission('users.create')) {
       return { success: false, error: 'Manglende tilladelse: users.create' }
     }
+    // auth-review 2026-10-07: rollen valideres som i de øvrige login-flows (før blev enhver tekst skrevet til profiles.role)
+    if (!isValidRole(role)) return { success: false, error: 'Ukendt rolle' }
     const admin = createAdminClient()
     const { data: emp } = await admin
       .from('employees')
@@ -162,10 +164,12 @@ export async function inviteEmployeeLogin(
     const newUserId = invited.user.id
 
     // Trigger handle_new_user opretter profilen; sæt rolle eksplicit + knyt.
-    await admin
+    const { error: roleErr } = await admin
       .from('profiles')
       .update({ role, is_active: true, updated_at: new Date().toISOString() })
       .eq('id', newUserId)
+    // fejl logges (før ignoreret); koblingen nedenfor gennemføres stadig, så invitationen ikke efterlades ukoblet
+    if (roleErr) logger.error('inviteEmployeeLogin: role update failed', { error: roleErr, entityId: employeeId })
     const { error: linkErr } = await admin
       .from('employees')
       .update({ profile_id: newUserId, updated_at: new Date().toISOString() })
