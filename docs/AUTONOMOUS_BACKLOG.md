@@ -344,6 +344,8 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 
 **Checkpoint 2026-10-07 16:50 (long-run):** NEXT tømt → ny backlog via 2 read-only reviews (tilbud, portal). Leveret: S1-P1 fuldmagt-CPR-læk (1ddc677, prod-eksponering 0), S1-O3 0-kr-auto-faktura (446afa3 beskyttelse; 00198 udkast BLOCKED_APPROVAL), R-OFR/R-PRT (80f14cb). UI grøn: salg 10, portal 10. Beslutninger til Henrik: 00198, R-OFR-B, R-PRT-B, X4e afviste timer, T14. Næste: RBAC-kost-review + kunder/leads-review (kører).
 
+**Checkpoint 2026-10-07 17:20 (long-run):** RBAC-runde (R-RBAC DONE; DB-bølge 2 BLOCKED_APPROVAL), kunde-/leads-runde (R-CUS + R-CUS-C DONE; **R-CUS-B 00199 vigtig**). GitHub-push fejler siden 15:07 UTC med 'Internal Server Error' (også tom commit/anden gren; fetch virker, status.github = operational) → commits ligger lokalt (fra a984279) og pushes når GitHub svarer; prod har derfor endnu ikke kunde-/mail-rettelserne. Repoet er PUBLIC (til Henrik). Næste: review af mail-sendende crons (kører).
+
 ## NEXT-HIGH — ELTA ASSISTANT / TELEGRAM (Henrik 2026-10-07)
 
 **Formål:** Telegram = hurtigt personligt assistent-interface til ELTA CRM. **CRM er altid source of truth** — Telegram
