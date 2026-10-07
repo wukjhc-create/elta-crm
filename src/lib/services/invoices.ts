@@ -11,6 +11,8 @@
 import { MIN_DAYS_BETWEEN_REMINDERS, pickReminderLevel } from '@/lib/invoices/reminder-plan' // regler delt med cockpittet (N89)
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { rebaseDueDateOnSend } from '@/lib/invoices/due-date'
 import { logger } from '@/lib/utils/logger'
 import { getStandardSaleRate } from '@/lib/services/rates'
 import type {
@@ -223,7 +225,7 @@ export async function setInvoiceStatus(
 
   const { data: current, error: readErr } = await supabase
     .from('invoices')
-    .select('id, status')
+    .select('id, status, created_at, due_date')
     .eq('id', invoiceId)
     .maybeSingle()
 
@@ -246,7 +248,14 @@ export async function setInvoiceStatus(
   }
 
   const patch: Partial<InvoiceRow> = { status: next }
-  if (next === 'sent') patch.sent_at = new Date().toISOString()
+  if (next === 'sent') {
+    patch.sent_at = new Date().toISOString()
+    // X1: betalingsbetingelserne regnes fra udstedelsen (også ved manuel "markér som sendt")
+    if (cur === 'draft') {
+      const rebased = rebaseDueDateOnSend((current as { created_at?: string | null }).created_at, (current as { due_date?: string | null }).due_date)
+      if (rebased) patch.due_date = rebased
+    }
+  }
   if (next === 'paid') patch.paid_at = new Date().toISOString()
 
   const { data: updated, error: updErr } = await supabase
@@ -646,9 +655,8 @@ export interface OverdueInvoice extends InvoiceRow {
 export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
   const supabase = createAdminClient()
   const today = new Date()
-  const cutoff = new Date(today)
-  cutoff.setDate(cutoff.getDate() - 3)
-  const cutoffIso = cutoff.toISOString().slice(0, 10)
+  // X1: dansk kalenderdato (før toISOString().slice(0,10) = UTC-dato → mellem kl. 00 og 02 dansk tid en dag forskudt)
+  const cutoffIso = copenhagenDatePlusDays(-3, today)
 
   // Sprint 6F-4 — reminder-skip:
   //   - voided_at IS NOT NULL  → fakturaen er annulleret via kreditnota
@@ -983,6 +991,12 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     return { invoiceId, status: 'skipped', reason: 'no customer linked' }
   }
 
+  // X1: betalingsbetingelserne regnes fra AFSENDELSEN (ikke fra kladdens oprettelse) — mail og PDF viser den nye dato,
+  // og den gemmes sammen med status 'sent' nedenfor
+  const sendNow = new Date()
+  const rebasedDue = rebaseDueDateOnSend(invoice.created_at, invoice.due_date, sendNow)
+  if (rebasedDue) invoice.due_date = rebasedDue
+
   // Sprint 8H Phase 2: central mail-router.
   // resolveInvoiceMailRoute prefererer billing_contact, fallback til
   // customer.email. ALDRIG site_contact.
@@ -1093,7 +1107,11 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   // the latest PDF from /api/invoices/[id]/pdf if it's missing.
   let pdfAttachment: { filename: string; content: Buffer; contentType: string } | null = null
   try {
-    const payload = await getInvoicePdfPayload(invoiceId)
+    const rawPayload = await getInvoicePdfPayload(invoiceId)
+    // X1: PDF'en der sendes viser udstedelsesdato (i dag) og den flyttede forfaldsdato
+    const payload = rawPayload
+      ? { ...rawPayload, invoice: { ...rawPayload.invoice, sent_at: sendNow.toISOString(), due_date: invoice.due_date } }
+      : rawPayload
     if (payload && companyRow) {
       const { renderToBuffer } = await import('@react-pdf/renderer')
       const { InvoicePdfDocument } = await import('@/lib/pdf/invoice-pdf-template')
@@ -1141,8 +1159,9 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     .from('invoices')
     .update({
       status: 'sent',
-      sent_at: new Date().toISOString(),
+      sent_at: sendNow.toISOString(),
       payment_reference: paymentReference,
+      ...(rebasedDue ? { due_date: rebasedDue } : {}),
     })
     .eq('id', invoiceId)
     .eq('status', 'draft') // guard against concurrent send

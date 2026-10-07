@@ -1,13 +1,16 @@
 /**
  * Realiseret DB pr. sag (ren logik, ingen I/O).
  *
- *   netto faktureret (ekskl. moms) = udstedte standardfakturaer − kreditnotaer
- *                                     (kladder og annullerede tæller ikke)
+ *   netto faktureret (ekskl. moms) = udstedte (sendt/betalt) fakturaer − kreditnotaer — via summarizeCaseInvoices
+ *                                     (kladder tæller ikke; en fuldt krediteret original tæller med og udlignes af
+ *                                     sin kreditnota; negativ slutfaktura beholder fortegn — X1 2026-10-07)
  *   realiseret DB                  = netto faktureret − sagens faktiske kost (tid + materialer + øvrige)
  *
  * Forskel fra "foreløbig DB" (Økonomi-fanens hovedtal): den regner på registrerede SALGSPRISER, også for arbejde der
  * endnu ikke er faktureret. Realiseret DB er det, kunden faktisk er faktureret for, mod det sagen faktisk har kostet.
  */
+
+import { summarizeCaseInvoices } from '@/lib/invoices/net-invoiced'
 
 export interface RealizedInvoiceInput {
   total_amount: number | string | null
@@ -37,18 +40,11 @@ export function computeRealizedDb(
   actualCost: number,
   fullyBilled: boolean,
 ): RealizedDb {
-  let invoiced = 0
-  let credited = 0
-  let issued = 0
-  for (const inv of invoices) {
-    if (inv.voided_at) continue
-    if ((inv.status ?? 'draft') === 'draft') continue
-    const amount = Math.abs(Number(inv.total_amount ?? 0) || 0)
-    if (inv.invoice_type === 'credit') credited += amount
-    else invoiced += amount
-    issued += 1
-  }
-  const net = r2(invoiced - credited)
+  const sum = summarizeCaseInvoices(invoices)
+  const invoiced = sum.invoicedExVat
+  const credited = sum.creditedExVat
+  const issued = sum.issuedCount
+  const net = sum.netExVat
   const cost = r2(actualCost)
   const db = r2(net - cost)
   return {

@@ -378,7 +378,7 @@ function OrderEconomyTabContent({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <Mini label="Antal fakturaer" value={data.invoicing.invoice_count.toString()} />
             <Mini label="Faktureret" value={fmtKr(data.invoicing.invoiced_total)} />
-            <Mini label="Heraf betalt" value={fmtKr(data.invoicing.invoiced_paid)} />
+            <Mini label="Heraf betalt (inkl. moms)" value={fmtKr(data.invoicing.invoiced_paid)} />
             <Mini
               label="Rest at fakturere"
               value={

@@ -455,7 +455,8 @@ export function InvoicePdfDocument({ payload, companySettings: cs }: Props) {
           <View style={styles.metaCol}>
             <Text style={styles.metaLabel}>Fakturadato</Text>
             <Text style={styles.metaValue}>
-              {invoice.created_at ? formatDateLongDK(invoice.created_at) : '—'}
+              {/* X1: fakturadato = udstedelsesdato (sendt); kladder viser oprettelsesdato */}
+              {invoice.sent_at || invoice.created_at ? formatDateLongDK((invoice.sent_at || invoice.created_at) as string) : '—'}
             </Text>
           </View>
           <View style={styles.metaCol2}>

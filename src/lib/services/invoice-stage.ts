@@ -362,20 +362,41 @@ export async function createFinalInvoiceForCase(
     }
   }
 
-  // 3. Find forgængere (deposit + progress) — ekskl. cancelled
+  // 3. Find forgængere (deposit + progress).
+  // X1 (økonomi-review 2026-10-07): fakturastatus er kun draft/sent/paid — det gamle filter på 'rejected' gjorde intet,
+  // så en ALDRIG sendt forudbetalings-KLADDE blev trukket fra (kunden underfaktureret). Gæt ikke på om kladden sendes:
+  // slutfakturaen afvises, så længe en forgænger eller en kreditnota på den er kladde.
   const { data: predecessors } = await supabase
     .from('invoices')
     .select('id, invoice_number, total_amount, invoice_type, status')
     .eq('case_id', input.case_id)
     .in('invoice_type', ['deposit', 'progress'])
-    .neq('status', 'rejected' as never)
-  const predRows = (predecessors ?? []) as Array<{
+  const allPred = (predecessors ?? []) as Array<{
     id: string
     invoice_number: string
     total_amount: number | string | null
     invoice_type: string
     status: string
   }>
+  const draftPred = allPred.filter((p) => p.status === 'draft')
+  if (draftPred.length) {
+    return {
+      ...empty,
+      message: `Send eller slet ${draftPred.length === 1 ? 'kladden' : 'kladderne'} først: ${draftPred.map((p) => p.invoice_number).join(', ')} — en ikke-udstedt forudbetaling kan ikke trækkes fra slutfakturaen`,
+    }
+  }
+  const predRows = allPred
+  {
+    const { data: draftCredits } = predRows.length
+      ? await supabase.from('invoices').select('invoice_number').in('credit_of_invoice_id', predRows.map((p) => p.id)).eq('invoice_type', 'credit').eq('status', 'draft')
+      : { data: [] as Array<{ invoice_number: string }> }
+    if ((draftCredits ?? []).length) {
+      return {
+        ...empty,
+        message: `Send eller slet kreditnota-kladden først: ${(draftCredits as Array<{ invoice_number: string }>).map((c) => c.invoice_number).join(', ')}`,
+      }
+    }
+  }
   // Fradrag = forgængerens beløb MINUS det der allerede er krediteret på den
   // (før: fuldt fradrag selv efter kreditnota → kunden fik pengene to gange).
   const creditedPred = await creditedByInvoice(supabase, predRows.map((p) => p.id))
@@ -777,11 +798,13 @@ async function creditedByInvoice(
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>()
   if (invoiceIds.length === 0) return out
+  // X1: kun UDSTEDTE kreditnotaer (sendt/betalt) — en kladde er ikke en kreditering
   const { data } = await supabase
     .from('invoices')
     .select('credit_of_invoice_id, total_amount')
     .in('credit_of_invoice_id', invoiceIds)
     .eq('invoice_type', 'credit')
+    .in('status', ['sent', 'paid'])
   for (const c of (data ?? []) as Array<{ credit_of_invoice_id: string; total_amount: number | string }>) {
     out.set(c.credit_of_invoice_id, r2((out.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.total_amount ?? 0))))
   }
