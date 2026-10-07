@@ -5,6 +5,7 @@ import { MONITORING_CONFIG } from '@/lib/constants'
 import { calculateDBPercentage } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
+import { offerCostAndSale } from '@/lib/alerts/offer-margin'
 
 export const dynamic = 'force-dynamic'
 
@@ -156,7 +157,7 @@ async function handleCron(request: Request): Promise<Response> {
       .from('offers')
       .select(`
         id, title, offer_number, final_amount,
-        line_items:offer_line_items(cost_price, total, supplier_product_id)
+        line_items:offer_line_items(cost_price, quantity, total, supplier_product_id)
       `)
       .in('status', ['draft', 'sent'])
 
@@ -196,14 +197,8 @@ async function handleCron(request: Request): Promise<Response> {
 
       for (const offer of activeOffers) {
         const lineItems = offer.line_items || []
-        const totalCost = lineItems.reduce(
-          (sum: number, li: { cost_price: number | null }) => sum + (li.cost_price || 0),
-          0
-        )
-        const totalSale = lineItems.reduce(
-          (sum: number, li: { total: number }) => sum + li.total,
-          0
-        )
+        // kost = kostpris × antal (før enhedskost mod linjetotal → marginen blev overvurderet, se offer-margin.ts)
+        const { totalCost, totalSale } = offerCostAndSale(lineItems)
 
         if (totalCost > 0 && totalSale > 0) {
           const marginPct = calculateDBPercentage(totalCost, totalSale)
