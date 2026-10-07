@@ -47,6 +47,7 @@ import {
   type OfferRejectionInput,
 } from '@/types/offers.types'
 import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
+import { isBookedCustomerBesigtigelse, isPortalBesigtigelseRequest } from '@/lib/tasks/besigtigelse-task'
 
 // =====================================================
 // Portal Token Management (for employees)
@@ -1940,9 +1941,13 @@ export async function portalBookBesigtigelse(
  * Get existing besigtigelse bookings for portal customer — KUN opgaver med 'besigtigelse' i titel/beskrivelse
  * (D40: ingen fallback til øvrige, interne opgaver).
  */
-/** D40: en kundeopgave er en besigtigelse (må vises/bekræftes i portalen) kun hvis titel/beskrivelse siger det. */
-function isBesigtigelseTask(t: { title?: string | null; description?: string | null }): boolean {
-  return /esigtigelse/i.test(t.title ?? '') || /esigtigelse/i.test(t.description ?? '')
+/**
+ * D40 + X4 (kommunikations-review 2026-10-07): kun en BOOKET, kundevendt besigtigelse ("Besigtigelse hos …", ingen
+ * auto_rule) kan bekræftes/ombookes — før matchede alt med "besigtigelse" i titel/beskrivelse, også den interne
+ * opstartsopgave "Planlæg besigtigelse eller montage" (lib/tasks/besigtigelse-task.ts).
+ */
+function isBesigtigelseTask(t: { title?: string | null; auto_rule?: string | null }): boolean {
+  return isBookedCustomerBesigtigelse(t)
 }
 
 export async function getPortalBesigtigelser(
@@ -1963,10 +1968,10 @@ export async function getPortalBesigtigelser(
     // Query ALL tasks for this customer (no status filter — confirmed tasks should still show)
     const { data: allTasks, error: taskErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, title, description, due_date, status, created_at')
+      .select('id, customer_id, title, description, due_date, status, created_at, auto_rule')
       .eq('customer_id', customerId)
       .order('due_date', { ascending: true, nullsFirst: false })
-      .limit(20)
+      .limit(50)
 
     if (taskErr) {
       logger.error('Error fetching portal besigtigelser', { error: taskErr })
@@ -1977,11 +1982,8 @@ export async function getPortalBesigtigelser(
     // Debug: log task count for portal
 
     // Prioritize tasks with "besigtigelse" in title/description
-    const besigTasks = tasks.filter(
-      (t) =>
-        t.title?.toLowerCase().includes('esigtigelse') ||
-        t.description?.toLowerCase().includes('esigtigelse')
-    )
+    // X4: bookede besigtigelser + kundens egne portal-anmodninger — aldrig interne opgaver med ordet i titlen
+    const besigTasks = tasks.filter((t) => isBookedCustomerBesigtigelse(t) || isPortalBesigtigelseRequest(t))
 
     // D40 (S2): før faldt funktionen tilbage til ALLE kundens opgaver (interne titler/beskrivelser i kundeportalen —
     // prod 2026-10-03: 1 portalkunde, 2 interne opgaver). Nu kun besigtigelsesopgaver, og til klienten kun det
@@ -2023,39 +2025,44 @@ export async function portalConfirmBesigtigelse(
     // Verify task belongs to this customer and fetch full details
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, status, title, description, due_date')
+      .select('id, customer_id, status, title, description, due_date, auto_rule')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
     // D40: kun besigtigelsesopgaver kan bekræftes fra portalen (ikke vilkårlige interne opgaver)
-    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; description?: string | null })) {
+    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
     }
+    // X4: allerede bekræftet/afsluttet → ingen ny statusændring, alarm eller mail (før genåbnet + mail ved hvert klik)
+    if (task.status !== 'pending') return { success: true }
 
     // Extract time from description
     const timeMatch = task.description?.match(/Tidspunkt:\s*(.+)/i) || task.description?.match(/kl\.\s*(\S+)/)
     const timeSlot = timeMatch ? timeMatch[1].trim() : null
 
-    const confirmDate = new Date().toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
+    const confirmDate = new Date().toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
 
     const updatedDesc = [
       task.description || '',
       `\n✓ BEKRÆFTET af kunden via portalen d. ${confirmDate}`,
     ].filter(Boolean).join('\n')
 
-    const { error: updateErr } = await supabase
+    const { data: confirmed, error: updateErr } = await supabase
       .from('customer_tasks')
       .update({
         status: 'in_progress',
         description: updatedDesc,
       })
       .eq('id', taskId)
+      .eq('status', 'pending') // X4: kun én bekræftelse (samtidige klik)
+      .select('id')
 
     if (updateErr) {
       logger.error('Portal confirm besigtigelse: update failed', { error: updateErr })
       return { success: false, error: 'Kunne ikke bekræfte besigtigelsen' }
     }
+    if (!(confirmed ?? []).length) return { success: true }
 
     // Format date for email
     const formattedDate = task.due_date
@@ -2099,11 +2106,11 @@ export async function portalConfirmBesigtigelse(
             <h1 style="color: white; margin: 0; font-size: 20px;">Tak for din bekræftelse</h1>
           </div>
           <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-            <p style="font-size: 16px; color: #111827;">Kære ${session.customer.contact_person},</p>
+            <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(session.customer.contact_person)},</p>
             <p style="color: #374151;">Tak for din bekræftelse af besigtigelsen. Vi ses som aftalt:</p>
             <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
               ${formattedDate ? `<p style="margin: 4px 0; color: #166534;"><strong>Dato:</strong> ${formattedDate}</p>` : ''}
-              ${timeSlot ? `<p style="margin: 4px 0; color: #166534;"><strong>Tidspunkt:</strong> ${timeSlot}</p>` : ''}
+              ${timeSlot ? `<p style="margin: 4px 0; color: #166534;"><strong>Tidspunkt:</strong> ${escapeHtml(timeSlot)}</p>` : ''}
             </div>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
               <tr>
@@ -2195,7 +2202,7 @@ export async function portalRequestReschedule(
       .eq('customer_id', session.customer_id)
       .single()
 
-    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; description?: string | null })) {
+    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
     }
 

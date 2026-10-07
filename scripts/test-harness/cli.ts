@@ -1045,7 +1045,7 @@ async function main() {
       const tok = randomBytes(32).toString('hex')
       const t1 = await admin.from('portal_access_tokens').insert({ customer_id: custId, token: tok, email: `rs-${stamp}@harness.test`, is_active: true, created_by: owner })
       if (t1.error) throw new Error(t1.error.message)
-      const { data: bt } = await admin.from('customer_tasks').insert({ customer_id: custId, title: 'Besigtigelse', status: 'pending', priority: 'normal', assigned_to: owner, created_by: owner, due_date: new Date(Date.now() + 5 * 86_400_000).toISOString() }).select('id').single()
+      const { data: bt } = await admin.from('customer_tasks').insert({ customer_id: custId, title: 'Besigtigelse hos [HARNESS] reschedule', status: 'pending', priority: 'normal', assigned_to: owner, created_by: owner, due_date: new Date(Date.now() + 5 * 86_400_000).toISOString() }).select('id').single()
       const taskId = (bt as { id: string }).id
       // bevis for den gamle fejl: created_by = kundens id afvises af FK'en
       const old = await admin.from('customer_tasks').insert({ customer_id: custId, title: 'gammel sti', status: 'pending', priority: 'high', created_by: custId })
@@ -1065,6 +1065,49 @@ async function main() {
       await admin.from('portal_access_tokens').delete().eq('customer_id', custId)
     }
     log(fails ? `❌ ${fails} fejl` : '✅ portal-ombooking bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'besigtigelse-portal-check') {
+    // STAGING (X4 kommunikation #1/#6): portalen viser kun bookede besigtigelser + kundens egne anmodninger (aldrig
+    // interne opgaver), interne kan ikke bekræftes, og en allerede bekræftet bekræftes ikke igen. Sender INGEN mail
+    // (afvisning og "allerede bekræftet" returnerer før mail-trinnet).
+    const { getPortalBesigtigelser, portalConfirmBesigtigelse } = await import('../../src/lib/actions/portal')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `BP-${stamp}`, company_name: `[HARNESS] besigtigelse ${stamp}`, contact_person: 'Kunde', email: `bp-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    try {
+      const tok = randomBytes(32).toString('hex')
+      await admin.from('portal_access_tokens').insert({ customer_id: custId, token: tok, email: `bp-${stamp}@harness.test`, is_active: true, created_by: owner })
+      const future = new Date(Date.now() + 5 * 86_400_000).toISOString()
+      const mk = async (title: string, extra: Record<string, unknown> = {}) => ((await admin.from('customer_tasks').insert({ customer_id: custId, title, status: 'pending', priority: 'normal', created_by: owner, ...extra }).select('id').single()).data as { id: string }).id
+      const booked = await mk(`Besigtigelse hos [HARNESS] ${stamp}`, { due_date: future, description: 'Besigtigelse planlagt kl. 10:00' })
+      const internal = await mk('Planlæg besigtigelse eller montage', { auto_rule: 'offer_conversion_startup', auto_generated: true })
+      const request = await mk(`PORTAL: Besigtigelse anmodet — [HARNESS] ${stamp}`, { due_date: future })
+      const list = await getPortalBesigtigelser(tok)
+      const ids = (list.data ?? []).map((t) => t.id)
+      check('portalen viser booket besigtigelse', ids.includes(booked))
+      check('portalen viser kundens egen anmodning', ids.includes(request))
+      check('portalen viser IKKE den interne opstartsopgave', !ids.includes(internal), JSON.stringify(ids.length))
+      const c1 = await portalConfirmBesigtigelse(tok, internal)
+      const { data: iSt } = await admin.from('customer_tasks').select('status').eq('id', internal).single()
+      check('intern opgave kan ikke bekræftes fra portalen', !c1.success && (iSt as { status: string }).status === 'pending', c1.error ?? '')
+      const c2 = await portalConfirmBesigtigelse(tok, request)
+      check('egen anmodning kan ikke "bekræftes"', !c2.success, c2.error ?? '')
+      await admin.from('customer_tasks').update({ status: 'done', description: 'udført' }).eq('id', booked)
+      const c3 = await portalConfirmBesigtigelse(tok, booked)
+      const { data: bSt } = await admin.from('customer_tasks').select('status, description').eq('id', booked).single()
+      const b = bSt as { status: string; description: string }
+      check('udført besigtigelse genåbnes ikke ved klik (før → in_progress + ny mail)', c3.success && b.status === 'done' && !b.description.includes('BEKRÆFTET'), JSON.stringify(b))
+    } finally {
+      await admin.from('customers').delete().eq('id', custId)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ portal-besigtigelser bestået (ingen mail sendt)')
     process.exitCode = fails ? 1 : 0
     return
   }

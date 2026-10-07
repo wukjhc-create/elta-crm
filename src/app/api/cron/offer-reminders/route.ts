@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { shouldRemindBesigtigelse, type BesigtigelseTaskLike } from '@/lib/tasks/besigtigelse-task'
 import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_EMAIL, BRAND_WEBSITE, BRAND_GREEN } from '@/lib/brand'
 import { withCronRun } from '@/lib/services/cron-run'
@@ -268,13 +269,17 @@ async function handleCron(request: Request): Promise<Response> {
     try {
       const { data: pendingTasks } = await supabase
         .from('customer_tasks')
-        .select('id, customer_id, title, description, created_at, customer:customers(company_name, contact_person, email)')
+        .select('id, customer_id, title, description, created_at, due_date, status, auto_rule, customer:customers(company_name, contact_person, email)')
         .ilike('title', '%esigtigelse%')
         .eq('status', 'pending')
         .lt('created_at', cutoffDate.toISOString())
 
-      if (pendingTasks && pendingTasks.length > 0) {
-        for (const task of pendingTasks) {
+      // X4 (kommunikations-review 2026-10-07): KUN bookede, kundevendte besigtigelser med en fremtidig tid. Før fik
+      // kunden en rykker om den INTERNE opstartsopgave "Planlæg besigtigelse eller montage" (oprettes ved hver
+      // tilbud→sag) og om sin egen portal-anmodning, samt om besigtigelser hvis tid var passeret.
+      const remindable = (pendingTasks ?? []).filter((t) => shouldRemindBesigtigelse(t as BesigtigelseTaskLike))
+      if (remindable.length > 0) {
+        for (const task of remindable) {
           try {
             const customerRaw = task.customer as unknown
             const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
