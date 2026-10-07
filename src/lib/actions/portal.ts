@@ -919,6 +919,16 @@ export async function getPortalMessages(
 }
 
 // Send message from portal (customer)
+/**
+ * Portal-grænser (Henrik 2026-10-07, R-PRT-B): kundeportalen er uden login — én tokenholder kunne ellers fylde
+ * portal_messages, storage og kontakt@ uden loft. Pr. kunde (rullende vinduer).
+ */
+const PORTAL_MESSAGE_MAX_CHARS = 5000
+const PORTAL_MESSAGE_MAX_ATTACHMENTS = 10
+const PORTAL_MESSAGES_PER_HOUR = 20
+const PORTAL_UPLOADS_PER_DAY = 20
+const PORTAL_NOTIFY_MIN_INTERVAL_MS = 10 * 60_000
+
 export async function sendPortalMessage(
   token: string,
   data: SendPortalMessageData
@@ -943,6 +953,23 @@ export async function sendPortalMessage(
     // (linje ovenfor) — service-role har INGEN RLS-guard, saa app er
     // single source of truth for scope.
     const admin = createAdminClient()
+    // Portal-grænser: længde, antal vedhæftninger og beskeder pr. time pr. kunde
+    if (typeof data.message !== 'string' || data.message.length > PORTAL_MESSAGE_MAX_CHARS) {
+      return { success: false, error: `Beskeden er for lang (højst ${PORTAL_MESSAGE_MAX_CHARS.toLocaleString('da-DK')} tegn)` }
+    }
+    if ((data.attachments ?? []).length > PORTAL_MESSAGE_MAX_ATTACHMENTS) {
+      return { success: false, error: `Højst ${PORTAL_MESSAGE_MAX_ATTACHMENTS} vedhæftninger pr. besked` }
+    }
+    const hourAgo = new Date(Date.now() - 3_600_000).toISOString()
+    const { count: lastHour } = await admin.from('portal_messages').select('id', { count: 'exact', head: true })
+      .eq('customer_id', customerId).eq('sender_type', 'customer').gte('created_at', hourAgo)
+    if ((lastHour ?? 0) >= PORTAL_MESSAGES_PER_HOUR) {
+      return { success: false, error: 'Du har sendt mange beskeder på kort tid — prøv igen om lidt, eller ring til os' }
+    }
+    // Notifikationsmail højst hver 10. min. pr. kunde (beskeden gemmes altid)
+    const { data: lastMsg } = await admin.from('portal_messages').select('created_at')
+      .eq('customer_id', customerId).eq('sender_type', 'customer').order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const notifyStaff = !lastMsg || Date.now() - new Date((lastMsg as { created_at: string }).created_at).getTime() >= PORTAL_NOTIFY_MIN_INTERVAL_MS
     // Q10: vedhæftninger skal være kundens egne uploads (signeret URL i portal-attachments/<kunde>/) — før blev
     // klientens URL gemt som den var og vist som link/billede for medarbejderen (vilkårligt eksternt link)
     const ownPrefix = `${(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '')}/storage/v1/object/sign/portal-attachments/${customerId}/`
@@ -973,8 +1000,8 @@ export async function sendPortalMessage(
       return { success: false, error: 'Kunne ikke sende besked' }
     }
 
-    // Send email notification to CRM mailbox (non-critical)
-    try {
+    // Send email notification to CRM mailbox (non-critical) — højst hver 10. min. pr. kunde
+    if (notifyStaff) try {
       const crmMailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
       const companyName = sessionResult.data.customer.company_name || 'Kunde'
       const contactPerson = sessionResult.data.customer.contact_person || 'Kunde'
@@ -1442,6 +1469,15 @@ export async function uploadPortalAttachment(
     // signed-URL — service-role har INGEN RLS-guard, saa app er single
     // source of truth for scope.
     const supabase = createAdminClient()
+
+    // Portal-grænse: højst PORTAL_UPLOADS_PER_DAY uploads pr. kunde pr. døgn (filerne ligger i <kunde>/<tidsstempel>-…)
+    const { data: recent } = await supabase.storage.from('portal-attachments')
+      .list(customerId, { limit: PORTAL_UPLOADS_PER_DAY + 1, sortBy: { column: 'created_at', order: 'desc' } })
+    const dayAgo = Date.now() - 86_400_000
+    const uploadsToday = (recent ?? []).filter((f) => f.created_at && new Date(f.created_at).getTime() >= dayAgo).length
+    if (uploadsToday >= PORTAL_UPLOADS_PER_DAY) {
+      return { success: false, error: 'Du har uploadet mange filer i dag — prøv igen i morgen, eller send dem på mail' }
+    }
 
     // Generate unique filename (path er kunde-scoped via session.customer_id)
     const timestamp = Date.now()

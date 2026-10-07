@@ -22,6 +22,7 @@ import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
 import { recomputeOfferTotals } from '@/lib/services/offer-pricing'
+import { offerEditLockReason, offerIdForLine } from '@/lib/offers/edit-lock'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { isValidOfferTransition, OFFER_STATUS_LABELS } from '@/types/offers.types'
@@ -491,6 +492,9 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
     }
     validateUUID(id, 'tilbud ID')
 
+    // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
+    { const lock = await offerEditLockReason(supabase, id); if (lock) return { success: false, error: lock } }
+
     const customerId = formData.get('customer_id') as string || null
     const leadId = formData.get('lead_id') as string || null
 
@@ -612,6 +616,8 @@ export async function updateOfferField(
     if (!ALLOWED_TEXT_FIELDS.includes(field)) {
       return { success: false, error: 'Ugyldigt felt' }
     }
+    // Henrik 2026-10-07: kundevendt indhold kun i kladde; interne noter må altid redigeres
+    if (field !== 'notes') { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
 
     const { error } = await supabase
       .from('offers')
@@ -866,6 +872,9 @@ export async function createLineItem(
     }
     validateUUID(offerId, 'tilbud ID')
 
+    // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
+    { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
+
     const rawData = {
       offer_id: offerId,
       position: Number(formData.get('position')),
@@ -944,6 +953,9 @@ export async function updateLineItem(
       return { success: false, error: 'Linje ID mangler' }
     }
     validateUUID(id, 'linje ID')
+
+    // Henrik 2026-10-07: kun kladder kan redigeres (linjens EGET tilbud, ikke klientens offer_id)
+    { const lineOffer = await offerIdForLine(supabase, id); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock } }
 
     if (offerId) {
       validateUUID(offerId, 'tilbud ID')
@@ -1028,6 +1040,9 @@ export async function deleteLineItem(
     }
     validateUUID(id, 'linje ID')
     validateUUID(offerId, 'tilbud ID')
+
+    // Henrik 2026-10-07: kun kladder kan redigeres (linjens EGET tilbud)
+    { const lineOffer = await offerIdForLine(supabase, id); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock } }
 
     const { error } = await supabase
       .from('offer_line_items')
@@ -1118,6 +1133,9 @@ export async function addProductToOffer(
     }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(productId, 'produkt ID')
+
+    // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
+    { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
 
     // Get product details — 00201: kostprisen (til linjens kost) læses med admin-klienten bag offers.edit-gaten ovenfor;
     // den returneres ikke til salg (linjen svarer med OFFER_LINE_PUBLIC_COLUMNS)
@@ -1216,6 +1234,9 @@ export async function importCalculationToOffer(
     }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(calculationId, 'kalkulation ID')
+
+    // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
+    { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
 
     // Get calculation with rows
     // 00200/00201: calculations/calculation_rows er rolle-scopet → admin-klient bag gaten (offers.edit + tools.calculations)
@@ -1374,6 +1395,9 @@ export async function createLineItemFromSupplierProduct(
     }
     validateUUID(offerId, 'tilbud ID')
     validateUUID(supplierProductId, 'leverandør produkt ID')
+
+    // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
+    { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
 
     // Get offer to check customer for custom pricing
     const { data: offer } = await supabase
@@ -2093,6 +2117,9 @@ export async function refreshLineItemPrice(
     }
     validateUUID(lineItemId, 'linje ID')
 
+    // Henrik 2026-10-07: kun kladder kan redigeres
+    { const lineOffer = await offerIdForLine(supabase, lineItemId); const lock = lineOffer ? await offerEditLockReason(supabase, lineOffer) : 'Linjen blev ikke fundet'; if (lock) return { success: false, error: lock } }
+
     // Get line item with supplier product link (00192: supplier_margin_applied hentes separat via admin-klient)
     const { data: lineItem, error: liError } = await supabase
       .from('offer_line_items')
@@ -2239,6 +2266,9 @@ export async function optimizeOfferPrices(
       return { success: false, error: 'Manglende tilladelse: offers.view.cost_prices' }
     }
     validateUUID(offerId, 'tilbuds ID')
+
+    // Henrik 2026-10-07: kun kladder kan redigeres (lib/offers/edit-lock.ts)
+    { const lock = await offerEditLockReason(supabase, offerId); if (lock) return { success: false, error: lock } }
     // 00192: kostkolonner — admin-klient bag offers.view.cost_prices (kun læsninger; skrivninger med bruger-klienten)
     const admin = createAdminClient()
 

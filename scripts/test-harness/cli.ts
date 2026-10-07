@@ -591,6 +591,48 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'portal-limits-check') {
+    // R-PRT-B (Henrik 2026-10-07): portal-grænser. Kun AFVISNINGS-stierne testes — de returnerer før indsættelse og
+    // før notifikationsmailen (ingen mail sendes). Seed: 20 kundebeskeder seneste time + 20 filer i dag. Ryddes op.
+    const { sendPortalMessage, uploadPortalAttachment } = await import('../../src/lib/actions/portal')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `PL-${stamp}`, company_name: `[HARNESS] pl ${stamp}`, contact_person: 'Kunde', email: `pl-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const tok = randomBytes(32).toString('hex')
+    await admin.from('portal_access_tokens').insert({ customer_id: custId, token: tok, email: `pl-${stamp}@harness.test`, is_active: true, created_by: owner })
+    const paths: string[] = []
+    try {
+      const long = await sendPortalMessage(tok, { customer_id: custId, message: 'x'.repeat(5001) } as never)
+      check('besked > 5.000 tegn afvises', !long.success && /for lang/.test(long.error ?? ''), long.error ?? '')
+      const att = Array.from({ length: 11 }, () => ({ url: 'x', name: 'x', size: 1, type: 'text/plain' }))
+      const many = await sendPortalMessage(tok, { customer_id: custId, message: 'hej', attachments: att } as never)
+      check('> 10 vedhæftninger afvises', !many.success && /vedhæftninger/.test(many.error ?? ''), many.error ?? '')
+      await admin.from('portal_messages').insert(Array.from({ length: 20 }, (_, i) => ({ customer_id: custId, sender_type: 'customer', sender_name: 'Kunde', message: `seed ${i}`, attachments: [] })))
+      const rate = await sendPortalMessage(tok, { customer_id: custId, message: 'en mere' } as never)
+      check('21. besked inden for en time afvises', !rate.success && /mange beskeder/.test(rate.error ?? ''), rate.error ?? '')
+      for (let i = 0; i < 20; i++) {
+        const pth = `${custId}/${Date.now()}-${i}-seed.txt`
+        const { error } = await admin.storage.from('portal-attachments').upload(pth, new Blob(['seed'], { type: 'text/plain' }), { upsert: false })
+        if (!error) paths.push(pth)
+      }
+      const fd = new FormData()
+      fd.append('file', new File(['hej'], 'test.txt', { type: 'text/plain' }))
+      const up = await uploadPortalAttachment(tok, fd)
+      check('21. upload samme døgn afvises', !up.success && /mange filer/.test(up.error ?? ''), up.error ?? `seedede filer=${paths.length}`)
+    } finally {
+      if (paths.length) await admin.storage.from('portal-attachments').remove(paths)
+      await admin.from('portal_messages').delete().eq('customer_id', custId)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', custId)
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ portal-grænser ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'offer-invoice-unit-price-check') {
     // 00198 (STAGING): create_invoice_from_offer prissætter med unit_price — en linje med sale_price 0 (manuel linje før
     // rettelsen) faktureres til tilbudsprisen, ikke 0 kr. RPC kaldes direkte (uden app-værnet). Ingen mail.

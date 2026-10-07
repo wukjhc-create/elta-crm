@@ -54,7 +54,8 @@ export const OFFER_STATUS_TRANSITIONS: Record<OfferStatus, OfferStatus[]> = {
   draft: ['sent'],
   sent: ['viewed', 'accepted', 'rejected', 'expired', 'draft'],
   viewed: ['accepted', 'rejected', 'expired', 'draft'],
-  accepted: ['draft'],
+  // Henrik 2026-10-07: accepteret (underskrevet) er endeligt — ændringer = nyt tilbud (revisioner: 00203)
+  accepted: [],
   rejected: ['draft'],
   expired: ['draft'],
 }

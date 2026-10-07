@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -2913,6 +2913,27 @@ ${m.text()}`) })
           && await a.page.locator('input').evaluateAll((els) => els.some((e) => ['314.15', '314,15'].includes((e as HTMLInputElement).value)))
         a.page.off('response', onResp)
         out.push({ id: 'U89 PV16 løn på Rediger medarbejder foldet + hentes ved åbning', ok: !!u89EmployeeId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U146 (Henrik 2026-10-07): sendte/accepterede tilbud er låst — "Låst" i stedet for "Rediger"; accepteret kan ikke
+      // sættes tilbage til kladde. Serveren afviser også (lib/offers/edit-lock.ts).
+      if (want('U146') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const mk = async (status: string) => {
+          const { data } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-LOCK-${status}-${stamp}`, title: `[HARNESS] lås ${status}`, created_by: adminUser.id,
+            customer_id: profitCustomerId, status, sent_at: new Date().toISOString(), ...(status === 'accepted' ? { accepted_at: new Date().toISOString() } : {}) }]).select('id')
+          return (data?.[0] as { id?: string } | undefined)?.id ?? null
+        }
+        const sentId = await mk('sent'), accId = await mk('accepted')
+        for (const [tag, id] of [['sendt', sentId], ['accepteret', accId]] as Array<[string, string | null]>) {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.getByTestId('offer-edit-locked').waitFor({ timeout: 60_000 }).catch(() => {})
+          r[`${tag}_laast`] = (await a.page.getByTestId('offer-edit-locked').count()) === 1
+          r[`${tag}_ingen_rediger`] = (await a.page.getByRole('button', { name: 'Rediger', exact: true }).count()) === 0
+        }
+        if (sentId) await c.admin.from('offers').delete().eq('id', sentId)
+        if (accId) await c.admin.from('offers').delete().eq('id', accId)
+        out.push({ id: 'U146 sendte/accepterede tilbud er låst for redigering', ok: !!sentId && !!accId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U145 (Henrik 2026-10-07): deaktiveres en medarbejder (Rediger → "Aktiv" fra), deaktiveres login'et også — efter
