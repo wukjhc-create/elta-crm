@@ -29,7 +29,8 @@ export type AssistantReply = {
 
 /** Påmindelse før en tilbageringning (minutter) */
 export const CALLBACK_REMINDER_LEAD_MIN = 15
-export const ASSISTANT_RULE = { callback: 'assistant_callback', reminder: 'assistant_reminder' } as const
+export { ASSISTANT_RULE } from './rules'
+import { ASSISTANT_RULE } from './rules'
 
 const fmtWhen = (iso: string) => {
   const p = copenhagenParts(iso)
