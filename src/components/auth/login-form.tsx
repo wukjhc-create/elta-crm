@@ -147,12 +147,7 @@ export function LoginForm() {
         </button>
       </form>
 
-      <div className="text-center text-sm">
-        <span className="text-muted-foreground">{authTranslations.login.noAccount} </span>
-        <Link href="/register" className="text-primary hover:underline font-medium">
-          {authTranslations.login.signUp}
-        </Link>
-      </div>
+      <p className="text-center text-sm text-muted-foreground">{authTranslations.login.noAccount}</p>
     </div>
   )
 }

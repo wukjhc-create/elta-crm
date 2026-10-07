@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3979,6 +3979,24 @@ ${m.text()}`) })
           await c.admin.storage.from('attachments').remove([foreign])
         }
         out.push({ id: 'U137 profil signerer ikke fremmede filer (avatar-sti)', ok: r.seed && r.fremmed_fil_ikke_signeret, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U139 P1: selvregistrering lukket i appen — /register sender til login, og hverken forside eller login viser
+      // "Opret konto" (medarbejdere oprettes kun via invitation)
+      if (want('U139')) {
+        const r: Record<string, boolean> = {}
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        try {
+          const p = await kctx.newPage()
+          await gotoSafe(p, `${base}/register`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.register_til_login = new URL(p.url()).pathname === '/login'
+          r.login_uden_opret_link = (await p.locator('a[href="/register"]').count()) === 0
+          await gotoSafe(p, `${base}/`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.forside_uden_opret_link = (await p.locator('a[href="/register"]').count()) === 0
+        } finally {
+          await kctx.close().catch(() => {})
+        }
+        out.push({ id: 'U139 selvregistrering lukket i appen (/register → login, ingen opret-links)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U138 00194 system_alerts: portal-hændelse ("Fuldmagt underskrevet") vises i klokken for admin, kan afvises
