@@ -16,6 +16,7 @@ async function requireCostAccess() {
 }
 import { logger } from '@/lib/utils/logger'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 
 // =====================================================
 // Types
@@ -193,55 +194,64 @@ export async function getAffectedOffers(
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysBack)
 
-    // Get recent price changes
-    let priceChangesQuery = supabase
-      .from('price_history')
-      .select('supplier_product_id, old_cost_price, new_cost_price')
-      .gte('created_at', cutoffDate.toISOString())
-
-    if (supplierProductId) {
-      validateUUID(supplierProductId, 'produkt ID')
-      priceChangesQuery = priceChangesQuery.eq('supplier_product_id', supplierProductId)
-    }
-
-    const { data: priceChanges } = await priceChangesQuery
-
-    if (!priceChanges || priceChanges.length === 0) {
-      return { success: true, data: [] }
-    }
-
-    const changedProductIds = [...new Set(priceChanges.map((pc) => pc.supplier_product_id))]
-
-    // Get affected offers
-    // 00192: kostkolonner — admin-klient bag economy.cost_prices
-    const { data: lineItems, error: liError } = await createAdminClient()
-      .from('offer_line_items')
-      .select(`
-        id,
-        offer_id,
-        quantity,
-        unit_price,
-        supplier_product_id,
-        supplier_cost_price_at_creation,
-        offers!inner (
-          id,
-          offer_number,
-          title,
-          status,
-          total_amount,
-          created_at,
-          customers (
-            company_name
-          )
-        )
-      `)
-      .in('supplier_product_id', changedProductIds)
-      .in('offers.status', ['draft', 'sent', 'pending'])
-
-    if (liError) {
+    // X4n (pris-review 2026-10-07): vendt om. Før: ALLE produkter med prisændring (efter en LM-synk tusindvis) i én
+    // .in() → URL-grænsen (~350) sprængt → DATABASE_ERROR/tom liste; og price_history afkortet ved 1.000 rækker.
+    // Nu: de aktive tilbuds linjer med leverandørprodukt (afgrænset mængde) → kun deres prishistorik, i bidder.
+    if (supplierProductId) validateUUID(supplierProductId, 'produkt ID')
+    const admin = createAdminClient()
+    let allLines: Array<Record<string, any>>
+    try {
+      // 00192: kostkolonner — admin-klient bag economy.cost_prices
+      allLines = await fetchAllRows<Record<string, any>>((from, to) => {
+        let q = admin
+          .from('offer_line_items')
+          .select(`
+            id,
+            offer_id,
+            quantity,
+            unit_price,
+            supplier_product_id,
+            supplier_cost_price_at_creation,
+            offers!inner (
+              id,
+              offer_number,
+              title,
+              status,
+              total_amount,
+              created_at,
+              customers (
+                company_name
+              )
+            )
+          `)
+          // aktive tilbud = draft/sent/viewed ('pending' findes ikke i offer_status → forespørgslen fejlede ALTID før X4n)
+          .in('offers.status', ['draft', 'sent', 'viewed'])
+          .not('supplier_product_id', 'is', null)
+        if (supplierProductId) q = q.eq('supplier_product_id', supplierProductId)
+        return q.order('id').range(from, to)
+      })
+    } catch (liError) {
       logger.error('Database error fetching affected offers', { error: liError })
       throw new Error('DATABASE_ERROR')
     }
+    const productIds = [...new Set(allLines.map((l) => l.supplier_product_id as string))]
+    const priceChanges: Array<{ supplier_product_id: string; old_cost_price: number | null; new_cost_price: number }> = []
+    for (let k = 0; k < productIds.length; k += IN_CHUNK_SIZE) {
+      const chunk = productIds.slice(k, k + IN_CHUNK_SIZE)
+      priceChanges.push(...await fetchAllRows<{ id: string; supplier_product_id: string; old_cost_price: number | null; new_cost_price: number }>((from, to) => supabase
+        .from('price_history')
+        .select('id, supplier_product_id, old_cost_price, new_cost_price')
+        .in('supplier_product_id', chunk)
+        .gte('created_at', cutoffDate.toISOString())
+        .order('id')
+        .range(from, to)))
+    }
+
+    if (priceChanges.length === 0) {
+      return { success: true, data: [] }
+    }
+    const changedProducts = new Set(priceChanges.map((pc) => pc.supplier_product_id))
+    const lineItems = allLines.filter((l) => changedProducts.has(l.supplier_product_id as string))
 
     // Build price change map
     const priceChangeMap = new Map<string, { old: number; new: number }>()

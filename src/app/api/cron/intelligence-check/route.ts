@@ -159,7 +159,8 @@ async function handleCron(request: Request): Promise<Response> {
         id, title, offer_number, final_amount,
         line_items:offer_line_items(cost_price, quantity, total, supplier_product_id)
       `)
-      .in('status', ['draft', 'sent'])
+      // aktive tilbud inkl. 'viewed' (kunden har åbnet det — stadig åbent; før sprunget over)
+      .in('status', ['draft', 'sent', 'viewed'])
 
     if (activeOffers) {
       // Collect all supplier_product_ids across all offers to batch-load current prices

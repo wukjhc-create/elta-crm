@@ -73,33 +73,16 @@ export async function getSupplierHealth(
       .eq('is_active', true)
       .maybeSingle()
 
-    // Get cached product count
-    const { data: products } = await supabase
-      .from('supplier_products')
-      .select('id')
-      .eq('supplier_id', supplierId)
-
-    const productIds = products?.map((p) => p.id) || []
-
-    let cachedCount = 0
-    let staleCount = 0
-
-    if (productIds.length > 0) {
-      const { count: freshCount } = await supabase
-        .from('supplier_product_cache')
-        .select('id', { count: 'exact', head: true })
-        .in('supplier_product_id', productIds)
-        .eq('is_stale', false)
-
-      const { count: staleCountResult } = await supabase
-        .from('supplier_product_cache')
-        .select('id', { count: 'exact', head: true })
-        .in('supplier_product_id', productIds)
-        .eq('is_stale', true)
-
-      cachedCount = freshCount || 0
-      staleCount = staleCountResult || 0
-    }
+    // Get cached product count — X4n: tælles via join på leverandøren (før: alle leverandørens produkt-id'er i én .in()
+    // → URL-grænsen (~350) sprængt for AO/LM, og højst 1.000 id'er → altid 0 i cache/forældet)
+    const cacheCount = (stale: boolean) => supabase
+      .from('supplier_product_cache')
+      .select('id, supplier_products!inner(supplier_id)', { count: 'exact', head: true })
+      .eq('supplier_products.supplier_id', supplierId)
+      .eq('is_stale', stale)
+    const [{ count: freshCount }, { count: staleCountResult }] = await Promise.all([cacheCount(false), cacheCount(true)])
+    const cachedCount = freshCount || 0
+    const staleCount = staleCountResult || 0
 
     // Calculate health metrics
     const successfulSyncs = syncLogs?.filter((l) => l.status === 'completed') || []

@@ -10,6 +10,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 
 // =====================================================
 // Types
@@ -245,26 +247,21 @@ export class SupplierFallbackService {
       const { createAdminClient } = await import('@/lib/supabase/admin')
       const supabase = createAdminClient()
 
-      let query = supabase.from('supplier_product_cache').update({ is_stale: true })
-
-      if (supplierProductIds) {
-        query = query.in('supplier_product_id', supplierProductIds)
-      } else {
-        // Mark all for this supplier
-        const { data: products } = await supabase
-          .from('supplier_products')
-          .select('id')
-          .eq('supplier_id', this.supplierId)
-
-        if (products) {
-          query = query.in(
-            'supplier_product_id',
-            products.map((p) => p.id)
-          )
-        }
+      // X4n: altid i bidder af 200 (én .in() med alle leverandørens produkter sprængte URL-grænsen → intet markeret).
+      // Uden id'er: kun de CACHEDE rækker for leverandøren (via join) — ikke hele kataloget (LM: 322k produkter).
+      let ids = supplierProductIds ?? null
+      if (!ids) {
+        const cached = await fetchAllRows<{ id: string; supplier_product_id: string }>((from, to) => supabase
+          .from('supplier_product_cache')
+          .select('id, supplier_product_id, supplier_products!inner(supplier_id)')
+          .eq('supplier_products.supplier_id', this.supplierId)
+          .order('id')
+          .range(from, to))
+        ids = cached.map((c) => c.supplier_product_id)
       }
-
-      await query
+      for (let k = 0; k < ids.length; k += IN_CHUNK_SIZE) {
+        await supabase.from('supplier_product_cache').update({ is_stale: true }).in('supplier_product_id', ids.slice(k, k + IN_CHUNK_SIZE))
+      }
     } catch {
       // Ignore errors
     }
@@ -286,43 +283,20 @@ export class SupplierFallbackService {
 
       if (!supplier) return null
 
-      // Parallelize all remaining queries
-      const [
-        { data: syncLogs },
-        { data: products },
-      ] = await Promise.all([
-        supabase
-          .from('supplier_sync_logs')
-          .select('status, started_at, duration_ms')
-          .eq('supplier_id', this.supplierId)
-          .order('started_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('supplier_products')
-          .select('id')
-          .eq('supplier_id', this.supplierId),
-      ])
+      const { data: syncLogs } = await supabase
+        .from('supplier_sync_logs')
+        .select('status, started_at, duration_ms')
+        .eq('supplier_id', this.supplierId)
+        .order('started_at', { ascending: false })
+        .limit(10)
 
-      const productIds = products?.map((p) => p.id) || []
-
-      // Parallelize cache count queries
-      const [
-        { count: cachedCount },
-        { count: staleCount },
-      ] = productIds.length > 0
-        ? await Promise.all([
-            supabase
-              .from('supplier_product_cache')
-              .select('id', { count: 'exact', head: true })
-              .in('supplier_product_id', productIds)
-              .eq('is_stale', false),
-            supabase
-              .from('supplier_product_cache')
-              .select('id', { count: 'exact', head: true })
-              .in('supplier_product_id', productIds)
-              .eq('is_stale', true),
-          ])
-        : [{ count: 0 }, { count: 0 }]
+      // X4n: cache-tal via join på leverandøren (før: alle produkt-id'er i én .in() → URL-grænsen sprængt → 0)
+      const cacheCount = (stale: boolean) => supabase
+        .from('supplier_product_cache')
+        .select('id, supplier_products!inner(supplier_id)', { count: 'exact', head: true })
+        .eq('supplier_products.supplier_id', this.supplierId)
+        .eq('is_stale', stale)
+      const [{ count: cachedCount }, { count: staleCount }] = await Promise.all([cacheCount(false), cacheCount(true)])
 
       // Calculate health metrics
       const successfulSyncs = syncLogs?.filter((l) => l.status === 'completed') || []

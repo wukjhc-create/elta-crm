@@ -437,6 +437,43 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'affected-offers-query-check') {
+    // getAffectedOffers' to forespørgsler (aktive tilbudslinjer m. leverandørprodukt → deres prishistorik) mod rigtig
+    // PostgREST: ingen fejl, og linjerne er kun aktive tilbud. Read-only.
+    const { fetchAllRows } = await import('../../src/lib/supabase/fetch-all')
+    const lines = await fetchAllRows<{ id: string; supplier_product_id: string; offers: { status: string } | Array<{ status: string }> }>((f, t) => admin
+      .from('offer_line_items').select('id, supplier_product_id, offers!inner(id, status)')
+      .in('offers.status', ['draft', 'sent', 'viewed']).not('supplier_product_id', 'is', null).order('id').range(f, t))
+    const badStatus = lines.filter((l) => { const o = Array.isArray(l.offers) ? l.offers[0] : l.offers; return !['draft', 'sent', 'viewed'].includes(o?.status ?? '') }).length
+    const ids = [...new Set(lines.map((l) => l.supplier_product_id))]
+    let changes = 0
+    for (let k = 0; k < ids.length; k += 200) {
+      changes += (await fetchAllRows((f, t) => admin.from('price_history').select('id, supplier_product_id').in('supplier_product_id', ids.slice(k, k + 200))
+        .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()).order('id').range(f, t))).length
+    }
+    log(`${badStatus ? 'FAIL' : 'PASS'}  ${lines.length} aktive linjer m. leverandørprodukt (${ids.length} produkter), ${badStatus} med forkert status; prisændringer 30 d: ${changes}`)
+    process.exitCode = badStatus ? 1 : 0
+    return
+  }
+  if (SUB === 'cache-count-check') {
+    // Leverandør-cache-tal via join (supplier-health/-fallback) = SQL-optælling pr. leverandør. Read-only.
+    const sql = (await stagingSql(`SELECT p.supplier_id, c.is_stale, count(*)::int n FROM supplier_product_cache c
+      JOIN supplier_products p ON p.id = c.supplier_product_id GROUP BY 1, 2`)) as Array<{ supplier_id: string; is_stale: boolean; n: number }>
+    const { data: sups } = await admin.from('suppliers').select('id')
+    let fails = 0
+    for (const s of (sups ?? []) as Array<{ id: string }>) {
+      for (const stale of [false, true]) {
+        const { count, error } = await admin.from('supplier_product_cache')
+          .select('id, supplier_products!inner(supplier_id)', { count: 'exact', head: true })
+          .eq('supplier_products.supplier_id', s.id).eq('is_stale', stale)
+        const want = sql.find((r) => r.supplier_id === s.id && r.is_stale === stale)?.n ?? 0
+        if (error || (count ?? 0) !== want) { fails++; log(`FAIL  leverandør ${s.id.slice(0, 8)} stale=${stale}: join=${count} sql=${want} ${error?.message ?? ''}`) }
+      }
+    }
+    log(`${fails ? 'FAIL' : 'PASS'}  ${(sups ?? []).length} leverandører × (frisk, forældet); cache-rækker i alt ${sql.reduce((a, r) => a + r.n, 0)}`)
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'in-list-limit') {
     // Hvor mange UUID'er tåler én .in() (GET-URL) før gatewayen afviser? Read-only mod customers med tilfældige id'er.
     const { randomUUID } = await import('crypto')
