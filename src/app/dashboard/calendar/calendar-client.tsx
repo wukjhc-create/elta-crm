@@ -1,6 +1,7 @@
 'use client'
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { ASSISTANT_RULE } from '@/lib/assistant/rules'
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, CalendarCheck, MapPin, Clock, User, Navigation, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -50,7 +51,8 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
     const map: Record<string, CustomerTaskWithRelations[]> = {}
     for (const task of tasks) {
       if (task.due_date) {
-        const dateKey = task.due_date.slice(0, 10)
+        // dansk kalenderdato (før: UTC-datoen → et opkald kl. 00:30 dansk tid lå på dagen før)
+        const dateKey = copenhagenParts(task.due_date).date
         if (!map[dateKey]) map[dateKey] = []
         map[dateKey].push(task)
       }
@@ -97,8 +99,9 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
   }
 
   // Count total upcoming
-  const upcomingCount = tasks.filter((t) => t.due_date && t.due_date >= today && t.status !== 'done').length
-  const overdueCount = tasks.filter((t) => t.due_date && t.due_date < today && t.status !== 'done').length
+  const dayOf = (iso: string) => copenhagenParts(iso).date
+  const upcomingCount = tasks.filter((t) => t.due_date && dayOf(t.due_date) >= today && t.status !== 'done').length
+  const overdueCount = tasks.filter((t) => t.due_date && dayOf(t.due_date) < today && t.status !== 'done').length
 
   return (
     <div className="space-y-6">
@@ -189,7 +192,7 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
                         }`}
                         title={`${task.title}${isConfirmed ? ' ✓ Bekræftet' : ''}`}
                       >
-                        {isConfirmed ? '✓ ' : ''}{task.customer?.company_name || task.title}
+                        {isConfirmed ? '✓ ' : ''}{task.auto_rule === ASSISTANT_RULE.callback ? '📞 ' : task.auto_rule === ASSISTANT_RULE.reminder ? '⏰ ' : ''}{task.customer?.company_name || task.title}
                       </div>
                     )
                   })}
@@ -219,11 +222,11 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
           <div className="p-4">
             {!selectedDate ? (
               <p className="text-sm text-gray-500 text-center py-8">
-                Klik på en dag for at se besigtigelser
+                Klik på en dag for at se besigtigelser og opkald
               </p>
             ) : selectedTasks.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-8">
-                Ingen besigtigelser denne dag
+                Ingen besigtigelser eller opkald denne dag
               </p>
             ) : (
               <div className="space-y-3">

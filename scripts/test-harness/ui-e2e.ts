@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3979,6 +3979,33 @@ ${m.text()}`) })
           await c.admin.storage.from('attachments').remove([foreign])
         }
         out.push({ id: 'U137 profil signerer ikke fremmede filer (avatar-sti)', ok: r.seed && r.fremmed_fil_ikke_signeret, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U140 T2: opkald oprettet via ELTA Assistant vises i CRM-kalenderens månedsvisning (📞) på den DANSKE dato —
+      // kl. 00:30 dansk tid lå før på dagen før (UTC-dato)
+      if (want('U140') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const { copenhagenParts: cph, copenhagenLocalToIso } = await import('../../src/lib/utils/copenhagen-time')
+        const today = cph(new Date()).date
+        const tomorrow = cph(new Date(Date.now() + 86_400_000)).date
+        const day = tomorrow.slice(0, 7) === today.slice(0, 7) ? tomorrow : today
+        const title = `Ring til U140 ${stamp}`
+        const ins = await c.admin.from('customer_tasks').insert({ customer_id: profitCustomerId, title, status: 'pending', priority: 'normal', assigned_to: adminUser.id, created_by: adminUser.id, due_date: copenhagenLocalToIso(day, '00:30'), auto_rule: 'assistant_callback' }).select('id').single()
+        const taskId = (ins.data as { id?: string } | null)?.id ?? null
+        r.seed = !!taskId
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/calendar?view=month`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const chip = a.page.locator(`div[title="${title}"]`).first()
+          r.vises_med_telefon = await chip.waitFor({ timeout: 60_000 }).then(async () => (await chip.innerText()).startsWith('📞')).catch(() => false)
+          if (r.vises_med_telefon) {
+            await chip.click({ timeout: 30_000 })
+            const expected = new Date(`${day}T12:00:00`).toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' })
+            r.rette_danske_dag = await a.page.getByRole('heading', { name: expected }).first().waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+          }
+        } finally {
+          if (taskId) await c.admin.from('customer_tasks').delete().eq('id', taskId)
+        }
+        out.push({ id: 'U140 assistent-opkald i kalenderen (📞, dansk dato)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U139 P1: selvregistrering lukket i appen — /register sender til login, og hverken forside eller login viser

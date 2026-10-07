@@ -146,6 +146,8 @@ export async function getAllTasks(options?: {
   priority?: string
   assignedTo?: string
   search?: string
+  /** Kun opgaver med disse auto_rule-værdier (fx ELTA Assistant-opkald i kalenderen) */
+  autoRules?: string[]
 }): Promise<CustomerTaskWithRelations[]> {
   // Sprint 7E fix — scope tasks per rolle.
   // Montor maa kun se tasks tildelt til egen profile.id (assigned_to).
@@ -204,6 +206,9 @@ export async function getAllTasks(options?: {
   }
   if (options?.search) {
     query = query.ilike('title', `%${options.search}%`)
+  }
+  if (options?.autoRules?.length) {
+    query = query.in('auto_rule', options.autoRules)
   }
 
   const { data, error } = await query
