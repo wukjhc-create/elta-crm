@@ -329,6 +329,9 @@ export async function calculateSalePrice(
   }
 ): Promise<ActionResult<number>> {
   try {
+    // RBAC-review 2026-10-07: kald med kost 100 afslørede den effektive avance for vilkårlig leverandør/kunde → kost-rolle
+    const denied = await permissionDenied('offers.view.cost_prices')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 

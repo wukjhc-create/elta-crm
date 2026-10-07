@@ -252,6 +252,9 @@ export async function getSupplierSettings(
   supplierId: string
 ): Promise<ActionResult<SupplierSettings | null>> {
   try {
+    // RBAC-review 2026-10-07: indeholder standard-avance → indstillingsrettighed (før: alle indloggede)
+    const denied = await permissionDenied('settings.view')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
     validateUUID(supplierId, 'leverandør ID')
 
