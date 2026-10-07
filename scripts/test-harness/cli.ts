@@ -501,6 +501,21 @@ async function main() {
       check('afsender-e-mail (anden casing) finder kunden', r2.customerId === custId && !r2.created)
       const r3 = await findOrCreateCustomer({ name: null, phone: '12', address: null, fallbackEmail: `ukendt-${stamp}@harness.test` })
       check('ukendt e-mail + ugyldig telefon → intet match, ingen oprettelse', r3.customerId === null && !r3.created)
+      // navne-match: entydigt navn + postnr.
+      const nm = `Navnetest ${stamp}`
+      await admin.from('customers').update({ contact_person: nm, billing_postal_code: '8000' }).eq('id', custId)
+      const n1 = await findOrCreateCustomer({ name: nm, phone: null, address: null })
+      check('entydigt navn uden adresse → match', n1.customerId === custId)
+      const n2 = await findOrCreateCustomer({ name: nm, phone: null, address: 'Vej 1, 8000 Aarhus C' })
+      check('entydigt navn + samme postnr. → match', n2.customerId === custId)
+      const n3 = await findOrCreateCustomer({ name: nm, phone: null, address: null })
+      const { data: twin } = await admin.from('customers').insert({ customer_number: `FOC2-${stamp}`, company_name: `[HARNESS] foc2 ${stamp}`, contact_person: nm, email: `foc2-${stamp}@harness.test`, created_by: owner }).select('id').single()
+      const n4 = await findOrCreateCustomer({ name: nm, phone: null, address: null })
+      await admin.from('customers').delete().eq('id', (twin as { id: string }).id)
+      check('to kunder med samme navn → intet navne-match (tvetydigt)', n3.customerId === custId && n4.customerId === null && !n4.created)
+      const n5 = await findOrCreateCustomer({ name: nm, phone: null, address: 'Vej 1, 5000 Odense C' })
+      check('entydigt navn men andet postnr. → intet navne-match', n5.customerId !== custId)
+      if (n5.created && n5.customerId) await admin.from('customers').delete().eq('id', n5.customerId)
     } finally {
       await admin.from('customers').delete().eq('id', custId)
     }

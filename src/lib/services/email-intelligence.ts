@@ -572,13 +572,23 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
     // automatik-review: AI-udtrukket navn er kundestyret tekst — jokertegn (* _ %) escapes, ellers matchede fx "** **"
     // enhver kunde med mellemrum i navnet
     const safeName = escapeLike(nameTrimmed.replace(/[%,()*]/g, ' ').replace(/\s+/g, ' ').trim())
-    const { data: byName } = await supabase
+    // Kunde-/leads-review 2026-10-07: kun ved PRÆCIS én kunde med navnet, og et postnr. i den udtrukne adresse skal
+    // passe til kundens (før: første "Jens Hansen" vandt, også på en anden adresse)
+    const { data: nameRows } = await supabase
       .from('customers')
-      .select('id')
+      .select('id, billing_postal_code, shipping_postal_code')
       .or(`company_name.ilike.${pgQuote(safeName)},contact_person.ilike.${pgQuote(safeName)}`)
       .eq('is_active', true)
-      .limit(1)
-      .maybeSingle()
+      .limit(2)
+    const nameCandidates = (nameRows ?? []) as Array<{ id: string; billing_postal_code: string | null; shipping_postal_code: string | null }>
+    const extractedPostal = (data.address || '').match(/\b(\d{4})\b/)?.[1] ?? null
+    let byName: { id: string } | null = nameCandidates.length === 1 ? nameCandidates[0] : null
+    if (byName && extractedPostal) {
+      const c = nameCandidates[0]
+      const known = [c.billing_postal_code, c.shipping_postal_code].map((x) => (x || '').trim()).filter(Boolean)
+      if (known.length && !known.includes(extractedPostal)) byName = null
+    }
+    if (nameCandidates.length > 1) console.log('CUSTOMER NAME-MATCH SKIPPED (ambiguous)')
     if (byName?.id) {
       console.log('CUSTOMER FOUND:', byName.id, '(by full name)')
       return { customerId: byName.id, created: false }
