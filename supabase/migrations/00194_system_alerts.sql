@@ -9,7 +9,8 @@
 --
 -- Design (strammere end 00046's USING(true)):
 --   - Oprettelse KUN via service_role (createSystemAlertAdmin/cron); authenticated får ingen INSERT/DELETE
---   - Læse + markér læst/afvis: kontor-roller (admin, serviceleder, salg, bogholderi) — montør ser ikke kundenavne her
+--   - Læse + markér læst/afvis: admin, serviceleder, bogholderi — samme roller som appen viser klokkens
+--     systemadvarsler for (economy.cost_prices, D49; advarslerne kan indeholde margin-/prisoplysninger)
 --   - UPDATE begrænset til status-kolonnerne via kolonne-GRANT
 --
 -- Rollback: DROP TABLE public.system_alerts;  (ingen andre objekter afhænger af den)
@@ -39,14 +40,16 @@ CREATE INDEX IF NOT EXISTS idx_system_alerts_entity ON public.system_alerts (ent
 
 ALTER TABLE public.system_alerts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS system_alerts_select_office ON public.system_alerts;
 CREATE POLICY system_alerts_select_office ON public.system_alerts
   FOR SELECT TO authenticated
-  USING (public.user_role() IN ('admin', 'serviceleder', 'salg', 'bogholderi'));
+  USING (public.user_role() IN ('admin', 'serviceleder', 'bogholderi'));
 
+DROP POLICY IF EXISTS system_alerts_update_office ON public.system_alerts;
 CREATE POLICY system_alerts_update_office ON public.system_alerts
   FOR UPDATE TO authenticated
-  USING (public.user_role() IN ('admin', 'serviceleder', 'salg', 'bogholderi'))
-  WITH CHECK (public.user_role() IN ('admin', 'serviceleder', 'salg', 'bogholderi'));
+  USING (public.user_role() IN ('admin', 'serviceleder', 'bogholderi'))
+  WITH CHECK (public.user_role() IN ('admin', 'serviceleder', 'bogholderi'));
 
 REVOKE ALL ON public.system_alerts FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.system_alerts TO authenticated;

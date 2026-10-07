@@ -731,6 +731,8 @@ export interface PriceAlert {
 }
 
 export async function getUnreadPriceAlerts(): Promise<PriceAlert[]> {
+  // Pris-/marginadvarsler: samme rettighed som klokkens systemadvarsler (economy.cost_prices, D49) — DB'en (00194) håndhæver det samme
+  if (await gateDenied('economy.cost_prices')) return []
   try {
     const supabase = await createClient()
 
@@ -759,7 +761,7 @@ export async function getUnreadPriceAlerts(): Promise<PriceAlert[]> {
 export async function dismissPriceAlert(
   alertId: string
 ): Promise<{ success: boolean }> {
-  const denied = await gateDenied('tools.pricing')
+  const denied = await gateDenied('economy.cost_prices')
   if (denied) return { success: false }
   try {
     const supabase = await createClient()
@@ -786,6 +788,7 @@ export async function dismissPriceAlert(
 export async function markPriceAlertRead(
   alertId: string
 ): Promise<{ success: boolean }> {
+  if (await gateDenied('economy.cost_prices')) return { success: false }
   try {
     const supabase = await createClient()
 

@@ -26,7 +26,6 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'auto-tasks.ts:createAutoTasksForUnansweredEmails': S('cron-/service-hjælper (unanswered-mails-check)'),
   'auto-tasks.ts:autoCloseRespondedTasks': S('cron-/service-hjælper (unanswered-mails-check)'),
   'calculation-intelligence.ts:createSystemAlert': S('intern alarm-skrivning fra motorer'),
-  'customer-tasks.ts:markPriceAlertRead': S('intern hjælper; UI bruger dismissPriceAlert (gatet)'),
   'document-confirmations.ts:createConfirmationRequests': S('kaldes af gatede sags-/tilbudsflows'),
   'document-confirmations.ts:getConfirmationContext': S('læses server-side af den token-validerede bekræftelsesside'),
   'document-confirmations.ts:markConfirmationMailSent': S('mail-status fra afsendelsesflowet'),

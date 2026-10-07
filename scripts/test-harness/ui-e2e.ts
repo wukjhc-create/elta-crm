@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3979,6 +3979,42 @@ ${m.text()}`) })
           await c.admin.storage.from('attachments').remove([foreign])
         }
         out.push({ id: 'U137 profil signerer ikke fremmede filer (avatar-sti)', ok: r.seed && r.fremmed_fil_ikke_signeret, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U138 00194 system_alerts: portal-hændelse ("Fuldmagt underskrevet") vises i klokken for admin, kan afvises
+      // derfra (DB: is_dismissed), og montør ser den ikke
+      if (want('U138')) {
+        const r: Record<string, boolean> = {}
+        const title = `Fuldmagt underskrevet U138 ${stamp}`
+        const ins = await c.admin.from('system_alerts').insert({ alert_type: 'fuldmagt_signed', severity: 'info', title, message: 'Harness Kunde har underskrevet fuldmagten.', entity_type: 'customer' }).select('id').single()
+        const alertId = (ins.data as { id?: string } | null)?.id ?? null
+        r.seed = !!alertId
+        try {
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.locator('button[aria-label^="Notifikationer"]').first().click({ timeout: 60_000 })
+          const item = a.page.getByText(title).first()
+          r.admin_ser_i_klokken = await item.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          if (r.admin_ser_i_klokken) {
+            const row = a.page.locator('div', { has: a.page.getByText(title) }).filter({ has: a.page.locator('button[aria-label="Afvis"]') }).last()
+            await row.locator('button[aria-label="Afvis"]').first().click({ timeout: 30_000 }).catch(() => {})
+            let dismissed = false
+            for (let i = 0; i < 20 && !dismissed; i++) {
+              dismissed = !!((await c.admin.from('system_alerts').select('is_dismissed').eq('id', alertId).single()).data as { is_dismissed?: boolean } | null)?.is_dismissed
+              if (!dismissed) await a.page.waitForTimeout(500)
+            }
+            r.afvist_i_db = dismissed
+          }
+          await c.admin.from('system_alerts').update({ is_dismissed: false }).eq('id', alertId)
+          const m = await login(montor)
+          await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await m.page.locator('button[aria-label^="Notifikationer"]').first().click({ timeout: 60_000 }).catch(() => {})
+          await m.page.waitForTimeout(2_000)
+          r.montor_ser_ikke = (await m.page.getByText(title).count()) === 0
+          await m.ctx.close().catch(() => {})
+        } finally {
+          if (alertId) await c.admin.from('system_alerts').delete().eq('id', alertId)
+        }
+        out.push({ id: 'U138 klokken viser portal-hændelse; afvis virker; montør ser den ikke', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)

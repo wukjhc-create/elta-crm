@@ -43,15 +43,35 @@ async function handleCron(request: Request): Promise<Response> {
     margin_warnings: 0,
     supplier_health: 0,
     anomalies: 0,
+    /** faktisk oprettede advarsler (kategoritællerne ovenfor tæller fund) */
+    inserted: 0,
+    deduplicated: 0,
     errors: [] as string[],
   }
 
   async function insertAlert(alert: Record<string, unknown>) {
+    // 00194: kørsel hver nat — en åben (ikke afvist) advarsel med samme type/emne/titel oprettes ikke igen
+    // (før: kun margin_below var dubletsikret; prisændring/sync/leverandør ville fylde klokken med kopier hver dag)
+    let dup = supabase
+      .from('system_alerts')
+      .select('id', { count: 'exact', head: true })
+      .eq('alert_type', String(alert.alert_type))
+      .eq('title', String(alert.title))
+      .eq('is_dismissed', false)
+    dup = alert.entity_id ? dup.eq('entity_id', String(alert.entity_id)) : dup.is('entity_id', null)
+    const { count: existing, error: dupErr } = await dup
+    if (!dupErr && (existing ?? 0) > 0) {
+      results.deduplicated++
+      return false
+    }
     const { error } = await supabase.from('system_alerts').insert(alert)
     if (error) {
       logger.error('Failed to insert system alert', { error: error.message, metadata: alert as Record<string, unknown> })
       results.errors.push(`Alert insert failed: ${error.message}`)
+      return false
     }
+    results.inserted++
+    return true
   }
 
   try {
@@ -360,7 +380,7 @@ async function handleCron(request: Request): Promise<Response> {
       await insertAlert({
         alert_type: 'supplier_offline',
         severity: 'warning',
-        title: `${staleCount} forældede produktpriser`,
+        title: 'Forældede produktpriser', // fast titel → dubletsikringen virker (antallet står i beskeden)
         message: `Der er ${staleCount} aktive produkter med priser ældre end ${staleDays} dage. Overvej at køre en fuld synkronisering.`,
         details: { stale_count: staleCount },
         entity_type: 'supplier_product',

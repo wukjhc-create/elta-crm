@@ -804,6 +804,158 @@ async function main() {
     log(JSON.stringify(g))
     return
   }
+  if (SUB === 'system-alerts-check') {
+    // STAGING: 00194 system_alerts med RIGTIGE rolle-sessioner + app-stierne (portal-hændelse → klokke, læst/afvis,
+    // natlig intelligence-check to gange → dubletsikring). Rydder egne rækker op.
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const SEE = ['admin', 'serviceleder', 'bogholderi']
+    const ids: string[] = []
+    try {
+      // 1. Kunde-hændelse → advarsel (samme funktion som fuldmagt/besigtigelse i portalen kalder)
+      const { createSystemAlertAdmin } = await import('../../src/lib/actions/system-alerts-admin')
+      const ok = await createSystemAlertAdmin({ alert_type: 'fuldmagt_signed' as never, severity: 'info', title: `Fuldmagt underskrevet ${stamp}`, message: 'Harness Kunde har underskrevet fuldmagten for ordre H-1.', entity_type: 'customer' })
+      const { data: ev } = await admin.from('system_alerts').select('id, is_read, is_dismissed').eq('title', `Fuldmagt underskrevet ${stamp}`)
+      check('portal-hændelse opretter advarsel (createSystemAlertAdmin)', ok && (ev ?? []).length === 1, JSON.stringify(ev))
+      const alertId = (ev ?? [])[0]?.id as string
+      if (alertId) ids.push(alertId)
+
+      // 2. Rollematrix
+      for (const [role, cl] of personas) {
+        const { data, error } = await cl.from('system_alerts').select('id').eq('id', alertId)
+        const sees = (data ?? []).length > 0
+        check(`${role} ${SEE.includes(role) ? 'ser' : 'ser IKKE'} advarslen`, !error && sees === SEE.includes(role), error?.message ?? (sees ? 'ser' : 'ser ikke'))
+        const ins = await cl.from('system_alerts').insert({ alert_type: 'x', title: 'x', message: 'x' })
+        check(`${role} kan ikke oprette`, !!ins.error, ins.error?.code ?? 'OPRETTET')
+        const upT = await cl.from('system_alerts').update({ title: 'ændret' }).eq('id', alertId).select('id')
+        check(`${role} kan ikke ændre titel`, !!upT.error || (upT.data ?? []).length === 0, upT.error?.code ?? `${(upT.data ?? []).length} rækker`)
+        const del = await cl.from('system_alerts').delete().eq('id', alertId).select('id')
+        check(`${role} kan ikke slette`, !!del.error || (del.data ?? []).length === 0, del.error?.code ?? `${(del.data ?? []).length} rækker`)
+        if (!SEE.includes(role)) {
+          const upR = await cl.from('system_alerts').update({ is_read: true }).eq('id', alertId).select('id')
+          check(`${role} kan ikke markere læst`, !!upR.error || (upR.data ?? []).length === 0, upR.error?.code ?? `${(upR.data ?? []).length} rækker`)
+        }
+      }
+      const still = (await admin.from('system_alerts').select('title, is_read').eq('id', alertId).single()).data as { title: string; is_read: boolean } | null
+      check('  advarslen uændret efter forsøgene', still?.title === `Fuldmagt underskrevet ${stamp}` && still?.is_read === false, JSON.stringify(still))
+
+      // 3. Læst/afvis som bogholderi (den rolle der før kunne se men ikke markere)
+      const bog = Array.from(personas).find(([r]) => r === 'bogholderi')?.[1]
+      if (bog) {
+        const r1 = await bog.from('system_alerts').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', alertId).select('id')
+        check('bogholderi markerer læst', !r1.error && (r1.data ?? []).length === 1, r1.error?.message ?? '')
+        const r2 = await bog.from('system_alerts').update({ is_dismissed: true, dismissed_at: new Date().toISOString() }).eq('id', alertId).select('id')
+        check('bogholderi afviser', !r2.error && (r2.data ?? []).length === 1, r2.error?.message ?? '')
+        const open = await bog.from('system_alerts').select('id').eq('is_dismissed', false).eq('id', alertId)
+        check('  afvist advarsel forsvinder fra klokkens liste', (open.data ?? []).length === 0)
+      } else check('bogholderi-persona findes', false)
+
+      // 4. Natlig intelligence-check to gange: hvad oprettes, og dubletsikring
+      process.env.CRON_SECRET = process.env.CRON_SECRET || `harness-${stamp}`
+      const { GET } = await import('../../src/app/api/cron/intelligence-check/route')
+      const since = new Date().toISOString()
+      const runOnce = async () => {
+        const res = await GET(new Request('http://localhost/api/cron/intelligence-check', { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } }) as never)
+        return (await (res as Response).json()) as Record<string, unknown>
+      }
+      const run1 = await runOnce()
+      const { data: created1 } = await admin.from('system_alerts').select('id, alert_type, severity, title').gte('created_at', since).neq('alert_type', 'fuldmagt_signed')
+      const run2 = await runOnce()
+      const { data: created2 } = await admin.from('system_alerts').select('id').gte('created_at', since).neq('alert_type', 'fuldmagt_signed')
+      const byType: Record<string, number> = {}
+      for (const a of created1 ?? []) byType[`${a.alert_type}/${a.severity}`] = (byType[`${a.alert_type}/${a.severity}`] ?? 0) + 1
+      log(`  kørsel 1: ${JSON.stringify(run1.results ?? run1)}`)
+      log(`  oprettet ved kørsel 1 pr. type: ${JSON.stringify(byType)}`)
+      for (const a of (created1 ?? []).slice(0, 6)) log(`    · ${a.alert_type} ${a.severity}: ${String(a.title).slice(0, 70)}`)
+      log(`  kørsel 2: ${JSON.stringify(run2.results ?? run2)}`)
+      check('2. kørsel opretter ingen dubletter', (created2 ?? []).length === (created1 ?? []).length, `${(created1 ?? []).length} → ${(created2 ?? []).length}`)
+      for (const a of created2 ?? []) ids.push(a.id as string)
+    } finally {
+      if (ids.length) await admin.from('system_alerts').delete().in('id', ids)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ system_alerts-tjek bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'elta-components-compare') {
+    // S2 (staging, read-only): AI-projektmotoren FØR (indbyggede standardværdier) og EFTER (ELTAs calc_components)
+    // for faste eksempelprojekter. Ingen skrivning; flaget sættes kun i denne proces.
+    const { matchComponents, toCalculationComponents, toCalculationMaterials } = await import('../../src/lib/ai/componentMatcher')
+    const { calculateProject } = await import('../../src/lib/ai/calculationEngine')
+    const { ELTA_COMPONENT_MAP, ELTA_UNMAPPED } = await import('../../src/lib/ai/elta-components')
+    type Interp = import('../../src/types/auto-project.types').ProjectInterpretation
+    const base = (id: string, raw: string, points: Interp['electrical_points'], cable: Partial<Interp['cable_requirements']>, panel: Partial<Interp['panel_requirements']> = {}): Interp => ({
+      id, raw_description: raw, building_type: 'house' as Interp['building_type'], building_size_m2: 140, building_age_years: 20, rooms: [],
+      electrical_points: points,
+      cable_requirements: { nym_1_5mm: 0, nym_2_5mm: 0, nym_4mm: 0, nym_6mm: 0, nym_10mm: 0, outdoor_cable: 0, data_cable: 0, ...cable },
+      panel_requirements: { upgrade_needed: false, required_groups: 0, required_amperage: 25, new_panel_needed: false, ...panel },
+      complexity_score: 3, complexity_factors: [], risk_score: 2, risk_factors: [], ai_model: 'harness', ai_confidence: 1, interpretation_time_ms: 0, created_at: new Date().toISOString(),
+    })
+    const cases: Interp[] = [
+      base('k1', 'Køkkenrenovering: 6 dobbelte stik, 2 enkelte, 4 spots, 1 dæmper, 1 afbryder', { double_outlets: 6, outlets: 2, spots: 4, dimmers: 1, switches: 1 }, { nym_1_5mm: 30, nym_2_5mm: 40 }, { upgrade_needed: true, current_groups: 8, required_groups: 10 }),
+      base('k2', 'Stue + kontor: 8 stik, 3 afbrydere, 2 korrespondance, 2 loftudtag, 4 netværk, 1 TV', { outlets: 8, switches: 3, multi_switches: 2, ceiling_lights: 2, data_outlets: 4, tv_outlets: 1 }, { nym_1_5mm: 40, nym_2_5mm: 50, data_cable: 80 }),
+      base('k3', 'Carport: elbillader, 2 udendørs lamper, 1 kraftstik 16A', { ev_charger: 1, outdoor_lights: 2, power_16a: 1 }, { nym_6mm: 25, outdoor_cable: 20 }),
+    ]
+    const runCase = async (it: Interp) => {
+      const m = await matchComponents(it)
+      const comps = toCalculationComponents(m.components)
+      const calc = calculateProject(it.id, comps, toCalculationMaterials(m.materials), it, {})
+      return { m, comps, calc }
+    }
+    const fmt = (n: number) => Math.round(n).toLocaleString('da-DK')
+    log(`koblinger: ${Object.entries(ELTA_COMPONENT_MAP).map(([k, v]) => `${k}→${v.firstCode ? v.firstCode + '/' : ''}${v.code}`).join(', ')}`)
+    log(`bevidst ikke koblet (standard): ${ELTA_UNMAPPED.join(', ')}`)
+    const { loadEltaComponents } = await import('../../src/lib/ai/elta-components')
+    // Staging har ingen calc_components → seed de koblede ELTA-komponenter med prod-katalogværdierne (læst read-only
+    // 2026-10-07 via scripts/prod-calc-components.ts; ingen personværdier) og fjern dem igen bagefter
+    const PROD_CATALOG: Array<[string, string, number, number]> = [
+      ['STIK-1-NY', 'Stikkontakt enkelt - ny', 495, 35], ['STIK-2-NY', 'Stikkontakt dobbelt - ny', 595, 45],
+      ['AFB-1P-NY', 'Afbryder 1-pol - ny', 445, 30], ['AFB-KORR-NY', 'Korrespondanceafbryder - ny', 545, 40],
+      ['DIM-NY', 'Lysdæmper - ny', 645, 35], ['SPOT-IND-1', 'Indbygningsspot - første', 595, 30],
+      ['SPOT-IND-X', 'Indbygningsspot - ekstra', 445, 18], ['LOFT-NY', 'Loftudtag - ny', 495, 35],
+      ['NET-CAT6-NY', 'Netværksudtag Cat6', 595, 40], ['STIK-ANTENNE', 'Antenne-udtag', 175, 15],
+      ['TAVLE-GRP', 'Ekstra gruppe i tavle', 395, 25],
+    ]
+    const existingCodes = new Set(((await admin.from('calc_components').select('code').in('code', PROD_CATALOG.map((r) => r[0]))).data ?? []).map((r: { code: string }) => r.code))
+    for (const [code, name, sale, min] of PROD_CATALOG) {
+      if (existingCodes.has(code)) continue
+      const { error } = await admin.from('calc_components').insert({ code, name, default_sale_price: sale, base_time_minutes: min, is_active: true, notes: '[HARNESS] S2 elta-components-compare' })
+      if (error) throw new Error(`seed ${code}: ${error.message}`)
+    }
+    // rydder både denne kørsels og evt. efterladte harness-rækker op (markeret i notes)
+    const cleanup = async () => { await admin.from('calc_components').delete().eq('notes', '[HARNESS] S2 elta-components-compare') }
+
+    const [cc] = await stagingSql(`SELECT count(*)::int total, count(*) FILTER (WHERE code LIKE 'STIK-%')::int stik FROM calc_components`)
+    log(`staging calc_components: ${cc.total} (STIK-*: ${cc.stik}) · indlæste ELTA-koblinger: ${(await loadEltaComponents()).size}`)
+    let fails = 0
+    try {
+    for (const it of cases) {
+      delete process.env.AI_PROJECT_ELTA_COMPONENTS
+      const before = await runCase(it)
+      process.env.AI_PROJECT_ELTA_COMPONENTS = 'true'
+      const after = await runCase(it)
+      delete process.env.AI_PROJECT_ELTA_COMPONENTS
+      log(`\n■ ${it.raw_description}`)
+      log(`  FØR : ${before.comps.map((c) => `${c.quantity}× ${c.name} (${c.time_minutes / c.quantity} min, ${fmt(c.unit_price)} kr)`).join(' · ')}`)
+      log(`  EFTER: ${after.comps.map((c) => `${c.quantity}× ${c.name} (${c.time_minutes / c.quantity} min, ${fmt(c.unit_price)} kr)`).join(' · ')}`)
+      const b = before.calc as unknown as { time: { total_hours: number }; price: { labor_cost: number; material_cost: number; total_price: number } }
+      const a = after.calc as unknown as { time: { total_hours: number }; price: { labor_cost: number; material_cost: number; total_price: number } }
+      log(`  timer ${b.time.total_hours} → ${a.time.total_hours} · arbejdsløn ${fmt(b.price.labor_cost)} → ${fmt(a.price.labor_cost)} kr · materialer ${fmt(b.price.material_cost)} → ${fmt(a.price.material_cost)} kr · TOTAL ${fmt(b.price.total_price)} → ${fmt(a.price.total_price)} kr`)
+      log(`  komponent-match: ${Math.round(before.m.matchConfidence * 100)}% → ${Math.round(after.m.matchConfidence * 100)}%`)
+      if (before.m.components.some((c) => c.source === 'database')) { fails++; log('  ❌ FØR brugte DB-komponenter (flag fra skal give standard)') }
+    }
+    } finally {
+      await cleanup()
+      const [left] = await stagingSql(`SELECT count(*)::int n FROM calc_components WHERE notes = '[HARNESS] S2 elta-components-compare'`)
+      log(`oprydning: ${left.n} harness-komponenter tilbage på staging`)
+    }
+    log(fails ? `\n❌ ${fails} fejl` : '\n✅ sammenligning gennemført (flag fra = standardværdier)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'pending-invites') {
     // Staging (read-only): afventende invitationer som Brugerstyring nu viser dem (auth: invited_at uden første login) — kun antal
     const all: Array<{ invited_at?: string | null; last_sign_in_at?: string | null; email?: string }> = []
