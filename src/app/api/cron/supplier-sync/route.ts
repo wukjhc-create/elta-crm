@@ -158,6 +158,9 @@ async function handleCron(request: Request): Promise<Response> {
                 const oldPrice = existingProduct.cost_price
                 const newPrice = price.costPrice
                 const productId = existingProduct.id
+                // X4 (pris-review 2026-10-07): API'et giver 0 når der ingen prisaftale er (AO) / kost er ukendt (LM) — overskriv
+                // aldrig en rigtig kostpris med 0 og skriv ingen −100 %-historik
+                if (!(Number(newPrice) > 0)) continue
 
                 updateFns.push(async () => {
                   const { error } = await supabase
@@ -222,7 +225,7 @@ async function handleCron(request: Request): Promise<Response> {
               supplier_id: schedule.supplier_id,
               sync_job_id: null,
               job_type: schedule.sync_type,
-              status: status === 'success' ? 'completed' : 'partial',
+              status: status === 'success' ? 'completed' : 'failed', // X4: 'partial' findes ikke i supplier_sync_logs' CHECK (00043) → loggen blev ikke skrevet
               trigger_type: 'scheduled',
               started_at: new Date(syncStartTime).toISOString(),
               completed_at: new Date().toISOString(),
@@ -515,7 +518,7 @@ async function executeFtpSyncSchedule(
       supplier_id: schedule.supplier_id,
       sync_job_id: null,
       job_type: 'ftp',
-      status: status === 'success' ? 'completed' : 'partial',
+      status: status === 'success' ? 'completed' : 'failed', // X4: 'partial' findes ikke i CHECK (00043)
       trigger_type: 'scheduled',
       started_at: new Date(syncStartTime).toISOString(),
       completed_at: new Date().toISOString(),

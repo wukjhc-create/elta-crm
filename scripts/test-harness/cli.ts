@@ -1068,6 +1068,35 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'supplier-load-check') {
+    // STAGING (X4 pris #1): eksisterende leverandørprodukter indlæses ud over PostgREST's 1.000-rækkers-loft; tidsbudget
+    // giver complete=false i stedet for at hænge. 2.500 midlertidige produkter (external_id-markør) ryddes op.
+    const { loadExistingSupplierProducts } = await import('../../src/lib/suppliers/load-existing-products')
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const { data: sup } = await admin.from('suppliers').insert({ name: `[HARNESS] load ${Date.now()}`, code: `HL${Date.now() % 100000}`, is_active: false }).select('id').single()
+    const supId = (sup as { id: string }).id
+    try {
+      for (let b = 0; b < 5; b++) {
+        const rows = Array.from({ length: 500 }, (_, i) => ({ supplier_id: supId, supplier_sku: `HL-${b * 500 + i}`, supplier_name: `Harness ${b * 500 + i}`, cost_price: 10 + i, list_price: 20 + i, is_available: true, data_source: 'manual', external_id: 'harness-load' }))
+        const { error } = await admin.from('supplier_products').insert(rows)
+        if (error) throw new Error(error.message)
+      }
+      const t0 = Date.now()
+      const r = await loadExistingSupplierProducts(admin, supId, { budgetMs: 60_000, concurrency: 3 })
+      check('alle 2.500 indlæst (før højst 1.000)', r.complete && r.loaded === 2500 && r.total === 2500, `${r.loaded}/${r.total} på ${Date.now() - t0} ms`)
+      check('opslag på sku efter række 1.000 virker', r.bySku.get('HL-2499')?.cost_price != null)
+      let tick = 0
+      const r2 = await loadExistingSupplierProducts(admin, supId, { budgetMs: 1, concurrency: 1, now: () => (tick += 10) })
+      check('tidsbudget opbrugt → complete=false (aldrig hængende)', !r2.complete && r2.loaded < 2500, `${r2.loaded}/${r2.total}`)
+    } finally {
+      await admin.from('supplier_products').delete().eq('supplier_id', supId)
+      await admin.from('suppliers').delete().eq('id', supId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ leverandørprodukter indlæses fuldt')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'besigtigelse-portal-check') {
     // STAGING (X4 kommunikation #1/#6): portalen viser kun bookede besigtigelser + kundens egne anmodninger (aldrig
     // interne opgaver), interne kan ikke bekræftes, og en allerede bekræftet bekræftes ikke igen. Sender INGEN mail

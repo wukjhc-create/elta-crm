@@ -140,6 +140,9 @@ export async function syncSupplierPrices(
 
           const oldCostPrice = existingProduct.cost_price
           const newCostPrice = price.costPrice
+          // X4 (pris-review 2026-10-07): API'et giver 0 når der ingen prisaftale er (AO) / kost er ukendt (LM) — overskriv
+          // aldrig en rigtig kostpris med 0 og skriv ingen −100 %-historik
+          if (!(Number(newCostPrice) > 0)) continue
 
           // Check if price changed
           if (oldCostPrice !== newCostPrice) {
@@ -199,7 +202,7 @@ export async function syncSupplierPrices(
     await supabase.from('supplier_sync_logs').insert({
       supplier_id: supplierId,
       job_type: 'price_update',
-      status: errors.length === 0 ? 'completed' : 'partial',
+      status: errors.length === 0 ? 'completed' : 'failed', // X4: 'partial' findes ikke i CHECK (00043)
       trigger_type: 'manual',
       started_at: new Date(startTime).toISOString(),
       completed_at: new Date().toISOString(),

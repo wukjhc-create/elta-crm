@@ -9,6 +9,7 @@
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { loadExistingSupplierProducts } from '@/lib/suppliers/load-existing-products'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 
@@ -238,12 +239,8 @@ export async function triggerLemuSync(): Promise<ActionResult<{
 
     // Load existing products for upsert
     // 00192: kostkolonner — admin-klient bag settings.suppliers
-    const { data: existingProducts } = await createAdminClient()
-      .from('supplier_products')
-      .select('id, supplier_sku, cost_price, list_price')
-      .eq('supplier_id', supplier.id)
-
-    const productsBySku = new Map((existingProducts || []).map((p) => [p.supplier_sku, p]))
+    // X4 (pris-review 2026-10-07): alle produkter, ikke kun de første 1.000 (PostgREST-loft)
+    const productsBySku = (await loadExistingSupplierProducts(createAdminClient(), supplier.id, { budgetMs: 120_000 })).bySku
     const now = new Date().toISOString()
 
     let updatedProducts = 0
@@ -265,7 +262,7 @@ export async function triggerLemuSync(): Promise<ActionResult<{
           .from('supplier_products')
           .update({
             supplier_name: row.parsed.name || undefined,
-            cost_price: newCost,
+            cost_price: newCost ?? undefined, // X4: tom priscelle overskriver ikke kendt kostpris med NULL
             list_price: row.parsed.list_price,
             unit: row.parsed.unit || undefined,
             category: row.parsed.category || undefined,

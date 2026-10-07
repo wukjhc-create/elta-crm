@@ -645,7 +645,10 @@ export async function getPriceChangesFromImport(
   batchId: string
 ): Promise<ActionResult<PriceChange[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // X4 (pris-review 2026-10-07, D48-privatliv): returnerer kostpriser → samme gate som getPriceHistory (før kun login,
+    // så salg/montør kunne læse indkøbspriser ud fra et import-batch-id)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('products.view.cost_prices')) return { success: false, error: 'Manglende tilladelse: products.view.cost_prices' }
     validateUUID(batchId, 'batch ID')
 
     const { data, error } = await supabase

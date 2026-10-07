@@ -816,6 +816,12 @@ export async function refreshSupplierPricesForCalculation(
             failed++
             continue
           }
+          // X4 (pris-review 2026-10-07): API'et giver 0 når der ingen prisaftale er (AO) / kost er ukendt (LM) — overskriv
+          // aldrig en rigtig kostpris med 0 og skriv ingen −100 %-historik
+          if (!(Number(newPrice.costPrice) > 0)) {
+            failed++
+            continue
+          }
 
           if (material.oldPrice !== newPrice.costPrice) {
             productUpdates.push(async () => {
