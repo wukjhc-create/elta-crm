@@ -995,6 +995,61 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'assistant-reminder-check') {
+    // STAGING (T3/T4): påmindelser læses fra CRM (reminder_at), sendes én gang pr. tidspunkt, sendes igen når
+    // tidspunktet ændres i CRM, ikke når opgaven er udført. Test-afsender (intet live).
+    const { dispatchAssistantReminders } = await import('../../src/lib/assistant/reminders')
+    const stamp = Date.now()
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }> | null)?.[0]?.id
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const { data: cu, error: cuErr } = await admin.from('customers').insert({ customer_number: `RM-${stamp}`, company_name: `[HARNESS] reminder ${stamp}`, contact_person: 'x', email: `rm-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    if (cuErr) throw new Error(cuErr.message)
+    const custId = (cu as { id: string }).id
+    const sent: string[] = []
+    const sender = async (r: { taskId: string; title: string }) => { if (r.title.includes(String(stamp))) sent.push(r.taskId); return { delivered: true, channel: 'test' } }
+    // kun egne opgaver tælles (andre testdata på staging kan også være forfaldne) — test-afsenderen leverer dem ikke-markeret
+    const mineOnly = async (r: { taskId: string; title: string }) => r.title.includes(String(stamp)) ? sender(r) : { delivered: false, channel: 'test' }
+    const taskIds: string[] = []
+    try {
+      const now = new Date()
+      const mk = async (title: string, reminderAt: Date, status = 'pending') => {
+        const { data, error } = await admin.from('customer_tasks').insert({ customer_id: custId, title: `${title} ${stamp}`, status, priority: 'normal', assigned_to: owner, created_by: owner, due_date: new Date(reminderAt.getTime() + 15 * 60_000).toISOString(), reminder_at: reminderAt.toISOString(), auto_rule: 'assistant_callback' }).select('id').single()
+        if (error) throw new Error(error.message)
+        taskIds.push((data as { id: string }).id)
+        return (data as { id: string }).id
+      }
+      const due = await mk('Ring til forfalden', new Date(now.getTime() - 2 * 60_000))
+      const future = await mk('Ring til fremtid', new Date(now.getTime() + 30 * 60_000))
+      const done = await mk('Ring til udført', new Date(now.getTime() - 2 * 60_000), 'done')
+      const old = await mk('Ring til gammel', new Date(now.getTime() - 3 * 3_600_000))
+      const run1 = await dispatchAssistantReminders(admin, mineOnly, now)
+      check('forfalden påmindelse sendes', sent.includes(due), JSON.stringify(run1))
+      check('fremtidig/udført/for gammel sendes ikke', !sent.includes(future) && !sent.includes(done) && !sent.includes(old))
+      sent.length = 0
+      await dispatchAssistantReminders(admin, mineOnly, now)
+      check('samme tidspunkt sendes ikke igen', !sent.includes(due))
+      // T4: tidspunktet flyttes i CRM → ny påmindelse til det nye tidspunkt
+      const moved = new Date(now.getTime() - 60_000)
+      await admin.from('customer_tasks').update({ reminder_at: moved.toISOString() }).eq('id', due)
+      sent.length = 0
+      await dispatchAssistantReminders(admin, mineOnly, now)
+      check('ændret tidspunkt i CRM → påmindes igen', sent.includes(due))
+      // flyttes ud i fremtiden → intet før tiden
+      await admin.from('customer_tasks').update({ reminder_at: new Date(now.getTime() + 3_600_000).toISOString() }).eq('id', due)
+      sent.length = 0
+      await dispatchAssistantReminders(admin, mineOnly, now)
+      check('flyttet til senere i CRM → ingen påmindelse nu', !sent.includes(due))
+      const { data: au } = await admin.from('audit_logs').select('id').eq('action', 'assistant_reminder_sent').eq('entity_id', due)
+      check('hver afsendelse audit-logget (2 tidspunkter = 2 rækker)', (au ?? []).length === 2, String((au ?? []).length))
+    } finally {
+      if (taskIds.length) await admin.from('audit_logs').delete().in('entity_id', taskIds)
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ assistant-påmindelser bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'assistant-run-check') {
     // STAGING (T1/T7/T8/T9): kommando → CRM-opgave med påmindelse, audit, tvetydighed, opslag, rolle-afvisning
     const { runAssistantCommand, CALLBACK_REMINDER_LEAD_MIN } = await import('../../src/lib/assistant/run-command')
