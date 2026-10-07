@@ -410,6 +410,19 @@ async function main() {
     process.exitCode = h.alarms.length ? 2 : 0
     return
   }
+  if (SUB === 'coverage-check') {
+    // Fakturakontrol-dækning: loaderen (side for side) skal se ALLE linjer/fakturaer — sammenlignes med SQL-optælling.
+    const { loadAndMeasureCoverage } = await import('../../src/lib/invoice-control/coverage')
+    const cov = await loadAndMeasureCoverage(admin)
+    const [cnt] = (await stagingSql(`SELECT (SELECT count(*) FROM incoming_invoices WHERE status <> 'cancelled')::int invs,
+      (SELECT count(*) FROM incoming_invoice_lines l JOIN incoming_invoices i ON i.id = l.incoming_invoice_id WHERE i.status <> 'cancelled')::int lines`)) as Array<{ invs: number; lines: number }>
+    const okInv = cov.invoices === cnt.invs, okLines = cov.lines === cnt.lines
+    log(`${okInv ? 'PASS' : 'FAIL'}  fakturaer: loader=${cov.invoices} sql=${cnt.invs}`)
+    log(`${okLines ? 'PASS' : 'FAIL'}  linjer: loader=${cov.lines} sql=${cnt.lines}`)
+    log(`dækning ${cov.coveragePct} % · afvigende linjer ${cov.deviatingLines}`)
+    process.exitCode = okInv && okLines ? 0 : 1
+    return
+  }
   if (SUB === 'pilot-roles') {
     // Rolle-adgangsmatrix: hvad kan hver rigtig rolle laese direkte via REST vs. app-politikken (read-only probes).
     const rm = await import('./role-matrix')

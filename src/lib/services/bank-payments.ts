@@ -17,6 +17,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { parseCSVLine, parseDanishNumber } from '@/lib/services/import-engine'
 import { registerPayment } from '@/lib/services/invoices'
 import type {
@@ -360,14 +361,20 @@ async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
   //    the other way around in Postgres directly via PostgREST without an
   //    RPC; we pull a candidate set whose payment_reference is non-null
   //    AND not paid AND short enough that we can scan in JS.
-  const { data: refCandidates } = await supabase
-    .from('invoices')
-    .select('*')
-    .not('payment_reference', 'is', null)
-    .neq('payment_status', 'paid')
-    .limit(2000)
-
-  if (!refCandidates) return []
+  // X1 (bank-review 2026-10-07): side for side — .limit(2000) gav højst 1.000 rækker, så en betaling kunne stå
+  // umatchet, når der var mange åbne fakturaer med betalingsreference
+  let refCandidates: InvoiceRow[]
+  try {
+    refCandidates = await fetchAllRows<InvoiceRow>((from, to) => supabase
+      .from('invoices')
+      .select('*')
+      .not('payment_reference', 'is', null)
+      .neq('payment_status', 'paid')
+      .order('id')
+      .range(from, to))
+  } catch {
+    return []
+  }
   const lower = ref.toLowerCase()
   const hits = (refCandidates as InvoiceRow[]).filter((inv) => {
     const r = (inv.payment_reference || '').trim()
