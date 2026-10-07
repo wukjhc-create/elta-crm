@@ -43,7 +43,7 @@ import {
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
-import { copenhagenParts, calendarDaysSince } from '@/lib/utils/copenhagen-time'
+import { copenhagenParts, calendarDaysSince, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import {
@@ -1752,26 +1752,30 @@ export async function getInvoiceLiquidityChartAction(
   }
 
   const now = nowIso ? new Date(nowIso) : new Date()
-  const base = new Date(now.getFullYear(), now.getMonth(), 1)
   const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+  // X1 (økonomi-review 2026-10-07): DANSKE måneder — før serverens (UTC) ur og .slice(0, 7) af UTC-tidsstempler, så en
+  // faktura sendt 1/11 kl. 00:30 dansk tid landede i oktober
+  const [cy, cm] = copenhagenParts(now).date.split('-').map(Number)
 
   // Indeværende måned + 5 foregående (ældst → nyest).
   const buckets = new Map<string, LiquidityMonth>()
   const order: string[] = []
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(base.getFullYear(), base.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const d = new Date(Date.UTC(cy, cm - 1 - i, 15))
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
     const label = cap(d.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', month: 'short' }).replace('.', ''))
     buckets.set(key, { month: key, month_label: label, invoiced_total: 0, paid_total: 0, draft_total: 0 })
     order.push(key)
   }
   const earliest = order[0] // 'YYYY-MM' — kun rækker fra denne måned og frem er relevante
+  const sinceIso = copenhagenLocalToIso(`${earliest}-01`, '00:00')
 
   // side for side (PostgREST max_rows 1000 — .limit(5000) gav for lave månedstal ved mange fakturaer)
   const { data, error } = await fetchAllRows((from, to) => supabase
     .from('invoices')
     .select('id, status, invoice_type, final_amount, voided_at, sent_at, paid_at, created_at')
-    .gte('created_at', earliest + '-01T00:00:00')
+    // X1: en faktura oprettet FØR vinduet kan være sendt/betalt i det (før kun created_at → betalinger manglede)
+    .or(`created_at.gte.${sinceIso},sent_at.gte.${sinceIso},paid_at.gte.${sinceIso}`)
     .order('id')
     .range(from, to)).then((rows) => ({ data: rows, error: null }), (e: Error) => ({ data: null, error: e }))
 
@@ -1780,7 +1784,7 @@ export async function getInvoiceLiquidityChartAction(
     return { ok: false, message: 'Kunne ikke hente likviditetsdata' }
   }
 
-  const ym = (s: unknown): string | null => (s ? String(s).slice(0, 7) : null)
+  const ym = (s: unknown): string | null => (s ? copenhagenParts(String(s)).date.slice(0, 7) : null)
   let hasData = false
 
   for (const r of data ?? []) {

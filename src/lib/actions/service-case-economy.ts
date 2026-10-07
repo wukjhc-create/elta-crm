@@ -594,33 +594,21 @@ export async function getServiceCaseBillingStatus(
 
     const [tlRes, matRes, othRes, invRes] = await Promise.all([
       woIds.length === 0
-        ? Promise.resolve({ data: [] as Array<{ end_time: string | null; sale_amount: number | string | null; billable: boolean | null; invoice_line_id: string | null }> })
+        ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
         : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
-          fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data })),
+          fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data })),
       supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('invoices').select('total_amount, status, invoice_type, voided_at').eq('case_id', caseId),
     ])
 
+    // X1: samme optælling og prisregel som lukke-værnet og fakturaen (summarizeUnbilled → priceTimeLog)
+    const { summarizeUnbilled } = await import('@/lib/invoices/unbilled')
     const tl = (tlRes.data ?? []) as Array<{ end_time: string | null; sale_amount: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
     const mat = (matRes.data ?? []) as Array<{ total_sales_price: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
     const oth = (othRes.data ?? []) as Array<{ total_sales_price: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
-
-    let ut = 0, um = 0, uo = 0, usale = 0, billed = 0, openTimer = false
-    for (const r of tl) {
-      if (r.end_time === null) { openTimer = true; continue }
-      if (r.invoice_line_id) billed += 1
-      else if (r.billable !== false) { ut += 1; usale += Number(r.sale_amount ?? 0) }
-    }
-    for (const r of mat) {
-      if (r.invoice_line_id) billed += 1
-      else if (r.billable !== false) { um += 1; usale += Number(r.total_sales_price ?? 0) }
-    }
-    for (const r of oth) {
-      if (r.invoice_line_id) billed += 1
-      else if (r.billable !== false) { uo += 1; usale += Number(r.total_sales_price ?? 0) }
-    }
-
+    const us = summarizeUnbilled({ timeLogs: tl, materials: mat, otherCosts: oth })
+    const ut = us.timeLogs, um = us.materials, uo = us.otherCosts, usale = us.saleTotal, billed = us.billedLines, openTimer = us.openTimer
     const unbilled = ut + um + uo
     const hasWork = tl.length > 0 || mat.length > 0 || oth.length > 0
     let status: CaseBillingStatus['status']

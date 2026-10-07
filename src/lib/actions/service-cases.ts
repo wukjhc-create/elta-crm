@@ -1477,7 +1477,7 @@ async function loadCaseWork(
   const [tl, mat, oth] = await Promise.all([
     woIds.length
       ? // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
-        fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data }))
+        fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data }))
       : Promise.resolve({ data: [] }),
     supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
     supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
