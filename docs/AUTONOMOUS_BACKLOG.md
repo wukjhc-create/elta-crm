@@ -13,6 +13,15 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Prod-kørsel 2026-10-07 aften (Henrik: 00198/00199/00200+00201/00202 GODKENDT TIL PROD)
+| Migration | Pre | Post | Flow (rollback) |
+|---|---|---|---|
+| 00198 faktura fra tilbud → unit_price + data | 6 berørte linjer | 0 berørte linjer | `prod-flow-check-00198-00202.ts`: 2.000/2.500 ✅ |
+| 00199 customers.created_by SET NULL | 4/4 (CASCADE, 109 kunder) | 4/4 (SET NULL, 109 kunder) | `prod-flow-check-00199.ts` 5/5: bruger slettet → kunde + kontakt består, created_by NULL, antal uændret |
+| 00200 + 00201 kost-lockdown bølge 2 | `prod-role-check-cost-wave2.ts pre` 38/38 (montør læste alt) | `… post` 38/38 (montør 0 rækker i 17 tabeller, cost_price nægtet, offentlige katalogfelter læsbare; admin alt) | personaer salg/serviceleder/bogholderi findes ikke i prod → dækket på staging (`cost-lockdown-check`, `cost-lockdown-2b-check`, 5 roller) |
+| 00202 afviste timer i SQL-funktioner | 5/5 (0 betingelser) | 5/5 (1 + 2 betingelser, service_role) | 4/4: avance 2 t, faktura 2 t, afvist ikke bundet, godkendte uændret (500 × 2) |
+`npm run prod:db-audit` efter alle: HØJ=0 · MIDDEL=0 · LAV=0. Alt prod-flow kørt i transaktioner der rulles tilbage.
+
 ## Beslutninger (Henrik 2026-10-07, aften) — status
 | # | Beslutning | Udførelse |
 |---|---|---|
