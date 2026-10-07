@@ -12,6 +12,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CALC_DEFAULTS } from '@/lib/constants'
+import { logger } from '@/lib/utils/logger'
+import { isEltaComponentsEnabled, loadEltaComponents, firstKey } from './elta-components'
 import type {
   ProjectInterpretation,
   ElectricalPoints,
@@ -304,35 +306,35 @@ const POINT_TO_COMPONENT_MAP: Record<keyof ElectricalPoints, string> = {
   tv_outlets: 'tv_outlet',
 }
 
+/**
+ * ELTAs egne komponenter (S2), nøglet på motor-kode (+ firstKey for "første enhed"). Flag fra → tomt kort = de
+ * indbyggede standardværdier (som motoren reelt altid har brugt: det gamle opslag læste kolonner der ikke findes —
+ * price/time_estimate/unit/category — og fejlede derfor stille).
+ */
 async function fetchDatabaseComponents(): Promise<Map<string, ComponentMatch>> {
+  const map = new Map<string, ComponentMatch>()
+  if (!isEltaComponentsEnabled()) return map
   try {
-    const supabase = await createClient()
-
-    const { data: components } = await supabase
-      .from('calc_components')
-      .select('id, name, code, price, time_estimate, unit, category')
-      .eq('is_active', true)
-
-    const map = new Map<string, ComponentMatch>()
-
-    for (const comp of components || []) {
-      map.set(comp.code, {
-        component_id: comp.id,
-        code: comp.code,
-        name: comp.name,
-        unit: comp.unit || 'stk',
-        unit_price: comp.price || 0,
-        time_minutes: comp.time_estimate || 30,
-        category: comp.category || 'general',
+    const elta = await loadEltaComponents()
+    for (const [key, { row, engineCode }] of elta) {
+      const fallback = DEFAULT_COMPONENTS[engineCode]
+      map.set(key, {
+        component_id: row.id, // ELTA-komponentens id (sporbar)
+        code: engineCode, // motor-koden bevares: materialeberegningen afhænger af den (fx spot_light → spot-materiale)
+        name: row.name,
+        unit: fallback?.unit || 'stk',
+        unit_price: row.default_sale_price ?? fallback?.unit_price ?? 0,
+        time_minutes: row.base_time_minutes ?? fallback?.time_minutes ?? 30,
+        category: fallback?.category || 'general',
         source: 'database',
         quantity: 0,
       })
     }
-
-    return map
-  } catch {
+  } catch (err) {
+    logger.warn('ELTA-komponenter kunne ikke hentes — bruger standardværdier', { error: err })
     return new Map()
   }
+  return map
 }
 
 async function fetchSupplierMaterials(names: string[]): Promise<Map<string, MaterialMatch>> {
@@ -405,7 +407,12 @@ function mapPointsToComponents(
       // Try database first
       const dbComp = dbComponents.get(componentCode)
 
-      if (dbComp) {
+      const dbFirst = dbComponents.get(firstKey(componentCode))
+      if (dbComp && dbFirst) {
+        // første enhed og efterfølgende prissættes forskelligt (fx indbygningsspots)
+        components.push({ ...dbFirst, quantity: 1 })
+        if (quantity > 1) components.push({ ...dbComp, quantity: quantity - 1 })
+      } else if (dbComp) {
         components.push({
           ...dbComp,
           quantity,
