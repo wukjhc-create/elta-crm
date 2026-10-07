@@ -995,6 +995,67 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'assistant-run-check') {
+    // STAGING (T1/T7/T8/T9): kommando → CRM-opgave med påmindelse, audit, tvetydighed, opslag, rolle-afvisning
+    const { runAssistantCommand, CALLBACK_REMINDER_LEAD_MIN } = await import('../../src/lib/assistant/run-command')
+    const stamp = Date.now()
+    const profs = ((await admin.from('profiles').select('id, role').eq('is_active', true)).data ?? []) as Array<{ id: string; role: string }>
+    const adminP = profs.find((p) => p.role === 'admin')
+    const montorP = profs.find((p) => p.role === 'montør')
+    if (!adminP || !montorP) throw new Error('mangler admin/montør-profil på staging')
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const u = `R${stamp}`
+    const ids: string[] = []
+    const mk = async (company: string) => {
+      const { data, error } = await admin.from('customers').insert({ customer_number: `AR-${stamp}-${ids.length}`, company_name: company, contact_person: 'x', email: `ar-${stamp}-${ids.length}@harness.test`, created_by: adminP.id }).select('id').single()
+      if (error) throw new Error(error.message)
+      ids.push((data as { id: string }).id)
+      return (data as { id: string }).id
+    }
+    const actor = { profileId: adminP.id, role: 'admin' as const, isActive: true, channel: 'test' as const }
+    const taskIds: string[] = []
+    try {
+      const c1 = await mk(`Assist${u} El`)
+      await mk(`Assist${u} VVS`)
+      const NOW = new Date('2026-10-06T12:30:00Z') // tirsdag 14:30 dansk tid
+      const r1 = await runAssistantCommand(admin, actor, `Ring til Assist${u} El i morgen kl. 10`, NOW)
+      if (r1.taskId) taskIds.push(r1.taskId)
+      const { data: t } = await admin.from('customer_tasks').select('customer_id, title, due_date, reminder_at, assigned_to, auto_rule, status').eq('id', r1.taskId ?? '').maybeSingle()
+      const tk = t as { customer_id: string; title: string; due_date: string; reminder_at: string; assigned_to: string; auto_rule: string; status: string } | null
+      check('"Ring til X i morgen kl. 10" → CRM-opgave på rette kunde', r1.ok && tk?.customer_id === c1 && tk?.auto_rule === 'assistant_callback' && tk?.assigned_to === adminP.id, `${r1.text} | ${JSON.stringify(tk)}`)
+      check(`  tidspunkt 7/10 10:00 dansk, påmindelse ${CALLBACK_REMINDER_LEAD_MIN} min før`, new Date(tk?.due_date ?? 0).toISOString() === '2026-10-07T08:00:00.000Z' && new Date(tk?.reminder_at ?? 0).toISOString() === '2026-10-07T07:45:00.000Z', `${tk?.due_date} / ${tk?.reminder_at}`)
+      const { data: au } = await admin.from('audit_logs').select('action, user_id').eq('entity_id', r1.taskId ?? '')
+      check('  audit assistant_callback_created', (au ?? []).some((a: { action: string; user_id: string }) => a.action === 'assistant_callback_created' && a.user_id === adminP.id))
+      const r2 = await runAssistantCommand(admin, actor, `Ring til Assist${u} i morgen kl. 10`, NOW)
+      check('tvetydigt navn → valgknapper, ingen opgave', !r2.ok && (r2.buttons ?? []).length === 2 && !r2.taskId, r2.text)
+      const r3 = await runAssistantCommand(admin, actor, `Mind mig om at sende tilbud til Assist${u} El fredag kl 8`, NOW)
+      check('"mind mig om …" uden kunde-mål afvises ærligt (ingen opgave)', !r3.ok && !r3.taskId && /knyttes til en kunde/.test(r3.text), r3.text)
+      if (r3.taskId) taskIds.push(r3.taskId)
+      const r4 = await runAssistantCommand(admin, actor, `Find Assist${u} El`, NOW)
+      check('opslag på kunde → åbne opgaver/sager', r4.ok && /Åbne opgaver: 1/.test(r4.text), r4.text.replace(/\n/g, ' | '))
+      const r5 = await runAssistantCommand(admin, { ...actor, profileId: montorP.id, role: 'montør' }, `Find Assist${u} El`, NOW)
+      check('montør afvises i fase 1 (scope kan ikke håndhæves med admin-klient)', !r5.ok, r5.text)
+      const r6 = await runAssistantCommand(admin, { ...actor, isActive: false }, `Find Assist${u} El`, NOW)
+      check('deaktiveret bruger afvises', !r6.ok, r6.text)
+      // T4-princip: tidspunktet ændres i CRM → påmindelsen læses fra CRM (ingen kopi)
+      await admin.from('customer_tasks').update({ reminder_at: '2026-10-07T09:00:00Z' }).eq('id', r1.taskId ?? '')
+      const { data: moved } = await admin.from('customer_tasks').select('reminder_at').eq('id', r1.taskId ?? '').single()
+      check('ændret tidspunkt i CRM er det eneste tidspunkt (ingen kopi i assistent-laget)', new Date((moved as { reminder_at: string }).reminder_at).toISOString() === '2026-10-07T09:00:00.000Z')
+    } finally {
+      if (ids.length) {
+        const { data: tl } = await admin.from('customer_tasks').select('id').in('customer_id', ids)
+        const all = [...taskIds, ...((tl ?? []) as Array<{ id: string }>).map((x) => x.id)]
+        if (all.length) await admin.from('audit_logs').delete().in('entity_id', all)
+        await admin.from('audit_logs').delete().in('entity_id', ids)
+        await admin.from('customers').delete().in('id', ids)
+      }
+      await admin.from('audit_logs').delete().eq('entity_type', 'assistant').like('entity_name', `%${u}%`)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ assistant-kommandoer bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'assistant-resolve-check') {
     // STAGING (T1): ELTA Assistant finder præcis én kunde/sag — tvetydigt → kandidater, aldrig gæt. Rigtig admin-session.
     const { resolveTarget } = await import('../../src/lib/assistant/resolve-target')
