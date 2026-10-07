@@ -172,11 +172,13 @@ async function handleCron(request: Request): Promise<Response> {
 
       // Batch-load all supplier products at once (fixes N+1)
       const supplierProductMap = new Map<string, { cost_price: number; supplier_name: string }>()
-      if (allSupplierProductIds.size > 0) {
+      // i bidder af 200 id'er (én .in() med alle id'er sprænger URL-længden ved mange tilbud → tom map, ingen advarsler)
+      const spIds = Array.from(allSupplierProductIds)
+      for (let k = 0; k < spIds.length; k += 200) {
         const { data: supplierProducts } = await supabase
           .from('supplier_products')
           .select('id, cost_price, supplier_name')
-          .in('id', Array.from(allSupplierProductIds))
+          .in('id', spIds.slice(k, k + 200))
 
         for (const sp of supplierProducts || []) {
           supplierProductMap.set(sp.id, { cost_price: sp.cost_price, supplier_name: sp.supplier_name })
@@ -185,15 +187,17 @@ async function handleCron(request: Request): Promise<Response> {
 
       // Batch-load existing margin alerts to avoid per-offer queries
       const offerIds = activeOffers.map(o => o.id)
-      const { data: existingMarginAlerts } = await supabase
-        .from('system_alerts')
-        .select('entity_id')
-        .eq('entity_type', 'offer')
-        .eq('alert_type', 'margin_below')
-        .eq('is_dismissed', false)
-        .in('entity_id', offerIds)
-
-      const offersWithMarginAlerts = new Set((existingMarginAlerts || []).map(a => a.entity_id))
+      const offersWithMarginAlerts = new Set<string>()
+      for (let k = 0; k < offerIds.length; k += 200) {
+        const { data: existingMarginAlerts } = await supabase
+          .from('system_alerts')
+          .select('entity_id')
+          .eq('entity_type', 'offer')
+          .eq('alert_type', 'margin_below')
+          .eq('is_dismissed', false)
+          .in('entity_id', offerIds.slice(k, k + 200))
+        for (const a of existingMarginAlerts || []) offersWithMarginAlerts.add(a.entity_id)
+      }
 
       for (const offer of activeOffers) {
         const lineItems = offer.line_items || []
