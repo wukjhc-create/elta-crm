@@ -185,7 +185,8 @@ export async function POST(request: NextRequest) {
       .from('customers')
       .select('id, company_name, customer_number')
       .ilike('email', escapeLike(email))
-      .eq('is_active', true)
+      // kunde-/leads-review 2026-10-07: også deaktiverede (aktiv foretrækkes) — ellers dublet-kunde med samme e-mail
+      .order('is_active', { ascending: false })
       .limit(1)
       .maybeSingle()
 
@@ -265,6 +266,8 @@ export async function POST(request: NextRequest) {
         tags: [inquiry_type],
         custom_fields: {
           zip,
+          // nøglen som lead→kunde-konverteringen læser (før gik postnummeret tabt ved konvertering)
+          postal_code: zip,
           address,
           inquiry_type,
           submitted_at: new Date().toISOString(),
