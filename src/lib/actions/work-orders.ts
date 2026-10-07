@@ -248,7 +248,11 @@ export async function updateWorkOrderPlanning(
     }
 
     const patch: Record<string, unknown> = {}
-    if (input.title !== undefined) patch.title = input.title.trim()
+    if (input.title !== undefined) {
+      // X4: tom titel (kun mellemrum) blev gemt som ''
+      if (!input.title.trim()) return { success: false, error: 'Titel må ikke være tom' }
+      patch.title = input.title.trim()
+    }
     if (input.description !== undefined)
       patch.description = input.description?.trim() ? input.description.trim() : null
     if (input.scheduled_date !== undefined)
@@ -271,10 +275,18 @@ export async function updateWorkOrderPlanning(
       if (!emp.active) return { success: false, error: 'Medarbejder er inaktiv' }
     }
 
+    // X4: udførte/annullerede arbejdsordrer kan ikke omplanlægges (UI'et skjuler det; serveren håndhævede det ikke)
+    const { data: curWo } = await supabase.from('work_orders').select('status').eq('id', workOrderId).maybeSingle()
+    if (!curWo) return { success: false, error: 'Arbejdsordre ikke fundet' }
+    if (['done', 'cancelled'].includes((curWo as { status: string }).status)) {
+      return { success: false, error: 'En udført eller annulleret arbejdsordre kan ikke omplanlægges' }
+    }
+
     const { data, error } = await supabase
       .from('work_orders')
       .update(patch)
       .eq('id', workOrderId)
+      .in('status', ['planned', 'in_progress'])
       .select('*')
       .single()
 

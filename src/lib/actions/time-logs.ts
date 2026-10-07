@@ -22,6 +22,7 @@
  */
 
 import type { Permission } from '@/lib/auth/permissions'
+import { findOverlappingTimeLog, rateBelongsToEmployee } from '@/lib/time-logs/guards'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
@@ -251,6 +252,19 @@ export async function createTimeLog(
       }
     }
 
+    // X4: overlap med medarbejderens andre registreringer afvises (før 2× løn/fakturering), og en valgt sats skal være
+    // medarbejderens egen aktive (før kunne en kollegas/inaktiv overtidssats sættes via direkte kald)
+    {
+      const clash = await findOverlappingTimeLog(supabase, input.employee_id, startTimeIso, endTimeIso)
+      if (clash) {
+        const p = (iso: string) => copenhagenParts(iso).clock
+        return { success: false, error: `Overlapper en anden registrering for medarbejderen (${p(clash.start_time)}–${p(clash.end_time)} samme periode)` }
+      }
+      if (input.employee_rate_id && !(await rateBelongsToEmployee(createAdminClient(), input.employee_rate_id, input.employee_id))) {
+        return { success: false, error: 'Satsen hører ikke til medarbejderen eller er inaktiv' }
+      }
+    }
+
     // The DB has a partial UNIQUE preventing two open timers per employee.
     // We always insert with end_time set (manual timesheet flow), so this
     // doesn't apply — but be defensive in case of future real-time usage.
@@ -398,11 +412,27 @@ export async function updateTimeLog(
       patch.pay_rate_type = input.pay_rate_type
     }
     if (input.employee_rate_id !== undefined) {
+      if (input.employee_rate_id && !(await rateBelongsToEmployee(createAdminClient(), input.employee_rate_id, cur.employee_id as string))) {
+        return { success: false, error: 'Satsen hører ikke til medarbejderen eller er inaktiv' }
+      }
       patch.employee_rate_id = input.employee_rate_id
     }
 
     if (Object.keys(patch).length === 0) {
       return { success: false, error: 'Ingen ændringer' }
+    }
+
+    // X4: flyttet tidsrum må ikke overlappe medarbejderens andre registreringer
+    if (patch.start_time !== undefined || patch.end_time !== undefined) {
+      const newStart = (patch.start_time ?? cur.start_time) as string
+      const newEnd = (patch.end_time ?? cur.end_time) as string | null
+      if (newEnd) {
+        const clash = await findOverlappingTimeLog(supabase, cur.employee_id as string, newStart, newEnd, timeLogId)
+        if (clash) {
+          const p = (iso: string) => copenhagenParts(iso).clock
+          return { success: false, error: `Overlapper en anden registrering for medarbejderen (${p(clash.start_time)}–${p(clash.end_time)} samme periode)` }
+        }
+      }
     }
 
     const { data, error } = await supabase
