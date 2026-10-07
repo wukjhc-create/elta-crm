@@ -91,7 +91,7 @@ export async function listWorkOrdersForCase(
       return { success: true, data: [] }
     }
 
-    let query = supabase
+    const query = supabase
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
@@ -102,11 +102,6 @@ export async function listWorkOrdersForCase(
       .order('scheduled_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
 
-    // Sprint 7E — for montor: kun work orders tildelt egen employee
-    if (scope.type === 'specific') {
-      query = query.in('id', scope.workOrderIds)
-    }
-
     const { data: rows, error } = await query
 
     if (error) {
@@ -114,7 +109,10 @@ export async function listWorkOrdersForCase(
       return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
     }
 
-    const workOrders = (rows || []) as WorkOrderRow[]
+    // Sprint 7E — for montor: kun work orders tildelt egen employee. X4n: filtreres efter hentning (sagen afgrænser
+    // mængden) — før én .in() med ALLE montørens arbejdsordrer nogensinde → URL-grænsen (~350) → tom liste
+    const allowed = scope.type === 'specific' ? new Set(scope.workOrderIds) : null
+    const workOrders = ((rows || []) as WorkOrderRow[]).filter((w) => !allowed || allowed.has(w.id))
 
     // Resolve employees in a separate query (no FK relation hint needed).
     const employeeIds = Array.from(
@@ -488,7 +486,7 @@ export async function listWorkOrdersByDateRange(
       return { success: true, data: [] }
     }
 
-    let woQuery = supabase
+    const woQuery = supabase
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
@@ -500,10 +498,6 @@ export async function listWorkOrdersByDateRange(
       .order('scheduled_date', { ascending: true })
       .order('created_at', { ascending: true })
 
-    if (woScope.type === 'specific') {
-      woQuery = woQuery.in('id', woScope.workOrderIds)
-    }
-
     const { data: rows, error } = await woQuery
 
     if (error) {
@@ -511,7 +505,10 @@ export async function listWorkOrdersByDateRange(
       return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
     }
 
-    const wos = (rows || []) as WorkOrderRow[]
+    // Montør: kun egne — filtreres efter hentning (datointervallet afgrænser mængden). X4n: før én .in() med ALLE
+    // montørens arbejdsordrer nogensinde → URL-grænsen (~350) → tom kalender
+    const woAllowed = woScope.type === 'specific' ? new Set(woScope.workOrderIds) : null
+    const wos = ((rows || []) as WorkOrderRow[]).filter((w) => !woAllowed || woAllowed.has(w.id))
     if (wos.length === 0) return { success: true, data: [] }
 
     // Resolve employees + cases in parallel.

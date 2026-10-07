@@ -34,6 +34,7 @@ import type {
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
 import type { PortalServiceCase } from '@/types/portal.types'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { pageWithinIds, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 
 const PAGE_SIZE = 25
 
@@ -73,36 +74,55 @@ export async function getServiceCases(filters?: {
       }
     }
 
-    let query = supabase
-      .from('service_cases')
-      .select(`
+    const LIST_SELECT = `
         *,
         customer:customers!service_cases_customer_id_fkey(id, company_name, contact_person, email, phone),
         assignee:profiles!service_cases_assigned_to_fkey(id, full_name)
-      `, { count: 'exact' })
-      .eq('is_proposal', filters?.proposalsOnly === true)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pageSize - 1)
-
-    // Sprint 7E — applikér scope-filter
-    if (scope.type === 'specific') {
-      query = query.in('id', scope.caseIds)
+      `
+    // Filtre som funktion, så et stort sags-scope (montør/salg) kan pagineres i bidder (X4n: én .in() med alle
+    // scope-id'er sprængte URL-grænsen ~350 → tom sagsliste for en montør efter 1–2 års sager)
+    const applyFilters = (q: any): any => {
+      q = q.eq('is_proposal', filters?.proposalsOnly === true)
+      if (filters?.status) {
+        q = q.eq('status', filters.status)
+      }
+      if (filters?.priority) {
+        q = q.eq('priority', filters.priority)
+      }
+      if (filters?.type) {
+        q = q.eq('type', filters.type)
+      }
+      if (filters?.search) {
+        q = q.or(`title.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},case_number.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},description.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)}`)
+      }
+      return q
     }
 
-    if (filters?.status) {
-      query = query.eq('status', filters.status)
+    let data: unknown[] | null = null
+    let error: unknown = null
+    let count: number | null = null
+    if (scope.type === 'specific' && scope.caseIds.length > IN_CHUNK_SIZE) {
+      try {
+        const r = await pageWithinIds<{ id: string }>(
+          scope.caseIds,
+          { sortKey: 'created_at', ascending: false, offset, pageSize },
+          (chunk) => applyFilters(supabase.from('service_cases').select('id, created_at')).in('id', chunk).order('id'),
+          (pageIds) => supabase.from('service_cases').select(LIST_SELECT).in('id', pageIds),
+        )
+        data = r.rows
+        count = r.count
+      } catch (e) {
+        error = e
+      }
+    } else {
+      // Sprint 7E — applikér scope-filter (lille scope: direkte .in())
+      let q = applyFilters(supabase.from('service_cases').select(LIST_SELECT, { count: 'exact' }))
+      if (scope.type === 'specific') q = q.in('id', scope.caseIds)
+      const r = await q.order('created_at', { ascending: false }).range(offset, offset + pageSize - 1)
+      data = r.data
+      error = r.error
+      count = r.count
     }
-    if (filters?.priority) {
-      query = query.eq('priority', filters.priority)
-    }
-    if (filters?.type) {
-      query = query.eq('type', filters.type)
-    }
-    if (filters?.search) {
-      query = query.or(`title.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},case_number.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},description.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)}`)
-    }
-
-    const { data, error, count } = await query
 
     if (error) {
       logger.error('Error fetching service cases', { error })
