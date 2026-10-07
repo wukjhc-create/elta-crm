@@ -15,6 +15,7 @@ async function requireCostAccess() {
   return ctx
 }
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 // =====================================================
 // Types
@@ -485,16 +486,22 @@ export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPric
             .select('id', { count: 'exact', head: true })
             .eq('supplier_id', supplier.id)
             .or(`last_synced_at.is.null,last_synced_at.lt.${staleThreshold.toISOString()}`),
-          supabase
+          // X4e (pris-review 2026-10-07): side for side — før højst 1.000 rækker, så gennemsnit og antal for en
+          // stor leverandør (LM) blev beregnet på et tilfældigt udsnit
+          fetchAllRows<{ id: string; supplier_product_id: string; change_percentage: number }>((from, to) => supabase
             .from('price_history')
             .select(`
+              id,
+              supplier_product_id,
               change_percentage,
               supplier_products!inner (
                 supplier_id
               )
             `)
             .eq('supplier_products.supplier_id', supplier.id)
-            .gte('created_at', date30DaysAgo.toISOString()),
+            .gte('created_at', date30DaysAgo.toISOString())
+            .order('id')
+            .range(from, to)).then((data) => ({ data })),
           supabase
             .from('supplier_sync_logs')
             .select('started_at')
@@ -520,7 +527,8 @@ export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPric
           supplier_id: supplier.id,
           supplier_name: supplier.name,
           total_products: totalProducts || 0,
-          products_with_price_changes: priceChanges?.length || 0,
+          // antal PRODUKTER med prisændring (før antal historikrækker — et produkt ændret to gange talte dobbelt)
+          products_with_price_changes: new Set((priceChanges || []).map((pc) => pc.supplier_product_id)).size,
           average_price_increase: Math.round(avgIncrease * 100) / 100,
           average_price_decrease: Math.round(avgDecrease * 100) / 100,
           last_sync_at: lastSync?.started_at || null,
@@ -556,13 +564,15 @@ export async function getPriceAlertSummary(): Promise<ActionResult<{
     date7DaysAgo.setDate(date7DaysAgo.getDate() - 7)
 
     // Get price changes in last 7 days
-    const { data: priceChanges, count: totalAlerts } = await supabase
+    // X4e: side for side (før højst 1.000 rækker → stigninger/fald/kritiske var for lave ved store prisfiler)
+    const changes = await fetchAllRows<{ id: string; change_percentage: number }>((from, to) => supabase
       .from('price_history')
-      .select('change_percentage', { count: 'exact' })
+      .select('id, change_percentage')
       .gte('created_at', date7DaysAgo.toISOString())
       .or('change_percentage.gte.5,change_percentage.lte.-5')
-
-    const changes = priceChanges || []
+      .order('id')
+      .range(from, to))
+    const totalAlerts = changes.length
     const priceIncreases = changes.filter((pc) => pc.change_percentage > 0).length
     const priceDecreases = changes.filter((pc) => pc.change_percentage < 0).length
     const criticalAlerts = changes.filter((pc) => Math.abs(pc.change_percentage) > 10).length
