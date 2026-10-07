@@ -13,7 +13,8 @@ import { hasPermission } from '@/lib/auth/permissions'
 import type { UserRole } from '@/types/auth.types'
 import { parseAssistantCommand, type ParsedCommand } from './command-parser'
 import { resolveTarget } from './resolve-target'
-import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 
 export type AssistantActor = { profileId: string; role: UserRole; isActive: boolean; channel: 'telegram' | 'test' }
 
@@ -33,7 +34,7 @@ export const CALLBACK_REMINDER_LEAD_MIN = 15
 /** Påmindelse før en aftale/besigtigelse (minutter) */
 export const APPOINTMENT_REMINDER_LEAD_MIN = 60
 export { ASSISTANT_RULE } from './rules'
-import { ASSISTANT_RULE } from './rules'
+import { ASSISTANT_RULE, ASSISTANT_RULES } from './rules'
 
 const fmtWhen = (iso: string) => {
   const p = copenhagenParts(iso)
@@ -62,6 +63,54 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
 
   const cmd: ParsedCommand = parseAssistantCommand(input, now)
   if (!cmd.ok) return { ok: false, text: cmd.reason }
+
+  if (cmd.intent === 'help') {
+    return {
+      ok: true,
+      text: [
+        'ELTA Assistant — eksempler:',
+        '• Ring til Hansen i morgen kl. 10',
+        '• Besigtigelse hos Jensen d. 14/10 kl. 9',
+        '• Mind mig om at bestille arbejdstøj fredag kl. 9',
+        '• Note til SVC-01019: kunden ønsker hvid tavle',
+        '• Find Hansen  /  Status på SVC-01019',
+        '• Flyt opkaldet til Hansen til fredag kl. 10',
+        '• Flyt påmindelsen om arbejdstøj til mandag kl. 8',
+        '• I dag — dine opkald, aftaler og påmindelser',
+        'Alt gemmes i CRM.',
+      ].join('\n'),
+    }
+  }
+
+  if (cmd.intent === 'today') {
+    // Dagens overblik læses fra CRM: egne åbne assistent-opgaver + egne personlige påmindelser med tid i dag (dansk dato)
+    const today = copenhagenParts(now).date
+    const dayStart = copenhagenLocalToIso(today, '00:00')
+    const dayEnd = new Date(new Date(dayStart).getTime() + 86_400_000).toISOString()
+    const [{ data: tasks }, { data: personal }] = await Promise.all([
+      admin.from('customer_tasks').select('id, title, due_date').eq('assigned_to', actor.profileId).in('auto_rule', ASSISTANT_RULES).neq('status', 'done').gte('due_date', dayStart).lt('due_date', dayEnd).order('due_date').limit(30),
+      admin.from('personal_reminders').select('id, title, due_at').eq('owner_id', actor.profileId).eq('status', 'pending').gte('due_at', dayStart).lt('due_at', dayEnd).order('due_at').limit(30),
+    ])
+    const items = [
+      ...((tasks ?? []) as Array<{ title: string; due_date: string }>).map((t) => ({ at: t.due_date, line: t.title })),
+      ...((personal ?? []) as Array<{ title: string; due_at: string }>).map((p) => ({ at: p.due_at, line: `⏰ ${p.title}` })),
+    ].sort((a, b) => a.at.localeCompare(b.at))
+    await audit(admin, actor, 'today', null, null, { count: items.length })
+    if (!items.length) return { ok: true, text: 'Ingen opkald, aftaler eller påmindelser i dag.' }
+    return { ok: true, text: `I dag (${items.length}):\n${items.map((i) => `• ${copenhagenParts(i.at).clock} ${i.line}`).join('\n')}` }
+  }
+
+  if (cmd.intent === 'reschedule' && cmd.moveKind === 'personal') {
+    // Kun EGNE personlige påmindelser; præcis ét åbent træf på titlen — ellers spørg
+    const due = cmd.when!.iso!
+    const { data } = await admin.from('personal_reminders').select('id, title').eq('owner_id', actor.profileId).eq('status', 'pending').ilike('title', `%${escapeLike(cmd.text ?? '')}%`).limit(5)
+    const hits = (data ?? []) as Array<{ id: string; title: string }>
+    if (!hits.length) return { ok: false, text: `Jeg fandt ingen åben påmindelse om "${cmd.text}".` }
+    if (hits.length > 1) return { ok: false, text: `Flere påmindelser passer — skriv mere af titlen:\n${hits.map((h) => `• ${h.title}`).join('\n')}` }
+    await admin.from('personal_reminders').update({ due_at: due, reminder_at: due, updated_at: now.toISOString() }).eq('id', hits[0].id).eq('owner_id', actor.profileId)
+    await audit(admin, actor, 'personal_reminder_rescheduled', hits[0].id, hits[0].title, { due })
+    return { ok: true, taskId: hits[0].id, text: `⏰ Flyttet: ${hits[0].title} — ${fmtWhen(due)}.` }
+  }
 
   // Mål (kunde/sag) — påkrævet for alle kommandoer i fase 1 (customer_tasks.customer_id er NOT NULL)
   if (!cmd.target) {
@@ -95,12 +144,38 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
   // kunde kræves for opgaver/aftaler/opslag (nedenfor bruges target.customerId! i de grene); noter på en sag uden kunde er tilladt
   if (!target.customerId && !(cmd.intent === 'note' && target.kind === 'case')) return { ok: false, text: `${target.label} har ingen kunde tilknyttet — opgaven kan ikke oprettes.` }
 
+  if (cmd.intent === 'reschedule') {
+    // Flyt en åben assistent-opgave (opkald/påmindelse/aftale) på kunden/sagen — kun egne (admin/serviceleder: alle).
+    // Præcis ét træf — ellers spørg. Påmindelsen flyttes med (samme forsprang som ved oprettelsen).
+    const due = cmd.when!.iso!
+    let q = admin.from('customer_tasks').select('id, title, due_date, reminder_at, assigned_to').in('auto_rule', ASSISTANT_RULES).neq('status', 'done')
+    q = target.kind === 'case' ? q.eq('service_case_id', target.id) : q.eq('customer_id', target.id)
+    if (!['admin', 'serviceleder'].includes(actor.role)) q = q.eq('assigned_to', actor.profileId)
+    const { data } = await q.order('due_date').limit(5)
+    const hits = (data ?? []) as Array<{ id: string; title: string; due_date: string | null; reminder_at: string | null }>
+    if (!hits.length) return { ok: false, text: `Jeg fandt ingen åben opgave fra assistenten på ${target.label}.` }
+    if (hits.length > 1) return { ok: false, text: `Flere åbne opgaver på ${target.label} — flyt dem i CRM:\n${hits.map((h) => `• ${h.title}${h.due_date ? ` (${fmtWhen(h.due_date)})` : ''}`).join('\n')}` }
+    const h = hits[0]
+    const lead = h.due_date && h.reminder_at ? new Date(h.due_date).getTime() - new Date(h.reminder_at).getTime() : 0
+    const reminderAt = new Date(new Date(due).getTime() - Math.max(lead, 0)).toISOString()
+    await admin.from('customer_tasks').update({ due_date: due, reminder_at: reminderAt, updated_at: now.toISOString() }).eq('id', h.id)
+    await audit(admin, actor, 'task_rescheduled', h.id, h.title, { due, previous_due: h.due_date })
+    return { ok: true, taskId: h.id, text: `📅 Flyttet: ${h.title} — ${fmtWhen(due)} (påmindelse ${fmtWhen(reminderAt)}).` }
+  }
+
   if (cmd.intent === 'lookup') {
     if (target.kind === 'case') {
-      const { data } = await admin.from('service_cases').select('case_number, title, status, start_date, end_date').eq('id', target.id).single()
+      const [{ data }, { data: wo }] = await Promise.all([
+        admin.from('service_cases').select('case_number, title, status, start_date, end_date').eq('id', target.id).single(),
+        admin.from('work_orders').select('title, scheduled_date, status').eq('case_id', target.id).in('status', ['planned', 'in_progress']).not('scheduled_date', 'is', null).order('scheduled_date').limit(1).maybeSingle(),
+      ])
       const c = data as { case_number: string; title: string | null; status: string; start_date: string | null; end_date: string | null } | null
+      const next = wo as { title: string; scheduled_date: string; status: string } | null
       await audit(admin, actor, 'lookup', target.id, target.label, { kind: 'case' })
-      return { ok: true, text: c ? `${c.case_number} ${c.title ?? ''}\nStatus: ${c.status}${c.start_date ? `\nStart: ${c.start_date}` : ''}` : target.label, buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId! }] }
+      const lines = c ? [`${c.case_number} ${c.title ?? ''}`.trim(), `Status: ${c.status}`] : [target.label]
+      if (c?.start_date) lines.push(`Start: ${c.start_date}`)
+      lines.push(next ? `Næste arbejdsordre: ${next.scheduled_date} — ${next.title}${next.status === 'in_progress' ? ' (i gang)' : ''}` : 'Ingen planlagt arbejdsordre')
+      return { ok: true, text: lines.join('\n'), buttons: target.customerId ? [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId }] : undefined }
     }
     const [{ count: openTasks }, { count: openCases }] = await Promise.all([
       admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', target.id).neq('status', 'done'),

@@ -1068,6 +1068,67 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'assistant-commands-check') {
+    // STAGING (X2): hjælp, "i dag", flyt opgave (forsprang bevares, kun egne), flyt personlig påmindelse, sagsopslag
+    // med næste arbejdsordre. Rydder op.
+    const { runAssistantCommand } = await import('../../src/lib/assistant/run-command')
+    const { copenhagenParts: cph, copenhagenLocalToIso } = await import('../../src/lib/utils/copenhagen-time')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const profs = ((await admin.from('profiles').select('id, role').eq('is_active', true)).data ?? []) as Array<{ id: string; role: string }>
+    const adminP = profs.find((p) => p.role === 'admin')!
+    const salgP = profs.find((p) => p.role === 'salg')!
+    const actor = { profileId: adminP.id, role: 'admin' as const, isActive: true, channel: 'test' as const }
+    const salgActor = { profileId: salgP.id, role: 'salg' as const, isActive: true, channel: 'test' as const }
+    await admin.from('customers').delete().like('customer_number', 'AC-%').like('company_name', 'ACkunde%') // efterladte fra afbrudte kørsler
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `AC-${stamp}`, company_name: `ACkunde${stamp}`, contact_person: 'x', email: `ac-${stamp}@harness.test`, created_by: adminP.id }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const { data: sc } = await admin.from('service_cases').insert({ case_number: `SVC-8${String(stamp).slice(-6)}`, customer_id: custId, title: '[HARNESS] opslag', status: 'new', created_by: adminP.id }).select('id, case_number').single()
+    const sCase = sc as { id: string; case_number: string } | null
+    if (!sCase) { await admin.from('customers').delete().eq('id', custId); throw new Error('testsag kunne ikke oprettes') }
+    try {
+      const h = await runAssistantCommand(admin, actor, 'hjælp')
+      check('hjælp viser eksempler', h.ok && /Ring til/.test(h.text) && /Flyt/.test(h.text))
+      // i dag: opgave i dag kl. 23:30 (dansk) + personlig påmindelse i dag kl. 23:45
+      const today = cph(new Date()).date
+      const { data: t } = await admin.from('customer_tasks').insert({ customer_id: custId, title: `Ring til ACkunde${stamp}`, status: 'pending', priority: 'normal', assigned_to: adminP.id, created_by: adminP.id, due_date: copenhagenLocalToIso(today, '23:30'), reminder_at: copenhagenLocalToIso(today, '23:15'), auto_rule: 'assistant_callback' }).select('id').single()
+      const taskId = (t as { id: string }).id
+      await admin.from('personal_reminders').insert({ owner_id: adminP.id, title: `arbejdstøj ${stamp}`, due_at: copenhagenLocalToIso(today, '23:45'), reminder_at: copenhagenLocalToIso(today, '23:45'), source: 'manual' })
+      const d = await runAssistantCommand(admin, actor, 'i dag')
+      check('"i dag" viser egne opkald + påmindelser i tidsorden', d.ok && d.text.indexOf(`Ring til ACkunde${stamp}`) > -1 && d.text.indexOf(`arbejdstøj ${stamp}`) > d.text.indexOf(`Ring til ACkunde${stamp}`), d.text.replace(/\n/g, ' | '))
+      const ds = await runAssistantCommand(admin, salgActor, 'i dag')
+      check('"i dag" for en anden bruger viser ikke mine', !ds.text.includes(`ACkunde${stamp}`) && !ds.text.includes(`arbejdstøj ${stamp}`))
+      // flyt opgave: forsprang (15 min) bevares
+      const NOW = new Date('2026-10-06T12:30:00Z')
+      const m1 = await runAssistantCommand(admin, actor, `Flyt opkaldet til ACkunde${stamp} til i morgen kl. 10`, NOW)
+      const { data: mv } = await admin.from('customer_tasks').select('due_date, reminder_at').eq('id', taskId).single()
+      const mvr = mv as { due_date: string; reminder_at: string }
+      check('flyt opkald → ny tid i CRM, påmindelse 15 min før (forsprang bevaret)', m1.ok && new Date(mvr.due_date).toISOString() === '2026-10-07T08:00:00.000Z' && new Date(mvr.reminder_at).toISOString() === '2026-10-07T07:45:00.000Z', m1.text)
+      const m2 = await runAssistantCommand(admin, salgActor, `Flyt opkaldet til ACkunde${stamp} til fredag kl. 10`, NOW)
+      check('salg kan ikke flytte admins opkald (ikke egen)', !m2.ok, m2.text)
+      const m3 = await runAssistantCommand(admin, actor, `Flyt påmindelsen om arbejdstøj ${stamp} til fredag kl 9`, NOW)
+      const { data: pr } = await admin.from('personal_reminders').select('due_at, reminder_at').eq('owner_id', adminP.id).eq('title', `arbejdstøj ${stamp}`).single()
+      check('flyt personlig påmindelse → ny tid (due + reminder)', m3.ok && new Date((pr as { due_at: string }).due_at).toISOString() === '2026-10-09T07:00:00.000Z' && (pr as { reminder_at: string }).reminder_at === (pr as { due_at: string }).due_at, m3.text)
+      const m4 = await runAssistantCommand(admin, salgActor, `Flyt påmindelsen om arbejdstøj ${stamp} til fredag kl 9`, NOW)
+      check('en anden bruger finder ikke min påmindelse', !m4.ok, m4.text)
+      // sagsopslag med næste arbejdsordre
+      await admin.from('work_orders').insert({ case_id: sCase.id, title: `[HARNESS] montage ${stamp}`, status: 'planned', scheduled_date: (await import('../../src/lib/utils/copenhagen-time')).copenhagenDatePlusDays(3) })
+      const l = await runAssistantCommand(admin, actor, `Status på ${sCase.case_number}`)
+      check('sagsopslag viser næste arbejdsordre', l.ok && /Næste arbejdsordre: .*montage/.test(l.text), l.text.replace(/\n/g, ' | '))
+      const { data: au } = await admin.from('audit_logs').select('action').in('action', ['assistant_today', 'assistant_task_rescheduled', 'assistant_personal_reminder_rescheduled']).gte('created_at', new Date(stamp - 5_000).toISOString())
+      check('audit for i dag/flyt', new Set(((au ?? []) as Array<{ action: string }>).map((a) => a.action)).size === 3)
+    } finally {
+      await admin.from('work_orders').delete().eq('case_id', sCase.id)
+      await admin.from('service_cases').delete().eq('id', sCase.id)
+      await admin.from('customers').delete().eq('id', custId)
+      await admin.from('personal_reminders').delete().eq('owner_id', adminP.id).like('title', `%${stamp}%`)
+      await admin.from('audit_logs').delete().like('action', 'assistant_%').gte('created_at', new Date(stamp - 5_000).toISOString())
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ assistent-kommandoer (X2) bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'notes-reminders-flow') {
     // STAGING (T6 + personlige påmindelser): assistenten skriver noter (sag → case_notes, kunde → customer_notes,
     // customers.notes urørt) og personlige påmindelser; påmindelsen følger CRM-tiden; Udsæt/Udført kun for ejeren;

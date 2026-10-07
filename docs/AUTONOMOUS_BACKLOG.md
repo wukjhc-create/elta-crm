@@ -308,7 +308,7 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 |---|---|---|---|
 | S2 | AI-tilbud | ELTA-komponenter i auto-tilbud (flag AI_PROJECT_ELTA_COMPONENTS) | BLOCKED_APPROVAL — mangler: (1) godkendelse af tavleintervaller (forslag ≤12 grp → TAVLE-S, 13–36 → TAVLE-L, >36 Ikke prissat; TAVLE-NY/-LILLE aldrig automatisk), (2) bekræftelse af tavlepriser i kataloget (TAVLE-S kost 800 kr virker lavt), (3) flag i prod. Alt andet færdigt: docs/runbooks/s2-elta-components-examples.md |
 | X1 | Økonomi | Read-only fejlreview af faktura/Profit Engine/tilbudt vs faktisk/leverandørfakturakontrol (agent) → ret bekræftede fund | IN_PROGRESS |
-| X2 | Telegram | Kommandoer: hjælp, "i dag" (mine opkald/påmindelser), flyt tidspunkt via kommando; opslag med næste arbejdsordre | TODO |
+| X2 | Telegram | Kommandoer: hjælp, "i dag" (mine opkald/påmindelser), flyt tidspunkt via kommando; opslag med næste arbejdsordre | DONE — staging assistant-commands-check 10/10; parser 28/28; øvrige assistent-suites grønne |
 | X3 | Static-check | Død kode: lib/actions/price-engine.ts + project-estimation.ts (ingen kaldere, ukendte kolonner) | DONE — fjernet (+ types); tsc/rbac/rls-matrix grønne |
 
 ## NEXT-HIGH — ELTA ASSISTANT / TELEGRAM (Henrik 2026-10-07)

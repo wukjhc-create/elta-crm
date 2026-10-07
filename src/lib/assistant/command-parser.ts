@@ -14,7 +14,7 @@
  */
 import { copenhagenParts, copenhagenDatePlusDays, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 
-export type AssistantIntent = 'callback' | 'reminder' | 'note' | 'lookup' | 'appointment'
+export type AssistantIntent = 'callback' | 'reminder' | 'note' | 'lookup' | 'appointment' | 'help' | 'today' | 'reschedule'
 
 export type ParsedWhen = {
   /** Dansk kalenderdato YYYY-MM-DD */
@@ -26,7 +26,15 @@ export type ParsedWhen = {
 }
 
 export type ParsedCommand =
-  | { ok: true; intent: AssistantIntent; target: string | null; text: string | null; when: ParsedWhen | null }
+  | {
+      ok: true
+      intent: AssistantIntent
+      target: string | null
+      text: string | null
+      when: ParsedWhen | null
+      /** kun reschedule: hvad der flyttes ('task' = kundeopgave/opkald/aftale, 'personal' = personlig påmindelse) */
+      moveKind?: 'task' | 'personal'
+    }
   | { ok: false; reason: string }
 
 const WEEKDAYS = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag']
@@ -126,6 +134,30 @@ export function parseAssistantCommand(input: string, now: Date = new Date()): Pa
   const raw = (input ?? '').replace(/\s+/g, ' ').trim()
   if (!raw) return { ok: false, reason: 'Tom besked' }
   if (raw.length > 500) return { ok: false, reason: 'Beskeden er for lang' }
+
+  // Hjælp / dagens overblik (ingen mål eller tid)
+  if (/^\/?(hjælp|hjaelp|help|kommandoer)\??$/i.test(raw)) return { ok: true, intent: 'help', target: null, text: null, when: null }
+  if (/^\/?(i ?dag|idag|today|mine opgaver( i dag)?|dagens opgaver)\??$/i.test(raw)) return { ok: true, intent: 'today', target: null, text: null, when: null }
+
+  // Flyt: "Flyt opkaldet til Hansen til i morgen kl. 10", "Flyt påmindelsen om arbejdstøj til fredag kl 9"
+  const move = raw.match(/^(?:flyt|ryk|udskyd)\s+(.+)$/i)
+  if (move) {
+    const { rest, when, error } = extractWhen(move[1], now)
+    if (error) return { ok: false, reason: error }
+    if (!when?.iso) return { ok: false, reason: 'Hvornår skal det flyttes til? (fx "til i morgen kl. 10")' }
+    // sidste "til" (før tidsudtrykket) adskiller mål og tid — fjernes
+    const body = rest.replace(/\s+til\s*$/i, '').trim()
+    const personal = body.match(/^(?:min\s+)?påmindelse(?:n)?\s+(?:om\s+)?(?:at\s+)?(.+)$/i)
+    if (personal) {
+      const text = clean(personal[1])
+      if (!text) return { ok: false, reason: 'Hvilken påmindelse? (fx "Flyt påmindelsen om arbejdstøj til fredag kl. 9")' }
+      return { ok: true, intent: 'reschedule', target: null, text, when, moveKind: 'personal' }
+    }
+    const task = body.match(/^(?:opkald(?:et)?|aftale(?:n)?|besigtigelse(?:n)?|opgave(?:n)?)\s+(?:til|med|hos|for)\s+(.+)$/i)
+    const target = clean((task ? task[1] : body).replace(/^(?:kunde|kunden)\s+/i, ''))
+    if (!target) return { ok: false, reason: 'Hvad skal flyttes? (fx "Flyt opkaldet til Hansen til i morgen kl. 10")' }
+    return { ok: true, intent: 'reschedule', target, text: null, when, moveKind: 'task' }
+  }
 
   // Note: "Note til/på X: tekst" — teksten kan indeholde tidsord, så tidsudtræk springes over
   const note = raw.match(/^(?:skriv\s+)?note\s+(?:til|på|paa)\s+(.+?)\s*:\s*(.+)$/i)
