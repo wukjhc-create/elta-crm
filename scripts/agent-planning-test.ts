@@ -62,7 +62,7 @@ assert(planningBlocker(C(), 0) === null, 'bekraeftet sag uden arbejdsordre -> ok
 assert(!!planningBlocker(C({ customer_id: null }), 0), 'uden kunde -> blokeret')
 assert(!!planningBlocker(C({ is_proposal: true }), 0), 'sagsforslag -> blokeret')
 assert(!!planningBlocker(C({ status: 'closed' }), 0) && !!planningBlocker(C({ status: 'converted' }), 0), 'lukket/konverteret -> blokeret')
-assert(/aktiv arbejdsordre/.test(planningBlocker(C(), 1) ?? ''), 'aktiv arbejdsordre -> blokeret')
+assert(/allerede en arbejdsordre/.test(planningBlocker(C(), 1) ?? ''), 'eksisterende (ikke-annulleret) arbejdsordre -> blokeret (X4: også udførte)')
 {
   const slot = suggestSlot([T('a', 'Anders')], [], fri)
   const p = buildPlanningProposal(C(), 0, slot)

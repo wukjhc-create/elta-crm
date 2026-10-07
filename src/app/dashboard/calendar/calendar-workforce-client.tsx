@@ -130,25 +130,31 @@ export function CalendarWorkforceClient({
     })
   }, [workOrders, filters])
 
+  // X4 (planlægnings-review 2026-10-07): arbejdsordrer tildelt en medarbejder der ikke (længere) er på listen over aktive
+  // — fx deaktiveret montør — forsvandt fra kalenderen. De vises nu i "Ikke tildelt"-rækken, så de bliver omplanlagt.
+  const activeEmployeeIds = useMemo(() => new Set(employees.map((e) => e.id)), [employees])
+  const isUnassigned = (w: WorkOrderForCalendar) => !w.assigned_employee_id || !activeEmployeeIds.has(w.assigned_employee_id)
+
   // Group filtered WOs by date and employee
   const byDateThenEmployee = useMemo(() => {
     const map = new Map<string, Map<string, WorkOrderForCalendar[]>>()
     for (const wo of filteredWOs) {
       if (!wo.scheduled_date) continue
       const dk = wo.scheduled_date.slice(0, 10)
-      const empKey = wo.assigned_employee_id ?? '__unassigned__'
+      const empKey = wo.assigned_employee_id && activeEmployeeIds.has(wo.assigned_employee_id) ? wo.assigned_employee_id : '__unassigned__'
       if (!map.has(dk)) map.set(dk, new Map())
       const empMap = map.get(dk)!
       if (!empMap.has(empKey)) empMap.set(empKey, [])
       empMap.get(empKey)!.push(wo)
     }
     return map
-  }, [filteredWOs])
+  }, [filteredWOs, activeEmployeeIds])
 
   // Detect if any unassigned WOs exist in the visible range
   const hasUnassigned = useMemo(
-    () => filteredWOs.some((w) => !w.assigned_employee_id),
-    [filteredWOs]
+    () => filteredWOs.some(isUnassigned),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredWOs, activeEmployeeIds]
   )
 
   // Filter to only employees that have any WO in the range, OR show all
@@ -484,7 +490,7 @@ function UnassignedRow({ workOrders }: { workOrders: WorkOrderForCalendar[] }) {
         <span className="font-medium text-amber-900 flex items-center gap-1">
           <AlertCircle className="w-4 h-4" /> Ikke tildelt
         </span>
-        <span className="text-xs text-amber-700">Mangler medarbejder</span>
+        <span className="text-xs text-amber-700">Mangler (aktiv) medarbejder — omplanlæg</span>
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-wrap gap-2">
@@ -621,7 +627,7 @@ function WeekUnassignedRow({
     <tr className="align-top bg-amber-50/30">
       <td className="px-3 py-2 w-48 border-r">
         <span className="font-medium text-amber-900 text-xs flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" /> Ikke tildelt
+          <AlertCircle className="w-3 h-3" /> Ikke tildelt / inaktiv
         </span>
       </td>
       {weekDates.map((d) => {

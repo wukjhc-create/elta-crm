@@ -1068,6 +1068,38 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'planning-done-check') {
+    // STAGING (X4 #1): en åben sag hvis eneste arbejdsordre er UDFØRT får intet nyt planlægningsforslag (før: dublet)
+    const { runPlanningAgent } = await import('../../src/lib/agents/planning-agent')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `PD-${stamp}`, company_name: `[HARNESS] planlægning udført ${stamp}`, contact_person: 'x', email: `pd-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const mkCase = async (n: number) => ((await admin.from('service_cases').insert({ case_number: `SVC-7${String(stamp).slice(-5)}${n}`, customer_id: custId, title: `[HARNESS] pd ${n}`, status: 'in_progress', created_by: owner }).select('id').single()).data as { id: string }).id
+    try {
+      const done = await mkCase(1)
+      await admin.from('work_orders').insert({ case_id: done, customer_id: custId, title: '[HARNESS] udført', status: 'done', scheduled_date: '2026-09-01' })
+      const fresh = await mkCase(2)
+      const r = await runPlanningAgent({ caseIds: [done, fresh], dryRun: true, triggeredBy: owner })
+      // den udførte sag sorteres fra INDEN vurderingen (unplannedCases) → kun den nye sag behandles
+      check('sag med kun udført arbejdsordre → ikke kandidat (intet forslag)', r.success && r.data?.cases === 1 && !r.data.skipped.some((s) => s.case_id === done), JSON.stringify(r.data))
+      check('sag uden arbejdsordre er stadig kandidat', !r.data?.skipped.some((s) => s.case_id === fresh && /arbejdsordre/.test(s.reason)), JSON.stringify(r.data?.skipped))
+    } finally {
+      const { data: cs } = await admin.from('service_cases').select('id').eq('customer_id', custId)
+      const ids = ((cs ?? []) as Array<{ id: string }>).map((x) => x.id)
+      if (ids.length) {
+        await admin.from('agent_actions').delete().in('payload->>case_id', ids)
+        await admin.from('work_orders').delete().in('case_id', ids)
+        await admin.from('service_cases').delete().in('id', ids)
+      }
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ planlægning: udførte job foreslås ikke igen')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'invoice-guards-check') {
     // STAGING (X1 #7/#8): fakturakladde-redigering respekterer fakturatypen, fradragslinjer er låst, og en linjebaseret
     // kreditnota af kun et fradrag afvises (før forkert fortegn). Rydder op.
