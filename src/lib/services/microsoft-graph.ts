@@ -648,6 +648,9 @@ export async function sendEmailViaGraph(
   /** Sprint 8C-1.1 — RFC 2822 Message-ID, så reply.in_reply_to kan matches. */
   internetMessageId?: string
   error?: string
+  /** R-MAIL-B #6: timeout EFTER at forespørgslen er sendt — Graph kan have leveret mailen. Kaldere med et "krav"
+   *  (rykkere) må IKKE frigive kravet (ellers sendes igen = dublet). */
+  uncertain?: boolean
 }> {
   try {
     const mailbox = resolveMailbox(options.fromMailbox)
@@ -749,7 +752,7 @@ export async function sendEmailViaGraph(
       } catch (fetchError) {
         clearTimeout(sendTimeout)
         if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-          return { success: false, error: 'Email-afsendelse timeout efter 30s' }
+          return { success: false, uncertain: true, error: 'Email-afsendelse timeout efter 30s (status ukendt — kan være leveret)' }
         }
         throw fetchError
       } finally {

@@ -92,6 +92,9 @@ async function handleCron(request: Request): Promise<Response> {
         .or(`last_reminder_sent.is.null,last_reminder_sent.lt.${cutoffDate.toISOString()}`)
         .not('sent_at', 'is', null)
         .lt('sent_at', cutoffDate.toISOString())
+        // mail-review 2026-10-07 (R-MAIL-B #7): kun tilbud sendt inden for 60 dage — ellers ville første aktivering
+        // rykke ALLE historiske åbne tilbud (uden gyldighedsdato) på én gang
+        .gte('sent_at', new Date(Date.now() - 60 * 86_400_000).toISOString())
 
       if (pendingOffers && pendingOffers.length > 0) {
         const { generateReminderEmailHtml, generateReminderEmailText } = await import('@/lib/email/templates/reminder-email')
@@ -101,7 +104,8 @@ async function handleCron(request: Request): Promise<Response> {
           try {
             const customerRaw = offer.customer as unknown
             const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
-            if (!customer?.email) continue
+            // R-MAIL-B #9: intet forhåndstjek på tilbudskundens egen e-mail — mail-routeren vælger modtageren (fx betalers
+            // faktureringskontakt); før blev rykkeren sprunget over, når netop tilbudskunden manglede e-mail
             // samme regel som portalen (dansk dato; sidste gyldige dag tæller med — før sprunget over)
             if (isOfferExpired(offer.valid_until as string | null)) continue
 
@@ -123,19 +127,6 @@ async function handleCron(request: Request): Promise<Response> {
               ? new Date(offer.valid_until).toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
               : null
 
-            const subject = settings?.reminder_email_subject || 'Påmindelse: Dit tilbud fra Elta Solar'
-            const emailParams = {
-              customerName: customer.contact_person || 'Kunde',
-              companyName: customer.company_name || '',
-              offerNumber: offer.offer_number,
-              offerTitle: offer.title,
-              finalAmount,
-              validUntil: validUntilFormatted,
-              portalUrl,
-              senderName,
-              reminderCount,
-            }
-
             // Sprint 8H Phase 2: route gennem central mail-router.
             // resolveOfferReminderRoute prefererer billing_contact;
             // forhindrer at rykker sendes til site_contact.
@@ -151,6 +142,28 @@ async function handleCron(request: Request): Promise<Response> {
             }
             const route = routeResult.route
 
+            const subject = settings?.reminder_email_subject || 'Påmindelse: Dit tilbud fra Elta Solar'
+            const emailParams = {
+              // R-MAIL-B #9: hilsen til den faktiske modtager (routerens valg), ikke altid tilbudskundens kontakt
+              customerName: route.toName || customer?.contact_person || 'Kunde',
+              companyName: customer?.company_name || '',
+              offerNumber: offer.offer_number,
+              offerTitle: offer.title,
+              finalAmount,
+              validUntil: validUntilFormatted,
+              portalUrl,
+              senderName,
+              reminderCount,
+            }
+
+            // R-MAIL-B #2: KRAV før afsendelse (betinget på uændret reminder_count) — før blev markøren skrevet efter
+            // afsendelsen, så en kørsel der ramte tidsgrænsen sendte samme rykker igen næste dag
+            const prevCount = offer.reminder_count || 0
+            const prevSent = (offer.last_reminder_sent as string | null) ?? null
+            const { data: oClaim } = await supabase.from('offers')
+              .update({ last_reminder_sent: new Date().toISOString(), reminder_count: reminderCount })
+              .eq('id', offer.id).eq('reminder_count', prevCount).select('id').maybeSingle()
+            if (!oClaim) continue
             const result = await sendEmailViaGraph({
               to: route.toEmail,
               subject: `${subject} (${offer.offer_number})`,
@@ -179,10 +192,6 @@ async function handleCron(request: Request): Promise<Response> {
             }
 
             if (result.success) {
-              await supabase.from('offers').update({
-                last_reminder_sent: new Date().toISOString(),
-                reminder_count: reminderCount,
-              }).eq('id', offer.id)
               totalSent++
               await logMailRoute(route, 'sent', {
                 offer_id: offer.id,
@@ -191,6 +200,11 @@ async function handleCron(request: Request): Promise<Response> {
                 ...(shadowMeta || {}),
               })
             } else {
+              // frigiv kravet (kun hvis ingen andre har ændret det imens; ikke ved ukendt udfald — R-MAIL-B #6)
+              if (!result.uncertain) {
+                await supabase.from('offers').update({ last_reminder_sent: prevSent, reminder_count: prevCount })
+                  .eq('id', offer.id).eq('reminder_count', reminderCount)
+              }
               await logMailRoute(route, 'failed', {
                 offer_id: offer.id,
                 error: result.error,
@@ -265,8 +279,8 @@ async function handleCron(request: Request): Promise<Response> {
 
             if (result.success) {
               totalSent++
-            } else {
-              // frigiv kravet (kun hvis ingen andre har ændret beskrivelsen imens)
+            } else if (!result.uncertain) {
+              // frigiv kravet (kun hvis ingen andre har ændret beskrivelsen imens; ikke ved ukendt udfald)
               await supabase.from('customer_documents').update({ description: originalDescription }).eq('id', doc.id).eq('description', claimedDesc)
             }
           } catch (err) {
@@ -339,7 +353,7 @@ async function handleCron(request: Request): Promise<Response> {
 
             if (result.success) {
               totalSent++
-            } else {
+            } else if (!result.uncertain) {
               await supabase.from('customer_tasks').update({ description: originalTaskDesc }).eq('id', task.id).eq('description', claimedTaskDesc)
             }
           } catch (err) {

@@ -655,9 +655,37 @@ export async function markInvoicePaid(
   return row
 }
 
+/**
+ * Mail-review 2026-10-07 (R-MAIL-B #3): udestående på en faktura inkl. moms = final_amount − amount_paid − sendte/
+ * betalte kreditnotaer mod fakturaen (credit_of_invoice_id). Rykkeren viste før ALTID det fulde beløb — også efter
+ * delbetaling eller delkreditering — og blev sendt selv når intet stod udestående.
+ */
+async function outstandingByInvoice(
+  supabase: ReturnType<typeof createAdminClient>,
+  invoices: Array<{ id: string; final_amount: number | string | null; amount_paid?: number | string | null }>,
+): Promise<Map<string, number>> {
+  const credited = new Map<string, number>()
+  const ids = invoices.map((i) => i.id)
+  for (let k = 0; k < ids.length; k += 200) {
+    const { data } = await supabase.from('invoices').select('credit_of_invoice_id, final_amount')
+      .in('credit_of_invoice_id', ids.slice(k, k + 200)).in('status', ['sent', 'paid'])
+    for (const c of (data ?? []) as Array<{ credit_of_invoice_id: string; final_amount: number | string | null }>) {
+      credited.set(c.credit_of_invoice_id, (credited.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.final_amount) || 0))
+    }
+  }
+  const out = new Map<string, number>()
+  for (const i of invoices) {
+    const v = (Number(i.final_amount) || 0) - (Number(i.amount_paid) || 0) - (credited.get(i.id) ?? 0)
+    out.set(i.id, Math.round(v * 100) / 100)
+  }
+  return out
+}
+
 export interface OverdueInvoice extends InvoiceRow {
   days_overdue: number
   next_reminder_level: 1 | 2 | 3 | null
+  /** Udestående inkl. moms (efter delbetalinger og kreditnotaer) */
+  outstanding_amount: number
 }
 
 /** Returns sent (unpaid) invoices that are at least 3 days past due_date. */
@@ -687,12 +715,16 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
     return []
   }
 
-  return (data ?? []).map((inv) => {
+  const rows = (data ?? []) as InvoiceRow[]
+  const outstanding = await outstandingByInvoice(supabase, rows)
+  // kun fakturaer med reelt udestående (> 0,50 kr — øreafrunding)
+  return rows.filter((inv) => (outstanding.get(inv.id) ?? 0) > 0.5).map((inv) => {
     const days = inv.due_date ? daysBetween(new Date(inv.due_date), today) : 0
     return {
-      ...(inv as InvoiceRow),
+      ...inv,
       days_overdue: days,
-      next_reminder_level: pickReminderLevel(days, (inv as InvoiceRow).reminder_count ?? 0),
+      next_reminder_level: pickReminderLevel(days, inv.reminder_count ?? 0),
+      outstanding_amount: outstanding.get(inv.id) ?? 0,
     }
   })
 }
@@ -751,6 +783,12 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
   if (!invoice.due_date) {
     await logReminder(invoiceId, null, 'skipped', null, 'no due_date')
     return { invoiceId, status: 'skipped', level: null, reason: 'no due_date' }
+  }
+  // R-MAIL-B #3: rykkeren gælder det UDESTÅENDE (delbetaling/delkreditering); intet udestående → ingen rykker
+  const outstandingAmount = (await outstandingByInvoice(supabase, [invoice])).get(invoice.id) ?? 0
+  if (outstandingAmount <= 0.5) {
+    await logReminder(invoiceId, null, 'skipped', null, 'outstanding<=0')
+    return { invoiceId, status: 'skipped', level: null, reason: 'outstanding<=0' }
   }
 
   const today = new Date()
@@ -863,7 +901,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
       style: 'currency',
       currency: invoice.currency || 'DKK',
       maximumFractionDigits: 2,
-    }).format(Number(invoice.final_amount) || 0),
+    }).format(outstandingAmount),
     dueDateFormatted: invoice.due_date
       ? new Date(invoice.due_date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
       : '',
@@ -902,7 +940,8 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
   })
 
   if (!result.success) {
-    await supabase
+    // R-MAIL-B #6: ved ukendt udfald (timeout) beholdes kravet — hellere én manglende rykker end en dublet
+    if (!result.uncertain) await supabase
       .from('invoices')
       .update({ reminder_count: prevCount, last_reminder_at: invoice.last_reminder_at ?? null })
       .eq('id', invoiceId)
