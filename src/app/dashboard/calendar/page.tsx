@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { getAllTasks } from '@/lib/actions/customer-tasks'
-import { ASSISTANT_RULE } from '@/lib/assistant/rules'
+import { ASSISTANT_RULES } from '@/lib/assistant/rules'
 import { listWorkOrdersByDateRange } from '@/lib/actions/work-orders'
 import { listCalendarEmployeesAction } from '@/lib/actions/employees'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
@@ -74,7 +74,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     // Besigtigelser + opkald/påmindelser oprettet via ELTA Assistant (T2 — CRM-kalenderen er stedet de ses)
     const [allTasks, assistantTasks] = await Promise.all([
       getAllTasks({ search: 'besigtigelse' }),
-      getAllTasks({ autoRules: [ASSISTANT_RULE.callback, ASSISTANT_RULE.reminder] }),
+      getAllTasks({ autoRules: ASSISTANT_RULES }),
     ])
     const besigtigelser = allTasks.filter((t) =>
       t.title.toLowerCase().includes('besigtigelse')

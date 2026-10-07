@@ -312,16 +312,16 @@ parallelt med øvrige NEXT-flows, når core gates (tsc, check:rls-matrix, check:
 
 | # | Fase | Opgave | Status |
 |---|---|---|---|
-| T1 | 1 | Tekstkommando "Ring til kunde X i morgen kl. 10" → find korrekt kunde/sag (tvetydighed → spørg, aldrig gæt) → opret opgave/callback i CRM | TODO |
-| T2 | 1 | Callback/opgave vises i CRM-kalenderen | TODO |
-| T3 | 1 | Telegram-påmindelse før tidspunktet med knapper: Ring nu · Åbn kunde · Udsæt · Udført (skriver tilbage til CRM-opgaven) | TODO |
-| T4 | 1 | Påmindelsen følger tidspunktet i CRM (flyttes/slettes opgaven i CRM → påmindelsen ændres; ingen kopi af tidspunktet i Telegram-laget) | TODO |
+| T1 | 1 | Tekstkommando "Ring til kunde X i morgen kl. 10" → find korrekt kunde/sag (tvetydighed → spørg, aldrig gæt) → opret opgave/callback i CRM | DONE (motor, intet live) — fortolker (unit 20/20) + entydig kunde/sag (assistant-resolve-check 6/6) + opret CRM-opgave (assistant-run-check 9/9) |
+| T2 | 1 | Callback/opgave vises i CRM-kalenderen | DONE — månedsvisning viser assistent-opkald 📞/påmindelser ⏰; kalenderen grupperer nu på dansk dato (U140) |
+| T3 | 1 | Telegram-påmindelse før tidspunktet med knapper: Ring nu · Åbn kunde · Udsæt · Udført (skriver tilbage til CRM-opgaven) | IN_PROGRESS — påmindelsesmotor DONE (assistant-reminder-check 6/6); Telegram-afsendelse + knapper afventer T10/godkendelse |
+| T4 | 1 | Påmindelsen følger tidspunktet i CRM (flyttes/slettes opgaven i CRM → påmindelsen ændres; ingen kopi af tidspunktet i Telegram-laget) | DONE — tidspunktet læses fra customer_tasks.reminder_at ved hver kørsel; ændret tid → ny påmindelse (testet) |
 | T5 | 1 | Opret kalenderaftale/besigtigelse fra Telegram | TODO |
-| T6 | 1 | Skriv note på kunde/sag | TODO |
-| T7 | 1 | "Mind mig om …" → CRM-opgave | TODO |
-| T8 | 1 | Opslag: kunde, sag, status (respekterer brugerens rolle/rettigheder som i CRM) | TODO |
-| T9 | 1 | Audit-log af ALLE Telegram-handlinger (hvem, hvad, hvilken kunde/sag) | TODO |
-| T10 | 1 | Fundament: kobling Telegram-bruger ↔ CRM-bruger (kun inviterede medarbejdere), webhook med hemmelighed, rettigheder = CRM-permissions | TODO |
+| T6 | 1 | Skriv note på kunde/sag | TODO — afklaring: customers.notes er ét felt (overskrivning uønsket); forslag: aktivitet/kommentar |
+| T7 | 1 | "Mind mig om …" → CRM-opgave | DONE med begrænsning — kræver kunde/sag (customer_tasks.customer_id NOT NULL); beslutning i docs/design/elta-assistant-telegram.md |
+| T8 | 1 | Opslag: kunde, sag, status (respekterer brugerens rolle/rettigheder som i CRM) | DONE (kontorroller) — montør afvist i fase 1 (scope kan ikke håndhæves med admin-klient) |
+| T9 | 1 | Audit-log af ALLE Telegram-handlinger (hvem, hvad, hvilken kunde/sag) | DONE — audit_logs entity_type 'assistant' (oprettet, opslag, tvetydig, afvist) + påmindelse sendt |
+| T10 | 1 | Fundament: kobling Telegram-bruger ↔ CRM-bruger (kun inviterede medarbejdere), webhook med hemmelighed, rettigheder = CRM-permissions | BLOCKED_APPROVAL — 00195 assistant_links (SQL-udkast) + bot-token/webhook kræver godkendelse |
 | T11 | 2 | Talebeskeder (voice commands) → transskription → samme kommandoer som tekst | TODO |
 | T12 | 2 | Ubesvaret opkald/telefonsvarer → transskription → kunde-/sagsmatch → forslag/opgave om tilbageringning | TODO |
 | T13 | 2 | Relatel-/SMS-integration (live kræver godkendelse) | TODO |

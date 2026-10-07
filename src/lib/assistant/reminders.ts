@@ -7,7 +7,7 @@
  * Afsendelsen (Telegram) er en indsprøjtet funktion — her sendes intet live.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ASSISTANT_RULE } from './rules'
+import { ASSISTANT_RULES } from './rules'
 
 /** Hvor langt tilbage en overset påmindelse stadig sendes (fx efter nedetid) */
 export const REMINDER_CATCHUP_MIN = 60
@@ -21,7 +21,7 @@ export async function findDueAssistantReminders(admin: SupabaseClient, now: Date
   const { data, error } = await admin
     .from('customer_tasks')
     .select('id, title, customer_id, assigned_to, due_date, reminder_at, status')
-    .in('auto_rule', [ASSISTANT_RULE.callback, ASSISTANT_RULE.reminder])
+    .in('auto_rule', ASSISTANT_RULES)
     .neq('status', 'done')
     .not('reminder_at', 'is', null)
     .lte('reminder_at', now.toISOString())

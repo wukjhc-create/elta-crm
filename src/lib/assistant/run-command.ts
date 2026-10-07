@@ -29,6 +29,8 @@ export type AssistantReply = {
 
 /** Påmindelse før en tilbageringning (minutter) */
 export const CALLBACK_REMINDER_LEAD_MIN = 15
+/** Påmindelse før en aftale/besigtigelse (minutter) */
+export const APPOINTMENT_REMINDER_LEAD_MIN = 60
 export { ASSISTANT_RULE } from './rules'
 import { ASSISTANT_RULE } from './rules'
 
@@ -122,6 +124,39 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
     }
   }
 
-  // note / appointment: afventer afklaring (se docs/design/elta-assistant-telegram.md) — ingen halv implementering
-  return { ok: false, text: cmd.intent === 'note' ? 'Noter via assistenten kommer snart.' : 'Aftaler via assistenten kommer snart.' }
+  if (cmd.intent === 'appointment') {
+    // T5: aftalen oprettes som CRM-opgave (vises i kalenderen, påmindelse 1 time før). Kundens bekræftelsesmail sendes
+    // IKKE herfra (live kundemail er gated) — sendes fra CRM af en medarbejder.
+    const due = cmd.when!.iso!
+    const kind = cmd.text === 'besigtigelse' ? 'Besigtigelse' : cmd.text === 'møde' ? 'Møde' : 'Aftale'
+    const title = `${kind}: ${target.label}`
+    const reminderAt = new Date(new Date(due).getTime() - APPOINTMENT_REMINDER_LEAD_MIN * 60_000).toISOString()
+    const { data, error } = await admin.from('customer_tasks').insert({
+      customer_id: target.customerId,
+      service_case_id: target.kind === 'case' ? target.id : null,
+      title: title.slice(0, 200),
+      description: `Oprettet via ELTA Assistant: "${input.slice(0, 300)}"
+Bekræftelse til kunden er IKKE sendt — send fra CRM.`,
+      status: 'pending',
+      priority: 'normal',
+      assigned_to: actor.profileId,
+      created_by: actor.profileId,
+      due_date: due,
+      reminder_at: reminderAt,
+      auto_generated: false,
+      auto_rule: ASSISTANT_RULE.appointment,
+    }).select('id').single()
+    if (error || !data) return { ok: false, text: 'Aftalen kunne ikke oprettes i CRM.' }
+    const taskId = (data as { id: string }).id
+    await audit(admin, actor, 'appointment_created', taskId, title, { target_kind: target.kind, target_id: target.id, due, kind })
+    return {
+      ok: true,
+      taskId,
+      text: `📅 ${title} — ${fmtWhen(due)}. Ligger i CRM-kalenderen. Bekræftelse til kunden er ikke sendt.`,
+      buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId }],
+    }
+  }
+
+  // note: afventer afklaring (customers.notes er ét felt — se docs/design/elta-assistant-telegram.md)
+  return { ok: false, text: 'Noter via assistenten kommer snart.' }
 }
