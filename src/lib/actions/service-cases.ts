@@ -35,6 +35,7 @@ import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
 import type { PortalServiceCase } from '@/types/portal.types'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { pageWithinIds, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 const PAGE_SIZE = 25
 
@@ -1204,11 +1205,12 @@ async function sendServiceCaseConfirmation(
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Tak for din henvendelse</h2>
-        <p>Kære ${customer.contact_person || customer.company_name || 'kunde'},</p>
+        <p>Kære ${escapeHtml(customer.contact_person || customer.company_name || 'kunde')},</p>
         <p>Vi har modtaget din henvendelse og oprettet en serviceopgave:</p>
         <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
-          <p style="margin: 0;"><strong>Sagsnr.:</strong> ${serviceCase.case_number}</p>
-          <p style="margin: 8px 0 0;"><strong>Emne:</strong> ${serviceCase.title}</p>
+          <p style="margin: 0;"><strong>Sagsnr.:</strong> ${escapeHtml(String(serviceCase.case_number ?? ''))}</p>
+          <!-- mail-review 2026-10-07: titlen kan være en indgående mails emne (kundestyret) → escapes -->
+          <p style="margin: 8px 0 0;"><strong>Emne:</strong> ${escapeHtml(String(serviceCase.title ?? ''))}</p>
           <p style="margin: 8px 0 0;"><strong>Status:</strong> Ny — vi kigger på den hurtigst muligt</p>
         </div>
         ${portalUrl ? `<p><a href="${portalUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">Se status i kundeportalen</a></p>` : ''}

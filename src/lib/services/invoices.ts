@@ -978,7 +978,43 @@ export interface SendInvoiceEmailResult {
  * status='sent'. Idempotent: if already sent, returns 'already_sent'
  * without re-sending.
  */
+/**
+ * Mail-review 2026-10-07: send-kravet ("claim") FØR afsendelse. Før: tjek → PDF → send → status 'sent' bagefter, så to
+ * samtidige kald (dobbeltklik, to faner, manuel send + automatik-regel) begge sendte mailen og bogførte i e-conomic.
+ * Nu sættes sent_at betinget (kun kladde uden sent_at) før noget sendes; den anden kalder ser sent_at og springer over.
+ * Ender afsendelsen ikke i 'sent', frigives kravet igen (kun hvis fakturaen stadig er kladde).
+ */
 export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEmailResult> {
+  const supabase = createAdminClient()
+  const { data: claimed, error: claimErr } = await supabase
+    .from('invoices')
+    .update({ sent_at: new Date().toISOString() })
+    .eq('id', invoiceId)
+    .eq('status', 'draft')
+    .is('sent_at', null)
+    .select('id')
+    .maybeSingle()
+  if (claimErr) return { invoiceId, status: 'failed', error: 'claim failed' }
+  if (!claimed) {
+    const { data: cur } = await supabase.from('invoices').select('status').eq('id', invoiceId).maybeSingle()
+    if (!cur) return { invoiceId, status: 'failed', error: 'invoice not found' }
+    return { invoiceId, status: 'already_sent', reason: `status=${(cur as { status: string }).status} (eller sendes allerede)` }
+  }
+  const release = async () => {
+    await supabase.from('invoices').update({ sent_at: null }).eq('id', invoiceId).eq('status', 'draft')
+  }
+  let result: SendInvoiceEmailResult
+  try {
+    result = await sendClaimedInvoiceEmail(invoiceId)
+  } catch (err) {
+    await release()
+    throw err
+  }
+  if (result.status !== 'sent') await release()
+  return result
+}
+
+async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEmailResult> {
   const supabase = createAdminClient()
 
   const { data: inv, error: invErr } = await supabase
@@ -991,8 +1027,8 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   }
   const invoice = inv as InvoiceRow
 
-  // Safety: never send twice. status='sent' or 'paid' or sent_at populated → skip.
-  if (invoice.status !== 'draft' || invoice.sent_at) {
+  // Safety: never send twice — kaldes kun med et gyldigt krav (sent_at sat af sendInvoiceEmail); status skal være kladde
+  if (invoice.status !== 'draft') {
     return { invoiceId, status: 'already_sent', reason: `status=${invoice.status}` }
   }
 

@@ -479,6 +479,32 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'invoice-send-claim-check') {
+    // Mail-review 2026-10-07: sendInvoiceEmail kræver fakturaen (sent_at betinget) før afsendelse og frigiver kravet,
+    // når den ikke ender i 'sent'. Faktura UDEN kunde → 'skipped' FØR enhver mail (ingen afsendelse i testen).
+    const { sendInvoiceEmail } = await import('../../src/lib/services/invoices')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const { data: inv, error } = await admin.from('invoices').insert({ invoice_number: `H-CLAIM-${stamp}`, status: 'draft' }).select('id').single()
+    if (error) throw new Error(error.message)
+    const id = (inv as { id: string }).id
+    try {
+      const [a, b] = await Promise.all([sendInvoiceEmail(id), sendInvoiceEmail(id)])
+      const statuses = [a.status, b.status].sort().join(',')
+      check('to samtidige kald: højst ét kommer forbi kravet', statuses === 'already_sent,skipped' || statuses === 'skipped,skipped', statuses)
+      const after = (await admin.from('invoices').select('sent_at, status').eq('id', id).single()).data as { sent_at: string | null; status: string }
+      check('kravet frigives efter skipped (sent_at null, stadig kladde)', after.sent_at === null && after.status === 'draft', JSON.stringify(after))
+      await admin.from('invoices').update({ sent_at: new Date().toISOString() }).eq('id', id)
+      const c = await sendInvoiceEmail(id)
+      check('allerede krævet/sendt → already_sent', c.status === 'already_sent', c.status)
+    } finally {
+      await admin.from('invoices').delete().eq('id', id)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ send-krav ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'find-or-create-customer-check') {
     // Kunde-/leads-review 2026-10-07: mail-automatikkens kundeopslag — telefon i andet format og afsender-e-mail skal
     // finde den eksisterende kunde (ingen dublet). Opretter ALDRIG (data uden adresse/gyldig telefon i negativ-casen).

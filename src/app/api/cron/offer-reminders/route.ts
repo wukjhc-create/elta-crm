@@ -19,6 +19,9 @@ import { isOfferExpired } from '@/lib/offers/validity'
 import { markReminderSent, reminderAlreadySent } from '@/lib/tasks/reminder-marker'
 import { escapeHtml } from '@/lib/utils/html-escape'
 
+/** Mail-review 2026-10-07: højst så mange rykkere pr. kørsel (tidsgrænse 60 s; hver Graph-afsendelse kan tage op til ~8 s) */
+const MAX_REMINDERS_PER_RUN = 5
+
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
@@ -83,6 +86,8 @@ async function handleCron(request: Request): Promise<Response> {
         .in('status', ['sent', 'viewed'])
         // salgs-review: forslag (is_proposal) er ikke rigtige tilbud — ingen rykkere
         .eq('is_proposal', false)
+        // mail-review 2026-10-07: tilbud der allerede er blevet til en sag (accepteret pr. telefon) rykkes ikke
+        .is('converted_case_id', null)
         .lt('reminder_count', maxCount)
         .or(`last_reminder_sent.is.null,last_reminder_sent.lt.${cutoffDate.toISOString()}`)
         .not('sent_at', 'is', null)
@@ -92,6 +97,7 @@ async function handleCron(request: Request): Promise<Response> {
         const { generateReminderEmailHtml, generateReminderEmailText } = await import('@/lib/email/templates/reminder-email')
 
         for (const offer of pendingOffers) {
+          if (totalSent >= MAX_REMINDERS_PER_RUN) break
           try {
             const customerRaw = offer.customer as unknown
             const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
@@ -204,7 +210,7 @@ async function handleCron(request: Request): Promise<Response> {
     try {
       const { data: pendingFuldmagter } = await supabase
         .from('customer_documents')
-        .select('id, customer_id, title, description, created_at, customer:customers(company_name, contact_person, email)')
+        .select('id, customer_id, title, description, created_at, customer:customers(company_name, contact_person, email, is_active)')
         .eq('document_type', 'contract')
         .lt('created_at', cutoffDate.toISOString())
 
@@ -217,8 +223,10 @@ async function handleCron(request: Request): Promise<Response> {
             if (desc.reminder_sent) continue
 
             const customerRaw = doc.customer as unknown
-            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
-            if (!customer?.email) continue
+            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string; is_active?: boolean | null } | null
+            // mail-review 2026-10-07: deaktiverede kunder rykkes ikke
+            if (!customer?.email || customer.is_active === false) continue
+            if (totalSent >= MAX_REMINDERS_PER_RUN) break
 
             const html = buildFollowUpEmail(
               customer.contact_person || customer.company_name,
@@ -237,6 +245,13 @@ async function handleCron(request: Request): Promise<Response> {
               continue
             }
             const route = routeResult.route
+            // mail-review 2026-10-07: KRAV før afsendelse (markøren skrives betinget på uændret beskrivelse) — før blev
+            // markøren skrevet EFTER afsendelsen, så en kørsel der ramte tidsgrænsen sendte samme rykker igen næste dag
+            const originalDescription = doc.description as string
+            const claimedDesc = JSON.stringify({ ...desc, reminder_sent: new Date().toISOString() })
+            const { data: fClaim } = await supabase.from('customer_documents').update({ description: claimedDesc })
+              .eq('id', doc.id).eq('description', originalDescription).select('id').maybeSingle()
+            if (!fClaim) continue
             const result = await sendEmailViaGraph({
               to: route.toEmail,
               subject: `Påmindelse: Fuldmagt afventer din underskrift — ${BRAND_COMPANY_NAME}`,
@@ -249,12 +264,10 @@ async function handleCron(request: Request): Promise<Response> {
             )
 
             if (result.success) {
-              // Mark as reminded so we don't spam
-              desc.reminder_sent = new Date().toISOString()
-              await supabase.from('customer_documents').update({
-                description: JSON.stringify(desc),
-              }).eq('id', doc.id)
               totalSent++
+            } else {
+              // frigiv kravet (kun hvis ingen andre har ændret beskrivelsen imens)
+              await supabase.from('customer_documents').update({ description: originalDescription }).eq('id', doc.id).eq('description', claimedDesc)
             }
           } catch (err) {
             errors.push(`Fuldmagt ${doc.id}: ${err instanceof Error ? err.message : 'Fejl'}`)
@@ -269,7 +282,7 @@ async function handleCron(request: Request): Promise<Response> {
     try {
       const { data: pendingTasks } = await supabase
         .from('customer_tasks')
-        .select('id, customer_id, title, description, created_at, due_date, status, auto_rule, customer:customers(company_name, contact_person, email)')
+        .select('id, customer_id, title, description, created_at, due_date, status, auto_rule, customer:customers(company_name, contact_person, email, is_active)')
         .ilike('title', '%esigtigelse%')
         .eq('status', 'pending')
         .lt('created_at', cutoffDate.toISOString())
@@ -282,8 +295,9 @@ async function handleCron(request: Request): Promise<Response> {
         for (const task of remindable) {
           try {
             const customerRaw = task.customer as unknown
-            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
-            if (!customer?.email) continue
+            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string; is_active?: boolean | null } | null
+            if (!customer?.email || customer.is_active === false) continue
+            if (totalSent >= MAX_REMINDERS_PER_RUN) break
 
             // Allerede sendt? Markeres i beskrivelsen — teksten bevares (lib/tasks/reminder-marker.ts)
             if (reminderAlreadySent(task.description)) continue
@@ -305,6 +319,13 @@ async function handleCron(request: Request): Promise<Response> {
               continue
             }
             const route = routeResult.route
+            // KRAV før afsendelse (samme mønster som fuldmagt ovenfor)
+            const originalTaskDesc = (task.description ?? null) as string | null
+            const claimedTaskDesc = markReminderSent(task.description)
+            let tq = supabase.from('customer_tasks').update({ description: claimedTaskDesc }).eq('id', task.id)
+            tq = originalTaskDesc === null ? tq.is('description', null) : tq.eq('description', originalTaskDesc)
+            const { data: tClaim } = await tq.select('id').maybeSingle()
+            if (!tClaim) continue
             const result = await sendEmailViaGraph({
               to: route.toEmail,
               subject: `Påmindelse: Bekræft din besigtigelse — ${BRAND_COMPANY_NAME}`,
@@ -317,9 +338,9 @@ async function handleCron(request: Request): Promise<Response> {
             )
 
             if (result.success) {
-              const description = markReminderSent(task.description)
-              await supabase.from('customer_tasks').update({ description }).eq('id', task.id)
               totalSent++
+            } else {
+              await supabase.from('customer_tasks').update({ description: originalTaskDesc }).eq('id', task.id).eq('description', claimedTaskDesc)
             }
           } catch (err) {
             errors.push(`Besigtigelse ${task.id}: ${err instanceof Error ? err.message : 'Fejl'}`)
