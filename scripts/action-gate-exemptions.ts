@@ -56,6 +56,7 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'portal.ts:getAttachmentUrl': T('signeret fil-URL til kundens egne vedhaeftninger via portal-token'),
   'portal.ts:getPortalInvoices': T('kundens fakturaer via portal-token'),
   'portal.ts:getPortalDocuments': T('kundens dokumenter via portal-token (scopet til token-kunden)'),
+  'service-cases.ts:getPortalServiceCases': T('kundens sager via portal-token (validatePortalToken i kroppen; før kunde-id fra kalderen)'),
   'portal.ts:getPortalBesigtigelser': T('kundens besigtigelser via portal-token'),
   'partner-portal.ts:getPartnerServiceCases': T('partnerens sager via partner-token'),
   'partner-portal.ts:getPartnerDocuments': T('partnerens dokumenter via partner-token'),

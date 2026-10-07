@@ -21,6 +21,7 @@ import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { logCreate, logUpdate, logDelete, logStatusChange, createAuditLog } from '@/lib/actions/audit'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { insertOfferWithNumber } from '@/lib/services/offer-number'
+import { recomputeOfferTotals } from '@/lib/services/offer-pricing'
 import { emitOfferEvent } from '@/lib/services/webhook-dispatch'
 import { createServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { isValidOfferTransition, OFFER_STATUS_LABELS } from '@/types/offers.types'
@@ -559,6 +560,20 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
       throw new Error('DATABASE_ERROR')
     }
 
+    // Tilbuds-review 2026-10-07: update_offer_totals kører kun ved ændring af LINJER — ændret rabat-%/moms-% på selve
+    // tilbuddet lod discount_amount/tax_amount/final_amount stå (PDF/portal/sag viste den gamle total). Samme formel
+    // som triggeren (recomputeOfferTotals); returnér de opdaterede beløb.
+    let result = data as Offer
+    if ('discount_percentage' in updateData || 'tax_percentage' in updateData) {
+      const totals = await recomputeOfferTotals(offerId!)
+      if (!totals) {
+        logger.error('updateOffer: recompute totals failed', { entityId: offerId })
+        throw new Error('DATABASE_ERROR')
+      }
+      const { data: fresh } = await supabase.from('offers').select().eq('id', offerId!).single()
+      if (fresh) result = fresh as Offer
+    }
+
     // Log activity
     await logOfferActivity(
       offerId,
@@ -572,7 +587,7 @@ export async function updateOffer(formData: FormData): Promise<ActionResult<Offe
 
     revalidatePath('/offers')
     revalidatePath(`/offers/${offerId}`)
-    return { success: true, data: data as Offer }
+    return { success: true, data: result }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke opdatere tilbud') }
   }
@@ -717,12 +732,15 @@ export async function updateOfferStatus(
       .from('offers')
       .update(updateData)
       .eq('id', id)
+      // tilbuds-review 2026-10-07: kun hvis status er uændret siden læsningen — to samtidige klik (eller en portal-accept
+      // imens) gav dobbelt lead-vundet/webhook/sag-oprettelse eller overskrev kundens svar
+      .eq('status', current.status)
       .select()
       .single()
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return { success: false, error: 'Tilbuddet blev ikke fundet' }
+        return { success: false, error: 'Tilbuddets status er netop ændret — genindlæs siden' }
       }
       logger.error('Database error updating offer status', { error: error })
       throw new Error('DATABASE_ERROR')

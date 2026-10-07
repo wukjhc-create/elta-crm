@@ -451,9 +451,17 @@ export async function deleteServiceCase(id: string): Promise<ActionResult> {
 // =====================================================
 
 export async function getPortalServiceCases(
-  customerId: string
+  token: string
 ): Promise<ActionResult<PortalServiceCase[]>> {
   try {
+    // Portal-review 2026-10-07: tager TOKEN (ikke et kunde-id fra kalderen) — som eksporteret server action med
+    // service-role kunne et kunde-id fra klienten ellers liste en vilkårlig kundes sager.
+    const { validatePortalToken } = await import('@/lib/actions/portal')
+    const sessionResult = await validatePortalToken(token)
+    if (!sessionResult.success || !sessionResult.data) {
+      return { success: false, error: sessionResult.error || 'Ugyldig adgang' }
+    }
+    const customerId = sessionResult.data.customer_id
     // Phase α.2 trin 4: service_cases anon-policy via portal_access_tokens
     // er droppet i 00127. Vi bruger nu createAdminClient + customer_id-scope
     // fra caller (typisk session.customer_id efter validatePortalToken).

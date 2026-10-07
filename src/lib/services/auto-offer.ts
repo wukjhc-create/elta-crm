@@ -27,7 +27,7 @@ import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
 import { fillOfferStarterLines } from '@/lib/services/offer-starter-packs'
 import { applyPackageToOffer } from '@/lib/services/offer-packages'
 import {
-  recalculateOfferFull,
+  recomputeOfferTotals,
   suggestDiscount,
   type MarginContext,
 } from '@/lib/services/offer-pricing'
@@ -179,12 +179,13 @@ export async function createOfferDraftFromCase(input: AutoOfferInput): Promise<s
     }
 
     // 3. Discount suggestion — only auto-applied on creation. Manual edits later
-    //    will overwrite this; recalculateOfferFull respects whatever discount the
+    //    will overwrite this; recomputeOfferTotals respects whatever discount the
     //    rep saves.
     await applyDiscountSuggestion(result.data.id, marginContext.isRepeatCustomer === true)
 
-    // 4. Final totals roll-up.
-    await recalculateOfferFull(result.data.id)
+    // 4. Final totals roll-up — samme formel som DB-triggeren (tilbuds-review 2026-10-07: recalculateOfferFull gemte
+    //    total_amount som netto, skrev aldrig discount_amount og trak rabatten fra to gange → PDF/portal viste forkert)
+    await recomputeOfferTotals(result.data.id)
   } catch (err) {
     console.warn('STARTER LINES FAILED:', err instanceof Error ? err.message : err)
   }
@@ -254,7 +255,7 @@ async function applyDiscountSuggestion(offerId: string, isRepeatCustomer: boolea
     }
 
     // Need a current total to evaluate the > 50.000 threshold; use a quick
-    // line-item sum (we haven't called recalculateOfferFull yet at this point).
+    // line-item sum (we haven't called recomputeOfferTotals yet at this point).
     const { data: lines } = await supabase
       .from('offer_line_items')
       .select('sale_price, unit_price, quantity, discount_percentage')

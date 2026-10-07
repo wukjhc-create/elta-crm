@@ -30,7 +30,7 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
     getPortalOffers(token),
     getPortalMessages(token),
     getPortalDocuments(token),
-    getPortalServiceCases(session.customer_id),
+    getPortalServiceCases(token),
     getPortalInvoices(token),
     getPortalFuldmagter(token),
   ])

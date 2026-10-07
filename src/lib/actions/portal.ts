@@ -397,6 +397,9 @@ export async function getPortalOffer(
         })
         .eq('id', offerId)
         .eq('customer_id', customerId)
+        // tilbuds-review 2026-10-07: kun fra 'sent' — en samtidig accept/kladde (telefon/medarbejder) blev overskrevet
+        .eq('status', 'sent')
+        .is('viewed_at', null)
 
       // Log view activity (anon-INSERT droppet i 00124)
       await admin.from('offer_activities').insert({
@@ -512,7 +515,7 @@ export async function acceptOffer(
                      'unknown'
 
     // Create signature — offer_id er verificeret kunde-ejet ovenfor
-    const { error: signatureError } = await admin
+    const { data: sigRow, error: signatureError } = await admin
       .from('offer_signatures')
       .insert({
         offer_id: data.offer_id,
@@ -521,8 +524,10 @@ export async function acceptOffer(
         signer_ip: clientIp,
         signature_data: data.signature_data,
       })
+      .select('id')
+      .single()
 
-    if (signatureError) {
+    if (signatureError || !sigRow) {
       logger.error('Error creating signature', { error: signatureError })
       return { success: false, error: 'Kunne ikke gemme underskrift' }
     }
@@ -542,11 +547,13 @@ export async function acceptOffer(
       .maybeSingle()
 
     if (!updateError && !acceptedRow) {
-      // tilbuddet blev besvaret imens — fjern den netop gemte underskrift igen
-      await admin.from('offer_signatures').delete().eq('offer_id', data.offer_id)
+      // tilbuddet blev besvaret imens — fjern KUN den netop gemte underskrift (S1 tilbuds-/portal-review 2026-10-07: før
+      // .eq('offer_id') → en samtidig dobbelt-accept slettede også den vindende accepts underskrift)
+      await admin.from('offer_signatures').delete().eq('id', (sigRow as { id: string }).id)
       return { success: false, error: 'Tilbuddet er netop besvaret — genindlæs siden' }
     }
     if (updateError) {
+      await admin.from('offer_signatures').delete().eq('id', (sigRow as { id: string }).id)
       logger.error('Error updating offer', { error: updateError })
       return { success: false, error: 'Kunne ikke opdatere tilbud' }
     }
