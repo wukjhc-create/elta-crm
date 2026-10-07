@@ -318,8 +318,10 @@ export interface ExtractedCustomer {
 export function isForwardedEmail(email: EmailInput): boolean {
   const subject = (email.subject || '').toLowerCase()
   if (/^(vs|fwd|fw|vb)[:\s]/i.test(subject)) return true
+  // Kunde-/leads-review 2026-10-07: kun EKSPLICITTE videresendelses-markører (som email-linker). Før talte enhver citeret
+  // "Fra:"/"From:"-linje → alle Outlook-svar ("SV:/Re:") blev 'videresendt', og AI'en udtrak Eltas egen signatur.
   const body = email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || ''
-  return FORWARD_HEADERS.some((re) => re.test(body))
+  return FORWARD_HEADERS[0].test(body)
 }
 
 // =====================================================
@@ -396,12 +398,13 @@ Svar KUN med raa JSON: {"type":"customer"} eller {"type":"supplier"} eller {"typ
 // 2. EXTRACT CUSTOMER FROM BODY (AI)
 // =====================================================
 
-export async function extractCustomer(body: string): Promise<ExtractedCustomer> {
+export async function extractCustomer(body: string, opts?: { forwarded?: boolean }): Promise<ExtractedCustomer> {
   const raw = (body || '').trim()
   if (!raw) return { name: null, phone: null, address: null, confidence: 0 }
 
-  // 1. Prefer forwarded content if present — slice from the FIRST forward header onward
-  const forwarded = isolateForwardedSection(raw)
+  // 1. Videresendt: brug den videresendte del (fra første header). Svar (kunde-/leads-review 2026-10-07): brug KUN
+  //    teksten FØR citatet — ellers blev Eltas egen citerede mail/signatur udtrukket som "kunden".
+  const forwarded = opts?.forwarded === false ? stripQuotedReply(raw) : isolateForwardedSection(raw)
   // 2. Strip blocks that look like supplier signatures
   const cleaned = stripSupplierSignatures(forwarded).substring(0, 4000)
   if (!cleaned.trim()) return { name: null, phone: null, address: null, confidence: 0 }
@@ -455,6 +458,16 @@ Svar KUN med rå JSON.`,
     console.log('CONFIDENCE:', 0)
     return empty
   }
+}
+
+/** Svar: alt FØR første citat-header ("Fra:/From:/Afsender:" eller "--- Original besked ---"). */
+function stripQuotedReply(text: string): string {
+  let firstIdx = -1
+  for (const re of FORWARD_HEADERS) {
+    const m = text.match(re)
+    if (m && m.index !== undefined && (firstIdx === -1 || m.index < firstIdx)) firstIdx = m.index
+  }
+  return firstIdx > 0 ? text.substring(0, firstIdx) : text
 }
 
 function isolateForwardedSection(text: string): string {
@@ -765,7 +778,7 @@ async function processEmailIntelligenceUnsafe(
   // -------- Stage 2: extract --------
   const body =
     email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || ''
-  const extracted = await extractCustomer(body)
+  const extracted = await extractCustomer(body, { forwarded: isForwardedEmail(email) })
 
   if (!extracted.name && !extracted.phone) {
     console.log('SKIP: NO VALID CUSTOMER DATA —', email.subject)
