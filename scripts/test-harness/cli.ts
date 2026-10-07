@@ -995,6 +995,52 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'assistant-resolve-check') {
+    // STAGING (T1): ELTA Assistant finder præcis én kunde/sag — tvetydigt → kandidater, aldrig gæt. Rigtig admin-session.
+    const { resolveTarget } = await import('../../src/lib/assistant/resolve-target')
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const cl = personas.get('admin')
+    if (!cl) throw new Error('admin-persona mangler')
+    const stamp = Date.now()
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').limit(1)).data as Array<{ id: string }> | null)?.[0]?.id
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const ids: string[] = []
+    const mk = async (company: string, contact: string) => {
+      const { data, error } = await admin.from('customers').insert({ customer_number: `AS-${stamp}-${ids.length}`, company_name: company, contact_person: contact, email: `as-${stamp}-${ids.length}@harness.test`, created_by: owner }).select('id').single()
+      if (error) throw new Error(error.message)
+      ids.push((data as { id: string }).id)
+      return (data as { id: string }).id
+    }
+    let caseId: string | null = null
+    try {
+      const u = `Q${stamp}`
+      const a = await mk(`Hansen${u} El ApS`, `Jens Hansen${u}`)
+      await mk(`Hansen${u} VVS`, `Ole Hansen${u}`)
+      const r1 = await resolveTarget(cl, `Hansen${u}`)
+      check('"Hansen" med 2 kunder → tvetydigt (kandidater, intet gæt)', r1.status === 'ambiguous' && r1.candidates.length === 2, JSON.stringify(r1).slice(0, 160))
+      const r2 = await resolveTarget(cl, `Hansen${u} El ApS`)
+      check('præcist firmanavn → entydig kunde', r2.status === 'resolved' && r2.target.id === a, JSON.stringify(r2).slice(0, 160))
+      const r3 = await resolveTarget(cl, `Jens Hansen${u}`)
+      check('præcis kontaktperson → entydig kunde', r3.status === 'resolved' && r3.target.id === a)
+      const r4 = await resolveTarget(cl, `Findesikke${u}`)
+      check('ukendt → ingen', r4.status === 'none')
+      const r5 = await resolveTarget(cl, `hansen${u}, el`)
+      check('komma i søgning bryder ikke filteret', r5.status !== undefined)
+      const { data: sc } = await admin.from('service_cases').select('id, case_number, customer_id').limit(1).maybeSingle()
+      if (sc) {
+        caseId = (sc as { id: string }).id
+        const r6 = await resolveTarget(cl, String((sc as { case_number: string }).case_number).toLowerCase())
+        check('sagsnummer (små bogstaver) → entydig sag', r6.status === 'resolved' && r6.target.kind === 'case' && r6.target.id === caseId, JSON.stringify(r6).slice(0, 160))
+      } else check('staging har mindst én sag', false)
+    } finally {
+      if (ids.length) await admin.from('customers').delete().in('id', ids)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ assistant-opslag bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'pending-invites') {
     // Staging (read-only): afventende invitationer som Brugerstyring nu viser dem (auth: invited_at uden første login) — kun antal
     const all: Array<{ invited_at?: string | null; last_sign_in_at?: string | null; email?: string }> = []

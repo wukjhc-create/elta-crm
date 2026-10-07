@@ -1,0 +1,77 @@
+/**
+ * ELTA Assistant (T1) — find præcis ÉN kunde eller sag ud fra kommandoens mål ("Hansen", "SVC-01019").
+ * CRM er source of truth: opslaget sker i CRM-tabellerne med den klient kalderen giver (brugerens egne rettigheder).
+ * Tvetydighed gættes ALDRIG — flere lige gode træf → kandidatliste, som brugeren vælger imellem.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { orIlikeContains } from '@/lib/validations/postgrest-filter'
+
+export type TargetCandidate = {
+  kind: 'customer' | 'case'
+  id: string
+  /** Kunden for en sag (eller kunden selv); en sag kan mangle kunde */
+  customerId: string | null
+  label: string
+}
+
+export type TargetResolution =
+  | { status: 'resolved'; target: TargetCandidate }
+  | { status: 'ambiguous'; candidates: TargetCandidate[] }
+  | { status: 'none' }
+
+export const MAX_CANDIDATES = 5
+
+type CustomerRow = { id: string; customer_number: string | null; company_name: string | null; contact_person: string | null; email: string | null }
+
+const norm = (s: string | null | undefined) => (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+export function customerLabel(c: CustomerRow): string {
+  const name = c.company_name || c.contact_person || c.email || 'Ukendt kunde'
+  const extra = c.company_name && c.contact_person && norm(c.company_name) !== norm(c.contact_person) ? ` (${c.contact_person})` : ''
+  return `${name}${extra}${c.customer_number ? ` · ${c.customer_number}` : ''}`
+}
+
+/**
+ * Ren rangering af kunde-træf: et entydigt præcist træf (kundenr., e-mail, firmanavn eller kontaktperson) vinder;
+ * ellers er ét træf i alt entydigt; ellers tvetydigt.
+ */
+export function rankCustomers(term: string, rows: CustomerRow[]): TargetResolution {
+  if (!rows.length) return { status: 'none' }
+  const t = norm(term)
+  const toCand = (c: CustomerRow): TargetCandidate => ({ kind: 'customer', id: c.id, customerId: c.id, label: customerLabel(c) })
+  const exact = rows.filter((c) => [c.customer_number, c.email, c.company_name, c.contact_person].some((v) => norm(v) === t))
+  if (exact.length === 1) return { status: 'resolved', target: toCand(exact[0]) }
+  if (exact.length > 1) return { status: 'ambiguous', candidates: exact.slice(0, MAX_CANDIDATES).map(toCand) }
+  if (rows.length === 1) return { status: 'resolved', target: toCand(rows[0]) }
+  return { status: 'ambiguous', candidates: rows.slice(0, MAX_CANDIDATES).map(toCand) }
+}
+
+const CASE_NUMBER = /^svc-\d+$/i
+
+export async function resolveTarget(client: SupabaseClient, rawTerm: string): Promise<TargetResolution> {
+  const term = rawTerm.replace(/\s+/g, ' ').trim()
+  if (term.length < 2) return { status: 'none' }
+
+  if (CASE_NUMBER.test(term)) {
+    const { data, error } = await client
+      .from('service_cases')
+      .select('id, case_number, title, customer_id')
+      .ilike('case_number', term)
+      .limit(2)
+    if (error) throw error
+    const rows = (data ?? []) as Array<{ id: string; case_number: string; title: string | null; customer_id: string | null }>
+    if (rows.length !== 1) return rows.length ? { status: 'ambiguous', candidates: rows.map((r) => ({ kind: 'case', id: r.id, customerId: r.customer_id, label: `${r.case_number} ${r.title ?? ''}`.trim() })) } : { status: 'none' }
+    const r = rows[0]
+    return { status: 'resolved', target: { kind: 'case', id: r.id, customerId: r.customer_id, label: `${r.case_number} ${r.title ?? ''}`.trim() } }
+  }
+
+  const { data, error } = await client
+    .from('customers')
+    .select('id, customer_number, company_name, contact_person, email')
+    .eq('is_active', true)
+    .or(orIlikeContains(['company_name', 'contact_person', 'email', 'customer_number'], term))
+    .order('company_name')
+    .limit(20)
+  if (error) throw error
+  return rankCustomers(term, (data ?? []) as CustomerRow[])
+}
