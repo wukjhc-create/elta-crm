@@ -2257,7 +2257,8 @@ ${m.text()}`) })
       const denied: string[] = []
       for (const path of ['/dashboard/agents', '/dashboard/pilot-health', '/dashboard/mail']) { // mail: G9
         await gotoSafe(m.page, `${base}${path}`, { waitUntil: 'networkidle', timeout: 180_000 })
-        if ((await m.page.getByText('Du har ikke adgang').count()) > 0) denied.push(path)
+        // vent på teksten (server-komponenten kan streame efter networkidle — count() alene var flaky: 2/3 én gang)
+        if (await m.page.getByText('Du har ikke adgang').first().waitFor({ timeout: 15_000 }).then(() => true, () => false)) denied.push(path)
       }
       await m.page.screenshot({ caret: 'initial', path: join(shots, 'pilot-health-montoer.png'), fullPage: true })
       out.push({ id: 'U4 montør: ingen adgang', ok: denied.length === 3, note: `NoAccess på ${denied.length}/3 (${denied.join(', ') || '-'})` })
