@@ -637,13 +637,13 @@ async function main() {
     const cust = (await stagingSql(`SELECT id FROM customers WHERE custom_fields->>'harness' IS NOT NULL LIMIT 1`))[0]
     const stamp = Date.now()
     const offerIds: string[] = []
-    const mk = async (tag: string, offerDisc: number, lineDisc: number) => {
+    const mk = async (tag: string, offerDisc: number, lineDisc: number, salePrice: number = 1000) => {
       const { data, error } = await admin.from('offers').insert([{ offer_number: `UI-E2E-DISC-${tag}-${stamp}`, title: `[HARNESS] rabat ${tag}`,
         created_by: actors.ownerUid, customer_id: cust.id, status: 'accepted', accepted_at: new Date().toISOString(), discount_percentage: offerDisc }]).select('id')
       const id = (data?.[0] as { id?: string } | undefined)?.id
       if (!id) throw new Error(`seed: ${error?.message}`)
       offerIds.push(id)
-      await admin.from('offer_line_items').insert([{ offer_id: id, position: 1, description: 'Linje', quantity: 1, unit: 'stk', unit_price: 1000, discount_percentage: lineDisc, total: 1000 * (1 - lineDisc / 100) }])
+      await admin.from('offer_line_items').insert([{ offer_id: id, position: 1, description: 'Linje', quantity: 1, unit: 'stk', unit_price: 1000, sale_price: salePrice, discount_percentage: lineDisc, total: 1000 * (1 - lineDisc / 100) }])
       return id
     }
     const res: Array<[string, boolean]> = []
@@ -654,6 +654,11 @@ async function main() {
         const n = (await stagingSql(`SELECT count(*)::int n FROM invoices WHERE offer_id = '${id}'`))[0].n
         res.push([`${tag}_afvist`, /rabat/.test(err) && n === 0])
       }
+      // S1 (2026-10-07): linje med sale_price 0 (manuelt oprettet før rettelsen) → ville faktureres til 0 kr → afvises
+      const zero = await mk('salgspris0', 0, 0, 0)
+      const zErr = await createInvoiceFromOffer(zero).then(() => '', (e: Error) => e.message)
+      const zN = (await stagingSql(`SELECT count(*)::int n FROM invoices WHERE offer_id = '${zero}'`))[0].n
+      res.push(['salgspris_0_afvist', /fakturaprisen/.test(zErr) && zN === 0])
       const plain = await mk('uden', 0, 0)
       const invId = await createInvoiceFromOffer(plain).catch(() => '')
       res.push(['uden_rabat_oprettes', !!invId])

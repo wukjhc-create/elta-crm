@@ -89,6 +89,15 @@ export async function createInvoiceFromOffer(
     if (Number(off?.discount_percentage) > 0 || Number(off?.discount_amount) > 0 || (discountedLines ?? 0) > 0) {
       throw new Error('Tilbuddet har rabat — automatisk faktura fra tilbud medregner ikke rabat endnu. Opret fakturaen manuelt.')
     }
+    // S1 (tilbuds-review 2026-10-07): SQL-funktionen prissætter med COALESCE(sale_price, unit_price, 0), men sale_price
+    // er NOT NULL DEFAULT 0, og manuelt oprettede/redigerede linjer gemte kun unit_price → linjen blev faktureret (og
+    // automatik-reglen SENDT) til 0 kr eller en forældet pris. Afvis indtil linjerne er rettet (prod-data → godkendelse).
+    const { data: priceLines } = await supabase.from('offer_line_items').select('sale_price, unit_price').eq('offer_id', offerId)
+    const mispriced = ((priceLines ?? []) as Array<{ sale_price: number | string | null; unit_price: number | string | null }>)
+      .filter((l) => Number(l.unit_price ?? 0) !== 0 && Number(l.sale_price ?? 0) !== Number(l.unit_price ?? 0)).length
+    if (mispriced > 0) {
+      throw new Error(`Tilbuddet har ${mispriced} linje(r) hvor fakturaprisen ikke svarer til tilbudsprisen — automatisk faktura fra tilbud afvist. Opret fakturaen manuelt.`)
+    }
   }
 
   // Sprint 2E.2A: resolver betalingsfrist (customer → company → 14) når

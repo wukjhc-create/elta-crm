@@ -883,6 +883,8 @@ export async function createLineItem(
       .insert({
         ...validated.data,
         total,
+        // S1 (tilbuds-review 2026-10-07): sale_price = enhedsprisen (faktura-funktionen prissætter med sale_price; før 0)
+        sale_price: validated.data.unit_price,
         cost_price: costPrice,
         supplier_margin_applied: supplierMargin,
         supplier_cost_price_at_creation: supplierCostAtCreation,
@@ -970,6 +972,8 @@ export async function updateLineItem(
       .update({
         ...updateData,
         total,
+        // S1: sale_price følger enhedsprisen (ellers fakturerede faktura-funktionen den gamle pris)
+        ...(updateData.unit_price !== undefined ? { sale_price: updateData.unit_price } : {}),
         ...(costPrice !== undefined ? { cost_price: costPrice } : {}),
         ...(mayTouchCost ? { supplier_margin_applied: supplierMargin } : {}),
         ...(mayTouchCost ? { supplier_cost_price_at_creation: supplierCostAtCreation } : {}),
