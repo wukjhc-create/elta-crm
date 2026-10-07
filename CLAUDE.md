@@ -360,6 +360,14 @@ Ved hver opgave:
   - Mail-vedhæftninger arkiveret på kunden (`customer_documents.source_email_id`) er INTERNE — aldrig i portalen
   - Portal: et tilbuds-id er ingen adgangsnøgle (`/view-offer` udleverer aldrig token); kun sendte tilbud vises
   - Staging kan falde ud i perioder → `npx tsx scripts/test-harness/cli.ts auth-probe --create` før UI-batches
+- 2026-10-07: Prod-migrationer 00198–00202 (se docs/AUTONOMOUS_BACKLOG.md "Prod-kørsel 2026-10-07 aften"):
+  - Kost-lockdown bølge 2 (00200/00201): 17 kost-/rabat-/avancetabeller er KUN læsbare for admin/serviceleder/bogholderi
+    (`user_role()`-politik); `product_catalog.cost_price` har ingen kolonne-SELECT for `authenticated` → brug
+    `PRODUCT_PUBLIC_COLUMNS` (lib/products/product-columns.ts) og læs kost med admin-klienten bag en gate
+  - `customers.created_by` er nullable (ON DELETE SET NULL, 00199); afviste timer (`approval_status = 'rejected'`)
+    tæller aldrig i faktura/kost/avance (00202 + app-filtre)
+  - Tilbud: kun kladder kan redigeres (lib/offers/edit-lock.ts); revisioner (00203) kun på staging bag
+    `OFFER_REVISIONS_ENABLED`
 
 <!-- BEGIN:nextjs-agent-rules -->
 
