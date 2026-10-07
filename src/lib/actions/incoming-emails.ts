@@ -37,6 +37,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
+import { pageWithinIds } from '@/lib/supabase/in-chunks'
 import type {
   IncomingEmailWithCustomer,
   EmailLinkStatus,
@@ -69,12 +70,9 @@ export async function getIncomingEmails(options?: {
   const pageSize = options?.pageSize || 25
   const offset = (page - 1) * pageSize
 
-  let query = supabase
-    .from('incoming_emails')
-    .select(
-      // N85: listen henter IKKE body_html/body_text (prod: ~400 KB pr. side à 25 mails, også ved hver
-      // baggrundsopdatering) — mail-siden henter brødteksten, når en mail åbnes (getIncomingEmail)
-      `
+  // N85: listen henter IKKE body_html/body_text (prod: ~400 KB pr. side à 25 mails, også ved hver
+  // baggrundsopdatering) — mail-siden henter brødteksten, når en mail åbnes (getIncomingEmail)
+  const LIST_SELECT = `
       ${LIST_COLUMNS},
       customers (
         id,
@@ -83,33 +81,60 @@ export async function getIncomingEmails(options?: {
         email,
         customer_number
       )
-    `,
-      { count: 'exact' }
-    )
-    // N63: "Arkiveret"-fanen viser de arkiverede (kan gendannes); alle andre faner kun ikke-arkiverede
-    .eq('is_archived', filter === 'archived')
-    .order('received_at', { ascending: sortOrder === 'oldest' })
-    .range(offset, offset + pageSize - 1)
+    `
 
-  // Apply link status filter
-  if (filter === 'linked') {
-    query = query.eq('link_status', 'linked')
-  } else if (filter === 'unidentified') {
-    query = query.eq('link_status', 'unidentified')
-  } else if (filter === 'pending') {
-    query = query.eq('link_status', 'pending')
-  } else if (filter === 'ignored') {
-    query = query.eq('link_status', 'ignored')
-  } else if (filter === 'webform') {
-    // Webhenvendelser fra hjemmesiden, der ikke er koblet til en kunde — også de historisk fejl-ignorerede
-    query = query.ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null)
-  } else if (filter === 'ao_matches') {
-    // Skip noise i AO-matches også — undgå at marketing-mails om AO
-    // dukker op selvom de matcher et AO-produkt-keyword
-    query = query.eq('has_ao_matches', true).neq('link_status', 'ignored')
-  } else if (filter === 'requires_response') {
-    // Sprint 8E-1A: filter til mails der kræver svar.
-    // Live-beregnet: hent IDs fra helper og filtrér via .in()
+  // Fanens filtre som funktion, så "Kræver svar" (et beregnet id-sæt) kan pagineres i bidder (X4n: én .in() med alle
+  // id'er sprængte URL-grænsen ~350 → tom fane). Supabase-byggerens generiske typer kan ikke udtrykkes enkelt her.
+  const applyFilters = (q: any): any => {
+    // N63: "Arkiveret"-fanen viser de arkiverede (kan gendannes); alle andre faner kun ikke-arkiverede
+    q = q.eq('is_archived', filter === 'archived')
+    if (filter === 'linked') {
+      q = q.eq('link_status', 'linked')
+    } else if (filter === 'unidentified') {
+      q = q.eq('link_status', 'unidentified')
+    } else if (filter === 'pending') {
+      q = q.eq('link_status', 'pending')
+    } else if (filter === 'ignored') {
+      q = q.eq('link_status', 'ignored')
+    } else if (filter === 'webform') {
+      // Webhenvendelser fra hjemmesiden, der ikke er koblet til en kunde — også de historisk fejl-ignorerede
+      q = q.ilike('sender_email', '%@formsubmit.co').ilike('subject', '%henvendelse%').is('customer_id', null)
+    } else if (filter === 'ao_matches') {
+      // Skip noise i AO-matches også — undgå at marketing-mails om AO
+      // dukker op selvom de matcher et AO-produkt-keyword
+      q = q.eq('has_ao_matches', true).neq('link_status', 'ignored')
+    } else if (filter === 'archived') {
+      // N63: samme støjregel som "Alle" (ignorerede vises kun i debug-fanen)
+      q = q.neq('link_status', 'ignored')
+    } else if (filter === 'all') {
+      // Sprint 8E noise-cleanup: 'Alle' viser ALDRIG ignored/noise.
+      // Brugeren skal aktivt vælge 'Ignorerede'-tab (debug) for at se dem.
+      q = q.neq('link_status', 'ignored')
+    }
+    // ('requires_response' afgrænses af id-sættet nedenfor)
+
+    // Apply read/unread filter
+    if (readFilter === 'unread') {
+      q = q.eq('is_read', false)
+    } else if (readFilter === 'read') {
+      q = q.eq('is_read', true)
+    }
+
+    // Apply search
+    if (options?.search) {
+      const term = `%${escapeLike(options.search)}%`
+      q = q.or(
+        `subject.ilike.${pgQuote(term)},sender_email.ilike.${pgQuote(term)},sender_name.ilike.${pgQuote(term)},original_sender_email.ilike.${pgQuote(term)}`
+      )
+    }
+    return q
+  }
+
+  let data: unknown[] | null = null
+  let count: number | null = null
+  let error: unknown = null
+  if (filter === 'requires_response') {
+    // Sprint 8E-1A: filter til mails der kræver svar. Live-beregnet id-sæt → pagineret i bidder (pageWithinIds)
     const { getRequiresResponseEmailIds } = await import(
       '@/lib/actions/email-response-status'
     )
@@ -117,32 +142,26 @@ export async function getIncomingEmails(options?: {
     if (ids.length === 0) {
       return { data: [], count: 0 }
     }
-    query = query.in('id', ids)
-  } else if (filter === 'archived') {
-    // N63: samme støjregel som "Alle" (ignorerede vises kun i debug-fanen)
-    query = query.neq('link_status', 'ignored')
-  } else if (filter === 'all') {
-    // Sprint 8E noise-cleanup: 'Alle' viser ALDRIG ignored/noise.
-    // Brugeren skal aktivt vælge 'Ignorerede'-tab (debug) for at se dem.
-    query = query.neq('link_status', 'ignored')
+    try {
+      const r = await pageWithinIds<{ id: string }>(
+        ids,
+        { sortKey: 'received_at', ascending: sortOrder === 'oldest', offset, pageSize },
+        (chunk) => applyFilters(supabase.from('incoming_emails').select('id, received_at')).in('id', chunk).order('id'),
+        (pageIds) => supabase.from('incoming_emails').select(LIST_SELECT).in('id', pageIds),
+      )
+      data = r.rows
+      count = r.count
+    } catch (e) {
+      error = e
+    }
+  } else {
+    const r = await applyFilters(supabase.from('incoming_emails').select(LIST_SELECT, { count: 'exact' }))
+      .order('received_at', { ascending: sortOrder === 'oldest' })
+      .range(offset, offset + pageSize - 1)
+    data = r.data
+    count = r.count
+    error = r.error
   }
-
-  // Apply read/unread filter
-  if (readFilter === 'unread') {
-    query = query.eq('is_read', false)
-  } else if (readFilter === 'read') {
-    query = query.eq('is_read', true)
-  }
-
-  // Apply search
-  if (options?.search) {
-    const term = `%${escapeLike(options.search)}%`
-    query = query.or(
-      `subject.ilike.${pgQuote(term)},sender_email.ilike.${pgQuote(term)},sender_name.ilike.${pgQuote(term)},original_sender_email.ilike.${pgQuote(term)}`
-    )
-  }
-
-  const { data, count, error } = await query
 
   if (error) {
     logger.error('Failed to fetch incoming emails', { error })

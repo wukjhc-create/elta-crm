@@ -410,6 +410,33 @@ async function main() {
     process.exitCode = h.alarms.length ? 2 : 0
     return
   }
+  if (SUB === 'page-within-ids-check') {
+    // pageWithinIds mod RIGTIG PostgREST (tidsstempel-formater, sortering): >200 id'er → side 1/2/3 skal være identiske
+    // med én direkte sorteret forespørgsel (uden id-filter, samme rækker). Read-only.
+    const { pageWithinIds } = await import('../../src/lib/supabase/in-chunks')
+    const { fetchAllRows } = await import('../../src/lib/supabase/fetch-all')
+    const rows = await fetchAllRows<{ id: string; received_at: string }>((f, t) => admin.from('incoming_emails').select('id, received_at').order('id').range(f, t))
+    const ids = rows.slice(0, 650).map((r) => r.id)
+    const idSet = new Set(ids)
+    let fails = 0
+    for (const asc of [false, true]) {
+      const truth = rows.filter((r) => idSet.has(r.id)).sort((a, b) => {
+        const ta = Date.parse(a.received_at), tb = Date.parse(b.received_at)
+        return ta !== tb ? (asc ? ta - tb : tb - ta) : a.id < b.id ? -1 : 1
+      }).map((r) => r.id)
+      for (const page of [0, 1, 7]) {
+        const r = await pageWithinIds<{ id: string }>(ids, { sortKey: 'received_at', ascending: asc, offset: page * 25, pageSize: 25 },
+          (chunk) => admin.from('incoming_emails').select('id, received_at').in('id', chunk).order('id'),
+          (pageIds) => admin.from('incoming_emails').select('id, subject').in('id', pageIds))
+        const same = JSON.stringify(r.rows.map((x) => x.id)) === JSON.stringify(truth.slice(page * 25, page * 25 + 25)) && r.count === truth.length
+        if (!same) fails++
+        log(`${same ? 'PASS' : 'FAIL'}  ${asc ? 'ældste' : 'nyeste'} først, side ${page + 1}: ${r.rows.length} rækker, antal ${r.count}/${truth.length}`)
+      }
+    }
+    log(`${ids.length} id'er testet`)
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'in-list-limit') {
     // Hvor mange UUID'er tåler én .in() (GET-URL) før gatewayen afviser? Read-only mod customers med tilfældige id'er.
     const { randomUUID } = await import('crypto')

@@ -16,6 +16,7 @@ import { senderDomain } from '@/lib/invoice-control/sender-domain'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
+import { selectInChunks } from '@/lib/supabase/in-chunks'
 
 const TERMINAL = ['approved', 'rejected', 'posted', 'cancelled']
 
@@ -57,9 +58,17 @@ async function sameDomainOpenInvoices(ctx: Ctx, domain: string | null, excludeId
     .ilike('sender_email', `%@${domain.replace(/[%_\\]/g, (c) => `\\${c}`)}`).limit(500)
   const ids = ((mails ?? []) as Array<{ id: string; sender_email: string | null }>).filter((m) => senderDomain(m.sender_email) === domain).map((m) => m.id)
   if (!ids.length) return []
-  const { data: inv } = await ctx.supabase.from('incoming_invoices').select('id, status')
-    .in('source_email_id', ids).is('supplier_id', null).neq('id', excludeId).limit(500)
-  return ((inv ?? []) as Array<{ id: string; status: string }>).filter((i) => !TERMINAL.includes(i.status)).map((i) => i.id)
+  // X4n: i bidder af 200 (op til 500 mail-id'er i én .in() sprængte URL-grænsen → de øvrige fakturaer blev ikke fundet)
+  // best-effort som før: en opslagsfejl må ikke vælte selve leverandørvalget (logges i stedet for stille tom liste)
+  let inv: Array<{ id: string; status: string }>
+  try {
+    inv = await selectInChunks<{ id: string; status: string }>(ids, (chunk) => ctx.supabase.from('incoming_invoices').select('id, status')
+      .in('source_email_id', chunk).is('supplier_id', null).neq('id', excludeId))
+  } catch (error) {
+    logger.error('incoming-invoice-supplier: same-domain lookup failed', { error })
+    return []
+  }
+  return inv.filter((i) => !TERMINAL.includes(i.status)).map((i) => i.id)
 }
 
 async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null, supplierId: string | null, label: string | null, onlyIfUnset = false) {
