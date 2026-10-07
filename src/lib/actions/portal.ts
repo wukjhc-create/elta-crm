@@ -2162,6 +2162,9 @@ export async function portalConfirmBesigtigelse(
  * Customer requests to reschedule a besigtigelse via portal.
  * Creates a new task in CRM with the customer's message.
  */
+const PORTAL_RESCHEDULE_RULE = 'portal_reschedule'
+const PORTAL_RESCHEDULE_MAX_PER_DAY = 3
+
 export async function portalRequestReschedule(
   token: string,
   taskId: string,
@@ -2187,13 +2190,25 @@ export async function portalRequestReschedule(
     // Verify task belongs to this customer
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, due_date, title, description')
+      .select('id, customer_id, due_date, title, description, assigned_to')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
     if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; description?: string | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
+    }
+
+    // Q10: højst PORTAL_RESCHEDULE_MAX_PER_DAY åbne anmodninger pr. kunde pr. døgn (før: ubegrænset → opgave-spam)
+    const { count: recent } = await supabase
+      .from('customer_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', session.customer_id)
+      .eq('auto_rule', PORTAL_RESCHEDULE_RULE)
+      .neq('status', 'done')
+      .gte('created_at', new Date(Date.now() - 86_400_000).toISOString())
+    if ((recent ?? 0) >= PORTAL_RESCHEDULE_MAX_PER_DAY) {
+      return { success: false, error: 'Vi har allerede modtaget din anmodning — vi kontakter dig hurtigst muligt' }
     }
 
     // Create a new task for the CRM user
@@ -2209,7 +2224,12 @@ export async function portalRequestReschedule(
         ].join('\n'),
         status: 'pending',
         priority: 'high',
-        created_by: session.customer_id,
+        // created_by peger på auth.users — kundens id er ingen bruger → indsættelsen fejlede ALTID (FK), så kundens
+        // anmodning nåede aldrig frem. Systemoprettet opgave; tildeles samme medarbejder som besigtigelsen.
+        created_by: null,
+        assigned_to: (task as { assigned_to?: string | null }).assigned_to ?? null,
+        auto_generated: true,
+        auto_rule: PORTAL_RESCHEDULE_RULE,
       })
 
     if (insertErr) {

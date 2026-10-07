@@ -956,6 +956,45 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'portal-reschedule-check') {
+    // STAGING: kundeportalens "Ønsk anden dato" for en besigtigelse. Før: created_by = kundens id (FK til auth.users)
+    // → opgaven blev aldrig oprettet. Nu: oprettes, tildeles besigtigelsens medarbejder, højst 3 pr. kunde pr. døgn.
+    const { portalRequestReschedule } = await import('../../src/lib/actions/portal')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').limit(1)).data as Array<{ id: string }> | null)?.[0]?.id
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const { data: cu, error: cuErr } = await admin.from('customers').insert({ customer_number: `RS-${stamp}`, company_name: `[HARNESS] reschedule ${stamp}`, contact_person: 'Kunde', email: `rs-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    if (cuErr) throw new Error(cuErr.message)
+    const custId = (cu as { id: string }).id
+    try {
+      const tok = randomBytes(32).toString('hex')
+      const t1 = await admin.from('portal_access_tokens').insert({ customer_id: custId, token: tok, email: `rs-${stamp}@harness.test`, is_active: true, created_by: owner })
+      if (t1.error) throw new Error(t1.error.message)
+      const { data: bt } = await admin.from('customer_tasks').insert({ customer_id: custId, title: 'Besigtigelse', status: 'pending', priority: 'normal', assigned_to: owner, created_by: owner, due_date: new Date(Date.now() + 5 * 86_400_000).toISOString() }).select('id').single()
+      const taskId = (bt as { id: string }).id
+      // bevis for den gamle fejl: created_by = kundens id afvises af FK'en
+      const old = await admin.from('customer_tasks').insert({ customer_id: custId, title: 'gammel sti', status: 'pending', priority: 'high', created_by: custId })
+      check('gammel indsættelse (created_by = kunde-id) fejler (FK) — fundet bekræftet', !!old.error, old.error?.code ?? 'INDSAT')
+      const results: boolean[] = []
+      for (let i = 0; i < 4; i++) results.push((await portalRequestReschedule(tok, taskId, `Kan vi flytte til næste uge? (${i + 1})`)).success)
+      check('3 anmodninger modtages, 4. afvises (højst 3 pr. døgn)', JSON.stringify(results) === JSON.stringify([true, true, true, false]), JSON.stringify(results))
+      const { data: created } = await admin.from('customer_tasks').select('title, assigned_to, created_by, auto_rule, priority').eq('customer_id', custId).eq('auto_rule', 'portal_reschedule')
+      const rows = (created ?? []) as Array<{ title: string; assigned_to: string | null; created_by: string | null; auto_rule: string; priority: string }>
+      check('opgaverne findes i CRM, tildelt besigtigelsens medarbejder', rows.length === 3 && rows.every((r) => r.assigned_to === owner && r.created_by === null && r.priority === 'high'), JSON.stringify(rows[0] ?? null))
+      const other = await portalRequestReschedule(tok, '00000000-0000-0000-0000-000000000000', 'x')
+      check('fremmed/ukendt opgave afvises', !other.success, other.error ?? '')
+      const long = await portalRequestReschedule(tok, taskId, 'x'.repeat(2001))
+      check('for lang besked afvises', !long.success, long.error ?? '')
+    } finally {
+      await admin.from('customers').delete().eq('id', custId) // opgaver + tokens følger med (CASCADE)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ portal-ombooking bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'pending-invites') {
     // Staging (read-only): afventende invitationer som Brugerstyring nu viser dem (auth: invited_at uden første login) — kun antal
     const all: Array<{ invited_at?: string | null; last_sign_in_at?: string | null; email?: string }> = []
