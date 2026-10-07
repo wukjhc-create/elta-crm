@@ -23,6 +23,7 @@ import { BRAND } from '@/lib/brand'
 import type { ConfirmationRecipientRole } from '@/types/document-confirmations.types'
 import { escapeHtml } from '@/lib/utils/html-escape'
 import { internalRequestHeaders } from '@/lib/security/internal-request'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 /**
  * Sprint 9F Phase 6a — shadow-preview wrapper for besigtigelse.
@@ -149,7 +150,7 @@ export async function saveBesigtigelsesnotat(
 
     const now = new Date()
     const dateStr = now.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
-    const fileDate = now.toISOString().slice(0, 10)
+    const fileDate = copenhagenParts(now).date
     const title = `Besigtigelsesrapport — ${customer.company_name} — ${dateStr}`
 
     // Upload images to storage and collect URLs

@@ -20,6 +20,7 @@ import {
 import type { PaymentExportRow } from '@/lib/actions/invoices'
 import type { PaymentReportPdfPayload } from '@/lib/pdf/payment-report-pdf-template'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 const EXPORT_LABEL: Record<string, string> = {
   late_payer: 'Ofte forsinket',
@@ -225,7 +226,7 @@ export async function sendPaymentReport(opts: {
   }
 
   const today = new Date()
-  const dateIso = today.toISOString().slice(0, 10)
+  const dateIso = copenhagenParts(today).date
   const dateDk = today.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: '2-digit', month: 'long', year: 'numeric' })
 
   const totalOutstanding = rows.reduce((s, r) => s + r.outstanding_total, 0)
