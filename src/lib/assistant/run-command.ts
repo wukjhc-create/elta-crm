@@ -12,12 +12,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { hasPermission } from '@/lib/auth/permissions'
 import type { UserRole } from '@/types/auth.types'
 import { parseAssistantCommand, type ParsedCommand } from './command-parser'
-import { resolveTarget, type TargetCandidate } from './resolve-target'
+import { resolveTarget } from './resolve-target'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 export type AssistantActor = { profileId: string; role: UserRole; isActive: boolean; channel: 'telegram' | 'test' }
 
-export type AssistantButton = { label: string; action: 'call_now' | 'open_customer' | 'snooze' | 'done' | 'pick'; ref: string }
+export type AssistantButton = { label: string; action: 'call_now' | 'open_customer' | 'snooze' | 'done'; ref: string }
 
 export type AssistantReply = {
   ok: boolean
@@ -52,10 +52,6 @@ async function audit(admin: SupabaseClient, actor: AssistantActor, action: strin
   })
 }
 
-function pickButtons(candidates: TargetCandidate[]): AssistantButton[] {
-  return candidates.map((c) => ({ label: c.label, action: 'pick', ref: `${c.kind}:${c.id}` }))
-}
-
 export async function runAssistantCommand(admin: SupabaseClient, actor: AssistantActor, input: string, now: Date = new Date()): Promise<AssistantReply> {
   if (!actor.isActive) return { ok: false, text: 'Din CRM-bruger er deaktiveret.' }
   if (!hasPermission(actor.role, 'customers.edit')) {
@@ -75,7 +71,9 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
   if (res.status === 'none') return { ok: false, text: `Jeg fandt ingen kunde eller sag for "${cmd.target}".` }
   if (res.status === 'ambiguous') {
     await audit(admin, actor, 'ambiguous', null, cmd.target, { intent: cmd.intent, candidates: res.candidates.map((c) => c.id) })
-    return { ok: false, text: `"${cmd.target}" passer på flere — vælg:`, buttons: pickButtons(res.candidates) }
+    // Ingen skjult samtale-tilstand uden for CRM: kandidaterne vises med kundenr./sagsnr., og brugeren gentager
+    // kommandoen med det entydige nummer (som resolveTarget matcher præcist)
+    return { ok: false, text: `"${cmd.target}" passer på flere — skriv kommandoen igen med kundenummer/sagsnummer:\n${res.candidates.map((c) => `• ${c.label}`).join('\n')}` }
   }
   const target = res.target
   if (!target.customerId) return { ok: false, text: `${target.label} har ingen kunde tilknyttet — opgaven kan ikke oprettes.` }

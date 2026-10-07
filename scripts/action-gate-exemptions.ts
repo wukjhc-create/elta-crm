@@ -67,6 +67,7 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'document-confirmations.ts:submitConfirmation': T('kunden bekræfter dokument via engangstoken (status + udløb i opdateringen)'),
   'fuldmagt.ts:submitSignedFuldmagt': T('kunden underskriver fuldmagt via aktivt portal-token'),
   // ---- egne data
+  'assistant.ts:revokeTelegramLinkAction': U('afbryder kun egen Telegram-kobling (profile_id = indlogget bruger); skal virke uanset rolle'),
   'messages.ts:sendMessage': U('afsender = den indloggede bruger (from_user_id)'),
   'messages.ts:markAsRead': U('kun egne modtagne beskeder (to_user_id)'),
   'messages.ts:markAsUnread': U('kun egne modtagne beskeder (to_user_id)'),

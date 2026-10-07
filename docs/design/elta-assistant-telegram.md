@@ -19,14 +19,24 @@ tidspunkt. Flyttes/ændres tiden i CRM, gælder den nye tid automatisk (ingen ko
 | Kommando | CRM | Bemærkning |
 |---|---|---|
 | Ring til X … (T1) | `customer_tasks` (title "Ring til …", due_date, reminder_at, assigned_to = brugeren, auto_rule `assistant_callback`, service_case_id ved sag) | kræver kunde (customer_id NOT NULL) |
-| Mind mig om … (T7) | `customer_tasks` | **Beslutning:** customer_id er NOT NULL → påmindelse UDEN kunde kan ikke gemmes i dag. Muligheder: (a) kræv kunde/sag i kommandoen, (b) migration: customer_id nullable (påvirker mange joins), (c) egen tabel (bryder "ét datasæt"). Anbefaling: (a) nu, (b) senere hvis behov |
-| Note på kunde/sag (T6) | kundens/sagens eksisterende note-mekanisme (afklares: `customers.notes` er ét felt — overskrivning uønsket) | **Afklares** før build: tilføj som opgave-kommentar/aktivitet i stedet for at overskrive notes |
+| Mind mig om … (T7) | med kunde/sag: `customer_tasks`; UDEN kunde: `personal_reminders` (00197, udkast) | Henrik 2026-10-07: customer_tasks gøres IKKE nullable. Undersøgt: ingen generel opgave-model findes (project_tasks = gammel projektmodel, agent_tasks = agent-motor) → lille generel CRM-model, brugbar direkte i CRM |
+| Note på kunde/sag (T6) | sag: eksisterende `case_notes` (+ kolonnen `source`); kunde: `customer_notes` med samme form (00196, udkast) | `customers.notes` overskrives aldrig; tidsstemplet, created_by, source manual/assistant/telegram/system, audit |
 | Besigtigelse/aftale (T5) | `bookBesigtigelse`-flowet (customer_tasks "Besigtigelse") | genbrug eksisterende logik |
 | Opslag (T8) | customers / service_cases med brugerens rettigheder | montør kun eget scope |
 | Kalender (T2) | Kalenderens månedsvisning viser i dag kun besigtigelses-opgaver; dag/uge kun arbejdsordrer | udvid månedsvisning med assistent-callbacks |
 | Audit (T9) | `audit_logs` (entity_type `assistant`, action `assistant_<handling>`, metadata: kanal, kommando-type, mål-id) | ingen ny tabel |
 
-## Ny tabel (KRÆVER GODKENDELSE — SQL vist her, ikke anvendt)
+## Status 2026-10-07
+- 00195 `assistant_links` anvendt på STAGING (godkendt). Ikke i prod.
+- Bygget (staging, intet live): webhook `/api/assistant/telegram` (404 uden `ASSISTANT_TELEGRAM_ENABLED`, hemmelighed
+  timing-safe, fail-closed), kobling via engangskode i profilen (kun hash gemmes, 10 min), kommandoer, knapper
+  (Ring nu · Åbn kunde · Udsæt · Udført) med ejer-/rolle-tjek, påmindelses-cron `/api/cron/assistant-reminders`
+  (IKKE i vercel.json), audit af alt. Test: `cli.ts telegram-check` 20/20, `U141`.
+- Secrets til senere prod-aktivering (sættes i Vercel, aldrig i repo): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
+  (≥ 16 tegn), `ASSISTANT_TELEGRAM_ENABLED=true`, setWebhook med `secret_token`, cron i vercel.json.
+- Udkast til godkendelse (SQL vist, ikke anvendt): 00196 noter, 00197 personlige påmindelser.
+
+## Tabel assistant_links (00195)
 `assistant_links`: kobling af én Telegram-chat til én aktiv CRM-bruger via engangskode genereret i CRM
 (Indstillinger → Profil → "Forbind Telegram"). Kun inviterede medarbejdere; deaktiveret bruger = ingen adgang.
 Se `supabase/migrations/00195_assistant_links.sql` (udkast).

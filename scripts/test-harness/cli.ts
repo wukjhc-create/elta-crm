@@ -1026,6 +1026,119 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'telegram-check') {
+    // STAGING (T10/T3/T9): Telegram-integrationen ende-til-ende UDEN live bot — webhook-ruten (flag + hemmelighed),
+    // kobling via engangskode, kommandoer, knapper, rolle-/ejer-tjek, påmindelse med knapper, audit. Udgående beskeder
+    // fanges af en test-transport (intet sendes).
+    const { setTelegramTransport } = await import('../../src/lib/assistant/telegram/transport')
+    const { handleTelegramUpdate } = await import('../../src/lib/assistant/telegram/handle-update')
+    const { createLinkCode } = await import('../../src/lib/assistant/telegram/link')
+    const { dispatchAssistantReminders } = await import('../../src/lib/assistant/reminders')
+    const { telegramReminderSender } = await import('../../src/lib/assistant/telegram/reminder-sender')
+    const stamp = Date.now()
+    const sent: Array<{ chatId: number; text: string; buttons?: Array<{ action: string; ref: string }> }> = []
+    setTelegramTransport(async (m) => { sent.push(m); return { delivered: true } })
+    const last = () => sent[sent.length - 1]
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const profs = ((await admin.from('profiles').select('id, role').eq('is_active', true)).data ?? []) as Array<{ id: string; role: string }>
+    const adminP = profs.find((p) => p.role === 'admin')!
+    const montorP = profs.find((p) => p.role === 'montør')!
+    const chatA = 900_000_000 + (stamp % 1_000_000)
+    const chatM = chatA + 1
+    const chatX = chatA + 2
+    const msg = (chatId: number, text: string, type = 'private') => ({ message: { chat: { id: chatId, type }, text } })
+    const btn = (chatId: number, data: string) => ({ callback_query: { id: 'x', data, message: { chat: { id: chatId } } } })
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `TG-${stamp}`, company_name: `TGkunde${stamp} ApS`, contact_person: 'Tina', email: `tg-${stamp}@harness.test`, mobile: '+45 20 30 40 50', created_by: adminP.id }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const prevLinks = ((await admin.from('assistant_links').select('*').in('profile_id', [adminP.id, montorP.id])).data ?? []) as Array<Record<string, unknown>>
+    const ENV = { e: process.env.ASSISTANT_TELEGRAM_ENABLED, s: process.env.TELEGRAM_WEBHOOK_SECRET }
+    try {
+      // 1. webhook-ruten: flag + hemmelighed
+      const { POST } = await import('../../src/app/api/assistant/telegram/route')
+      const call = (secret: string | null) => POST(new Request('http://localhost/api/assistant/telegram', { method: 'POST', headers: { 'content-type': 'application/json', ...(secret ? { 'x-telegram-bot-api-secret-token': secret } : {}) }, body: JSON.stringify(msg(chatX, 'hej')) }))
+      delete process.env.ASSISTANT_TELEGRAM_ENABLED
+      process.env.TELEGRAM_WEBHOOK_SECRET = `harness-secret-${stamp}`
+      check('webhook slået fra uden flag → 404', (await call(process.env.TELEGRAM_WEBHOOK_SECRET)).status === 404)
+      process.env.ASSISTANT_TELEGRAM_ENABLED = 'true'
+      check('forkert hemmelighed → 401', (await call('forkert-hemmelighed-xxxxxxxx')).status === 401)
+      check('manglende hemmelighed → 401', (await call(null)).status === 401)
+      delete process.env.TELEGRAM_WEBHOOK_SECRET
+      check('server uden hemmelighed konfigureret → 401 (fail-closed)', (await call('noget-som-helst-langt-nok')).status === 401)
+      process.env.TELEGRAM_WEBHOOK_SECRET = `harness-secret-${stamp}`
+      const ok = await call(process.env.TELEGRAM_WEBHOOK_SECRET)
+      check('rigtig hemmelighed → 200, ukendt chat får "ikke forbundet"', ok.status === 200 && /ikke forbundet/.test(last()?.text ?? ''), last()?.text)
+
+      // 2. kobling
+      await admin.from('assistant_links').delete().in('profile_id', [adminP.id, montorP.id])
+      const { code } = await createLinkCode(admin, adminP.id)
+      await handleTelegramUpdate(admin, msg(chatA, `/start ${code}`))
+      check('/start <kode> forbinder chatten til CRM-brugeren', /forbundet/.test(last()?.text ?? ''), last()?.text)
+      await handleTelegramUpdate(admin, msg(chatX, `/start ${code}`))
+      check('samme kode kan ikke bruges igen', /Ugyldig kode/.test(last()?.text ?? ''), last()?.text)
+      const { code: c2 } = await createLinkCode(admin, montorP.id, new Date(Date.now() - 20 * 60_000))
+      await handleTelegramUpdate(admin, msg(chatM, `/start ${c2}`))
+      check('udløbet kode afvises', /udløbet/.test(last()?.text ?? ''), last()?.text)
+      const { code: c3 } = await createLinkCode(admin, montorP.id)
+      await handleTelegramUpdate(admin, msg(chatA, `/start ${c3}`))
+      check('en chat kan ikke forbindes til to brugere', /allerede forbundet/.test(last()?.text ?? ''), last()?.text)
+      await handleTelegramUpdate(admin, msg(chatM, `/start ${c3}`))
+      check('montør kan forbinde (rolle tjekkes pr. handling)', /forbundet/.test(last()?.text ?? ''), last()?.text)
+      await handleTelegramUpdate(admin, msg(chatA, 'Ring til Hansen i morgen kl. 10', 'group'))
+      check('gruppechat afvises', /private chats/.test(last()?.text ?? ''), last()?.text)
+
+      // 3. kommandoer + knapper
+      await handleTelegramUpdate(admin, msg(chatA, `Ring til TGkunde${stamp} ApS i morgen kl. 10`))
+      const reply = last()
+      const { data: tk } = await admin.from('customer_tasks').select('id, status, reminder_at, assigned_to').eq('customer_id', custId).eq('auto_rule', 'assistant_callback').maybeSingle()
+      const task = tk as { id: string; status: string; reminder_at: string; assigned_to: string } | null
+      check('kommando fra Telegram → CRM-opgave tildelt brugeren', !!task && task.assigned_to === adminP.id && /📞/.test(reply?.text ?? ''), reply?.text)
+      await handleTelegramUpdate(admin, msg(chatM, `Find TGkunde${stamp} ApS`))
+      check('montør afvises pr. handling (fase 1)', /kontor-roller/.test(last()?.text ?? ''), last()?.text)
+      await handleTelegramUpdate(admin, btn(chatM, `done:${task?.id}`))
+      check('montør kan ikke trykke Udført på andres opgave', /kontor-roller|ikke din/.test(last()?.text ?? ''), last()?.text)
+      await handleTelegramUpdate(admin, btn(chatA, `call_now:${custId}`))
+      check('Ring nu → kundens nummer fra CRM', /20 30 40 50/.test(last()?.text ?? ''), last()?.text)
+      const t0 = Date.now()
+      await handleTelegramUpdate(admin, btn(chatA, `snooze:${task?.id}`))
+      const { data: sn } = await admin.from('customer_tasks').select('reminder_at').eq('id', task?.id ?? '').single()
+      check('Udsæt → påmindelsen flyttes 60 min i CRM', Math.abs(new Date((sn as { reminder_at: string }).reminder_at).getTime() - (t0 + 3_600_000)) < 60_000, last()?.text)
+
+      // 4. påmindelse som Telegram-besked med 4 knapper (tidspunkt fra CRM)
+      await admin.from('customer_tasks').update({ reminder_at: new Date(Date.now() - 60_000).toISOString() }).eq('id', task?.id ?? '')
+      sent.length = 0
+      await dispatchAssistantReminders(admin, async (r) => (r.taskId === task?.id ? telegramReminderSender(admin)(r) : { delivered: false, channel: 'test' }))
+      const rm = sent.find((m) => m.chatId === chatA)
+      check('påmindelse sendt til brugerens chat med Ring nu · Åbn kunde · Udsæt · Udført', !!rm && JSON.stringify((rm.buttons ?? []).map((b) => b.action)) === JSON.stringify(['call_now', 'open_customer', 'snooze', 'done']), rm?.text)
+      await handleTelegramUpdate(admin, btn(chatA, `done:${task?.id}`))
+      const { data: dn } = await admin.from('customer_tasks').select('status').eq('id', task?.id ?? '').single()
+      check('Udført → opgaven lukket i CRM', (dn as { status: string }).status === 'done', last()?.text)
+      sent.length = 0
+      await dispatchAssistantReminders(admin, async (r) => (r.taskId === task?.id ? telegramReminderSender(admin)(r) : { delivered: false, channel: 'test' }))
+      check('udført opgave påmindes ikke igen', !sent.some((m) => m.chatId === chatA))
+
+      // 5. audit
+      const { data: au } = await admin.from('audit_logs').select('action').eq('entity_type', 'assistant').gte('created_at', new Date(stamp - 5_000).toISOString())
+      const acts = new Set(((au ?? []) as Array<{ action: string }>).map((a) => a.action))
+      const want = ['assistant_linked', 'assistant_link_failed', 'assistant_unlinked_message', 'assistant_command_received', 'assistant_callback_created', 'assistant_denied', 'assistant_button_denied', 'assistant_call_now', 'assistant_task_snoozed', 'assistant_task_done']
+      const missing = want.filter((w) => !acts.has(w))
+      check('alle kommandoer/handlinger audit-logget', missing.length === 0, missing.length ? `mangler ${missing.join(', ')}` : `${want.length} typer`)
+    } finally {
+      setTelegramTransport(null)
+      if (ENV.e === undefined) delete process.env.ASSISTANT_TELEGRAM_ENABLED; else process.env.ASSISTANT_TELEGRAM_ENABLED = ENV.e
+      if (ENV.s === undefined) delete process.env.TELEGRAM_WEBHOOK_SECRET; else process.env.TELEGRAM_WEBHOOK_SECRET = ENV.s
+      await admin.from('assistant_links').delete().in('profile_id', [adminP.id, montorP.id])
+      if (prevLinks.length) await admin.from('assistant_links').insert(prevLinks)
+      const { data: tl } = await admin.from('customer_tasks').select('id').eq('customer_id', custId)
+      const tids = ((tl ?? []) as Array<{ id: string }>).map((x) => x.id)
+      if (tids.length) await admin.from('audit_logs').delete().in('entity_id', tids)
+      await admin.from('customers').delete().eq('id', custId)
+      await admin.from('audit_logs').delete().eq('entity_type', 'assistant').gte('created_at', new Date(stamp - 5_000).toISOString())
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ telegram-integration bestået (intet live sendt)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'assistant-reminder-check') {
     // STAGING (T3/T4): påmindelser læses fra CRM (reminder_at), sendes én gang pr. tidspunkt, sendes igen når
     // tidspunktet ændres i CRM, ikke når opgaven er udført. Test-afsender (intet live).
@@ -1114,7 +1227,7 @@ async function main() {
       const { data: au } = await admin.from('audit_logs').select('action, user_id').eq('entity_id', r1.taskId ?? '')
       check('  audit assistant_callback_created', (au ?? []).some((a: { action: string; user_id: string }) => a.action === 'assistant_callback_created' && a.user_id === adminP.id))
       const r2 = await runAssistantCommand(admin, actor, `Ring til Assist${u} i morgen kl. 10`, NOW)
-      check('tvetydigt navn → valgknapper, ingen opgave', !r2.ok && (r2.buttons ?? []).length === 2 && !r2.taskId, r2.text)
+      check('tvetydigt navn → kandidater med kundenr., ingen opgave', !r2.ok && (r2.text.match(/^• /gm) ?? []).length === 2 && /AR-/.test(r2.text) && !r2.taskId, r2.text.replace(/\n/g, ' | '))
       const r3 = await runAssistantCommand(admin, actor, `Mind mig om at sende tilbud til Assist${u} El fredag kl 8`, NOW)
       check('"mind mig om …" uden kunde-mål afvises ærligt (ingen opgave)', !r3.ok && !r3.taskId && /knyttes til en kunde/.test(r3.text), r3.text)
       if (r3.taskId) taskIds.push(r3.taskId)
