@@ -337,6 +337,8 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 
 **Checkpoint 2026-10-07 16:05 (long-run):** X4e–X4n leveret (1.000-række-loft i prisstatistik/fakturakontrol/bankmatch/medarbejderavance/efterkalkulation/profitabilitet; margin-advarsel kost × antal; `.in()`-URL-grænse målt (300 OK/400 fejl) og 15 risikokald rettet med `selectInChunks`/`pageWithinIds`; getAffectedOffers virkede aldrig ('pending'-enum) → rettet). UI-regression grøn: økonomi 20 tests, mail 10 tests, U120/U124/U28/U38. Én flaky: U4 (montør /dashboard/pilot-health ikke NoAccess i én kørsel) → genkørt. Nye BLOCKED_APPROVAL: afviste/ventende timer i fakturering (X4e). Næste: resten af NEXT-7-sikre opgaver.
 
+**Checkpoint 2026-10-07 16:50 (long-run):** NEXT tømt → ny backlog via 2 read-only reviews (tilbud, portal). Leveret: S1-P1 fuldmagt-CPR-læk (1ddc677, prod-eksponering 0), S1-O3 0-kr-auto-faktura (446afa3 beskyttelse; 00198 udkast BLOCKED_APPROVAL), R-OFR/R-PRT (80f14cb). UI grøn: salg 10, portal 10. Beslutninger til Henrik: 00198, R-OFR-B, R-PRT-B, X4e afviste timer, T14. Næste: RBAC-kost-review + kunder/leads-review (kører).
+
 ## NEXT-HIGH — ELTA ASSISTANT / TELEGRAM (Henrik 2026-10-07)
 
 **Formål:** Telegram = hurtigt personligt assistent-interface til ELTA CRM. **CRM er altid source of truth** — Telegram
