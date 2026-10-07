@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { AIProjectClient } from './ai-project-client'
+import { isEltaComponentsEnabled } from '@/lib/ai/elta-components'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,5 +10,6 @@ export const metadata: Metadata = {
 }
 
 export default function AIProjectPage() {
-  return <AIProjectClient />
+  // S2: ladestander-vælgeren vises kun når ELTA-komponenterne er slået til (flaget er FRA i prod)
+  return <AIProjectClient eltaComponents={isEltaComponentsEnabled()} />
 }

@@ -13,7 +13,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
-import { isEltaComponentsEnabled, loadEltaComponents, firstKey } from './elta-components'
+import { isEltaComponentsEnabled, loadEltaComponents, loadComponentRowsByCode, firstKey } from './elta-components'
+import { loadChargerProduct } from './charger-hardware'
+import { panelCodeForGroups, PANEL_SIZE_RULES, type PanelSizeRule } from './panel-size'
 import type {
   ProjectInterpretation,
   ElectricalPoints,
@@ -564,10 +566,19 @@ function addPanelComponents(
 // Main Export
 // =====================================================
 
+export type MatchOptions = {
+  /** Valgt ladestander (supplier_products.id) — hardware vælges aldrig automatisk */
+  chargerProductId?: string | null
+  /** Tavleregler (test/forslag); default = de godkendte PANEL_SIZE_RULES */
+  panelRules?: PanelSizeRule[]
+}
+
 export async function matchComponents(
-  interpretation: ProjectInterpretation
+  interpretation: ProjectInterpretation,
+  options: MatchOptions = {}
 ): Promise<MatchingResult> {
   const unmatchedPoints: string[] = []
+  const eltaMode = isEltaComponentsEnabled()
 
   // Fetch database components
   const dbComponents = await fetchDatabaseComponents()
@@ -577,6 +588,35 @@ export async function matchComponents(
 
   // Add panel work if needed
   addPanelComponents(interpretation, components, dbComponents)
+
+  // ELTA-tilstand (flag): ny tavle vælges efter antal grupper (godkendte regler) og laderen får sin egen gruppe
+  const evCount = interpretation.electrical_points.ev_charger || 0
+  if (eltaMode) {
+    const panelIdx = components.findIndex((c) => c.code === 'panel_new')
+    if (panelIdx >= 0) {
+      const panelCode = panelCodeForGroups(interpretation.panel_requirements.required_groups, options.panelRules ?? PANEL_SIZE_RULES)
+      const row = panelCode ? (await loadComponentRowsByCode([panelCode])).get(panelCode) : undefined
+      if (row && (row.base_time_minutes ?? 0) > 0) {
+        components[panelIdx] = {
+          component_id: row.id,
+          code: 'panel_new',
+          name: row.name,
+          unit: 'stk',
+          unit_price: row.default_sale_price ?? 0,
+          time_minutes: row.base_time_minutes!,
+          category: 'panel',
+          source: 'database',
+          quantity: 1,
+          material_cost: (row.default_cost_price ?? 0) > 0 ? row.default_cost_price! : undefined,
+        }
+      }
+    }
+    // laderens beskyttelse: egen gruppe i tavlen (ikke ved ny tavle — den indeholder grupperne)
+    if (evCount > 0 && panelIdx < 0 && !components.some((c) => c.code === 'panel_group')) {
+      const g = dbComponents.get('panel_group')
+      components.push(g ? { ...g, quantity: evCount } : { ...DEFAULT_COMPONENTS.panel_group, quantity: evCount })
+    }
+  }
 
   // Calculate materials
   const materials = calculateMaterials(interpretation, components)
@@ -590,15 +630,28 @@ export async function matchComponents(
 
   // Tavle-/lader-materiel der ikke er prissat — ALDRIG et gæt; prisen markeres som ufuldstændig
   const pricingGaps: string[] = []
-  if (components.some((c) => c.code === 'panel_new')) {
+  const panelComp = components.find((c) => c.code === 'panel_new')
+  if (panelComp && !(panelComp.material_cost && panelComp.material_cost > 0)) {
     pricingGaps.push('Ikke prissat: tavlemateriel for ny eltavle (ELTA-kataloget har flere tavle-komponenter — TAVLE-NY/-S/-L/-LILLE). Prissæt tavlen manuelt før tilbuddet sendes.')
   }
   const groups = components.find((c) => c.code === 'panel_group')
   if (groups && !(groups.material_cost && groups.material_cost > 0)) {
     pricingGaps.push(`Ikke prissat: materiel til ${groups.quantity} ekstra tavlegruppe(r) (automatsikringer/HPFI). Tilføj manuelt.`)
   }
-  if (components.some((c) => c.code === 'ev_charger')) {
-    pricingGaps.push('Ikke prissat: selve ladestanderen (kun montage er med). Tilføj laderen manuelt.')
+  if (evCount > 0) {
+    // hardware: KUN et valgt produkt fra leverandørkataloget (ELTA-tilstand) — ellers "Ikke prissat"
+    const charger = eltaMode && options.chargerProductId ? await loadChargerProduct(options.chargerProductId) : null
+    if (charger) {
+      materials.push({ material_id: undefined, supplier_product_id: charger.id, name: charger.name, sku: charger.sku ?? undefined, supplier_name: charger.supplier ?? undefined, unit: 'stk', unit_cost: charger.costPrice, unit_price: charger.costPrice, source: 'database', quantity: evCount })
+      if (!charger.available) pricingGaps.push(`Bemærk: valgt ladestander (${charger.sku ?? charger.name}) er markeret som ikke tilgængelig hos leverandøren.`)
+    } else if (eltaMode && options.chargerProductId) {
+      pricingGaps.push('Ikke prissat: valgt ladestander findes ikke i produktkataloget (eller mangler kostpris). Vælg en anden.')
+    } else {
+      pricingGaps.push('Ikke prissat: selve ladestanderen (hardware) — vælg en konkret lader fra produktkataloget. Montage er med.')
+    }
+    if ((interpretation.cable_requirements.outdoor_cable || 0) > 0) {
+      pricingGaps.push(`Ikke prissat: evt. gravearbejde til ${interpretation.cable_requirements.outdoor_cable} m jordkabel.`)
+    }
   }
 
   // Calculate confidence based on database matches

@@ -63,9 +63,10 @@ export const firstKey = (engineCode: string) => `${engineCode}__first`
  * Hent de koblede ELTA-komponenter (kun aktive) og returnér dem nøglet på motor-kode (+ firstKey for første enhed).
  * Komponenter med 0 minutter springes over (en kobling uden tid ville gøre timeprisen 0).
  */
-export async function loadEltaComponents(): Promise<Map<string, { row: EltaComponentRow; engineCode: string }>> {
-  const codes = Array.from(new Set(Object.values(ELTA_COMPONENT_MAP).flatMap((l) => [l.code, l.firstCode]).filter(Boolean) as string[]))
-  const admin = createAdminClient() // katalogdata; motoren kører også fra server-handlinger uden kost-adgang (ingen kost læses)
+/** Aktive ELTA-komponenter nøglet på ELTA-kode (katalogdata via admin-klienten). */
+export async function loadComponentRowsByCode(codes: string[]): Promise<Map<string, EltaComponentRow>> {
+  if (!codes.length) return new Map()
+  const admin = createAdminClient() // katalogdata; motoren kører også fra server-handlinger uden kost-adgang
   const { data, error } = await admin
     .from('calc_components')
     .select('id, code, name, default_sale_price, default_cost_price, base_time_minutes, category:calc_component_categories(name)')
@@ -85,6 +86,12 @@ export async function loadEltaComponents(): Promise<Map<string, { row: EltaCompo
       category: (Array.isArray(cat) ? cat[0]?.name : cat?.name) ?? null,
     })
   }
+  return byCode
+}
+
+export async function loadEltaComponents(): Promise<Map<string, { row: EltaComponentRow; engineCode: string }>> {
+  const codes = Array.from(new Set(Object.values(ELTA_COMPONENT_MAP).flatMap((l) => [l.code, l.firstCode]).filter(Boolean) as string[]))
+  const byCode = await loadComponentRowsByCode(codes)
   const out = new Map<string, { row: EltaComponentRow; engineCode: string }>()
   for (const [engineCode, link] of Object.entries(ELTA_COMPONENT_MAP)) {
     const main = byCode.get(link.code)

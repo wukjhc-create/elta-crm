@@ -31,6 +31,8 @@ import {
 } from 'lucide-react'
 import {
   analyzeProjectDescription,
+  searchChargerProducts,
+  type ChargerSearchHit,
   quickAnalyzeProject,
   createOfferFromAnalysis,
   listAnalyses,
@@ -44,7 +46,11 @@ interface Customer {
   email: string | null
 }
 
-export function AIProjectClient() {
+export function AIProjectClient({ eltaComponents = false }: { eltaComponents?: boolean } = {}) {
+  // S2: valgt ladestander (hardware fra produktkataloget — aldrig automatisk)
+  const [chargerQuery, setChargerQuery] = useState('')
+  const [chargerHits, setChargerHits] = useState<ChargerSearchHit[]>([])
+  const [charger, setCharger] = useState<ChargerSearchHit | null>(null)
   const router = useRouter()
   const toast = useToast()
   const [description, setDescription] = useState('')
@@ -113,6 +119,7 @@ export function AIProjectClient() {
         hourly_rate: 450,
         margin_percentage: 25,
         risk_buffer_percentage: 5,
+        charger_product_id: eltaComponents ? charger?.id ?? null : null,
       },
     })
 
@@ -199,6 +206,45 @@ export function AIProjectClient() {
           value={description}
           onChange={(e) => handleDescriptionChange(e.target.value)}
         />
+
+        {eltaComponents && (
+          <div className="mt-3 rounded-lg border border-dashed p-3" data-testid="charger-picker">
+            <label className="block text-sm font-medium mb-1">Ladestander (kun hvis opgaven indeholder en elbillader)</label>
+            {charger ? (
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span>{charger.name}{charger.sku ? ` · ${charger.sku}` : ''}{charger.supplier ? ` · ${charger.supplier}` : ''} — kost {formatCurrency(charger.cost_price)}{charger.available ? '' : ' (ikke tilgængelig)'}</span>
+                <button type="button" className="text-red-600 hover:underline" onClick={() => setCharger(null)}>Fjern</button>
+              </div>
+            ) : (
+              <>
+                <input
+                  value={chargerQuery}
+                  onChange={async (e) => {
+                    const q = e.target.value
+                    setChargerQuery(q)
+                    const r = await searchChargerProducts(q)
+                    setChargerHits(r.success && r.data ? r.data : [])
+                  }}
+                  placeholder="Søg ladeboks i produktkataloget (fx Zaptec, Easee, EVlink)…"
+                  aria-label="Søg ladestander"
+                  className="w-full rounded-md border px-3 py-1.5 text-sm"
+                />
+                {chargerHits.length > 0 && (
+                  <ul className="mt-2 max-h-48 overflow-auto divide-y text-sm">
+                    {chargerHits.map((h) => (
+                      <li key={h.id}>
+                        <button type="button" className="w-full text-left px-2 py-1 hover:bg-purple-50" onClick={() => { setCharger(h); setChargerHits([]) }}>
+                          {h.name}{h.sku ? ` · ${h.sku}` : ''} — {formatCurrency(h.cost_price)}{h.available ? '' : ' (ikke tilgængelig)'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-1 text-xs text-gray-500">Uden valgt lader markeres hardwaren &quot;Ikke prissat&quot; — der gættes aldrig.</p>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Quick Preview */}
         {quickResult && (

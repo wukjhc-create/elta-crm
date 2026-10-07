@@ -49,6 +49,8 @@ export interface EngineOptions {
   risk_buffer_percentage?: number
   customer_name?: string
   project_address?: string
+  /** S2: valgt ladestander (supplier_products.id) — uden valg markeres hardwaren "Ikke prissat" */
+  charger_product_id?: string | null
   onProgress?: (progress: ProjectAnalysisProgress) => void
 }
 
@@ -102,7 +104,7 @@ export async function analyzeProject(
     // Stage 2: Match to components and materials
     reportProgress(onProgress, 'matching', 30, 'Finder komponenter og materialer...')
 
-    const matchResult = await matchComponents(interpretationWithId)
+    const matchResult = await matchComponents(interpretationWithId, { chargerProductId: options?.charger_product_id ?? null })
     const components = toCalculationComponents(matchResult.components)
     const materials = toCalculationMaterials(matchResult.materials)
 
