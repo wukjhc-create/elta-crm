@@ -134,7 +134,7 @@ export function runUnauthenticatedAdminAudit(root = join(process.cwd(), 'src')):
 // STRICT (CI): hver skrivende action er enten gatet eller en BEVIST undtagelse (scripts/action-gate-exemptions.ts)
 // ---------------------------------------------------------------------------------------------------------------
 const TOKEN_PROOF = /validatePortalToken\(|validatePartnerToken\(|\.eq\(\s*['"]token['"]/
-const SELF_PROOF = /\.eq\(\s*['"](id|to_user_id|user_id|profile_id)['"]\s*,\s*userId\s*\)|from_user_id:\s*userId/
+const SELF_PROOF = /\.eq\(\s*['"](id|to_user_id|user_id|profile_id|owner_id)['"]\s*,\s*userId\s*\)|(from_user_id|owner_id):\s*userId/
 
 export function runStrictAudit(
   dir = join(process.cwd(), 'src', 'lib', 'actions'),

@@ -930,7 +930,7 @@ async function main() {
     const existingCodes = new Set(((await admin.from('calc_components').select('code').in('code', PROD_CATALOG.map((r) => r[0]))).data ?? []).map((r: { code: string }) => r.code))
     for (const [code, name, sale, min] of PROD_CATALOG) {
       if (existingCodes.has(code)) continue
-      const { error } = await admin.from('calc_components').insert({ code, name, default_sale_price: sale, base_time_minutes: min, is_active: true, notes: '[HARNESS] S2 elta-components-compare' })
+      const { error } = await admin.from('calc_components').insert({ code, name, default_sale_price: sale, default_cost_price: code === 'TAVLE-GRP' ? 145 : 0, base_time_minutes: min, is_active: true, notes: '[HARNESS] S2 elta-components-compare' })
       if (error) throw new Error(`seed ${code}: ${error.message}`)
     }
     // rydder både denne kørsels og evt. efterladte harness-rækker op (markeret i notes)
@@ -956,9 +956,10 @@ async function main() {
       log(`  materialer ${fmt(b.price.material_cost)} → ${fmt(a.price.material_cost)} kr · timer ${b.time.total_hours} → ${a.time.total_hours} · salgspris ${fmt(b.price.total_price)} → ${fmt(a.price.total_price)} kr (${pct >= 0 ? '+' : ''}${pct.toFixed(1)} %)`)
       log(`  fra ELTA: ${elta.join(', ') || '—'}`)
       log(`  standard (fallback): ${fallback.join(', ') || '—'}`)
-      rows.push(`| ${it.raw_description} | ${fmt(b.price.material_cost)} → ${fmt(a.price.material_cost)} | ${b.time.total_hours} → ${a.time.total_hours} | ${fmt(b.price.total_price)} → ${fmt(a.price.total_price)} | ${pct >= 0 ? '+' : ''}${pct.toFixed(1)} % | ${elta.join(', ') || '—'} | ${fallback.join(', ') || '—'} |`)
+      rows.push(`| ${it.raw_description} | ${fmt(b.price.material_cost)} → ${fmt(a.price.material_cost)} | ${b.time.total_hours} → ${a.time.total_hours} | ${fmt(b.price.total_price)} → ${fmt(a.price.total_price)} | ${pct >= 0 ? '+' : ''}${pct.toFixed(1)} % | ${elta.join(', ') || '—'} | ${fallback.join(', ') || '—'} | ${after.m.pricingGaps.map((g) => g.replace(/^Ikke prissat: /, '').split(' (')[0].split('. ')[0]).join('; ') || '—'} |`)
       if (before.m.components.some((c) => c.source === 'database')) { fails++; log('  ❌ FØR brugte DB-komponenter (flag fra skal give standard)') }
-      if (Math.round(a.price.material_cost) !== Math.round(b.price.material_cost)) { fails++; log('  ❌ materialer ændret (kun tid/pris må ændres)') }
+      { const groupMat = after.m.materials.filter((m) => m.name.endsWith('(materiel)')).reduce((s, m) => s + m.quantity * m.unit_cost, 0); if (Math.round(a.price.material_cost) !== Math.round(b.price.material_cost + groupMat)) { fails++; log('  ❌ materialer ændret ud over ELTA-tavlegruppernes materiel') } }
+      if (after.m.pricingGaps.length) log(`  ikke prissat: ${after.m.pricingGaps.join(' | ')}`)
     }
     const { writeFileSync } = await import('fs')
     writeFileSync('docs/runbooks/s2-elta-components-examples.md', [
@@ -967,13 +968,14 @@ async function main() {
       `Genereret ${new Date().toISOString().slice(0, 10)} af \`npx tsx scripts/test-harness/cli.ts elta-components-compare\` (staging med prod-katalogets`,
       'værdier for de koblede komponenter; standard-timesats og -margin). **Flaget `AI_PROJECT_ELTA_COMPONENTS` er FRA i prod.**',
       'FØR = motorens indbyggede standardværdier (sådan prod regner i dag). EFTER = ELTAs tider/salgspriser for entydigt koblede',
-      'komponenter. Materialer beregnes ens (prisen ændres via timerne).',
+      'komponenter. Materialer beregnes ens, bortset fra ELTAs materiel til ekstra tavlegrupper (TAVLE-GRP kost 145 kr).',
+      'Tavle, tavlegrupper uden ELTA-materiel og selve ladestanderen prissættes IKKE automatisk — motoren viser en advarsel (ingen gæt).',
       '',
       `Koblinger: ${Object.entries(ELTA_COMPONENT_MAP).map(([k, v]) => `${k} → ${v.firstCode ? v.firstCode + '/' : ''}${v.code}`).join(', ')}.`,
       `Bevidst ikke koblet (standard, intet entydigt ELTA-modstykke): ${ELTA_UNMAPPED.join(', ')}.`,
       '',
-      '| Opgave | Materialer kr | Timer | Salgspris kr | Forskel | Fra ELTA | Standard (fallback) |',
-      '|---|---|---|---|---|---|---|',
+      '| Opgave | Materialer kr | Timer | Salgspris kr | Forskel | Fra ELTA | Standard (fallback) | Ikke prissat (advarsel) |',
+      '|---|---|---|---|---|---|---|---|',
       ...rows,
       '',
     ].join('\n'))
@@ -1023,6 +1025,183 @@ async function main() {
       await admin.from('portal_access_tokens').delete().eq('customer_id', custId)
     }
     log(fails ? `❌ ${fails} fejl` : '✅ portal-ombooking bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'notes-reminders-flow') {
+    // STAGING (T6 + personlige påmindelser): assistenten skriver noter (sag → case_notes, kunde → customer_notes,
+    // customers.notes urørt) og personlige påmindelser; påmindelsen følger CRM-tiden; Udsæt/Udført kun for ejeren;
+    // audit. Telegram-beskeder fanges af test-transport (intet live).
+    const { runAssistantCommand } = await import('../../src/lib/assistant/run-command')
+    const { setTelegramTransport } = await import('../../src/lib/assistant/telegram/transport')
+    const { handleTelegramUpdate } = await import('../../src/lib/assistant/telegram/handle-update')
+    const { createLinkCode } = await import('../../src/lib/assistant/telegram/link')
+    const { dispatchAssistantReminders } = await import('../../src/lib/assistant/reminders')
+    const { telegramReminderSender } = await import('../../src/lib/assistant/telegram/reminder-sender')
+    const stamp = Date.now()
+    const sent: Array<{ chatId: number; text: string; buttons?: Array<{ action: string; ref: string }> }> = []
+    setTelegramTransport(async (m) => { sent.push(m); return { delivered: true } })
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const profs = ((await admin.from('profiles').select('id, role').eq('is_active', true)).data ?? []) as Array<{ id: string; role: string }>
+    const adminP = profs.find((p) => p.role === 'admin')!
+    const salgP = profs.find((p) => p.role === 'salg')!
+    const actor = { profileId: adminP.id, role: 'admin' as const, isActive: true, channel: 'test' as const }
+    const chatA = 910_000_000 + (stamp % 1_000_000)
+    const chatS = chatA + 1
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `NF-${stamp}`, company_name: `NFkunde${stamp}`, contact_person: 'x', email: `nf-${stamp}@harness.test`, notes: 'FRITEKST URØRT', created_by: adminP.id }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const { data: sc } = await admin.from('service_cases').insert({ case_number: `SVC-9${String(stamp).slice(-6)}`, customer_id: custId, title: '[HARNESS] notesag', status: 'new', created_by: adminP.id }).select('id, case_number').single()
+    const sCase = sc as { id: string; case_number: string } | null
+    const prevLinks = ((await admin.from('assistant_links').select('*').in('profile_id', [adminP.id, salgP.id])).data ?? []) as Array<Record<string, unknown>>
+    try {
+      check('testsag oprettet', !!sCase)
+      // noter
+      const n1 = await runAssistantCommand(admin, actor, `Note til NFkunde${stamp}: kunden ønsker hvid tavle i morgen`)
+      const { data: cn } = await admin.from('customer_notes').select('content, source, created_by').eq('customer_id', custId)
+      const cnr = (cn ?? []) as Array<{ content: string; source: string; created_by: string }>
+      check('note på kunde → customer_notes (source assistant, forfatter = brugeren)', n1.ok && cnr.length === 1 && cnr[0].source === 'assistant' && cnr[0].created_by === adminP.id && cnr[0].content === 'kunden ønsker hvid tavle i morgen', n1.text)
+      const n2 = await runAssistantCommand(admin, actor, `Note til ${sCase?.case_number}: husk stige`)
+      const { data: csn } = await admin.from('case_notes').select('content, source, kind').eq('case_id', sCase?.id ?? '')
+      const csr = (csn ?? []) as Array<{ content: string; source: string; kind: string }>
+      check('note på sag → eksisterende case_notes (source assistant)', n2.ok && csr.length === 1 && csr[0].source === 'assistant' && csr[0].kind === 'note', n2.text)
+      const n3 = await runAssistantCommand(admin, { ...actor, profileId: salgP.id, role: 'salg' }, `Note til ${sCase?.case_number}: salg prøver`)
+      check('salg kan ikke skrive sagsnote (cases.edit, som i CRM)', !n3.ok, n3.text)
+      const { data: cnotes } = await admin.from('customers').select('notes').eq('id', custId).single()
+      check('customers.notes aldrig overskrevet', (cnotes as { notes: string }).notes === 'FRITEKST URØRT')
+      // personlig påmindelse via assistenten
+      const NOW = new Date('2026-10-06T12:30:00Z') // tirsdag
+      const r1 = await runAssistantCommand(admin, actor, 'Mind mig om at bestille arbejdstøj fredag kl. 9', NOW)
+      const { data: pr } = await admin.from('personal_reminders').select('id, owner_id, title, due_at, reminder_at, source').eq('id', r1.taskId ?? '').maybeSingle()
+      const prr = pr as { id: string; owner_id: string; title: string; due_at: string; reminder_at: string; source: string } | null
+      check('"Mind mig om … fredag kl. 9" uden kunde → personlig påmindelse til brugeren', r1.ok && prr?.owner_id === adminP.id && prr?.title === 'bestille arbejdstøj' && new Date(prr!.due_at).toISOString() === '2026-10-09T07:00:00.000Z' && prr?.source === 'assistant', r1.text)
+      // Telegram: forbind admin + salg, påmindelse forfalden → besked med Udsæt/Udført
+      await admin.from('assistant_links').delete().in('profile_id', [adminP.id, salgP.id])
+      for (const [p, chat] of [[adminP.id, chatA], [salgP.id, chatS]] as const) {
+        const { code } = await createLinkCode(admin, p)
+        await handleTelegramUpdate(admin, { message: { chat: { id: chat, type: 'private' }, text: `/start ${code}` } })
+      }
+      const onlyMine = async (r: { taskId: string } & Parameters<ReturnType<typeof telegramReminderSender>>[0]) => (r.taskId === prr?.id ? telegramReminderSender(admin)(r) : { delivered: false, channel: 'test' })
+      await admin.from('personal_reminders').update({ reminder_at: new Date(Date.now() - 60_000).toISOString() }).eq('id', prr!.id)
+      sent.length = 0
+      await dispatchAssistantReminders(admin, onlyMine)
+      const msg1 = sent.find((m) => m.chatId === chatA)
+      check('personlig påmindelse sendt til ejerens chat med Udsæt · Udført', !!msg1 && JSON.stringify((msg1.buttons ?? []).map((b) => b.action)) === JSON.stringify(['p_snooze', 'p_done']), msg1?.text)
+      check('ingen andre modtager den', !sent.some((m) => m.chatId === chatS))
+      await handleTelegramUpdate(admin, { callback_query: { id: 'x', data: `p_done:${prr!.id}`, message: { chat: { id: chatS } } } })
+      const { data: still } = await admin.from('personal_reminders').select('status').eq('id', prr!.id).single()
+      check('anden bruger kan ikke trykke Udført på min påmindelse', (still as { status: string }).status === 'pending' && /ikke din/.test(sent[sent.length - 1]?.text ?? ''), sent[sent.length - 1]?.text)
+      const t0 = Date.now()
+      await handleTelegramUpdate(admin, { callback_query: { id: 'x', data: `p_snooze:${prr!.id}`, message: { chat: { id: chatA } } } })
+      const { data: sn } = await admin.from('personal_reminders').select('reminder_at').eq('id', prr!.id).single()
+      check('Udsæt → påmindelsen flyttes 60 min i CRM', Math.abs(new Date((sn as { reminder_at: string }).reminder_at).getTime() - (t0 + 3_600_000)) < 60_000)
+      // ændret tid i CRM → ny påmindelse
+      await admin.from('personal_reminders').update({ reminder_at: new Date(Date.now() - 30_000).toISOString() }).eq('id', prr!.id)
+      sent.length = 0
+      await dispatchAssistantReminders(admin, onlyMine)
+      check('ændret tid i CRM → påmindes på det nye tidspunkt', sent.some((m) => m.chatId === chatA))
+      sent.length = 0
+      await dispatchAssistantReminders(admin, onlyMine)
+      check('samme tidspunkt sendes ikke igen', !sent.some((m) => m.chatId === chatA))
+      await handleTelegramUpdate(admin, { callback_query: { id: 'x', data: `p_done:${prr!.id}`, message: { chat: { id: chatA } } } })
+      const { data: dn } = await admin.from('personal_reminders').select('status').eq('id', prr!.id).single()
+      check('Udført (ejer) → markeret udført i CRM', (dn as { status: string }).status === 'done')
+      // audit
+      const { data: au } = await admin.from('audit_logs').select('action').gte('created_at', new Date(stamp - 5_000).toISOString()).in('action', ['assistant_note_created', 'assistant_personal_reminder_created', 'assistant_reminder_sent', 'assistant_personal_reminder_snoozed', 'assistant_personal_reminder_done', 'assistant_button_denied', 'assistant_denied'])
+      const acts = new Set(((au ?? []) as Array<{ action: string }>).map((a) => a.action))
+      check('audit for noter, påmindelser, knapper og afvisninger', acts.size === 7, Array.from(acts).join(', '))
+    } finally {
+      setTelegramTransport(null)
+      await admin.from('assistant_links').delete().in('profile_id', [adminP.id, salgP.id])
+      if (prevLinks.length) await admin.from('assistant_links').insert(prevLinks)
+      await admin.from('personal_reminders').delete().eq('owner_id', adminP.id).like('notes', '%ELTA Assistant%')
+      if (sCase) await admin.from('service_cases').delete().eq('id', sCase.id)
+      await admin.from('customers').delete().eq('id', custId)
+      await admin.from('audit_logs').delete().gte('created_at', new Date(stamp - 5_000).toISOString()).like('action', 'assistant_%')
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ noter/påmindelser via assistent bestået (intet live)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'notes-reminders-rls') {
+    // STAGING (00196/00197): RLS/rolle/CRUD med rigtige persona-sessioner — kundenoter (skriv: admin/serviceleder/salg
+    // som sig selv; ret/slet: admin/serviceleder eller egen), case_notes.source, personal_reminders kun ejeren.
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const uid = async (cl: import('@supabase/supabase-js').SupabaseClient) => (await cl.auth.getUser()).data.user!.id
+    const ids = new Map<string, string>()
+    for (const [r, cl] of personas) ids.set(r, await uid(cl))
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `NR-${stamp}`, company_name: `[HARNESS] noter ${stamp}`, contact_person: 'x', email: `nr-${stamp}@harness.test`, notes: 'ORIGINAL', created_by: ids.get('admin') }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const { data: sc } = await admin.from('service_cases').select('id').limit(1).single()
+    const caseId = (sc as { id: string }).id
+    const noteIds: string[] = []
+    try {
+      // customer_notes
+      const WRITE = ['admin', 'serviceleder', 'salg']
+      for (const [role, cl] of personas) {
+        const ins = await cl.from('customer_notes').insert({ customer_id: custId, content: `${role} note ${stamp}`, source: 'manual', created_by: ids.get(role) }).select('id').single()
+        if (ins.data) noteIds.push((ins.data as { id: string }).id)
+        check(`${role} ${WRITE.includes(role) ? 'kan' : 'kan IKKE'} skrive kundenote`, WRITE.includes(role) ? !ins.error : !!ins.error, ins.error?.code ?? 'ok')
+        const forged = await cl.from('customer_notes').insert({ customer_id: custId, content: 'forfalsket', created_by: ids.get(role === 'admin' ? 'salg' : 'admin') })
+        check(`${role} kan ikke skrive note i andres navn`, !!forged.error, forged.error?.code ?? 'INDSAT')
+        const sel = await cl.from('customer_notes').select('id').eq('customer_id', custId)
+        check(`${role} kan læse kundens noter`, !sel.error && (sel.data ?? []).length >= 1)
+      }
+      const salgNote = (await admin.from('customer_notes').select('id').eq('customer_id', custId).eq('created_by', ids.get('salg')!).single()).data as { id: string }
+      const adminNote = (await admin.from('customer_notes').select('id').eq('customer_id', custId).eq('created_by', ids.get('admin')!).single()).data as { id: string }
+      const s1 = await personas.get('salg')!.from('customer_notes').update({ content: 'ændret af salg' }).eq('id', adminNote.id).select('id')
+      check('salg kan ikke rette admins note', (s1.data ?? []).length === 0, s1.error?.code ?? `${(s1.data ?? []).length}`)
+      const s2 = await personas.get('salg')!.from('customer_notes').update({ content: 'egen rettet' }).eq('id', salgNote.id).select('id')
+      check('salg kan rette egen note', (s2.data ?? []).length === 1)
+      const s3 = await personas.get('serviceleder')!.from('customer_notes').delete().eq('id', salgNote.id).select('id')
+      check('serviceleder kan slette andres note', (s3.data ?? []).length === 1)
+      const m1 = await personas.get('montør')!.from('customer_notes').delete().eq('id', adminNote.id).select('id')
+      check('montør kan ikke slette andres note', (m1.data ?? []).length === 0)
+      const bad = await personas.get('admin')!.from('customer_notes').insert({ customer_id: custId, content: 'x', source: 'hacker', created_by: ids.get('admin') })
+      check('ugyldig source afvises (CHECK)', !!bad.error && bad.error.code === '23514', bad.error?.code ?? 'INDSAT')
+      const { data: cust } = await admin.from('customers').select('notes').eq('id', custId).single()
+      check('customers.notes urørt', (cust as { notes: string }).notes === 'ORIGINAL')
+      // case_notes.source
+      const cn = await personas.get('admin')!.from('case_notes').insert({ case_id: caseId, content: `assistent-note ${stamp}`, kind: 'note', source: 'telegram', created_by: ids.get('admin') }).select('id, source').single()
+      check('case_notes: note med source=telegram', !cn.error && (cn.data as { source: string }).source === 'telegram', cn.error?.message ?? '')
+      if (cn.data) await admin.from('case_notes').delete().eq('id', (cn.data as { id: string }).id)
+      const { data: old } = await admin.from('case_notes').select('source').neq('source', 'manual').limit(1)
+      check('eksisterende case_notes fik source = manual (default)', (old ?? []).length === 0, String((old ?? []).length))
+      // personal_reminders: ejer-isolation
+      const remIds = new Map<string, string>()
+      for (const [role, cl] of personas) {
+        const ins = await cl.from('personal_reminders').insert({ owner_id: ids.get(role), title: `${role} husk ${stamp}`, due_at: new Date(Date.now() + 86_400_000).toISOString(), source: 'manual' }).select('id').single()
+        check(`${role} opretter egen påmindelse`, !ins.error, ins.error?.code ?? '')
+        if (ins.data) remIds.set(role, (ins.data as { id: string }).id)
+        const forged = await cl.from('personal_reminders').insert({ owner_id: ids.get(role === 'admin' ? 'salg' : 'admin'), title: 'x', due_at: new Date().toISOString() })
+        check(`${role} kan ikke oprette påmindelse til andre`, !!forged.error, forged.error?.code ?? 'INDSAT')
+      }
+      for (const [role, cl] of personas) {
+        const { data } = await cl.from('personal_reminders').select('id, owner_id').like('title', `%husk ${stamp}`)
+        const rows = (data ?? []) as Array<{ owner_id: string }>
+        check(`${role} ser KUN egne påmindelser (heller ikke admin ser andres)`, rows.length === 1 && rows[0].owner_id === ids.get(role), `${rows.length}`)
+        const other = role === 'admin' ? 'salg' : 'admin'
+        const up = await cl.from('personal_reminders').update({ title: 'kapret' }).eq('id', remIds.get(other)!).select('id')
+        check(`${role} kan ikke rette ${other}s påmindelse`, (up.data ?? []).length === 0)
+        const del = await cl.from('personal_reminders').delete().eq('id', remIds.get(other)!).select('id')
+        check(`${role} kan ikke slette ${other}s påmindelse`, (del.data ?? []).length === 0)
+      }
+      const own = await personas.get('montør')!.from('personal_reminders').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', remIds.get('montør')!).select('status').single()
+      check('ejer markerer egen udført', (own.data as { status: string } | null)?.status === 'done')
+      const anon = await import('@supabase/supabase-js').then(({ createClient }) => createClient(runtime.url, runtime.anonKey))
+      const an = await anon.from('personal_reminders').select('id').limit(1)
+      const an2 = await anon.from('customer_notes').select('id').limit(1)
+      check('anon kan ikke læse påmindelser/kundenoter', (!!an.error || (an.data ?? []).length === 0) && (!!an2.error || (an2.data ?? []).length === 0))
+      await admin.from('personal_reminders').delete().like('title', `%husk ${stamp}`)
+    } finally {
+      await admin.from('customers').delete().eq('id', custId)
+      await admin.from('personal_reminders').delete().like('title', `%${stamp}%`)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ noter/påmindelser RLS bestået')
     process.exitCode = fails ? 1 : 0
     return
   }
@@ -1229,8 +1408,10 @@ async function main() {
       const r2 = await runAssistantCommand(admin, actor, `Ring til Assist${u} i morgen kl. 10`, NOW)
       check('tvetydigt navn → kandidater med kundenr., ingen opgave', !r2.ok && (r2.text.match(/^• /gm) ?? []).length === 2 && /AR-/.test(r2.text) && !r2.taskId, r2.text.replace(/\n/g, ' | '))
       const r3 = await runAssistantCommand(admin, actor, `Mind mig om at sende tilbud til Assist${u} El fredag kl 8`, NOW)
-      check('"mind mig om …" uden kunde-mål afvises ærligt (ingen opgave)', !r3.ok && !r3.taskId && /knyttes til en kunde/.test(r3.text), r3.text)
-      if (r3.taskId) taskIds.push(r3.taskId)
+      // 00197: "mind mig om …" uden kunde-mål → personlig påmindelse (ikke en kundeopgave)
+      const { data: pr3 } = await admin.from('personal_reminders').select('id, owner_id').eq('id', r3.taskId ?? '').maybeSingle()
+      check('"mind mig om …" uden kunde-mål → personlig påmindelse (ingen kundeopgave)', r3.ok && (pr3 as { owner_id?: string } | null)?.owner_id === adminP.id, r3.text)
+      if (r3.taskId) await admin.from('personal_reminders').delete().eq('id', r3.taskId)
       const r7 = await runAssistantCommand(admin, actor, `Besigtigelse hos Assist${u} El d. 14/10 kl 9`, NOW)
       if (r7.taskId) taskIds.push(r7.taskId)
       const { data: ap } = await admin.from('customer_tasks').select('title, due_date, reminder_at, auto_rule').eq('id', r7.taskId ?? '').maybeSingle()

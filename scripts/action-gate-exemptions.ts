@@ -67,6 +67,11 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'document-confirmations.ts:submitConfirmation': T('kunden bekræfter dokument via engangstoken (status + udløb i opdateringen)'),
   'fuldmagt.ts:submitSignedFuldmagt': T('kunden underskriver fuldmagt via aktivt portal-token'),
   // ---- egne data
+  'personal-reminders.ts:createPersonalReminder': U('kun egne påmindelser (owner_id = indlogget bruger; RLS owner_id = auth.uid())'),
+  'personal-reminders.ts:reschedulePersonalReminder': U('kun egne påmindelser (owner_id = indlogget bruger; RLS owner_id = auth.uid())'),
+  'personal-reminders.ts:completePersonalReminder': U('kun egne påmindelser (owner_id = indlogget bruger; RLS owner_id = auth.uid())'),
+  'personal-reminders.ts:snoozePersonalReminder': U('kun egne påmindelser (owner_id = indlogget bruger; RLS owner_id = auth.uid())'),
+  'personal-reminders.ts:deletePersonalReminder': U('kun egne påmindelser (owner_id = indlogget bruger; RLS owner_id = auth.uid())'),
   'assistant.ts:revokeTelegramLinkAction': U('afbryder kun egen Telegram-kobling (profile_id = indlogget bruger); skal virke uanset rolle'),
   'messages.ts:sendMessage': U('afsender = den indloggede bruger (from_user_id)'),
   'messages.ts:markAsRead': U('kun egne modtagne beskeder (to_user_id)'),

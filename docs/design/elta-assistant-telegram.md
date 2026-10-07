@@ -34,7 +34,7 @@ tidspunkt. Flyttes/ændres tiden i CRM, gælder den nye tid automatisk (ingen ko
   (IKKE i vercel.json), audit af alt. Test: `cli.ts telegram-check` 20/20, `U141`.
 - Secrets til senere prod-aktivering (sættes i Vercel, aldrig i repo): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
   (≥ 16 tegn), `ASSISTANT_TELEGRAM_ENABLED=true`, setWebhook med `secret_token`, cron i vercel.json.
-- Udkast til godkendelse (SQL vist, ikke anvendt): 00196 noter, 00197 personlige påmindelser.
+- 00196 (noter) og 00197 (personlige påmindelser) anvendt på STAGING efter godkendelse 2026-10-07. RLS/rolle: `cli.ts notes-reminders-rls` 50/50; assistent-flow: `notes-reminders-flow` 15/15; UI: U142 (notelog), U143 (Mine påmindelser). Ikke i prod — UI skjules automatisk hvor tabellerne mangler.
 
 ## Tabel assistant_links (00195)
 `assistant_links`: kobling af én Telegram-chat til én aktiv CRM-bruger via engangskode genereret i CRM

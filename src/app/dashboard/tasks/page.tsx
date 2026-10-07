@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { TasksPageClient } from './tasks-page-client'
 import { MyJobsCard } from './my-jobs-card'
 import { MyHoursCard } from './my-hours-card'
+import { PersonalRemindersCard } from './personal-reminders-card'
 import { getPageRoleContext } from '@/lib/auth/page-guard'
 import { isGraphConfigured } from '@/lib/services/microsoft-graph'
 
@@ -26,6 +27,7 @@ export default async function TasksPage() {
     <>
       {showMyJobs && <MyJobsCard />}
       {showMyJobs && <MyHoursCard />}
+      <PersonalRemindersCard />
       <TasksPageClient
         isMontor={isMontor}
         canManage={canManage}

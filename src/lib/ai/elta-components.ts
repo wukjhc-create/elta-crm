@@ -50,6 +50,8 @@ export type EltaComponentRow = {
   code: string
   name: string
   default_sale_price: number | null
+  /** ELTAs kostpris for komponentens materiel (bruges kun hvor motoren ikke selv modellerer materialet — tavlegrupper) */
+  default_cost_price: number | null
   base_time_minutes: number | null
   category: string | null
 }
@@ -66,7 +68,7 @@ export async function loadEltaComponents(): Promise<Map<string, { row: EltaCompo
   const admin = createAdminClient() // katalogdata; motoren kører også fra server-handlinger uden kost-adgang (ingen kost læses)
   const { data, error } = await admin
     .from('calc_components')
-    .select('id, code, name, default_sale_price, base_time_minutes, category:calc_component_categories(name)')
+    .select('id, code, name, default_sale_price, default_cost_price, base_time_minutes, category:calc_component_categories(name)')
     .in('code', codes)
     .eq('is_active', true)
   if (error) throw error
@@ -78,6 +80,7 @@ export async function loadEltaComponents(): Promise<Map<string, { row: EltaCompo
       code: String(r.code),
       name: String(r.name),
       default_sale_price: r.default_sale_price == null ? null : Number(r.default_sale_price),
+      default_cost_price: r.default_cost_price == null ? null : Number(r.default_cost_price),
       base_time_minutes: r.base_time_minutes == null ? null : Number(r.base_time_minutes),
       category: (Array.isArray(cat) ? cat[0]?.name : cat?.name) ?? null,
     })

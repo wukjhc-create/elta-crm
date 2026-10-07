@@ -5,16 +5,23 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DueReminder, ReminderSender } from '@/lib/assistant/reminders'
+import type { AssistantButton } from '@/lib/assistant/run-command'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { chatForProfile } from './link'
 import { sendTelegram } from './transport'
 
-export function reminderButtons(r: DueReminder) {
+export function reminderButtons(r: DueReminder): AssistantButton[] {
+  if (r.kind === 'personal' || !r.customerId) {
+    return [
+      { label: '⏳ Udsæt', action: 'p_snooze', ref: r.taskId },
+      { label: '✅ Udført', action: 'p_done', ref: r.taskId },
+    ]
+  }
   return [
-    { label: '📞 Ring nu', action: 'call_now' as const, ref: r.customerId },
-    { label: '👤 Åbn kunde', action: 'open_customer' as const, ref: r.customerId },
-    { label: '⏳ Udsæt', action: 'snooze' as const, ref: r.taskId },
-    { label: '✅ Udført', action: 'done' as const, ref: r.taskId },
+    { label: '📞 Ring nu', action: 'call_now', ref: r.customerId },
+    { label: '👤 Åbn kunde', action: 'open_customer', ref: r.customerId },
+    { label: '⏳ Udsæt', action: 'snooze', ref: r.taskId },
+    { label: '✅ Udført', action: 'done', ref: r.taskId },
   ]
 }
 

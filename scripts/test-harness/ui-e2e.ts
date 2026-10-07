@@ -186,7 +186,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  'portal-mail': ['U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -3979,6 +3979,86 @@ ${m.text()}`) })
           await c.admin.storage.from('attachments').remove([foreign])
         }
         out.push({ id: 'U137 profil signerer ikke fremmede filer (avatar-sti)', ok: r.seed && r.fremmed_fil_ikke_signeret, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U142 T6: kundens notelog — admin tilføjer en note (customer_notes, tidsstemplet, forfatter), kundens fritekst
+      // "Noter" overskrives ikke; montør kan læse men ikke skrive
+      if (want('U142') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        let u142Diag = ''
+        const text = `U142 note ${stamp}`
+        await c.admin.from('customers').update({ notes: `FRITEKST ${stamp}` }).eq('id', profitCustomerId)
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const box = a.page.getByTestId('customer-notes-timeline')
+          r.notelog_vises = await box.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          if (r.notelog_vises) {
+            await box.getByLabel('Ny kundenote').fill(text)
+            await box.getByRole('button', { name: 'Tilføj note' }).click()
+            r.note_vises = await box.locator('li', { hasText: text }).first().waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+            if (!r.note_vises) u142Diag += ` ui_fejl=${JSON.stringify(await box.locator('p.text-red-600').allInnerTexts().catch(() => []))}`
+          }
+          const { data: rows, error: rowsErr } = await c.admin.from('customer_notes').select('source, created_by, content').eq('customer_id', profitCustomerId)
+          const row = ((rows ?? []) as Array<{ source: string; created_by: string; content: string }>).find((x) => x.content === text)
+          r.gemt_som_manuel_af_admin = row?.source === 'manual' && row?.created_by === adminUser.id
+          if (!r.gemt_som_manuel_af_admin) u142Diag = JSON.stringify({ err: rowsErr?.message ?? null, n: (rows ?? []).length, row: row ? { source: row.source, by_admin: row.created_by === adminUser.id } : null })
+          const { data: cu } = await c.admin.from('customers').select('notes').eq('id', profitCustomerId).single()
+          r.fritekst_uroert = (cu as { notes: string }).notes === `FRITEKST ${stamp}`
+          const mo = await login(montor)
+          await gotoSafe(mo.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const mbox = mo.page.getByTestId('customer-notes-timeline')
+          const seen = await mbox.waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+          r.montor_laeser_ikke_skriver = seen && (await mbox.getByText(text).count()) > 0 && (await mbox.getByLabel('Ny kundenote').count()) === 0 && (await mbox.getByLabel('Slet note').count()) === 0
+          await mo.ctx.close().catch(() => {})
+        } finally {
+          await c.admin.from('customer_notes').delete().eq('customer_id', profitCustomerId)
+        }
+        out.push({ id: 'U142 kundens notelog (tidsstemplet, fritekst urørt, montør kun læse)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + (u142Diag ? ` diag=${u142Diag}` : '') })
+      }
+
+      // U143 Mine påmindelser (00197): opret, ret tidspunkt, udsæt, udført — og kun ejeren ser dem
+      if (want('U143')) {
+        const r: Record<string, boolean> = {}
+        const title = `U143 husk ${stamp}`
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const card = a.page.getByTestId('personal-reminders')
+          r.kort_vises = await card.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          if (r.kort_vises) {
+            await card.getByLabel('Påmindelse').fill(title)
+            await card.getByLabel('Klokkeslæt').fill('09:00')
+            await card.getByRole('button', { name: 'Tilføj' }).click()
+            const row = card.getByTestId('personal-reminder-row').filter({ hasText: title })
+            r.oprettet = await row.waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+            const get = async () => ((await c.admin.from('personal_reminders').select('id, owner_id, due_at, reminder_at, status').eq('title', title).maybeSingle()).data as { id: string; owner_id: string; due_at: string; reminder_at: string; status: string } | null)
+            const v1 = await get()
+            r.ejer_admin_kl_9_dansk = v1?.owner_id === adminUser.id && new Date(v1.due_at).toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' }) === '09.00'
+            if (r.oprettet) {
+              await row.getByRole('button', { name: 'Ret tidspunkt' }).click()
+              await row.getByLabel('Nyt klokkeslæt').fill('14:30')
+              await row.getByRole('button', { name: 'Gem tidspunkt' }).click()
+              await a.page.waitForTimeout(2_000)
+              const v2 = await get()
+              r.tidspunkt_rettet_og_paamindelse_fulgt = !!v2 && new Date(v2.due_at).toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' }) === '14.30' && v2.reminder_at === v2.due_at
+              const before = Date.now()
+              await row.getByRole('button', { name: 'Udsæt' }).click()
+              await a.page.waitForTimeout(2_000)
+              const v3 = await get()
+              r.udsat_en_time = !!v3 && Math.abs(new Date(v3.reminder_at).getTime() - (before + 3_600_000)) < 120_000
+              const mo = await login(montor)
+              await gotoSafe(mo.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 120_000 })
+              await mo.page.waitForTimeout(1_500)
+              r.montor_ser_den_ikke = (await mo.page.getByText(title).count()) === 0
+              await mo.ctx.close().catch(() => {})
+              await row.getByRole('button', { name: 'Udført' }).click()
+              await a.page.waitForTimeout(2_000)
+              r.udfoert = (await get())?.status === 'done'
+            }
+          }
+        } finally {
+          await c.admin.from('personal_reminders').delete().eq('title', title)
+        }
+        out.push({ id: 'U143 Mine påmindelser (opret/ret/udsæt/udført, kun ejer)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U141 T10: "Forbind Telegram" på profilen — admin får en engangskode (/start <kode>, kun hash gemmes), montør ser

@@ -17,7 +17,8 @@ import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 export type AssistantActor = { profileId: string; role: UserRole; isActive: boolean; channel: 'telegram' | 'test' }
 
-export type AssistantButton = { label: string; action: 'call_now' | 'open_customer' | 'snooze' | 'done'; ref: string }
+/** p_snooze/p_done = personlig påmindelse (personal_reminders), øvrige = kundeopgave/kunde */
+export type AssistantButton = { label: string; action: 'call_now' | 'open_customer' | 'snooze' | 'done' | 'p_snooze' | 'p_done'; ref: string }
 
 export type AssistantReply = {
   ok: boolean
@@ -64,8 +65,23 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
 
   // Mål (kunde/sag) — påkrævet for alle kommandoer i fase 1 (customer_tasks.customer_id er NOT NULL)
   if (!cmd.target) {
-    // Påmindelser uden kunde kan ikke gemmes i CRM endnu (customer_tasks.customer_id NOT NULL — beslutning i designdok)
-    return { ok: false, text: 'Påmindelser skal indtil videre knyttes til en kunde eller sag. Skriv fx: "Ring til Hansen fredag kl. 8".' }
+    if (cmd.intent !== 'reminder') return { ok: false, text: 'Hvilken kunde eller sag drejer det sig om?' }
+    // "Mind mig om …" uden kunde → personlig påmindelse (personal_reminders, 00197) — samme model som CRM'ets
+    // "Mine påmindelser"; kun ejeren ser den. Tidspunktet ændres i CRM og følges af påmindelsen.
+    const due = cmd.when!.iso!
+    const title = (cmd.text ?? 'Påmindelse').slice(0, 200)
+    const { data, error } = await admin.from('personal_reminders').insert({
+      owner_id: actor.profileId,
+      title,
+      notes: `Oprettet via ELTA Assistant: "${input.slice(0, 300)}"`,
+      due_at: due,
+      reminder_at: due,
+      source: actor.channel === 'telegram' ? 'telegram' : 'assistant',
+    }).select('id').single()
+    if (error || !data) return { ok: false, text: 'Påmindelsen kunne ikke gemmes i CRM.' }
+    const id = (data as { id: string }).id
+    await audit(admin, actor, 'personal_reminder_created', id, title, { due })
+    return { ok: true, taskId: id, text: `⏰ ${title} — ${fmtWhen(due)}. Ligger under "Mine påmindelser" i CRM.` }
   }
   const res = await resolveTarget(admin, cmd.target)
   if (res.status === 'none') return { ok: false, text: `Jeg fandt ingen kunde eller sag for "${cmd.target}".` }
@@ -76,14 +92,15 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
     return { ok: false, text: `"${cmd.target}" passer på flere — skriv kommandoen igen med kundenummer/sagsnummer:\n${res.candidates.map((c) => `• ${c.label}`).join('\n')}` }
   }
   const target = res.target
-  if (!target.customerId) return { ok: false, text: `${target.label} har ingen kunde tilknyttet — opgaven kan ikke oprettes.` }
+  // kunde kræves for opgaver/aftaler/opslag (nedenfor bruges target.customerId! i de grene); noter på en sag uden kunde er tilladt
+  if (!target.customerId && !(cmd.intent === 'note' && target.kind === 'case')) return { ok: false, text: `${target.label} har ingen kunde tilknyttet — opgaven kan ikke oprettes.` }
 
   if (cmd.intent === 'lookup') {
     if (target.kind === 'case') {
       const { data } = await admin.from('service_cases').select('case_number, title, status, start_date, end_date').eq('id', target.id).single()
       const c = data as { case_number: string; title: string | null; status: string; start_date: string | null; end_date: string | null } | null
       await audit(admin, actor, 'lookup', target.id, target.label, { kind: 'case' })
-      return { ok: true, text: c ? `${c.case_number} ${c.title ?? ''}\nStatus: ${c.status}${c.start_date ? `\nStart: ${c.start_date}` : ''}` : target.label, buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId }] }
+      return { ok: true, text: c ? `${c.case_number} ${c.title ?? ''}\nStatus: ${c.status}${c.start_date ? `\nStart: ${c.start_date}` : ''}` : target.label, buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId! }] }
     }
     const [{ count: openTasks }, { count: openCases }] = await Promise.all([
       admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', target.id).neq('status', 'done'),
@@ -118,7 +135,7 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
       ok: true,
       taskId,
       text: `${cmd.intent === 'callback' ? '📞' : '⏰'} ${title} — ${fmtWhen(due)} (påmindelse ${fmtWhen(reminderAt)}). Ligger i CRM.`,
-      buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId }],
+      buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId! }],
     }
   }
 
@@ -151,10 +168,28 @@ Bekræftelse til kunden er IKKE sendt — send fra CRM.`,
       ok: true,
       taskId,
       text: `📅 ${title} — ${fmtWhen(due)}. Ligger i CRM-kalenderen. Bekræftelse til kunden er ikke sendt.`,
-      buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId }],
+      buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId! }],
     }
   }
 
-  // note: afventer afklaring (customers.notes er ét felt — se docs/design/elta-assistant-telegram.md)
-  return { ok: false, text: 'Noter via assistenten kommer snart.' }
+  // note (T6): separate tidsstemplede noter — sag: case_notes (eksisterende model), kunde: customer_notes.
+  // customers.notes overskrives ALDRIG.
+  const body = (cmd.text ?? '').trim().slice(0, 5000)
+  if (!body) return { ok: false, text: 'Noten er tom.' }
+  const source = actor.channel === 'telegram' ? 'telegram' : 'assistant'
+  if (target.kind === 'case') {
+    // samme regel som CRM: cases.edit (kontor) — cases.edit.own kræver sags-scope, som assistenten ikke har i fase 1
+    if (!hasPermission(actor.role, 'cases.edit')) {
+      await audit(admin, actor, 'denied', target.id, target.label, { reason: 'cases.edit', intent: 'note' })
+      return { ok: false, text: 'Du har ikke ret til at skrive noter på sager.' }
+    }
+    const { data, error } = await admin.from('case_notes').insert({ case_id: target.id, content: body, kind: 'note', urgency: null, source, created_by: actor.profileId }).select('id').single()
+    if (error || !data) return { ok: false, text: 'Noten kunne ikke gemmes på sagen.' }
+    await audit(admin, actor, 'note_created', (data as { id: string }).id, target.label, { target_kind: 'case', target_id: target.id, content_length: body.length })
+    return { ok: true, text: `📝 Note gemt på ${target.label}.` }
+  }
+  const { data, error } = await admin.from('customer_notes').insert({ customer_id: target.id, content: body, source, created_by: actor.profileId }).select('id').single()
+  if (error || !data) return { ok: false, text: 'Noten kunne ikke gemmes på kunden.' }
+  await audit(admin, actor, 'note_created', (data as { id: string }).id, target.label, { target_kind: 'customer', target_id: target.id, content_length: body.length })
+  return { ok: true, text: `📝 Note gemt på ${target.label}.`, buttons: [{ label: 'Åbn kunde', action: 'open_customer', ref: target.id }] }
 }

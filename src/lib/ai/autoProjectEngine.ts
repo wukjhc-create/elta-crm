@@ -109,6 +109,8 @@ export async function analyzeProject(
     if (matchResult.matchConfidence < 0.5) {
       warnings.push('Mange komponenter blev estimeret. Tjek priser manuelt.')
     }
+    // Ufuldstændig pris (tavle-/gruppe-/lader-materiel) — vises altid, så tilbuddet ikke ser komplet ud
+    warnings.push(...matchResult.pricingGaps)
 
     // Stage 3: Calculate time and price
     reportProgress(onProgress, 'calculating', 50, 'Beregner tid og pris...')

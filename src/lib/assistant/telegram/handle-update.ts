@@ -54,9 +54,30 @@ export async function handleTelegramUpdate(admin: SupabaseClient, update: Telegr
       await reply(chatId, !actor ? 'Denne chat er ikke forbundet. Forbind din CRM-bruger under Indstillinger → Profil.' : !actor.isActive ? 'Din CRM-bruger er deaktiveret.' : 'ELTA Assistant er endnu kun åben for kontor-roller.')
       return { handled: 'denied' }
     }
-    const m = data.match(/^(done|snooze|call_now):([0-9a-f-]{36})$/)
+    const m = data.match(/^(done|snooze|call_now|p_done|p_snooze):([0-9a-f-]{36})$/)
     if (!m) return { handled: 'ignored' }
     const [, action, ref] = m
+    if (action === 'p_done' || action === 'p_snooze') {
+      // personlig påmindelse: KUN ejeren (også admin afvises — privat huskeliste)
+      const { data: pr } = await admin.from('personal_reminders').select('id, title, owner_id, status').eq('id', ref).maybeSingle()
+      const rem = pr as { id: string; title: string; owner_id: string; status: string } | null
+      if (!rem || rem.owner_id !== actor.profileId) {
+        await audit(admin, actor, 'button_denied', ref, { reason: 'not_owner', action })
+        await reply(chatId, 'Påmindelsen findes ikke eller er ikke din.')
+        return { handled: 'denied' }
+      }
+      if (action === 'p_done') {
+        await admin.from('personal_reminders').update({ status: 'done', completed_at: now.toISOString(), updated_at: now.toISOString() }).eq('id', ref).eq('owner_id', actor.profileId)
+        await audit(admin, actor, 'personal_reminder_done', ref, {})
+        await reply(chatId, `✅ Udført: ${rem.title}`)
+        return { handled: 'p_done' }
+      }
+      const nextAt = new Date(now.getTime() + SNOOZE_MIN * 60_000).toISOString()
+      await admin.from('personal_reminders').update({ reminder_at: nextAt, updated_at: now.toISOString() }).eq('id', ref).eq('owner_id', actor.profileId)
+      await audit(admin, actor, 'personal_reminder_snoozed', ref, { reminder_at: nextAt })
+      await reply(chatId, `⏳ Udsat ${SNOOZE_MIN} min: ${rem.title}`)
+      return { handled: 'p_snooze' }
+    }
     if (action === 'call_now') {
       const { data: c } = await admin.from('customers').select('company_name, contact_person, phone, mobile').eq('id', ref).maybeSingle()
       const cu = c as { company_name: string | null; contact_person: string | null; phone: string | null; mobile: string | null } | null

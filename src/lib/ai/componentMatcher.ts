@@ -35,6 +35,8 @@ interface ComponentMatch {
   time_minutes: number
   category: string
   source: 'database' | 'estimate'
+  /** Materielkostpris pr. stk. fra ELTA-kataloget (kun hvor motoren ikke selv modellerer materialet) */
+  material_cost?: number
 }
 
 interface MaterialMatch {
@@ -55,6 +57,8 @@ interface MatchingResult {
   materials: MaterialMatch[]
   unmatchedPoints: string[]
   matchConfidence: number
+  /** Dele af opgaven hvor materiel IKKE er prissat (vises som advarsel — prisen er da ikke komplet) */
+  pricingGaps: string[]
 }
 
 // =====================================================
@@ -328,6 +332,8 @@ async function fetchDatabaseComponents(): Promise<Map<string, ComponentMatch>> {
         category: fallback?.category || 'general',
         source: 'database',
         quantity: 0,
+        // tavlegrupper: motoren har intet materiale for gruppen → ELTAs kostpris for "Ekstra gruppe i tavle"
+        material_cost: engineCode === 'panel_group' && (row.default_cost_price ?? 0) > 0 ? row.default_cost_price! : undefined,
       })
     }
   } catch (err) {
@@ -575,6 +581,26 @@ export async function matchComponents(
   // Calculate materials
   const materials = calculateMaterials(interpretation, components)
 
+  // Materiel defineret i ELTA-kataloget (kun tavlegrupper) — ét materiale pr. komponent
+  for (const c of components) {
+    if (c.material_cost && c.material_cost > 0) {
+      materials.push({ name: `${c.name} (materiel)`, unit: 'stk', unit_cost: c.material_cost, unit_price: c.material_cost, source: 'database', quantity: c.quantity })
+    }
+  }
+
+  // Tavle-/lader-materiel der ikke er prissat — ALDRIG et gæt; prisen markeres som ufuldstændig
+  const pricingGaps: string[] = []
+  if (components.some((c) => c.code === 'panel_new')) {
+    pricingGaps.push('Ikke prissat: tavlemateriel for ny eltavle (ELTA-kataloget har flere tavle-komponenter — TAVLE-NY/-S/-L/-LILLE). Prissæt tavlen manuelt før tilbuddet sendes.')
+  }
+  const groups = components.find((c) => c.code === 'panel_group')
+  if (groups && !(groups.material_cost && groups.material_cost > 0)) {
+    pricingGaps.push(`Ikke prissat: materiel til ${groups.quantity} ekstra tavlegruppe(r) (automatsikringer/HPFI). Tilføj manuelt.`)
+  }
+  if (components.some((c) => c.code === 'ev_charger')) {
+    pricingGaps.push('Ikke prissat: selve ladestanderen (kun montage er med). Tilføj laderen manuelt.')
+  }
+
   // Calculate confidence based on database matches
   const totalComponents = components.length
   const dbMatchedComponents = components.filter(c => c.source === 'database').length
@@ -585,6 +611,7 @@ export async function matchComponents(
     materials,
     unmatchedPoints,
     matchConfidence,
+    pricingGaps,
   }
 }
 

@@ -42,6 +42,7 @@ import { PartnerPortalAccess } from '@/components/modules/customers/partner-port
 import { CustomerPricing } from '@/components/modules/customers/customer-pricing'
 import { EmployeeChat } from '@/components/modules/customers/employee-chat'
 import { CustomerTasks } from '@/components/modules/customers/customer-tasks'
+import { CustomerNotesTimeline } from '@/components/modules/customers/customer-notes-timeline'
 import { CustomerActivityOverview } from '@/components/modules/customers/customer-activity-overview'
 import { CustomerEmailTimeline } from '@/components/modules/customers/customer-email-timeline'
 import { BesigtigelsesNotat } from '@/components/modules/customers/besigtigelse-notat'
@@ -668,6 +669,9 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                 </p>
               </div>
             )}
+
+            {/* T6: tidsstemplede noter (customer_notes) — fritekstfeltet ovenfor overskrives aldrig */}
+            <CustomerNotesTimeline customerId={customer.id} />
           </div>
 
           {/* Sidebar */}
