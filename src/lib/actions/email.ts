@@ -930,6 +930,9 @@ export async function sendOfferEmail(
           sent_at: new Date().toISOString(),
         })
         .eq('id', offer.id)
+      // 00203 (staging): uforanderligt snapshot af den sendte revision + forrige revision afløses (no-op uden flag)
+      const { recordOfferSent } = await import('@/lib/offers/revisions')
+      await recordOfferSent(offer.id, userId)
     }
 
     // Record outgoing email in incoming_emails for customer timeline

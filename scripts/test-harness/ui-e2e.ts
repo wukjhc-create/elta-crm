@@ -183,7 +183,7 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -296,6 +296,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const env: Record<string, string> = { ...(process.env as Record<string, string>), NEXT_PUBLIC_APP_URL: base, NEXT_TELEMETRY_DISABLED: '1', PORT: String(port),
     // N11: staging har RLS 00181 -> montør må starte eget job (prod: flaget er OFF indtil 00181 er godkendt)
     MONTOR_START_JOB_ENABLED: 'true',
+    // 00203 (staging only): tilbudsrevisioner
+    OFFER_REVISIONS_ENABLED: 'true',
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
     // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }
@@ -2913,6 +2915,36 @@ ${m.text()}`) })
           && await a.page.locator('input').evaluateAll((els) => els.some((e) => ['314.15', '314,15'].includes((e as HTMLInputElement).value)))
         a.page.off('response', onResp)
         out.push({ id: 'U89 PV16 løn på Rediger medarbejder foldet + hentes ved åbning', ok: !!u89EmployeeId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U147 (00203, staging): "Ny revision" på et sendt tilbud → kladde R2 (redigerbar), historik viser R1 → R2.
+      if (want('U147') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const { data: o } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-REV-${stamp}`, title: '[HARNESS] revision UI', created_by: adminUser.id,
+          customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString() }]).select('id')
+        const r1 = (o?.[0] as { id?: string } | undefined)?.id ?? null
+        if (r1) await c.admin.from('offer_line_items').insert([{ offer_id: r1, position: 1, description: 'Linje', quantity: 1, unit: 'stk', unit_price: 500, sale_price: 500, total: 500 }])
+        await gotoSafe(a.page, `${base}/dashboard/offers/${r1}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const btn = a.page.getByTestId('offer-new-revision')
+        await btn.waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {})
+        r.panel_og_knap = (await btn.count()) === 1
+        await a.page.waitForTimeout(1500)
+        await btn.click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForURL((u) => !u.pathname.endsWith(String(r1)), { timeout: 60_000 }).catch(() => {})
+        const r2 = a.page.url().split('/').pop() ?? ''
+        r.navigeret_til_revision = !!r2 && r2 !== r1
+        await a.page.getByRole('button', { name: 'Rediger', exact: true }).waitFor({ timeout: 60_000 }).catch(() => {})
+        r.revision_er_redigerbar_kladde = (await a.page.getByRole('button', { name: 'Rediger', exact: true }).count()) === 1
+        await a.page.getByTestId('offer-revisions').getByText('Rev. 2').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.historik_r1_r2 = (await a.page.getByTestId('offer-revisions').getByText('Rev. 1').count()) > 0 && (await a.page.getByTestId('offer-revisions').getByText('Rev. 2').count()) > 0
+        for (const id of [r2, r1].filter(Boolean) as string[]) {
+          await c.admin.from('offer_activities').delete().eq('offer_id', id)
+          await c.admin.from('offer_snapshots').delete().eq('offer_id', id)
+          await c.admin.from('offer_line_items').delete().eq('offer_id', id)
+          await c.admin.from('offers').update({ revision_of: null, superseded_by: null }).eq('id', id)
+        }
+        for (const id of [r2, r1].filter(Boolean) as string[]) await c.admin.from('offers').delete().eq('id', id)
+        out.push({ id: 'U147 tilbudsrevision: ny revision fra sendt tilbud + historik', ok: !!r1 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U146 (Henrik 2026-10-07): sendte/accepterede tilbud er låst — "Låst" i stedet for "Rediger"; accepteret kan ikke

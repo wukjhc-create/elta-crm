@@ -816,6 +816,11 @@ export async function updateOfferStatus(
       }
     }
 
+    // 00203 (staging): afsendelse via statusskift → snapshot + afløsning af forrige revision (no-op uden flag)
+    if (status === 'sent') {
+      const { recordOfferSent } = await import('@/lib/offers/revisions')
+      await recordOfferSent(id, userId)
+    }
     revalidatePath('/offers')
     revalidatePath(`/offers/${id}`)
     return { success: true, data: data as Offer }
@@ -2761,5 +2766,42 @@ export async function getOfferFormDefaultsAction(): Promise<{
     default_offer_validity_days: d.default_offer_validity_days ?? null,
     default_tax_percentage: d.default_tax_percentage ?? null,
     default_terms_and_conditions: d.default_terms_and_conditions ?? null,
+  }
+}
+
+// =====================================================
+// 00203 — Tilbudsrevisioner (STAGING; feature-flag OFFER_REVISIONS_ENABLED)
+// =====================================================
+
+/** Ny revision af et sendt tilbud (sendt version forbliver uændret). */
+export async function createOfferRevisionAction(offerId: string): Promise<ActionResult<{ id: string; offer_number: string }>> {
+  try {
+    const { userId, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.create') || !hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: offers.edit' }
+    }
+    validateUUID(offerId, 'tilbud ID')
+    const { createOfferRevision } = await import('@/lib/offers/revisions')
+    const res = await createOfferRevision(offerId, userId)
+    if (!res.ok) return { success: false, error: res.error }
+    await logCreate('offer', res.id, res.offer_number, { revision_of: offerId })
+    revalidatePath('/dashboard/offers')
+    revalidatePath(`/dashboard/offers/${offerId}`)
+    return { success: true, data: { id: res.id, offer_number: res.offer_number } }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke oprette revision') }
+  }
+}
+
+/** Revisionshistorik (kæde + hvornår hver revision blev sendt). */
+export async function getOfferRevisionHistoryAction(offerId: string): Promise<ActionResult<Array<{ id: string; offer_number: string; revision_number: number; status: string; superseded_at: string | null; snapshot_sent_at: string | null }>>> {
+  try {
+    const { hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return { success: false, error: 'Manglende tilladelse: offers.view' }
+    validateUUID(offerId, 'tilbud ID')
+    const { getRevisionHistory } = await import('@/lib/offers/revisions')
+    return { success: true, data: await getRevisionHistory(offerId) }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke hente revisioner') }
   }
 }

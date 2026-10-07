@@ -591,6 +591,94 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'offer-revisions-check') {
+    // 00203 (STAGING): revisioner — snapshot ved afsendelse, ny revision, afløsning, uforanderligt snapshot (RLS),
+    // portal viser gældende revision, afløst kan ikke accepteres (afvises FØR underskrift/mail), accepteret kan ikke
+    // revideres. Ingen mail sendes. Alt seedet ryddes.
+    process.env.OFFER_REVISIONS_ENABLED = 'true'
+    const rv = await import('../../src/lib/offers/revisions')
+    const { getPortalOffers, getPortalOffer, acceptOffer } = await import('../../src/lib/actions/portal')
+    const rm = await import('./role-matrix')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `REV-${stamp}`, company_name: `[HARNESS] rev ${stamp}`, contact_person: 'Kunde', email: `rev-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const tok = randomBytes(32).toString('hex')
+    await admin.from('portal_access_tokens').insert({ customer_id: custId, token: tok, email: `rev-${stamp}@harness.test`, is_active: true, created_by: owner })
+    const offerIds: string[] = []
+    try {
+      const { data: o1 } = await admin.from('offers').insert([{ offer_number: `REV-${stamp}`, title: '[HARNESS] revision', created_by: owner, customer_id: custId, status: 'draft' }]).select('id').single()
+      const r1 = (o1 as { id: string }).id; offerIds.push(r1)
+      await admin.from('offer_line_items').insert([{ offer_id: r1, position: 1, description: 'Linje', quantity: 1, unit: 'stk', unit_price: 1000, sale_price: 1000, total: 1000 }])
+      await admin.from('offers').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', r1)
+      await rv.recordOfferSent(r1, owner)
+      const s1 = (await admin.from('offer_snapshots').select('id, revision_number, snapshot').eq('offer_id', r1)).data as Array<{ id: string; revision_number: number; snapshot: { lines: Array<{ unit_price: number }> } }>
+      check('afsendelse gemmer snapshot (rev 1)', s1.length === 1 && s1[0].revision_number === 1 && Number(s1[0].snapshot.lines[0]?.unit_price) === 1000)
+
+      const nr = await rv.createOfferRevision(r1, owner)
+      const r2 = nr.ok ? nr.id : ''
+      if (r2) offerIds.push(r2)
+      const r2row = r2 ? ((await admin.from('offers').select('status, revision_of, revision_number, offer_number').eq('id', r2).single()).data as { status: string; revision_of: string; revision_number: number; offer_number: string }) : null
+      const r2lines = r2 ? (await admin.from('offer_line_items').select('id', { count: 'exact', head: true }).eq('offer_id', r2)).count : 0
+      check('ny revision = kladde R2 med kæde og kopierede linjer', !!r2row && r2row.status === 'draft' && r2row.revision_of === r1 && r2row.revision_number === 2 && r2row.offer_number.endsWith('-R2') && r2lines === 1, nr.ok ? r2row?.offer_number ?? '' : nr.error)
+      const dup = await rv.createOfferRevision(r1, owner)
+      check('kun én åben revision ad gangen', !dup.ok)
+
+      await admin.from('offer_line_items').update({ unit_price: 1200, sale_price: 1200, total: 1200 }).eq('offer_id', r2)
+      await admin.from('offers').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', r2)
+      await rv.recordOfferSent(r2, owner)
+      const r1after = (await admin.from('offers').select('superseded_by').eq('id', r1).single()).data as { superseded_by: string | null }
+      check('R1 afløst af R2 ved afsendelse af R2', r1after.superseded_by === r2)
+      const s1again = (await admin.from('offer_snapshots').select('snapshot').eq('offer_id', r1).single()).data as { snapshot: { lines: Array<{ unit_price: number }> } }
+      check('R1-snapshot uændret (1.000) trods ny pris i R2', Number(s1again.snapshot.lines[0]?.unit_price) === 1000)
+
+      // uforanderligt: ingen bruger-rolle kan ændre/slette snapshots
+      const clients = await rm.loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
+      for (const [role, cl] of clients) {
+        const up = await cl.from('offer_snapshots').update({ revision_number: 99 }).eq('offer_id', r1).select('id')
+        const del = await cl.from('offer_snapshots').delete().eq('offer_id', r1).select('id')
+        check(`${role}: snapshot kan ikke ændres/slettes`, (up.data ?? []).length === 0 && (del.data ?? []).length === 0, up.error?.message ?? '')
+      }
+      const still = (await admin.from('offer_snapshots').select('revision_number').eq('offer_id', r1).single()).data as { revision_number: number }
+      check('snapshot stadig rev 1 efter forsøg', still.revision_number === 1)
+
+      // portal
+      const list = await getPortalOffers(tok)
+      const ids = (list.data ?? []).map((x) => (x as { id: string }).id)
+      check('portal viser kun gældende revision (R2)', list.success && ids.includes(r2) && !ids.includes(r1), JSON.stringify(ids.length))
+      const old = await getPortalOffer(tok, r1)
+      check('afløst revision i portal → henvisning til ny version', !old.success && /erstattet/.test(old.error ?? ''), old.error ?? '')
+      const acc = await acceptOffer(tok, { offer_id: r1, signer_name: 'Test', signer_email: `rev-${stamp}@harness.test`, signature_data: 'data:image/png;base64,AA' } as never)
+      check('afløst revision kan ikke accepteres (afvist før underskrift/mail)', !acc.success && /erstattet/.test(acc.error ?? ''), acc.error ?? '')
+      const sigs = (await admin.from('offer_signatures').select('id', { count: 'exact', head: true }).eq('offer_id', r1)).count
+      check('ingen underskrift gemt på afløst revision', sigs === 0)
+      const snap2 = await rv.latestSnapshotId(r2)
+      const s2 = (await admin.from('offer_snapshots').select('id, revision_number').eq('offer_id', r2).single()).data as { id: string; revision_number: number }
+      check('underskrift på R2 bindes til R2-snapshot (latestSnapshotId)', snap2 === s2.id && s2.revision_number === 2)
+
+      await admin.from('offers').update({ status: 'accepted', accepted_at: new Date().toISOString() }).eq('id', r2)
+      const accRev = await rv.createOfferRevision(r2, owner)
+      check('accepteret tilbud kan ikke revideres', !accRev.ok)
+      const hist = await rv.getRevisionHistory(r2)
+      check('historik viser kæden R1 → R2 med sendetidspunkter', hist.length === 2 && hist[0].id === r1 && hist[1].id === r2 && !!hist[0].snapshot_sent_at && !!hist[0].superseded_at)
+    } finally {
+      for (const id of offerIds.reverse()) {
+        await admin.from('offer_activities').delete().eq('offer_id', id)
+        await admin.from('offer_snapshots').delete().eq('offer_id', id)
+        await admin.from('offer_line_items').delete().eq('offer_id', id)
+      }
+      for (const id of offerIds) await admin.from('offers').update({ revision_of: null, superseded_by: null }).eq('id', id)
+      for (const id of offerIds) await admin.from('offers').delete().eq('id', id)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', custId)
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ revisioner ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'portal-limits-check') {
     // R-PRT-B (Henrik 2026-10-07): portal-grænser. Kun AFVISNINGS-stierne testes — de returnerer før indsættelse og
     // før notifikationsmailen (ingen mail sendes). Seed: 20 kundebeskeder seneste time + 20 filer i dag. Ryddes op.

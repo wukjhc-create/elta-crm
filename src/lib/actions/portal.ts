@@ -266,11 +266,15 @@ export async function getPortalOffers(
     const supabase = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
-    const { data: offers, error } = await supabase
+    let offersQuery = supabase
       .from('offers')
       .select('*')
       .eq('customer_id', customerId)
       .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
+    // 00203 (staging): kun den gældende revision vises — afløste revisioner skjules
+    const { offerRevisionsEnabled } = await import('@/lib/offers/revisions')
+    if (offerRevisionsEnabled()) offersQuery = offersQuery.is('superseded_by', null)
+    const { data: offers, error } = await offersQuery
       .order('created_at', { ascending: false })
       .limit(100)
 
@@ -380,6 +384,14 @@ export async function getPortalOffer(
       // Q10: som tilbudslisten — kladder (ikke sendt) kunne ellers åbnes via UUID
       .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
       .maybeSingle()
+
+    // 00203 (staging): en afløst revision vises ikke — kunden henvises til den gældende version
+    if (offer) {
+      const { supersededBy } = await import('@/lib/offers/revisions')
+      if (await supersededBy(offerId)) {
+        return { success: false, error: 'Dette tilbud er erstattet af en nyere version — se dine tilbud i oversigten' }
+      }
+    }
 
     if (error || !offer) {
       logger.error('Error fetching offer', { error: error })
@@ -507,6 +519,12 @@ export async function acceptOffer(
     if (!canCustomerRespond(offer.status as string, offer.valid_until as string | null)) {
       return { success: false, error: isOfferExpired(offer.valid_until as string | null) ? 'Tilbuddet er udløbet — kontakt os for et nyt tilbud' : 'Tilbuddet kan ikke accepteres i denne status' }
     }
+    // 00203 (staging): en afløst revision kan ikke accepteres; underskriften bindes til den præcise revisions snapshot
+    const { supersededBy, latestSnapshotId } = await import('@/lib/offers/revisions')
+    if (await supersededBy(data.offer_id)) {
+      return { success: false, error: 'Tilbuddet er erstattet af en nyere version — genindlæs siden' }
+    }
+    const snapshotId = await latestSnapshotId(data.offer_id)
 
     // Get client IP
     const headersList = await headers()
@@ -523,6 +541,7 @@ export async function acceptOffer(
         signer_email: data.signer_email,
         signer_ip: clientIp,
         signature_data: data.signature_data,
+        ...(snapshotId ? { snapshot_id: snapshotId } : {}),
       })
       .select('id')
       .single()
