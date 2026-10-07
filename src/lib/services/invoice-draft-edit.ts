@@ -8,6 +8,9 @@
  *  - antal kun på MANUELLE linjer — linjer fra timer/materialer/øvrige beholder kildens antal
  *  - manuelle linjer kan tilføjes og slettes; kildelinjer slettes via "Slet kladde" (frigiver kilderne)
  *  - totaler genberegnes med fakturaens egen momssats; header opdateres kun mens den stadig er kladde
+ *  - X1 (økonomi-review 2026-10-07): kreditnota-, forskuds- og ratekladder har beregnede beløb (krediterbart restbeløb,
+ *    procent af kontraktsum) → kun BESKRIVELSE kan rettes (før: vilkårlig pris, fx kredit −1.000 → −50.000);
+ *    slutfakturaens fradragslinjer ("Fradrag: …") kan hverken rettes eller slettes (før: forskud faktureret to gange)
  */
 type Admin = { from: (t: string) => any }
 
@@ -20,12 +23,26 @@ function isSourced(line: Record<string, unknown>): boolean {
   return !!(line.source_time_log_id || line.source_case_material_id || line.source_case_other_cost_id)
 }
 
+/** Fakturatyper hvis beløb er beregnet — kun beskrivelser må rettes */
+export const AMOUNT_LOCKED_TYPES: ReadonlySet<string> = new Set(['credit', 'deposit', 'progress'])
+
+export function isDeductionLine(inv: { is_final_invoice?: boolean | null }, line: Record<string, unknown>): boolean {
+  return !!inv.is_final_invoice && typeof line.description === 'string' && line.description.startsWith('Fradrag: ')
+}
+
+type DraftInv = { id: string; status: string; total_amount: number | null; tax_amount: number | null; invoice_type: string | null; is_final_invoice: boolean | null }
+
 async function loadDraft(admin: Admin, invoiceId: string) {
-  const { data } = await admin.from('invoices').select('id, status, total_amount, tax_amount').eq('id', invoiceId).maybeSingle()
+  const { data } = await admin.from('invoices').select('id, status, total_amount, tax_amount, invoice_type, is_final_invoice').eq('id', invoiceId).maybeSingle()
   if (!data) return { error: 'Faktura ikke fundet' as const }
   if (data.status !== 'draft') return { error: 'Kun kladder kan redigeres — brug kreditnota på sendte fakturaer' as const }
-  return { inv: data as { id: string; status: string; total_amount: number | null; tax_amount: number | null } }
+  return { inv: data as DraftInv }
 }
+
+const lockedMessage = (type: string | null) =>
+  type === 'credit'
+    ? 'Kreditnotaens beløb er beregnet ud fra den krediterede faktura — kun beskrivelsen kan rettes. Slet kladden og lav en ny kreditnota for et andet beløb.'
+    : 'Forskuds-/ratefakturaens beløb er beregnet af kontraktsummen — kun beskrivelsen kan rettes. Slet kladden og lav en ny.'
 
 export function vatRateOf(inv: { total_amount: number | null; tax_amount: number | null }): number {
   const t = Number(inv.total_amount ?? 0)
@@ -56,6 +73,9 @@ export async function editDraftLine(admin: Admin, invoiceId: string, lineId: str
   if ('error' in d) return { ok: false, message: d.error! }
   const { data: line } = await admin.from('invoice_lines').select('*').eq('id', lineId).eq('invoice_id', invoiceId).maybeSingle()
   if (!line) return { ok: false, message: 'Linjen findes ikke på fakturaen' }
+  const amountChange = patch.unit_price !== undefined || patch.quantity !== undefined
+  if (amountChange && AMOUNT_LOCKED_TYPES.has(d.inv!.invoice_type ?? '')) return { ok: false, message: lockedMessage(d.inv!.invoice_type) }
+  if (isDeductionLine(d.inv!, line)) return { ok: false, message: 'Fradraget for forudbetalinger beregnes automatisk og kan ikke rettes' }
 
   const upd: Record<string, unknown> = {}
   if (patch.description !== undefined) {
@@ -85,6 +105,7 @@ export async function editDraftLine(admin: Admin, invoiceId: string, lineId: str
 export async function addManualDraftLine(admin: Admin, invoiceId: string, input: { description: string; quantity: number; unit?: string | null; unit_price: number }): Promise<DraftEditResult> {
   const d = await loadDraft(admin, invoiceId)
   if ('error' in d) return { ok: false, message: d.error! }
+  if (AMOUNT_LOCKED_TYPES.has(d.inv!.invoice_type ?? '')) return { ok: false, message: lockedMessage(d.inv!.invoice_type) }
   const desc = String(input.description ?? '').trim()
   if (!desc || desc.length > 1000) return { ok: false, message: 'Beskrivelse skal være 1–1000 tegn' }
   if (!validNumber(input.quantity, { min: 0.01, max: 1_000_000 })) return { ok: false, message: 'Antal skal være større end 0' }
@@ -104,6 +125,8 @@ export async function deleteManualDraftLine(admin: Admin, invoiceId: string, lin
   const { data: line } = await admin.from('invoice_lines').select('*').eq('id', lineId).eq('invoice_id', invoiceId).maybeSingle()
   if (!line) return { ok: false, message: 'Linjen findes ikke på fakturaen' }
   if (isSourced(line)) return { ok: false, message: 'Linjen kommer fra sagen — brug "Slet kladde" for at frigive timer/materialer' }
+  if (AMOUNT_LOCKED_TYPES.has(d.inv!.invoice_type ?? '')) return { ok: false, message: lockedMessage(d.inv!.invoice_type) }
+  if (isDeductionLine(d.inv!, line)) return { ok: false, message: 'Fradraget for forudbetalinger kan ikke slettes — slet slutfakturaens kladde i stedet' }
   const { error } = await admin.from('invoice_lines').delete().eq('id', lineId).eq('invoice_id', invoiceId)
   if (error) return { ok: false, message: 'Linjen kunne ikke slettes' }
   return recomputeDraftTotals(admin, invoiceId, vatRateOf(d.inv!))

@@ -1068,6 +1068,86 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'invoice-guards-check') {
+    // STAGING (X1 #7/#8): fakturakladde-redigering respekterer fakturatypen, fradragslinjer er låst, og en linjebaseret
+    // kreditnota af kun et fradrag afvises (før forkert fortegn). Rydder op.
+    const { editDraftLine, addManualDraftLine, deleteManualDraftLine } = await import('../../src/lib/services/invoice-draft-edit')
+    const { createCreditNoteForInvoice } = await import('../../src/lib/services/invoice-credit')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `IG-${stamp}`, company_name: `[HARNESS] fakturavagt ${stamp}`, contact_person: 'x', email: `ig-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    let n = 0
+    const mkInv = async (fields: Record<string, unknown>, lines: Array<[string, number, number]>) => {
+      const { data, error } = await admin.from('invoices').insert({ invoice_number: `HX-${stamp}-${++n}`, customer_id: custId, status: 'draft', total_amount: 0, tax_amount: 0, final_amount: 0, ...fields }).select('id').single()
+      if (error) throw new Error(`faktura: ${error.message}`)
+      const id = (data as { id: string }).id
+      const ids: string[] = []
+      for (const [i, [desc, qty, price]] of lines.entries()) {
+        const { data: l, error: le } = await admin.from('invoice_lines').insert({ invoice_id: id, position: i + 1, description: desc, quantity: qty, unit: 'stk', unit_price: price, total_price: qty * price }).select('id').single()
+        if (le) throw new Error(`linje: ${le.message}`)
+        ids.push((l as { id: string }).id)
+      }
+      const sub = lines.reduce((s, [, q, p]) => s + q * p, 0)
+      await admin.from('invoices').update({ total_amount: sub, tax_amount: sub * 0.25, final_amount: sub * 1.25 }).eq('id', id)
+      return { id, lines: ids }
+    }
+    try {
+      const std = await mkInv({ invoice_type: 'standard' }, [['Arbejde', 2, 500]])
+      const e1 = await editDraftLine(admin, std.id, std.lines[0], { unit_price: 600 })
+      check('almindelig kladde: pris kan rettes', e1.ok && e1.totals?.total_amount === 1200, e1.message)
+
+      const cr = await mkInv({ invoice_type: 'credit' }, [['Kreditnota: Arbejde', 1, -1000]])
+      const c1 = await editDraftLine(admin, cr.id, cr.lines[0], { unit_price: -50000 })
+      check('kreditnota-kladde: pris kan IKKE rettes (før −1.000 → −50.000)', !c1.ok, c1.message)
+      const c2 = await editDraftLine(admin, cr.id, cr.lines[0], { description: 'Kreditnota: arbejde (rettet tekst)' })
+      check('kreditnota-kladde: beskrivelse kan rettes', c2.ok, c2.message)
+      const c3 = await addManualDraftLine(admin, cr.id, { description: 'ekstra', quantity: 1, unit_price: 500 })
+      check('kreditnota-kladde: kan ikke tilføje linjer', !c3.ok, c3.message)
+      const c4 = await deleteManualDraftLine(admin, cr.id, cr.lines[0])
+      check('kreditnota-kladde: kan ikke slette linjer', !c4.ok, c4.message)
+
+      const dep = await mkInv({ invoice_type: 'deposit', billing_percentage: 30 }, [['Forskud 30 %', 1, 30000]])
+      const d1 = await editDraftLine(admin, dep.id, dep.lines[0], { unit_price: 45000 })
+      check('forskudskladde: beløb låst (procent af kontraktsum)', !d1.ok, d1.message)
+
+      const fin = await mkInv({ invoice_type: 'standard', is_final_invoice: true }, [['Arbejde', 1, 100000], ['Fradrag: HX-forskud (forskud)', 1, -30000]])
+      const f1 = await editDraftLine(admin, fin.id, fin.lines[1], { unit_price: 0 })
+      check('slutfaktura: fradragslinje kan ikke rettes', !f1.ok, f1.message)
+      const f2 = await deleteManualDraftLine(admin, fin.id, fin.lines[1])
+      check('slutfaktura: fradragslinje kan ikke slettes (før forskud faktureret to gange)', !f2.ok, f2.message)
+      const f3 = await editDraftLine(admin, fin.id, fin.lines[0], { unit_price: 110000 })
+      check('slutfaktura: almindelig linje kan rettes', f3.ok, f3.message)
+
+      // #7: sendt slutfaktura — kreditering af KUN fradragslinjen afvises; arbejde + fradrag = 70k
+      const sent = await mkInv({ invoice_type: 'standard', is_final_invoice: false }, [['Arbejde', 1, 100000], ['Fradrag: HX-forskud2 (forskud)', 1, -30000]])
+      await admin.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', sent.id)
+      const k1 = await createCreditNoteForInvoice({ invoice_id: sent.id, credit_type: 'partial', reason: 'harness', selected_line_ids: [sent.lines[1]] }, owner)
+      check('kreditering af kun fradragslinjen afvises (før forkert fortegn)', !k1.ok, k1.message)
+      const k2 = await createCreditNoteForInvoice({ invoice_id: sent.id, credit_type: 'partial', reason: 'harness', selected_line_ids: sent.lines }, owner)
+      check('kreditering af arbejde + fradrag = 70.000 (fortegn korrekt)', k2.ok && k2.credited_ex_vat === 70000, `${k2.message} (${k2.credited_ex_vat})`)
+      if (k2.credit_invoice_id) {
+        const { data: kl } = await admin.from('invoice_lines').select('total_price').eq('invoice_id', k2.credit_invoice_id)
+        const lineSum = ((kl ?? []) as Array<{ total_price: number }>).reduce((s, l) => s + Number(l.total_price), 0)
+        const { data: kh } = await admin.from('invoices').select('total_amount').eq('id', k2.credit_invoice_id).single()
+        check('  kreditnotaens linjer og header stemmer', Math.abs(Math.abs(lineSum) - Math.abs(Number((kh as { total_amount: number }).total_amount))) < 0.01, `linjer ${lineSum} / header ${(kh as { total_amount: number }).total_amount}`)
+      }
+    } finally {
+      const { data: invs } = await admin.from('invoices').select('id').eq('customer_id', custId)
+      const ids = ((invs ?? []) as Array<{ id: string }>).map((x) => x.id)
+      if (ids.length) {
+        await admin.from('invoice_lines').delete().in('invoice_id', ids)
+        await admin.from('invoices').delete().in('credit_of_invoice_id', ids)
+        await admin.from('invoices').delete().in('id', ids)
+      }
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ fakturavagter (X1 #7/#8) bestået')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'assistant-commands-check') {
     // STAGING (X2): hjælp, "i dag", flyt opgave (forsprang bevares, kun egne), flyt personlig påmindelse, sagsopslag
     // med næste arbejdsordre. Rydder op.

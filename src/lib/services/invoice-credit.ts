@@ -450,7 +450,9 @@ export async function createCreditNoteForInvoice(
         // og det er korrekt: vi reverserer linjens fortegn.
         const negTot = -tot
         const negUnit = -Number(r.unit_price)
-        sum += Math.abs(negTot)
+        // X1 (økonomi-review 2026-10-07): krediteret beløb = de valgte linjers SUM MED FORTEGN. Før Math.abs → kreditering
+        // af kun "Fradrag −30k" gav en kreditnota på −30k i headeren mens linjen var +30k (header/e-conomic/PDF uenige)
+        sum += tot
         newLines.push({
           description: `Kreditnota: ${r.description}`,
           quantity: Number(r.quantity),
@@ -460,6 +462,12 @@ export async function createCreditNoteForInvoice(
         })
       }
       creditExVat = r2(sum)
+      if (creditExVat <= 0) {
+        return {
+          ...empty,
+          message: 'De valgte linjer giver intet at kreditere (fradragslinjer kan ikke krediteres alene) — vælg også de linjer fradraget hører til, eller brug et beløb',
+        }
+      }
 
       if (creditExVat > summary.remaining_creditable_ex_vat) {
         return {
