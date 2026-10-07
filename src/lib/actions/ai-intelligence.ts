@@ -142,6 +142,9 @@ export async function analyzeRisksAction(
   input: RiskAnalysisInput
 ): Promise<{ success: true; data: RiskAnalysisResult } | { success: false; error: string }> {
   try {
+    // RBAC-review 2026-10-07: interne avance-/risikotærskler → kun kalkulationsrettighed (før: alle indloggede)
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const result = analyzeProjectRisks(input)
     return { success: true, data: result }
   } catch (error) {
@@ -178,6 +181,9 @@ export async function getObsPointsAction(input: RiskAnalysisInput) {
  * Get margin recommendation
  */
 export async function getMarginRecommendationAction(input: RiskAnalysisInput) {
+  // RBAC-review 2026-10-07: anbefalet/minimum-avance er intern prispolitik (også catch-fallbacken) → gate før try
+  const denied = await permissionDenied('tools.calculations')
+  if (denied) throw new Error(denied)
   try {
     return getRecommendedMargin(input)
   } catch (error) {
@@ -374,6 +380,8 @@ export async function generatePriceExplanationAction(
   input: PriceExplanationInput
 ): Promise<{ success: true; data: PriceExplanationResult } | { success: false; error: string }> {
   try {
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const result = generatePriceExplanation(input)
     return { success: true, data: result }
   } catch (error) {
