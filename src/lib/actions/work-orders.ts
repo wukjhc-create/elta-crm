@@ -341,7 +341,7 @@ export async function changeWorkOrderStatus(
         .select('*')
         .eq('id', workOrderId)
         .single()
-      return { success: true, data: row as WorkOrderRow }
+      return { success: true, data: hideLowProfit(row as WorkOrderRow, lowProfitVisible(hasPermission)) }
     }
 
     if (!ALLOWED_TRANSITIONS[cur.status as WorkOrderStatus]?.includes(next)) {
@@ -395,7 +395,7 @@ export async function changeWorkOrderStatus(
       }
     }
 
-    return { success: true, data: data as WorkOrderRow }
+    return { success: true, data: hideLowProfit(data as WorkOrderRow, lowProfitVisible(hasPermission)) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -508,7 +508,8 @@ export async function listWorkOrdersByDateRange(
     // Montør: kun egne — filtreres efter hentning (datointervallet afgrænser mængden). X4n: før én .in() med ALLE
     // montørens arbejdsordrer nogensinde → URL-grænsen (~350) → tom kalender
     const woAllowed = woScope.type === 'specific' ? new Set(woScope.workOrderIds) : null
-    const wos = ((rows || []) as WorkOrderRow[]).filter((w) => !woAllowed || woAllowed.has(w.id))
+    const showLowProfit = lowProfitVisible(hasPermission)
+    const wos = ((rows || []) as WorkOrderRow[]).filter((w) => !woAllowed || woAllowed.has(w.id)).map((w) => hideLowProfit(w, showLowProfit))
     if (wos.length === 0) return { success: true, data: [] }
 
     // Resolve employees + cases in parallel.
@@ -571,4 +572,15 @@ export async function listWorkOrdersByDateRange(
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
+}
+
+/** D46 (RBAC-review 2026-10-07): lav-DB-markeringen er en kost-oplysning — kun til economy.cost_prices (som sagerne). */
+function hideLowProfit<T extends { low_profit?: boolean | null }>(row: T, allowed: boolean): T {
+  return allowed || !row || !('low_profit' in row) ? row : { ...row, low_profit: false }
+}
+
+/** Læse-synlighed (ikke en skrive-gate): lav-DB vises kun for economy.cost_prices. Egen funktion, så RLS-skrivescanneren
+ *  ikke tolker tjekket som en rolle-gate for status-skrivningen. */
+function lowProfitVisible(hasPermission: (p: import('@/lib/auth/permissions').Permission) => boolean): boolean {
+  return hasPermission('economy.cost_prices')
 }
