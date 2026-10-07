@@ -314,9 +314,11 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | X4b | Grossist/tid | DB-del (migrationer): compute_time_log_rates tjekker ejer/aktiv + godkendelse nulstilles ved satsskift; get_customer_product_price bruger FOUND + én præcedens (customer vs produkt-margin); supplier_sync_logs/schedules CHECK ('partial','ftp') | BLOCKED_APPROVAL — kode-vagterne er på plads; SQL skal vises før staging |
 | X4c | Grossist | Kundeaftaler anvendes ikke i auto-tilbud/pakker (forkert RPC-signatur get_best_price_for_customer) + linje fra leverandørprodukt ignorerer kategoriregler og dropper kunderabat når en regel matcher; JS (ceil) vs DB (round) afrunding | BESLUTNING (L3) — prod har 0 kundeaftaler; anbefal: ret før første aftale; vælg én afrundingsregel |
 | X4d | Kommunikation | Tilbudsrykkere sender aldrig (cookie-klient i cron = anon, P-003/F7) og linket ville være dødt (portal-token læses som anon) | BLOCKED_APPROVAL (eksisterende kundemail-cron-beslutning) — ret resolver + token-læsning samtidig |
-| X4e | S3 | "Kræver svar" tæller mails ikke tråde (afviger fra dashboard); tilbudsopfølgning .limit(200) ældste; leverandørkategori-filter/prisstatistik 1.000-loft; importforhåndsvisning uden chunking; dublet-SKU i manuel import; Kalkia dublet-historik; getNextRunTime UTC; faktureres timer uden godkendelse (bevidst?) | TODO |
+| X4e | S3 | "Kræver svar" pr. tråd + paginering; tilbudsopfølgning alle åbne; importforhåndsvisning i bidder; dublet-SKU i manuel import | DONE (da47d19, f1ada66). Afvist efter verifikation: getNextRunTime (Vercel-cron er UTC = serverens ur → korrekt). Parkeret: leverandørkategori-filter (kræver DISTINCT i DB → migration), prisstatistik 1.000-loft, Kalkia dublet-historik, faktureres timer uden godkendelse (bevidst ifølge 00185?) |
 | X2 | Telegram | Kommandoer: hjælp, "i dag" (mine opkald/påmindelser), flyt tidspunkt via kommando; opslag med næste arbejdsordre | DONE — staging assistant-commands-check 10/10; parser 28/28; øvrige assistent-suites grønne |
 | X3 | Static-check | Død kode: lib/actions/price-engine.ts + project-estimation.ts (ingen kaldere, ukendte kolonner) | DONE — fjernet (+ types); tsc/rbac/rls-matrix grønne |
+
+**Checkpoint 2026-10-07 15:20 (long-run):** ingen hængende processer (diagnosticeret efter Henriks "STOP WAITING": kun brugerens Chrome kører; seneste UI-batch afsluttet 15:07:30 exit 0). Fremover: UI-batches KUN i baggrunden (≤ 15 min), arbejde fortsætter imens — ingen kædede forgrunds-ventetider.
 
 ## NEXT-HIGH — ELTA ASSISTANT / TELEGRAM (Henrik 2026-10-07)
 
