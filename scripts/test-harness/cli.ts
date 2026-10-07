@@ -410,6 +410,16 @@ async function main() {
     process.exitCode = h.alarms.length ? 2 : 0
     return
   }
+  if (SUB === 'in-list-limit') {
+    // Hvor mange UUID'er tåler én .in() (GET-URL) før gatewayen afviser? Read-only mod customers med tilfældige id'er.
+    const { randomUUID } = await import('crypto')
+    for (const n of [100, 200, 300, 400, 500, 700, 1000]) {
+      const ids = Array.from({ length: n }, () => randomUUID())
+      const { error } = await admin.from('customers').select('id').in('id', ids)
+      log(`${error ? 'FEJL' : 'OK  '}  ${String(n).padStart(4)} id'er (~${Math.round((n * 37) / 1024)} KB)${error ? ` → ${String(error.message ?? error.code ?? '').slice(0, 80)}` : ''}`)
+    }
+    return
+  }
   if (SUB === 'coverage-check') {
     // Fakturakontrol-dækning: loaderen (side for side) skal se ALLE linjer/fakturaer — sammenlignes med SQL-optælling.
     const { loadAndMeasureCoverage } = await import('../../src/lib/invoice-control/coverage')

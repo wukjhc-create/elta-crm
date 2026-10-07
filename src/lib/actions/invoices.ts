@@ -46,6 +46,7 @@ import { logger } from '@/lib/utils/logger'
 import { copenhagenParts, calendarDaysSince, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
+import { selectInChunks, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 import {
   computePaymentHealth,
   type HealthInvoice,
@@ -1407,14 +1408,18 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
   // (ÉN query, ingen N+1) + integrations-parathed (uden hemmeligheder).
   const invoiceIds = list.map((r) => r.id as string)
   const failedSet = new Set<string>()
-  if (invoiceIds.length > 0) {
-    const { data: failed } = await supabase
+  // X4l: i bidder af 200 (op til 500 id'er i én .in() sprængte URL-grænsen (~350) → ingen fejlmarkeringer vist)
+  for (let k = 0; k < invoiceIds.length; k += IN_CHUNK_SIZE) {
+    const chunk = invoiceIds.slice(k, k + IN_CHUNK_SIZE)
+    const failed = await fetchAllRows<{ id: string; entity_id: string }>((from, to) => supabase
       .from('accounting_sync_log')
-      .select('entity_id')
+      .select('id, entity_id')
       .eq('entity_type', 'invoice')
       .eq('status', 'failed')
-      .in('entity_id', invoiceIds)
-    for (const f of failed ?? []) failedSet.add(f.entity_id as string)
+      .in('entity_id', chunk)
+      .order('id')
+      .range(from, to))
+    for (const f of failed) failedSet.add(f.entity_id)
   }
   let accountingReady = false
   try {
@@ -1433,29 +1438,19 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
   )
   const custById = new Map<string, { name: string | null; email: string | null }>()
   const caseById = new Map<string, string | null>()
+  // X4l: i bidder (op til 500 fakturaer → >350 id'er i én .in() fejlede stille → oversigten uden kundenavne/sagsnumre)
   await Promise.all([
-    customerIds.length === 0
-      ? Promise.resolve()
-      : supabase
-          .from('customers')
-          .select('id, company_name, contact_person, email')
-          .in('id', customerIds)
-          .then(({ data: cs }) => {
-            for (const c of cs ?? [])
-              custById.set(c.id as string, {
-                name: (c.company_name as string | null) || (c.contact_person as string | null) || null,
-                email: (c.email as string | null) ?? null,
-              })
-          }),
-    caseIds.length === 0
-      ? Promise.resolve()
-      : supabase
-          .from('service_cases')
-          .select('id, case_number')
-          .in('id', caseIds)
-          .then(({ data: cs }) => {
-            for (const c of cs ?? []) caseById.set(c.id as string, (c.case_number as string | null) ?? null)
-          }),
+    selectInChunks<{ id: string; company_name: string | null; contact_person: string | null; email: string | null }>(customerIds, (chunk) =>
+      supabase.from('customers').select('id, company_name, contact_person, email').in('id', chunk))
+      .then((cs) => {
+        for (const c of cs)
+          custById.set(c.id, { name: c.company_name || c.contact_person || null, email: c.email ?? null })
+      }),
+    selectInChunks<{ id: string; case_number: string | null }>(caseIds, (chunk) =>
+      supabase.from('service_cases').select('id, case_number').in('id', chunk))
+      .then((cs) => {
+        for (const c of cs) caseById.set(c.id, c.case_number ?? null)
+      }),
   ])
 
   // Forfald beregnes server-side: status='sent', ikke betalt, ikke annulleret,
