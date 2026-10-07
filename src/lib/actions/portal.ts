@@ -1123,7 +1123,7 @@ export async function sendEmployeeMessage(
                 <h1 style="color: white; margin: 0; font-size: 20px;">Ny besked fra Elta Solar</h1>
               </div>
               <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-                <p style="font-size: 16px; color: #111827;">Kære ${greetingName},</p>
+                <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(greetingName)},</p>
                 <p style="color: #374151;">Du har en ny besked fra Elta Solar i kundeportalen.</p>
                 <p style="color: #374151;">Klik på knappen herunder for at åbne portalen og læse beskeden.</p>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
@@ -1870,13 +1870,13 @@ export async function portalBookBesigtigelse(
             <h1 style="color: white; margin: 0; font-size: 20px;">Besigtigelse — Bekræftelse</h1>
           </div>
           <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-            <p style="font-size: 16px; color: #111827;">Kære ${session.customer.contact_person},</p>
+            <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(session.customer.contact_person)},</p>
             <p style="color: #374151;">Tak for din booking af besigtigelse. Vi har modtaget din anmodning:</p>
             <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 20px 0;">
               <p style="margin: 4px 0; color: #1e40af;"><strong>Dato:</strong> ${formattedDate}</p>
-              <p style="margin: 4px 0; color: #1e40af;"><strong>Tidspunkt:</strong> ${timeSlot}</p>
-              ${fullAddress ? `<p style="margin: 4px 0; color: #1e40af;"><strong>Adresse:</strong> ${fullAddress}</p>` : ''}
-              ${notes ? `<p style="margin: 4px 0; color: #1e40af;"><strong>Din besked:</strong> ${notes}</p>` : ''}
+              <p style="margin: 4px 0; color: #1e40af;"><strong>Tidspunkt:</strong> ${escapeHtml(timeSlot)}</p>
+              ${fullAddress ? `<p style="margin: 4px 0; color: #1e40af;"><strong>Adresse:</strong> ${escapeHtml(fullAddress)}</p>` : ''}
+              ${notes ? `<p style="margin: 4px 0; color: #1e40af;"><strong>Din besked:</strong> ${escapeHtmlWithLineBreaks(notes)}</p>` : ''}
             </div>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
               <tr>

@@ -223,7 +223,7 @@ async function handleCron(request: Request): Promise<Response> {
             const html = buildFollowUpEmail(
               customer.contact_person || customer.company_name,
               'fuldmagt',
-              `Vi mangler stadig din underskrift på fuldmagten (ordrenr. ${desc.order_number || ''}).`,
+              `Vi mangler stadig din underskrift på fuldmagten (ordrenr. ${escapeHtml(String(desc.order_number || ''))}).`,
               'Log ind på din kundeportal for at underskrive digitalt — det tager under 1 minut.'
             )
 

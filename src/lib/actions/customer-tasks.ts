@@ -1,5 +1,6 @@
 'use server'
 import { secretTokenReader } from '@/lib/portal/token-reader'
+import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
 
 /**
  * Server Actions — Customer Tasks (Opgaver)
@@ -584,7 +585,7 @@ export async function bookBesigtigelse(
             <td style="padding:32px;">
               <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:18px;">Bekræftelse af besigtigelse</h2>
               <p style="margin:0 0 12px;color:#374151;font-size:15px;line-height:1.6;">
-                Kære ${customerName},
+                Kære ${escapeHtml(customerName)},
               </p>
               <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6;">
                 Vi bekræfter hermed jeres besigtigelse på følgende tidspunkt:
@@ -599,7 +600,7 @@ export async function bookBesigtigelse(
                 <tr>
                   <td style="padding:16px 20px;">
                     <strong style="color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Tidspunkt</strong><br/>
-                    <span style="color:#1e293b;font-size:15px;">${time}</span>
+                    <span style="color:#1e293b;font-size:15px;">${escapeHtml(time)}</span>
                   </td>
                 </tr>
               </table>
@@ -608,7 +609,7 @@ export async function bookBesigtigelse(
                 <strong>Bemærkninger:</strong>
               </p>
               <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6;background-color:#f8fafc;padding:12px 16px;border-radius:6px;border-left:3px solid #1e3a5f;">
-                ${notes}
+                ${escapeHtmlWithLineBreaks(notes)}
               </p>
               ` : ''}
               ${portalUrl ? `

@@ -69,24 +69,21 @@ export function extractOriginalSender(
   // Search through body for original sender
   const searchText = bodyText || stripHtml(bodyHtml || '')
 
-  for (const pattern of FORWARDED_PATTERNS) {
-    const match = searchText.match(pattern)
-    if (match) {
-      // Pattern with name + email in angle brackets
-      if (match[2]) {
-        return {
-          email: match[2].trim().toLowerCase(),
-          name: match[1].trim().replace(/^["']|["']$/g, '') || null,
-          isForwarded: true,
-        }
-      }
-      // Pattern with just email
-      if (match[1] && match[1].includes('@')) {
-        return {
-          email: match[1].trim().toLowerCase(),
-          name: null,
-          isForwarded: true,
-        }
+  // X4 (kommunikations-review 2026-10-07): et almindeligt SVAR fra kunden indeholder det citerede "Fra: Elta Solar
+  // <kontakt@eltasolar.dk>" — før blev det tolket som videresendt, og kundens egen adresse blev aldrig matchet (mailen
+  // endte som uidentificeret / faldt ud af "kræver svar"). Nu kun ved VS:/Fwd:-emne eller eksplicit videresendt-markør,
+  // og en udtrukket intern/formular-adresse falder tilbage til den rigtige afsender.
+  const hasForwardMarker = FORWARD_BODY_MARKERS.some((p) => p.test(searchText))
+  if (isForwardedSubject || hasForwardMarker) {
+    for (const pattern of FORWARDED_PATTERNS) {
+      const match = searchText.match(pattern)
+      if (!match) continue
+      const email = (match[2] ?? (match[1] && match[1].includes('@') ? match[1] : '')).trim().toLowerCase()
+      if (!email || isNonCustomerAddress(email)) continue
+      return {
+        email,
+        name: match[2] ? match[1].trim().replace(/^["']|["']$/g, '') || null : null,
+        isForwarded: true,
       }
     }
   }
@@ -97,6 +94,15 @@ export function extractOriginalSender(
     name: senderName,
     isForwarded: isForwardedSubject,
   }
+}
+
+/** Markører i brødteksten der entydigt betyder "videresendt" (ikke et almindeligt svar med citat) */
+const FORWARD_BODY_MARKERS = [/videresendt besked/i, /forwarded message/i, /begin forwarded message/i]
+
+/** Adresser der aldrig er den oprindelige kunde: eget domæne og formular-relæet */
+function isNonCustomerAddress(email: string): boolean {
+  const domain = email.split('@')[1] ?? ''
+  return domain === 'eltasolar.dk' || domain.endsWith('.eltasolar.dk') || /(^|\.)formsubmit\.co$/.test(domain)
 }
 
 /**
