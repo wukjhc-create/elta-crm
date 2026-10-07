@@ -302,6 +302,32 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 - Privacy: D50b, PV16, PV17, PV18 (negative kontroller grønne inden for 10 min) · MONTOR_START_JOB_ENABLED: runbook klar, flag OFF (Henrik/Vercel)
 - BLOCKED_APPROVAL: INVOICE_ATTACHMENT_FETCH_ENABLED (Vercel), MONTOR_START_JOB_ENABLED (Vercel), e-conomic-nøgler, live mail/SMS
 
+## NEXT-HIGH — ELTA ASSISTANT / TELEGRAM (Henrik 2026-10-07)
+
+**Formål:** Telegram = hurtigt personligt assistent-interface til ELTA CRM. **CRM er altid source of truth** — Telegram
+har intet eget/parallelt datasæt; alle handlinger skriver til CRM'ets eksisterende tabeller (kundeopgaver, kalender,
+noter) og læser derfra. **Prioritet:** NEXT-HIGH efter de aktuelle kritiske security/economy-opgaver; må udvikles
+parallelt med øvrige NEXT-flows, når core gates (tsc, check:rls-matrix, check:rbac) er grønne.
+**Gate:** ingen live Telegram-/Relatel-aktivering i prod uden separat godkendelse (bot-token, webhook, afsendelse).
+
+| # | Fase | Opgave | Status |
+|---|---|---|---|
+| T1 | 1 | Tekstkommando "Ring til kunde X i morgen kl. 10" → find korrekt kunde/sag (tvetydighed → spørg, aldrig gæt) → opret opgave/callback i CRM | TODO |
+| T2 | 1 | Callback/opgave vises i CRM-kalenderen | TODO |
+| T3 | 1 | Telegram-påmindelse før tidspunktet med knapper: Ring nu · Åbn kunde · Udsæt · Udført (skriver tilbage til CRM-opgaven) | TODO |
+| T4 | 1 | Påmindelsen følger tidspunktet i CRM (flyttes/slettes opgaven i CRM → påmindelsen ændres; ingen kopi af tidspunktet i Telegram-laget) | TODO |
+| T5 | 1 | Opret kalenderaftale/besigtigelse fra Telegram | TODO |
+| T6 | 1 | Skriv note på kunde/sag | TODO |
+| T7 | 1 | "Mind mig om …" → CRM-opgave | TODO |
+| T8 | 1 | Opslag: kunde, sag, status (respekterer brugerens rolle/rettigheder som i CRM) | TODO |
+| T9 | 1 | Audit-log af ALLE Telegram-handlinger (hvem, hvad, hvilken kunde/sag) | TODO |
+| T10 | 1 | Fundament: kobling Telegram-bruger ↔ CRM-bruger (kun inviterede medarbejdere), webhook med hemmelighed, rettigheder = CRM-permissions | TODO |
+| T11 | 2 | Talebeskeder (voice commands) → transskription → samme kommandoer som tekst | TODO |
+| T12 | 2 | Ubesvaret opkald/telefonsvarer → transskription → kunde-/sagsmatch → forslag/opgave om tilbageringning | TODO |
+| T13 | 2 | Relatel-/SMS-integration (live kræver godkendelse) | TODO |
+| T14 | 2 | Regelbaseret opfølgning | TODO |
+| T15 | 3 | Live AI-telefonreceptionist | LATER |
+
 ## Fund registreret i delivery mode
 | # | Sev | Fund | Status |
 |---|---|---|---|

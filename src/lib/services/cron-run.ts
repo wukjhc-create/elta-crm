@@ -17,9 +17,24 @@ type RouteHandler = (request: Request) => Promise<Response>
 
 const SUMMARY_MAX = 500
 
+/**
+ * Nødstop pr. cron uden kodeændring: env CRON_PAUSED="invoice-reminders,offer-reminders" (kommasepareret, eller "*"
+ * for alle). Tom/ikke sat = alle kører (uændret adfærd). Pauset cron udfører INTET og logges som warning.
+ * (Vercel: env-ændringer slår igennem ved næste deployment.)
+ */
+export function isCronPaused(name: string, raw: string | undefined = process.env.CRON_PAUSED): boolean {
+  if (!raw) return false
+  const names = raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+  return names.includes('*') || names.includes(name.toLowerCase())
+}
+
 export function withCronRun(name: string, handler: RouteHandler): RouteHandler {
   return async (request: Request) => {
     const started = Date.now()
+    if (isCronPaused(name)) {
+      await logHealth('cron', 'warning', `${name}: pauset (CRON_PAUSED)`, { cron: name, paused: true, duration_ms: 0 })
+      return new Response(JSON.stringify({ success: true, paused: true, cron: name }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
     let response: Response
     try {
       response = await handler(request)
