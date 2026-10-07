@@ -190,9 +190,10 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const ids = await getRequiresResponseEmailIds()
         type Row = { id: string; conversation_id: string | null; subject: string | null; sender_name: string | null; sender_email: string | null; received_at: string }
         const rows: Row[] = []
-        for (let i = 0; i < ids.length; i += 500) {
+        // bid 200 (500 UUID'er sprænger URL-grænsen ~350 → tælleren blev stille for lav, se lib/supabase/in-chunks.ts)
+        for (let i = 0; i < ids.length; i += 200) {
           const { data } = await supabase.from('incoming_emails')
-            .select('id, conversation_id, subject, sender_name, sender_email, received_at').in('id', ids.slice(i, i + 500))
+            .select('id, conversation_id, subject, sender_name, sender_email, received_at').in('id', ids.slice(i, i + 200))
           rows.push(...((data ?? []) as Row[]))
         }
         const latestPerThread = new Map<string, Row>()

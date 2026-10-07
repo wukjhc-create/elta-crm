@@ -24,6 +24,7 @@ import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { netInvoicedExVat, summarizeCaseInvoices, type InvoiceAmountRow, type CaseInvoiceRow } from '@/lib/invoices/net-invoiced'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { selectInChunks, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 
 export interface ServiceCaseEconomy {
   case_id: string
@@ -794,12 +795,23 @@ export async function getServiceCaseEconomyBatch(
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
 
-    const [caseRes, invRes] = await Promise.all([
-      supabase.from('service_cases').select('id, contract_sum, revised_sum').in('id', ids),
-      supabase.from('invoices')
-        .select('case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at')
-        .in('case_id', ids),
+    // X4n: i bidder af 200 — ordrelistens fakturafilter sender op til 500 sager; én .in() sprængte URL-grænsen (~350)
+    // → ingen kontrakt/faktureret/udestående på nogen række
+    const [caseRows, invRows] = await Promise.all([
+      selectInChunks<Record<string, unknown>>(ids, (chunk) => supabase.from('service_cases').select('id, contract_sum, revised_sum').in('id', chunk)),
+      (async () => {
+        const out: Array<Record<string, unknown>> = []
+        for (let k = 0; k < ids.length; k += IN_CHUNK_SIZE) {
+          const chunk = ids.slice(k, k + IN_CHUNK_SIZE)
+          out.push(...await fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices')
+            .select('id, case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at')
+            .in('case_id', chunk).order('id').range(from, to)))
+        }
+        return out
+      })(),
     ])
+    const caseRes = { data: caseRows }
+    const invRes = { data: invRows }
 
     const refByCase = new Map<string, number | null>()
     for (const c of (caseRes.data ?? []) as Array<{ id: string; contract_sum: number | string | null; revised_sum: number | string | null }>) {
