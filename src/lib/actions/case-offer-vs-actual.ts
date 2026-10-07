@@ -10,6 +10,7 @@ import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/actio
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { compareOfferToActual, type OfferVsActualResult } from '@/lib/cases/offer-vs-actual'
 import type { ActionResult } from '@/types/common.types'
 
@@ -53,8 +54,11 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
         .eq('case_id', caseId).order('created_at'),
       woIds.length === 0
         ? Promise.resolve({ data: [], error: null })
-        : // 00192: kostkolonner læses med admin-klienten bag gaten ovenfor (bruger-klienten kan ikke læse dem)
-          createAdminClient().from('time_logs').select('hours, cost_amount').in('work_order_id', woIds),
+        : // 00192: kostkolonner læses med admin-klienten bag gaten ovenfor (bruger-klienten kan ikke læse dem).
+          // Side for side (profit-review 2026-10-07): en stor sag kan have >1.000 timerækker → før for få timer/for lav kost
+          fetchAllRows<{ id: string; hours: number | string | null; cost_amount: number | string | null }>((from, to) =>
+            createAdminClient().from('time_logs').select('id, hours, cost_amount').in('work_order_id', woIds).order('id').range(from, to))
+            .then((data) => ({ data, error: null }), (error: unknown) => ({ data: null, error })),
     ])
     for (const [name, res] of [['offer', offerRes], ['offer_line_items', linesRes], ['case_materials', materialsRes], ['time_logs', logsRes]] as const) {
       if (res.error) {
