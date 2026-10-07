@@ -861,19 +861,16 @@ export async function listAccountingSyncLogAction(params?: {
   // Status-tællere (uafhængigt af valgt filter) — ét lille aggregat.
   const counts = { all: 0, success: 0, failed: 0, skipped: 0 }
   try {
-    const { data: allRows } = await supabase
-      .from('accounting_sync_log')
-      .select('status')
-      .in('entity_type', ['invoice', 'customer'])
-      .order('created_at', { ascending: false })
-      .limit(1000)
-    for (const row of allRows ?? []) {
-      counts.all++
-      const s = row.status as AccountingStatus
-      if (s === 'success') counts.success++
-      else if (s === 'failed') counts.failed++
-      else if (s === 'skipped') counts.skipped++
+    // X1 (regnskabs-review 2026-10-07): eksakte tal via count (før de nyeste 1.000 rækker → for lave tællere)
+    const countFor = async (status?: AccountingStatus) => {
+      let q = supabase.from('accounting_sync_log').select('id', { count: 'exact', head: true }).in('entity_type', ['invoice', 'customer'])
+      if (status) q = q.eq('status', status)
+      const { count, error } = await q
+      if (error) throw error
+      return count ?? 0
     }
+    const [all, success, failed, skipped] = await Promise.all([countFor(), countFor('success'), countFor('failed'), countFor('skipped')])
+    Object.assign(counts, { all, success, failed, skipped })
   } catch {
     /* tællere er best-effort */
   }

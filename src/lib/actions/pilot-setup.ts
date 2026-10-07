@@ -10,6 +10,7 @@
 import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface PilotSetupItem {
   key: string
@@ -32,7 +33,9 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     admin.from('company_settings').select('company_name, company_vat_number, bank_reg_no, bank_account').limit(1).maybeSingle(),
     admin.from('profiles').select('id').eq('role', 'montør'),
     admin.from('employees').select('profile_id').not('profile_id', 'is', null),
-    admin.from('invoices').select('customer_id').in('status', ['sent', 'paid']).is('external_invoice_id', null).not('customer_id', 'is', null).limit(5000),
+    // side for side (før .limit(5000) → højst 1.000 fakturaer)
+    fetchAllRows<{ id: string; customer_id: string }>((from, to) => admin.from('invoices').select('id, customer_id').in('status', ['sent', 'paid'])
+      .is('external_invoice_id', null).not('customer_id', 'is', null).order('id').range(from, to)).then((data) => ({ data })),
   ])
 
   const cs = company as { company_name?: string | null; company_vat_number?: string | null; bank_reg_no?: string | null; bank_account?: string | null } | null
