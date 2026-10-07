@@ -48,6 +48,8 @@ export type SkipReason =
   | 'already_billed'
   | 'open_timer'
   | 'not_billable'
+  /** Henrik 2026-10-07: afviste timer faktureres aldrig */
+  | 'rejected'
   | 'missing_employee_rate'
   | 'not_found'
   | 'belongs_to_different_case'
@@ -211,6 +213,7 @@ export async function createInvoiceDraftFromCase(
       invoice_line_id: string | null
       sale_amount: number | string | null
       sale_rate_snapshot: number | string | null
+      approval_status: string | null
       work_order:
         | { case_id: string | null }
         | { case_id: string | null }[]
@@ -224,7 +227,7 @@ export async function createInvoiceDraftFromCase(
       .from('time_logs')
       .select(
         'id, work_order_id, employee_id, hours, end_time, billable, invoice_line_id, ' +
-          'sale_amount, sale_rate_snapshot, ' +
+          'sale_amount, sale_rate_snapshot, approval_status, ' +
           'work_order:work_orders(case_id), employee:employees(name, hourly_rate)'
       )
       .in('id', timeLogIds)
@@ -257,6 +260,11 @@ export async function createInvoiceDraftFromCase(
       }
       if (!tl.billable) {
         skipped.push({ kind: 'time_log', source_id: id, reason: 'not_billable' })
+        continue
+      }
+      // Henrik 2026-10-07: afviste timer må aldrig komme på en faktura
+      if (tl.approval_status === 'rejected') {
+        skipped.push({ kind: 'time_log', source_id: id, reason: 'rejected', detail: 'timen er afvist i timegodkendelsen' })
         continue
       }
 

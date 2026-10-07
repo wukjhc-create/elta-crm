@@ -96,6 +96,14 @@ function IdentitySection({ employee }: { employee: EmployeeWithCompensation }) {
   })
 
   const onSubmit = async (data: EmployeeIdentityInput) => {
+    // Henrik 2026-10-07: deaktivering af en medarbejder med login deaktiverer også login'et — kræver bekræftelse
+    if (employee.active !== false && data.active === false && employee.profile_id) {
+      const ok = window.confirm(
+        'Medarbejderen deaktiveres, og medarbejderens LOGIN deaktiveres også (ingen adgang til CRM).\n\n' +
+        'Sager, timer og noter bevares. En administrator kan genaktivere login\'et senere under Login.\n\nFortsæt?'
+      )
+      if (!ok) return
+    }
     setError(null)
     setInfo(null)
     setFieldErrors({})

@@ -200,6 +200,7 @@ export async function getServiceCaseEconomy(
             .from('time_logs')
             .select('id, hours, end_time, cost_amount, sale_amount, billable, invoice_line_id, employee:employees(hourly_rate)')
             .in('work_order_id', woIds)
+            .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
             .order('id')
             .range(f, t)).then((data) => ({ data, error: null })),
       supabase
@@ -597,7 +598,7 @@ export async function getServiceCaseBillingStatus(
       woIds.length === 0
         ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
         : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
-          fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data })),
+          fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).neq('approval_status', 'rejected').order('id').range(f, t)).then((data) => ({ data })),
       supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('invoices').select('total_amount, status, invoice_type, voided_at').eq('case_id', caseId),

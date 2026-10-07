@@ -85,7 +85,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
     supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")'),
     // N36: afsluttede timeregistreringer (time_logs — ikke gamle time_entries)
-    allRows<{ hours: number | string | null; billable: boolean | null }>((f, t) => supabase.from('time_logs').select('id, hours, billable').not('end_time', 'is', null).order('id').range(f, t)),
+    allRows<{ hours: number | string | null; billable: boolean | null }>((f, t) => supabase.from('time_logs').select('id, hours, billable').not('end_time', 'is', null).neq('approval_status', 'rejected').order('id').range(f, t)),
     // Unread messages for current user
     supabase
       .from('messages')

@@ -479,6 +479,202 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'cost-lockdown-check') {
+    // Kost-lockdown bølge 2 (00200/00201): RIGTIGE persona-sessioner læser hver kost-tabel direkte via REST.
+    // Kost-roller (admin/serviceleder/bogholderi) skal se alle rækker (= service-role-antal); salg/montør 0.
+    // Tabeller uden rækker på staging kan ikke bevise afvisning → markeres "uden data" (ikke PASS).
+    const rm = await import('./role-matrix')
+    const clients = await rm.loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
+    const TABLES = (process.argv[3] ?? 'price_history,supplier_product_cache,customer_product_prices,supplier_margin_rules,materials_catalog,material_price_history,calc_components,calc_component_materials,kalkia_nodes,kalkia_variant_materials,package_items,calculation_rows,kalkia_calculations,calibration_presets,quick_jobs').split(',')
+    const COST = new Set(['admin', 'serviceleder', 'bogholderi'])
+    let fails = 0, nodata = 0
+    // 1) user_role() pr. persona-session (politikkernes prædikat)
+    for (const [role, cl] of clients) {
+      const { data, error } = await cl.rpc('user_role')
+      const ok = !error && data === role
+      if (!ok) fails++
+      log(`${ok ? 'PASS' : 'FAIL'}  user_role() som ${role} = ${error ? 'FEJL ' + error.message : String(data)}`)
+    }
+    // 2) probe-rækker i tomme tabeller uden FK-kæder (ryddes op)
+    const stampP = Date.now()
+    const seeded: Array<{ t: string; id: string }> = []
+    const seed = async (t: string, row: Record<string, unknown>) => {
+      if (((await admin.from(t).select('*', { count: 'exact', head: true })).count ?? 0) > 0) return
+      const { data, error } = await admin.from(t).insert([row]).select('id')
+      if (error) { log(`  (seed ${t} sprunget over: ${error.message.slice(0, 80)})`); return }
+      seeded.push({ t, id: (data?.[0] as { id: string }).id })
+    }
+    const sup = ((await admin.from('suppliers').select('id').limit(1)).data as Array<{ id: string }> | null)?.[0]?.id
+    await seed('quick_jobs', { code: `PROBE-${stampP}`, name: '[HARNESS] probe' })
+    await seed('calibration_presets', { code: `PROBE-${stampP}`, name: '[HARNESS] probe' })
+    await seed('materials_catalog', { name: `[HARNESS] probe ${stampP}` })
+    await seed('calc_components', { name: `[HARNESS] probe ${stampP}` })
+    if (sup) await seed('supplier_margin_rules', { supplier_id: sup, rule_type: 'supplier', margin_percentage: 10 })
+    try {
+    for (const t of TABLES) {
+      const total = (await admin.from(t).select('*', { count: 'exact', head: true })).count ?? 0
+      const parts: string[] = []
+      let ok = true
+      for (const [role, cl] of clients) {
+        const { count, error } = await cl.from(t).select('*', { count: 'exact', head: true })
+        const n = error ? -1 : count ?? 0
+        const want = COST.has(role) ? total : 0
+        if (n !== want) ok = false
+        parts.push(`${role}=${error ? 'FEJL' : n}`)
+      }
+      if (total === 0) nodata++
+      if (!ok) fails++
+      log(`${!ok ? 'FAIL' : total === 0 ? 'NODATA' : 'PASS'}  ${t.padEnd(26)} service=${total}  ${parts.join(' ')}`)
+    }
+    } finally {
+      for (const x of seeded) await admin.from(x.t).delete().eq('id', x.id)
+    }
+    log(`${fails ? '❌' : '✅'} ${fails} fejl · ${TABLES.length - nodata}/${TABLES.length} tabeller med data bevist · ${nodata} uden data (dækket af politik + user_role())`)
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'login-toggle-check') {
+    // setProfileLoginActive false → true på en rigtig auth-bruger (staging): ban + is_active op/ned.
+    const { setProfileLoginActive } = await import('../../src/lib/auth/login-access')
+    const stamp = Date.now()
+    const { data: cu, error: ce } = await admin.auth.admin.createUser({ email: `ltc-${stamp}@harness.test`, password: `L-${stamp}-x!Aa`, email_confirm: true })
+    if (ce || !cu?.user) throw new Error(ce?.message ?? 'createUser')
+    const uid = cu.user.id
+    try {
+      await admin.from('profiles').update({ role: 'montør', is_active: true }).eq('id', uid)
+      const off = await setProfileLoginActive(uid, false)
+      const p1 = (await admin.from('profiles').select('is_active').eq('id', uid).single()).data as { is_active: boolean }
+      const on = await setProfileLoginActive(uid, true)
+      const p2 = (await admin.from('profiles').select('is_active').eq('id', uid).single()).data as { is_active: boolean }
+      log(`deaktivér: ${JSON.stringify(off)} → is_active=${p1.is_active}`)
+      log(`genaktivér: ${JSON.stringify(on)} → is_active=${p2.is_active}`)
+      process.exitCode = off.ok && on.ok && p1.is_active === false && p2.is_active === true ? 0 : 1
+    } finally {
+      await admin.auth.admin.deleteUser(uid).catch(() => undefined)
+    }
+    return
+  }
+  if (SUB === 'cost-lockdown-2b-check') {
+    // 00201 med RIGTIGE persona-sessioner: product_catalog.cost_price utilgængelig for ALLE bruger-sessioner (kost via
+    // admin-klient bag gate), offentlige kolonner læsbare; customer_supplier_prices + calculations kun kost-roller.
+    const rm = await import('./role-matrix')
+    const { PRODUCT_PUBLIC_COLUMNS } = await import('../../src/lib/products/product-columns')
+    const clients = await rm.loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
+    const COST = new Set(['admin', 'serviceleder', 'bogholderi'])
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const sup = ((await admin.from('suppliers').select('id').limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `CL2B-${stamp}`, company_name: `[HARNESS] cl2b ${stamp}`, contact_person: 'X', email: `cl2b-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const prod = (await admin.from('product_catalog').insert({ name: `[HARNESS] cl2b ${stamp}`, list_price: 100, cost_price: 61.23 }).select('id').single()).data as { id: string }
+    const csp = (await admin.from('customer_supplier_prices').insert({ customer_id: custId, supplier_id: sup, discount_percentage: 7 }).select('id').single()).data as { id: string }
+    const calc = (await admin.from('calculations').insert({ name: `[HARNESS] cl2b ${stamp}`, created_by: owner }).select('id').single()).data as { id: string }
+    try {
+      for (const [role, cl] of clients) {
+        const cost = await cl.from('product_catalog').select('cost_price').eq('id', prod.id)
+        const pub = await cl.from('product_catalog').select(PRODUCT_PUBLIC_COLUMNS).eq('id', prod.id)
+        check(`${role}: product_catalog.cost_price afvist, offentlige kolonner læsbare`, !!cost.error && !pub.error && (pub.data ?? []).length === 1, cost.error ? '' : 'kost LÆSBAR')
+        const want = COST.has(role) ? 1 : 0
+        const c1 = (await cl.from('customer_supplier_prices').select('id').eq('id', csp.id)).data?.length ?? -1
+        const c2 = (await cl.from('calculations').select('id').eq('id', calc.id)).data?.length ?? -1
+        check(`${role}: kundeaftale ${want ? 'synlig' : 'skjult'}, kalkulation ${want ? 'synlig' : 'skjult'}`, c1 === want && c2 === want, `aftale=${c1} kalk=${c2}`)
+      }
+    } finally {
+      await admin.from('calculations').delete().eq('id', calc.id)
+      await admin.from('customer_supplier_prices').delete().eq('id', csp.id)
+      await admin.from('product_catalog').delete().eq('id', prod.id)
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ bølge 2b ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'rejected-hours-check') {
+    // Henrik 2026-10-07 (00202 + app-filtre): én godkendt (2 t) og én AFVIST (3 t) time på samme arbejdsordre →
+    // avance-funktion, faktura fra arbejdsordre og faktura fra sag tæller kun 2 t. Alt seedet ryddes.
+    const { createInvoiceDraftFromCase } = await import('../../src/lib/services/invoice-from-case')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const ids: Record<string, string> = {}
+    const ins = async (t: string, row: Record<string, unknown>) => {
+      const { data, error } = await admin.from(t).insert([row]).select('id').single()
+      if (error) throw new Error(`seed ${t}: ${error.message}`)
+      return (data as { id: string }).id
+    }
+    const invoiceIds: string[] = []
+    try {
+      ids.cust = await ins('customers', { customer_number: `RH-${stamp}`, company_name: `[HARNESS] rh ${stamp}`, contact_person: 'X', email: `rh-${stamp}@harness.test`, created_by: owner })
+      ids.case = await ins('service_cases', { case_number: `SVC-6${String(stamp).slice(-6)}`, customer_id: ids.cust, title: '[HARNESS] afviste timer', status: 'in_progress', created_by: owner })
+      ids.emp = await ins('employees', { name: `[HARNESS] rh ${stamp}`, email: `rhe-${stamp}@harness.test`, role: 'montør', active: true, hourly_rate: 500 })
+      ids.wo = await ins('work_orders', { title: '[HARNESS] rh', case_id: ids.case, customer_id: ids.cust, status: 'done', assigned_employee_id: ids.emp })
+      const day = new Date(Date.now() - 2 * 86_400_000)
+      const at = (h: number) => new Date(day.getTime() + h * 3_600_000).toISOString()
+      ids.ok = await ins('time_logs', { employee_id: ids.emp, work_order_id: ids.wo, start_time: at(0), end_time: at(2), billable: true, approval_status: 'approved' })
+      ids.rej = await ins('time_logs', { employee_id: ids.emp, work_order_id: ids.wo, start_time: at(3), end_time: at(6), billable: true, approval_status: 'rejected', rejection_reason: 'harness' })
+      const st = (await admin.from('time_logs').select('id, approval_status, hours').in('id', [ids.ok, ids.rej])).data as Array<{ id: string; approval_status: string; hours: number }>
+      check('seed: 1 godkendt (2 t) + 1 afvist (3 t)', st.length === 2 && st.some((r) => r.approval_status === 'rejected'), JSON.stringify(st.map((r) => [r.approval_status, r.hours])))
+      // 1) avance-funktion
+      const { data: prof, error: pErr } = await admin.rpc('calculate_work_order_profit', { p_work_order_id: ids.wo })
+      const p = prof as Record<string, unknown> | null
+      check('calculate_work_order_profit: kun 2 t (afvist udeladt)', !pErr && Number(p?.total_hours) === 2, pErr?.message ?? `timer=${p?.total_hours} logs=${p?.time_log_count}`)
+      // 2) faktura fra sag (app) — begge timer vælges, den afviste springes over
+      const res = await createInvoiceDraftFromCase(ids.case, owner, { time_log_ids: [ids.ok, ids.rej] })
+      if (res.invoice_id) invoiceIds.push(res.invoice_id)
+      check('faktura fra sag: afvist time sprunget over (reason=rejected)', res.skipped_lines.some((x) => x.source_id === ids.rej && x.reason === 'rejected') && res.created_lines.some((x) => x.source_id === ids.ok), res.message)
+      // frigiv den godkendte igen og ryd fakturaen, så arbejdsordre-fakturaen kan testes
+      for (const iid of invoiceIds.splice(0)) { await admin.from('time_logs').update({ invoice_line_id: null }).eq('work_order_id', ids.wo); await admin.from('invoice_lines').delete().eq('invoice_id', iid); await admin.from('invoices').delete().eq('id', iid) }
+      // 3) faktura fra arbejdsordre (SQL)
+      const { data: woInv, error: wErr } = await admin.rpc('create_invoice_from_work_order', { p_work_order_id: ids.wo, p_due_days: 14, p_default_hourly_rate: 495 })
+      if (woInv) invoiceIds.push(String(woInv))
+      const lines = woInv ? ((await admin.from('invoice_lines').select('quantity, unit').eq('invoice_id', String(woInv))).data as Array<{ quantity: number; unit: string }>) : []
+      const hrs = lines.filter((l) => l.unit === 'time').reduce((a, l) => a + Number(l.quantity), 0)
+      const rejLeft = ((await admin.from('time_logs').select('invoice_line_id').eq('id', ids.rej).single()).data as { invoice_line_id: string | null }).invoice_line_id
+      check('faktura fra arbejdsordre: 2 t faktureret, afvist time ikke bundet', !wErr && hrs === 2 && rejLeft === null, wErr?.message ?? `timer=${hrs}`)
+    } finally {
+      for (const iid of invoiceIds) { await admin.from('time_logs').update({ invoice_line_id: null }).eq('work_order_id', ids.wo); await admin.from('invoice_lines').delete().eq('invoice_id', iid); await admin.from('invoices').delete().eq('id', iid) }
+      if (ids.wo) { await admin.from('work_order_profit').delete().eq('work_order_id', ids.wo); await admin.from('time_logs').delete().eq('work_order_id', ids.wo); await admin.from('work_orders').delete().eq('id', ids.wo) }
+      if (ids.emp) await admin.from('employees').delete().eq('id', ids.emp)
+      if (ids.case) await admin.from('service_cases').delete().eq('id', ids.case)
+      if (ids.cust) await admin.from('customers').delete().eq('id', ids.cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ afviste timer udeladt overalt')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'function-acl') {
+    // Read-only: funktions-ACL + EXECUTE pr. rolle på staging (spejler scripts/prod-fn-acl.ts)
+    const name = process.argv[3]
+    if (!/^[a-z_]+$/.test(name ?? '')) throw new Error('brug: function-acl <navn>')
+    const rows = (await stagingSql(`SELECT p.oid::regprocedure::text sig, p.proacl::text acl,
+      has_function_privilege('service_role', p.oid, 'EXECUTE') service_role, has_function_privilege('authenticated', p.oid, 'EXECUTE') authenticated
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = '${name}'`)) as Array<Record<string, unknown>>
+    for (const r of rows) log(JSON.stringify(r))
+    return
+  }
+  if (SUB === 'function-def') {
+    // Read-only: aktuel funktionsdefinition på staging → fil (grundlag for CREATE OR REPLACE-migrationer)
+    const name = process.argv[3]
+    const out = process.argv[4]
+    if (!/^[a-z_]+$/.test(name ?? '') || !out) throw new Error('brug: function-def <navn> <fil>')
+    const rows = (await stagingSql(`SELECT pg_get_functiondef(p.oid) def FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = '${name}'`)) as Array<{ def: string }>
+    writeFileSync(out, rows.map((r) => r.def + ';\n').join('\n'))
+    log(`${rows.length} definition(er) → ${out}`)
+    return
+  }
+  if (SUB === 'select-policies') {
+    // Read-only: SELECT-politikker (navn, roller, USING) for de angivne tabeller på staging — grundlag for lockdowns.
+    const tables = process.argv.slice(3)
+    const rows = (await stagingSql(`SELECT tablename, policyname, cmd, roles::text, coalesce(qual, '-') qual FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = ANY(ARRAY[${tables.map((t) => `'${t.replace(/'/g, "''")}'`).join(',')}]::text[])
+        AND cmd IN ('SELECT', 'ALL') ORDER BY 1, 2`)) as Array<{ tablename: string; policyname: string; cmd: string; roles: string; qual: string }>
+    for (const r of rows) log(`${r.tablename.padEnd(30)} ${r.cmd.padEnd(6)} ${r.roles.padEnd(18)} ${r.policyname}  [${r.qual.slice(0, 90)}]`)
+    return
+  }
   if (SUB === 'user-delete-cascade-check') {
     // 00199 (STAGING): sletning af en bruger må aldrig slette kunder/data. Opretter en rigtig auth-bruger, en kunde den
     // har oprettet + kontakt + opgave, sletter brugeren via admin-API og kontrollerer at alt består (created_by = NULL).

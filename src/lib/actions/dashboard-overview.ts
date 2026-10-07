@@ -385,7 +385,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
         const [tlRows, matRows, othRows] = await Promise.all([
           fetchAllRows((f, t) => supabase.from('time_logs').select('id, sale_amount, work_order:work_orders!inner(case_id)')
-            .eq('billable', true).is('invoice_line_id', null).not('end_time', 'is', null).order('id').range(f, t)),
+            .eq('billable', true).is('invoice_line_id', null).not('end_time', 'is', null).neq('approval_status', 'rejected').order('id').range(f, t)),
           fetchAllRows((f, t) => supabase.from('case_materials').select('id, case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).order('id').range(f, t)),
           fetchAllRows((f, t) => supabase.from('case_other_costs').select('id, case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).order('id').range(f, t)),
         ])

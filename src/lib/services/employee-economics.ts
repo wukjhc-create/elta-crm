@@ -96,6 +96,7 @@ export async function calculateEmployeeProjectImpact(args: {
       .select('id, work_order_id, hours, cost_amount, billable, end_time, start_time')
       .eq('employee_id', args.employeeId)
       .not('end_time', 'is', null)
+      .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
     if (args.workOrderId) q = q.eq('work_order_id', args.workOrderId)
     if (args.sinceIso) q = q.gte('start_time', args.sinceIso)
     if (args.untilIso) q = q.lte('start_time', args.untilIso)

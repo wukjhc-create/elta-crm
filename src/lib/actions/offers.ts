@@ -1119,8 +1119,9 @@ export async function addProductToOffer(
     validateUUID(offerId, 'tilbud ID')
     validateUUID(productId, 'produkt ID')
 
-    // Get product details
-    const { data: product, error: productError } = await supabase
+    // Get product details — 00201: kostprisen (til linjens kost) læses med admin-klienten bag offers.edit-gaten ovenfor;
+    // den returneres ikke til salg (linjen svarer med OFFER_LINE_PUBLIC_COLUMNS)
+    const { data: product, error: productError } = await createAdminClient()
       .from('product_catalog')
       .select('*')
       .eq('id', productId)
@@ -1217,7 +1218,8 @@ export async function importCalculationToOffer(
     validateUUID(calculationId, 'kalkulation ID')
 
     // Get calculation with rows
-    const { data: calculation, error: calcError } = await supabase
+    // 00200/00201: calculations/calculation_rows er rolle-scopet → admin-klient bag gaten (offers.edit + tools.calculations)
+    const { data: calculation, error: calcError } = await createAdminClient()
       .from('calculations')
       .select('*, rows:calculation_rows(*)')
       .eq('id', calculationId)
@@ -1436,7 +1438,7 @@ export async function createLineItemFromSupplierProduct(
       roundTo = marginData[0].round_to
     } else if (offer?.customer_id && !customMargin) {
       // Fallback: check customer-specific pricing
-      const { data: customerPricing } = await supabase
+      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
         .from('customer_supplier_prices')
         .select('discount_percentage, custom_margin_percentage')
         .eq('customer_id', offer.customer_id)
@@ -1617,7 +1619,7 @@ export async function searchSupplierProductsForOffer(
     if (options?.customerId) {
       validateUUID(options.customerId, 'kunde ID')
 
-      const { data: customerPricing } = await supabase
+      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
         .from('customer_supplier_prices')
         .select('supplier_id, discount_percentage, custom_margin_percentage')
         .eq('customer_id', options.customerId)
@@ -2141,7 +2143,7 @@ export async function refreshLineItemPrice(
     let marginPercentage = lineCost?.supplier_margin_applied || CALC_DEFAULTS.MARGINS.MATERIALS
 
     if (offerInfo?.customer_id) {
-      const { data: customerPricing } = await supabase
+      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
         .from('customer_supplier_prices')
         .select('discount_percentage, custom_margin_percentage')
         .eq('customer_id', offerInfo.customer_id)
@@ -2315,7 +2317,7 @@ export async function optimizeOfferPrices(
     // Get customer-specific pricing
     let customerPricingMap = new Map<string, { discount: number; margin: number | null }>()
     if (offer.customer_id) {
-      const { data: customerPricing } = await supabase
+      const { data: customerPricing } = await createAdminClient() // 00201: kundeaftaler (rabat/avance) kun server-side bag gaten
         .from('customer_supplier_prices')
         .select('supplier_id, discount_percentage, custom_margin_percentage')
         .eq('customer_id', offer.customer_id)

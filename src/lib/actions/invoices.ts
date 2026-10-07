@@ -185,6 +185,8 @@ export async function listUnbilledForCaseAction(
           // Samme regel som materialer/øvrige — og som createInvoiceDraftFromCase,
           // der springer ikke-fakturerbare timer over.
           .eq('billable', true)
+          // Henrik 2026-10-07: afviste timer faktureres aldrig
+          .neq('approval_status', 'rejected')
           .order('start_time', { ascending: true }),
     supabase
       .from('case_materials')

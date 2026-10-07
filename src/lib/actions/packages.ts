@@ -752,9 +752,11 @@ export async function getProductsForPicker(): Promise<ActionResult<{
   category_name: string
 }[]>> {
   try {
-    const { supabase } = await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
+    await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
+    // 00201: product_catalog.cost_price kun via admin-klienten (bag gaten ovenfor)
+    const { createAdminClient } = await import('@/lib/supabase/admin')
 
-    const { data, error } = await supabase
+    const { data, error } = await createAdminClient()
       .from('product_catalog')
       .select(`
         id,

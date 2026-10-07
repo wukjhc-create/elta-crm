@@ -711,7 +711,9 @@ export async function addProductToCalculation(
     }
 
     // Get product details
-    const { data: product, error: productError } = await supabase
+    // 00201: product_catalog.cost_price kun via admin-klienten (bag funktionens gate)
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { data: product, error: productError } = await createAdminClient()
       .from('product_catalog')
       .select('*')
       .eq('id', productId)

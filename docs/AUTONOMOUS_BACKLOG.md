@@ -13,6 +13,20 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Beslutninger (Henrik 2026-10-07, aften) — status
+| # | Beslutning | Udførelse |
+|---|---|---|
+| 1 | P1: Henrik slår selvregistrering fra i Supabase; verificér read-only | VENTER på Henrik — `scripts/prod-auth-signup-status.ts` viste 18:0x stadig `disable_signup:false`; genkøres og bekræftes når slået fra |
+| 2 | 00199 godkendt til STAGING | DONE staging (se R-CUS-B) — prod BLOCKED_APPROVAL; pre-check 4/4 |
+| 3 | Fratrædelse deaktiverer login som standard (bekræftelse, audit, intet slettes, admin kan genaktivere) | DONE — updateEmployeeAction + setEmployeeActiveAction: login først (sidste admin beskyttet), rul tilbage ved fejl, employee_events + audit_logs, fratrædelsesdato = i dag ved overgang, bekræftelsesdialog i Rediger-formularen; genaktivering i login-panelet. **Fund undervejs:** hver "Gem stamdata" AFKOBLEDE medarbejderens login (profile_id → null) — rettet (prod: 0 ramt, `scripts/prod-employee-login-unlinked.ts`). UI U145 + U89 PASS |
+| 4 | Kost-lockdown bølge 2 (HIGH) — staging først, rigtige personaer, ingen prod uden approval | STAGING DONE — 00200 (15 tabeller rolle-scopet), 00201 (product_catalog kolonne-niveau uden cost_price; customer_supplier_prices + calculations rolle-scopet; salgsstier → admin-klient bag gate). Persona-tjek: `cli.ts cost-lockdown-check` (user_role() 5/5 + 5 tabeller med data) og `cost-lockdown-2b-check` 10/10; UI U75/U77/U84/U100/U55/U7/U8/U9/U51/U14 PASS. Prod pre-check `scripts/prod-role-check-cost-wave2.ts pre` 38/38 (montør læser alt i dag). **Prod BLOCKED_APPROVAL**: allowlist + apply 00200 → 00201 + `… post` |
+| 4b | Fund under regression: medarbejderøkonomi-siden var TOM for alle siden 00192 (service læste time_logs.cost_amount med bruger-klienten → permission denied) | DONE — admin-klient bag action-gaten; U90 PASS |
+| 5 | 00198 invoice pricing — HIGH NEXT | NÆSTE |
+| 6 | Sendte tilbud immutable, ændring = ny revision, audit, portal viser gældende version | TODO (design efter 00198) |
+| 7 | Afviste timer aldrig på faktura eller i kost/avance | DONE app (14 forespørgsler: fakturakladde/ufaktureret/faktura fra sag (reason 'rejected')/sagsøkonomi/efterkalkulation/rapporter/medarbejderøkonomi/dashboard) + 00202 STAGING (create_invoice_from_work_order + calculate_work_order_profit; staging-drift: service_role EXECUTE) — `cli.ts rejected-hours-check` 4/4. 00202 prod BLOCKED_APPROVAL |
+| 8 | Portal limits — efter cost lockdown/00198 | TODO |
+| 9 | T14 + reminder-cron issues — bagefter | TODO |
+
 ## Beslutninger (Henrik 2026-10-02, efter overnight)
 | # | Beslutning | Udførelse |
 |---|---|---|
@@ -339,7 +353,7 @@ Princip: følsomme oplysninger (løn, kost, margin/DB, indkøbspriser, bank, sec
 | R-MAIL-B | S2 | Latente (tilbuds-/faktura-rykker-cron sender i dag intet pga. resolver-K1/X4d, BLOCKED_APPROVAL): (3) rykker viser fuldt beløb ved delbetaling/delkreditering → skal vise udestående og springe ≤0 over; (7) første aktivering ville rykke ALLE gamle åbne tilbud → aldersgrænse (fx 60 d); (8) rykker-niveau kan forbruges uden mail (krav uden lease); (9) hilsen/forhåndstjek på forkert part; (6) Graph-timeout tolkes som 'ikke sendt'; (11) regelmotor tjekker-før-handling uden lås. **Skal rettes i samme ændring som resolver-rettelsen (K1/X4d)** |
 | R-AUTH | S2 | Auth-review 2026-10-07: app-rolle-fallback var 'montør' (reelle rettigheder) ved manglende profil/læsefejl → nu ingen rettigheder, og deaktiveret profil = ingen adgang (action-helpers + page-guard); inviteEmployeeLogin validerer rollen og logger rolle-fejl | DONE |
 | R-AUTH-B | **S1** | **BLOCKED (Henrik, 2 min, dashboard) — P1 åben selvregistrering:** enhver kan via den offentlige anon-nøgle oprette sig og bliver AKTIV montør (handle_new_user) → via REST læse kunder/kontakter/dokumenter/tilbudslinjer og skrive hvor montør må. /register er lukket i appen, men Supabase 'Allow new users to sign up' er stadig TIL (runbook docs/runbooks/supabase-disable-signup.md). Prod read-only (`scripts/prod-self-registered-users.ts`): 3 ikke-inviterede konti uden medarbejderkobling = 2 admin + 1 montør (kendt G11), nyeste 31/1 → intet tegn på misbrug. Forsvar i dybden (migration, godkendelse): handle_new_user opretter ikke-inviterede som inaktive; user_role() returnerer NULL ved is_active=false (adgangstoken gælder ellers ≤1 t efter deaktivering) |
-| R-AUTH-C | S3 | Beslutning: når en medarbejder deaktiveres/fratræder (setEmployeeActiveAction), forbliver login'et aktivt — skal login deaktiveres automatisk (eller advarsel i UI)? |
+| R-AUTH-C | S3 | Fratrædelse → login (Henrik 2026-10-07: login deaktiveres som standard) | DONE — se D-2026-10-07 #3 |
 | X2 | Telegram | Kommandoer: hjælp, "i dag" (mine opkald/påmindelser), flyt tidspunkt via kommando; opslag med næste arbejdsordre | DONE — staging assistant-commands-check 10/10; parser 28/28; øvrige assistent-suites grønne |
 | X3 | Static-check | Død kode: lib/actions/price-engine.ts + project-estimation.ts (ingen kaldere, ukendte kolonner) | DONE — fjernet (+ types); tsc/rbac/rls-matrix grønne |
 

@@ -41,6 +41,7 @@ async function requireGate(permission: Permission) {
   return ctx
 }
 import { logger } from '@/lib/utils/logger'
+import { PRODUCT_PUBLIC_COLUMNS, PRODUCT_SORT_COLUMNS } from '@/lib/products/product-columns'
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
   try {
@@ -267,13 +268,14 @@ export async function getProducts(
     }
 
     // Build count query
+    // 00201: cost_price har ingen kolonne-SELECT for authenticated → offentlig kolonneliste; kost flettes ind nedenfor
     let countQuery = supabase
       .from('product_catalog')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
 
     // Build data query
     let dataQuery = supabase.from('product_catalog').select(`
-      *,
+      ${PRODUCT_PUBLIC_COLUMNS},
       category:product_categories(id, name, slug)
     `)
 
@@ -296,7 +298,8 @@ export async function getProducts(
     }
 
     // Apply sorting
-    const sortBy = filters?.sortBy || 'name'
+    // sortering kun på tilladte kolonner (aldrig kostpris — RBAC-review 2026-10-07)
+    const sortBy = (PRODUCT_SORT_COLUMNS as readonly string[]).includes(filters?.sortBy ?? '') ? (filters!.sortBy as string) : 'name'
     const sortOrder = filters?.sortOrder || 'asc'
     dataQuery = dataQuery.order(sortBy, { ascending: sortOrder === 'asc' })
 
@@ -322,7 +325,7 @@ export async function getProducts(
     return {
       success: true,
       data: {
-        data: (dataResult.data as ProductWithCategory[]).map((p) => (showCost ? p : { ...p, cost_price: null })),
+        data: await withProductCost(dataResult.data as unknown as ProductWithCategory[], showCost),
         total,
         page,
         pageSize,
@@ -342,7 +345,7 @@ export async function getProduct(id: string): Promise<ActionResult<ProductWithCa
     const { data, error } = await supabase
       .from('product_catalog')
       .select(`
-        *,
+        ${PRODUCT_PUBLIC_COLUMNS},
         category:product_categories(id, name, slug)
       `)
       .eq('id', id)
@@ -357,8 +360,8 @@ export async function getProduct(id: string): Promise<ActionResult<ProductWithCa
       return { success: false, error: 'Produktet blev ikke fundet' }
     }
 
-    const prod = data as ProductWithCategory
-    return { success: true, data: hasPermission('products.view.cost_prices') ? prod : { ...prod, cost_price: null } }
+    const [prod] = await withProductCost([data as unknown as ProductWithCategory], hasPermission('products.view.cost_prices'))
+    return { success: true, data: prod }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente produkt') }
   }
@@ -397,7 +400,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult<Pr
         ...validated.data,
         created_by: userId,
       })
-      .select()
+      .select(PRODUCT_PUBLIC_COLUMNS)
       .single()
 
     if (error) {
@@ -457,7 +460,7 @@ export async function updateProduct(formData: FormData): Promise<ActionResult<Pr
       .from('product_catalog')
       .update(updateData)
       .eq('id', productId)
-      .select()
+      .select(PRODUCT_PUBLIC_COLUMNS)
       .single()
 
     if (error) {
@@ -1023,4 +1026,13 @@ export async function deleteSupplierProduct(id: string): Promise<ActionResult> {
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke slette leverandørprodukt') }
   }
+}
+
+/** 00201: kostpris flettes ind med admin-klienten — kun for products.view.cost_prices (ellers null). */
+async function withProductCost<T extends { id: string }>(rows: T[], showCost: boolean): Promise<Array<T & { cost_price: number | null }>> {
+  if (!showCost || rows.length === 0) return rows.map((r) => ({ ...r, cost_price: null }))
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { data } = await createAdminClient().from('product_catalog').select('id, cost_price').in('id', rows.map((r) => r.id))
+  const cost = new Map(((data ?? []) as Array<{ id: string; cost_price: number | null }>).map((d) => [d.id, d.cost_price]))
+  return rows.map((r) => ({ ...r, cost_price: cost.get(r.id) ?? null }))
 }

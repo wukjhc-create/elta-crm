@@ -51,6 +51,7 @@ async function rollupAllEmployees(): Promise<EmployeeRollup[]> {
       .select('id, employee_id, work_order_id, hours, billable, end_time')
       .in('work_order_id', chunk)
       .not('end_time', 'is', null)
+      .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
       .order('id')
       .range(from, to)))
   }

@@ -270,7 +270,23 @@ export async function updateEmployeeAction(
     }
   }
 
-  const updatePayload = buildEmployeePayload(parsed.data)
+  // Fund 2026-10-07 (U145): Rediger-formularen har intet profile_id-felt → skemaet gjorde det til null, og HVER gemning
+  // afkoblede medarbejderens login (montøren mistede sine job). Kobling styres KUN af login-panelets egne actions.
+  const { profile_id: _ignoredProfileId, ...updatePayload } = buildEmployeePayload(parsed.data)
+  void _ignoredProfileId
+  // Henrik 2026-10-07: fjernes "Aktiv" (fratrædelse) deaktiveres login'et også (standard). Login først — afvises det
+  // (sidste administrator), gemmes intet. Historik (sager/timer/noter) røres ikke. Genaktivering: login-panelet.
+  const { data: prev } = await ctx.supabase.from('employees').select('active, profile_id, name').eq('id', id).maybeSingle()
+  const prevRow = prev as { active: boolean | null; profile_id: string | null; name: string | null } | null
+  const deactivatingLogin = !!prevRow?.profile_id && prevRow.active !== false && parsed.data.active === false
+  // fratrædelse (aktiv → inaktiv) uden dato → i dag (som setEmployeeActiveAction)
+  if (prevRow?.active !== false && parsed.data.active === false && !updatePayload.termination_date) {
+    updatePayload.termination_date = copenhagenParts(new Date()).date
+  }
+  if (deactivatingLogin) {
+    const res = await setLoginWithEmployee(prevRow!.profile_id as string, false)
+    if (!res.ok) return { ok: false, message: res.message ?? 'Kunne ikke deaktivere login' }
+  }
   const { data: upd, error } = await ctx.supabase
     .from('employees')
     .update(updatePayload)
@@ -279,7 +295,12 @@ export async function updateEmployeeAction(
     .single()
   if (error || !upd) {
     logger.error('updateEmployee failed', { entityId: id, error })
+    if (deactivatingLogin) await setLoginWithEmployee(prevRow!.profile_id as string, true)
     return { ok: false, message: error?.message ?? 'Opdatering fejlede.' }
+  }
+  if (deactivatingLogin) {
+    await logEmployeeEvent({ employeeId: id, eventType: 'employee_deactivated', title: 'Medarbejder deaktiveret', createdBy: ctx.userId })
+    await auditLoginWithEmployee(id, prevRow!.name || '', prevRow!.profile_id as string, false, ctx.userId)
   }
 
   // Pull current compensation so the caller gets a complete row back.
@@ -293,31 +314,75 @@ export async function updateEmployeeAction(
   revalidatePath(`/dashboard/employees/${id}`)
   return {
     ok: true,
-    message: 'Medarbejder opdateret.',
+    message: deactivatingLogin ? 'Medarbejder deaktiveret — login er også deaktiveret.' : 'Medarbejder opdateret.',
     data: { ...normaliseEmployee(upd), compensation: comp ?? null },
   }
 }
 
+/** Login følger medarbejderens status (Henrik 2026-10-07). Kaldes FØR medarbejder-opdateringen; ok=false afbryder. */
+async function setLoginWithEmployee(profileId: string, active: boolean): Promise<{ ok: boolean; message?: string }> {
+  const { setProfileLoginActive } = await import('@/lib/auth/login-access')
+  const res = await setProfileLoginActive(profileId, active)
+  return res.ok ? { ok: true } : { ok: false, message: res.error ?? 'Kunne ikke ændre login-adgang' }
+}
+
+/** Audit af login-ændringen: medarbejder-hændelse + audit_logs (bruger). */
+async function auditLoginWithEmployee(employeeId: string, name: string, profileId: string, active: boolean, userId: string) {
+  await logEmployeeEvent({
+    employeeId,
+    eventType: active ? 'login_activated' : 'login_deactivated',
+    title: active ? 'Login genaktiveret sammen med medarbejderen' : 'Login deaktiveret sammen med medarbejderen',
+    createdBy: userId,
+  })
+  const { logUpdate } = await import('@/lib/actions/audit')
+  await logUpdate('user', profileId, name || 'Medarbejder', { is_active: { old: !active, new: active } },
+    { reason: active ? 'employee_activated' : 'employee_deactivated', employee_id: employeeId })
+}
+
+/**
+ * Aktivér/deaktivér en medarbejder. Henrik 2026-10-07: deaktivering (fratrædelse) deaktiverer som STANDARD også
+ * medarbejderens login (Auth-ban + profiles.is_active), så en fratrådt ikke beholder CRM-adgang. Intet slettes —
+ * sager, timer og noter bevares; login'et kan genaktiveres af en admin (reactivateLogin eller login-knappen).
+ * Den sidste aktive administrator kan ikke miste login'et (setProfileLoginActive).
+ */
 export async function setEmployeeActiveAction(
   id: string,
-  active: boolean
+  active: boolean,
+  opts?: { deactivateLogin?: boolean; reactivateLogin?: boolean }
 ): Promise<ActionOutcome> {
   const ctx = await requireEmployeesEdit()
   if ('ok' in ctx) return ctx
+  const { data: emp } = await ctx.supabase.from('employees').select('id, name, profile_id').eq('id', id).maybeSingle()
+  if (!emp) return { ok: false, message: 'Medarbejder ikke fundet' }
+  const profileId = (emp as { profile_id: string | null }).profile_id
+  const touchLogin = !!profileId && (active ? opts?.reactivateLogin === true : opts?.deactivateLogin !== false)
+
+  // Login først: afvises det (fx sidste administrator), ændres medarbejderen heller ikke
+  if (touchLogin) {
+    const res = await setLoginWithEmployee(profileId as string, active)
+    if (!res.ok) return { ok: false, message: res.message ?? 'Kunne ikke ændre login-adgang' }
+  }
+
   const { error } = await ctx.supabase
     .from('employees')
     .update({ active, termination_date: active ? null : copenhagenParts(new Date()).date })
     .eq('id', id)
-  if (error) return { ok: false, message: error.message }
+  if (error) {
+    // rul login-ændringen tilbage, så medarbejder og login ikke ender i uoverensstemmelse
+    if (touchLogin) await setLoginWithEmployee(profileId as string, !active)
+    return { ok: false, message: error.message }
+  }
   await logEmployeeEvent({
     employeeId: id,
     eventType: active ? 'employee_activated' : 'employee_deactivated',
     title: active ? 'Medarbejder aktiveret' : 'Medarbejder deaktiveret',
     createdBy: ctx.userId,
   })
+  if (touchLogin) await auditLoginWithEmployee(id, (emp as { name: string | null }).name || '', profileId as string, active, ctx.userId)
   revalidatePath('/dashboard/employees')
   revalidatePath(`/dashboard/employees/${id}`)
-  return { ok: true, message: active ? 'Medarbejder aktiveret.' : 'Medarbejder deaktiveret.' }
+  const loginNote = touchLogin ? (active ? ' Login genaktiveret.' : ' Login deaktiveret.') : profileId && !active ? ' Login er IKKE deaktiveret.' : ''
+  return { ok: true, message: (active ? 'Medarbejder aktiveret.' : 'Medarbejder deaktiveret.') + loginNote }
 }
 
 // =====================================================

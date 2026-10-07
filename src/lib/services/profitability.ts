@@ -146,6 +146,7 @@ export async function getEmployeeProductivity(
     .gte('start_time', since)
     .lte('start_time', until)
     .not('end_time', 'is', null)
+    .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
 
   let hours = 0
   let cost = 0

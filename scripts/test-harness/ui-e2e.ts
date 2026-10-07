@@ -185,7 +185,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
-  economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
@@ -2915,6 +2915,55 @@ ${m.text()}`) })
         out.push({ id: 'U89 PV16 løn på Rediger medarbejder foldet + hentes ved åbning', ok: !!u89EmployeeId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U145 (Henrik 2026-10-07): deaktiveres en medarbejder (Rediger → "Aktiv" fra), deaktiveres login'et også — efter
+      // bekræftelse; intet slettes; admin kan genaktivere login'et i login-panelet. Audit i employee_events + audit_logs.
+      if (want('U145')) {
+        const r: Record<string, boolean> = {}
+        const u = await mkUser('montør')
+        const emp = await c.admin.from('employees').insert([{ name: `U145 Harness ${stamp}`, first_name: 'U145', last_name: `Harness ${stamp}`, email: `u145-${stamp}@harness.test`, role: 'montør', active: true, profile_id: u.id }]).select('id')
+        const empId = (emp.data?.[0] as { id?: string } | undefined)?.id ?? null
+        let dialogText = ''
+        const onDialog = async (d: { message(): string; accept(): Promise<void> }) => { dialogText = d.message(); await d.accept() }
+        a.page.on('dialog', onDialog)
+        await gotoSafe(a.page, `${base}/dashboard/employees/${empId}/edit`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const aktiv = a.page.getByRole('checkbox', { name: 'Aktiv', exact: true }).first()
+        await aktiv.waitFor({ timeout: 60_000 }).catch(() => {})
+        await aktiv.uncheck({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByRole('button', { name: 'Gem stamdata' }).click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(4000)
+        a.page.off('dialog', onDialog)
+        r.bekraeftelse_vist = /LOGIN deaktiveres/.test(dialogText)
+        const e1 = (await c.admin.from('employees').select('active, termination_date').eq('id', empId).maybeSingle()).data as { active: boolean; termination_date: string | null } | null
+        const p1 = (await c.admin.from('profiles').select('is_active').eq('id', u.id).maybeSingle()).data as { is_active: boolean } | null
+        r.medarbejder_deaktiveret = e1?.active === false
+        r.login_deaktiveret = p1?.is_active === false
+        const ev = (await c.admin.from('employee_events').select('event_type').eq('employee_id', empId)).data as Array<{ event_type: string }> | null
+        r.audit_medarbejder = !!ev?.some((x) => x.event_type === 'login_deactivated')
+        const al = await c.admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', u.id)
+        r.audit_logs = (al.count ?? 0) > 0
+        // genaktivér login via login-panelet (på Rediger-siden)
+        await gotoSafe(a.page, `${base}/dashboard/employees/${empId}/edit`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const btn = a.page.getByRole('button', { name: /Aktivér login/ }).first()
+        await btn.waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {})
+        await a.page.waitForTimeout(1500) // hydrering (klik før hydrering gik tabt — samme mønster som U142)
+        r.knap_fundet = (await a.page.getByRole('button', { name: /Aktivér login/ }).count()) > 0
+        if (!r.knap_fundet) {
+          const txt = (await a.page.locator('body').innerText().catch(() => '')) ?? ''
+          const lines = txt.split(/\r?\n/).filter((l) => /login|adgang|fejl|indlæs/i.test(l)).slice(0, 12)
+          console.log('[U145 debug] ' + lines.join(' | '))
+        }
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u145-login-panel.png'), fullPage: true }).catch(() => {})
+        await btn.click({ timeout: 30_000 }).catch(() => {})
+        let reactivated = false
+        for (let i = 0; i < 10 && !reactivated; i++) {
+          await a.page.waitForTimeout(1000)
+          reactivated = ((await c.admin.from('profiles').select('is_active').eq('id', u.id).maybeSingle()).data as { is_active: boolean } | null)?.is_active === true
+        }
+        r.admin_kan_genaktivere = reactivated
+        if (empId) { await c.admin.from('employee_events').delete().eq('employee_id', empId); await c.admin.from('employees').delete().eq('id', empId) }
+        out.push({ id: 'U145 deaktivering af medarbejder deaktiverer login (bekræftelse, audit, genaktivering)', ok: !!empId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U90 D50b: Medarbejderøkonomi — serviceleder (kostpris, ikke løn) får ingen kost/DB pr. medarbejder i data/UI,
       // kun samlede totaler (sammenfoldet); admin (løn) ser kost pr. medarbejder efter "Vis kost/DB"
       if (want('U90') && jobEmployeeId) {
@@ -2930,6 +2979,10 @@ ${m.text()}`) })
         const rowCost = /\\?"employee_name\\?":\\?"[^"\\]*\\?",\\?"hours\\?":[-\d.]+,\\?"labor_sale\\?":[-\d.]+,\\?"labor_cost\\?":-?[1-9]/.test(slData)
         const rowNull = /\\?"employee_name\\?":\\?"[^"\\]*\\?",\\?"hours\\?":[-\d.]+,\\?"labor_sale\\?":[-\d.]+,\\?"labor_cost\\?":null/.test(slData)
         r.sl_ingen_kost_pr_medarbejder = !rowCost && rowNull
+        if (!r.sl_ingen_kost_pr_medarbejder) {
+          const at = slData.indexOf('employee_name')
+          console.log(`[U90 debug] rowCost=${rowCost} rowNull=${rowNull} · ${at >= 0 ? slData.slice(Math.max(0, at - 20), at + 260).replace(/\s+/g, ' ') : 'INGEN employee_name i data'}`)
+        }
         r.sl_totaler_foldet = ((await sl.page.getByTestId('employee-economy-totals').innerText().catch(() => '')) ?? '').includes('••••')
         await sl.page.getByTestId('cost-reveal-toggle').first().click({ timeout: 30_000 }).catch(() => {})
         await sl.page.waitForTimeout(600)

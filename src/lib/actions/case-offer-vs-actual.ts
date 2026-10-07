@@ -57,7 +57,7 @@ export async function getCaseOfferVsActual(caseId: string): Promise<ActionResult
         : // 00192: kostkolonner læses med admin-klienten bag gaten ovenfor (bruger-klienten kan ikke læse dem).
           // Side for side (profit-review 2026-10-07): en stor sag kan have >1.000 timerækker → før for få timer/for lav kost
           fetchAllRows<{ id: string; hours: number | string | null; cost_amount: number | string | null }>((from, to) =>
-            createAdminClient().from('time_logs').select('id, hours, cost_amount').in('work_order_id', woIds).order('id').range(from, to))
+            createAdminClient().from('time_logs').select('id, hours, cost_amount').in('work_order_id', woIds).neq('approval_status', 'rejected').order('id').range(from, to))
             .then((data) => ({ data, error: null }), (error: unknown) => ({ data: null, error })),
     ])
     for (const [name, res] of [['offer', offerRes], ['offer_line_items', linesRes], ['case_materials', materialsRes], ['time_logs', logsRes]] as const) {

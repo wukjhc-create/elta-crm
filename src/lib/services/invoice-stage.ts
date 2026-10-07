@@ -453,6 +453,8 @@ export async function createFinalInvoiceForCase(
             .is('invoice_line_id', null)
             .not('end_time', 'is', null)
             .eq('billable', true)
+            // Henrik 2026-10-07: afviste timer faktureres aldrig
+            .neq('approval_status', 'rejected')
             .order('start_time', { ascending: true }),
       supabase
         .from('case_materials')
