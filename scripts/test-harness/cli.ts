@@ -479,6 +479,51 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'user-delete-cascade-check') {
+    // 00199 (STAGING): sletning af en bruger må aldrig slette kunder/data. Opretter en rigtig auth-bruger, en kunde den
+    // har oprettet + kontakt + opgave, sletter brugeren via admin-API og kontrollerer at alt består (created_by = NULL).
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const cascades = (await stagingSql(`SELECT c.conrelid::regclass::text tbl, a.attname col FROM pg_constraint c
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+      WHERE c.contype = 'f' AND c.confrelid IN ('public.profiles'::regclass, 'auth.users'::regclass) AND c.confdeltype = 'c'
+        AND c.conrelid::regclass::text NOT LIKE 'auth.%'`)) as Array<{ tbl: string; col: string }>
+    // brugerens EGNE personlige data må gå med brugeren (Telegram-kobling, personlige påmindelser) — ikke forretningsdata
+    const PERSONAL = ['profiles', 'assistant_links', 'personal_reminders']
+    check('kun profil + brugerens personlige data kaskade-slettes fra profiles/auth.users', cascades.every((r) => PERSONAL.includes(r.tbl)), cascades.map((r) => `${r.tbl}.${r.col}`).join(', '))
+    const { data: created, error: uErr } = await admin.auth.admin.createUser({ email: `ucd-${stamp}@harness.test`, password: `H-${stamp}-x!Aa`, email_confirm: true })
+    if (uErr || !created?.user) throw new Error(uErr?.message ?? 'createUser')
+    const uid = created.user.id
+    let custId: string | null = null
+    try {
+      const { data: cu, error: cErr } = await admin.from('customers').insert({ customer_number: `UCD-${stamp}`, company_name: `[HARNESS] ucd ${stamp}`, contact_person: 'X', email: `ucdk-${stamp}@harness.test`, created_by: uid }).select('id').single()
+      if (cErr) throw new Error(cErr.message)
+      custId = (cu as { id: string }).id
+      const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+      const ic = await admin.from('customer_contacts').insert({ customer_id: custId, name: 'Kontakt', email: `ucdc-${stamp}@harness.test` })
+      const it = await admin.from('customer_tasks').insert({ customer_id: custId, title: '[HARNESS] ucd opgave', status: 'pending', priority: 'normal', created_by: owner })
+      if (ic.error || it.error) throw new Error(`seed: ${ic.error?.message ?? it.error?.message}`)
+      const { error: dErr } = await admin.auth.admin.deleteUser(uid)
+      check('brugeren kan slettes', !dErr, dErr?.message ?? '')
+      const c = (await admin.from('customers').select('id, created_by').eq('id', custId).maybeSingle()).data as { id: string; created_by: string | null } | null
+      check('kunden består efter brugersletning', !!c)
+      check('created_by sat til NULL', c?.created_by === null, JSON.stringify(c))
+      const nC = (await admin.from('customer_contacts').select('id', { count: 'exact', head: true }).eq('customer_id', custId)).count
+      const nT = (await admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', custId)).count
+      check('kontakt og opgave består', nC === 1 && nT === 1, `kontakter=${nC} opgaver=${nT}`)
+    } finally {
+      if (custId) {
+        await admin.from('customer_tasks').delete().eq('customer_id', custId)
+        await admin.from('customer_contacts').delete().eq('customer_id', custId)
+        await admin.from('customers').delete().eq('id', custId)
+      }
+      await admin.auth.admin.deleteUser(uid).catch(() => undefined)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ brugersletning bevarer kunder')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'invoice-send-claim-check') {
     // Mail-review 2026-10-07: sendInvoiceEmail kræver fakturaen (sent_at betinget) før afsendelse og frigiver kravet,
     // når den ikke ender i 'sent'. Faktura UDEN kunde → 'skipped' FØR enhver mail (ingen afsendelse i testen).
