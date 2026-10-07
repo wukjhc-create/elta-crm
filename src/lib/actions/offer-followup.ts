@@ -7,6 +7,7 @@
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { buildOfferFollowups, type OfferFollowupItem, type OpenOffer } from '@/lib/followup/offer-followup'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import type { ActionResult } from '@/types/common.types'
 
 export async function getOfferFollowupsAction(): Promise<ActionResult<{ items: OfferFollowupItem[]; scope: 'own' | 'all' }>> {
@@ -15,22 +16,28 @@ export async function getOfferFollowupsAction(): Promise<ActionResult<{ items: O
     if (!hasPermission('offers.view')) return { success: false, error: 'Manglende tilladelse: offers.view' }
     const scope: 'own' | 'all' = role === 'admin' || role === 'serviceleder' ? 'all' : 'own'
 
-    let q = supabase
-      .from('offers')
-      .select('id, offer_number, title, status, sent_at, viewed_at, valid_until, final_amount, reminder_count, last_reminder_sent, is_proposal, customer:customers!offers_customer_id_fkey(company_name, contact_person, phone)')
-      .in('status', ['sent', 'viewed'])
-      .not('sent_at', 'is', null)
-      .order('sent_at', { ascending: true })
-      .limit(200)
-    if (scope === 'own') q = q.eq('created_by', userId)
-    const { data, error } = await q
-    if (error) return { success: false, error: 'Kunne ikke hente tilbud' }
-    const rows = ((data ?? []) as Array<Record<string, any>>).filter((r) => !r.is_proposal)
+    // X4 (kommunikations-review 2026-10-07): ALLE åbne tilbud side for side (før .limit(200) af de ÆLDSTE → ved > 200 åbne
+    // tilbud manglede netop dem der snart udløber)
+    let data: Array<Record<string, any>>
+    try {
+      data = await fetchAllRows<Record<string, any>>((from, to) => {
+        let q = supabase
+          .from('offers')
+          .select('id, offer_number, title, status, sent_at, viewed_at, valid_until, final_amount, reminder_count, last_reminder_sent, is_proposal, customer:customers!offers_customer_id_fkey(company_name, contact_person, phone)')
+          .in('status', ['sent', 'viewed'])
+          .not('sent_at', 'is', null)
+        if (scope === 'own') q = q.eq('created_by', userId)
+        return q.order('sent_at', { ascending: true }).order('id').range(from, to)
+      })
+    } catch {
+      return { success: false, error: 'Kunne ikke hente tilbud' }
+    }
+    const rows = data.filter((r) => !r.is_proposal)
 
     const ids = rows.map((r) => r.id as string)
     const openTask = new Set<string>()
-    if (ids.length) {
-      const { data: tasks } = await supabase.from('customer_tasks').select('offer_id').in('offer_id', ids).in('status', ['pending', 'in_progress'])
+    for (let k = 0; k < ids.length; k += 200) {
+      const { data: tasks } = await supabase.from('customer_tasks').select('offer_id').in('offer_id', ids.slice(k, k + 200)).in('status', ['pending', 'in_progress'])
       for (const t of (tasks ?? []) as Array<{ offer_id: string | null }>) if (t.offer_id) openTask.add(t.offer_id)
     }
 
