@@ -47,6 +47,11 @@ const APPROVED: Record<string, string> = {
   '00192': '2026-10-05', // kost-/løndata-lockdown (T1/L1/M1/P2), godkendt af Henrik i chat 2026-10-05 ("00192 Godkendt til PROD")
   '00193': '2026-10-05', // DATA R0: kontraktsum ekskl. moms på 3 sager, godkendt af Henrik i chat 2026-10-05 efter read-only verifikation
   '00194': '2026-10-07', // S1 system_alerts (notifikationsklokken), godkendt af Henrik/ChatGPT i chat 2026-10-07 ("00194 SYSTEM_ALERTS GODKENDT TIL PROD")
+  '00198': '2026-10-07', // faktura fra tilbud prissætter med unit_price + data-rettelse, godkendt af Henrik i chat 2026-10-07 ("00198 GODKENDT TIL PROD")
+  '00199': '2026-10-07', // customers.created_by ON DELETE SET NULL, godkendt af Henrik i chat 2026-10-07 ("00199 GODKENDT TIL PROD")
+  '00200': '2026-10-07', // kost-lockdown bølge 2a (15 tabeller rolle-scopet), godkendt af Henrik i chat 2026-10-07 ("00200 + 00201 GODKENDT TIL PROD")
+  '00201': '2026-10-07', // kost-lockdown bølge 2b (product_catalog kolonne-niveau m.m.), godkendt af Henrik i chat 2026-10-07 ("00200 + 00201 GODKENDT TIL PROD")
+  '00202': '2026-10-07', // afviste timer ude af faktura-/avancefunktioner, godkendt af Henrik i chat 2026-10-07 ("00202 GODKENDT TIL PROD")
 }
 
 async function main() {
