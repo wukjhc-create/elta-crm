@@ -20,6 +20,7 @@ import type {
   ColumnMappings,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { dedupeRowsBySku } from '@/lib/import/dedupe-sku'
 
 /**
  * P3 #17 / P-005: skrivende leverandoer-/prisimport-actions var ugatede (enhver indlogget kunne overskrive
@@ -112,18 +113,25 @@ export async function previewImport(
     } else if (supplier.code === 'LM') {
       transformedRows = parsedRows.map((row) => LMImporter.transformRow(row))
     }
+    transformedRows = dedupeRowsBySku(transformedRows).rows // X4e: dublet-varenumre — sidste række vinder
 
     // Get existing products by SKU
-    const skus = transformedRows.map((r) => r.parsed.sku).filter(Boolean)
-    const { data: existingProducts } = await supabase
-      .from('supplier_products')
-      .select('id, supplier_sku')
-      .eq('supplier_id', supplierId)
-      .in('supplier_sku', skus)
-
-    const existingMap = new Map(
-      (existingProducts || []).map((p) => [p.supplier_sku, p.id])
-    )
+    // X4e (pris-review 2026-10-07): i bidder à 300 (som udførelsen) og fejl stopper — før ét .in() med hele filen,
+    // fejl ignoreret og højst 1.000 svar → forhåndsvisningen viste forkert fordeling ny/opdateret for store filer
+    const skus = Array.from(new Set(transformedRows.map((r) => r.parsed.sku).filter(Boolean))) as string[]
+    const existingMap = new Map<string, string>()
+    for (let k = 0; k < skus.length; k += 300) {
+      const { data: existingProducts, error: exErr } = await supabase
+        .from('supplier_products')
+        .select('id, supplier_sku')
+        .eq('supplier_id', supplierId)
+        .in('supplier_sku', skus.slice(k, k + 300))
+      if (exErr) {
+        logger.error('Import preview: lookup failed', { error: exErr })
+        throw new Error('DATABASE_ERROR')
+      }
+      for (const p of existingProducts ?? []) existingMap.set(p.supplier_sku as string, p.id as string)
+    }
 
     // Validate rows
     const validatedRows = await engine.validateRows(transformedRows, existingMap)
@@ -257,6 +265,7 @@ export async function executeImport(
       } else if (supplier.code === 'LM') {
         transformedRows = parsedRows.map((row) => LMImporter.transformRow(row))
       }
+      transformedRows = dedupeRowsBySku(transformedRows).rows // X4e: dublet-varenumre — sidste række vinder
 
       // Get existing products by SKU
       // Leverandør-review: ét .in() med alle filens varenumre gav for lange URL'er / højst 1.000 rækker (fejlen blev
