@@ -886,12 +886,18 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
     }
 
     // Kun aktive (ikke-lukkede) sager tæller med.
-    const { data: cases } = await supabase
-      .from('service_cases')
-      .select('id, case_number, title, status')
-      .in('id', caseIds)
+    // i bidder af 200 (én .in() med alle fakturerede sager sprænger URL-længden ved vækst → tom liste → 0 kr udestående)
+    const cases: Array<{ id: string; case_number: string | null; title: string | null; status: string | null }> = []
+    for (let k = 0; k < caseIds.length; k += 200) {
+      const { data, error } = await supabase
+        .from('service_cases')
+        .select('id, case_number, title, status')
+        .in('id', caseIds.slice(k, k + 200))
+      if (error) throw error
+      cases.push(...((data ?? []) as typeof cases))
+    }
     const activeMeta = new Map<string, { case_number: string | null; title: string | null }>()
-    for (const c of (cases ?? []) as Array<{ id: string; case_number: string | null; title: string | null; status: string | null }>) {
+    for (const c of cases as Array<{ id: string; case_number: string | null; title: string | null; status: string | null }>) {
       if (c.status === 'closed') continue
       activeMeta.set(c.id, { case_number: c.case_number, title: c.title })
     }

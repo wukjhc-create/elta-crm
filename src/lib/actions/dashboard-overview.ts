@@ -404,10 +404,17 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         for (const m of (mat.data ?? []) as Array<{ case_id: string; total_sales_price: number | string | null }>) add(m.case_id, m.total_sales_price)
         for (const o of (oth.data ?? []) as Array<{ case_id: string; total_sales_price: number | string | null }>) add(o.case_id, o.total_sales_price)
         if (!agg.size) return
-        const { data: cs } = await supabase.from('service_cases')
-          .select('id, case_number, title, status, customer:customers!service_cases_customer_id_fkey(company_name)')
-          .in('id', Array.from(agg.keys())).neq('status', 'converted')
-        const list = ((cs ?? []) as Array<{ id: string; case_number: string | null; title: string; status: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>)
+        // i bidder af 200 (én .in() med alle sager sprænger URL-længden ved vækst → tomt kort)
+        const aggIds = Array.from(agg.keys())
+        const cs: unknown[] = []
+        for (let k = 0; k < aggIds.length; k += 200) {
+          const { data, error } = await supabase.from('service_cases')
+            .select('id, case_number, title, status, customer:customers!service_cases_customer_id_fkey(company_name)')
+            .in('id', aggIds.slice(k, k + 200)).neq('status', 'converted')
+          if (error) throw new Error(error.message)
+          cs.push(...(data ?? []))
+        }
+        const list = (cs as Array<{ id: string; case_number: string | null; title: string; status: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>)
           .map((c) => {
             const a = agg.get(c.id)!
             const cust = Array.isArray(c.customer) ? c.customer[0] : c.customer

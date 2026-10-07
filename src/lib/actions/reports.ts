@@ -425,7 +425,11 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     const [linesRes, matsRes, invRes, otherRes] = await Promise.all([
       offerIds.length
         // 00192: kostkolonner — admin-klient bag economy.view
-        ? createAdminClient().from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
+        // side for side (profit-review 2026-10-07): 50 tilbud × 20–40 linjer passerer 1.000 → tilbudt kost manglede stille
+        ? fetchAllRows<Record<string, unknown>>((from, to) => createAdminClient().from('offer_line_items')
+            .select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id, position')
+            .in('offer_id', offerIds).order('id').range(from, to))
+            .then((data) => ({ data: data.sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0)) }))
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
       fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
       supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds),
@@ -436,7 +440,7 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     const otherCost = new Map<string, number>()
     for (const o of (otherRes.data ?? []) as Array<{ case_id: string; total_cost: number | string | null }>) otherCost.set(o.case_id, (otherCost.get(o.case_id) ?? 0) + (Number(o.total_cost ?? 0) || 0))
     const linesByOffer = new Map<string, OfferLineInput[]>()
-    for (const l of (linesRes.data ?? []) as Array<OfferLineInput & { offer_id: string }>) {
+    for (const l of (linesRes.data ?? []) as unknown as Array<OfferLineInput & { offer_id: string }>) {
       linesByOffer.set(l.offer_id, [...(linesByOffer.get(l.offer_id) ?? []), l])
     }
     const matsByCase = new Map<string, ActualMaterialInput[]>()
