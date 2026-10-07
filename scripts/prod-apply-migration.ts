@@ -46,6 +46,7 @@ const APPROVED: Record<string, string> = {
   '00185': '2026-10-04', // N2 godkendelse af timer (time_logs.approval_status + guard-trigger), godkendt af Henrik i chat 2026-10-04
   '00192': '2026-10-05', // kost-/løndata-lockdown (T1/L1/M1/P2), godkendt af Henrik i chat 2026-10-05 ("00192 Godkendt til PROD")
   '00193': '2026-10-05', // DATA R0: kontraktsum ekskl. moms på 3 sager, godkendt af Henrik i chat 2026-10-05 efter read-only verifikation
+  '00194': '2026-10-07', // S1 system_alerts (notifikationsklokken), godkendt af Henrik/ChatGPT i chat 2026-10-07 ("00194 SYSTEM_ALERTS GODKENDT TIL PROD")
 }
 
 async function main() {

@@ -160,7 +160,7 @@ elta-crm/
 - `supplier_sync_schedules` - Cron-baseret synkroniseringsplaner
 - `supplier_product_cache` - Offline fallback prisdata
 - `price_alert_rules` - Konfiguration af prisadvarsler (tærskler, typer)
-- `system_alerts` - (FINDES IKKE i prod — se noter 2026-10-04; brug `system_health_log`)
+- `system_alerts` - Notifikationsklokkens advarsler (findes i prod fra 2026-10-07, migration 00194; kun admin/serviceleder/bogholderi ser dem; driftsfejl logges fortsat i `system_health_log`)
 
 ### Ved nye tabeller:
 1. Vis mig CREATE TABLE SQL først
@@ -334,7 +334,7 @@ Ved hver opgave:
     - supplier_sync_schedules (cron-baseret synkronisering)
     - supplier_product_cache (offline fallback data)
 - 2026-10-04: Fund og konventioner (prod read-only + delivery):
-  - `system_alerts` FINDES IKKE i prod (driftsfejl logges i `system_health_log`; cron-status via scripts/prod-cron-status-since.ts)
+  - (Opdateret 2026-10-07: `system_alerts` findes nu i prod via 00194.) Driftsfejl logges i `system_health_log`; cron-status via scripts/prod-cron-status-since.ts
   - Webhenvendelser kommer fra FormSubmit (`submissions@formsubmit.co`, emne "…henvendelse…"). Afsenderen er ALDRIG
     kunden — kundens data står i formularen (felter name/phone/email/inquiry_type/message/postnr/adresse). Parseren
     (`src/lib/mail/website-inquiry.ts` + `src/lib/utils/email-parser.ts`) håndterer celler på samme linje

@@ -16,14 +16,14 @@ import { KNOWN_PRODUCTION_REFS, HARNESS_SECRETS_FILE } from './test-harness/env-
 
 export type ReadOnlyRunner = (sql: string) => Promise<any[]>
 
-function loadProdDbUrl(): string {
+export function loadProdDbUrl(): string {
   const j = JSON.parse(readFileSync(resolve(process.cwd(), HARNESS_SECRETS_FILE), 'utf8'))
   const url = typeof j.prodDbUrl === 'string' ? j.prodDbUrl.trim() : ''
   if (!url) throw new Error(`prodDbUrl mangler i ${HARNESS_SECRETS_FILE}`)
   return url
 }
 
-function refFromDbUrl(url: string): string | undefined {
+export function refFromDbUrl(url: string): string | undefined {
   const u = new URL(url)
   return decodeURIComponent(u.username).match(/^postgres\.([a-z0-9]+)$/i)?.[1] ?? u.hostname.match(/^db\.([a-z0-9]+)\./i)?.[1]
 }

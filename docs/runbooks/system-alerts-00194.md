@@ -1,7 +1,6 @@
 # 00194 — system_alerts (notifikationsklokken) · prod-runbook
 
-**Status 2026-10-07:** anvendt og testet på STAGING. **IKKE kørt i prod** — kræver Henriks godkendelse
-(allowlist-linje i `scripts/prod-apply-migration.ts` tilføjes først ved godkendelse).
+**Status 2026-10-07:** anvendt i PROD efter godkendelse (Henrik/ChatGPT 2026-10-07). Se kørselslog nederst.
 
 ## Hvorfor
 Tabellen findes ikke i prod, så klokken er altid tom. Konkret går tabt i dag:
@@ -53,3 +52,14 @@ springes over). De følgende nætter: ingen nye kopier, så længe advarslerne i
 
 ## Rollback
 `DROP TABLE public.system_alerts;` (intet afhænger af tabellen; appen tåler at den mangler — før-tilstanden).
+
+## Kørselslog prod (2026-10-07)
+| Trin | Resultat |
+|---|---|
+| pre-check (`prod-verify-00194.ts pre`) | 3/3 |
+| `prod:apply-migration -- 00194 --approved-by-henrik` | COMMIT gennemført |
+| post-check (`prod-verify-00194.ts post`) | 11/11 (tabel, RLS, 2 policies, ingen INSERT/DELETE for brugere, kun statuskolonner, 0 rækker) |
+| flow-tjek som rigtige prod-brugere, ÉN transaktion rullet tilbage (`prod-flow-check-00194.ts`) | 16/16 — portal-hændelse → advarsel; admin ser, montør ser ikke; ingen kan oprette/slette/ændre titel; montør kan ikke markere læst; admin markerer læst + afviser; afvist forsvinder; dubletsikring finder åben (ikke afvist); intet efterladt |
+| db-audit | HØJ/MIDDEL/LAV = 0 |
+| app (main 3ad24cf) | deployet (Vercel success) — klokke/cron-kode med dubletsikring er live |
+Forventet næste nat (03:00): ~3 driftsadvarsler (AO-sync, LM-sync, forældede priser); følgende nætter ingen kopier.
