@@ -868,39 +868,24 @@ export async function createCustomerFromEmail(
     return { success: true, customerId: existingCustomer.id, isExisting: true, customerName: existingCustomer.company_name }
   }
 
-  // 5. Generate customer number
-  const { data: lastCustomer } = await supabase
-    .from('customers')
-    .select('customer_number')
-    .order('customer_number', { ascending: false })
-    .limit(1)
+  // 5+6. Opret kunde med kundenummer + genforsøg ved samtidig oprettelse (kunde-/leads-review 2026-10-07: egen
+  //      nummergenerator uden retry → 23505 og rå DB-fejl, når to brugere/synken oprettede samtidig)
+  const { insertCustomerWithRetry } = await import('@/lib/customers/customer-number')
+  const { data: newCustomer, error: customerError } = await insertCustomerWithRetry<{ id: string }>(supabase, (customerNumber) => ({
+    customer_number: customerNumber,
+    company_name: senderName,
+    contact_person: senderName,
+    email: senderEmail,
+    phone: phone || null,
+    tags: ['email'],
+    notes: `Oprettet fra email: "${cleanedSubject}"`,
+    is_active: true,
+    created_by: userId,
+  }), { selectClause: 'id', label: 'createCustomerFromEmail' })
 
-  let nextNumber = 'C000001'
-  if (lastCustomer && lastCustomer.length > 0) {
-    const lastNum = parseInt((lastCustomer[0] as any).customer_number.substring(1), 10)
-    nextNumber = 'C' + (lastNum + 1).toString().padStart(6, '0')
-  }
-
-  // 6. Create customer
-  const { data: newCustomer, error: customerError } = await supabase
-    .from('customers')
-    .insert({
-      customer_number: nextNumber,
-      company_name: senderName,
-      contact_person: senderName,
-      email: senderEmail,
-      phone: phone || null,
-      tags: ['email'],
-      notes: `Oprettet fra email: "${cleanedSubject}"`,
-      is_active: true,
-      created_by: userId,
-    })
-    .select('id')
-    .single()
-
-  if (customerError) {
+  if (customerError || !newCustomer) {
     logger.error('Failed to create customer from email', { error: customerError })
-    return { success: false, error: customerError.message }
+    return { success: false, error: 'Kunne ikke oprette kunden — prøv igen' }
   }
 
   // 7. Create lead with full email context
@@ -981,7 +966,7 @@ export async function createCustomerFromEmail(
       // Log activity on the lead
       await supabase.from('lead_activities').insert({
         lead_id: newLead.id,
-        type: 'note',
+        activity_type: 'note', // kolonnen hedder activity_type (før 'type' → rækken blev aldrig skrevet)
         description: `${attachmentRefs.length} fil(er) kopieret fra email: ${attachmentRefs.map((a) => a.filename).join(', ')}`,
         performed_by: userId,
       })

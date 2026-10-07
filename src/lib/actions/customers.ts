@@ -761,16 +761,21 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
     // så RLS ikke skjuler rækker (kun antal).
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const admin = createAdminClient()
-    const [offersRes, invoicesRes, casesRes] = await Promise.all([
-      admin.from('offers').select('id', { count: 'exact', head: true }).eq('customer_id', id),
-      admin.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_id', id),
-      admin.from('service_cases').select('id', { count: 'exact', head: true }).eq('customer_id', id),
+    // Kunde-/leads-review 2026-10-07: også projekter, dokumenter (storage-filer blev efterladt), opgaver og portal-
+    // beskeder kaskaderede stille → de blokerer nu også sletning
+    const cnt = (table: string) => admin.from(table).select('id', { count: 'exact', head: true }).eq('customer_id', id)
+    const [offersRes, invoicesRes, casesRes, projectsRes, docsRes, tasksRes, portalRes] = await Promise.all([
+      cnt('offers'), cnt('invoices'), cnt('service_cases'), cnt('projects'), cnt('customer_documents'), cnt('customer_tasks'), cnt('portal_messages'),
     ])
-    if (offersRes.error || invoicesRes.error || casesRes.error) throw new Error('DATABASE_ERROR')
+    if ([offersRes, invoicesRes, casesRes, projectsRes, docsRes, tasksRes, portalRes].some((r) => r.error)) throw new Error('DATABASE_ERROR')
     const linked = [
       offersRes.count ? `${offersRes.count} tilbud` : '',
       invoicesRes.count ? `${invoicesRes.count} faktura${invoicesRes.count === 1 ? '' : 'er'}` : '',
       casesRes.count ? `${casesRes.count} sag${casesRes.count === 1 ? '' : 'er'}` : '',
+      projectsRes.count ? `${projectsRes.count} projekt${projectsRes.count === 1 ? '' : 'er'}` : '',
+      docsRes.count ? `${docsRes.count} dokument${docsRes.count === 1 ? '' : 'er'}` : '',
+      tasksRes.count ? `${tasksRes.count} opgave${tasksRes.count === 1 ? '' : 'r'}` : '',
+      portalRes.count ? `${portalRes.count} portalbesked${portalRes.count === 1 ? '' : 'er'}` : '',
     ].filter(Boolean)
     if (linked.length) {
       return { success: false, error: `Kunden har ${linked.join(', ')} og kan ikke slettes — deaktivér kunden i stedet` }

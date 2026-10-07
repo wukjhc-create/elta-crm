@@ -12,7 +12,7 @@
  */
 import { createAdminClient } from '@/lib/supabase/admin'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
-import { isFreeMailDomain } from '@/lib/email/free-mail-domains'
+import { isFreeMailDomain, NON_CUSTOMER_SENDER_DOMAINS } from '@/lib/email/free-mail-domains'
 import { extractOriginalSender, classifyNoise } from '@/lib/services/email-linker'
 import { decideAutoLink, type AutoLinkDecision, type AutoLinkSignals } from '@/lib/mail/autolink-policy'
 import { logger } from '@/lib/utils/logger'
@@ -21,7 +21,6 @@ import type { LinkResult, EmailLinkStatus } from '@/types/mail-bridge.types'
 type Admin = ReturnType<typeof createAdminClient>
 
 /** Afsender-domæner der aldrig matches som kunde: eget domæne og formular-relæet (kunden står i formularen) */
-const NON_CUSTOMER_SENDER_DOMAINS = ['eltasolar.dk', 'formsubmit.co']
 const CANDIDATE_LIMIT = 5
 
 export function isAutoLinkEnabled(): boolean {

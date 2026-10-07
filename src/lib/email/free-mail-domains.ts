@@ -23,3 +23,10 @@ export const FREE_MAIL_DOMAINS: ReadonlySet<string> = new Set([
 export function isFreeMailDomain(domain: string | null | undefined): boolean {
   return FREE_MAIL_DOMAINS.has(String(domain ?? '').trim().toLowerCase().replace(/^www\./, ''))
 }
+
+/** Afsenderdomæner der ALDRIG er en kunde: egne postkasser og formular-relæet (FormSubmit). Delt af mail-kobling og K5. */
+export const NON_CUSTOMER_SENDER_DOMAINS: readonly string[] = ['eltasolar.dk', 'formsubmit.co']
+
+export function isNonCustomerDomain(domain: string | null | undefined): boolean {
+  return !!domain && NON_CUSTOMER_SENDER_DOMAINS.includes(domain.trim().toLowerCase())
+}

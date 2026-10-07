@@ -26,6 +26,7 @@ import { createOfferDraftFromCase } from '@/lib/services/auto-offer'
 import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { normalizeDanishPhone } from '@/lib/utils/phone'
+import { isNonCustomerDomain } from '@/lib/email/free-mail-domains'
 
 const OPENAI_TIMEOUT_MS = 15_000
 
@@ -511,16 +512,39 @@ export interface FindOrCreateResult {
 export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<FindOrCreateResult> {
   const supabase = createAdminClient()
 
-  // 1. Match by phone (most reliable)
-  if (data.phone) {
-    const phoneNorm = normalizePhone(data.phone)
-    const { data: byPhone } = await supabase
+  // 0. Match på afsenderens e-mail (kunde-/leads-review 2026-10-07: blev aldrig slået op → dublet-kunde med samme
+  //    e-mail, når AI'en ikke fandt telefonen). Eksakt e-mail = samme kunde, også en deaktiveret (ingen ny dublet).
+  const fallback = (data.fallbackEmail || '').trim().toLowerCase()
+  if (fallback.includes('@') && !fallback.endsWith('@elta-crm.local')) {
+    const { data: byEmail } = await supabase
+      .from('customers').select('id').ilike('email', escapeLike(fallback))
+      .order('is_active', { ascending: false }).limit(1).maybeSingle()
+    if (byEmail?.id) {
+      console.log('CUSTOMER FOUND:', byEmail.id, '(by sender email)')
+      return { customerId: byEmail.id, created: false }
+    }
+    const { data: byContact } = await supabase
+      .from('customer_contacts').select('customer_id').ilike('email', escapeLike(fallback)).limit(1).maybeSingle()
+    if (byContact?.customer_id) {
+      console.log('CUSTOMER FOUND:', byContact.customer_id, '(by contact email)')
+      return { customerId: byContact.customer_id as string, created: false }
+    }
+  }
+
+  // 1. Match by phone (most reliable) — sidste 8 cifre (som lead-duplicates): "+45 20 34 56 78", "20345678" og
+  //    "20 34 56 78" er samme nummer. Før: eksakt tekst-sammenligning → dublet ved forskellig formatering.
+  const phoneDigits = (data.phone || '').replace(/\D/g, '').slice(-8)
+  if (phoneDigits.length === 8) {
+    const loose = `%${phoneDigits.split('').join('%')}`
+    const { data: candidates } = await supabase
       .from('customers')
-      .select('id')
-      .or(`phone.eq.${phoneNorm},mobile.eq.${phoneNorm}`)
+      .select('id, phone, mobile')
+      .or(`phone.ilike.${pgQuote(loose)},mobile.ilike.${pgQuote(loose)}`)
       .eq('is_active', true)
-      .limit(1)
-      .maybeSingle()
+      .limit(20)
+    const last8 = (v: string | null) => (v || '').replace(/\D/g, '').slice(-8)
+    const byPhone = ((candidates ?? []) as Array<{ id: string; phone: string | null; mobile: string | null }>)
+      .find((c) => last8(c.phone) === phoneDigits || last8(c.mobile) === phoneDigits)
     if (byPhone?.id) {
       console.log('CUSTOMER FOUND:', byPhone.id, '(by phone)')
       return { customerId: byPhone.id, created: false }
@@ -657,6 +681,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -677,6 +703,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'ignored', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -693,6 +721,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -716,6 +746,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'ignored', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -741,6 +773,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -761,6 +795,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -781,7 +817,10 @@ async function processEmailIntelligenceUnsafe(
   //  (b) the body is forwarded (sender is the forwarder, not the customer)
   const isForwarded = isForwardedEmail(email)
   const suppressSenderEmail = type === 'supplier' || isForwarded
-  const fallbackEmail = suppressSenderEmail ? null : email.senderEmail || null
+  // Kunde-/leads-review 2026-10-07: egen/relæ-afsender (hc@eltasolar.dk, FormSubmit) må aldrig blive kundens e-mail —
+  // ellers kobles kollegers mails efterfølgende til den kunde
+  const senderDomain = (email.senderEmail || '').split('@')[1] || null
+  const fallbackEmail = suppressSenderEmail || isNonCustomerDomain(senderDomain) ? null : email.senderEmail || null
   if (suppressSenderEmail) {
     console.log('FALLBACK EMAIL SUPPRESSED:', { reason: type === 'supplier' ? 'supplier' : 'forwarded' })
   }

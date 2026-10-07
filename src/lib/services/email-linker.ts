@@ -12,7 +12,7 @@ import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import type { LinkResult, EmailLinkStatus } from '@/types/mail-bridge.types'
-import { isFreeMailDomain } from '@/lib/email/free-mail-domains'
+import { isFreeMailDomain, isNonCustomerDomain } from '@/lib/email/free-mail-domains'
 
 // =====================================================
 // Original Sender Extraction (forwarded emails)
@@ -184,14 +184,16 @@ export async function matchCustomer(
   // 3. Domain match — extract domain and match against customer emails
   const domain = emailLower.split('@')[1]
   // gratis-/privat-mail (hotmail.dk, gmail …) kobles aldrig på domæne — fælles liste i lib/email/free-mail-domains.ts
-  if (domain && !isFreeMailDomain(domain)) {
-    const { data: domainMatches } = await supabase
+  // Kunde-/leads-review 2026-10-07: kun ved PRÆCIS én aktiv kunde på domænet (før limit(1) → vilkårlig kunde, fx én af
+  // flere i samme boligforening) og aldrig egne/relæ-domæner (eltasolar.dk ville ellers koble kollegers mails)
+  if (domain && !isFreeMailDomain(domain) && !isNonCustomerDomain(domain)) {
+    const { data: domainRows } = await supabase
       .from('customers')
       .select('id')
       .ilike('email', `%@${domain}`)
       .eq('is_active', true)
-      .limit(1)
-      .maybeSingle()
+      .limit(2)
+    const domainMatches = (domainRows ?? []).length === 1 ? (domainRows as Array<{ id: string }>)[0] : null
 
     if (domainMatches) {
       return {
@@ -463,16 +465,17 @@ export async function linkEmail(
     original_sender_name: extracted.isForwarded ? extracted.name : null,
     is_forwarded: extracted.isForwarded,
     processed_at: new Date().toISOString(),
-    // Sprint 8D-1: arv service_case_id fra existing thread (0a/0b match).
-    // Hvis ingen thread-match, forbliver rowen med service_case_id=NULL —
-    // brugeren kan manuelt koble via UI.
-    service_case_id: threadServiceCaseId,
+    // Sprint 8D-1: arv service_case_id fra existing thread (0a/0b match). Kunde-/leads-review 2026-10-07: KUN ved
+    // tråd-match — før blev en manuelt sat sag nulstillet, når "auto-kobl ventende" kørte.
+    ...(threadServiceCaseId ? { service_case_id: threadServiceCaseId } : {}),
   }
 
   const { error } = await supabase
     .from('incoming_emails')
     .update(updateData)
     .eq('id', emailId)
+    // aldrig overskriv en kobling som en bruger (eller en samtidig synk) har lavet imens
+    .is('customer_id', null)
 
   if (error) {
     logger.error('Failed to update email link status', {

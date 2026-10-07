@@ -479,6 +479,35 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'find-or-create-customer-check') {
+    // Kunde-/leads-review 2026-10-07: mail-automatikkens kundeopslag — telefon i andet format og afsender-e-mail skal
+    // finde den eksisterende kunde (ingen dublet). Opretter ALDRIG (data uden adresse/gyldig telefon i negativ-casen).
+    const { findOrCreateCustomer } = await import('../../src/lib/services/email-intelligence')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const digits = String(stamp).slice(-8)
+    const spaced = digits.replace(/(\d{2})(?=\d)/g, '$1 ')
+    const email = `foc-${stamp}@harness.test`
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `FOC-${stamp}`, company_name: `[HARNESS] foc ${stamp}`, contact_person: 'Foc Test', email, phone: spaced, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    try {
+      for (const variant of [`+45${digits}`, `+45 ${spaced}`, digits]) {
+        const r = await findOrCreateCustomer({ name: null, phone: variant, address: null })
+        check(`telefon "${variant}" finder kunden (gemt som "${spaced}")`, r.customerId === custId && !r.created)
+      }
+      const r2 = await findOrCreateCustomer({ name: null, phone: null, address: null, fallbackEmail: email.toUpperCase() })
+      check('afsender-e-mail (anden casing) finder kunden', r2.customerId === custId && !r2.created)
+      const r3 = await findOrCreateCustomer({ name: null, phone: '12', address: null, fallbackEmail: `ukendt-${stamp}@harness.test` })
+      check('ukendt e-mail + ugyldig telefon → intet match, ingen oprettelse', r3.customerId === null && !r3.created)
+    } finally {
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ kundeopslag ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'affected-offers-query-check') {
     // getAffectedOffers' to forespørgsler (aktive tilbudslinjer m. leverandørprodukt → deres prishistorik) mod rigtig
     // PostgREST: ingen fejl, og linjerne er kun aktive tilbud. Read-only.
