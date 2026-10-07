@@ -270,7 +270,9 @@ export async function getPortalFuldmagter(
     // fuldmagt-row der har storage_path. Sikrer at portalen viser fri-
     // ske signed URLs efter bucket-privatisering (β.2.5).
     const { getStorageSignedUrls, SIGNED_URL_TTL: TTL } = await import('@/lib/storage/signed-url')
-    const fmPaths = fuldmagtDocs.map((d) => (d.storage_path as string | null) ?? '')
+    // S1 (portal-review 2026-10-07): kun den tiltænkte underskriver får CPR/CVR, underskrift og den underskrevne PDF.
+    // Før gik de rå felter til ALLE parter (betaler/partner/leveringskunde) i RSC-props — UI'et skjulte kun formularen.
+    const fmPaths = fuldmagtDocs.map((d) => (isIntendedSigner(d) ? (d.storage_path as string | null) ?? '' : ''))
     const fresh = await getStorageSignedUrls(
       'attachments',
       fmPaths.filter((p) => p),
@@ -284,6 +286,7 @@ export async function getPortalFuldmagter(
 
     const fuldmagter: FuldmagtData[] = fuldmagtDocs.map((doc, idx) => {
       const desc = JSON.parse(doc.description || '{}')
+      const signer = isIntendedSigner(doc)
       return {
         id: doc.id,
         customer_id: doc.customer_id,
@@ -291,16 +294,16 @@ export async function getPortalFuldmagter(
         customer_address: desc.customer_address || '',
         customer_postal_city: desc.customer_postal_city || '',
         order_number: desc.order_number || '',
-        foedselsdato_cvr: desc.foedselsdato_cvr || null,
+        foedselsdato_cvr: signer ? desc.foedselsdato_cvr || null : null,
         marketing_samtykke: desc.marketing_samtykke ?? null,
-        signature_data: desc.signature_data || null,
+        signature_data: signer ? desc.signature_data || null : null,
         signer_name: desc.signer_name || null,
         signed_at: desc.signed_at || null,
-        pdf_storage_path: doc.storage_path || null,
-        pdf_url: freshByIdx[idx] ?? doc.file_url ?? null,
+        pdf_storage_path: signer ? doc.storage_path || null : null,
+        pdf_url: signer ? freshByIdx[idx] ?? doc.file_url ?? null : null,
         status: desc.status || 'pending',
         created_at: doc.created_at,
-        is_intended_signer: isIntendedSigner(doc),
+        is_intended_signer: signer,
       }
     })
 

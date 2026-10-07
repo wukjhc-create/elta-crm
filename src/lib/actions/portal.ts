@@ -1710,11 +1710,20 @@ export async function getPortalDocuments(
       return { success: false, error: 'Kunne ikke hente dokumenter' }
     }
 
+    // S1 (portal-review 2026-10-07): fuldmagter vises KUN i fuldmagt-sektionen (getPortalFuldmagter, med
+    // underskriver-tjek). Her lå den underskrevne fuldmagt-PDF (CPR + underskrift) også — på kortet, hvor den blev
+    // oprettet, ofte betalerens/partnerens, ikke anlægsejerens.
+    const isFuldmagt = (d: { document_type: string | null; description: string | null }) => {
+      if (d.document_type !== 'contract') return false
+      try { return (JSON.parse(d.description || '{}') as { type?: string }).type === 'fuldmagt' } catch { return false }
+    }
+    const visible = (data ?? []).filter((d) => !isFuldmagt(d as { document_type: string | null; description: string | null }))
+
     // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver
     // row der har storage_path. Sikrer at portalen virker baade foer og
     // efter bucket-privatisering (β.2.5). TTL=SHORT (1t) — portal-siden
     // re-loader ofte og kort levetid er mest sikkert.
-    const paths = (data ?? []).map((d) => (d.storage_path as string | null) ?? '')
+    const paths = visible.map((d) => (d.storage_path as string | null) ?? '')
     const { getStorageSignedUrls, SIGNED_URL_TTL: TTL } = await import('@/lib/storage/signed-url')
     const fresh = await getStorageSignedUrls(
       'attachments',
@@ -1730,7 +1739,7 @@ export async function getPortalDocuments(
     // Phase 9I: aldrig laek raw description-JSON til portal-klient. Sanitize
     // her ogsaa selvom UI ogsaa filtrerer — defense in depth.
     const { getSafeDocumentDescription } = await import('@/lib/documents/display-description')
-    const curated = (data || []).map((d, idx) => ({
+    const curated = visible.map((d, idx) => ({
       ...d,
       file_url: freshByIdx[idx] ?? d.file_url ?? '',
       description: getSafeDocumentDescription(d),

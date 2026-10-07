@@ -437,6 +437,48 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'portal-fuldmagt-leak-check') {
+    // S1 (portal-review 2026-10-07): fuldmagt oprettet på betalerens kort (A) for en sag hvor B er anlægsejer.
+    // B (tiltænkt underskriver) skal se CPR/underskrift/PDF; A må KUN se status — hverken i fuldmagt-sektionen eller
+    // som dokument. Rydder op. Ingen mail.
+    const { getPortalFuldmagter } = await import('../../src/lib/actions/fuldmagt')
+    const { getPortalDocuments } = await import('../../src/lib/actions/portal')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const mkCust = async (tag: string) => ((await admin.from('customers').insert({ customer_number: `FL${tag}-${stamp}`, company_name: `[HARNESS] fuldmagt ${tag} ${stamp}`, contact_person: tag, email: `fl${tag.toLowerCase()}-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const a = await mkCust('A'), b = await mkCust('B')
+    const caseIds: string[] = []
+    try {
+      const tokA = randomBytes(32).toString('hex'), tokB = randomBytes(32).toString('hex')
+      await admin.from('portal_access_tokens').insert([{ customer_id: a, token: tokA, email: `fla-${stamp}@harness.test`, is_active: true, created_by: owner },
+        { customer_id: b, token: tokB, email: `flb-${stamp}@harness.test`, is_active: true, created_by: owner }])
+      const { data: sc, error: scErr } = await admin.from('service_cases').insert({ case_number: `SVC-9${String(stamp).slice(-6)}`, customer_id: a, end_customer_id: b, title: '[HARNESS] fuldmagt', status: 'new', created_by: owner }).select('id').single()
+      if (scErr) throw new Error(scErr.message)
+      caseIds.push((sc as { id: string }).id)
+      const desc = JSON.stringify({ type: 'fuldmagt', status: 'signed', order_number: `H-${stamp}`, customer_name: 'B', foedselsdato_cvr: 'HARNESS-CPR', signature_data: 'data:image/png;base64,HARNESS', signed_at: new Date().toISOString() })
+      const { error: dErr } = await admin.from('customer_documents').insert({ customer_id: a, service_case_id: caseIds[0], title: 'Fuldmagt [HARNESS]', description: desc, document_type: 'contract', file_url: 'harness://none', storage_path: `harness/${stamp}.pdf`, file_name: 'fuldmagt.pdf', mime_type: 'application/pdf' })
+      if (dErr) throw new Error(dErr.message)
+
+      const fa = await getPortalFuldmagter(tokA), fb = await getPortalFuldmagter(tokB)
+      const ra = fa.success ? fa.data?.[0] : undefined, rb = fb.success ? fb.data?.[0] : undefined
+      check('A (betaler) ser fuldmagten som ikke-underskriver', !!ra && ra.is_intended_signer === false, JSON.stringify({ ok: fa.success, n: fa.data?.length }))
+      check('A får INGEN CPR/underskrift/PDF', !!ra && ra.foedselsdato_cvr === null && ra.signature_data === null && ra.pdf_url === null && ra.pdf_storage_path === null)
+      check('B (anlægsejer) er underskriver og får sine data', !!rb && rb.is_intended_signer === true && rb.foedselsdato_cvr === 'HARNESS-CPR' && rb.signature_data !== null)
+      const da = await getPortalDocuments(tokA)
+      check('A\'s dokumentliste indeholder ikke fuldmagten', da.success && !(da.data ?? []).some((d) => d.title === 'Fuldmagt [HARNESS]'), JSON.stringify({ ok: da.success, n: da.data?.length }))
+    } finally {
+      await admin.from('customer_documents').delete().in('customer_id', [a, b])
+      if (caseIds.length) await admin.from('service_cases').delete().in('id', caseIds)
+      await admin.from('portal_access_tokens').delete().in('customer_id', [a, b])
+      await admin.from('customers').delete().in('id', [a, b])
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ fuldmagt-læk lukket')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'affected-offers-query-check') {
     // getAffectedOffers' to forespørgsler (aktive tilbudslinjer m. leverandørprodukt → deres prishistorik) mod rigtig
     // PostgREST: ingen fejl, og linjerne er kun aktive tilbud. Read-only.
