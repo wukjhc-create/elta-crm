@@ -254,6 +254,31 @@ export async function createStageInvoiceForCase(
     }
   }
 
+  // Økonomi-review 2026-10-08: samtidige rater læste begge samme procent-sum og kunne tilsammen gå over 100 %. Efter
+  // indsættelse summeres sagens rater i oprettelsesrækkefølge; bringer DENNE rate summen over 100 %, fjernes den igen.
+  if (!input.allow_over) {
+    const { data: stagesNow } = await supabase
+      .from('invoices')
+      .select('id, billing_percentage, total_amount')
+      .eq('case_id', input.case_id)
+      .in('invoice_type', ['deposit', 'progress'])
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+    const rows = (stagesNow ?? []) as Array<{ id: string; billing_percentage: number | null; total_amount: number | null }>
+    const creditsNow = await creditedByInvoice(supabase, rows.map((r) => r.id))
+    let cum = 0
+    let over = false
+    for (const r of rows) {
+      cum = r2(cum + netStagePercentage(r.billing_percentage, r.total_amount, creditsNow.get(r.id)))
+      if (r.id === header.id) { over = cum > 100; break }
+    }
+    if (over) {
+      await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+      await supabase.from('invoices').delete().eq('id', header.id)
+      return { ...empty, message: 'En anden rate blev netop oprettet på sagen — samlet procent ville overstige 100 %. Genindlæs og prøv igen.' }
+    }
+  }
+
   // Sprint Ø3.2 — persistent audit
   try {
     await supabase.from('audit_logs').insert({

@@ -2390,6 +2390,33 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'stage-race-check') {
+    // Økonomi-review: to samtidige rater à 60 % → kun én oprettes (≤ 100 %). Kun kladder; ingen mail/eksport.
+    const { createStageInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `SR-${stamp}`, company_name: `[HARNESS] sr ${stamp}`, contact_person: 'X', email: `sr-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const { data: sc, error: scErr } = await admin.from('service_cases').insert({ case_number: `SVC-8${String(stamp).slice(-6)}`, customer_id: cust, title: '[HARNESS] rate', status: 'new', contract_sum: 10000, created_by: owner }).select('id').single()
+    if (scErr) throw new Error(scErr.message)
+    const caseId = (sc as { id: string }).id
+    try {
+      const rs = await Promise.all([1, 2].map(() => createStageInvoiceForCase({ case_id: caseId, invoice_type: 'deposit', amount_basis: 'contract_sum', billing_percentage: 60 }, owner)))
+      const { data: st } = await admin.from('invoices').select('billing_percentage').eq('case_id', caseId)
+      const sum = ((st ?? []) as Array<{ billing_percentage: number }>).reduce((a, r) => a + Number(r.billing_percentage), 0)
+      check('2 samtidige rater à 60 % → én oprettet, sum ≤ 100 %', rs.filter((r) => r.ok).length === 1 && sum === 60, `ok=${rs.filter((r) => r.ok).length} sum=${sum} ${rs.map((r) => r.message).join(' | ').slice(0, 160)}`)
+    } finally {
+      const { data: inv } = await admin.from('invoices').select('id').eq('case_id', caseId)
+      const ids = ((inv ?? []) as Array<{ id: string }>).map((r) => r.id)
+      if (ids.length) { await admin.from('invoice_lines').delete().in('invoice_id', ids); await admin.from('invoices').delete().in('id', ids) }
+      await admin.from('service_cases').delete().eq('id', caseId)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ rate-race ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'credit-race-check') {
     // Økonomi-review #4: to samtidige fulde kreditnotaer → højst 100 % krediteret. Kun kladder; ingen mail/eksport.
     const { createCreditNoteForInvoice } = await import('../../src/lib/services/invoice-credit')
