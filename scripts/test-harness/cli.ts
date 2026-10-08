@@ -2446,6 +2446,21 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'package-embed-probe') {
+    // Leverandør-review #3: package_items med product_catalog-embed som rigtige persona-sessioner (efter 00201)
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    let fails = 0
+    for (const [role, cl] of personas) {
+      const old = await cl.from('package_items').select('id, product:product_catalog(id, sku, name, cost_price, list_price)').limit(1)
+      const neu = await cl.from('package_items').select('id, product:product_catalog(id, sku, name, list_price)').limit(1)
+      const ok = !neu.error
+      if (!ok) fails++
+      log(`  ${ok ? '✓' : '❌'} ${role.padEnd(12)} gammel: ${old.error ? 'FEJL ' + old.error.code : 'ok'} · ny: ${neu.error ? 'FEJL ' + neu.error.message : 'ok'}`)
+    }
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'missed-call-check') {
     // T12 (staging): ubesvaret opkald → tilbageringningsopgave via test-klient (ingen Relatel, intet live).
     const { syncMissedCalls } = await import('../../src/lib/integrations/relatel/missed-calls')

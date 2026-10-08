@@ -219,7 +219,7 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
-        product:product_catalog(id, sku, name, cost_price, list_price)
+        product:product_catalog(id, sku, name, list_price)
       `)
       .eq('package_id', id)
       .order('sort_order')
@@ -395,7 +395,7 @@ export async function getPackageItems(packageId: string): Promise<ActionResult<P
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
-        product:product_catalog(id, sku, name, cost_price, list_price)
+        product:product_catalog(id, sku, name, list_price)
       `)
       .eq('package_id', packageId)
       .order('sort_order')
@@ -456,7 +456,7 @@ export async function createPackageItem(input: CreatePackageItemInput): Promise<
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
-        product:product_catalog(id, sku, name, cost_price, list_price)
+        product:product_catalog(id, sku, name, list_price)
       `)
       .single()
 
@@ -497,7 +497,7 @@ export async function updatePackageItem(input: UpdatePackageItemInput): Promise<
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
-        product:product_catalog(id, sku, name, cost_price, list_price)
+        product:product_catalog(id, sku, name, list_price)
       `)
       .single()
 
