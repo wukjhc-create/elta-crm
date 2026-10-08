@@ -81,7 +81,7 @@ async function handleCron(request: Request): Promise<Response> {
         .select(`
           id, offer_number, title, final_amount, currency, valid_until,
           sent_at, last_reminder_sent, reminder_count, created_by, customer_id,
-          customer:customers!offers_customer_id_fkey(company_name, contact_person, email)
+          customer:customers!offers_customer_id_fkey(company_name, contact_person, email, is_active)
         `)
         .in('status', ['sent', 'viewed'])
         // salgs-review: forslag (is_proposal) er ikke rigtige tilbud — ingen rykkere
@@ -103,7 +103,9 @@ async function handleCron(request: Request): Promise<Response> {
           if (totalSent >= MAX_REMINDERS_PER_RUN) break
           try {
             const customerRaw = offer.customer as unknown
-            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
+            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string; is_active?: boolean | null } | null
+            // Mail-review 2026-10-08 (#9): deaktiverede kunder rykkes ikke (som fuldmagt/besigtigelse)
+            if (customer?.is_active === false) continue
             // R-MAIL-B #9: intet forhåndstjek på tilbudskundens egen e-mail — mail-routeren vælger modtageren (fx betalers
             // faktureringskontakt); før blev rykkeren sprunget over, når netop tilbudskunden manglede e-mail
             // samme regel som portalen (dansk dato; sidste gyldige dag tæller med — før sprunget over)

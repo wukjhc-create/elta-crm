@@ -1085,6 +1085,11 @@ export async function sendEmployeeMessage(
 ): Promise<ActionResult<PortalMessage>> {
   try {
     const { supabase, userId } = await requireGate('customers.view')
+    // Mail-review 2026-10-08 (#8): offerId blev aldrig tjekket — en besked kunne knyttes til en anden kundes tilbud
+    if (offerId) {
+      const { data: own } = await supabase.from('offers').select('id').eq('id', offerId).eq('customer_id', customerId).maybeSingle()
+      if (!own) return { success: false, error: 'Tilbuddet hører ikke til kunden' }
+    }
 
     // Get employee name
     const { data: profile } = await supabase
