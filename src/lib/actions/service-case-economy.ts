@@ -1008,11 +1008,12 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
       }
     }
     if (invoicedIds.length) {
-      const { data } = await supabase
+      // Økonomi-review 2026-10-08 (#11): i bidder — .in() med op til 500 id'er fejlede stille over ~350
+      const data = await selectInChunks<unknown>(invoicedIds.slice(0, BILLING_FOLLOWUP_CAP), (chunk) => supabase
         .from('service_cases')
         .select('id, status, contract_sum, revised_sum')
-        .in('id', invoicedIds.slice(0, BILLING_FOLLOWUP_CAP))
-      addRows((data ?? []) as never)
+        .in('id', chunk))
+      addRows(data as never)
     }
     const { data: closedRows } = await supabase
       .from('service_cases')

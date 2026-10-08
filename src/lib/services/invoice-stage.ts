@@ -24,6 +24,7 @@ import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import { netStageAmount, netStagePercentage } from '@/lib/invoices/stage-net'
 import type { InvoiceRow, InvoiceLineRow } from '@/types/invoice.types'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
 export type AmountBasis = 'contract_sum' | 'revised_sum' | 'lines'
@@ -443,10 +444,12 @@ export async function createFinalInvoiceForCase(
     const [tlRes, cmRes, ocRes] = await Promise.all([
       woIds.length === 0
         ? Promise.resolve({ data: [] as TimeLogJoin[] })
-        : supabase
+        // Økonomi-review 2026-10-08 (#10): side for side — over 1.000 ufakturerede rækker blev resten tavst udeladt af
+        // slutfakturaen (og kunne bagefter aldrig faktureres, da der kun laves én slutfaktura)
+        : fetchAllRows<TimeLogJoin>((from, to) => supabase
             .from('time_logs')
             .select(
-              'id, hours, end_time, billable, invoice_line_id, sale_amount, sale_rate_snapshot, ' +
+              'id, hours, end_time, billable, invoice_line_id, sale_amount, sale_rate_snapshot, start_time, ' +
                 'employee:employees(name, hourly_rate)'
             )
             .in('work_order_id', woIds)
@@ -455,19 +458,25 @@ export async function createFinalInvoiceForCase(
             .eq('billable', true)
             // Henrik 2026-10-07: afviste timer faktureres aldrig
             .neq('approval_status', 'rejected')
-            .order('start_time', { ascending: true }),
-      supabase
+            .order('start_time', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, to) as never).then((data) => ({ data })),
+      fetchAllRows((from, to) => supabase
         .from('case_materials')
         .select('id, description, quantity, unit, unit_sales_price, total_sales_price, billable, invoice_line_id')
         .eq('case_id', sag.id)
         .is('invoice_line_id', null)
-        .eq('billable', true),
-      supabase
+        .eq('billable', true)
+        .order('id')
+        .range(from, to)).then((data) => ({ data })),
+      fetchAllRows((from, to) => supabase
         .from('case_other_costs')
         .select('id, description, quantity, unit, unit_sales_price, total_sales_price, billable, invoice_line_id')
         .eq('case_id', sag.id)
         .is('invoice_line_id', null)
-        .eq('billable', true),
+        .eq('billable', true)
+        .order('id')
+        .range(from, to)).then((data) => ({ data })),
     ])
 
     const timeRows = (tlRes.data ?? []) as unknown as TimeLogJoin[]

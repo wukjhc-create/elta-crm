@@ -2361,6 +2361,35 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'draft-delete-claim-check') {
+    // Økonomi-review #9: kladde under afsendelse (sent_at-krav) kan hverken slettes eller redigeres; normal kladde slettes
+    const { deleteInvoiceDraft } = await import('../../src/lib/services/invoices')
+    const { recomputeDraftTotals } = await import('../../src/lib/services/invoice-draft-edit')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `DD-${stamp}`, company_name: `[HARNESS] dd ${stamp}`, contact_person: 'X', email: `dd-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const mk = async (tag: string, sentAt: string | null) => ((await admin.from('invoices').insert({ invoice_number: `H-DD-${tag}-${stamp}`, customer_id: cust, status: 'draft', payment_status: 'pending', total_amount: 80, tax_amount: 20, final_amount: 100, amount_paid: 0, currency: 'DKK', reminder_count: 0, sent_at: sentAt }).select('id').single()).data as { id: string }).id
+    try {
+      const sending = await mk('sending', new Date().toISOString())
+      const e1 = await deleteInvoiceDraft(sending, owner).then(() => null, (e: Error) => e.message)
+      const still = (await admin.from('invoices').select('id').eq('id', sending).maybeSingle()).data
+      check('kladde under afsendelse kan ikke slettes', !!e1 && !!still, e1 ?? 'slettet!')
+      const ed = await recomputeDraftTotals(admin, sending, 0.25)
+      check('kladde under afsendelse kan ikke redigeres', !ed.ok, JSON.stringify(ed).slice(0, 100))
+      const normal = await mk('normal', null)
+      const e2 = await deleteInvoiceDraft(normal, owner).then(() => null, (e: Error) => e.message)
+      const gone = !(await admin.from('invoices').select('id').eq('id', normal).maybeSingle()).data
+      check('almindelig kladde slettes stadig', !e2 && gone, e2 ?? '')
+    } finally {
+      await admin.from('invoices').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ kladde-sletning/afsendelse ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'credit-race-check') {
     // Økonomi-review #4: to samtidige fulde kreditnotaer → højst 100 % krediteret. Kun kladder; ingen mail/eksport.
     const { createCreditNoteForInvoice } = await import('../../src/lib/services/invoice-credit')

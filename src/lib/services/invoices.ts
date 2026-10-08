@@ -158,6 +158,9 @@ const ALLOWED_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
  *
  * Best-effort: never throws. Logs warnings on FK errors.
  */
+/** sent_at-markør mens en kladde slettes (blokerer samtidig afsendelse, som kræver sent_at IS NULL) */
+const DRAFT_DELETE_CLAIM = '1970-01-01T00:00:00.000Z'
+
 async function recomputeOriginalVoidStatus(
   originalInvoiceId: string,
   approverId: string | null
@@ -350,6 +353,23 @@ export async function deleteInvoiceDraft(
       `deleteInvoiceDraft: invoice ${inv.invoice_number} is ${inv.status} — only drafts can be deleted`
     )
   }
+  // Økonomi-review 2026-10-08 (#9): kladden kunne slettes MENS sendInvoiceEmail sendte den (kravet = sent_at sat) →
+  // kunden fik en faktura der ikke findes, og timer/materialer blev frigivet til ny fakturering. Sletningen tager nu
+  // samme krav (sent_at = DRAFT_DELETE_CLAIM) — en igangværende afsendelse blokerer sletning og omvendt.
+  const { data: delClaim } = await supabase
+    .from('invoices')
+    .update({ sent_at: DRAFT_DELETE_CLAIM })
+    .eq('id', invoiceId)
+    .eq('status', 'draft')
+    .is('sent_at', null)
+    .select('id')
+    .maybeSingle()
+  if (!delClaim) {
+    throw new Error(`deleteInvoiceDraft: invoice ${inv.invoice_number} sendes netop nu — kan ikke slettes`)
+  }
+  const releaseDeleteClaim = async () => {
+    await supabase.from('invoices').update({ sent_at: null }).eq('id', invoiceId).eq('sent_at', DRAFT_DELETE_CLAIM)
+  }
   // Capture credit-link before delete so we can recompute the original
   // invoice's void state afterward (Sprint 6F-3 fix).
   const isCreditOf = (
@@ -400,6 +420,7 @@ export async function deleteInvoiceDraft(
         entityId: invoiceId,
         error: lineDelErr,
       })
+      await releaseDeleteClaim()
       throw new Error(`deleteInvoiceDraft: line delete failed: ${lineDelErr.message}`)
     }
   }
@@ -414,6 +435,7 @@ export async function deleteInvoiceDraft(
       entityId: invoiceId,
       error: hdrDelErr,
     })
+    await releaseDeleteClaim()
     throw new Error(`deleteInvoiceDraft: header delete failed: ${hdrDelErr.message}`)
   }
   if ((count ?? 0) === 0) {

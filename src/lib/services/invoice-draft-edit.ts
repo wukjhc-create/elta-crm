@@ -33,9 +33,11 @@ export function isDeductionLine(inv: { is_final_invoice?: boolean | null }, line
 type DraftInv = { id: string; status: string; total_amount: number | null; tax_amount: number | null; invoice_type: string | null; is_final_invoice: boolean | null }
 
 async function loadDraft(admin: Admin, invoiceId: string) {
-  const { data } = await admin.from('invoices').select('id, status, total_amount, tax_amount, invoice_type, is_final_invoice').eq('id', invoiceId).maybeSingle()
+  const { data } = await admin.from('invoices').select('id, status, sent_at, total_amount, tax_amount, invoice_type, is_final_invoice').eq('id', invoiceId).maybeSingle()
   if (!data) return { error: 'Faktura ikke fundet' as const }
   if (data.status !== 'draft') return { error: 'Kun kladder kan redigeres — brug kreditnota på sendte fakturaer' as const }
+  // Økonomi-review 2026-10-08 (#9): sent_at sat på en kladde = afsendelse (eller sletning) i gang
+  if (data.sent_at) return { error: 'Fakturaen sendes netop nu — kan ikke redigeres' as const }
   return { inv: data as DraftInv }
 }
 
@@ -59,7 +61,7 @@ export async function recomputeDraftTotals(admin: Admin, invoiceId: string, vatR
   const subtotal = r2(((lines ?? []) as Array<{ total_price: number | null }>).reduce((s, l) => s + Number(l.total_price ?? 0), 0))
   const tax = r2(subtotal * vatRate)
   const totals = { total_amount: subtotal, tax_amount: tax, final_amount: r2(subtotal + tax) }
-  const { data, error } = await admin.from('invoices').update(totals).eq('id', invoiceId).eq('status', 'draft').select('id')
+  const { data, error } = await admin.from('invoices').update(totals).eq('id', invoiceId).eq('status', 'draft').is('sent_at', null).select('id')
   if (error || !(data ?? []).length) return { ok: false, message: 'Totaler kunne ikke opdateres (er fakturaen stadig en kladde?)' }
   return { ok: true, message: 'Opdateret', totals }
 }

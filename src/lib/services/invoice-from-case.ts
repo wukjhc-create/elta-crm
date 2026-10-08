@@ -28,6 +28,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { selectInChunks } from '@/lib/supabase/in-chunks'
 
 export interface CaseInvoiceSelection {
   time_log_ids?: string[]
@@ -223,14 +224,15 @@ export async function createInvoiceDraftFromCase(
         | { name: string | null; hourly_rate: number | string | null }[]
         | null
     }
-    const { data: timeRowsRaw } = await supabase
+    // Økonomi-review 2026-10-08 (#12): i bidder — én .in() med > ~350 id'er fejler stille (alt blev "not_found")
+    const timeRowsRaw = await selectInChunks<unknown>(timeLogIds, (chunk) => supabase
       .from('time_logs')
       .select(
         'id, work_order_id, employee_id, hours, end_time, billable, invoice_line_id, ' +
           'sale_amount, sale_rate_snapshot, approval_status, ' +
           'work_order:work_orders(case_id), employee:employees(name, hourly_rate)'
       )
-      .in('id', timeLogIds)
+      .in('id', chunk)).catch(() => []) // fejl → rækkerne regnes som ikke fundet → kladden rulles tilbage som før
     const timeRows = (timeRowsRaw ?? []) as unknown as TimeLogJoined[]
     const byId = new Map(timeRows.map((t) => [t.id, t]))
 
@@ -351,10 +353,10 @@ export async function createInvoiceDraftFromCase(
   // Case materials
   // =====================================================
   if (matIds.length > 0) {
-    const { data: matRows } = await supabase
+    const matRows = await selectInChunks<Record<string, unknown>>(matIds, (chunk) => supabase
       .from('case_materials')
       .select('id, case_id, description, quantity, unit, unit_sales_price, total_sales_price, billable, invoice_line_id')
-      .in('id', matIds)
+      .in('id', chunk)).catch(() => []) // fejl → rækkerne regnes som ikke fundet → kladden rulles tilbage som før
     const byId = new Map((matRows ?? []).map((m) => [m.id as string, m]))
 
     for (const id of matIds) {
@@ -437,10 +439,10 @@ export async function createInvoiceDraftFromCase(
   // Case other costs
   // =====================================================
   if (ocIds.length > 0) {
-    const { data: ocRows } = await supabase
+    const ocRows = await selectInChunks<Record<string, unknown>>(ocIds, (chunk) => supabase
       .from('case_other_costs')
       .select('id, case_id, description, category, quantity, unit, unit_sales_price, total_sales_price, billable, invoice_line_id')
-      .in('id', ocIds)
+      .in('id', chunk)).catch(() => []) // fejl → rækkerne regnes som ikke fundet → kladden rulles tilbage som før
     const byId = new Map((ocRows ?? []).map((o) => [o.id as string, o]))
 
     for (const id of ocIds) {
