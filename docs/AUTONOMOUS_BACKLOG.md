@@ -26,13 +26,30 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | L #2 salgstragt: annulleret original + kreditnota trukket fra to gange | DONE — følger summarizeCaseInvoices | `sales-funnel-test` |
 | L #3/#4 kunde fra mail lavede dublet-lead og leads uden customer_id | DONE | tsc/gates |
 | L #5 noteret opfølgning fjernede ikke leadet fra "uden opfølgning" | DONE — aktivitet rører leads.updated_at | — |
-| L #6 samtidige "Opret lead fra mail" | DONE app-niveau (ældste vinder, egen dublet fjernes). **BLOCKED_APPROVAL**: unikt delvist indeks `leads ((custom_fields->>'source_email_id')) WHERE … IS NOT NULL` (prod-dubletter tjekkes før) | — |
+| L #6 samtidige "Opret lead fra mail" | DONE app-niveau (ældste vinder, egen dublet fjernes). **BLOCKED_APPROVAL** (udkast 00204 på branch `leads-00204-read-scope`, prod-pre 0 dubletter): unikt delvist indeks `leads ((custom_fields->>'source_email_id')) WHERE … IS NOT NULL` (prod-dubletter tjekkes før) | — |
 | L #7 konvertering ignorerede fejl ved kobling | DONE | — |
 | L #8 lead-læsninger uden leads.view (aktivitetsoversigt, global søgning, besked-vælger) | DONE app. Prod: `leads`/`lead_activities` SELECT = `true` for authenticated (`prod-table-select-policies.ts`) → **BLOCKED_APPROVAL**: rolle-scopet SELECT (user_role() IN admin/serviceleder/montør/salg) | — |
 | L #10 dublet-tjek uden telefon | DONE — sidste 8 cifre uanset format | `lead-phone-dupe-probe` |
 | L #11 kundekortet fandt kun leads via e-mail | DONE — også custom_fields.customer_id | — |
 | L #12 relatel-opslag `.limit(5000)` (=1.000) | DONE — side for side | `relatel-lookup` 3/3 |
 | P1 selvregistrering | VENTER Henrik — 2026-10-08 stadig `disable_signup:false` | `prod-auth-signup-status.ts` |
+| Ø #1 kreditnota sendt pr. mail annullerede ikke originalen | DONE | tsc/gates |
+| Ø #2 e-conomic-eksport uden krav (dobbelt bogføring) | DONE — `pending-<ms>`-krav, afbrudt efter 15 min | tsc/gates (e-conomic ikke sat op) |
+| Ø #3/#5/#6/#7 bankmatch mod kladder/kreditnotaer; tabt betaling ved samtidighed; refusion låste transaktion; "betalt" ignorerede kreditnotaer | DONE | `register-payment-check` 3/3 |
+| Ø #4 + rater: samtidige kreditnotaer/rater kunne overstige 100 % | DONE | `credit-race-check`, `stage-race-check` |
+| Ø #8 fakturaoverblik: udestående = fuldt beløb | DONE | — |
+| Ø #9-#12 kladde slettet/redigeret under afsendelse; slutfaktura > 1.000 rækker; .in() > 350 | DONE | `draft-delete-claim-check` 3/3, `invoice-pipeline` 10/10 |
+| Ø lav: manuelt betalt uden payment_status; rapport-summer upaginerede | DONE | — |
+| Ø avance fra kladde-faktura (calculate_work_order_profit) | **BLOCKED_APPROVAL** — udkast 00205 på branch `profit-rate-00205` | — |
+| M #1/#3 rykker: dræbt kørsel efter afsendelse → dublet; eskalering rullet tilbage dagligt; intet loft pr. kørsel | DONE — in_flight-log, manual_review tæller, 3 mails/kørsel | `reminder-reconcile-check` 6/6 |
+| M #2 tilbudsmail: timeout → 'failed' + gensend; dobbeltklik | DONE — 'Ukendt udfald' uden gensend, ældste udgående vinder | — |
+| M #4 automatik-mail med ukendt udfald frigav pladsen | DONE | — |
+| M #5 sats på godkendte timer uden ny godkendelse | DONE app; DB-trigger i udkast 00205 (BLOCKED_APPROVAL) | `time-log-guards-test` |
+| M #6 Cc/Bcc blev aldrig sendt | DONE | — |
+| M #7 besigtigelse: mail før opgave, timeout = fejl, gate customers.view | DONE — opgave er kravet, customers.edit | `besigtigelse-task-test` |
+| M #8/#9/#10 portalbesked til fremmed tilbud; rykker til deaktiveret kunde; historik-modtager; ICS efter kl. 22 | DONE (rolle-gaten på portalbeskeder uændret — forretningsvalg) | `ics-end-test` |
+| T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
+| T12 ubesvaret opkald → tilbageringning | TODO (næste) — Relatel-klienten er stadig 'disabled'; bygges som ren service + test-adapter | — |
 
 ## Prod-kørsel 2026-10-07 aften (Henrik: 00198/00199/00200+00201/00202 GODKENDT TIL PROD)
 | Migration | Pre | Post | Flow (rollback) |
