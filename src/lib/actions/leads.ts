@@ -591,6 +591,9 @@ export async function addLeadActivity(
       logger.error('Database error adding lead activity', { error: error })
       throw new Error('DATABASE_ERROR')
     }
+    // Leads-review 2026-10-08 (#5): "Leads uden opfølgning" ser på leads.updated_at — en noteret opfølgning (opkald,
+    // mail, note) rørte ikke leadet, så det blev ved med at stå som glemt. Best-effort.
+    await supabase.from('leads').update({ updated_at: new Date().toISOString() }).eq('id', leadId)
 
     revalidatePath(`/leads/${leadId}`)
     return { success: true, data: data as LeadActivity }
