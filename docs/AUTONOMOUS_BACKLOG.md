@@ -66,6 +66,11 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | P #7/#4/#8 mail-leads hentede alle mail-leads; prissync/intelligence-check uden maxDuration | DONE | `leads-json-in-probe` |
 | P realtime: én fuld genindlæsning pr. ændret række + forældet closure (indbakken kunne vise gammelt filter efter en realtime-hændelse) | DONE — debounce 1,5 s + seneste callback | UI-regression |
 | P #1/#3/#5/#6/#9/#10 "kræver svar" genberegnes pr. kald; dashboard-widgets i kæde; 25× lukkeklar-tjek; tællinger via hele tabeller; faktura-/ufaktureret-summer i JS | LATER — prod-volumen lille (5 leads, 109 kunder, 15 tilbud, ~800 mails); bedste løsning er DB-aggregater/visninger (kræver migration) eller samlet server-hentning af widgets | — |
+| HR #1 (S1) time_logs skrivbar på alle kolonner via REST (egne timer: beløb, fakturabinding, sats) | **BLOCKED_APPROVAL** — udkast 00208 på branch `time-logs-grants-00208` (kolonne-grants + sats-ejerskab); prod-bevis `prod-time-logs-update-privs.ts` | — |
+| HR #2 fire-øjne (indtaster = godkender) | BLOCKED_DECISION/migration (`created_by` på time_logs) | — |
+| HR #3/#4/#5/#6/#7 godkendelse af ubeset ændring; afvisning af fakturerede timer; afviste timer i totaler; teamproduktivitet afkortet/"Ukendt" | DONE | `week-hours-test` |
+| Eksport: tilbud/projekter/kalkulationer afkortet ved 1.000; kalkulationseksport uden gate | DONE | — |
+| K #1 (S1) Kalkia "Opret tilbud" ≠ vist pris; #2 import uden avance/rabat/kost; #3 salgspakke på låst tilbud; #4 AI-tilbud fejlede altid; #5 arbejdskost kvadratisk; #6 sale_price ≠ unit_price | DONE | tsc/gates |
 | T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
 | T12 ubesvaret opkald → tilbageringning | DONE (fundament) — `lib/integrations/relatel/missed-calls.ts`: kun ved præcis én kunde, idempotent pr. opkald, telefonsvarer i beskrivelsen, kalender 📞; Relatel-klienten er fortsat 'disabled' (ingen cron, intet live) | `missed-call-check` 8/8 |
 
@@ -74,9 +79,9 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 |---|---|---|---|---|
 | N8-1 | Sikkerhed | `packages`/`v_packages_summary` kost-kolonner (total_cost_price/db_amount) læsbare via REST for salg | migration (00207) | App DONE (getPackages: gate + admin-klient for salg); **BLOCKED_APPROVAL** 00207 på branch `packages-cost-00207` |
 | N8-2 | Perf | "Kræver svar" som DB-funktion/visning (én forespørgsel) i stedet for 30–60 kald pr. indbakke-indlæsning | migration | LATER (volumen lille) |
-| N8-3 | Perf | Dashboard-widgets hentes samlet i server-komponenten (Promise.all) i stedet for 12 klient-kald i kæde | kode | TODO |
+| N8-3 | Perf | Dashboard-widgets hentes samlet i server-komponenten (Promise.all) i stedet for 12 klient-kald i kæde | kode (stor UI-omlægning af 12 widgets) | LATER — gevinst moderat efter auth-cache; få brugere |
 | N8-4 | Perf | Dashboard-tællinger/summer som DB-aggregater (leads/kunder/tilbud/timer, ufaktureret pr. sag) | migration | LATER |
-| N8-5 | Leverandør | Prissync: kun ændrede varer opdateres (bulk upsert) — i dag én UPDATE pr. vare | kode | TODO |
+| N8-5 | Leverandør | Prissync: kun ændrede varer opdateres — i dag én UPDATE pr. vare | kode | DONE (API-stien: uændrede = én samlet last_synced_at pr. batch) |
 | N8-6 | Assistent | T13 SMS/Relatel live-klient (kontrakt findes) | token + godkendelse | BLOCKED_APPROVAL |
 | N8-7 | Mail | Rolle-gate for portalbeskeder (montør/bogholderi) | beslutning | BLOCKED_DECISION |
 
