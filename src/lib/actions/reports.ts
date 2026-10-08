@@ -11,6 +11,10 @@ import { compareOfferToActual, type ActualMaterialInput, type OfferLineInput } f
 import { computeRealizedDb, type RealizedInvoiceInput } from '@/lib/cases/realized-db'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { lastMonths } from '@/lib/reports/sales-funnel'
 import {
   REJECTION_REASON_LABELS,
   type RejectionReasonCode,
@@ -133,9 +137,8 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       return { success: false, error: 'Manglende tilladelse: economy.view' }
     }
 
-    const monthStart = new Date()
-    monthStart.setDate(1)
-    monthStart.setHours(0, 0, 0, 0)
+    // rapport-review: dansk månedsstart (før serverens lokale tid = UTC)
+    const monthStartIso = copenhagenLocalToIso(`${copenhagenParts(new Date()).date.slice(0, 7)}-01`, '00:00')
 
     // Execute all queries in parallel
     const [
@@ -148,14 +151,22 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       monthEntriesResult,
       topCustomerResult,
     ] = await Promise.all([
-      supabase.from('offers').select('final_amount').eq('status', 'accepted').eq('is_proposal', false),
-      supabase.from('offers').select('final_amount').in('status', ['sent', 'viewed']).eq('is_proposal', false),
+      // Økonomi-review 2026-10-08: summer side for side (PostgREST giver højst 1.000 rækker)
+      fetchAllRows<{ final_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount').eq('status', 'accepted').eq('is_proposal', false).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
+      fetchAllRows<{ final_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount').in('status', ['sent', 'viewed']).eq('is_proposal', false).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'accepted').eq('is_proposal', false),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'rejected').eq('is_proposal', false),
-      supabase.from('offers').select('final_amount').not('status', 'eq', 'draft').eq('is_proposal', false),
+      fetchAllRows<{ final_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount').not('status', 'eq', 'draft').eq('is_proposal', false).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
       supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-      supabase.from('time_entries').select('hours, billable').gte('date', monthStart.toISOString()),
-      supabase.from('offers').select('customer_id, final_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted').eq('is_proposal', false),
+      // rapport-review: time_entries er den gamle model (≈ 0 i prod) — timer registreres i time_logs
+      fetchAllRows<{ hours: number | string | null; billable: boolean | null }>((from, to) => supabase.from('time_logs')
+        .select('id, hours, billable').not('end_time', 'is', null).neq('approval_status', 'rejected').gte('start_time', monthStartIso).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
+      fetchAllRows<{ customer_id: string | null; final_amount: number | null; customer: unknown }>((from, to) => supabase.from('offers').select('id, customer_id, final_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted').eq('is_proposal', false).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
     ])
 
     // Calculate revenue
@@ -174,9 +185,9 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
 
     // Hours
     const monthEntries = monthEntriesResult.data || []
-    const total_hours_this_month = monthEntries.reduce((sum, e) => sum + (e.hours || 0), 0)
+    const total_hours_this_month = monthEntries.reduce((sum, e) => sum + (Number(e.hours) || 0), 0)
     const billable_hours_this_month = monthEntries.reduce(
-      (sum, e) => sum + (e.billable ? e.hours || 0 : 0),
+      (sum, e) => sum + (e.billable !== false ? Number(e.hours) || 0 : 0),
       0,
     )
 
@@ -237,8 +248,9 @@ export async function getRevenueByPeriod(
       return { success: false, error: 'Manglende tilladelse: economy.view' }
     }
 
-    const now = new Date()
-    const rangeStart = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
+    // rapport-review: danske kalendermåneder (før serverens UTC — accept kl. 00:30 d. 1. talte i forrige måned)
+    const monthKeys = lastMonths(new Date(), months)
+    const rangeStartIso = copenhagenLocalToIso(`${monthKeys[0]}-01`, '00:00')
 
     // Fetch all relevant offers in a single query instead of 2*N queries
     const [acceptedResult, sentResult] = await Promise.all([
@@ -247,23 +259,21 @@ export async function getRevenueByPeriod(
         .select('final_amount, accepted_at')
         .eq('status', 'accepted')
         .eq('is_proposal', false)
-        .gte('accepted_at', rangeStart.toISOString()),
+        .gte('accepted_at', rangeStartIso),
       supabase
         .from('offers')
         .select('final_amount, created_at')
         .in('status', ['sent', 'viewed'])
         .eq('is_proposal', false)
-        .gte('created_at', rangeStart.toISOString()),
+        .gte('created_at', rangeStartIso),
     ])
 
     // Build period map
     const periodMap = new Map<string, RevenueByPeriod>()
     const periodKeys: string[] = []
 
-    for (let i = months - 1; i >= 0; i--) {
-      const periodStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const label = periodStart.toLocaleDateString('da-DK', { year: 'numeric', month: 'short' })
-      const key = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, '0')}`
+    for (const key of monthKeys) {
+      const label = new Date(`${key}-15T12:00:00Z`).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', year: 'numeric', month: 'short' })
       periodKeys.push(key)
       periodMap.set(key, {
         period: label,
@@ -277,8 +287,7 @@ export async function getRevenueByPeriod(
     // Group accepted offers by month
     for (const offer of acceptedResult.data || []) {
       if (!offer.accepted_at) continue
-      const d = new Date(offer.accepted_at)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const key = copenhagenParts(offer.accepted_at).date.slice(0, 7)
       const period = periodMap.get(key)
       if (period) {
         period.accepted_count++
@@ -289,8 +298,7 @@ export async function getRevenueByPeriod(
     // Group sent offers by month
     for (const offer of sentResult.data || []) {
       if (!offer.created_at) continue
-      const d = new Date(offer.created_at)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const key = copenhagenParts(offer.created_at).date.slice(0, 7)
       const period = periodMap.get(key)
       if (period) {
         period.sent_count++
@@ -395,11 +403,16 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     }
 
     const caseIds = cases.map((c) => c.id as string)
-    const { data: logs } = await supabase
+    // rapport-review: side for side (> 1.000 timeregistreringer på 50 sager blev skåret af → realiseret DB for høj)
+    // 00192: kostkolonnen (cost_amount) læses med admin-klienten bag economy.view (samme roller som economy.cost_prices)
+    const logs = await fetchAllRows<Record<string, unknown>>((from, to) => createAdminClient()
       .from('time_logs')
-      .select('hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
+      .select('id, hours, billable, end_time, cost_amount, work_order:work_orders!inner(case_id)')
       .in('work_order.case_id', caseIds)
       .not('end_time', 'is', null)
+      .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
+      .order('id')
+      .range(from, to))
 
     const actual = new Map<string, number>()
     const billable = new Map<string, number>()
@@ -417,9 +430,14 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     const offerIds = Array.from(new Set(cases.map((c) => c.source_offer_id as string | null).filter((x): x is string => !!x)))
     const [linesRes, matsRes, invRes, otherRes] = await Promise.all([
       offerIds.length
-        ? supabase.from('offer_line_items').select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id').in('offer_id', offerIds)
+        // 00192: kostkolonner — admin-klient bag economy.view
+        // side for side (profit-review 2026-10-07): 50 tilbud × 20–40 linjer passerer 1.000 → tilbudt kost manglede stille
+        ? fetchAllRows<Record<string, unknown>>((from, to) => createAdminClient().from('offer_line_items')
+            .select('id, offer_id, description, quantity, unit, cost_price, supplier_cost_price_at_creation, supplier_product_id, position')
+            .in('offer_id', offerIds).order('id').range(from, to))
+            .then((data) => ({ data: data.sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0)) }))
         : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-      supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds),
+      fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('case_materials').select('id, case_id, description, quantity, unit, total_cost, supplier_product_id, source_offer_line_id').in('case_id', caseIds).order('id').range(from, to)).then((data) => ({ data })),
       supabase.from('invoices').select('case_id, total_amount, status, invoice_type, voided_at').in('case_id', caseIds),
       supabase.from('case_other_costs').select('case_id, total_cost').in('case_id', caseIds),
     ])
@@ -428,11 +446,11 @@ export async function getProjectProfitability(): Promise<ActionResult<ProjectPro
     const otherCost = new Map<string, number>()
     for (const o of (otherRes.data ?? []) as Array<{ case_id: string; total_cost: number | string | null }>) otherCost.set(o.case_id, (otherCost.get(o.case_id) ?? 0) + (Number(o.total_cost ?? 0) || 0))
     const linesByOffer = new Map<string, OfferLineInput[]>()
-    for (const l of (linesRes.data ?? []) as Array<OfferLineInput & { offer_id: string }>) {
+    for (const l of (linesRes.data ?? []) as unknown as Array<OfferLineInput & { offer_id: string }>) {
       linesByOffer.set(l.offer_id, [...(linesByOffer.get(l.offer_id) ?? []), l])
     }
     const matsByCase = new Map<string, ActualMaterialInput[]>()
-    for (const m of (matsRes.data ?? []) as Array<ActualMaterialInput & { case_id: string }>) {
+    for (const m of (matsRes.data ?? []) as unknown as Array<ActualMaterialInput & { case_id: string }>) {
       matsByCase.set(m.case_id, [...(matsByCase.get(m.case_id) ?? []), m])
     }
     const r1 = (n: number) => Math.round(n * 10) / 10
@@ -498,6 +516,7 @@ export async function getTeamProductivity(
       .select('employee_id, hours, billable, end_time, work_order:work_orders(case_id), employee:employees(name)')
       .gte('start_time', since.toISOString())
       .not('end_time', 'is', null)
+      .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
 
     if (!logs || logs.length === 0) {
       return { success: true, data: [] }
@@ -729,13 +748,21 @@ export async function getSalesFunnel(months: number = 6): Promise<ActionResult<i
     const since = new Date(`${list[0]}-01T00:00:00Z`)
     since.setUTCDate(since.getUTCDate() - 1)
     const iso = since.toISOString()
-    const [cust, off, inv] = await Promise.all([
-      supabase.from('customers').select('created_at').gte('created_at', iso).limit(5000),
-      supabase.from('offers').select('created_at, sent_at, accepted_at, final_amount, is_proposal')
-        .or(`created_at.gte.${iso},sent_at.gte.${iso},accepted_at.gte.${iso}`).limit(5000),
-      supabase.from('invoices').select('created_at, status, invoice_type, voided_at, total_amount').gte('created_at', iso).limit(5000),
-    ])
-    if (cust.error || off.error || inv.error) return { success: false, error: 'Kunne ikke hente salgstragt' }
+    // pagineret (PostgREST afkortede .limit(5000) til 1000); fakturaer efter udstedelse ELLER oprettelse i perioden
+    const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+    let cust: { data: unknown[] }, off: { data: unknown[] }, inv: { data: unknown[] }
+    try {
+      const [c, o, i] = await Promise.all([
+        fetchAllRows((f, t) => supabase.from('customers').select('id, created_at').gte('created_at', iso).order('id').range(f, t)),
+        fetchAllRows((f, t) => supabase.from('offers').select('id, created_at, sent_at, accepted_at, final_amount, tax_amount, is_proposal')
+          .or(`created_at.gte.${iso},sent_at.gte.${iso},accepted_at.gte.${iso}`).order('id').range(f, t)),
+        fetchAllRows((f, t) => supabase.from('invoices').select('id, created_at, sent_at, status, invoice_type, voided_at, total_amount')
+          .or(`created_at.gte.${iso},sent_at.gte.${iso}`).order('id').range(f, t)),
+      ])
+      cust = { data: c }; off = { data: o }; inv = { data: i }
+    } catch {
+      return { success: false, error: 'Kunne ikke hente salgstragt' }
+    }
     return {
       success: true,
       data: computeSalesFunnel({

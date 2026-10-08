@@ -34,6 +34,8 @@ async function requireGate(permission: Permission) {
 }
 import { DEFAULT_PAGE_SIZE, CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { offerEditLockReason } from '@/lib/offers/edit-lock'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -218,7 +220,7 @@ export async function getPackageWithItems(id: string): Promise<ActionResult<Pack
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
-        product:product_catalog(id, sku, name, cost_price, list_price)
+        product:product_catalog(id, sku, name, list_price)
       `)
       .eq('package_id', id)
       .order('sort_order')
@@ -394,7 +396,7 @@ export async function getPackageItems(packageId: string): Promise<ActionResult<P
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
-        product:product_catalog(id, sku, name, cost_price, list_price)
+        product:product_catalog(id, sku, name, list_price)
       `)
       .eq('package_id', packageId)
       .order('sort_order')
@@ -455,7 +457,7 @@ export async function createPackageItem(input: CreatePackageItemInput): Promise<
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
-        product:product_catalog(id, sku, name, cost_price, list_price)
+        product:product_catalog(id, sku, name, list_price)
       `)
       .single()
 
@@ -496,7 +498,7 @@ export async function updatePackageItem(input: UpdatePackageItemInput): Promise<
       .select(`
         *,
         component:calc_components(id, code, name, base_time_minutes),
-        product:product_catalog(id, sku, name, cost_price, list_price)
+        product:product_catalog(id, sku, name, list_price)
       `)
       .single()
 
@@ -638,7 +640,14 @@ export async function insertPackageIntoOffer(
     validateUUID(packageId, 'pakke ID')
     validateUUID(offerId, 'tilbud ID')
 
-    const { data, error } = await supabase
+    // 00192: DB-funktionen læser kostkolonner (invoker) → kaldes med admin-klienten. Først tjekkes at brugeren må se
+    // tilbuddet via sin egen klient (RLS), så scope bevares.
+    const { data: visibleOffer } = await supabase.from('offers').select('id').eq('id', offerId).maybeSingle()
+    if (!visibleOffer) return { success: false, error: 'Tilbud ikke fundet' }
+    // Leverandør-review 2026-10-08 (#4): kun kladder kan redigeres (sendt/accepteret pris må ikke ændres via pakke)
+    const lock = await offerEditLockReason(supabase, offerId)
+    if (lock) return { success: false, error: lock }
+    const { data, error } = await createAdminClient()
       .rpc('insert_package_into_offer', {
         p_package_id: packageId,
         p_offer_id: offerId,
@@ -747,9 +756,11 @@ export async function getProductsForPicker(): Promise<ActionResult<{
   category_name: string
 }[]>> {
   try {
-    const { supabase } = await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
+    await requireGate('tools.packages') // D48: kost/DB pr. pakke/linje — kun pakkeværktøjet (admin, serviceleder)
+    // 00201: product_catalog.cost_price kun via admin-klienten (bag gaten ovenfor)
+    const { createAdminClient } = await import('@/lib/supabase/admin')
 
-    const { data, error } = await supabase
+    const { data, error } = await createAdminClient()
       .from('product_catalog')
       .select(`
         id,

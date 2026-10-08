@@ -5,6 +5,7 @@ import { MONITORING_CONFIG } from '@/lib/constants'
 import { calculateDBPercentage } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
+import { offerCostAndSale } from '@/lib/alerts/offer-margin'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,15 +44,35 @@ async function handleCron(request: Request): Promise<Response> {
     margin_warnings: 0,
     supplier_health: 0,
     anomalies: 0,
+    /** faktisk oprettede advarsler (kategoritællerne ovenfor tæller fund) */
+    inserted: 0,
+    deduplicated: 0,
     errors: [] as string[],
   }
 
   async function insertAlert(alert: Record<string, unknown>) {
+    // 00194: kørsel hver nat — en åben (ikke afvist) advarsel med samme type/emne/titel oprettes ikke igen
+    // (før: kun margin_below var dubletsikret; prisændring/sync/leverandør ville fylde klokken med kopier hver dag)
+    let dup = supabase
+      .from('system_alerts')
+      .select('id', { count: 'exact', head: true })
+      .eq('alert_type', String(alert.alert_type))
+      .eq('title', String(alert.title))
+      .eq('is_dismissed', false)
+    dup = alert.entity_id ? dup.eq('entity_id', String(alert.entity_id)) : dup.is('entity_id', null)
+    const { count: existing, error: dupErr } = await dup
+    if (!dupErr && (existing ?? 0) > 0) {
+      results.deduplicated++
+      return false
+    }
     const { error } = await supabase.from('system_alerts').insert(alert)
     if (error) {
       logger.error('Failed to insert system alert', { error: error.message, metadata: alert as Record<string, unknown> })
       results.errors.push(`Alert insert failed: ${error.message}`)
+      return false
     }
+    results.inserted++
+    return true
   }
 
   try {
@@ -136,9 +157,10 @@ async function handleCron(request: Request): Promise<Response> {
       .from('offers')
       .select(`
         id, title, offer_number, final_amount,
-        line_items:offer_line_items(cost_price, total, supplier_product_id)
+        line_items:offer_line_items(cost_price, quantity, total, supplier_product_id)
       `)
-      .in('status', ['draft', 'sent'])
+      // aktive tilbud inkl. 'viewed' (kunden har åbnet det — stadig åbent; før sprunget over)
+      .in('status', ['draft', 'sent', 'viewed'])
 
     if (activeOffers) {
       // Collect all supplier_product_ids across all offers to batch-load current prices
@@ -151,11 +173,13 @@ async function handleCron(request: Request): Promise<Response> {
 
       // Batch-load all supplier products at once (fixes N+1)
       const supplierProductMap = new Map<string, { cost_price: number; supplier_name: string }>()
-      if (allSupplierProductIds.size > 0) {
+      // i bidder af 200 id'er (én .in() med alle id'er sprænger URL-længden ved mange tilbud → tom map, ingen advarsler)
+      const spIds = Array.from(allSupplierProductIds)
+      for (let k = 0; k < spIds.length; k += 200) {
         const { data: supplierProducts } = await supabase
           .from('supplier_products')
           .select('id, cost_price, supplier_name')
-          .in('id', Array.from(allSupplierProductIds))
+          .in('id', spIds.slice(k, k + 200))
 
         for (const sp of supplierProducts || []) {
           supplierProductMap.set(sp.id, { cost_price: sp.cost_price, supplier_name: sp.supplier_name })
@@ -164,26 +188,22 @@ async function handleCron(request: Request): Promise<Response> {
 
       // Batch-load existing margin alerts to avoid per-offer queries
       const offerIds = activeOffers.map(o => o.id)
-      const { data: existingMarginAlerts } = await supabase
-        .from('system_alerts')
-        .select('entity_id')
-        .eq('entity_type', 'offer')
-        .eq('alert_type', 'margin_below')
-        .eq('is_dismissed', false)
-        .in('entity_id', offerIds)
-
-      const offersWithMarginAlerts = new Set((existingMarginAlerts || []).map(a => a.entity_id))
+      const offersWithMarginAlerts = new Set<string>()
+      for (let k = 0; k < offerIds.length; k += 200) {
+        const { data: existingMarginAlerts } = await supabase
+          .from('system_alerts')
+          .select('entity_id')
+          .eq('entity_type', 'offer')
+          .eq('alert_type', 'margin_below')
+          .eq('is_dismissed', false)
+          .in('entity_id', offerIds.slice(k, k + 200))
+        for (const a of existingMarginAlerts || []) offersWithMarginAlerts.add(a.entity_id)
+      }
 
       for (const offer of activeOffers) {
         const lineItems = offer.line_items || []
-        const totalCost = lineItems.reduce(
-          (sum: number, li: { cost_price: number | null }) => sum + (li.cost_price || 0),
-          0
-        )
-        const totalSale = lineItems.reduce(
-          (sum: number, li: { total: number }) => sum + li.total,
-          0
-        )
+        // kost = kostpris × antal (før enhedskost mod linjetotal → marginen blev overvurderet, se offer-margin.ts)
+        const { totalCost, totalSale } = offerCostAndSale(lineItems)
 
         if (totalCost > 0 && totalSale > 0) {
           const marginPct = calculateDBPercentage(totalCost, totalSale)
@@ -360,7 +380,7 @@ async function handleCron(request: Request): Promise<Response> {
       await insertAlert({
         alert_type: 'supplier_offline',
         severity: 'warning',
-        title: `${staleCount} forældede produktpriser`,
+        title: 'Forældede produktpriser', // fast titel → dubletsikringen virker (antallet står i beskeden)
         message: `Der er ${staleCount} aktive produkter med priser ældre end ${staleDays} dage. Overvej at køre en fuld synkronisering.`,
         details: { stale_count: staleCount },
         entity_type: 'supplier_product',

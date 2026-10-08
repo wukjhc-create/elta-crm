@@ -44,6 +44,7 @@ import { OfferPartiesCard } from '@/components/modules/offers/offer-parties-card
 import { EditOfferPartiesDialog } from '@/components/modules/offers/edit-offer-parties-dialog'
 import { OfferToCaseCard } from './offer-to-case-card'
 import { OfferActivityTimeline } from '@/components/modules/offers/offer-activity-timeline'
+import { OfferRevisionsPanel } from '@/components/modules/offers/offer-revisions-panel'
 import { REJECTION_REASON_LABELS, type RejectionReasonCode } from '@/types/offers.types'
 import { PriceExplanationCard } from '@/components/modules/offers/price-explanation-card'
 import { OfferProfitCard } from '@/components/modules/offers/offer-profit-card'
@@ -99,9 +100,11 @@ interface OfferDetailClientProps {
   dbThresholds?: DBThresholds
   linkedCase?: { case_id: string; case_number: string } | null
   parties?: import('@/lib/actions/offer-parties').OfferParties | null
+  /** 00203 (staging): revisioner slået til (OFFER_REVISIONS_ENABLED) */
+  revisionsEnabled?: boolean
 }
 
-export function OfferDetailClient({ offer, companySettings, dbThresholds, linkedCase, parties }: OfferDetailClientProps) {
+export function OfferDetailClient({ offer, companySettings, dbThresholds, linkedCase, parties, revisionsEnabled }: OfferDetailClientProps) {
   const router = useRouter()
   const toast = useToast()
   const { role } = useUserRole()
@@ -658,13 +661,25 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 Kopiér
               </button>
             )}
-            <button
-              onClick={() => setShowEditForm(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50"
-            >
-              <Pencil className="w-4 h-4" />
-              Rediger
-            </button>
+            {/* Henrik 2026-10-07: kun kladder kan redigeres (serveren afviser også) */}
+            {offer.status === 'draft' ? (
+              <button
+                onClick={() => setShowEditForm(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50"
+              >
+                <Pencil className="w-4 h-4" />
+                Rediger
+              </button>
+            ) : (
+              <span
+                className="inline-flex items-center gap-2 px-4 py-2 border rounded-md text-gray-400 cursor-not-allowed"
+                title={offer.status === 'accepted' ? 'Accepterede tilbud kan ikke ændres — opret et nyt tilbud (Kopiér)' : 'Sendte tilbud er låst — sæt tilbuddet tilbage til kladde for at redigere'}
+                data-testid="offer-edit-locked"
+              >
+                <Pencil className="w-4 h-4" />
+                Låst
+              </span>
+            )}
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -1151,6 +1166,10 @@ export function OfferDetailClient({ offer, companySettings, dbThresholds, linked
                 <p className="text-gray-500">Ingen modtager valgt</p>
               )}
             </div>
+
+            {revisionsEnabled && (
+              <OfferRevisionsPanel offerId={offer.id} status={offer.status} supersededBy={(offer as unknown as { superseded_by?: string | null }).superseded_by ?? null} />
+            )}
 
             {/* Sagspartnere (Sprint 12A Trin 5A read-only + Trin 5B edit) */}
             {parties && offer.customer && (

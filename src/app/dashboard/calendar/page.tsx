@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { getAllTasks } from '@/lib/actions/customer-tasks'
+import { getMyPersonalReminders } from '@/lib/actions/personal-reminders'
+import { ASSISTANT_RULES } from '@/lib/assistant/rules'
 import { listWorkOrdersByDateRange } from '@/lib/actions/work-orders'
 import { listCalendarEmployeesAction } from '@/lib/actions/employees'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
@@ -70,11 +72,19 @@ export default async function CalendarPage({ searchParams }: PageProps) {
 
   // ----- Month view (legacy customer_tasks/besigtigelser) -----
   if (view === 'month') {
-    const allTasks = await getAllTasks({ search: 'besigtigelse' })
+    // Besigtigelser + opkald/påmindelser oprettet via ELTA Assistant (T2 — CRM-kalenderen er stedet de ses)
+    const [allTasks, assistantTasks] = await Promise.all([
+      getAllTasks({ search: 'besigtigelse' }),
+      getAllTasks({ autoRules: ASSISTANT_RULES }),
+    ])
     const besigtigelser = allTasks.filter((t) =>
       t.title.toLowerCase().includes('besigtigelse')
     )
-    return <CalendarPageClient tasks={besigtigelser} />
+    const seen = new Set(besigtigelser.map((t) => t.id))
+    // Mine personlige påmindelser (00197; tom hvor tabellen ikke findes)
+    const mine = await getMyPersonalReminders().catch(() => ({ available: false, reminders: [] }))
+    const personalReminders = mine.reminders.map((r) => ({ id: r.id, title: r.title, due_at: r.due_at, status: r.status }))
+    return <CalendarPageClient tasks={[...besigtigelser, ...assistantTasks.filter((t) => !seen.has(t.id))]} personalReminders={personalReminders} />
   }
 
   // ----- Day or Week view (work_orders × employees) -----

@@ -14,6 +14,7 @@ export type AuditEntityType =
   | 'message'
   | 'settings'
   | 'user'
+  | 'personal_reminder'
 
 export type AuditAction =
   | 'create'

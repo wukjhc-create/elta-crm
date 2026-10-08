@@ -13,6 +13,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
 import type { CapabilityContext, CapabilityResult } from '@/types/agent-core.types'
@@ -103,7 +104,8 @@ export function planningBlocker(c: PlanningCase, activeWorkOrders: number): stri
   if (!c.customer_id) return 'sagen har ingen kunde'
   if (c.is_proposal) return 'sagen er stadig et sagsforslag - bekraeft den foerst'
   if (CLOSED_CASE_STATUSES.includes(c.status)) return `sagen er ${c.status}`
-  if (activeWorkOrders > 0) return 'sagen har allerede en aktiv arbejdsordre'
+  // X4: enhver ikke-annulleret arbejdsordre (også 'done') — før kun aktive, så afsluttede job fik et nyt forslag
+  if (activeWorkOrders > 0) return 'sagen har allerede en arbejdsordre'
   return null
 }
 
@@ -132,8 +134,33 @@ async function loadPlanningContext(admin: any, today: string) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function activeWorkOrderCount(admin: any, caseId: string): Promise<number> {
-  const { count } = await admin.from('work_orders').select('id', { count: 'exact', head: true }).eq('case_id', caseId).in('status', ACTIVE_WO_STATUSES)
+  // X4 (planlægnings-review 2026-10-07): tæller alle IKKE-annullerede arbejdsordrer (som planlægningsbackloggen) — en sag
+  // hvis job er udført (status 'done'), men som stadig er åben pga. fakturering, må ikke få en ny arbejdsordre foreslået
+  const { count } = await admin.from('work_orders').select('id', { count: 'exact', head: true }).eq('case_id', caseId).neq('status', 'cancelled')
   return count ?? 0
+}
+
+/**
+ * X4: de ældste åbne sager UDEN arbejdsordre (før de 60 ældste åbne sager uanset arbejdsordrer → nye sager blev aldrig
+ * nået). Pagineret, så resultatet ikke afhænger af PostgREST's 1.000-rækkers-loft.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function unplannedCases(admin: any, limit: number, caseIds?: string[]): Promise<PlanningCase[]> {
+  const pageCases = (from: number, to: number) => {
+    let q = admin.from('service_cases').select(CASE_COLUMNS).eq('is_proposal', false).not('status', 'in', `(${CLOSED_CASE_STATUSES.join(',')})`)
+      .not('customer_id', 'is', null)
+    if (caseIds?.length) q = q.in('id', caseIds)
+    return q.order('created_at', { ascending: true }).order('id').range(from, to)
+  }
+  const cases = await fetchAllRows<PlanningCase>(pageCases as never)
+  if (!cases.length) return []
+  const withWo = new Set<string>()
+  for (let k = 0; k < cases.length; k += 200) {
+    const ids = cases.slice(k, k + 200).map((c) => c.id)
+    const { data } = await admin.from('work_orders').select('case_id').in('case_id', ids).neq('status', 'cancelled')
+    for (const w of (data ?? []) as Array<{ case_id: string }>) withWo.add(w.case_id)
+  }
+  return cases.filter((c) => !withWo.has(c.id)).slice(0, limit)
 }
 
 const marker = (actionId: string) => `[agent-action:${actionId}]`
@@ -188,16 +215,17 @@ export async function runPlanningAgent(
   const admin = createAdminClient()
   const today = opts.today ?? copenhagenToday()
 
-  let q = admin.from('service_cases').select(CASE_COLUMNS).eq('is_proposal', false).not('status', 'in', `(${CLOSED_CASE_STATUSES.join(',')})`)
-    .not('customer_id', 'is', null).order('created_at', { ascending: true }).limit(PLANNING_DEFAULTS.maxCasesPerRun * 3)
-  if (opts.caseIds?.length) q = q.in('id', opts.caseIds)
-  const { data: rows, error: cErr } = await q
-  if (cErr) return { success: false, error: 'Kunne ikke hente sager' }
+  let rows: PlanningCase[]
+  try {
+    rows = await unplannedCases(admin, PLANNING_DEFAULTS.maxCasesPerRun * 3, opts.caseIds)
+  } catch {
+    return { success: false, error: 'Kunne ikke hente sager' }
+  }
 
   const { techs, workload } = await loadPlanningContext(admin, today)
   const skipped: Array<{ case_id: string; reason: string }> = []
   const proposals: PlanningPayload[] = []
-  for (const c of (rows ?? []) as PlanningCase[]) {
+  for (const c of rows) {
     if (proposals.length >= PLANNING_DEFAULTS.maxCasesPerRun) break
     const active = await activeWorkOrderCount(admin, c.id)
     const blocker = planningBlocker(c, active)

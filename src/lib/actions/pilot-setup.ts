@@ -7,8 +7,10 @@
  * Kun admin; data læses via service-role efter gaten.
  */
 
+import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface PilotSetupItem {
   key: string
@@ -31,7 +33,9 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
     admin.from('company_settings').select('company_name, company_vat_number, bank_reg_no, bank_account').limit(1).maybeSingle(),
     admin.from('profiles').select('id').eq('role', 'montør'),
     admin.from('employees').select('profile_id').not('profile_id', 'is', null),
-    admin.from('invoices').select('customer_id').in('status', ['sent', 'paid']).is('external_invoice_id', null).not('customer_id', 'is', null).limit(5000),
+    // side for side (før .limit(5000) → højst 1.000 fakturaer)
+    fetchAllRows<{ id: string; customer_id: string }>((from, to) => admin.from('invoices').select('id, customer_id').in('status', ['sent', 'paid'])
+      .is('external_invoice_id', null).not('customer_id', 'is', null).order('id').range(from, to)).then((data) => ({ data })),
   ])
 
   const cs = company as { company_name?: string | null; company_vat_number?: string | null; bank_reg_no?: string | null; bank_account?: string | null } | null
@@ -111,8 +115,7 @@ export async function getPilotSetupChecklistAction(): Promise<{ ok: true; items:
   const webIds = ((webInquiries.data ?? []) as Array<{ id: string }>).map((w) => w.id)
   let openWeb = 0
   if (webIds.length) {
-    const { data: leads } = await admin.from('leads').select('custom_fields').not('custom_fields->>source_email_id', 'is', null).limit(5000)
-    const withLead = new Set(((leads ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>).map((l) => l.custom_fields?.source_email_id))
+    const withLead = await leadSourceEmailIds(admin)
     openWeb = webIds.filter((id) => !withLead.has(id)).length
   }
   // Frisk = mindst én vare opdateret inden for 60 dage (eksistens-tjek stopper ved første match: ~50–80 ms i prod;

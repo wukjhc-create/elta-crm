@@ -249,6 +249,12 @@ export function LeadsTable({ leads, sortBy, sortOrder, onSort, filtered, onClear
                       <div className="text-sm text-gray-500">
                         {lead.contact_person}
                       </div>
+                      {/* N94: hvad webhenvendelsen handler om (type · besked fra formularen, N93) — triage uden at åbne leadet */}
+                      {lead.notes?.startsWith('Webhenvendelse — ') && (
+                        <div className="text-xs text-emerald-800 mt-0.5 max-w-[320px] truncate" title={lead.notes} data-testid="lead-row-inquiry">
+                          {lead.notes.replace(/^Webhenvendelse — /, '')}
+                        </div>
+                      )}
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                         <span className="flex items-center gap-1 min-w-0">
                           <Mail className="w-3 h-3 shrink-0" />

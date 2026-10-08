@@ -334,6 +334,14 @@ export async function getConfirmationContext(
     if (state !== 'awaiting' && state !== 'already_confirmed') {
       return { success: true, data: buildMinimalView(state, row.expires_at) }
     }
+    // Partner-review 2026-10-08 (#5): et bekræftet link virkede for evigt (PDF-link, navn/e-mail, sag, bemærkning).
+    // Efter udløb vises kun kvitteringen (tidspunkt) — ingen dokument- eller persondata.
+    if (state === 'already_confirmed' && new Date(row.expires_at).getTime() < Date.now()) {
+      return {
+        success: true,
+        data: { ...buildMinimalView(state, row.expires_at), confirmedAt: row.confirmed_at ?? undefined },
+      }
+    }
 
     // Hent dokument-metadata
     const { data: doc } = await admin

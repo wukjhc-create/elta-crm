@@ -1,6 +1,6 @@
 'use server'
 
-import { pgQuote } from '@/lib/validations/postgrest-filter'
+import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
 import { createLeadSchema, updateLeadSchema } from '@/lib/validations/leads'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
@@ -147,7 +147,8 @@ export async function getLead(id: string): Promise<ActionResult<LeadWithRelation
 export async function checkDuplicateLead(
   email: string,
   companyName: string,
-  excludeId?: string
+  excludeId?: string,
+  phone?: string | null
 ): Promise<ActionResult<{ id: string; company_name: string; email: string; status: string }[]>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -155,10 +156,19 @@ export async function checkDuplicateLead(
       return { success: false, error: 'Manglende tilladelse: leads.create' }
     }
 
+    // Leads-review 2026-10-08 (#10): også telefon — samme kunde ringer ofte ind under nyt navn/uden e-mail. De sidste 8
+    // cifre matches uanset mellemrum/+45 (cifrene i rækkefølge med vilkårlige skilletegn imellem).
+    const conds: string[] = []
+    if (email.trim()) conds.push(`email.ilike.${pgQuote(sanitizeSearchTerm(email.trim()))}`)
+    if (companyName.trim()) conds.push(`company_name.ilike.${pgQuote(sanitizeSearchTerm(companyName.trim()))}`)
+    const digits = (phone ?? '').replace(/\D/g, '').slice(-8)
+    if (digits.length === 8) conds.push(`phone.ilike.${pgQuote(`%${digits.split('').join('%')}%`)}`)
+    if (conds.length === 0) return { success: true, data: [] }
+
     let query = supabase
       .from('leads')
       .select('id, company_name, email, status')
-      .or(`email.ilike.${pgQuote(sanitizeSearchTerm(email))},company_name.ilike.${pgQuote(sanitizeSearchTerm(companyName))}`)
+      .or(conds.join(','))
       .limit(5)
 
     if (excludeId) {
@@ -322,6 +332,13 @@ export async function updateLead(formData: FormData): Promise<ActionResult<Lead>
       .maybeSingle()
 
     const { id: leadId, ...updateData } = validated.data
+
+    // Kunde-review: redigeringsformularen sprang statusreglerne over (fx vundet/tabt → hvilken som helst status) —
+    // samme regel som updateLeadStatus
+    const newStatus = (updateData as { status?: LeadStatus }).status
+    if (oldLead && newStatus && newStatus !== oldLead.status && !isValidLeadTransition(oldLead.status as LeadStatus, newStatus)) {
+      return { success: false, error: `Status kan ikke ændres fra ${LEAD_STATUS_LABELS[oldLead.status as LeadStatus] ?? oldLead.status} til ${LEAD_STATUS_LABELS[newStatus] ?? newStatus}` }
+    }
 
     const { data, error } = await supabase
       .from('leads')
@@ -492,12 +509,13 @@ export async function updateLeadStatus(
       .from('leads')
       .update({ status })
       .eq('id', id)
+      .eq('status', oldLead.status) // samtidig ændring (fx automatisk "vundet") må ikke overskrives blindt
       .select()
       .single()
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return { success: false, error: 'Lead blev ikke fundet' }
+        return { success: false, error: 'Leadets status er ændret imens — genindlæs og prøv igen' }
       }
       logger.error('Database error updating lead status', { error: error })
       throw new Error('DATABASE_ERROR')
@@ -583,6 +601,9 @@ export async function addLeadActivity(
       logger.error('Database error adding lead activity', { error: error })
       throw new Error('DATABASE_ERROR')
     }
+    // Leads-review 2026-10-08 (#5): "Leads uden opfølgning" ser på leads.updated_at — en noteret opfølgning (opkald,
+    // mail, note) rørte ikke leadet, så det blev ved med at stå som glemt. Best-effort.
+    await supabase.from('leads').update({ updated_at: new Date().toISOString() }).eq('id', leadId)
 
     revalidatePath(`/leads/${leadId}`)
     return { success: true, data: data as LeadActivity }
@@ -634,7 +655,7 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
       return { success: false, error: 'Manglende tilladelse: customers.create + leads.edit' }
     }
     const { data: lead } = await supabase.from('leads')
-      .select('id, company_name, contact_person, email, phone, notes, custom_fields').eq('id', leadId).maybeSingle()
+      .select('id, company_name, contact_person, email, phone, notes, custom_fields, updated_at').eq('id', leadId).maybeSingle()
     if (!lead) return { success: false, error: 'Lead ikke fundet' }
     const cf = (lead.custom_fields ?? {}) as Record<string, unknown>
 
@@ -650,8 +671,14 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
     const contact = String(lead.contact_person ?? '').trim() || company
     if (!company) return { success: false, error: 'Leadet mangler firma- eller kontaktnavn' }
 
+    // Kunde-review: dobbeltklik/to brugere samtidig oprettede to kunder (læs → tjek → indsæt uden lås). Optimistisk lås:
+    // kun den anmodning der "rører" leadet med den læste updated_at fortsætter.
+    const { data: claimed } = await supabase.from('leads').update({ updated_at: new Date().toISOString() })
+      .eq('id', leadId).eq('updated_at', lead.updated_at as string).select('id').maybeSingle()
+    if (!claimed) return { success: false, error: 'Leadet er netop ændret eller konverteres allerede — genindlæs siden' }
+
     // Dublet-værn: eksisterende kunde med samme mail
-    const { data: same } = await supabase.from('customers').select('id').ilike('email', email).limit(1).maybeSingle()
+    const { data: same } = await supabase.from('customers').select('id').ilike('email', escapeLike(email)).limit(1).maybeSingle()
     let customerId = (same?.id as string | undefined) ?? null
     let created = false
     if (!customerId) {
@@ -678,7 +705,12 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
       created = true
     }
 
-    await supabase.from('leads').update({ custom_fields: { ...cf, customer_id: customerId } }).eq('id', leadId)
+    // Leads-review 2026-10-08 (#7): fejlen blev ignoreret → leadet stod ukoblet, og næste klik oprettede en dublet-kunde
+    const { error: linkLeadErr } = await supabase.from('leads').update({ custom_fields: { ...cf, customer_id: customerId } }).eq('id', leadId)
+    if (linkLeadErr) {
+      logger.error('convertLeadToCustomer: lead ikke koblet til kunden', { error: linkLeadErr, entityId: leadId, metadata: { customerId } })
+      return { success: false, error: 'Kunden er oprettet, men leadet kunne ikke kobles — prøv igen (kunden genbruges via e-mail)' }
+    }
     // N77: kildemailen (fx webhenvendelsen) kobles til kunden, så den står i kundens mailhistorik og ikke længere tæller
     // som "uden kunde". Kun en ukoblet mail, kun med indbakke-adgang; best-effort (konverteringen lykkes uanset).
     if (typeof cf.source_email_id === 'string' && hasPermission('inbox.view')) {

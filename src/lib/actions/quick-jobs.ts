@@ -29,7 +29,9 @@ export async function getQuickJobs(options?: {
   featured_only?: boolean
 }): Promise<ActionResult<QuickJob[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // RBAC-review 2026-10-07: estimeret kostpris kun til kost-roller (salg/montør fik den via select('*'))
+    const stripCost = (j: QuickJob): QuickJob => (hasPermission('products.view.cost_prices') ? j : { ...j, estimated_cost_price: null } as unknown as QuickJob)
 
     let query = supabase
       .from('quick_jobs')
@@ -52,7 +54,7 @@ export async function getQuickJobs(options?: {
       throw new Error('DATABASE_ERROR')
     }
 
-    return { success: true, data: data || [] }
+    return { success: true, data: ((data || []) as QuickJob[]).map(stripCost) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente hurtige jobs') }
   }
@@ -60,7 +62,9 @@ export async function getQuickJobs(options?: {
 
 export async function getQuickJob(id: string): Promise<ActionResult<QuickJob>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // RBAC-review 2026-10-07: estimeret kostpris kun til kost-roller (salg/montør fik den via select('*'))
+    const stripCost = (j: QuickJob): QuickJob => (hasPermission('products.view.cost_prices') ? j : { ...j, estimated_cost_price: null } as unknown as QuickJob)
 
     const { data, error } = await supabase
       .from('quick_jobs')
@@ -77,7 +81,7 @@ export async function getQuickJob(id: string): Promise<ActionResult<QuickJob>> {
       return { success: false, error: 'Job ikke fundet' }
     }
 
-    return { success: true, data }
+    return { success: true, data: stripCost(data as QuickJob) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente job') }
   }
@@ -111,7 +115,8 @@ export async function incrementQuickJobUsage(id: string): Promise<ActionResult<v
 
 export async function getCalibrationPresets(): Promise<ActionResult<CalibrationPreset[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // RBAC-review 2026-10-07: avance-% og timesats er prispolitik → samme rettighed som profil-skrivningen
+    const { supabase } = await requireGate('tools.calculations')
 
     const { data, error } = await supabase
       .from('calibration_presets')
@@ -134,7 +139,8 @@ export async function getCalibrationPresets(): Promise<ActionResult<CalibrationP
 
 export async function getCalibrationPreset(id: string): Promise<ActionResult<CalibrationPreset>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // RBAC-review 2026-10-07: avance-% og timesats er prispolitik → samme rettighed som profil-skrivningen
+    const { supabase } = await requireGate('tools.calculations')
 
     const { data, error } = await supabase
       .from('calibration_presets')
@@ -159,7 +165,8 @@ export async function getCalibrationPreset(id: string): Promise<ActionResult<Cal
 
 export async function getDefaultCalibrationPreset(): Promise<ActionResult<CalibrationPreset | null>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // RBAC-review 2026-10-07: avance-% og timesats er prispolitik → samme rettighed som profil-skrivningen
+    const { supabase } = await requireGate('tools.calculations')
 
     const { data, error } = await supabase
       .from('calibration_presets')

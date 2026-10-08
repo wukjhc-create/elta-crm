@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
 import { WEBHOOK_PAYLOAD_LIMITS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { isValidOfferTransition, type OfferStatus } from '@/types/offers.types'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,14 +88,17 @@ export async function POST(
                        request.headers.get('X-API-Key') ||
                        request.headers.get('X-Webhook-Secret')
 
-    if (integration.api_key) {
+    // Q10: fail-closed — før var en integration uden api_key helt uden godkendelse (enhver med integrations-id'et
+    // kunne sætte status på vilkårlige tilbud/projekter)
+    if (!integration.api_key) {
+      // Partner-review 2026-10-08: fejlet godkendelse logges ikke i DB (spam-vektor); kun applikationslog
+      logger.warn('integration webhook: unauthorized', { entityId: integrationId, metadata: { reason: 'Integration has no API key configured' } })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    {
       if (!authHeader) {
-        await logWebhook(supabase, integrationId, {
-          success: false,
-          error_message: 'Missing authentication header',
-          response_status: 401,
-          duration_ms: Date.now() - startTime,
-        })
+        // Partner-review 2026-10-08: fejlet godkendelse logges ikke i DB (spam-vektor); kun applikationslog
+      logger.warn('integration webhook: unauthorized', { entityId: integrationId, metadata: { reason: 'Missing authentication header' } })
 
         return NextResponse.json(
           { error: 'Unauthorized' },
@@ -108,12 +112,8 @@ export async function POST(
       const keysMatch = expected.length === provided.length &&
         timingSafeEqual(expected, provided)
       if (!keysMatch) {
-        await logWebhook(supabase, integrationId, {
-          success: false,
-          error_message: 'Invalid API key',
-          response_status: 401,
-          duration_ms: Date.now() - startTime,
-        })
+        // Partner-review 2026-10-08: fejlet godkendelse logges ikke i DB (spam-vektor); kun applikationslog
+      logger.warn('integration webhook: unauthorized', { entityId: integrationId, metadata: { reason: 'Invalid API key' } })
 
         return NextResponse.json(
           { error: 'Unauthorized' },
@@ -135,20 +135,18 @@ export async function POST(
     let payload: WebhookPayload
     const contentType = request.headers.get('content-type') || ''
 
-    if (contentType.includes('application/json')) {
-      payload = await request.json()
-    } else if (contentType.includes('application/x-www-form-urlencoded')) {
-      const formData = await request.formData()
-      payload = Object.fromEntries(formData.entries()) as unknown as WebhookPayload
-    } else {
-      try {
-        payload = await request.json()
-      } catch {
-        return NextResponse.json(
-          { error: 'Invalid payload format' },
-          { status: 400 }
-        )
-      }
+    // Partner-review 2026-10-08: læs kroppen med hård grænse (Content-Length kan mangle ved chunked upload)
+    const rawBuf = await request.arrayBuffer()
+    if (rawBuf.byteLength > WEBHOOK_PAYLOAD_LIMITS.INTEGRATION) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+    }
+    const rawText = new TextDecoder().decode(rawBuf)
+    try {
+      payload = contentType.includes('application/x-www-form-urlencoded')
+        ? (Object.fromEntries(new URLSearchParams(rawText).entries()) as unknown as WebhookPayload)
+        : (JSON.parse(rawText) as WebhookPayload)
+    } catch {
+      return NextResponse.json({ error: 'Invalid payload format' }, { status: 400 })
     }
 
     // Determine event type
@@ -173,27 +171,22 @@ export async function POST(
       }
     }
 
-    // Direct ID references
-    if (payload.offer_id) offerId = payload.offer_id
-    if (payload.project_id) projectId = payload.project_id
-
-    // Look up by number if provided
-    if (!offerId && payload.offer_number) {
-      const { data: offer } = await supabase
-        .from('offers')
-        .select('id')
-        .eq('offer_number', payload.offer_number)
-        .single()
-      if (offer) offerId = offer.id
+    // Partner-review 2026-10-08 (S2): rå offer_id/project_id/numre blev brugt direkte → enhver integration kunne ændre
+    // status på VILKÅRLIGE tilbud. Nu: kun entiteter som DENNE integration har en external_reference til.
+    const ownsEntity = async (entityType: 'offer' | 'project', entityId: string) => {
+      const { data } = await supabase.from('external_references').select('id')
+        .eq('integration_id', integrationId).eq('entity_type', entityType).eq('entity_id', entityId).limit(1).maybeSingle()
+      return !!data
     }
-
-    if (!projectId && payload.project_number) {
-      const { data: project } = await supabase
-        .from('projects')
-        .select('id')
-        .eq('project_number', payload.project_number)
-        .single()
-      if (project) projectId = project.id
+    if (!offerId && (payload.offer_id || payload.offer_number)) {
+      const q = supabase.from('offers').select('id')
+      const { data: offer } = payload.offer_id ? await q.eq('id', payload.offer_id).maybeSingle() : await q.eq('offer_number', payload.offer_number).maybeSingle()
+      if (offer && (await ownsEntity('offer', offer.id))) offerId = offer.id
+    }
+    if (!projectId && (payload.project_id || payload.project_number)) {
+      const q = supabase.from('projects').select('id')
+      const { data: project } = payload.project_id ? await q.eq('id', payload.project_id).maybeSingle() : await q.eq('project_number', payload.project_number).maybeSingle()
+      if (project && (await ownsEntity('project', project.id))) projectId = project.id
     }
 
     // Process the webhook based on event type
@@ -206,16 +199,26 @@ export async function POST(
       if (offerId) {
         // Update offer status (map external status if needed)
         const mappedStatus = mapExternalStatus(newStatus, 'offer')
-        if (mappedStatus) {
-          const { error } = await supabase
+        // Partner-review 2026-10-08: aldrig 'draft' (ville genåbne et sendt/accepteret tilbud forbi redigeringslåsen)
+        // eller 'accepted' (accept kræver kundens underskrift i portalen); kun gyldige overgange, betinget opdatering
+        const { data: cur } = await supabase.from('offers').select('status').eq('id', offerId).maybeSingle()
+        const curStatus = (cur as { status: string } | null)?.status
+        const allowed = !!mappedStatus && !!curStatus && mappedStatus !== 'draft' && mappedStatus !== 'accepted'
+          && isValidOfferTransition(curStatus as OfferStatus, mappedStatus as OfferStatus)
+        if (allowed) {
+          const { data: upd, error } = await supabase
             .from('offers')
             .update({ status: mappedStatus })
             .eq('id', offerId)
+            .eq('status', curStatus)
+            .select('id')
 
-          if (!error) {
+          if (!error && (upd ?? []).length === 1) {
             processed = true
             updateResult = { entity: 'offer', id: offerId, status: mappedStatus }
           }
+        } else if (mappedStatus) {
+          updateResult = { entity: 'offer', id: offerId, status: curStatus, ignored: `overgang ${curStatus} → ${mappedStatus} ikke tilladt via webhook` }
         }
       }
 

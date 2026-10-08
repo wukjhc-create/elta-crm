@@ -23,6 +23,8 @@ import { logger } from '@/lib/utils/logger'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
 import { netStageAmount, netStagePercentage } from '@/lib/invoices/stage-net'
 import type { InvoiceRow, InvoiceLineRow } from '@/types/invoice.types'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type InvoiceType = 'standard' | 'deposit' | 'progress' | 'final' | 'credit'
 export type AmountBasis = 'contract_sum' | 'revised_sum' | 'lines'
@@ -110,6 +112,19 @@ export async function createStageInvoiceForCase(
     }
   }
 
+  // 1b. Værn (rapport-review): sager oprettet fra tilbud før rettelsen fik kontraktsummen INKL. moms. Er den lig med
+  // kildetilbuddets beløb inkl. moms (og der er moms), ville raten blive 25 % for høj → stop med en klar besked.
+  if (input.amount_basis === 'contract_sum') {
+    const { data: src } = await supabase.from('offers').select('final_amount, tax_amount')
+      .eq('converted_case_id', input.case_id).limit(1).maybeSingle()
+    if (src && Number(src.tax_amount ?? 0) > 0 && Math.abs(Number(src.final_amount) - basisValue) < 0.005) {
+      return {
+        ...empty,
+        message: 'Sagens kontraktsum er tilbuddets beløb INKL. moms — ret den til beløbet ekskl. moms på sagen, før der laves rater på kontraktsummen',
+      }
+    }
+  }
+
   // 2. Slut-gate — ingen ny deposit/progress når slut findes
   const { count: finalCount } = await supabase
     .from('invoices')
@@ -165,9 +180,7 @@ export async function createStageInvoiceForCase(
   const final = r2(subtotal + tax)
 
   const dueDays = input.due_days ?? 14
-  const dueDate = new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const dueDate = copenhagenDatePlusDays(dueDays)
 
   // Auto-foreslået label hvis operatør ikke har valgt en
   const label =
@@ -238,6 +251,31 @@ export async function createStageInvoiceForCase(
     return {
       ...empty,
       message: `Kunne ikke oprette linje (faktura rullet tilbage): ${lineErr.message}`,
+    }
+  }
+
+  // Økonomi-review 2026-10-08: samtidige rater læste begge samme procent-sum og kunne tilsammen gå over 100 %. Efter
+  // indsættelse summeres sagens rater i oprettelsesrækkefølge; bringer DENNE rate summen over 100 %, fjernes den igen.
+  if (!input.allow_over) {
+    const { data: stagesNow } = await supabase
+      .from('invoices')
+      .select('id, billing_percentage, total_amount')
+      .eq('case_id', input.case_id)
+      .in('invoice_type', ['deposit', 'progress'])
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+    const rows = (stagesNow ?? []) as Array<{ id: string; billing_percentage: number | null; total_amount: number | null }>
+    const creditsNow = await creditedByInvoice(supabase, rows.map((r) => r.id))
+    let cum = 0
+    let over = false
+    for (const r of rows) {
+      cum = r2(cum + netStagePercentage(r.billing_percentage, r.total_amount, creditsNow.get(r.id)))
+      if (r.id === header.id) { over = cum > 100; break }
+    }
+    if (over) {
+      await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+      await supabase.from('invoices').delete().eq('id', header.id)
+      return { ...empty, message: 'En anden rate blev netop oprettet på sagen — samlet procent ville overstige 100 %. Genindlæs og prøv igen.' }
     }
   }
 
@@ -350,20 +388,41 @@ export async function createFinalInvoiceForCase(
     }
   }
 
-  // 3. Find forgængere (deposit + progress) — ekskl. cancelled
+  // 3. Find forgængere (deposit + progress).
+  // X1 (økonomi-review 2026-10-07): fakturastatus er kun draft/sent/paid — det gamle filter på 'rejected' gjorde intet,
+  // så en ALDRIG sendt forudbetalings-KLADDE blev trukket fra (kunden underfaktureret). Gæt ikke på om kladden sendes:
+  // slutfakturaen afvises, så længe en forgænger eller en kreditnota på den er kladde.
   const { data: predecessors } = await supabase
     .from('invoices')
     .select('id, invoice_number, total_amount, invoice_type, status')
     .eq('case_id', input.case_id)
     .in('invoice_type', ['deposit', 'progress'])
-    .neq('status', 'rejected' as never)
-  const predRows = (predecessors ?? []) as Array<{
+  const allPred = (predecessors ?? []) as Array<{
     id: string
     invoice_number: string
     total_amount: number | string | null
     invoice_type: string
     status: string
   }>
+  const draftPred = allPred.filter((p) => p.status === 'draft')
+  if (draftPred.length) {
+    return {
+      ...empty,
+      message: `Send eller slet ${draftPred.length === 1 ? 'kladden' : 'kladderne'} først: ${draftPred.map((p) => p.invoice_number).join(', ')} — en ikke-udstedt forudbetaling kan ikke trækkes fra slutfakturaen`,
+    }
+  }
+  const predRows = allPred
+  {
+    const { data: draftCredits } = predRows.length
+      ? await supabase.from('invoices').select('invoice_number').in('credit_of_invoice_id', predRows.map((p) => p.id)).eq('invoice_type', 'credit').eq('status', 'draft')
+      : { data: [] as Array<{ invoice_number: string }> }
+    if ((draftCredits ?? []).length) {
+      return {
+        ...empty,
+        message: `Send eller slet kreditnota-kladden først: ${(draftCredits as Array<{ invoice_number: string }>).map((c) => c.invoice_number).join(', ')}`,
+      }
+    }
+  }
   // Fradrag = forgængerens beløb MINUS det der allerede er krediteret på den
   // (før: fuldt fradrag selv efter kreditnota → kunden fik pengene to gange).
   const creditedPred = await creditedByInvoice(supabase, predRows.map((p) => p.id))
@@ -410,29 +469,39 @@ export async function createFinalInvoiceForCase(
     const [tlRes, cmRes, ocRes] = await Promise.all([
       woIds.length === 0
         ? Promise.resolve({ data: [] as TimeLogJoin[] })
-        : supabase
+        // Økonomi-review 2026-10-08 (#10): side for side — over 1.000 ufakturerede rækker blev resten tavst udeladt af
+        // slutfakturaen (og kunne bagefter aldrig faktureres, da der kun laves én slutfaktura)
+        : fetchAllRows<TimeLogJoin>((from, to) => supabase
             .from('time_logs')
             .select(
-              'id, hours, end_time, billable, invoice_line_id, sale_amount, sale_rate_snapshot, ' +
+              'id, hours, end_time, billable, invoice_line_id, sale_amount, sale_rate_snapshot, start_time, ' +
                 'employee:employees(name, hourly_rate)'
             )
             .in('work_order_id', woIds)
             .is('invoice_line_id', null)
             .not('end_time', 'is', null)
             .eq('billable', true)
-            .order('start_time', { ascending: true }),
-      supabase
+            // Henrik 2026-10-07: afviste timer faktureres aldrig
+            .neq('approval_status', 'rejected')
+            .order('start_time', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, to) as never).then((data) => ({ data })),
+      fetchAllRows((from, to) => supabase
         .from('case_materials')
         .select('id, description, quantity, unit, unit_sales_price, total_sales_price, billable, invoice_line_id')
         .eq('case_id', sag.id)
         .is('invoice_line_id', null)
-        .eq('billable', true),
-      supabase
+        .eq('billable', true)
+        .order('id')
+        .range(from, to)).then((data) => ({ data })),
+      fetchAllRows((from, to) => supabase
         .from('case_other_costs')
         .select('id, description, quantity, unit, unit_sales_price, total_sales_price, billable, invoice_line_id')
         .eq('case_id', sag.id)
         .is('invoice_line_id', null)
-        .eq('billable', true),
+        .eq('billable', true)
+        .order('id')
+        .range(from, to)).then((data) => ({ data })),
     ])
 
     const timeRows = (tlRes.data ?? []) as unknown as TimeLogJoin[]
@@ -551,9 +620,7 @@ export async function createFinalInvoiceForCase(
   const final = r2(subtotal + tax)
 
   const dueDays = input.due_days ?? 14
-  const dueDate = new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const dueDate = copenhagenDatePlusDays(dueDays)
 
   // 8. INSERT invoice header med UNIQUE-guard via DB
   const { data: header, error: hdrErr } = await supabase
@@ -767,11 +834,13 @@ async function creditedByInvoice(
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>()
   if (invoiceIds.length === 0) return out
+  // X1: kun UDSTEDTE kreditnotaer (sendt/betalt) — en kladde er ikke en kreditering
   const { data } = await supabase
     .from('invoices')
     .select('credit_of_invoice_id, total_amount')
     .in('credit_of_invoice_id', invoiceIds)
     .eq('invoice_type', 'credit')
+    .in('status', ['sent', 'paid'])
   for (const c of (data ?? []) as Array<{ credit_of_invoice_id: string; total_amount: number | string }>) {
     out.set(c.credit_of_invoice_id, r2((out.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.total_amount ?? 0))))
   }

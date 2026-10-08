@@ -49,7 +49,7 @@ export function CustomerActivityOverview({ customerId, customerEmail }: Customer
       const [o, p, l, sq, sc] = await Promise.all([
         getCustomerOffers(customerId),
         getCustomerProjects(customerId),
-        getCustomerLeads(customerEmail),
+        getCustomerLeads(customerId, customerEmail),
         getCustomerSentQuotes(customerId),
         getCustomerServiceCases(customerId),
       ])

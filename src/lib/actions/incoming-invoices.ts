@@ -7,7 +7,7 @@
  * src/lib/services/incoming-invoices.ts — no business logic added.
  */
 
-import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { copenhagenParts, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
@@ -395,8 +395,8 @@ export async function createTestIncomingInvoiceAction(): Promise<ActionOutcome> 
     `${String(ts.getSeconds()).padStart(2, '0')}`
   const invoiceNumber = `${TEST_INVOICE_PREFIX}${stamp}`
 
-  const today = ts.toISOString().slice(0, 10)
-  const dueDate = new Date(ts.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const today = copenhagenParts(ts).date
+  const dueDate = copenhagenDatePlusDays(14, ts)
 
   const { data: inserted, error: insErr } = await supabase
     .from('incoming_invoices')

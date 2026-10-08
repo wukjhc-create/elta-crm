@@ -11,7 +11,7 @@
  * Used by email-sync-orchestrator after each email is inserted.
  */
 
-import { pgQuote } from '@/lib/validations/postgrest-filter'
+import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -26,6 +26,7 @@ import { createOfferDraftFromCase } from '@/lib/services/auto-offer'
 import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
 import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { normalizeDanishPhone } from '@/lib/utils/phone'
+import { isNonCustomerDomain } from '@/lib/email/free-mail-domains'
 
 const OPENAI_TIMEOUT_MS = 15_000
 
@@ -317,8 +318,10 @@ export interface ExtractedCustomer {
 export function isForwardedEmail(email: EmailInput): boolean {
   const subject = (email.subject || '').toLowerCase()
   if (/^(vs|fwd|fw|vb)[:\s]/i.test(subject)) return true
+  // Kunde-/leads-review 2026-10-07: kun EKSPLICITTE videresendelses-markører (som email-linker). Før talte enhver citeret
+  // "Fra:"/"From:"-linje → alle Outlook-svar ("SV:/Re:") blev 'videresendt', og AI'en udtrak Eltas egen signatur.
   const body = email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || ''
-  return FORWARD_HEADERS.some((re) => re.test(body))
+  return FORWARD_HEADERS[0].test(body)
 }
 
 // =====================================================
@@ -395,12 +398,13 @@ Svar KUN med raa JSON: {"type":"customer"} eller {"type":"supplier"} eller {"typ
 // 2. EXTRACT CUSTOMER FROM BODY (AI)
 // =====================================================
 
-export async function extractCustomer(body: string): Promise<ExtractedCustomer> {
+export async function extractCustomer(body: string, opts?: { forwarded?: boolean }): Promise<ExtractedCustomer> {
   const raw = (body || '').trim()
   if (!raw) return { name: null, phone: null, address: null, confidence: 0 }
 
-  // 1. Prefer forwarded content if present — slice from the FIRST forward header onward
-  const forwarded = isolateForwardedSection(raw)
+  // 1. Videresendt: brug den videresendte del (fra første header). Svar (kunde-/leads-review 2026-10-07): brug KUN
+  //    teksten FØR citatet — ellers blev Eltas egen citerede mail/signatur udtrukket som "kunden".
+  const forwarded = opts?.forwarded === false ? stripQuotedReply(raw) : isolateForwardedSection(raw)
   // 2. Strip blocks that look like supplier signatures
   const cleaned = stripSupplierSignatures(forwarded).substring(0, 4000)
   if (!cleaned.trim()) return { name: null, phone: null, address: null, confidence: 0 }
@@ -445,7 +449,7 @@ Svar KUN med rå JSON.`,
     const address = typeof parsed.address === 'string' && parsed.address.trim() ? parsed.address.trim() : null
     const confidence = (phone ? 0.5 : 0) + (address ? 0.3 : 0) + (name ? 0.2 : 0)
     const result = { name, phone, address, confidence }
-    console.log('EXTRACTED:', { name, phone, address })
+    console.log('EXTRACTED:', { name: !!name, phone: !!phone, address: !!address }) // automatik-review: ingen personværdier i logs
     console.log('CONFIDENCE:', confidence)
     return result
   } catch {
@@ -454,6 +458,16 @@ Svar KUN med rå JSON.`,
     console.log('CONFIDENCE:', 0)
     return empty
   }
+}
+
+/** Svar: alt FØR første citat-header ("Fra:/From:/Afsender:" eller "--- Original besked ---"). */
+function stripQuotedReply(text: string): string {
+  let firstIdx = -1
+  for (const re of FORWARD_HEADERS) {
+    const m = text.match(re)
+    if (m && m.index !== undefined && (firstIdx === -1 || m.index < firstIdx)) firstIdx = m.index
+  }
+  return firstIdx > 0 ? text.substring(0, firstIdx) : text
 }
 
 function isolateForwardedSection(text: string): string {
@@ -511,16 +525,39 @@ export interface FindOrCreateResult {
 export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<FindOrCreateResult> {
   const supabase = createAdminClient()
 
-  // 1. Match by phone (most reliable)
-  if (data.phone) {
-    const phoneNorm = normalizePhone(data.phone)
-    const { data: byPhone } = await supabase
+  // 0. Match på afsenderens e-mail (kunde-/leads-review 2026-10-07: blev aldrig slået op → dublet-kunde med samme
+  //    e-mail, når AI'en ikke fandt telefonen). Eksakt e-mail = samme kunde, også en deaktiveret (ingen ny dublet).
+  const fallback = (data.fallbackEmail || '').trim().toLowerCase()
+  if (fallback.includes('@') && !fallback.endsWith('@elta-crm.local')) {
+    const { data: byEmail } = await supabase
+      .from('customers').select('id').ilike('email', escapeLike(fallback))
+      .order('is_active', { ascending: false }).limit(1).maybeSingle()
+    if (byEmail?.id) {
+      console.log('CUSTOMER FOUND:', byEmail.id, '(by sender email)')
+      return { customerId: byEmail.id, created: false }
+    }
+    const { data: byContact } = await supabase
+      .from('customer_contacts').select('customer_id').ilike('email', escapeLike(fallback)).limit(1).maybeSingle()
+    if (byContact?.customer_id) {
+      console.log('CUSTOMER FOUND:', byContact.customer_id, '(by contact email)')
+      return { customerId: byContact.customer_id as string, created: false }
+    }
+  }
+
+  // 1. Match by phone (most reliable) — sidste 8 cifre (som lead-duplicates): "+45 20 34 56 78", "20345678" og
+  //    "20 34 56 78" er samme nummer. Før: eksakt tekst-sammenligning → dublet ved forskellig formatering.
+  const phoneDigits = (data.phone || '').replace(/\D/g, '').slice(-8)
+  if (phoneDigits.length === 8) {
+    const loose = `%${phoneDigits.split('').join('%')}`
+    const { data: candidates } = await supabase
       .from('customers')
-      .select('id')
-      .or(`phone.eq.${phoneNorm},mobile.eq.${phoneNorm}`)
+      .select('id, phone, mobile')
+      .or(`phone.ilike.${pgQuote(loose)},mobile.ilike.${pgQuote(loose)}`)
       .eq('is_active', true)
-      .limit(1)
-      .maybeSingle()
+      .limit(20)
+    const last8 = (v: string | null) => (v || '').replace(/\D/g, '').slice(-8)
+    const byPhone = ((candidates ?? []) as Array<{ id: string; phone: string | null; mobile: string | null }>)
+      .find((c) => last8(c.phone) === phoneDigits || last8(c.mobile) === phoneDigits)
     if (byPhone?.id) {
       console.log('CUSTOMER FOUND:', byPhone.id, '(by phone)')
       return { customerId: byPhone.id, created: false }
@@ -532,27 +569,39 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
   const nameTrimmed = (data.name || '').trim()
   const looksLikeFullName = nameTrimmed.includes(' ') && nameTrimmed.length >= 5
   if (looksLikeFullName) {
-    const safeName = nameTrimmed.replace(/[%,()]/g, ' ').trim()
-    const { data: byName } = await supabase
+    // automatik-review: AI-udtrukket navn er kundestyret tekst — jokertegn (* _ %) escapes, ellers matchede fx "** **"
+    // enhver kunde med mellemrum i navnet
+    const safeName = escapeLike(nameTrimmed.replace(/[%,()*]/g, ' ').replace(/\s+/g, ' ').trim())
+    // Kunde-/leads-review 2026-10-07: kun ved PRÆCIS én kunde med navnet, og et postnr. i den udtrukne adresse skal
+    // passe til kundens (før: første "Jens Hansen" vandt, også på en anden adresse)
+    const { data: nameRows } = await supabase
       .from('customers')
-      .select('id')
+      .select('id, billing_postal_code, shipping_postal_code')
       .or(`company_name.ilike.${pgQuote(safeName)},contact_person.ilike.${pgQuote(safeName)}`)
       .eq('is_active', true)
-      .limit(1)
-      .maybeSingle()
+      .limit(2)
+    const nameCandidates = (nameRows ?? []) as Array<{ id: string; billing_postal_code: string | null; shipping_postal_code: string | null }>
+    const extractedPostal = (data.address || '').match(/\b(\d{4})\b/)?.[1] ?? null
+    let byName: { id: string } | null = nameCandidates.length === 1 ? nameCandidates[0] : null
+    if (byName && extractedPostal) {
+      const c = nameCandidates[0]
+      const known = [c.billing_postal_code, c.shipping_postal_code].map((x) => (x || '').trim()).filter(Boolean)
+      if (known.length && !known.includes(extractedPostal)) byName = null
+    }
+    if (nameCandidates.length > 1) console.log('CUSTOMER NAME-MATCH SKIPPED (ambiguous)')
     if (byName?.id) {
       console.log('CUSTOMER FOUND:', byName.id, '(by full name)')
       return { customerId: byName.id, created: false }
     }
   } else if (nameTrimmed.length >= 3) {
-    console.log('CUSTOMER NAME-MATCH SKIPPED (single token):', nameTrimmed)
+    console.log('CUSTOMER NAME-MATCH SKIPPED (single token)')
   }
 
   // 3. Create — REQUIRES phone (>= 8 digits) OR address (>= 5 chars). Name alone is NOT enough.
   const hasPhone = !!(data.phone && data.phone.replace(/\D/g, '').length >= 8)
   const hasAddress = !!(data.address && data.address.trim().length >= 5)
   if (!hasPhone && !hasAddress) {
-    console.log('SKIP: NO VALID CUSTOMER DATA', { name: data.name, phone: data.phone, address: data.address })
+    console.log('SKIP: NO VALID CUSTOMER DATA', { name: !!data.name, phone: !!data.phone, address: !!data.address })
     return { customerId: null, created: false }
   }
 
@@ -604,7 +653,7 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
     return { customerId: null, created: false }
   }
 
-  console.log('CUSTOMER CREATED:', result.data.id, result.data.customer_number, displayName)
+  console.log('CUSTOMER CREATED:', result.data.id, result.data.customer_number)
   return { customerId: result.data.id, created: true }
 }
 
@@ -655,6 +704,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -675,6 +726,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'ignored', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -691,6 +744,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -714,6 +769,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'ignored', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -731,7 +788,7 @@ async function processEmailIntelligenceUnsafe(
   // -------- Stage 2: extract --------
   const body =
     email.bodyText || stripHtml(email.bodyHtml || '') || email.bodyPreview || ''
-  const extracted = await extractCustomer(body)
+  const extracted = await extractCustomer(body, { forwarded: isForwardedEmail(email) })
 
   if (!extracted.name && !extracted.phone) {
     console.log('SKIP: NO VALID CUSTOMER DATA —', email.subject)
@@ -739,6 +796,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -759,6 +818,8 @@ async function processEmailIntelligenceUnsafe(
       .from('incoming_emails')
       .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
       .eq('id', emailId)
+      // kunde-/leads-review 2026-10-07: aldrig om-klassificér en mail der allerede er koblet til en kunde (forsvandt ellers fra indbakken)
+      .is('customer_id', null)
     await writeIntelligenceLog({
       emailId,
       subject: email.subject,
@@ -779,7 +840,10 @@ async function processEmailIntelligenceUnsafe(
   //  (b) the body is forwarded (sender is the forwarder, not the customer)
   const isForwarded = isForwardedEmail(email)
   const suppressSenderEmail = type === 'supplier' || isForwarded
-  const fallbackEmail = suppressSenderEmail ? null : email.senderEmail || null
+  // Kunde-/leads-review 2026-10-07: egen/relæ-afsender (hc@eltasolar.dk, FormSubmit) må aldrig blive kundens e-mail —
+  // ellers kobles kollegers mails efterfølgende til den kunde
+  const senderDomain = (email.senderEmail || '').split('@')[1] || null
+  const fallbackEmail = suppressSenderEmail || isNonCustomerDomain(senderDomain) ? null : email.senderEmail || null
   if (suppressSenderEmail) {
     console.log('FALLBACK EMAIL SUPPRESSED:', { reason: type === 'supplier' ? 'supplier' : 'forwarded' })
   }
@@ -800,6 +864,9 @@ async function processEmailIntelligenceUnsafe(
   }
 
   if (customerId) {
+    // Automatik-review (HØJ): et almindeligt citeret svar ("Fra:"-linje) tolkes som videresendt, og udtrækket rammer så
+    // det citerede (fx Eltas egen signatur) → en allerede korrekt koblet mail blev flyttet til en forkert/ny kunde.
+    // AI'en kobler derfor KUN ukoblede mails; behandlet-markeringen sættes altid.
     await supabase
       .from('incoming_emails')
       .update({
@@ -807,8 +874,12 @@ async function processEmailIntelligenceUnsafe(
         link_status: 'linked',
         linked_by: 'auto-ai',
         linked_at: new Date().toISOString(),
-        processed_at: new Date().toISOString(),
       })
+      .eq('id', emailId)
+      .is('customer_id', null)
+    await supabase
+      .from('incoming_emails')
+      .update({ processed_at: new Date().toISOString() })
       .eq('id', emailId)
 
     // Feature flag: auto-oprettelse af cases/tilbud/tasks er som default
@@ -917,7 +988,7 @@ async function processEmailIntelligenceUnsafe(
               kind: 'ai_summary',
               urgency: summary.urgency,
             })
-            console.log('CASE SUMMARY NOTE:', summary.urgency, '—', summary.summary.substring(0, 80))
+            console.log('CASE SUMMARY NOTE:', summary.urgency)
           }
         } catch (sumErr) {
           console.warn('AI SUMMARY FAILED:', email.subject, sumErr instanceof Error ? sumErr.message : '')

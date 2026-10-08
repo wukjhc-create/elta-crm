@@ -94,11 +94,14 @@ export async function getBestSupplierPrice(
     let costPrice = Number(winner.cost_price ?? 0)
     if (options.customerId) {
       try {
-        const { data: customerPrice } = await supabase.rpc('get_best_price_for_customer', {
+        // Leverandør-review 2026-10-08 (#7): get_best_price_for_customer tager (kunde, SKU) og returnerer en tabel —
+        // kaldet med (kunde, supplier_product_id) fejlede altid, så kundeaftaler blev aldrig brugt. Korrekt funktion:
+        const { data: rows } = await supabase.rpc('get_customer_product_price', {
           p_customer_id: options.customerId,
           p_supplier_product_id: winner.id,
         })
-        if (typeof customerPrice === 'number' && customerPrice > 0) {
+        const customerPrice = Number((rows as Array<{ effective_cost_price: number | string | null }> | null)?.[0]?.effective_cost_price)
+        if (Number.isFinite(customerPrice) && customerPrice > 0) {
           costPrice = customerPrice
         }
       } catch (err) {

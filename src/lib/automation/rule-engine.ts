@@ -103,17 +103,25 @@ export async function evaluateAndRunAutomations(event: AutomationEvent): Promise
       continue
     }
 
-    // Real execution
+    // Real execution — mail-review 2026-10-07 (R-MAIL-B #11): KRAV før handling. Før: tjek → handling → log, så to
+    // samtidige hændelser begge udførte (fx sendte) og først bagefter opdagede unik-konflikten. Nu indsættes
+    // 'executed'-rækken FØRST (unikt indeks uq_automation_exec_one_per_entity = ét krav pr. (regel, entitet));
+    // fejler handlingen, ændres rækken til 'failed', så pladsen frigives.
+    const claim = await claimExecution(rule, event)
+    if (claim === 'taken') {
+      summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status: 'skipped', message: 'race: already executed' })
+      continue
+    }
+    // Assistent-review 2026-10-08 (#5): kunne kravet ikke skrives (DB-fejl), udføres handlingen IKKE — ellers ingen
+    // spærre mod gentagelse ved næste hændelse (fail-closed; næste kørsel prøver igen)
+    if (claim === null) {
+      summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status: 'skipped', message: 'claim failed — retry later' })
+      continue
+    }
     try {
       const result = await handler({ rule, event })
       const status: AutomationStatus = result.ok ? 'executed' : 'failed'
-      const inserted = await logExecution(rule, event, status, result.data ?? null, result.message ?? null)
-      if (inserted === '23505') {
-        // Race — another process already logged this exact (rule, entity)
-        // execution. Treat as already-done; don't double-report.
-        summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status: 'skipped', message: 'race: already executed' })
-        continue
-      }
+      await finishExecution(claim, status, result.data ?? null, result.message ?? null)
       summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status, message: result.message })
       if (status === 'executed') {
         console.log('AUTOMATION EXECUTED:', rule.id, event.entityId)
@@ -125,7 +133,7 @@ export async function evaluateAndRunAutomations(event: AutomationEvent): Promise
         metadata: { ruleId: rule.id, action: rule.action },
         error: err instanceof Error ? err : new Error(msg),
       })
-      await logExecution(rule, event, 'failed', null, msg)
+      await finishExecution(claim, 'failed', null, msg)
       summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status: 'failed', message: msg })
     }
   }
@@ -155,6 +163,36 @@ async function alreadyExecuted(ruleId: string, entityId: string): Promise<boolea
  * index blocked a second 'executed' row for the same (rule, entity);
  * caller treats this as success-already-recorded.
  */
+/** Krav: indsæt 'executed' før handlingen. 'taken' = en anden har allerede kravet/udført (unik-konflikt). */
+async function claimExecution(rule: AutomationRuleRow, event: AutomationEvent): Promise<{ id: string } | 'taken' | null> {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase.from('automation_executions').insert({
+      rule_id: rule.id, entity_type: event.entityType, entity_id: event.entityId, status: 'executed', result: { claimed: true },
+    }).select('id').single()
+    if (error) {
+      if ((error as { code?: string }).code === '23505') return 'taken'
+      logger.warn('automation claim failed', { entityId: event.entityId, error })
+      return null
+    }
+    return { id: (data as { id: string }).id }
+  } catch (err) {
+    logger.warn('automation claim threw', { entityId: event.entityId, error: err })
+    return null
+  }
+}
+
+/** Afslut kravet: resultat ved succes, 'failed' (frigiver pladsen) ved fejl. Uden krav-række logges som før. */
+async function finishExecution(claim: { id: string } | null, status: AutomationStatus, result: Record<string, unknown> | null, message: string | null) {
+  if (!claim) return
+  try {
+    await createAdminClient().from('automation_executions')
+      .update({ status, result, error_message: status === 'failed' ? message : null }).eq('id', claim.id)
+  } catch (err) {
+    logger.warn('automation finish threw', { error: err })
+  }
+}
+
 async function logExecution(
   rule: AutomationRuleRow,
   event: AutomationEvent,

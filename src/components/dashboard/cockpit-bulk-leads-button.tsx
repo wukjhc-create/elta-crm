@@ -20,11 +20,11 @@ export function CockpitBulkLeadsButton({ count }: { count: number }) {
         disabled={busy}
         data-testid="cockpit-bulk-leads"
         onClick={async () => {
-          if (!window.confirm(`Opret leads for ${count} henvendelse(r) fra hjemmesiden? Henvendelser uden læsbar e-mail springes over.`)) return
+          if (!window.confirm(`Opret leads for ${count} henvendelse(r) fra hjemmesiden? Personer der allerede er kunder (samme e-mail) kobles til kunden; henvendelser uden læsbar e-mail springes over.`)) return
           setBusy(true); setMsg(null)
           const r = await createLeadsForOpenWebInquiriesAction()
           setBusy(false)
-          setMsg(r.success ? `${r.created} lead(s) oprettet${r.skipped ? ` · ${r.skipped} sprunget over` : ''}` : (r.error ?? 'Fejl'))
+          setMsg(r.success ? `${r.created} lead(s) oprettet${r.linked ? ` · ${r.linked} koblet til eksisterende kunde` : ''}${r.skipped ? ` · ${r.skipped} sprunget over` : ''}` : (r.error ?? 'Fejl'))
           router.refresh()
         }}
         className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"

@@ -26,7 +26,7 @@
  * from/to filtreres mod time_logs.start_time (arbejdets starttidspunkt).
  */
 
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import { validateUUID } from '@/lib/validations/common'
 
@@ -92,26 +92,33 @@ export async function getEmployeeEconomy(
 
   try {
     if (employeeId) validateUUID(employeeId, 'employeeId')
-    const supabase = await createClient()
+    // 00192: time_logs.cost_amount har ingen kolonne-SELECT for authenticated → bruger-klienten fik "permission denied",
+    // og siden blev TOM for alle (fundet af U90 2026-10-07). Admin-klienten bruges — kaldes KUN fra
+    // getEmployeeEconomyAction efter gaten economy.cost_prices (løn pr. medarbejder skjules dér uden payroll).
+    const supabase = createAdminClient()
 
-    let query = supabase
-      .from('time_logs')
-      .select(
-        'hours, cost_amount, sale_amount, employee_id, employee:employees(id, name, first_name, last_name, email)'
-      )
-      .not('end_time', 'is', null) // kun lukkede timer
-
-    if (from) query = query.gte('start_time', from)
-    if (to) query = query.lte('start_time', to)
-    if (employeeId) query = query.eq('employee_id', employeeId)
-
-    const { data, error } = await query
-    if (error) {
-      logger.error('getEmployeeEconomy: time_logs read failed', { error })
-      return empty
+    // Pagineret: PostgREST giver højst 1000 rækker pr. kald — siden kaldes uden periode, så alle timer nogensinde
+    // hentes, og alt efter række 1000 forsvandt stille fra totalerne (kode-review 2026-10-04)
+    const rows: TimeLogRow[] = []
+    for (let offset = 0; offset < 500_000; offset += 1000) {
+      let query = supabase
+        .from('time_logs')
+        .select(
+          'id, hours, cost_amount, sale_amount, employee_id, employee:employees(id, name, first_name, last_name, email)'
+        )
+        .not('end_time', 'is', null) // kun lukkede timer
+        .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
+      if (from) query = query.gte('start_time', from)
+      if (to) query = query.lte('start_time', to)
+      if (employeeId) query = query.eq('employee_id', employeeId)
+      const { data, error } = await query.order('id').range(offset, offset + 999)
+      if (error) {
+        logger.error('getEmployeeEconomy: time_logs read failed', { error })
+        return empty
+      }
+      rows.push(...((data ?? []) as unknown as TimeLogRow[]))
+      if (!data || data.length < 1000) break
     }
-
-    const rows = (data ?? []) as TimeLogRow[]
 
     type Acc = {
       employee_id: string

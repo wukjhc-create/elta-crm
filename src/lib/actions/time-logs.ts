@@ -22,6 +22,7 @@
  */
 
 import type { Permission } from '@/lib/auth/permissions'
+import { findOverlappingTimeLog, rateBelongsToEmployee } from '@/lib/time-logs/guards'
 import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import { revalidatePath } from 'next/cache'
 import {
@@ -35,6 +36,8 @@ import { logger } from '@/lib/utils/logger'
 import { logEmployeeEvent } from '@/lib/actions/employee-events'
 import type { ActionResult } from '@/types/common.types'
 import { type TimeLogRow, type PayRateType, PAY_RATE_TYPE_LABEL } from '@/types/workforce.types'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { TIME_LOG_PUBLIC_COLUMNS } from '@/lib/time-logs/columns'
 
 export interface TimeLogWithEmployee extends TimeLogRow {
   employee?: {
@@ -74,11 +77,8 @@ export async function listTimeLogsForWorkOrder(
 
     const { data, error } = await supabase
       .from('time_logs')
-      .select(`
-        id, employee_id, work_order_id, start_time, end_time, hours,
-        cost_amount, pay_rate_type, employee_rate_id, cost_rate_snapshot,
-        sale_rate_snapshot, sale_amount, description, billable, invoice_line_id, created_at
-      `)
+      // 00192: bruger-klienten må ikke læse kostkolonnerne — kost flettes ind for løn-berettigede (withCostColumns)
+      .select(TIME_LOG_PUBLIC_COLUMNS)
       .eq('work_order_id', workOrderId)
       .order('start_time', { ascending: false })
 
@@ -87,7 +87,7 @@ export async function listTimeLogsForWorkOrder(
       return { success: false, error: 'Kunne ikke hente timeregistreringer' }
     }
 
-    const rows = (data || []) as TimeLogRow[]
+    const rows = await withCostColumns((data || []) as unknown as TimeLogRow[], hasPermission)
     const enriched = await enrichWithEmployees(supabase, rows)
     // Sprint Ø2.10 / D42 — defense in depth: fjern pris-/kostfelter server-side (ikke bare skjul i UI)
     return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
@@ -133,11 +133,8 @@ export async function listTimeLogsForCase(
 
     const { data, error } = await supabase
       .from('time_logs')
-      .select(`
-        id, employee_id, work_order_id, start_time, end_time, hours,
-        cost_amount, pay_rate_type, employee_rate_id, cost_rate_snapshot,
-        sale_rate_snapshot, sale_amount, description, billable, invoice_line_id, created_at
-      `)
+      // 00192: bruger-klienten må ikke læse kostkolonnerne — kost flettes ind for løn-berettigede (withCostColumns)
+      .select(TIME_LOG_PUBLIC_COLUMNS)
       .in('work_order_id', woIds)
       .order('start_time', { ascending: false })
 
@@ -146,7 +143,7 @@ export async function listTimeLogsForCase(
       return { success: false, error: 'Kunne ikke hente timeregistreringer' }
     }
 
-    const rows = (data || []) as TimeLogRow[]
+    const rows = await withCostColumns((data || []) as unknown as TimeLogRow[], hasPermission)
     const enriched = await enrichWithEmployees(supabase, rows)
     // D42: før blev kost (cost_amount, kostsats) og medarbejdersats sendt til alle med time_logs.view.own (montør)
     return { success: true, data: stripTimeLogPrices(enriched, hasPermission) }
@@ -255,6 +252,19 @@ export async function createTimeLog(
       }
     }
 
+    // X4: overlap med medarbejderens andre registreringer afvises (før 2× løn/fakturering), og en valgt sats skal være
+    // medarbejderens egen aktive (før kunne en kollegas/inaktiv overtidssats sættes via direkte kald)
+    {
+      const clash = await findOverlappingTimeLog(supabase, input.employee_id, startTimeIso, endTimeIso)
+      if (clash) {
+        const p = (iso: string) => copenhagenParts(iso).clock
+        return { success: false, error: `Overlapper en anden registrering for medarbejderen (${p(clash.start_time)}–${p(clash.end_time)} samme periode)` }
+      }
+      if (input.employee_rate_id && !(await rateBelongsToEmployee(createAdminClient(), input.employee_rate_id, input.employee_id))) {
+        return { success: false, error: 'Satsen hører ikke til medarbejderen eller er inaktiv' }
+      }
+    }
+
     // The DB has a partial UNIQUE preventing two open timers per employee.
     // We always insert with end_time set (manual timesheet flow), so this
     // doesn't apply — but be defensive in case of future real-time usage.
@@ -271,7 +281,7 @@ export async function createTimeLog(
         description: input.description?.trim() || null,
         billable: input.billable !== false,
       })
-      .select('*')
+      .select(TIME_LOG_PUBLIC_COLUMNS)
       .single()
 
     if (error || !data) {
@@ -285,7 +295,7 @@ export async function createTimeLog(
       const { autoStartCaseOnWork } = await import('@/lib/cases/case-auto-start')
       await autoStartCaseOnWork(wo.case_id as string, 'time_logged', userId)
     }
-    return { success: true, data: data as TimeLogRow }
+    return { success: true, data: { ...(data as unknown as TimeLogRow), cost_amount: null, cost_rate_snapshot: null } as TimeLogRow }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -319,7 +329,7 @@ export async function updateTimeLog(
     // Read current row + check invoice lock.
     const { data: cur, error: readErr } = await supabase
       .from('time_logs')
-      .select('id, work_order_id, employee_id, start_time, end_time, invoice_line_id, pay_rate_type')
+      .select('id, work_order_id, employee_id, start_time, end_time, invoice_line_id, pay_rate_type, employee_rate_id, approval_status')
       .eq('id', timeLogId)
       .maybeSingle()
     if (readErr || !cur) return { success: false, error: 'Timeregistrering ikke fundet' }
@@ -376,8 +386,12 @@ export async function updateTimeLog(
       } else if (typeof input.hours === 'number' && Number.isFinite(input.hours) && input.hours > 0) {
         endTimeIso = new Date(new Date(startTimeIso).getTime() + input.hours * 3600_000).toISOString()
       } else if (cur.end_time) {
-        // keep existing end_time
-        endTimeIso = cur.end_time as string
+        // behold sluttidspunktet (klokkeslæt) — men på den NYE dato (montør-review: kun dato flyttet bagud gav ellers
+        // en registrering over flere døgn, fx 08–16 flyttet fra 5/10 til 4/10 = 32 t). Løb den over midnat, bevares det.
+        const oldEnd = copenhagenParts(cur.end_time as string)
+        const dayOffset = Math.round((Date.parse(`${oldEnd.date}T00:00:00Z`) - Date.parse(`${curLocal.date}T00:00:00Z`)) / 86_400_000)
+        const endDate = new Date(Date.parse(`${dateStr}T00:00:00Z`) + dayOffset * 86_400_000).toISOString().slice(0, 10)
+        endTimeIso = copenhagenLocalToIso(endDate, oldEnd.clock)
       }
 
       if (endTimeIso) {
@@ -398,6 +412,15 @@ export async function updateTimeLog(
       patch.pay_rate_type = input.pay_rate_type
     }
     if (input.employee_rate_id !== undefined) {
+      // Mail-/planlægningsreview 2026-10-08 (#5): godkendelses-triggeren (00185) nulstiller ikke godkendelsen ved
+      // satsskift → en godkendt time kunne flyttes til en dyrere sats uden ny godkendelse. Uden godkenderret: afvis.
+      if ((input.employee_rate_id ?? null) !== ((cur as { employee_rate_id?: string | null }).employee_rate_id ?? null)
+        && (cur as { approval_status?: string }).approval_status !== 'pending' && !hasPermission('time_logs.approve')) {
+        return { success: false, error: 'Satsen kan ikke ændres på godkendte/afviste timer — bed en godkender om at rette den' }
+      }
+      if (input.employee_rate_id && !(await rateBelongsToEmployee(createAdminClient(), input.employee_rate_id, cur.employee_id as string))) {
+        return { success: false, error: 'Satsen hører ikke til medarbejderen eller er inaktiv' }
+      }
       patch.employee_rate_id = input.employee_rate_id
     }
 
@@ -405,13 +428,31 @@ export async function updateTimeLog(
       return { success: false, error: 'Ingen ændringer' }
     }
 
+    // X4: flyttet tidsrum må ikke overlappe medarbejderens andre registreringer
+    if (patch.start_time !== undefined || patch.end_time !== undefined) {
+      const newStart = (patch.start_time ?? cur.start_time) as string
+      const newEnd = (patch.end_time ?? cur.end_time) as string | null
+      if (newEnd) {
+        const clash = await findOverlappingTimeLog(supabase, cur.employee_id as string, newStart, newEnd, timeLogId)
+        if (clash) {
+          const p = (iso: string) => copenhagenParts(iso).clock
+          return { success: false, error: `Overlapper en anden registrering for medarbejderen (${p(clash.start_time)}–${p(clash.end_time)} samme periode)` }
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from('time_logs')
       .update(patch)
       .eq('id', timeLogId)
-      .select('*')
-      .single()
+      // montør-review: faktureret mellem læsning og opdatering → ingen ændring (før kun tjekket ved læsning)
+      .is('invoice_line_id', null)
+      .select(TIME_LOG_PUBLIC_COLUMNS)
+      .maybeSingle()
 
+    if (!error && !data) {
+      return { success: false, error: 'Kan ikke ændre — timeregistreringen er allerede faktureret' }
+    }
     if (error || !data) {
       logger.error('updateTimeLog failed', { error })
       return { success: false, error: 'Kunne ikke opdatere timeregistrering' }
@@ -438,7 +479,7 @@ export async function updateTimeLog(
       revalidatePath(`/dashboard/orders/${wo.case_id}`)
     }
 
-    return { success: true, data: data as TimeLogRow }
+    return { success: true, data: { ...(data as unknown as TimeLogRow), cost_amount: null, cost_rate_snapshot: null } as TimeLogRow }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -467,7 +508,8 @@ export async function getCaseLaborCostTotal(caseId: string): Promise<ActionResul
     let cost = 0
     // paginér (PostgREST-loft 1000 rækker)
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from('time_logs').select('cost_amount').in('work_order_id', ids)
+      // 00192: kostkolonnen læses med admin-klienten (gaten economy.cost_prices + time_logs.view.all er tjekket ovenfor)
+      const { data, error } = await createAdminClient().from('time_logs').select('cost_amount').in('work_order_id', ids)
         .order('id').range(from, from + 999)
       if (error) {
         logger.error('getCaseLaborCostTotal: time_logs failed', { error })
@@ -532,4 +574,20 @@ async function enrichWithEmployees(
     ...r,
     employee: empMap.get(r.employee_id) ?? null,
   }))
+}
+
+/**
+ * 00192: kostkolonnerne (cost_amount, cost_rate_snapshot) kan ikke læses af bruger-klienten. Kun roller der må se kost
+ * pr. række (economy.cost_prices + employees.payroll.view — se stripTimeLogPrices) får dem flettet ind via admin-klienten.
+ */
+async function withCostColumns(rows: TimeLogRow[], hasPermission: (p: Permission) => boolean): Promise<TimeLogRow[]> {
+  const blank = rows.map((r) => ({ ...r, cost_amount: null, cost_rate_snapshot: null }) as TimeLogRow)
+  if (!rows.length || !hasPermission('economy.cost_prices') || !hasPermission('employees.payroll.view')) return blank
+  const costById = new Map<string, { cost_amount: unknown; cost_rate_snapshot: unknown }>()
+  const ids = rows.map((r) => r.id)
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await createAdminClient().from('time_logs').select('id, cost_amount, cost_rate_snapshot').in('id', ids.slice(i, i + 200))
+    for (const c of (data ?? []) as Array<{ id: string; cost_amount: unknown; cost_rate_snapshot: unknown }>) costById.set(c.id, c)
+  }
+  return rows.map((r) => ({ ...r, ...(costById.get(r.id) ?? { cost_amount: null, cost_rate_snapshot: null }) }) as TimeLogRow)
 }

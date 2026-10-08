@@ -35,7 +35,8 @@ export type EmployeeEconomyViewRow = Omit<EmployeeEconomyRow, 'labor_cost' | 'db
 }
 export interface EmployeeEconomyView extends Omit<EmployeeEconomyResult, 'employees'> {
   employees: EmployeeEconomyViewRow[]
-  totals: { hours: number; labor_sale: number; labor_cost: number; db_amount: number; db_percentage: number }
+  /** labor_cost/db_* er null uden employees.payroll.view, når totalen ville afsløre én medarbejders løn (se nedenfor) */
+  totals: { hours: number; labor_sale: number; labor_cost: number | null; db_amount: number | null; db_percentage: number | null }
   /** true = kost/DB pr. medarbejder (employees.payroll.view) */
   per_employee_cost: boolean
 }
@@ -77,8 +78,14 @@ export async function getEmployeeEconomyAction(
     const hours = r2(data.employees.reduce((s, e) => s + e.hours, 0))
     const sale = r2(data.employees.reduce((s, e) => s + e.labor_sale, 0))
     const cost = r2(data.employees.reduce((s, e) => s + e.labor_cost, 0))
-    const totals = { hours, labor_sale: sale, labor_cost: cost, db_amount: r2(sale - cost), db_percentage: sale > 0 ? r2(((sale - cost) / sale) * 100) : 0 }
     const perEmployeeCost = ctx.hasPermission('employees.payroll.view')
+    // Kode-review (privatliv): uden løn-adgang må totalen ikke være ÉN medarbejders kost — filter på én medarbejder
+    // (employeeId) eller en periode hvor kun én har kost gav præcis den løn, D50b skulle skjule. Mindst 2 påkrævet.
+    const withCost = data.employees.filter((e) => e.labor_cost > 0).length
+    const hideTotalCost = !perEmployeeCost && (!!employeeId || withCost < 2)
+    const totals = hideTotalCost
+      ? { hours, labor_sale: sale, labor_cost: null, db_amount: null, db_percentage: null }
+      : { hours, labor_sale: sale, labor_cost: cost, db_amount: r2(sale - cost), db_percentage: sale > 0 ? r2(((sale - cost) / sale) * 100) : 0 }
     const employees: EmployeeEconomyViewRow[] = perEmployeeCost
       ? data.employees
       : data.employees.map((e) => ({ ...e, labor_cost: null, db_amount: null, db_percentage: null }))

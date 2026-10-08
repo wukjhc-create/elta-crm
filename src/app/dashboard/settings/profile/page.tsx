@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getProfile } from '@/lib/actions/settings'
 import { ProfileSettingsClient } from './profile-settings-client'
+import { getTelegramLinkStatus } from '@/lib/actions/assistant'
+import { TelegramLinkCard } from './telegram-link-card'
 
 export const metadata: Metadata = {
   title: 'Profil',
@@ -12,7 +14,10 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function ProfileSettingsPage() {
-  const result = await getProfile()
+  const [result, telegram] = await Promise.all([
+    getProfile(),
+    getTelegramLinkStatus().catch(() => ({ allowed: false, linked: false, linkedAt: null })),
+  ])
 
   if (!result.success || !result.data) {
     return (
@@ -53,6 +58,8 @@ export default async function ProfileSettingsPage() {
       </div>
 
       <ProfileSettingsClient profile={result.data} />
+
+      <TelegramLinkCard status={telegram} />
     </div>
   )
 }

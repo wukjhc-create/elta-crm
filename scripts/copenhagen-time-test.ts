@@ -1,5 +1,5 @@
 /** Unit: dansk lokaltid <-> UTC (sommertid). Kør: npx tsx scripts/copenhagen-time-test.ts */
-import { copenhagenLocalToIso, copenhagenParts, calendarDaysSince } from '../src/lib/utils/copenhagen-time'
+import { copenhagenLocalToIso, copenhagenParts, calendarDaysSince, copenhagenDatePlusDays } from '../src/lib/utils/copenhagen-time'
 
 let fail = 0
 const eq = (name: string, got: unknown, want: unknown) => {
@@ -25,5 +25,8 @@ eq('forfald: vintertid 1/11 kl. 00:30 dansk (23:30Z) = 1', calendarDaysSince('20
 eq('forfald over sommertids-skifte (25/10): 20/10 → 30/10 = 10', calendarDaysSince('2026-10-20', new Date('2026-10-30T12:00:00Z')), 10)
 eq('ISO-tidsstempel som fra-dato', calendarDaysSince('2026-10-10T00:00:00+00:00', new Date('2026-10-12T12:00:00Z')), 2)
 eq('fremtidig dato = negativ', calendarDaysSince('2026-10-20', new Date('2026-10-14T12:00:00Z')), -6)
+eq('betalingsfrist: 5/10 kl. 01:30 dansk (4/10 23:30Z) + 14 = 19/10', copenhagenDatePlusDays(14, new Date('2026-10-04T23:30:00Z')), '2026-10-19')
+eq('betalingsfrist over sommertid-ophør: 20/10 23:30 dansk + 14 = 3/11', copenhagenDatePlusDays(14, new Date('2026-10-20T21:30:00Z')), '2026-11-03')
+eq('betalingsfrist over månedsskifte: 31/1 + 30 = 2/3', copenhagenDatePlusDays(30, new Date('2026-01-31T12:00:00Z')), '2026-03-02')
 console.log(fail ? `\n❌ ${fail} fejl` : '\n✅ alle copenhagen-time tests PASS')
 process.exitCode = fail ? 1 : 0

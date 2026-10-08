@@ -9,6 +9,7 @@
  * genereret normaliseret kolonne + indeks er vejen, hvis tabellerne vokser (kraever migration/gate).
  */
 import { toRelatelNumber } from '@/lib/integrations/relatel/phone'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface CallerMatch {
   kind: 'customer' | 'contact' | 'lead'
@@ -24,7 +25,8 @@ export interface CallerLookup {
   openOffers: Array<{ id: string; offer_number: string | null; title: string; status: string; customer_id: string }>
 }
 
-const SCAN_LIMIT = 5000
+/** Øvre grænse pr. tabel (side for side) */
+const SCAN_LIMIT = 50_000
 
 export async function lookupCaller(client: any, rawNumber: string | null | undefined): Promise<CallerLookup> {
   const number = toRelatelNumber(rawNumber)
@@ -32,11 +34,14 @@ export async function lookupCaller(client: any, rawNumber: string | null | undef
   if (!number) return empty
   const hit = (...phones: Array<string | null | undefined>) => phones.some((p) => toRelatelNumber(p) === number)
 
-  const [cust, contacts, leads] = await Promise.all([
-    client.from('customers').select('id, customer_number, company_name, phone, mobile').or('phone.not.is.null,mobile.not.is.null').limit(SCAN_LIMIT),
-    client.from('customer_contacts').select('id, customer_id, name, phone, mobile').or('phone.not.is.null,mobile.not.is.null').limit(SCAN_LIMIT),
-    client.from('leads').select('id, company_name, contact_person, phone').not('phone', 'is', null).limit(SCAN_LIMIT),
+  // Leads-review 2026-10-08 (#12): .limit(5000) gav højst 1.000 rækker (PostgREST max_rows) → opkald fra kunde nr.
+  // 1.001+ blev ikke genkendt. Side for side med fast rækkefølge.
+  const [custRows, contactRows, leadRows] = await Promise.all([
+    fetchAllRows((f, t) => client.from('customers').select('id, customer_number, company_name, phone, mobile').or('phone.not.is.null,mobile.not.is.null').order('id').range(f, t), SCAN_LIMIT),
+    fetchAllRows((f, t) => client.from('customer_contacts').select('id, customer_id, name, phone, mobile').or('phone.not.is.null,mobile.not.is.null').order('id').range(f, t), SCAN_LIMIT),
+    fetchAllRows((f, t) => client.from('leads').select('id, company_name, contact_person, phone').not('phone', 'is', null).order('id').range(f, t), SCAN_LIMIT),
   ])
+  const cust = { data: custRows }, contacts = { data: contactRows }, leads = { data: leadRows }
   const matches: CallerMatch[] = []
   for (const c of (cust.data ?? []) as Array<{ id: string; customer_number: string | null; company_name: string; phone: string | null; mobile: string | null }>) {
     if (hit(c.phone, c.mobile)) matches.push({ kind: 'customer', id: c.id, customer_id: c.id, label: c.company_name, detail: c.customer_number })

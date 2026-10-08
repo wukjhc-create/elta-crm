@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { generateCsv, downloadCsv, csvDate, csvDateTime, csvCurrency, csvBoolean } from '@/lib/utils/csv-export'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 import type {
   ExportCustomer,
   ExportLead,
@@ -123,7 +124,7 @@ export function ExportButton({ type, filters, className }: ExportButtonProps) {
   async function handleExport() {
     setLoading(true)
     try {
-      const timestamp = new Date().toISOString().slice(0, 10)
+      const timestamp = copenhagenParts(new Date()).date
       const filename = `${config.filename}_${timestamp}.csv`
 
       let csv: string | null = null

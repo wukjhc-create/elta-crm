@@ -11,9 +11,16 @@
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { shouldRemindBesigtigelse, type BesigtigelseTaskLike } from '@/lib/tasks/besigtigelse-task'
 import { logger } from '@/lib/utils/logger'
 import { BRAND_COMPANY_NAME, BRAND_EMAIL, BRAND_WEBSITE, BRAND_GREEN } from '@/lib/brand'
 import { withCronRun } from '@/lib/services/cron-run'
+import { isOfferExpired } from '@/lib/offers/validity'
+import { markReminderSent, reminderAlreadySent } from '@/lib/tasks/reminder-marker'
+import { escapeHtml } from '@/lib/utils/html-escape'
+
+/** Mail-review 2026-10-07: højst så mange rykkere pr. kørsel (tidsgrænse 60 s; hver Graph-afsendelse kan tage op til ~8 s) */
+const MAX_REMINDERS_PER_RUN = 5
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -74,23 +81,35 @@ async function handleCron(request: Request): Promise<Response> {
         .select(`
           id, offer_number, title, final_amount, currency, valid_until,
           sent_at, last_reminder_sent, reminder_count, created_by, customer_id,
-          customer:customers!offers_customer_id_fkey(company_name, contact_person, email)
+          customer:customers!offers_customer_id_fkey(company_name, contact_person, email, is_active)
         `)
         .in('status', ['sent', 'viewed'])
+        // salgs-review: forslag (is_proposal) er ikke rigtige tilbud — ingen rykkere
+        .eq('is_proposal', false)
+        // mail-review 2026-10-07: tilbud der allerede er blevet til en sag (accepteret pr. telefon) rykkes ikke
+        .is('converted_case_id', null)
         .lt('reminder_count', maxCount)
         .or(`last_reminder_sent.is.null,last_reminder_sent.lt.${cutoffDate.toISOString()}`)
         .not('sent_at', 'is', null)
         .lt('sent_at', cutoffDate.toISOString())
+        // mail-review 2026-10-07 (R-MAIL-B #7): kun tilbud sendt inden for 60 dage — ellers ville første aktivering
+        // rykke ALLE historiske åbne tilbud (uden gyldighedsdato) på én gang
+        .gte('sent_at', new Date(Date.now() - 60 * 86_400_000).toISOString())
 
       if (pendingOffers && pendingOffers.length > 0) {
         const { generateReminderEmailHtml, generateReminderEmailText } = await import('@/lib/email/templates/reminder-email')
 
         for (const offer of pendingOffers) {
+          if (totalSent >= MAX_REMINDERS_PER_RUN) break
           try {
             const customerRaw = offer.customer as unknown
-            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
-            if (!customer?.email) continue
-            if (offer.valid_until && new Date(offer.valid_until) < new Date()) continue
+            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string; is_active?: boolean | null } | null
+            // Mail-review 2026-10-08 (#9): deaktiverede kunder rykkes ikke (som fuldmagt/besigtigelse)
+            if (customer?.is_active === false) continue
+            // R-MAIL-B #9: intet forhåndstjek på tilbudskundens egen e-mail — mail-routeren vælger modtageren (fx betalers
+            // faktureringskontakt); før blev rykkeren sprunget over, når netop tilbudskunden manglede e-mail
+            // samme regel som portalen (dansk dato; sidste gyldige dag tæller med — før sprunget over)
+            if (isOfferExpired(offer.valid_until as string | null)) continue
 
             let senderName = BRAND_COMPANY_NAME
             if (offer.created_by) {
@@ -110,19 +129,6 @@ async function handleCron(request: Request): Promise<Response> {
               ? new Date(offer.valid_until).toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
               : null
 
-            const subject = settings?.reminder_email_subject || 'Påmindelse: Dit tilbud fra Elta Solar'
-            const emailParams = {
-              customerName: customer.contact_person || 'Kunde',
-              companyName: customer.company_name || '',
-              offerNumber: offer.offer_number,
-              offerTitle: offer.title,
-              finalAmount,
-              validUntil: validUntilFormatted,
-              portalUrl,
-              senderName,
-              reminderCount,
-            }
-
             // Sprint 8H Phase 2: route gennem central mail-router.
             // resolveOfferReminderRoute prefererer billing_contact;
             // forhindrer at rykker sendes til site_contact.
@@ -138,6 +144,28 @@ async function handleCron(request: Request): Promise<Response> {
             }
             const route = routeResult.route
 
+            const subject = settings?.reminder_email_subject || 'Påmindelse: Dit tilbud fra Elta Solar'
+            const emailParams = {
+              // R-MAIL-B #9: hilsen til den faktiske modtager (routerens valg), ikke altid tilbudskundens kontakt
+              customerName: route.toName || customer?.contact_person || 'Kunde',
+              companyName: customer?.company_name || '',
+              offerNumber: offer.offer_number,
+              offerTitle: offer.title,
+              finalAmount,
+              validUntil: validUntilFormatted,
+              portalUrl,
+              senderName,
+              reminderCount,
+            }
+
+            // R-MAIL-B #2: KRAV før afsendelse (betinget på uændret reminder_count) — før blev markøren skrevet efter
+            // afsendelsen, så en kørsel der ramte tidsgrænsen sendte samme rykker igen næste dag
+            const prevCount = offer.reminder_count || 0
+            const prevSent = (offer.last_reminder_sent as string | null) ?? null
+            const { data: oClaim } = await supabase.from('offers')
+              .update({ last_reminder_sent: new Date().toISOString(), reminder_count: reminderCount })
+              .eq('id', offer.id).eq('reminder_count', prevCount).select('id').maybeSingle()
+            if (!oClaim) continue
             const result = await sendEmailViaGraph({
               to: route.toEmail,
               subject: `${subject} (${offer.offer_number})`,
@@ -166,10 +194,6 @@ async function handleCron(request: Request): Promise<Response> {
             }
 
             if (result.success) {
-              await supabase.from('offers').update({
-                last_reminder_sent: new Date().toISOString(),
-                reminder_count: reminderCount,
-              }).eq('id', offer.id)
               totalSent++
               await logMailRoute(route, 'sent', {
                 offer_id: offer.id,
@@ -178,6 +202,11 @@ async function handleCron(request: Request): Promise<Response> {
                 ...(shadowMeta || {}),
               })
             } else {
+              // frigiv kravet (kun hvis ingen andre har ændret det imens; ikke ved ukendt udfald — R-MAIL-B #6)
+              if (!result.uncertain) {
+                await supabase.from('offers').update({ last_reminder_sent: prevSent, reminder_count: prevCount })
+                  .eq('id', offer.id).eq('reminder_count', reminderCount)
+              }
               await logMailRoute(route, 'failed', {
                 offer_id: offer.id,
                 error: result.error,
@@ -197,7 +226,7 @@ async function handleCron(request: Request): Promise<Response> {
     try {
       const { data: pendingFuldmagter } = await supabase
         .from('customer_documents')
-        .select('id, customer_id, title, description, created_at, customer:customers(company_name, contact_person, email)')
+        .select('id, customer_id, title, description, created_at, customer:customers(company_name, contact_person, email, is_active)')
         .eq('document_type', 'contract')
         .lt('created_at', cutoffDate.toISOString())
 
@@ -210,13 +239,15 @@ async function handleCron(request: Request): Promise<Response> {
             if (desc.reminder_sent) continue
 
             const customerRaw = doc.customer as unknown
-            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
-            if (!customer?.email) continue
+            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string; is_active?: boolean | null } | null
+            // mail-review 2026-10-07: deaktiverede kunder rykkes ikke
+            if (!customer?.email || customer.is_active === false) continue
+            if (totalSent >= MAX_REMINDERS_PER_RUN) break
 
             const html = buildFollowUpEmail(
               customer.contact_person || customer.company_name,
               'fuldmagt',
-              `Vi mangler stadig din underskrift på fuldmagten (ordrenr. ${desc.order_number || ''}).`,
+              `Vi mangler stadig din underskrift på fuldmagten (ordrenr. ${escapeHtml(String(desc.order_number || ''))}).`,
               'Log ind på din kundeportal for at underskrive digitalt — det tager under 1 minut.'
             )
 
@@ -230,6 +261,13 @@ async function handleCron(request: Request): Promise<Response> {
               continue
             }
             const route = routeResult.route
+            // mail-review 2026-10-07: KRAV før afsendelse (markøren skrives betinget på uændret beskrivelse) — før blev
+            // markøren skrevet EFTER afsendelsen, så en kørsel der ramte tidsgrænsen sendte samme rykker igen næste dag
+            const originalDescription = doc.description as string
+            const claimedDesc = JSON.stringify({ ...desc, reminder_sent: new Date().toISOString() })
+            const { data: fClaim } = await supabase.from('customer_documents').update({ description: claimedDesc })
+              .eq('id', doc.id).eq('description', originalDescription).select('id').maybeSingle()
+            if (!fClaim) continue
             const result = await sendEmailViaGraph({
               to: route.toEmail,
               subject: `Påmindelse: Fuldmagt afventer din underskrift — ${BRAND_COMPANY_NAME}`,
@@ -242,12 +280,10 @@ async function handleCron(request: Request): Promise<Response> {
             )
 
             if (result.success) {
-              // Mark as reminded so we don't spam
-              desc.reminder_sent = new Date().toISOString()
-              await supabase.from('customer_documents').update({
-                description: JSON.stringify(desc),
-              }).eq('id', doc.id)
               totalSent++
+            } else if (!result.uncertain) {
+              // frigiv kravet (kun hvis ingen andre har ændret beskrivelsen imens; ikke ved ukendt udfald)
+              await supabase.from('customer_documents').update({ description: originalDescription }).eq('id', doc.id).eq('description', claimedDesc)
             }
           } catch (err) {
             errors.push(`Fuldmagt ${doc.id}: ${err instanceof Error ? err.message : 'Fejl'}`)
@@ -262,21 +298,25 @@ async function handleCron(request: Request): Promise<Response> {
     try {
       const { data: pendingTasks } = await supabase
         .from('customer_tasks')
-        .select('id, customer_id, title, description, created_at, customer:customers(company_name, contact_person, email)')
+        .select('id, customer_id, title, description, created_at, due_date, status, auto_rule, customer:customers(company_name, contact_person, email, is_active)')
         .ilike('title', '%esigtigelse%')
         .eq('status', 'pending')
         .lt('created_at', cutoffDate.toISOString())
 
-      if (pendingTasks && pendingTasks.length > 0) {
-        for (const task of pendingTasks) {
+      // X4 (kommunikations-review 2026-10-07): KUN bookede, kundevendte besigtigelser med en fremtidig tid. Før fik
+      // kunden en rykker om den INTERNE opstartsopgave "Planlæg besigtigelse eller montage" (oprettes ved hver
+      // tilbud→sag) og om sin egen portal-anmodning, samt om besigtigelser hvis tid var passeret.
+      const remindable = (pendingTasks ?? []).filter((t) => shouldRemindBesigtigelse(t as BesigtigelseTaskLike))
+      if (remindable.length > 0) {
+        for (const task of remindable) {
           try {
             const customerRaw = task.customer as unknown
-            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string } | null
-            if (!customer?.email) continue
+            const customer = (Array.isArray(customerRaw) ? customerRaw[0] : customerRaw) as { company_name: string; contact_person: string; email: string; is_active?: boolean | null } | null
+            if (!customer?.email || customer.is_active === false) continue
+            if (totalSent >= MAX_REMINDERS_PER_RUN) break
 
-            // Check if we already sent a reminder (use description field)
-            const descData = (() => { try { return JSON.parse(task.description || '{}') } catch { return {} } })()
-            if (descData.reminder_sent) continue
+            // Allerede sendt? Markeres i beskrivelsen — teksten bevares (lib/tasks/reminder-marker.ts)
+            if (reminderAlreadySent(task.description)) continue
 
             const html = buildFollowUpEmail(
               customer.contact_person || customer.company_name,
@@ -295,6 +335,13 @@ async function handleCron(request: Request): Promise<Response> {
               continue
             }
             const route = routeResult.route
+            // KRAV før afsendelse (samme mønster som fuldmagt ovenfor)
+            const originalTaskDesc = (task.description ?? null) as string | null
+            const claimedTaskDesc = markReminderSent(task.description)
+            let tq = supabase.from('customer_tasks').update({ description: claimedTaskDesc }).eq('id', task.id)
+            tq = originalTaskDesc === null ? tq.is('description', null) : tq.eq('description', originalTaskDesc)
+            const { data: tClaim } = await tq.select('id').maybeSingle()
+            if (!tClaim) continue
             const result = await sendEmailViaGraph({
               to: route.toEmail,
               subject: `Påmindelse: Bekræft din besigtigelse — ${BRAND_COMPANY_NAME}`,
@@ -307,11 +354,9 @@ async function handleCron(request: Request): Promise<Response> {
             )
 
             if (result.success) {
-              descData.reminder_sent = new Date().toISOString()
-              await supabase.from('customer_tasks').update({
-                description: JSON.stringify(descData),
-              }).eq('id', task.id)
               totalSent++
+            } else if (!result.uncertain) {
+              await supabase.from('customer_tasks').update({ description: originalTaskDesc }).eq('id', task.id).eq('description', claimedTaskDesc)
             }
           } catch (err) {
             errors.push(`Besigtigelse ${task.id}: ${err instanceof Error ? err.message : 'Fejl'}`)
@@ -352,7 +397,7 @@ function buildFollowUpEmail(
         <h1 style="color: white; margin: 0; font-size: 20px;">Venlig påmindelse — ${typeLabel}</h1>
       </div>
       <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-        <p style="font-size: 16px; color: #111827;">Kære ${customerName},</p>
+        <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(customerName)},</p>
         <p style="color: #374151;">${mainMessage}</p>
         <p style="color: #374151;">${ctaMessage}</p>
         <p style="color: #374151; margin-top: 24px;">

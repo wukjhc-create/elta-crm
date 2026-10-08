@@ -21,6 +21,8 @@ export type EmailThreadStatus = (typeof EMAIL_THREAD_STATUSES)[number]
 export const EMAIL_MESSAGE_STATUSES = [
   'draft',
   'queued',
+  'sending',
+  'uncertain',
   'sent',
   'delivered',
   'opened',
@@ -333,6 +335,8 @@ export const THREAD_STATUS_LABELS: Record<EmailThreadStatus, string> = {
 export const MESSAGE_STATUS_LABELS: Record<EmailMessageStatus, string> = {
   draft: 'Kladde',
   queued: 'I kø',
+  sending: 'Sendes',
+  uncertain: 'Ukendt udfald',
   sent: 'Sendt',
   delivered: 'Leveret',
   opened: 'Åbnet',
@@ -352,6 +356,8 @@ export const THREAD_STATUS_COLORS: Record<EmailThreadStatus, string> = {
 export const MESSAGE_STATUS_COLORS: Record<EmailMessageStatus, string> = {
   draft: 'bg-gray-100 text-gray-700',
   queued: 'bg-yellow-100 text-yellow-700',
+  sending: 'bg-yellow-100 text-yellow-700',
+  uncertain: 'bg-amber-100 text-amber-800',
   sent: 'bg-blue-100 text-blue-700',
   delivered: 'bg-cyan-100 text-cyan-700',
   opened: 'bg-green-100 text-green-700',

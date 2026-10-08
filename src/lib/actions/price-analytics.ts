@@ -3,6 +3,7 @@
 import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * D49 (privacy/RBAC): prisovervågning viser leverandørernes kost-/indkøbspriser — før kun login-tjek, så alle roller
@@ -14,6 +15,8 @@ async function requireCostAccess() {
   return ctx
 }
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 
 // =====================================================
 // Types
@@ -191,54 +194,64 @@ export async function getAffectedOffers(
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysBack)
 
-    // Get recent price changes
-    let priceChangesQuery = supabase
-      .from('price_history')
-      .select('supplier_product_id, old_cost_price, new_cost_price')
-      .gte('created_at', cutoffDate.toISOString())
-
-    if (supplierProductId) {
-      validateUUID(supplierProductId, 'produkt ID')
-      priceChangesQuery = priceChangesQuery.eq('supplier_product_id', supplierProductId)
-    }
-
-    const { data: priceChanges } = await priceChangesQuery
-
-    if (!priceChanges || priceChanges.length === 0) {
-      return { success: true, data: [] }
-    }
-
-    const changedProductIds = [...new Set(priceChanges.map((pc) => pc.supplier_product_id))]
-
-    // Get affected offers
-    const { data: lineItems, error: liError } = await supabase
-      .from('offer_line_items')
-      .select(`
-        id,
-        offer_id,
-        quantity,
-        unit_price,
-        supplier_product_id,
-        supplier_cost_price_at_creation,
-        offers!inner (
-          id,
-          offer_number,
-          title,
-          status,
-          total_amount,
-          created_at,
-          customers (
-            company_name
-          )
-        )
-      `)
-      .in('supplier_product_id', changedProductIds)
-      .in('offers.status', ['draft', 'sent', 'pending'])
-
-    if (liError) {
+    // X4n (pris-review 2026-10-07): vendt om. Før: ALLE produkter med prisændring (efter en LM-synk tusindvis) i én
+    // .in() → URL-grænsen (~350) sprængt → DATABASE_ERROR/tom liste; og price_history afkortet ved 1.000 rækker.
+    // Nu: de aktive tilbuds linjer med leverandørprodukt (afgrænset mængde) → kun deres prishistorik, i bidder.
+    if (supplierProductId) validateUUID(supplierProductId, 'produkt ID')
+    const admin = createAdminClient()
+    let allLines: Array<Record<string, any>>
+    try {
+      // 00192: kostkolonner — admin-klient bag economy.cost_prices
+      allLines = await fetchAllRows<Record<string, any>>((from, to) => {
+        let q = admin
+          .from('offer_line_items')
+          .select(`
+            id,
+            offer_id,
+            quantity,
+            unit_price,
+            supplier_product_id,
+            supplier_cost_price_at_creation,
+            offers!inner (
+              id,
+              offer_number,
+              title,
+              status,
+              total_amount,
+              created_at,
+              customers (
+                company_name
+              )
+            )
+          `)
+          // aktive tilbud = draft/sent/viewed ('pending' findes ikke i offer_status → forespørgslen fejlede ALTID før X4n)
+          .in('offers.status', ['draft', 'sent', 'viewed'])
+          .not('supplier_product_id', 'is', null)
+        if (supplierProductId) q = q.eq('supplier_product_id', supplierProductId)
+        return q.order('id').range(from, to)
+      })
+    } catch (liError) {
       logger.error('Database error fetching affected offers', { error: liError })
       throw new Error('DATABASE_ERROR')
     }
+    const productIds = [...new Set(allLines.map((l) => l.supplier_product_id as string))]
+    const priceChanges: Array<{ supplier_product_id: string; old_cost_price: number | null; new_cost_price: number }> = []
+    for (let k = 0; k < productIds.length; k += IN_CHUNK_SIZE) {
+      const chunk = productIds.slice(k, k + IN_CHUNK_SIZE)
+      priceChanges.push(...await fetchAllRows<{ id: string; supplier_product_id: string; old_cost_price: number | null; new_cost_price: number }>((from, to) => supabase
+        .from('price_history')
+        .select('id, supplier_product_id, old_cost_price, new_cost_price')
+        .in('supplier_product_id', chunk)
+        .gte('created_at', cutoffDate.toISOString())
+        .order('id')
+        .range(from, to)))
+    }
+
+    if (priceChanges.length === 0) {
+      return { success: true, data: [] }
+    }
+    const changedProducts = new Set(priceChanges.map((pc) => pc.supplier_product_id))
+    const lineItems = allLines.filter((l) => changedProducts.has(l.supplier_product_id as string))
 
     // Build price change map
     const priceChangeMap = new Map<string, { old: number; new: number }>()
@@ -343,7 +356,8 @@ export async function getPriceTrends(
     date90DaysAgo.setDate(date90DaysAgo.getDate() - 90)
 
     // Get products with price history
-    const { data: products, error: prodError } = await supabase
+    // 00192: kostkolonner — admin-klient bag economy.cost_prices
+    const { data: products, error: prodError } = await createAdminClient()
       .from('supplier_products')
       .select(`
         id,
@@ -482,16 +496,22 @@ export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPric
             .select('id', { count: 'exact', head: true })
             .eq('supplier_id', supplier.id)
             .or(`last_synced_at.is.null,last_synced_at.lt.${staleThreshold.toISOString()}`),
-          supabase
+          // X4e (pris-review 2026-10-07): side for side — før højst 1.000 rækker, så gennemsnit og antal for en
+          // stor leverandør (LM) blev beregnet på et tilfældigt udsnit
+          fetchAllRows<{ id: string; supplier_product_id: string; change_percentage: number }>((from, to) => supabase
             .from('price_history')
             .select(`
+              id,
+              supplier_product_id,
               change_percentage,
               supplier_products!inner (
                 supplier_id
               )
             `)
             .eq('supplier_products.supplier_id', supplier.id)
-            .gte('created_at', date30DaysAgo.toISOString()),
+            .gte('created_at', date30DaysAgo.toISOString())
+            .order('id')
+            .range(from, to)).then((data) => ({ data })),
           supabase
             .from('supplier_sync_logs')
             .select('started_at')
@@ -517,7 +537,8 @@ export async function getSupplierPriceStats(): Promise<ActionResult<SupplierPric
           supplier_id: supplier.id,
           supplier_name: supplier.name,
           total_products: totalProducts || 0,
-          products_with_price_changes: priceChanges?.length || 0,
+          // antal PRODUKTER med prisændring (før antal historikrækker — et produkt ændret to gange talte dobbelt)
+          products_with_price_changes: new Set((priceChanges || []).map((pc) => pc.supplier_product_id)).size,
           average_price_increase: Math.round(avgIncrease * 100) / 100,
           average_price_decrease: Math.round(avgDecrease * 100) / 100,
           last_sync_at: lastSync?.started_at || null,
@@ -553,13 +574,15 @@ export async function getPriceAlertSummary(): Promise<ActionResult<{
     date7DaysAgo.setDate(date7DaysAgo.getDate() - 7)
 
     // Get price changes in last 7 days
-    const { data: priceChanges, count: totalAlerts } = await supabase
+    // X4e: side for side (før højst 1.000 rækker → stigninger/fald/kritiske var for lave ved store prisfiler)
+    const changes = await fetchAllRows<{ id: string; change_percentage: number }>((from, to) => supabase
       .from('price_history')
-      .select('change_percentage', { count: 'exact' })
+      .select('id, change_percentage')
       .gte('created_at', date7DaysAgo.toISOString())
       .or('change_percentage.gte.5,change_percentage.lte.-5')
-
-    const changes = priceChanges || []
+      .order('id')
+      .range(from, to))
+    const totalAlerts = changes.length
     const priceIncreases = changes.filter((pc) => pc.change_percentage > 0).length
     const priceDecreases = changes.filter((pc) => pc.change_percentage < 0).length
     const criticalAlerts = changes.filter((pc) => Math.abs(pc.change_percentage) > 10).length

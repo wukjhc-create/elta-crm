@@ -13,6 +13,7 @@
  *   - customer_tasks, service_cases og offers direkte via supabase
  */
 
+import { leadSourceEmailIds } from '@/lib/leads/source-email'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import {
   getRequiresResponseEmailIds,
@@ -92,12 +93,12 @@ export interface DashboardOverview {
     saleTotal: number
     cases: Array<{ id: string; case_number: string | null; title: string; customer_name: string | null; lines: number; sale: number }>
   }
-  /** N67: webhenvendelser (hjemmesidens formular, 90 d) uden kunde og uden lead — kun leads.create. */
+  /** N67: webhenvendelser (hjemmesidens formular, 90 d) uden kunde og uden lead — kun inbox.view + leads.create. */
   webInquiries: {
     allowed: boolean
     count: number
     /** contact: navn · by fra formularen (N82 — alle emner er ens "Ny henvendelse fra eltasolar.dk") */
-    items: Array<{ id: string; subject: string | null; contact: string | null; received_at: string; ageDays: number; unread: boolean }>
+    items: Array<{ id: string; subject: string | null; contact: string | null; existingCustomer: { id: string; name: string } | null; received_at: string; ageDays: number; unread: boolean }>
   }
   /** N83: åbne leads (ikke vundet/tabt) uden ændring i > 7 dage — kun leads.edit */
   staleLeads: {
@@ -189,9 +190,10 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const ids = await getRequiresResponseEmailIds()
         type Row = { id: string; conversation_id: string | null; subject: string | null; sender_name: string | null; sender_email: string | null; received_at: string }
         const rows: Row[] = []
-        for (let i = 0; i < ids.length; i += 500) {
+        // bid 200 (500 UUID'er sprænger URL-grænsen ~350 → tælleren blev stille for lav, se lib/supabase/in-chunks.ts)
+        for (let i = 0; i < ids.length; i += 200) {
           const { data } = await supabase.from('incoming_emails')
-            .select('id, conversation_id, subject, sender_name, sender_email, received_at').in('id', ids.slice(i, i + 500))
+            .select('id, conversation_id, subject, sender_name, sender_email, received_at').in('id', ids.slice(i, i + 200))
           rows.push(...((data ?? []) as Row[]))
         }
         const latestPerThread = new Map<string, Row>()
@@ -379,12 +381,15 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       try {
         const ctx = roleCtx
         if (!ctx.hasPermission('invoices.create')) return
-        const [tl, mat, oth] = await Promise.all([
-          supabase.from('time_logs').select('sale_amount, work_order:work_orders!inner(case_id)')
-            .eq('billable', true).is('invoice_line_id', null).not('end_time', 'is', null).limit(2000),
-          supabase.from('case_materials').select('case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).limit(2000),
-          supabase.from('case_other_costs').select('case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).limit(2000),
+        // pagineret (PostgREST afkortede .limit(2000) til 1000 → for lav salgsværdi/antal sager ved mange linjer)
+        const { fetchAllRows } = await import('@/lib/supabase/fetch-all')
+        const [tlRows, matRows, othRows] = await Promise.all([
+          fetchAllRows((f, t) => supabase.from('time_logs').select('id, sale_amount, work_order:work_orders!inner(case_id)')
+            .eq('billable', true).is('invoice_line_id', null).not('end_time', 'is', null).neq('approval_status', 'rejected').order('id').range(f, t)),
+          fetchAllRows((f, t) => supabase.from('case_materials').select('id, case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).order('id').range(f, t)),
+          fetchAllRows((f, t) => supabase.from('case_other_costs').select('id, case_id, total_sales_price').eq('billable', true).is('invoice_line_id', null).order('id').range(f, t)),
         ])
+        const tl = { data: tlRows }, mat = { data: matRows }, oth = { data: othRows }
         const agg = new Map<string, { lines: number; sale: number }>()
         const add = (caseId: string | null | undefined, sale: unknown) => {
           if (!caseId) return
@@ -400,10 +405,17 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         for (const m of (mat.data ?? []) as Array<{ case_id: string; total_sales_price: number | string | null }>) add(m.case_id, m.total_sales_price)
         for (const o of (oth.data ?? []) as Array<{ case_id: string; total_sales_price: number | string | null }>) add(o.case_id, o.total_sales_price)
         if (!agg.size) return
-        const { data: cs } = await supabase.from('service_cases')
-          .select('id, case_number, title, status, customer:customers!service_cases_customer_id_fkey(company_name)')
-          .in('id', Array.from(agg.keys())).neq('status', 'converted')
-        const list = ((cs ?? []) as Array<{ id: string; case_number: string | null; title: string; status: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>)
+        // i bidder af 200 (én .in() med alle sager sprænger URL-længden ved vækst → tomt kort)
+        const aggIds = Array.from(agg.keys())
+        const cs: unknown[] = []
+        for (let k = 0; k < aggIds.length; k += 200) {
+          const { data, error } = await supabase.from('service_cases')
+            .select('id, case_number, title, status, customer:customers!service_cases_customer_id_fkey(company_name)')
+            .in('id', aggIds.slice(k, k + 200)).neq('status', 'converted')
+          if (error) throw new Error(error.message)
+          cs.push(...(data ?? []))
+        }
+        const list = (cs as Array<{ id: string; case_number: string | null; title: string; status: string; customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>)
           .map((c) => {
             const a = agg.get(c.id)!
             const cust = Array.isArray(c.customer) ? c.customer[0] : c.customer
@@ -427,7 +439,8 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     (async () => {
       try {
         const ctx = roleCtx
-        if (!ctx.hasPermission('leads.create')) return
+        // samme gate som "Opret lead"-handlingerne (inbox.view + leads.create) — salg har leads.create men ikke indbakken
+        if (!ctx.hasPermission('leads.create') || !ctx.hasPermission('inbox.view')) return
         overview.webInquiries.allowed = true
         const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
         const { data, error } = await supabase.from('incoming_emails')
@@ -438,25 +451,32 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         if (error) throw new Error(error.message)
         const rows = (data ?? []) as Array<{ id: string; subject: string | null; received_at: string; is_read: boolean }>
         if (!rows.length) return
-        const { data: leads, error: leadErr } = await supabase.from('leads').select('custom_fields').not('custom_fields->>source_email_id', 'is', null).limit(5000)
-        if (leadErr) throw new Error(leadErr.message)
-        const withLead = new Set(((leads ?? []) as Array<{ custom_fields: { source_email_id?: string } | null }>).map((l) => l.custom_fields?.source_email_id).filter(Boolean))
+        const withLead = await leadSourceEmailIds(supabase)
         const open = rows.filter((r) => !withLead.has(r.id))
         // N82: navn · by fra formularen for de viste (kun TOP_N mails hentes med brødtekst)
         const shown = open.slice(0, TOP_N)
         const contactById = new Map<string, string | null>()
+        // N95: prod — 9 af 23 åbne henvendelser er fra personer der allerede er kunder (samme e-mail), men mailen er ukoblet
+        const existingById = new Map<string, { id: string; name: string }>()
         if (shown.length) {
           const { parseCustomerFromEmail } = await import('@/lib/utils/email-parser')
+          const { escapeLike } = await import('@/lib/validations/postgrest-filter')
           const { data: bodies } = await supabase.from('incoming_emails').select('id, body_text, body_html').in('id', shown.map((r) => r.id))
           for (const b of (bodies ?? []) as Array<{ id: string; body_text: string | null; body_html: string | null }>) {
             const p = parseCustomerFromEmail(b.body_text, b.body_html, null)
             contactById.set(b.id, [p.name, p.city || p.postalCode].filter(Boolean).join(' · ') || null)
+            const em = (p.email ?? '').trim().toLowerCase()
+            if (em.includes('@')) {
+              const { data: cust } = await supabase.from('customers').select('id, company_name').eq('is_active', true).ilike('email', escapeLike(em)).limit(1).maybeSingle()
+              if (cust) existingById.set(b.id, { id: (cust as { id: string }).id, name: (cust as { company_name: string }).company_name })
+            }
           }
         }
         overview.webInquiries = {
           allowed: true,
           count: open.length,
-          items: shown.map((r) => ({ id: r.id, subject: r.subject, contact: contactById.get(r.id) ?? null, received_at: r.received_at, ageDays: daysBetween(r.received_at, now), unread: !r.is_read })),
+          items: shown.map((r) => ({ id: r.id, subject: r.subject, contact: contactById.get(r.id) ?? null, existingCustomer: existingById.get(r.id) ?? null,
+            received_at: r.received_at, ageDays: daysBetween(r.received_at, now), unread: !r.is_read })),
         }
       } catch (err) {
         logger.error('getDashboardOverview: webInquiries failed', { error: err })
@@ -521,7 +541,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           items: rows.slice(0, TOP_N).map((r) => ({
             id: r.id, invoice_number: r.invoice_number, customer_name: r.customer_id ? names.get(r.customer_id) ?? null : null,
             amount: Number(r.final_amount ?? 0) || 0, daysOverdue: r.days, reminders: Number(r.reminder_count ?? 0),
-            next: nextReminder(r.days, Number(r.reminder_count ?? 0), r.last_reminder_at ? calendarDaysSince(r.last_reminder_at.slice(0, 10), nowMs) : null),
+            // samme dagsberegning som invoice-reminders-cronen (floor af forløbne døgn), så trinnet matcher cronens valg
+            next: nextReminder(Math.floor((nowMs - Date.parse(r.due_date)) / 86_400_000), Number(r.reminder_count ?? 0),
+              r.last_reminder_at ? Math.floor((nowMs - Date.parse(r.last_reminder_at)) / 86_400_000) : null),
           })),
         }
       } catch (err) {

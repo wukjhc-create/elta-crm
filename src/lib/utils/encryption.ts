@@ -145,6 +145,8 @@ export function generateEncryptionKey(): string {
  * Mask sensitive values for logging (show first/last 2 chars)
  */
 export function maskSensitive(value: string): string {
-  if (!value || value.length < 6) return '****'
-  return value.slice(0, 2) + '****' + value.slice(-2)
+  // leverandør-review: før 2 første + 2 sidste tegn fra 6 tegn — en 6-tegns adgangskode var 2/3 afsløret. Nu kun de 2
+  // sidste og kun for værdier på mindst 10 tegn (nok til at genkende hvilken nøgle der er gemt).
+  if (!value || value.length < 10) return '****'
+  return '****' + value.slice(-2)
 }

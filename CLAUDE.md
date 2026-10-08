@@ -160,7 +160,7 @@ elta-crm/
 - `supplier_sync_schedules` - Cron-baseret synkroniseringsplaner
 - `supplier_product_cache` - Offline fallback prisdata
 - `price_alert_rules` - Konfiguration af prisadvarsler (tærskler, typer)
-- `system_alerts` - Runtime advarsler fra cron og overvågning
+- `system_alerts` - Notifikationsklokkens advarsler (findes i prod fra 2026-10-07, migration 00194; kun admin/serviceleder/bogholderi ser dem; driftsfejl logges fortsat i `system_health_log`)
 
 ### Ved nye tabeller:
 1. Vis mig CREATE TABLE SQL først
@@ -333,3 +333,48 @@ Ved hver opgave:
     - supplier_margin_rules (prisregler med prioritet)
     - supplier_sync_schedules (cron-baseret synkronisering)
     - supplier_product_cache (offline fallback data)
+- 2026-10-04: Fund og konventioner (prod read-only + delivery):
+  - (Opdateret 2026-10-07: `system_alerts` findes nu i prod via 00194.) Driftsfejl logges i `system_health_log`; cron-status via scripts/prod-cron-status-since.ts
+  - Webhenvendelser kommer fra FormSubmit (`submissions@formsubmit.co`, emne "…henvendelse…"). Afsenderen er ALDRIG
+    kunden — kundens data står i formularen (felter name/phone/email/inquiry_type/message/postnr/adresse). Parseren
+    (`src/lib/mail/website-inquiry.ts` + `src/lib/utils/email-parser.ts`) håndterer celler på samme linje
+  - Mail-automatikken (email-intelligence) opretter kunder med tag `auto-email`; uden e-mail får de pladsholderen
+    `auto+<kundenr>@elta-crm.local` (.local afvises ved afsendelse). 92/107 prod-kunder er auto-oprettet
+  - Kun kontakt@ og ordre@ synkes (Graph); svar fra personlige postkasser ses ikke ("kræver svar" er derfor upålidelig)
+  - "I dag"/datoer: brug `copenhagenParts(new Date()).date` — ALDRIG `toISOString().slice(0,10)`; server-komponenter
+    der viser klokkeslæt skal have `timeZone: 'Europe/Copenhagen'`
+  - Harness: `npm run harness:ui-batches -- U1,U2 U3` (batches á 5), `npm run harness:ui-full [-- grupper]` (fuld
+    regression under 30-min-loftet), prod read-only scripts i `scripts/prod-*.ts` (kun SELECT, ingen personværdier ud)
+  - Commit/push KUN når check:rls-matrix, check:rbac og tsc har exit 0 (push til main = prod-deploy)
+- 2026-10-05: Konventioner fra kode-reviews Q10–Q19 (se docs/runbooks/review-decisions-2026-10-04.md):
+  - `service_cases.contract_sum` er EKSKL. moms (rate-/slutfakturaer lægger moms på). Tilbud→sag sætter
+    `final_amount − tax_amount`. "Netto faktureret" pr. sag: `lib/invoices/net-invoiced.ts` (kun sendt/betalt,
+    ikke annulleret, kreditnotaer trækkes fra uanset fortegn)
+  - PostgREST giver højst 1.000 rækker: `.limit(5000)` virker IKKE — brug `fetchAllRows` (`lib/supabase/fetch-all.ts`)
+    med `.order('id').range()` hvor totaler/fuldstændighed afhænger af det
+  - Kost/avance/løn: databasen skjuler IKKE kolonnerne for salg/montør (RLS `USING (true)` på flere tabeller) —
+    hver server-action der returnerer kost skal have en permission-gate; plan for DB-niveau i
+    docs/runbooks/rls-cost-columns.md
+  - Gratis-/privat-maildomæner: ÉN liste i `lib/email/free-mail-domains.ts` (domæne-kobling og leverandørsignal)
+  - Kundetekst i udgående mail-HTML escapes altid (`lib/utils/html-escape.ts`); skabelonerne tager almindelig tekst
+  - Mail-vedhæftninger arkiveret på kunden (`customer_documents.source_email_id`) er INTERNE — aldrig i portalen
+  - Portal: et tilbuds-id er ingen adgangsnøgle (`/view-offer` udleverer aldrig token); kun sendte tilbud vises
+  - Staging kan falde ud i perioder → `npx tsx scripts/test-harness/cli.ts auth-probe --create` før UI-batches
+- 2026-10-07: Prod-migrationer 00198–00202 (se docs/AUTONOMOUS_BACKLOG.md "Prod-kørsel 2026-10-07 aften"):
+  - Kost-lockdown bølge 2 (00200/00201): 17 kost-/rabat-/avancetabeller er KUN læsbare for admin/serviceleder/bogholderi
+    (`user_role()`-politik); `product_catalog.cost_price` har ingen kolonne-SELECT for `authenticated` → brug
+    `PRODUCT_PUBLIC_COLUMNS` (lib/products/product-columns.ts) og læs kost med admin-klienten bag en gate
+  - `customers.created_by` er nullable (ON DELETE SET NULL, 00199); afviste timer (`approval_status = 'rejected'`)
+    tæller aldrig i faktura/kost/avance (00202 + app-filtre)
+  - Tilbud: kun kladder kan redigeres (lib/offers/edit-lock.ts); revisioner (00203) kun på staging bag
+    `OFFER_REVISIONS_ENABLED`
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

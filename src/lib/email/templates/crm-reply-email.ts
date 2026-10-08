@@ -30,6 +30,7 @@ export interface CrmReplyTemplateParams {
 }
 
 import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE, BRAND_ORANGE_DARK, BRAND_EMAIL, BRAND_WEBSITE, BRAND_CVR, BRAND_COMPANY_NAME } from '@/lib/brand'
+import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
 
 export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
   const {
@@ -45,7 +46,13 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
     ctaLabel,
   } = params
 
-  const messageHtml = messageBody.replace(/\n/g, '<br />')
+  // Kommunikations-review 2026-10-04: al tekst er ALMINDELIG TEKST og escapes her — før kom kundens citerede mail og
+  // afsendernavn rå ind i en mail sendt fra Elta-domænet (indsatte links med Elta-udseende; "Navn <a@b.dk>" forsvandt).
+  const text = (v: string | null | undefined) =>
+    escapeHtmlWithLineBreaks(String(v ?? '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').replace(/\r\n?/g, '\n'))
+  const messageHtml = text(messageBody)
+  const quotedSender = escapeHtml(originalSender)
+  const quotedBody = text(originalBody)
 
   // CTA button — simple <a> tag
   const ctaBlock = ctaUrl
@@ -212,12 +219,12 @@ export function generateCrmReplyHtml(params: CrmReplyTemplateParams): string {
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
                   <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #9ca3af; padding-bottom: 12px;">
-                    Den ${originalDate} skrev ${originalSender}:
+                    Den ${escapeHtml(originalDate)} skrev ${quotedSender}:
                   </td>
                 </tr>
                 <tr>
                   <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #6b7280; padding-left: 16px; border-left: 3px solid #d1d5db;">
-                    ${originalBody}
+                    ${quotedBody}
                   </td>
                 </tr>
               </table>

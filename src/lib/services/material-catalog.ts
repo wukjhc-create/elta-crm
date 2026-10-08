@@ -157,11 +157,13 @@ export async function resolveMaterialSupplier(
       let costPrice = Number(data.cost_price ?? 0)
       if (customerId) {
         try {
-          const { data: customerPrice } = await createAdminClient().rpc('get_best_price_for_customer', {
+          // Leverandør-review 2026-10-08 (#7): rigtig funktion (kunde, supplier_product_id) → effective_cost_price
+          const { data: rows } = await createAdminClient().rpc('get_customer_product_price', {
             p_customer_id: customerId,
             p_supplier_product_id: data.id,
           })
-          if (typeof customerPrice === 'number' && customerPrice > 0) costPrice = customerPrice
+          const customerPrice = Number((rows as Array<{ effective_cost_price: number | string | null }> | null)?.[0]?.effective_cost_price)
+          if (Number.isFinite(customerPrice) && customerPrice > 0) costPrice = customerPrice
         } catch {
           /* fall back silently to raw cost_price */
         }

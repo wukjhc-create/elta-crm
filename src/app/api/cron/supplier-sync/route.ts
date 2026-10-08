@@ -9,18 +9,40 @@
 
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { SupplierAPIClientFactory } from '@/lib/services/supplier-api-client'
 import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp-sync'
 import { decryptCredentials } from '@/lib/utils/encryption'
 import { BATCH_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export const dynamic = 'force-dynamic'
 
 // Vercel cron secret for authentication
 const CRON_SECRET = process.env.CRON_SECRET
+
+/** En 'running'-kørsel ældre end dette regnes som død (funktionen blev dræbt) */
+const SYNC_RUN_STALE_MS = 30 * 60_000
+
+/**
+ * Krav på en sync-kørsel: ingen anden plan for samme leverandør må køre (frisk 'running'), og planens egen status
+ * sættes betinget til 'running'. Returnerer false hvis en anden kørsel er i gang.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function claimSupplierSync(supabase: any, scheduleId: string, supplierId: string): Promise<boolean> {
+  const staleIso = new Date(Date.now() - SYNC_RUN_STALE_MS).toISOString()
+  const { data: busy } = await supabase.from('supplier_sync_schedules').select('id')
+    .eq('supplier_id', supplierId).eq('last_run_status', 'running').gt('last_run_at', staleIso).neq('id', scheduleId).limit(1)
+  if ((busy ?? []).length > 0) return false
+  const { data: claimed } = await supabase.from('supplier_sync_schedules')
+    .update({ last_run_at: new Date().toISOString(), last_run_status: 'running' })
+    .eq('id', scheduleId)
+    .or(`last_run_status.is.null,last_run_status.neq.running,last_run_at.lt.${staleIso}`)
+    .select('id')
+  return (claimed ?? []).length === 1
+}
 
 async function handleCron(request: Request): Promise<Response> {
   try {
@@ -37,7 +59,8 @@ async function handleCron(request: Request): Promise<Response> {
     }
 
     const startTime = Date.now()
-    const supabase = await createClient()
+    // 00192: kostkolonner — cron uden session (kørte som anon og fik 0 rækker) → admin-klient
+    const supabase = createAdminClient()
 
     // Get all active sync schedules that are due
     const { data: schedules, error: scheduleError } = await supabase
@@ -84,11 +107,12 @@ async function handleCron(request: Request): Promise<Response> {
         }
 
         try {
-          // Mark as running
-          await supabase
-            .from('supplier_sync_schedules')
-            .update({ last_run_at: new Date().toISOString(), last_run_status: 'running' })
-            .eq('id', schedule.id)
+          // Leverandør-review 2026-10-08 (#9): krav på kørslen — 'running' blev skrevet men aldrig tjekket, så cron + "Kør nu"
+          // (eller to planer for samme leverandør) behandlede samme varer samtidig (dobbelt prishistorik, sidste skriver vinder)
+          const claimed = await claimSupplierSync(supabase, schedule.id, schedule.supplier_id)
+          if (!claimed) {
+            return { supplierId: schedule.supplier_id, supplierName: supplier.name, syncType: schedule.sync_type, status: 'skipped', error: 'Sync kører allerede for leverandøren', durationMs: 0 }
+          }
 
           // Branch by sync type
           if (schedule.sync_type === 'ftp') {
@@ -108,10 +132,13 @@ async function handleCron(request: Request): Promise<Response> {
           }
 
           // Get products to sync - load all at once to avoid N+1 queries
-          const { data: products } = await supabase
+          // leverandør-review: side for side — før kun de første 1.000 varer (PostgREST max_rows)
+          const products = await fetchAllRows<{ id: string; supplier_sku: string; cost_price: number | null; list_price: number | null }>((from, to) => supabase
             .from('supplier_products')
             .select('id, supplier_sku, cost_price, list_price')
             .eq('supplier_id', schedule.supplier_id)
+            .order('id')
+            .range(from, to), 2_000_000)
 
           const skus = products?.map((p) => p.supplier_sku) || []
           const productsBySkU = new Map((products || []).map((p) => [p.supplier_sku, p]))
@@ -153,6 +180,9 @@ async function handleCron(request: Request): Promise<Response> {
                 const oldPrice = existingProduct.cost_price
                 const newPrice = price.costPrice
                 const productId = existingProduct.id
+                // X4 (pris-review 2026-10-07): API'et giver 0 når der ingen prisaftale er (AO) / kost er ukendt (LM) — overskriv
+                // aldrig en rigtig kostpris med 0 og skriv ingen −100 %-historik
+                if (!(Number(newPrice) > 0)) continue
 
                 updateFns.push(async () => {
                   const { error } = await supabase
@@ -217,7 +247,7 @@ async function handleCron(request: Request): Promise<Response> {
               supplier_id: schedule.supplier_id,
               sync_job_id: null,
               job_type: schedule.sync_type,
-              status: status === 'success' ? 'completed' : 'partial',
+              status: status === 'success' ? 'completed' : 'failed', // X4: 'partial' findes ikke i supplier_sync_logs' CHECK (00043) → loggen blev ikke skrevet
               trigger_type: 'scheduled',
               started_at: new Date(syncStartTime).toISOString(),
               completed_at: new Date().toISOString(),
@@ -335,7 +365,7 @@ type SyncResult = {
  * Downloads catalog CSV from FTP, parses it, and upserts products.
  */
 async function executeFtpSyncSchedule(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
   schedule: ScheduleRecord,
   supplier: SupplierRecord,
   syncStartTime: number
@@ -375,10 +405,13 @@ async function executeFtpSyncSchedule(
   }
 
   // Load existing products for this supplier (for upsert matching)
-  const { data: existingProducts } = await supabase
+  // leverandør-review: side for side — før kun 1.000 → resten blev forsøgt indsat som nye varer
+  const existingProducts = await fetchAllRows<{ id: string; supplier_sku: string; cost_price: number | null; list_price: number | null }>((from, to) => supabase
     .from('supplier_products')
     .select('id, supplier_sku, cost_price, list_price')
     .eq('supplier_id', schedule.supplier_id)
+    .order('id')
+    .range(from, to), 2_000_000)
 
   const productsBySku = new Map((existingProducts || []).map((p) => [p.supplier_sku, p]))
   const now = new Date().toISOString()
@@ -414,15 +447,17 @@ async function executeFtpSyncSchedule(
         if (existing) {
           // Update existing product
           const oldCost = existing.cost_price
-          const newCost = row.parsed.cost_price
+          // Leverandør-review 2026-10-08 (#6): kost ≤ 0 = ingen prisaftale → behold kendt kost, ingen historik
+          const newCost = row.parsed.cost_price != null && row.parsed.cost_price > 0 ? row.parsed.cost_price : null
 
           updateFns.push(async () => {
             const { error } = await supabase
               .from('supplier_products')
               .update({
                 supplier_name: row.parsed.name || undefined,
-                cost_price: newCost,
-                list_price: row.parsed.list_price,
+                // leverandør-review: tom/ulæselig pris i filen overskrev før kostprisen med NULL → feltet udelades
+                cost_price: newCost ?? undefined,
+                list_price: row.parsed.list_price ?? undefined,
                 unit: row.parsed.unit || undefined,
                 category: row.parsed.category || undefined,
                 ean: row.parsed.ean || undefined,
@@ -506,7 +541,7 @@ async function executeFtpSyncSchedule(
       supplier_id: schedule.supplier_id,
       sync_job_id: null,
       job_type: 'ftp',
-      status: status === 'success' ? 'completed' : 'partial',
+      status: status === 'success' ? 'completed' : 'failed', // X4: 'partial' findes ikke i CHECK (00043)
       trigger_type: 'scheduled',
       started_at: new Date(syncStartTime).toISOString(),
       completed_at: new Date().toISOString(),

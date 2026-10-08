@@ -45,7 +45,7 @@ export interface CreateWorkOrderForCaseInput {
 }
 
 // Status transitions matching the service-layer state machine
-// (mirrors src/lib/services/work-orders.ts ALLOWED).
+// (den tidligere services/work-orders.ts var død kode og er fjernet 2026-10-04 — dette er den eneste kilde).
 // planned -> done: montøren afslutter sit job direkte (montør kan ikke "starte" — kun afslutte, jf. RLS 00171).
 const ALLOWED_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   planned:     ['in_progress', 'done', 'cancelled'],
@@ -91,7 +91,7 @@ export async function listWorkOrdersForCase(
       return { success: true, data: [] }
     }
 
-    let query = supabase
+    const query = supabase
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
@@ -102,11 +102,6 @@ export async function listWorkOrdersForCase(
       .order('scheduled_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
 
-    // Sprint 7E — for montor: kun work orders tildelt egen employee
-    if (scope.type === 'specific') {
-      query = query.in('id', scope.workOrderIds)
-    }
-
     const { data: rows, error } = await query
 
     if (error) {
@@ -114,7 +109,10 @@ export async function listWorkOrdersForCase(
       return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
     }
 
-    const workOrders = (rows || []) as WorkOrderRow[]
+    // Sprint 7E — for montor: kun work orders tildelt egen employee. X4n: filtreres efter hentning (sagen afgrænser
+    // mængden) — før én .in() med ALLE montørens arbejdsordrer nogensinde → URL-grænsen (~350) → tom liste
+    const allowed = scope.type === 'specific' ? new Set(scope.workOrderIds) : null
+    const workOrders = ((rows || []) as WorkOrderRow[]).filter((w) => !allowed || allowed.has(w.id))
 
     // Resolve employees in a separate query (no FK relation hint needed).
     const employeeIds = Array.from(
@@ -248,7 +246,11 @@ export async function updateWorkOrderPlanning(
     }
 
     const patch: Record<string, unknown> = {}
-    if (input.title !== undefined) patch.title = input.title.trim()
+    if (input.title !== undefined) {
+      // X4: tom titel (kun mellemrum) blev gemt som ''
+      if (!input.title.trim()) return { success: false, error: 'Titel må ikke være tom' }
+      patch.title = input.title.trim()
+    }
     if (input.description !== undefined)
       patch.description = input.description?.trim() ? input.description.trim() : null
     if (input.scheduled_date !== undefined)
@@ -271,10 +273,18 @@ export async function updateWorkOrderPlanning(
       if (!emp.active) return { success: false, error: 'Medarbejder er inaktiv' }
     }
 
+    // X4: udførte/annullerede arbejdsordrer kan ikke omplanlægges (UI'et skjuler det; serveren håndhævede det ikke)
+    const { data: curWo } = await supabase.from('work_orders').select('status').eq('id', workOrderId).maybeSingle()
+    if (!curWo) return { success: false, error: 'Arbejdsordre ikke fundet' }
+    if (['done', 'cancelled'].includes((curWo as { status: string }).status)) {
+      return { success: false, error: 'En udført eller annulleret arbejdsordre kan ikke omplanlægges' }
+    }
+
     const { data, error } = await supabase
       .from('work_orders')
       .update(patch)
       .eq('id', workOrderId)
+      .in('status', ['planned', 'in_progress'])
       .select('*')
       .single()
 
@@ -331,7 +341,7 @@ export async function changeWorkOrderStatus(
         .select('*')
         .eq('id', workOrderId)
         .single()
-      return { success: true, data: row as WorkOrderRow }
+      return { success: true, data: hideLowProfit(row as WorkOrderRow, lowProfitVisible(hasPermission)) }
     }
 
     if (!ALLOWED_TRANSITIONS[cur.status as WorkOrderStatus]?.includes(next)) {
@@ -363,9 +373,14 @@ export async function changeWorkOrderStatus(
       .from('work_orders')
       .update(patch)
       .eq('id', workOrderId)
+      // montør-review: kun hvis status stadig er den vi læste — ellers kunne en samtidig annullering blive til "udført"
+      .eq('status', cur.status as string)
       .select('*')
-      .single()
+      .maybeSingle()
 
+    if (!error && !data) {
+      return { success: false, error: 'Status er netop ændret af en anden — genindlæs og prøv igen' }
+    }
     if (error || !data) {
       logger.error('changeWorkOrderStatus failed', { error })
       return { success: false, error: 'Kunne ikke ændre status' }
@@ -380,7 +395,7 @@ export async function changeWorkOrderStatus(
       }
     }
 
-    return { success: true, data: data as WorkOrderRow }
+    return { success: true, data: hideLowProfit(data as WorkOrderRow, lowProfitVisible(hasPermission)) }
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
@@ -471,7 +486,7 @@ export async function listWorkOrdersByDateRange(
       return { success: true, data: [] }
     }
 
-    let woQuery = supabase
+    const woQuery = supabase
       .from('work_orders')
       .select(`
         id, case_id, customer_id, title, description, status,
@@ -483,10 +498,6 @@ export async function listWorkOrdersByDateRange(
       .order('scheduled_date', { ascending: true })
       .order('created_at', { ascending: true })
 
-    if (woScope.type === 'specific') {
-      woQuery = woQuery.in('id', woScope.workOrderIds)
-    }
-
     const { data: rows, error } = await woQuery
 
     if (error) {
@@ -494,7 +505,11 @@ export async function listWorkOrdersByDateRange(
       return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
     }
 
-    const wos = (rows || []) as WorkOrderRow[]
+    // Montør: kun egne — filtreres efter hentning (datointervallet afgrænser mængden). X4n: før én .in() med ALLE
+    // montørens arbejdsordrer nogensinde → URL-grænsen (~350) → tom kalender
+    const woAllowed = woScope.type === 'specific' ? new Set(woScope.workOrderIds) : null
+    const showLowProfit = lowProfitVisible(hasPermission)
+    const wos = ((rows || []) as WorkOrderRow[]).filter((w) => !woAllowed || woAllowed.has(w.id)).map((w) => hideLowProfit(w, showLowProfit))
     if (wos.length === 0) return { success: true, data: [] }
 
     // Resolve employees + cases in parallel.
@@ -557,4 +572,15 @@ export async function listWorkOrdersByDateRange(
   } catch (error) {
     return { success: false, error: formatError(error, 'Uventet fejl') }
   }
+}
+
+/** D46 (RBAC-review 2026-10-07): lav-DB-markeringen er en kost-oplysning — kun til economy.cost_prices (som sagerne). */
+function hideLowProfit<T extends { low_profit?: boolean | null }>(row: T, allowed: boolean): T {
+  return allowed || !row || !('low_profit' in row) ? row : { ...row, low_profit: false }
+}
+
+/** Læse-synlighed (ikke en skrive-gate): lav-DB vises kun for economy.cost_prices. Egen funktion, så RLS-skrivescanneren
+ *  ikke tolker tjekket som en rolle-gate for status-skrivningen. */
+function lowProfitVisible(hasPermission: (p: import('@/lib/auth/permissions').Permission) => boolean): boolean {
+  return hasPermission('economy.cost_prices')
 }

@@ -45,7 +45,8 @@ export function prepareSendReply(
   return { ok: true, prepared: { to, subject, body } }
 }
 
-export type MailTransport = (p: PreparedSend) => Promise<{ ok: boolean; messageId?: string; conversationId?: string }>
+/** uncertain: afsendelsen blev afbrudt EFTER dispatch (fx timeout) — Graph kan have leveret mailen. */
+export type MailTransport = (p: PreparedSend) => Promise<{ ok: boolean; messageId?: string; conversationId?: string; uncertain?: boolean }>
 
 /** Klassifikation af et send-forsoeg (til result/audit-reconciliation). */
 export type SendClassification = 'confirmed_sent' | 'failed_before_send' | 'needs_verification'
@@ -61,7 +62,7 @@ function bodyToHtml(body: string): string {
 /** Default transport = det eneste choke point. */
 const defaultTransport: MailTransport = async ({ to, subject, body }) => {
   const res = await sendEmailViaGraph({ to, subject, html: bodyToHtml(body), text: body })
-  return { ok: res.success, messageId: res.messageId, conversationId: res.conversationId }
+  return { ok: res.success, messageId: res.messageId, conversationId: res.conversationId, uncertain: res.uncertain }
 }
 
 /**
@@ -99,6 +100,16 @@ export async function executeSendReply(
           message_id: r.messageId ?? null,
           conversation_id: r.conversationId ?? null,
         },
+      }
+    }
+    // R-MAIL-B #6 (Henrik 2026-10-08): timeout efter dispatch = UVIST (ikke "intet sendt") → menneskelig kontrol,
+    // aldrig auto-retry (ellers risiko for dubletmail til kunden)
+    if (r.uncertain) {
+      return {
+        ok: false,
+        uncertain: true,
+        error: 'uvist transport-resultat: afsendelsen timede ud efter dispatch (kan være leveret)',
+        data: { classification: 'needs_verification' as SendClassification },
       }
     }
     // Transporten sagde EKSPLICIT ikke-sendt (kendt fejl, foer dispatch) -> failed.

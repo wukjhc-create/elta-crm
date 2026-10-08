@@ -160,7 +160,7 @@ export async function runHealthProbes(): Promise<ProbeOutcome[]> {
   const supabase = createAdminClient()
   const outcomes: ProbeOutcome[] = []
 
-  // ---- 1. Email sync — most recent successful sync per mailbox should be < 30 min
+  // ---- 1. Email sync — most recent successful sync per mailbox should be < 26 h (cron daily)
   try {
     const { data: states } = await supabase
       .from('graph_sync_state')
@@ -168,11 +168,16 @@ export async function runHealthProbes(): Promise<ProbeOutcome[]> {
     const now = Date.now()
     const stale: string[] = []
     const failed: string[] = []
+    // Kun KONFIGUREREDE postkasser (crm@ synkes ikke længere og gav en advarsel hver dag), og grænse 26 t: synk-cronen
+    // kører dagligt kl. 05 (Vercel) — 30 min gav "stale" for alle postkasser ved hver kørsel kl. 09 (ren støj).
+    const { getMailboxes, isGraphConfigured } = await import('@/lib/services/microsoft-graph')
+    const configured = isGraphConfigured() ? new Set(getMailboxes().filter((m) => m.active).map((m) => m.email.toLowerCase())) : null
     for (const s of states ?? []) {
+      if (configured && !configured.has(String(s.mailbox).toLowerCase())) continue
       const lastMs = s.last_sync_at ? new Date(s.last_sync_at).getTime() : 0
       const ageMin = (now - lastMs) / 60000
       if (s.last_sync_status === 'failed') failed.push(`${s.mailbox}: ${s.last_sync_error || 'failed'}`)
-      else if (!lastMs || ageMin > 30) stale.push(`${s.mailbox} (${Math.round(ageMin)} min ago)`)
+      else if (!lastMs || ageMin > 26 * 60) stale.push(`${s.mailbox} (${Math.round(ageMin)} min ago)`)
     }
     if (failed.length > 0) {
       outcomes.push({ service: 'email', status: 'error', message: `email sync failures: ${failed.join('; ')}` })

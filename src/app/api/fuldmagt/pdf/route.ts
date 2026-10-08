@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server'
 import { renderToBuffer, DocumentProps } from '@react-pdf/renderer'
 import { FuldmagtPDF } from '@/lib/pdf/fuldmagt-pdf-template'
 import type { ReactElement, JSXElementConstructor } from 'react'
+import { isInternalRequest, isSafeImageSource } from '@/lib/security/internal-request'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
 export async function POST(request: Request) {
+  // Q10: kun server-til-server (submitSignedFuldmagt) — før kunne alle generere en Elta-fuldmagt
+  if (!isInternalRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const body = await request.json()
     const {
@@ -17,6 +20,10 @@ export async function POST(request: Request) {
 
     if (!customer_name || !date) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+    // underskriften kommer fra kunden (portal) — kun indlejret billede, aldrig URL/filsti (react-pdf henter dem)
+    if (!isSafeImageSource(signature_data)) {
+      return NextResponse.json({ error: 'Ugyldig underskrift' }, { status: 400 })
     }
 
     const pdfDocument = FuldmagtPDF({

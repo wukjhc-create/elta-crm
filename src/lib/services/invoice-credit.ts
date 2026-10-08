@@ -28,6 +28,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
@@ -449,7 +450,9 @@ export async function createCreditNoteForInvoice(
         // og det er korrekt: vi reverserer linjens fortegn.
         const negTot = -tot
         const negUnit = -Number(r.unit_price)
-        sum += Math.abs(negTot)
+        // X1 (økonomi-review 2026-10-07): krediteret beløb = de valgte linjers SUM MED FORTEGN. Før Math.abs → kreditering
+        // af kun "Fradrag −30k" gav en kreditnota på −30k i headeren mens linjen var +30k (header/e-conomic/PDF uenige)
+        sum += tot
         newLines.push({
           description: `Kreditnota: ${r.description}`,
           quantity: Number(r.quantity),
@@ -459,6 +462,12 @@ export async function createCreditNoteForInvoice(
         })
       }
       creditExVat = r2(sum)
+      if (creditExVat <= 0) {
+        return {
+          ...empty,
+          message: 'De valgte linjer giver intet at kreditere (fradragslinjer kan ikke krediteres alene) — vælg også de linjer fradraget hører til, eller brug et beløb',
+        }
+      }
 
       if (creditExVat > summary.remaining_creditable_ex_vat) {
         return {
@@ -496,9 +505,7 @@ export async function createCreditNoteForInvoice(
 
   // ---- Compute due_date ----
   const dueDays = input.due_days ?? 14
-  const dueDate = new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
+  const dueDate = copenhagenDatePlusDays(dueDays)
 
   // ---- INSERT credit invoice header ----
   // Negative totals — total_amount / tax_amount / final_amount er
@@ -550,6 +557,31 @@ export async function createCreditNoteForInvoice(
     return {
       ...empty,
       message: `Linje-INSERT fejlede (kreditnota rullet tilbage): ${linesErr.message}`,
+    }
+  }
+
+  // Økonomi-review 2026-10-08 (#4): to samtidige kreditnotaer læste begge samme "resterende" og krediterede tilsammen
+  // op til 200 %. Efter indsættelse summeres originalens kreditnotaer i oprettelsesrækkefølge (deterministisk for alle
+  // samtidige kald); bringer DENNE kreditnota summen over originalens beløb, fjernes den igen.
+  const { data: allCredits } = await supabase
+    .from('invoices')
+    .select('id, total_amount')
+    .eq('credit_of_invoice_id', original.id)
+    .eq('invoice_type', 'credit')
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+  let cumulative = 0
+  let overCredited = false
+  for (const c of (allCredits ?? []) as Array<{ id: string; total_amount: number | string | null }>) {
+    cumulative = r2(cumulative + Math.abs(Number(c.total_amount) || 0))
+    if (c.id === header.id) { overCredited = cumulative > r2(origTotalExVat) + 0.01; break }
+  }
+  if (overCredited) {
+    await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+    await supabase.from('invoices').delete().eq('id', header.id)
+    return {
+      ...empty,
+      message: 'Fakturaen er netop krediteret i en anden handling — genindlæs og se det resterende beløb',
     }
   }
 

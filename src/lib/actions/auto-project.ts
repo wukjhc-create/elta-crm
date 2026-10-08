@@ -48,6 +48,8 @@ interface AnalyzeProjectInput {
     risk_buffer_percentage?: number
     customer_name?: string
     project_address?: string
+    /** S2: valgt ladestander fra produktkataloget */
+    charger_product_id?: string | null
   }
 }
 
@@ -605,5 +607,42 @@ export async function createOfferFromAnalysis(
     return { success: true, data: { offer_id: offer.id } }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke oprette tilbud') }
+  }
+}
+
+// =====================================================
+// S2: ladestander-hardware fra produktkataloget
+// =====================================================
+
+export type ChargerSearchHit = { id: string; name: string; sku: string | null; supplier: string | null; cost_price: number; available: boolean }
+
+/**
+ * Søg ladebokse i leverandørkataloget til AI-projektanalysen (hardware vælges altid manuelt — aldrig automatisk).
+ * Kun tools.ai_project (admin/serviceleder = kostroller); kostpris læses via admin-klienten (kolonnen er låst for brugere).
+ */
+export async function searchChargerProducts(query: string): Promise<ActionResult<ChargerSearchHit[]>> {
+  try {
+    await requireGate('tools.ai_project')
+    const q = (query ?? '').trim()
+    if (q.length < 2) return { success: true, data: [] }
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { orIlikeContains } = await import('@/lib/validations/postgrest-filter')
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('supplier_products')
+      .select('id, supplier_name, supplier_sku, cost_price, is_available, supplier:suppliers(name)')
+      .or(orIlikeContains(['supplier_name', 'supplier_sku', 'manufacturer'], q))
+      .gt('cost_price', 0)
+      .order('is_available', { ascending: false })
+      .order('supplier_name')
+      .limit(20)
+    if (error) throw new Error('DATABASE_ERROR')
+    const hits = ((data ?? []) as Array<{ id: string; supplier_name: string | null; supplier_sku: string | null; cost_price: number; is_available: boolean | null; supplier: { name?: string } | Array<{ name?: string }> | null }>).map((r) => {
+      const sup = Array.isArray(r.supplier) ? r.supplier[0] : r.supplier
+      return { id: r.id, name: r.supplier_name ?? '—', sku: r.supplier_sku, supplier: sup?.name ?? null, cost_price: Number(r.cost_price), available: r.is_available !== false }
+    })
+    return { success: true, data: hits }
+  } catch (err) {
+    return { success: false, error: formatError(err, 'Kunne ikke søge i produktkataloget') }
   }
 }

@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { CalculationItem } from './CalculationPreview'
 import { formatCurrency } from '@/lib/utils/format'
 import { calculateDBAmount, calculateDBPercentage } from '@/lib/logic/pricing'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 interface MaterialSummaryProps {
   items: CalculationItem[]
@@ -171,7 +172,7 @@ export function MaterialSummary({ items, className = '' }: MaterialSummaryProps)
     const blob = new Blob([header + rows + totalRow], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = `materialer-${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `materialer-${copenhagenParts(new Date()).date}.csv`
     link.click()
   }
 

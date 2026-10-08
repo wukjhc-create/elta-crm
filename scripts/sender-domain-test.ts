@@ -34,6 +34,7 @@ eq('website-match', suppliersForDomain('sieg.dk', sup).map((s) => s.id), ['a'])
 eq('underdomæne matcher', suppliersForDomain('faktura.sieg.dk', sup).map((s) => s.id), ['a'])
 eq('kontakt-mail-match', suppliersForDomain('seva.dk', sup).map((s) => s.id), ['b'])
 eq('ingen delvis navne-match (xsieg ≠ sieg)', suppliersForDomain('xsieg.dk', sup).map((s) => s.id), ['c'])
+eq('eget domæne (eltasolar.dk) er aldrig et leverandørsignal', senderDomain('bogholderi@eltasolar.dk'), null)
 eq('gratis-mail på leverandøren matcher aldrig', suppliersForDomain('gmail.com', sup).map((s) => s.id), [])
 
 eq('gratis-mail genkendt', isFreeMailAddress('Kunde <k@hotmail.dk>'), true)

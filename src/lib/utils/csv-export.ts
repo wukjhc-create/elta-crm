@@ -43,7 +43,10 @@ export function generateCsv<T>(
 /**
  * Escape a CSV field value - wrap in quotes if it contains special characters
  */
-function escapeCsvField(value: string): string {
+export function escapeCsvField(input: string): string {
+  // Formel-injektion (kode-review): en celle der starter med = + @ TAB/CR — eller - efterfulgt af andet end et tal —
+  // udføres som formel i Excel. Fx importerede kundenavne. Neutraliseres med ' foran; negative beløb røres ikke.
+  const value = /^[=+@\t\r]/.test(input) || /^-(?![\d.,\s]*$)/.test(input) ? `'${input}` : input
   if (
     value.includes(';') ||
     value.includes('"') ||
@@ -77,7 +80,8 @@ export function csvDate(date: string | Date | null | undefined): string {
   if (!date) return ''
   const d = typeof date === 'string' ? new Date(date) : date
   if (isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('da-DK', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  // eksporter dannes på serveren (UTC) — dansk kalenderdag/tid eksplicit (N90)
+  return d.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 /**
@@ -88,6 +92,7 @@ export function csvDateTime(date: string | Date | null | undefined): string {
   const d = typeof date === 'string' ? new Date(date) : date
   if (isNaN(d.getTime())) return ''
   return d.toLocaleString('da-DK', {
+    timeZone: 'Europe/Copenhagen',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

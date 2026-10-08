@@ -18,12 +18,6 @@ export default function Home() {
             >
               Log ind
             </Link>
-            <Link
-              href="/register"
-              className="rounded-md bg-secondary px-6 py-3 text-sm font-semibold text-secondary-foreground shadow-sm hover:bg-secondary/90 transition-colors"
-            >
-              Opret konto
-            </Link>
           </div>
 
           <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">

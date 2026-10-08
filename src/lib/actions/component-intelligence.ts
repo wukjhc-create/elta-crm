@@ -501,7 +501,8 @@ export async function getMaterialPriceHistory(
   materialId: string
 ): Promise<ActionResult<MaterialPriceHistory[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // RBAC-review 2026-10-07: kostpris-historik kun til kost-roller (før: alle indloggede)
+    const { supabase } = await requireGate('materials.view.cost_prices')
 
     const { data, error } = await supabase
       .from('material_price_history')

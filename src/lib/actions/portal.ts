@@ -46,7 +46,8 @@ import {
   REJECTION_REASON_LABELS,
   type OfferRejectionInput,
 } from '@/types/offers.types'
-import { escapeHtml } from '@/lib/utils/html-escape'
+import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
+import { isBookedCustomerBesigtigelse, isPortalBesigtigelseRequest } from '@/lib/tasks/besigtigelse-task'
 
 // =====================================================
 // Portal Token Management (for employees)
@@ -265,11 +266,15 @@ export async function getPortalOffers(
     const supabase = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
-    const { data: offers, error } = await supabase
+    let offersQuery = supabase
       .from('offers')
       .select('*')
       .eq('customer_id', customerId)
       .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
+    // 00203 (staging): kun den gældende revision vises — afløste revisioner skjules
+    const { offerRevisionsEnabled } = await import('@/lib/offers/revisions')
+    if (offerRevisionsEnabled()) offersQuery = offersQuery.is('superseded_by', null)
+    const { data: offers, error } = await offersQuery
       .order('created_at', { ascending: false })
       .limit(100)
 
@@ -376,7 +381,17 @@ export async function getPortalOffer(
       .select('*')
       .eq('id', offerId)
       .eq('customer_id', customerId)
+      // Q10: som tilbudslisten — kladder (ikke sendt) kunne ellers åbnes via UUID
+      .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
       .maybeSingle()
+
+    // 00203 (staging): en afløst revision vises ikke — kunden henvises til den gældende version
+    if (offer) {
+      const { supersededBy } = await import('@/lib/offers/revisions')
+      if (await supersededBy(offerId)) {
+        return { success: false, error: 'Dette tilbud er erstattet af en nyere version — se dine tilbud i oversigten' }
+      }
+    }
 
     if (error || !offer) {
       logger.error('Error fetching offer', { error: error })
@@ -394,6 +409,9 @@ export async function getPortalOffer(
         })
         .eq('id', offerId)
         .eq('customer_id', customerId)
+        // tilbuds-review 2026-10-07: kun fra 'sent' — en samtidig accept/kladde (telefon/medarbejder) blev overskrevet
+        .eq('status', 'sent')
+        .is('viewed_at', null)
 
       // Log view activity (anon-INSERT droppet i 00124)
       await admin.from('offer_activities').insert({
@@ -501,6 +519,12 @@ export async function acceptOffer(
     if (!canCustomerRespond(offer.status as string, offer.valid_until as string | null)) {
       return { success: false, error: isOfferExpired(offer.valid_until as string | null) ? 'Tilbuddet er udløbet — kontakt os for et nyt tilbud' : 'Tilbuddet kan ikke accepteres i denne status' }
     }
+    // 00203 (staging): en afløst revision kan ikke accepteres; underskriften bindes til den præcise revisions snapshot
+    const { supersededBy, latestSnapshotId } = await import('@/lib/offers/revisions')
+    if (await supersededBy(data.offer_id)) {
+      return { success: false, error: 'Tilbuddet er erstattet af en nyere version — genindlæs siden' }
+    }
+    const snapshotId = await latestSnapshotId(data.offer_id)
 
     // Get client IP
     const headersList = await headers()
@@ -509,7 +533,7 @@ export async function acceptOffer(
                      'unknown'
 
     // Create signature — offer_id er verificeret kunde-ejet ovenfor
-    const { error: signatureError } = await admin
+    const { data: sigRow, error: signatureError } = await admin
       .from('offer_signatures')
       .insert({
         offer_id: data.offer_id,
@@ -517,15 +541,19 @@ export async function acceptOffer(
         signer_email: data.signer_email,
         signer_ip: clientIp,
         signature_data: data.signature_data,
+        ...(snapshotId ? { snapshot_id: snapshotId } : {}),
       })
+      .select('id')
+      .single()
 
-    if (signatureError) {
+    if (signatureError || !sigRow) {
       logger.error('Error creating signature', { error: signatureError })
       return { success: false, error: 'Kunne ikke gemme underskrift' }
     }
 
     // Update offer status — eksplicit customer_id-scope for defense-in-depth
-    const { error: updateError } = await admin
+    // Salgs-review: kun hvis tilbuddet STADIG kan besvares — en samtidig afvisning (anden fane) blev ellers overskrevet
+    const { data: acceptedRow, error: updateError } = await admin
       .from('offers')
       .update({
         status: 'accepted',
@@ -533,8 +561,18 @@ export async function acceptOffer(
       })
       .eq('id', data.offer_id)
       .eq('customer_id', customerId)
+      .in('status', ['sent', 'viewed'])
+      .select('id')
+      .maybeSingle()
 
+    if (!updateError && !acceptedRow) {
+      // tilbuddet blev besvaret imens — fjern KUN den netop gemte underskrift (S1 tilbuds-/portal-review 2026-10-07: før
+      // .eq('offer_id') → en samtidig dobbelt-accept slettede også den vindende accepts underskrift)
+      await admin.from('offer_signatures').delete().eq('id', (sigRow as { id: string }).id)
+      return { success: false, error: 'Tilbuddet er netop besvaret — genindlæs siden' }
+    }
     if (updateError) {
+      await admin.from('offer_signatures').delete().eq('id', (sigRow as { id: string }).id)
       logger.error('Error updating offer', { error: updateError })
       return { success: false, error: 'Kunne ikke opdatere tilbud' }
     }
@@ -606,8 +644,8 @@ export async function acceptOffer(
           <h2>Tilbud accepteret</h2>
           <p>Kunden har accepteret et tilbud via kundeportalen.</p>
           <table style="border-collapse:collapse;margin:16px 0;">
-            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tilbud:</td><td style="font-weight:600;">${offer.title}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#666;">Underskrevet af:</td><td>${data.signer_name} (${data.signer_email})</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Tilbud:</td><td style="font-weight:600;">${escapeHtml(offer.title)}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#666;">Underskrevet af:</td><td>${escapeHtml(data.signer_name)} (${escapeHtml(data.signer_email)})</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Beløb:</td><td style="font-weight:600;">${new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(offer.final_amount)}</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#666;">Tidspunkt:</td><td>${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</td></tr>
           </table>
@@ -717,7 +755,7 @@ export async function rejectOffer(
 
     // Update med 6 nye strukturerede felter — eksplicit customer_id-scope
     // for defense-in-depth.
-    const { error: updateError } = await admin
+    const { data: rejectedRow, error: updateError } = await admin
       .from('offers')
       .update({
         status: 'rejected',
@@ -731,7 +769,14 @@ export async function rejectOffer(
       })
       .eq('id', offerId)
       .eq('customer_id', customerId)
+      // Salgs-review: kun hvis tilbuddet stadig er sendt/set — en samtidig accept (anden fane) blev ellers til "afvist"
+      .in('status', ['sent', 'viewed'])
+      .select('id')
+      .maybeSingle()
 
+    if (!updateError && !rejectedRow) {
+      return { success: false, error: 'Tilbuddet er netop besvaret — genindlæs siden' }
+    }
     if (updateError) {
       logger.error('Error rejecting offer', { error: updateError })
       return { success: false, error: 'Kunne ikke afvise tilbud' }
@@ -869,6 +914,8 @@ export async function getPortalMessages(
         .from('offers')
         .select('id, offer_number, title')
         .in('id', offerIds)
+        // Q10: kun kundens egne tilbud — en besked med et fremmed offer_id viste ellers det tilbuds nr./titel
+        .eq('customer_id', customerId)
       for (const o of offers || []) {
         offerMap.set(o.id as string, {
           id: o.id as string,
@@ -891,6 +938,16 @@ export async function getPortalMessages(
 }
 
 // Send message from portal (customer)
+/**
+ * Portal-grænser (Henrik 2026-10-07, R-PRT-B): kundeportalen er uden login — én tokenholder kunne ellers fylde
+ * portal_messages, storage og kontakt@ uden loft. Pr. kunde (rullende vinduer).
+ */
+const PORTAL_MESSAGE_MAX_CHARS = 5000
+const PORTAL_MESSAGE_MAX_ATTACHMENTS = 10
+const PORTAL_MESSAGES_PER_HOUR = 20
+const PORTAL_UPLOADS_PER_DAY = 20
+const PORTAL_NOTIFY_MIN_INTERVAL_MS = 10 * 60_000
+
 export async function sendPortalMessage(
   token: string,
   data: SendPortalMessageData
@@ -915,6 +972,34 @@ export async function sendPortalMessage(
     // (linje ovenfor) — service-role har INGEN RLS-guard, saa app er
     // single source of truth for scope.
     const admin = createAdminClient()
+    // Portal-grænser: længde, antal vedhæftninger og beskeder pr. time pr. kunde
+    if (typeof data.message !== 'string' || data.message.length > PORTAL_MESSAGE_MAX_CHARS) {
+      return { success: false, error: `Beskeden er for lang (højst ${PORTAL_MESSAGE_MAX_CHARS.toLocaleString('da-DK')} tegn)` }
+    }
+    if ((data.attachments ?? []).length > PORTAL_MESSAGE_MAX_ATTACHMENTS) {
+      return { success: false, error: `Højst ${PORTAL_MESSAGE_MAX_ATTACHMENTS} vedhæftninger pr. besked` }
+    }
+    const hourAgo = new Date(Date.now() - 3_600_000).toISOString()
+    const { count: lastHour } = await admin.from('portal_messages').select('id', { count: 'exact', head: true })
+      .eq('customer_id', customerId).eq('sender_type', 'customer').gte('created_at', hourAgo)
+    if ((lastHour ?? 0) >= PORTAL_MESSAGES_PER_HOUR) {
+      return { success: false, error: 'Du har sendt mange beskeder på kort tid — prøv igen om lidt, eller ring til os' }
+    }
+    // Notifikationsmail højst hver 10. min. pr. kunde (beskeden gemmes altid)
+    const { data: lastMsg } = await admin.from('portal_messages').select('created_at')
+      .eq('customer_id', customerId).eq('sender_type', 'customer').order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const notifyStaff = !lastMsg || Date.now() - new Date((lastMsg as { created_at: string }).created_at).getTime() >= PORTAL_NOTIFY_MIN_INTERVAL_MS
+    // Q10: vedhæftninger skal være kundens egne uploads (signeret URL i portal-attachments/<kunde>/) — før blev
+    // klientens URL gemt som den var og vist som link/billede for medarbejderen (vilkårligt eksternt link)
+    const ownPrefix = `${(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '')}/storage/v1/object/sign/portal-attachments/${customerId}/`
+    if ((data.attachments ?? []).some((a) => typeof a?.url !== 'string' || !a.url.startsWith(ownPrefix))) {
+      return { success: false, error: 'Ugyldig vedhæftning' }
+    }
+    // Q10: offer_id skal være kundens eget tilbud (før blev et vilkårligt UUID gemt og slået op uden kunde-filter)
+    if (data.offer_id) {
+      const { data: own } = await admin.from('offers').select('id').eq('id', data.offer_id).eq('customer_id', customerId).maybeSingle()
+      if (!own) return { success: false, error: 'Ugyldigt tilbud' }
+    }
     const senderName = data.sender_name || sessionResult.data.customer.contact_person
     const { data: message, error } = await admin
       .from('portal_messages')
@@ -934,17 +1019,17 @@ export async function sendPortalMessage(
       return { success: false, error: 'Kunne ikke sende besked' }
     }
 
-    // Send email notification to CRM mailbox (non-critical)
-    try {
+    // Send email notification to CRM mailbox (non-critical) — højst hver 10. min. pr. kunde
+    if (notifyStaff) try {
       const crmMailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'
       const companyName = sessionResult.data.customer.company_name || 'Kunde'
       const contactPerson = sessionResult.data.customer.contact_person || 'Kunde'
       const subject = `Ny besked fra ${contactPerson} (${companyName})`
       const html = `
         <h2>Ny besked fra kundeportalen</h2>
-        <p><strong>${contactPerson}</strong> fra <strong>${companyName}</strong> har sendt en besked:</p>
+        <p><strong>${escapeHtml(contactPerson)}</strong> fra <strong>${escapeHtml(companyName)}</strong> har sendt en besked:</p>
         <blockquote style="border-left:4px solid #2D8A2D;padding:12px 16px;margin:16px 0;background:#f8f9fa;color:#374151;">
-          ${data.message.replace(/\n/g, '<br />')}
+          ${escapeHtmlWithLineBreaks(data.message)}
         </blockquote>
         ${data.attachments && data.attachments.length > 0 ? `<p style="color:#666;">Vedhæftede filer: ${data.attachments.length}</p>` : ''}
         <p>Svar kunden i ELTA Drift: <a href="${(process.env.NEXT_PUBLIC_APP_URL || 'https://elta-crm.vercel.app').trim()}/dashboard/customers">Gå til Kunder</a></p>
@@ -1000,6 +1085,11 @@ export async function sendEmployeeMessage(
 ): Promise<ActionResult<PortalMessage>> {
   try {
     const { supabase, userId } = await requireGate('customers.view')
+    // Mail-review 2026-10-08 (#8): offerId blev aldrig tjekket — en besked kunne knyttes til en anden kundes tilbud
+    if (offerId) {
+      const { data: own } = await supabase.from('offers').select('id').eq('id', offerId).eq('customer_id', customerId).maybeSingle()
+      if (!own) return { success: false, error: 'Tilbuddet hører ikke til kunden' }
+    }
 
     // Get employee name
     const { data: profile } = await supabase
@@ -1091,7 +1181,7 @@ export async function sendEmployeeMessage(
                 <h1 style="color: white; margin: 0; font-size: 20px;">Ny besked fra Elta Solar</h1>
               </div>
               <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-                <p style="font-size: 16px; color: #111827;">Kære ${greetingName},</p>
+                <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(greetingName)},</p>
                 <p style="color: #374151;">Du har en ny besked fra Elta Solar i kundeportalen.</p>
                 <p style="color: #374151;">Klik på knappen herunder for at åbne portalen og læse beskeden.</p>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
@@ -1315,8 +1405,14 @@ export async function markCustomerMessagesAsRead(
   messageIds: string[]
 ): Promise<ActionResult> {
   try {
-    await requireGate('customers.view')
-    const ids = (messageIds || []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500)
+    // Kode-review: kun roller der arbejder med kundens sag (customers.edit — samme som cockpittets kort); montør/bogholderi
+    // (customers.view) må ikke kunne fjerne beskeder fra sælgernes kø
+    const ctx = await requireGate('customers.edit')
+    const requested = (messageIds || []).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500)
+    if (requested.length === 0) return { success: true }
+    // Kun beskeder brugeren selv kan se (RLS via brugerens klient) — service-role-opdateringen nedenfor omgår RLS
+    const { data: visible } = await ctx.supabase.from('portal_messages').select('id').in('id', requested)
+    const ids = ((visible ?? []) as Array<{ id: string }>).map((m) => m.id)
     if (ids.length === 0) return { success: true }
 
     // N50-fix: RLS' UPDATE-policy tillader kun medarbejderen at rette SINE EGNE beskeder → markering af kundens
@@ -1397,6 +1493,15 @@ export async function uploadPortalAttachment(
     // signed-URL — service-role har INGEN RLS-guard, saa app er single
     // source of truth for scope.
     const supabase = createAdminClient()
+
+    // Portal-grænse: højst PORTAL_UPLOADS_PER_DAY uploads pr. kunde pr. døgn (filerne ligger i <kunde>/<tidsstempel>-…)
+    const { data: recent } = await supabase.storage.from('portal-attachments')
+      .list(customerId, { limit: PORTAL_UPLOADS_PER_DAY + 1, sortBy: { column: 'created_at', order: 'desc' } })
+    const dayAgo = Date.now() - 86_400_000
+    const uploadsToday = (recent ?? []).filter((f) => f.created_at && new Date(f.created_at).getTime() >= dayAgo).length
+    if (uploadsToday >= PORTAL_UPLOADS_PER_DAY) {
+      return { success: false, error: 'Du har uploadet mange filer i dag — prøv igen i morgen, eller send dem på mail' }
+    }
 
     // Generate unique filename (path er kunde-scoped via session.customer_id)
     const timestamp = Date.now()
@@ -1662,6 +1767,9 @@ export async function getPortalDocuments(
       .from('customer_documents')
       .select('id, title, description, document_type, file_url, storage_path, file_name, mime_type, created_at')
       .eq('customer_id', customerId)
+      // Kommunikations-review (S1): mail-vedhæftninger arkiveres automatisk på kunden ("Download" i mailen) — også fra
+      // leverandørmails (ordrebekræftelser, kostpriser), der er koblet til kunden. De er INTERNE og vises ikke i portalen.
+      .is('source_email_id', null)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -1669,11 +1777,20 @@ export async function getPortalDocuments(
       return { success: false, error: 'Kunne ikke hente dokumenter' }
     }
 
+    // S1 (portal-review 2026-10-07): fuldmagter vises KUN i fuldmagt-sektionen (getPortalFuldmagter, med
+    // underskriver-tjek). Her lå den underskrevne fuldmagt-PDF (CPR + underskrift) også — på kortet, hvor den blev
+    // oprettet, ofte betalerens/partnerens, ikke anlægsejerens.
+    const isFuldmagt = (d: { document_type: string | null; description: string | null }) => {
+      if (d.document_type !== 'contract') return false
+      try { return (JSON.parse(d.description || '{}') as { type?: string }).type === 'fuldmagt' } catch { return false }
+    }
+    const visible = (data ?? []).filter((d) => !isFuldmagt(d as { document_type: string | null; description: string | null }))
+
     // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver
     // row der har storage_path. Sikrer at portalen virker baade foer og
     // efter bucket-privatisering (β.2.5). TTL=SHORT (1t) — portal-siden
     // re-loader ofte og kort levetid er mest sikkert.
-    const paths = (data ?? []).map((d) => (d.storage_path as string | null) ?? '')
+    const paths = visible.map((d) => (d.storage_path as string | null) ?? '')
     const { getStorageSignedUrls, SIGNED_URL_TTL: TTL } = await import('@/lib/storage/signed-url')
     const fresh = await getStorageSignedUrls(
       'attachments',
@@ -1689,7 +1806,7 @@ export async function getPortalDocuments(
     // Phase 9I: aldrig laek raw description-JSON til portal-klient. Sanitize
     // her ogsaa selvom UI ogsaa filtrerer — defense in depth.
     const { getSafeDocumentDescription } = await import('@/lib/documents/display-description')
-    const curated = (data || []).map((d, idx) => ({
+    const curated = visible.map((d, idx) => ({
       ...d,
       file_url: freshByIdx[idx] ?? d.file_url ?? '',
       description: getSafeDocumentDescription(d),
@@ -1829,13 +1946,13 @@ export async function portalBookBesigtigelse(
             <h1 style="color: white; margin: 0; font-size: 20px;">Besigtigelse — Bekræftelse</h1>
           </div>
           <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-            <p style="font-size: 16px; color: #111827;">Kære ${session.customer.contact_person},</p>
+            <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(session.customer.contact_person)},</p>
             <p style="color: #374151;">Tak for din booking af besigtigelse. Vi har modtaget din anmodning:</p>
             <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 20px 0;">
               <p style="margin: 4px 0; color: #1e40af;"><strong>Dato:</strong> ${formattedDate}</p>
-              <p style="margin: 4px 0; color: #1e40af;"><strong>Tidspunkt:</strong> ${timeSlot}</p>
-              ${fullAddress ? `<p style="margin: 4px 0; color: #1e40af;"><strong>Adresse:</strong> ${fullAddress}</p>` : ''}
-              ${notes ? `<p style="margin: 4px 0; color: #1e40af;"><strong>Din besked:</strong> ${notes}</p>` : ''}
+              <p style="margin: 4px 0; color: #1e40af;"><strong>Tidspunkt:</strong> ${escapeHtml(timeSlot)}</p>
+              ${fullAddress ? `<p style="margin: 4px 0; color: #1e40af;"><strong>Adresse:</strong> ${escapeHtml(fullAddress)}</p>` : ''}
+              ${notes ? `<p style="margin: 4px 0; color: #1e40af;"><strong>Din besked:</strong> ${escapeHtmlWithLineBreaks(notes)}</p>` : ''}
             </div>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
               <tr>
@@ -1900,9 +2017,13 @@ export async function portalBookBesigtigelse(
  * Get existing besigtigelse bookings for portal customer — KUN opgaver med 'besigtigelse' i titel/beskrivelse
  * (D40: ingen fallback til øvrige, interne opgaver).
  */
-/** D40: en kundeopgave er en besigtigelse (må vises/bekræftes i portalen) kun hvis titel/beskrivelse siger det. */
-function isBesigtigelseTask(t: { title?: string | null; description?: string | null }): boolean {
-  return /esigtigelse/i.test(t.title ?? '') || /esigtigelse/i.test(t.description ?? '')
+/**
+ * D40 + X4 (kommunikations-review 2026-10-07): kun en BOOKET, kundevendt besigtigelse ("Besigtigelse hos …", ingen
+ * auto_rule) kan bekræftes/ombookes — før matchede alt med "besigtigelse" i titel/beskrivelse, også den interne
+ * opstartsopgave "Planlæg besigtigelse eller montage" (lib/tasks/besigtigelse-task.ts).
+ */
+function isBesigtigelseTask(t: { title?: string | null; auto_rule?: string | null }): boolean {
+  return isBookedCustomerBesigtigelse(t)
 }
 
 export async function getPortalBesigtigelser(
@@ -1923,10 +2044,10 @@ export async function getPortalBesigtigelser(
     // Query ALL tasks for this customer (no status filter — confirmed tasks should still show)
     const { data: allTasks, error: taskErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, title, description, due_date, status, created_at')
+      .select('id, customer_id, title, description, due_date, status, created_at, auto_rule')
       .eq('customer_id', customerId)
       .order('due_date', { ascending: true, nullsFirst: false })
-      .limit(20)
+      .limit(50)
 
     if (taskErr) {
       logger.error('Error fetching portal besigtigelser', { error: taskErr })
@@ -1937,11 +2058,8 @@ export async function getPortalBesigtigelser(
     // Debug: log task count for portal
 
     // Prioritize tasks with "besigtigelse" in title/description
-    const besigTasks = tasks.filter(
-      (t) =>
-        t.title?.toLowerCase().includes('esigtigelse') ||
-        t.description?.toLowerCase().includes('esigtigelse')
-    )
+    // X4: bookede besigtigelser + kundens egne portal-anmodninger — aldrig interne opgaver med ordet i titlen
+    const besigTasks = tasks.filter((t) => isBookedCustomerBesigtigelse(t) || isPortalBesigtigelseRequest(t))
 
     // D40 (S2): før faldt funktionen tilbage til ALLE kundens opgaver (interne titler/beskrivelser i kundeportalen —
     // prod 2026-10-03: 1 portalkunde, 2 interne opgaver). Nu kun besigtigelsesopgaver, og til klienten kun det
@@ -1983,39 +2101,44 @@ export async function portalConfirmBesigtigelse(
     // Verify task belongs to this customer and fetch full details
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, status, title, description, due_date')
+      .select('id, customer_id, status, title, description, due_date, auto_rule')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
     // D40: kun besigtigelsesopgaver kan bekræftes fra portalen (ikke vilkårlige interne opgaver)
-    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; description?: string | null })) {
+    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
     }
+    // X4: allerede bekræftet/afsluttet → ingen ny statusændring, alarm eller mail (før genåbnet + mail ved hvert klik)
+    if (task.status !== 'pending') return { success: true }
 
     // Extract time from description
     const timeMatch = task.description?.match(/Tidspunkt:\s*(.+)/i) || task.description?.match(/kl\.\s*(\S+)/)
     const timeSlot = timeMatch ? timeMatch[1].trim() : null
 
-    const confirmDate = new Date().toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' })
+    const confirmDate = new Date().toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
 
     const updatedDesc = [
       task.description || '',
       `\n✓ BEKRÆFTET af kunden via portalen d. ${confirmDate}`,
     ].filter(Boolean).join('\n')
 
-    const { error: updateErr } = await supabase
+    const { data: confirmed, error: updateErr } = await supabase
       .from('customer_tasks')
       .update({
         status: 'in_progress',
         description: updatedDesc,
       })
       .eq('id', taskId)
+      .eq('status', 'pending') // X4: kun én bekræftelse (samtidige klik)
+      .select('id')
 
     if (updateErr) {
       logger.error('Portal confirm besigtigelse: update failed', { error: updateErr })
       return { success: false, error: 'Kunne ikke bekræfte besigtigelsen' }
     }
+    if (!(confirmed ?? []).length) return { success: true }
 
     // Format date for email
     const formattedDate = task.due_date
@@ -2059,11 +2182,11 @@ export async function portalConfirmBesigtigelse(
             <h1 style="color: white; margin: 0; font-size: 20px;">Tak for din bekræftelse</h1>
           </div>
           <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-            <p style="font-size: 16px; color: #111827;">Kære ${session.customer.contact_person},</p>
+            <p style="font-size: 16px; color: #111827;">Kære ${escapeHtml(session.customer.contact_person)},</p>
             <p style="color: #374151;">Tak for din bekræftelse af besigtigelsen. Vi ses som aftalt:</p>
             <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
               ${formattedDate ? `<p style="margin: 4px 0; color: #166534;"><strong>Dato:</strong> ${formattedDate}</p>` : ''}
-              ${timeSlot ? `<p style="margin: 4px 0; color: #166534;"><strong>Tidspunkt:</strong> ${timeSlot}</p>` : ''}
+              ${timeSlot ? `<p style="margin: 4px 0; color: #166534;"><strong>Tidspunkt:</strong> ${escapeHtml(timeSlot)}</p>` : ''}
             </div>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0;">
               <tr>
@@ -2122,6 +2245,9 @@ export async function portalConfirmBesigtigelse(
  * Customer requests to reschedule a besigtigelse via portal.
  * Creates a new task in CRM with the customer's message.
  */
+const PORTAL_RESCHEDULE_RULE = 'portal_reschedule'
+const PORTAL_RESCHEDULE_MAX_PER_DAY = 3
+
 export async function portalRequestReschedule(
   token: string,
   taskId: string,
@@ -2135,6 +2261,11 @@ export async function portalRequestReschedule(
 
     const session = sessionResult.data
 
+    // Q10: kundens tekst begrænses (før ubegrænset ind i en CRM-opgave)
+    if (typeof message !== 'string' || message.length > 2000) {
+      return { success: false, error: 'Beskeden er for lang (højst 2.000 tegn)' }
+    }
+
     // Use admin client — token already validated
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const supabase = createAdminClient()
@@ -2142,13 +2273,25 @@ export async function portalRequestReschedule(
     // Verify task belongs to this customer
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, due_date, title, description')
+      .select('id, customer_id, due_date, title, description, assigned_to')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
-    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; description?: string | null })) {
+    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
+    }
+
+    // Q10: højst PORTAL_RESCHEDULE_MAX_PER_DAY åbne anmodninger pr. kunde pr. døgn (før: ubegrænset → opgave-spam)
+    const { count: recent } = await supabase
+      .from('customer_tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', session.customer_id)
+      .eq('auto_rule', PORTAL_RESCHEDULE_RULE)
+      .neq('status', 'done')
+      .gte('created_at', new Date(Date.now() - 86_400_000).toISOString())
+    if ((recent ?? 0) >= PORTAL_RESCHEDULE_MAX_PER_DAY) {
+      return { success: false, error: 'Vi har allerede modtaget din anmodning — vi kontakter dig hurtigst muligt' }
     }
 
     // Create a new task for the CRM user
@@ -2164,7 +2307,12 @@ export async function portalRequestReschedule(
         ].join('\n'),
         status: 'pending',
         priority: 'high',
-        created_by: session.customer_id,
+        // created_by peger på auth.users — kundens id er ingen bruger → indsættelsen fejlede ALTID (FK), så kundens
+        // anmodning nåede aldrig frem. Systemoprettet opgave; tildeles samme medarbejder som besigtigelsen.
+        created_by: null,
+        assigned_to: (task as { assigned_to?: string | null }).assigned_to ?? null,
+        auto_generated: true,
+        auto_rule: PORTAL_RESCHEDULE_RULE,
       })
 
     if (insertErr) {

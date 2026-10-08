@@ -8,6 +8,7 @@
  * Bruges af task-mail.ts og kan genbruges af enhver mail-flow.
  */
 
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import {
   getCompanyBranding,
@@ -182,7 +183,7 @@ async function resolveUserSignatureInput(
         const { data } = await supabase
           .from('employees')
           .select('*')
-          .ilike('email', profileEmail)
+          .ilike('email', escapeLike(profileEmail))
           .limit(1)
           .maybeSingle()
         employee = (data as Record<string, unknown> | null) || null

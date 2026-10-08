@@ -14,7 +14,8 @@ import type {
   KalkiaVariantMaterial,
 } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
-import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole, permissionDenied } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -36,10 +37,14 @@ export async function getKalkiaVariants(
   nodeId: string
 ): Promise<ActionResult<KalkiaVariantWithMaterials[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // RLS-analyse (S1, app-niveau): indlejrer supplier_products(cost_price …) — før uden gate. Samme gate som siden.
+    const __denied = await permissionDenied('settings.view')
+    if (__denied) return { success: false, error: __denied }
+    await getAuthenticatedClient()
     validateUUID(nodeId, 'node ID')
 
-    const { data, error } = await supabase
+    // 00192: kostkolonner — admin-klient bag settings.view
+    const { data, error } = await createAdminClient()
       .from('kalkia_variants')
       .select(`
         *,

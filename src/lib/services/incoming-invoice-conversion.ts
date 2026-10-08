@@ -60,7 +60,7 @@ export interface ConvertAndApproveResult {
  * Snapshot fields captured at insert time. Cost is read off the line;
  * sale defaults to 0 (operator sets it later — see Sprint 5B/5C UI).
  */
-function lineSnapshot(line: {
+export function lineSnapshot(line: {
   description: string | null
   quantity: number | string | null
   unit: string | null
@@ -74,17 +74,21 @@ function lineSnapshot(line: {
 } {
   const description = (line.description ?? '').trim() || 'Linje uden beskrivelse'
   const qRaw = Number(line.quantity ?? 0)
-  const quantity = Number.isFinite(qRaw) && qRaw > 0 ? qRaw : 1
-  const unit = (line.unit ?? '').trim() || 'stk'
   const upRaw = Number(line.unit_price ?? 0)
-  let unit_cost = Number.isFinite(upRaw) && upRaw >= 0 ? upRaw : 0
+  const tpRaw = Number(line.total_price ?? 0)
+  // X1 (økonomi-review 2026-10-07): retur-/kreditlinjer (negativt antal, pris eller total) blev til antal 1 × 0 kr →
+  // returen blev aldrig trukket fra sagens kost. Antal skal være > 0 (CHECK), så fortegnet bæres af stk-kosten.
+  const negative = Number.isFinite(tpRaw) && tpRaw !== 0
+    ? tpRaw < 0
+    : (Number.isFinite(qRaw) && qRaw < 0) !== (Number.isFinite(upRaw) && upRaw < 0)
+  const quantity = Number.isFinite(qRaw) && qRaw !== 0 ? Math.abs(qRaw) : 1
+  const unit = (line.unit ?? '').trim() || 'stk'
+  let unitAbs = Number.isFinite(upRaw) ? Math.abs(upRaw) : 0
   // Fall back to total / qty when unit_price is missing.
-  if (unit_cost === 0) {
-    const tpRaw = Number(line.total_price ?? 0)
-    if (Number.isFinite(tpRaw) && tpRaw > 0 && quantity > 0) {
-      unit_cost = Math.round((tpRaw / quantity) * 100) / 100
-    }
+  if (unitAbs === 0 && Number.isFinite(tpRaw) && tpRaw !== 0) {
+    unitAbs = Math.round((Math.abs(tpRaw) / quantity) * 100) / 100
   }
+  const unit_cost = negative ? -unitAbs : unitAbs
   return { description, quantity, unit, unit_cost }
 }
 
@@ -233,7 +237,9 @@ async function runLineConversion(
       }
       // Reverse-link the invoice line. The UNIQUE partial index
       // guards against double conversion.
-      const { error: bindErr } = await supabase
+      // Leverandør-review 2026-10-08 (#2): to samtidige konverteringer oprettede begge en kostrække — bindingen er nu
+      // kravet: kun en endnu ukonverteret linje bindes; taber vi, fjernes vores række igen (ingen dobbelt kost)
+      const { data: boundRows, error: bindErr } = await supabase
         .from('incoming_invoice_lines')
         .update({
           converted_case_material_id: cm.id,
@@ -242,6 +248,14 @@ async function runLineConversion(
         })
         .eq('id', p.lineId)
         .is('converted_case_material_id', null)
+        .is('converted_case_other_cost_id', null)
+        .is('converted_at', null)
+        .select('id')
+      if (!bindErr && (boundRows ?? []).length === 0) {
+        await supabase.from('case_materials').delete().eq('id', cm.id)
+        perLine.push({ lineId: p.lineId, disposition: 'material', ok: true, alreadyConverted: true, message: 'Allerede konverteret (samtidig)' })
+        continue
+      }
       if (bindErr) {
         // Couldn't bind — best effort cleanup of the orphan case_material.
         await supabase.from('case_materials').delete().eq('id', cm.id)
@@ -279,7 +293,7 @@ async function runLineConversion(
         conversionFatal = true
         continue
       }
-      const { error: bindErr } = await supabase
+      const { data: boundOc, error: bindErr } = await supabase
         .from('incoming_invoice_lines')
         .update({
           converted_case_other_cost_id: oc.id,
@@ -288,6 +302,14 @@ async function runLineConversion(
         })
         .eq('id', p.lineId)
         .is('converted_case_other_cost_id', null)
+        .is('converted_case_material_id', null)
+        .is('converted_at', null)
+        .select('id')
+      if (!bindErr && (boundOc ?? []).length === 0) {
+        await supabase.from('case_other_costs').delete().eq('id', oc.id)
+        perLine.push({ lineId: p.lineId, disposition: 'other_cost', ok: true, alreadyConverted: true, message: 'Allerede konverteret (samtidig)' })
+        continue
+      }
       if (bindErr) {
         await supabase.from('case_other_costs').delete().eq('id', oc.id)
         perLine.push({ lineId: p.lineId, disposition: 'other_cost', ok: false, message: bindErr.message })

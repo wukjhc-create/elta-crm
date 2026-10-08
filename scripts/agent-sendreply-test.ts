@@ -53,6 +53,14 @@ async function run() {
     assert(r.data?.classification === 'failed_before_send', 'eksplicit ikke-sendt => classification failed_before_send')
   }
 
+  // R-MAIL-B #6: transport returnerer timeout EFTER dispatch (ok:false, uncertain) => UVIST, ikke "intet sendt"
+  {
+    const t: MailTransport = async () => ({ ok: false, uncertain: true })
+    const r = await executeSendReply(ctx(validPayload), t)
+    assert(!r.ok && r.uncertain === true, 'transport-timeout efter dispatch => uncertain (ikke failed_before_send)')
+    assert(r.data?.classification === 'needs_verification', 'transport-timeout => classification needs_verification (aldrig auto-retry)')
+  }
+
   // transport KASTER => uncertain (uvist om sendt) => aldrig auto-retry
   {
     const t: MailTransport = async () => { throw new Error('timeout') }

@@ -51,7 +51,8 @@ export const LEAD_STATUS_TRANSITIONS: Record<LeadStatus, LeadStatus[]> = {
   qualified: ['proposal', 'lost'],
   proposal: ['negotiation', 'won', 'lost'],
   negotiation: ['won', 'lost'],
-  won: [],
+  // Leads-review 2026-10-08: et fejlagtigt "vundet" (fx automatisk ved accept) kunne ikke rettes — genåbn til forhandling
+  won: ['negotiation'],
   lost: ['new'],
 }
 

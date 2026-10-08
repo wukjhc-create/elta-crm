@@ -12,6 +12,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAiSuggestion } from '@/lib/ai/suggestion-log'
 import type { EmployeePerformance } from '@/types/ai-insights.types'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 interface EmployeeRollup {
   employeeId: string
@@ -23,14 +24,17 @@ interface EmployeeRollup {
 async function rollupAllEmployees(): Promise<EmployeeRollup[]> {
   const supabase = createAdminClient()
   // Latest profit per work order (most recent snapshot).
-  const { data: snaps } = await supabase
+  // Profit-review 2026-10-07: side for side — .limit(2000) gav de nyeste 1.000 snapshots, så ældre arbejdsordrer
+  // (og dermed medarbejdernes historiske avance) faldt ud af opgørelsen
+  const snaps = await fetchAllRows<{ id: string; work_order_id: string; profit: number | string; revenue: number | string; created_at: string }>((from, to) => supabase
     .from('work_order_profit')
-    .select('work_order_id, profit, revenue, created_at')
+    .select('id, work_order_id, profit, revenue, created_at')
     .order('created_at', { ascending: false })
-    .limit(2000)
+    .order('id')
+    .range(from, to))
 
   const latestByWo = new Map<string, number>()
-  for (const s of snaps ?? []) {
+  for (const s of snaps) {
     if (!latestByWo.has(s.work_order_id)) {
       latestByWo.set(s.work_order_id, Number(s.profit) || 0)
     }
@@ -38,17 +42,25 @@ async function rollupAllEmployees(): Promise<EmployeeRollup[]> {
   if (latestByWo.size === 0) return []
 
   const woIds = Array.from(latestByWo.keys())
-  const { data: logs } = await supabase
-    .from('time_logs')
-    .select('employee_id, work_order_id, hours, billable, end_time')
-    .in('work_order_id', woIds)
-    .not('end_time', 'is', null)
+  // i bidder af 200 id'er og side for side (før én .in() med alle arbejdsordrer og højst 1.000 timerækker)
+  const logs: Array<{ id: string; employee_id: string; work_order_id: string; hours: number | string | null; billable: boolean | null; end_time: string | null }> = []
+  for (let k = 0; k < woIds.length; k += 200) {
+    const chunk = woIds.slice(k, k + 200)
+    logs.push(...await fetchAllRows<(typeof logs)[number]>((from, to) => supabase
+      .from('time_logs')
+      .select('id, employee_id, work_order_id, hours, billable, end_time')
+      .in('work_order_id', chunk)
+      .not('end_time', 'is', null)
+      .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
+      .order('id')
+      .range(from, to)))
+  }
 
   // Sum hours per (employee, work_order); split profit proportionally
   // across the employees that worked on each job.
   const hoursPerWo = new Map<string, number>()
   const hoursPerEmpWo = new Map<string, Map<string, number>>()
-  for (const l of logs ?? []) {
+  for (const l of logs) {
     const h = Number(l.hours) || 0
     if (h <= 0) continue
     hoursPerWo.set(l.work_order_id, (hoursPerWo.get(l.work_order_id) ?? 0) + h)

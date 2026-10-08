@@ -13,6 +13,7 @@ import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp
 import { decryptCredentials } from '@/lib/utils/encryption'
 import { BATCH_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { loadExistingSupplierProducts } from '@/lib/suppliers/load-existing-products'
 
 // Service role client for DB operations
 function getServiceClient() {
@@ -101,12 +102,8 @@ export async function importFromFtp(
     }
 
     // 4. Load existing products for upsert matching
-    const { data: existingProducts } = await supabase
-      .from('supplier_products')
-      .select('id, supplier_sku, cost_price, list_price')
-      .eq('supplier_id', supplier.id)
-
-    const productsBySku = new Map((existingProducts || []).map((p) => [p.supplier_sku, p]))
+    // X4 (pris-review 2026-10-07): alle produkter, ikke kun de første 1.000 (PostgREST-loft)
+    const productsBySku = (await loadExistingSupplierProducts(supabase, supplier.id, { budgetMs: 120_000 })).bySku
     const now = new Date().toISOString()
 
     let updatedProducts = 0
@@ -137,7 +134,7 @@ export async function importFromFtp(
                 .from('supplier_products')
                 .update({
                   supplier_name: row.parsed.name || undefined,
-                  cost_price: newCost,
+                  cost_price: newCost ?? undefined, // X4: tom priscelle overskriver ikke kendt kostpris med NULL
                   list_price: row.parsed.list_price,
                   unit: row.parsed.unit || undefined,
                   category: row.parsed.category || undefined,
@@ -239,7 +236,7 @@ export async function importFromFtp(
         skipped_rows: rows.length - (newProducts + updatedProducts),
         error_rows: errors.length,
         price_changes: priceChanges,
-        status: errors.length === 0 ? 'completed' : 'partial',
+        status: errors.length === 0 ? 'completed' : 'failed', // X4: 'partial' findes ikke i CHECK (00043)
       })
     } catch (auditErr) {
       logger.warn('Could not create import_batches record', { error: auditErr })

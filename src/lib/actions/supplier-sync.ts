@@ -5,6 +5,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { SupplierAPIClientFactory, type ProductPrice } from '@/lib/services/supplier-api-client'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -18,6 +19,7 @@ async function requireGate(permission: Permission) {
 }
 import { BATCH_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 // =====================================================
 // Types
@@ -78,12 +80,15 @@ export async function syncSupplierPrices(
     let skusToSync = options?.skus || []
     if (skusToSync.length === 0) {
       // Get all products for this supplier
-      const { data: products } = await supabase
+      // leverandør-review: side for side — før kun de første 1.000 varer (PostgREST max_rows)
+      const products = await fetchAllRows<{ id: string; supplier_sku: string }>((from, to) => supabase
         .from('supplier_products')
-        .select('supplier_sku')
+        .select('id, supplier_sku')
         .eq('supplier_id', supplierId)
+        .order('id')
+        .range(from, to), 2_000_000)
 
-      skusToSync = products?.map((p) => p.supplier_sku) || []
+      skusToSync = products.map((p) => p.supplier_sku)
     }
 
     if (skusToSync.length === 0) {
@@ -123,7 +128,8 @@ export async function syncSupplierPrices(
 
         for (const [sku, price] of prices) {
           // Get existing product
-          const { data: existingProduct, error: productError } = await supabase
+          // 00192: kostkolonner — admin-klient bag settings.suppliers
+          const { data: existingProduct, error: productError } = await createAdminClient()
             .from('supplier_products')
             .select('id, cost_price, list_price')
             .eq('supplier_id', supplierId)
@@ -134,6 +140,9 @@ export async function syncSupplierPrices(
 
           const oldCostPrice = existingProduct.cost_price
           const newCostPrice = price.costPrice
+          // X4 (pris-review 2026-10-07): API'et giver 0 når der ingen prisaftale er (AO) / kost er ukendt (LM) — overskriv
+          // aldrig en rigtig kostpris med 0 og skriv ingen −100 %-historik
+          if (!(Number(newCostPrice) > 0)) continue
 
           // Check if price changed
           if (oldCostPrice !== newCostPrice) {
@@ -193,7 +202,7 @@ export async function syncSupplierPrices(
     await supabase.from('supplier_sync_logs').insert({
       supplier_id: supplierId,
       job_type: 'price_update',
-      status: errors.length === 0 ? 'completed' : 'partial',
+      status: errors.length === 0 ? 'completed' : 'failed', // X4: 'partial' findes ikke i CHECK (00043)
       trigger_type: 'manual',
       started_at: new Date(startTime).toISOString(),
       completed_at: new Date().toISOString(),
@@ -373,8 +382,9 @@ export async function importProductsFromAPI(
           .from('supplier_products')
           .update({
             supplier_name: product.name,
-            cost_price: product.costPrice,
-            list_price: product.listPrice,
+            // leverandør-review: API'et giver 0 når der ingen pris er (fx uden prisaftale) — overskrev før kostprisen med 0
+            cost_price: product.costPrice > 0 ? product.costPrice : undefined,
+            list_price: product.listPrice ?? undefined,
             unit: product.unit,
             is_available: product.isAvailable,
             lead_time_days: product.leadTimeDays,
@@ -388,7 +398,7 @@ export async function importProductsFromAPI(
           supplier_id: supplierId,
           supplier_sku: product.sku,
           supplier_name: product.name,
-          cost_price: product.costPrice,
+          cost_price: product.costPrice > 0 ? product.costPrice : null,
           list_price: product.listPrice,
           unit: product.unit,
           is_available: product.isAvailable,

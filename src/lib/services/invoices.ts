@@ -11,6 +11,8 @@
 import { MIN_DAYS_BETWEEN_REMINDERS, pickReminderLevel } from '@/lib/invoices/reminder-plan' // regler delt med cockpittet (N89)
 import { invoiceBankInfo } from '@/lib/invoices/bank-info'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { rebaseDueDateOnSend } from '@/lib/invoices/due-date'
 import { logger } from '@/lib/utils/logger'
 import { getStandardSaleRate } from '@/lib/services/rates'
 import type {
@@ -75,6 +77,29 @@ export async function createInvoiceFromOffer(
 ): Promise<string> {
   const supabase = createAdminClient()
 
+  // Faktura-review 2026-10-04 (HØJ): SQL-funktionen create_invoice_from_offer summerer sale_price/unit_price × antal og
+  // ignorerer linjerabat og tilbudsrabat → et tilbud med rabat ville blive faktureret til fuld pris (og automatik-reglen
+  // sender den). Indtil funktionen er rettet (migration → godkendelse) afvises rabat-tilbud her; de faktureres manuelt.
+  const { data: existing } = await supabase.from('invoices').select('id').eq('offer_id', offerId).limit(1)
+  if (!existing?.length) {
+    const [{ data: off }, { count: discountedLines }] = await Promise.all([
+      supabase.from('offers').select('discount_percentage, discount_amount').eq('id', offerId).maybeSingle(),
+      supabase.from('offer_line_items').select('id', { count: 'exact', head: true }).eq('offer_id', offerId).gt('discount_percentage', 0),
+    ])
+    if (Number(off?.discount_percentage) > 0 || Number(off?.discount_amount) > 0 || (discountedLines ?? 0) > 0) {
+      throw new Error('Tilbuddet har rabat — automatisk faktura fra tilbud medregner ikke rabat endnu. Opret fakturaen manuelt.')
+    }
+    // S1 (tilbuds-review 2026-10-07): SQL-funktionen prissætter med COALESCE(sale_price, unit_price, 0), men sale_price
+    // er NOT NULL DEFAULT 0, og manuelt oprettede/redigerede linjer gemte kun unit_price → linjen blev faktureret (og
+    // automatik-reglen SENDT) til 0 kr eller en forældet pris. Afvis indtil linjerne er rettet (prod-data → godkendelse).
+    const { data: priceLines } = await supabase.from('offer_line_items').select('sale_price, unit_price').eq('offer_id', offerId)
+    const mispriced = ((priceLines ?? []) as Array<{ sale_price: number | string | null; unit_price: number | string | null }>)
+      .filter((l) => Number(l.unit_price ?? 0) !== 0 && Number(l.sale_price ?? 0) !== Number(l.unit_price ?? 0)).length
+    if (mispriced > 0) {
+      throw new Error(`Tilbuddet har ${mispriced} linje(r) hvor fakturaprisen ikke svarer til tilbudsprisen — automatisk faktura fra tilbud afvist. Opret fakturaen manuelt.`)
+    }
+  }
+
   // Sprint 2E.2A: resolver betalingsfrist (customer → company → 14) når
   // caller ikke har angivet en eksplicit override.
   let dueDays = options.dueDays
@@ -133,6 +158,9 @@ const ALLOWED_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
  *
  * Best-effort: never throws. Logs warnings on FK errors.
  */
+/** sent_at-markør mens en kladde slettes (blokerer samtidig afsendelse, som kræver sent_at IS NULL) */
+const DRAFT_DELETE_CLAIM = '1970-01-01T00:00:00.000Z'
+
 async function recomputeOriginalVoidStatus(
   originalInvoiceId: string,
   approverId: string | null
@@ -209,7 +237,7 @@ export async function setInvoiceStatus(
 
   const { data: current, error: readErr } = await supabase
     .from('invoices')
-    .select('id, status')
+    .select('id, status, created_at, due_date')
     .eq('id', invoiceId)
     .maybeSingle()
 
@@ -232,13 +260,25 @@ export async function setInvoiceStatus(
   }
 
   const patch: Partial<InvoiceRow> = { status: next }
-  if (next === 'sent') patch.sent_at = new Date().toISOString()
-  if (next === 'paid') patch.paid_at = new Date().toISOString()
+  if (next === 'sent') {
+    patch.sent_at = new Date().toISOString()
+    // X1: betalingsbetingelserne regnes fra udstedelsen (også ved manuel "markér som sendt")
+    if (cur === 'draft') {
+      const rebased = rebaseDueDateOnSend((current as { created_at?: string | null }).created_at, (current as { due_date?: string | null }).due_date)
+      if (rebased) patch.due_date = rebased
+    }
+  }
+  if (next === 'paid') {
+    patch.paid_at = new Date().toISOString()
+    // Økonomi-review 2026-10-08: manuelt markeret betalt beholdt payment_status 'pending' → stadig bankmatch-kandidat
+    patch.payment_status = 'paid'
+  }
 
   const { data: updated, error: updErr } = await supabase
     .from('invoices')
     .update(patch)
     .eq('id', invoiceId)
+    .eq('status', cur) // samtidigt statusskift må ikke overskrives blindt
     .select('*')
     .single()
 
@@ -318,6 +358,23 @@ export async function deleteInvoiceDraft(
       `deleteInvoiceDraft: invoice ${inv.invoice_number} is ${inv.status} — only drafts can be deleted`
     )
   }
+  // Økonomi-review 2026-10-08 (#9): kladden kunne slettes MENS sendInvoiceEmail sendte den (kravet = sent_at sat) →
+  // kunden fik en faktura der ikke findes, og timer/materialer blev frigivet til ny fakturering. Sletningen tager nu
+  // samme krav (sent_at = DRAFT_DELETE_CLAIM) — en igangværende afsendelse blokerer sletning og omvendt.
+  const { data: delClaim } = await supabase
+    .from('invoices')
+    .update({ sent_at: DRAFT_DELETE_CLAIM })
+    .eq('id', invoiceId)
+    .eq('status', 'draft')
+    .is('sent_at', null)
+    .select('id')
+    .maybeSingle()
+  if (!delClaim) {
+    throw new Error(`deleteInvoiceDraft: invoice ${inv.invoice_number} sendes netop nu — kan ikke slettes`)
+  }
+  const releaseDeleteClaim = async () => {
+    await supabase.from('invoices').update({ sent_at: null }).eq('id', invoiceId).eq('sent_at', DRAFT_DELETE_CLAIM)
+  }
   // Capture credit-link before delete so we can recompute the original
   // invoice's void state afterward (Sprint 6F-3 fix).
   const isCreditOf = (
@@ -368,6 +425,7 @@ export async function deleteInvoiceDraft(
         entityId: invoiceId,
         error: lineDelErr,
       })
+      await releaseDeleteClaim()
       throw new Error(`deleteInvoiceDraft: line delete failed: ${lineDelErr.message}`)
     }
   }
@@ -382,6 +440,7 @@ export async function deleteInvoiceDraft(
       entityId: invoiceId,
       error: hdrDelErr,
     })
+    await releaseDeleteClaim()
     throw new Error(`deleteInvoiceDraft: header delete failed: ${hdrDelErr.message}`)
   }
   if ((count ?? 0) === 0) {
@@ -623,18 +682,45 @@ export async function markInvoicePaid(
   return row
 }
 
+/**
+ * Mail-review 2026-10-07 (R-MAIL-B #3): udestående på en faktura inkl. moms = final_amount − amount_paid − sendte/
+ * betalte kreditnotaer mod fakturaen (credit_of_invoice_id). Rykkeren viste før ALTID det fulde beløb — også efter
+ * delbetaling eller delkreditering — og blev sendt selv når intet stod udestående.
+ */
+async function outstandingByInvoice(
+  supabase: ReturnType<typeof createAdminClient>,
+  invoices: Array<{ id: string; final_amount: number | string | null; amount_paid?: number | string | null }>,
+): Promise<Map<string, number>> {
+  const credited = new Map<string, number>()
+  const ids = invoices.map((i) => i.id)
+  for (let k = 0; k < ids.length; k += 200) {
+    const { data } = await supabase.from('invoices').select('credit_of_invoice_id, final_amount')
+      .in('credit_of_invoice_id', ids.slice(k, k + 200)).in('status', ['sent', 'paid'])
+    for (const c of (data ?? []) as Array<{ credit_of_invoice_id: string; final_amount: number | string | null }>) {
+      credited.set(c.credit_of_invoice_id, (credited.get(c.credit_of_invoice_id) ?? 0) + Math.abs(Number(c.final_amount) || 0))
+    }
+  }
+  const out = new Map<string, number>()
+  for (const i of invoices) {
+    const v = (Number(i.final_amount) || 0) - (Number(i.amount_paid) || 0) - (credited.get(i.id) ?? 0)
+    out.set(i.id, Math.round(v * 100) / 100)
+  }
+  return out
+}
+
 export interface OverdueInvoice extends InvoiceRow {
   days_overdue: number
   next_reminder_level: 1 | 2 | 3 | null
+  /** Udestående inkl. moms (efter delbetalinger og kreditnotaer) */
+  outstanding_amount: number
 }
 
 /** Returns sent (unpaid) invoices that are at least 3 days past due_date. */
 export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
   const supabase = createAdminClient()
   const today = new Date()
-  const cutoff = new Date(today)
-  cutoff.setDate(cutoff.getDate() - 3)
-  const cutoffIso = cutoff.toISOString().slice(0, 10)
+  // X1: dansk kalenderdato (før toISOString().slice(0,10) = UTC-dato → mellem kl. 00 og 02 dansk tid en dag forskudt)
+  const cutoffIso = copenhagenDatePlusDays(-3, today)
 
   // Sprint 6F-4 — reminder-skip:
   //   - voided_at IS NOT NULL  → fakturaen er annulleret via kreditnota
@@ -656,12 +742,16 @@ export async function getOverdueInvoices(): Promise<OverdueInvoice[]> {
     return []
   }
 
-  return (data ?? []).map((inv) => {
+  const rows = (data ?? []) as InvoiceRow[]
+  const outstanding = await outstandingByInvoice(supabase, rows)
+  // kun fakturaer med reelt udestående (> 0,50 kr — øreafrunding)
+  return rows.filter((inv) => (outstanding.get(inv.id) ?? 0) > 0.5).map((inv) => {
     const days = inv.due_date ? daysBetween(new Date(inv.due_date), today) : 0
     return {
-      ...(inv as InvoiceRow),
+      ...inv,
       days_overdue: days,
-      next_reminder_level: pickReminderLevel(days, (inv as InvoiceRow).reminder_count ?? 0),
+      next_reminder_level: pickReminderLevel(days, inv.reminder_count ?? 0),
+      outstanding_amount: outstanding.get(inv.id) ?? 0,
     }
   })
 }
@@ -721,6 +811,14 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     await logReminder(invoiceId, null, 'skipped', null, 'no due_date')
     return { invoiceId, status: 'skipped', level: null, reason: 'no due_date' }
   }
+  // R-MAIL-B #8: et krav uden afsendelse (kørslen blev afbrudt mellem krav og mail) må ikke forbruge et rykkerniveau
+  await reconcileOrphanReminderClaim(supabase, invoice)
+  // R-MAIL-B #3: rykkeren gælder det UDESTÅENDE (delbetaling/delkreditering); intet udestående → ingen rykker
+  const outstandingAmount = (await outstandingByInvoice(supabase, [invoice])).get(invoice.id) ?? 0
+  if (outstandingAmount <= 0.5) {
+    await logReminder(invoiceId, null, 'skipped', null, 'outstanding<=0')
+    return { invoiceId, status: 'skipped', level: null, reason: 'outstanding<=0' }
+  }
 
   const today = new Date()
   const days = daysBetween(new Date(invoice.due_date), today)
@@ -747,10 +845,15 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 
   // Level 3 = warning, manual review only — no email.
   if (level === 3) {
-    await supabase
+    // automatik-review: betinget af den læste tæller (samtidige kørsler eskalerer kun én gang)
+    const { data: esc } = await supabase
       .from('invoices')
       .update({ reminder_count: (invoice.reminder_count ?? 0) + 1, last_reminder_at: today.toISOString() })
       .eq('id', invoiceId)
+      .eq('reminder_count', invoice.reminder_count ?? 0)
+      .select('id')
+      .maybeSingle()
+    if (!esc) return { invoiceId, status: 'skipped', level: 3, reason: 'claimed by parallel run' }
     await logReminder(invoiceId, 3, 'manual_review', null, `${days} days overdue — escalated`)
     console.log('INVOICE WARNING (manual review):', invoice.invoice_number, days, 'days overdue')
     return { invoiceId, status: 'manual_review', level: 3 }
@@ -827,7 +930,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
       style: 'currency',
       currency: invoice.currency || 'DKK',
       maximumFractionDigits: 2,
-    }).format(Number(invoice.final_amount) || 0),
+    }).format(outstandingAmount),
     dueDateFormatted: invoice.due_date
       ? new Date(invoice.due_date).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
       : '',
@@ -840,6 +943,36 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     caseNumber: reminderCaseNumber,
   } as const
 
+  // Automatik-review: rykkeren "gøres krav på" FØR afsendelse — samtidige kørsler (cron + "Kør rykkere nu", dobbeltklik)
+  // læste før samme cooldown og sendte begge. Kun den kørsel der hæver tælleren fra den læste værdi sender; fejler
+  // afsendelsen, rulles kravet tilbage.
+  const prevCount = invoice.reminder_count ?? 0
+  const { data: claim } = await supabase
+    .from('invoices')
+    .update({ reminder_count: prevCount + 1, last_reminder_at: today.toISOString() })
+    .eq('id', invoiceId)
+    .eq('reminder_count', prevCount)
+    .select('id')
+    .maybeSingle()
+  if (!claim) {
+    await logReminder(invoiceId, level, 'skipped', recipient, 'claimed by parallel run')
+    return { invoiceId, status: 'skipped', level, reason: 'claimed by parallel run' }
+  }
+  // Mail-review 2026-10-08 (#1): log-række "på vej" FØR afsendelsen. Blev funktionen dræbt efter at Graph tog mailen,
+  // men før 'sent' blev logget, genoprettede reparationen niveauet → samme rykker igen dagen efter. En in_flight-række
+  // tæller som brugt (hellere en manglende rykker end en dublet); den opdateres til det endelige udfald nedenfor.
+  const { data: inflight } = await supabase.from('invoice_reminder_log')
+    .insert({ invoice_id: invoiceId, level, status: 'failed', recipient, reason: REMINDER_INFLIGHT_REASON, error: null })
+    .select('id').single()
+  const inflightId = (inflight as { id: string } | null)?.id ?? null
+  const finishLog = async (status: 'sent' | 'failed', reason: string | null, error: string | null) => {
+    if (inflightId) {
+      await supabase.from('invoice_reminder_log').update({ status, reason, error }).eq('id', inflightId)
+    } else {
+      await logReminder(invoiceId, level, status, recipient, reason, error)
+    }
+  }
+
   const result = await sendEmailViaGraph({
     to: recipient,
     subject: buildInvoiceReminderSubject(params, emailCfg),
@@ -850,19 +983,18 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
   })
 
   if (!result.success) {
-    await logReminder(invoiceId, level, 'failed', recipient, null, result.error || 'send failed')
+    // R-MAIL-B #6: ved ukendt udfald (timeout) beholdes kravet — hellere én manglende rykker end en dublet
+    if (!result.uncertain) await supabase
+      .from('invoices')
+      .update({ reminder_count: prevCount, last_reminder_at: invoice.last_reminder_at ?? null })
+      .eq('id', invoiceId)
+      .eq('reminder_count', prevCount + 1)
+    await finishLog('failed', result.uncertain ? REMINDER_UNCERTAIN_REASON : null, result.error || 'send failed')
     await logMailRoute(route, 'failed', { invoiceId, level, error: result.error })
     return { invoiceId, status: 'failed', level, error: result.error }
   }
 
-  await supabase
-    .from('invoices')
-    .update({
-      reminder_count: (invoice.reminder_count ?? 0) + 1,
-      last_reminder_at: today.toISOString(),
-    })
-    .eq('id', invoiceId)
-  await logReminder(invoiceId, level, 'sent', recipient, null)
+  await finishLog('sent', null, null)
   await logMailRoute(route, 'sent', { invoiceId, level, messageId: result.messageId })
   console.log('INVOICE REMINDER SENT:', invoice.invoice_number, 'level', level, '→', recipient)
   return { invoiceId, status: 'sent', level }
@@ -875,6 +1007,41 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 function daysBetween(from: Date, to: Date): number {
   const ms = to.getTime() - from.getTime()
   return Math.floor(ms / (1000 * 60 * 60 * 24))
+}
+
+/** Logårsag for en afsendelse med ukendt udfald (Graph-timeout): niveauet regnes som brugt — ingen genafsendelse. */
+const REMINDER_UNCERTAIN_REASON = 'uncertain_timeout'
+/** Logårsag for en rykker der er ved at blive sendt (skrives før Graph); efterlades kun hvis kørslen dræbes → brugt */
+const REMINDER_INFLIGHT_REASON = 'in_flight'
+/** Et krav ældre end dette uden log-række regnes som afbrudt (ikke en kørsel i gang) */
+const REMINDER_CLAIM_STALE_MS = 15 * 60_000
+
+/**
+ * R-MAIL-B #8 (Henrik 2026-10-08): reminder_count hæves FØR mailen (krav mod dobbelt-send). Afbrydes kørslen før
+ * logReminder, er niveauet brugt uden at kunden fik noget. Brugte niveauer = log-rækker 'sent' + 'failed' med ukendt
+ * udfald (de må ikke sendes igen). Er reminder_count højere, og kravet er ældre end 15 min, rettes tælleren betinget
+ * tilbage (og fakturaobjektet opdateres i hukommelsen), så niveauet kan sendes ved næste kørsel. Ingen skemaændring.
+ */
+async function reconcileOrphanReminderClaim(supabase: ReturnType<typeof createAdminClient>, invoice: InvoiceRow): Promise<void> {
+  const claimed = invoice.reminder_count ?? 0
+  if (claimed <= 0 || !invoice.last_reminder_at) return
+  if (Date.now() - new Date(invoice.last_reminder_at).getTime() < REMINDER_CLAIM_STALE_MS) return
+  const { data: logs } = await supabase.from('invoice_reminder_log').select('status, reason, created_at')
+    .eq('invoice_id', invoice.id).in('status', ['sent', 'failed', 'manual_review']).order('created_at', { ascending: false })
+  // Mail-review 2026-10-08 (#3): eskalering (niveau 3) logges som manual_review — talte ikke med, så tælleren blev
+  // rullet 3 → 2 hver dag og eskaleret igen
+  const used = ((logs ?? []) as Array<{ status: string; reason: string | null; created_at: string }>)
+    .filter((l) => l.status === 'sent' || l.status === 'manual_review' || l.reason === REMINDER_UNCERTAIN_REASON || l.reason === REMINDER_INFLIGHT_REASON)
+  if (used.length >= claimed) return
+  const restoredAt = used[0]?.created_at ?? null
+  const { data: fixed } = await supabase.from('invoices')
+    .update({ reminder_count: used.length, last_reminder_at: restoredAt })
+    .eq('id', invoice.id).eq('reminder_count', claimed).select('id').maybeSingle()
+  if (fixed) {
+    logger.warn('invoice reminder: afbrudt krav genoprettet', { entityId: invoice.id, metadata: { from: claimed, to: used.length } })
+    invoice.reminder_count = used.length
+    invoice.last_reminder_at = restoredAt
+  }
 }
 
 async function logReminder(
@@ -928,7 +1095,43 @@ export interface SendInvoiceEmailResult {
  * status='sent'. Idempotent: if already sent, returns 'already_sent'
  * without re-sending.
  */
+/**
+ * Mail-review 2026-10-07: send-kravet ("claim") FØR afsendelse. Før: tjek → PDF → send → status 'sent' bagefter, så to
+ * samtidige kald (dobbeltklik, to faner, manuel send + automatik-regel) begge sendte mailen og bogførte i e-conomic.
+ * Nu sættes sent_at betinget (kun kladde uden sent_at) før noget sendes; den anden kalder ser sent_at og springer over.
+ * Ender afsendelsen ikke i 'sent', frigives kravet igen (kun hvis fakturaen stadig er kladde).
+ */
 export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEmailResult> {
+  const supabase = createAdminClient()
+  const { data: claimed, error: claimErr } = await supabase
+    .from('invoices')
+    .update({ sent_at: new Date().toISOString() })
+    .eq('id', invoiceId)
+    .eq('status', 'draft')
+    .is('sent_at', null)
+    .select('id')
+    .maybeSingle()
+  if (claimErr) return { invoiceId, status: 'failed', error: 'claim failed' }
+  if (!claimed) {
+    const { data: cur } = await supabase.from('invoices').select('status').eq('id', invoiceId).maybeSingle()
+    if (!cur) return { invoiceId, status: 'failed', error: 'invoice not found' }
+    return { invoiceId, status: 'already_sent', reason: `status=${(cur as { status: string }).status} (eller sendes allerede)` }
+  }
+  const release = async () => {
+    await supabase.from('invoices').update({ sent_at: null }).eq('id', invoiceId).eq('status', 'draft')
+  }
+  let result: SendInvoiceEmailResult
+  try {
+    result = await sendClaimedInvoiceEmail(invoiceId)
+  } catch (err) {
+    await release()
+    throw err
+  }
+  if (result.status !== 'sent') await release()
+  return result
+}
+
+async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEmailResult> {
   const supabase = createAdminClient()
 
   const { data: inv, error: invErr } = await supabase
@@ -941,14 +1144,20 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   }
   const invoice = inv as InvoiceRow
 
-  // Safety: never send twice. status='sent' or 'paid' or sent_at populated → skip.
-  if (invoice.status !== 'draft' || invoice.sent_at) {
+  // Safety: never send twice — kaldes kun med et gyldigt krav (sent_at sat af sendInvoiceEmail); status skal være kladde
+  if (invoice.status !== 'draft') {
     return { invoiceId, status: 'already_sent', reason: `status=${invoice.status}` }
   }
 
   if (!invoice.customer_id) {
     return { invoiceId, status: 'skipped', reason: 'no customer linked' }
   }
+
+  // X1: betalingsbetingelserne regnes fra AFSENDELSEN (ikke fra kladdens oprettelse) — mail og PDF viser den nye dato,
+  // og den gemmes sammen med status 'sent' nedenfor
+  const sendNow = new Date()
+  const rebasedDue = rebaseDueDateOnSend(invoice.created_at, invoice.due_date, sendNow)
+  if (rebasedDue) invoice.due_date = rebasedDue
 
   // Sprint 8H Phase 2: central mail-router.
   // resolveInvoiceMailRoute prefererer billing_contact, fallback til
@@ -1060,7 +1269,11 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   // the latest PDF from /api/invoices/[id]/pdf if it's missing.
   let pdfAttachment: { filename: string; content: Buffer; contentType: string } | null = null
   try {
-    const payload = await getInvoicePdfPayload(invoiceId)
+    const rawPayload = await getInvoicePdfPayload(invoiceId)
+    // X1: PDF'en der sendes viser udstedelsesdato (i dag) og den flyttede forfaldsdato
+    const payload = rawPayload
+      ? { ...rawPayload, invoice: { ...rawPayload.invoice, sent_at: sendNow.toISOString(), due_date: invoice.due_date } }
+      : rawPayload
     if (payload && companyRow) {
       const { renderToBuffer } = await import('@react-pdf/renderer')
       const { InvoicePdfDocument } = await import('@/lib/pdf/invoice-pdf-template')
@@ -1108,8 +1321,9 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     .from('invoices')
     .update({
       status: 'sent',
-      sent_at: new Date().toISOString(),
+      sent_at: sendNow.toISOString(),
       payment_reference: paymentReference,
+      ...(rebasedDue ? { due_date: rebasedDue } : {}),
     })
     .eq('id', invoiceId)
     .eq('status', 'draft') // guard against concurrent send
@@ -1118,6 +1332,11 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
       entityId: invoiceId,
       error: updErr,
     })
+  }
+  // Økonomi-review 2026-10-08 (#1): en kreditnota sendt pr. mail annullerede aldrig originalen (kun setInvoiceStatus
+  // gjorde) → fuldt krediteret original stod som udestående/forfalden, i bankmatch og kunne eksporteres
+  if (!updErr && invoice.invoice_type === 'credit' && invoice.credit_of_invoice_id) {
+    await recomputeOriginalVoidStatus(invoice.credit_of_invoice_id, null)
   }
 
   console.log('INVOICE SENT:', invoiceId)
@@ -1322,11 +1541,16 @@ export async function registerPayment(
 
   const { data: inv, error: readErr } = await supabase
     .from('invoices')
-    .select('id, status, payment_status, amount_paid, final_amount, currency')
+    .select('id, status, payment_status, amount_paid, final_amount, currency, invoice_type, voided_at')
     .eq('id', invoiceId)
     .maybeSingle()
   if (readErr || !inv) {
     throw new Error(`registerPayment: invoice ${invoiceId} not found`)
+  }
+  // Økonomi-review 2026-10-08 (#3): bankmatch kunne "betale" en kladde (aldrig sendt → kan ikke slettes, mark-paid i
+  // e-conomic for en ikke-eksporteret faktura), en kreditnota eller en annulleret faktura
+  if (inv.status === 'draft' || inv.invoice_type === 'credit' || inv.voided_at) {
+    throw new Error(`registerPayment: invoice ${invoiceId} kan ikke modtage betaling (status=${inv.status}${inv.invoice_type === 'credit' ? ', kreditnota' : ''}${inv.voided_at ? ', annulleret' : ''})`)
   }
 
   // Safety: never mark paid twice. If payment_status is already 'paid',
@@ -1358,8 +1582,15 @@ export async function registerPayment(
     }
   }
 
-  const newAmountPaid = round2(Number(inv.amount_paid) + amt)
-  const final = Number(inv.final_amount)
+  // Økonomi-review 2026-10-08 (#5): amount_paid = læst + beløb tabte en betaling ved samtidige registreringer (manuelt
+  // match + automatch). Nu = summen af invoice_payments (inkl. vores netop indsatte række) — sidste skriver har altid
+  // alle committede betalinger med. (#7): "fuldt betalt" måles mod udestående efter sendte/betalte kreditnotaer.
+  const { data: payRows } = await supabase.from('invoice_payments').select('amount').eq('invoice_id', invoiceId)
+  const newAmountPaid = round2(((payRows ?? []) as Array<{ amount: number | string }>).reduce((a, r) => a + (Number(r.amount) || 0), 0))
+  const { data: creditRows } = await supabase.from('invoices').select('final_amount')
+    .eq('credit_of_invoice_id', invoiceId).eq('invoice_type', 'credit').in('status', ['sent', 'paid'])
+  const credited = ((creditRows ?? []) as Array<{ final_amount: number | string | null }>).reduce((a, r) => a + Math.abs(Number(r.final_amount) || 0), 0)
+  const final = round2(Number(inv.final_amount) - credited)
   let nextPaymentStatus: InvoicePaymentStatus = 'pending'
   if (newAmountPaid >= final) nextPaymentStatus = 'paid'
   else if (newAmountPaid > 0) nextPaymentStatus = 'partial'

@@ -2,6 +2,7 @@
 
 import { SUPPLIER_SETTINGS_PUBLIC_COLUMNS } from '@/lib/services/supplier-settings-columns'
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { validateUUID } from '@/lib/validations/common'
 import { ImportEngine, decodeFileContent, detectColumnMappings, createImportResult, calculatePriceChange } from '@/lib/services/import-engine'
 import { AOImporter, AO_DEFAULT_CONFIG, AO_COLUMN_MAPPINGS } from '@/lib/services/importers/ao-importer'
@@ -19,6 +20,7 @@ import type {
   ColumnMappings,
 } from '@/types/suppliers.types'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
+import { dedupeRowsBySku } from '@/lib/import/dedupe-sku'
 
 /**
  * P3 #17 / P-005: skrivende leverandoer-/prisimport-actions var ugatede (enhver indlogget kunne overskrive
@@ -111,18 +113,25 @@ export async function previewImport(
     } else if (supplier.code === 'LM') {
       transformedRows = parsedRows.map((row) => LMImporter.transformRow(row))
     }
+    transformedRows = dedupeRowsBySku(transformedRows).rows // X4e: dublet-varenumre — sidste række vinder
 
     // Get existing products by SKU
-    const skus = transformedRows.map((r) => r.parsed.sku).filter(Boolean)
-    const { data: existingProducts } = await supabase
-      .from('supplier_products')
-      .select('id, supplier_sku')
-      .eq('supplier_id', supplierId)
-      .in('supplier_sku', skus)
-
-    const existingMap = new Map(
-      (existingProducts || []).map((p) => [p.supplier_sku, p.id])
-    )
+    // X4e (pris-review 2026-10-07): i bidder à 300 (som udførelsen) og fejl stopper — før ét .in() med hele filen,
+    // fejl ignoreret og højst 1.000 svar → forhåndsvisningen viste forkert fordeling ny/opdateret for store filer
+    const skus = Array.from(new Set(transformedRows.map((r) => r.parsed.sku).filter(Boolean))) as string[]
+    const existingMap = new Map<string, string>()
+    for (let k = 0; k < skus.length; k += 300) {
+      const { data: existingProducts, error: exErr } = await supabase
+        .from('supplier_products')
+        .select('id, supplier_sku')
+        .eq('supplier_id', supplierId)
+        .in('supplier_sku', skus.slice(k, k + 300))
+      if (exErr) {
+        logger.error('Import preview: lookup failed', { error: exErr })
+        throw new Error('DATABASE_ERROR')
+      }
+      for (const p of existingProducts ?? []) existingMap.set(p.supplier_sku as string, p.id as string)
+    }
 
     // Validate rows
     const validatedRows = await engine.validateRows(transformedRows, existingMap)
@@ -256,14 +265,23 @@ export async function executeImport(
       } else if (supplier.code === 'LM') {
         transformedRows = parsedRows.map((row) => LMImporter.transformRow(row))
       }
+      transformedRows = dedupeRowsBySku(transformedRows).rows // X4e: dublet-varenumre — sidste række vinder
 
       // Get existing products by SKU
-      const skus = transformedRows.map((r) => r.parsed.sku).filter(Boolean)
-      const { data: existingProducts } = await supabase
-        .from('supplier_products')
-        .select('id, supplier_sku, cost_price, list_price')
-        .eq('supplier_id', supplierId)
-        .in('supplier_sku', skus)
+      // Leverandør-review: ét .in() med alle filens varenumre gav for lange URL'er / højst 1.000 rækker (fejlen blev
+      // ignoreret) → eksisterende varer blev behandlet som nye. Nu i bidder á 300.
+      const skus = Array.from(new Set(transformedRows.map((r) => r.parsed.sku).filter(Boolean)))
+      const existingProducts: Array<{ id: string; supplier_sku: string; cost_price: number | null; list_price: number | null }> = []
+      for (let k = 0; k < skus.length; k += 300) {
+        // 00192: kostkolonner — admin-klient bag settings.suppliers
+        const { data: chunk, error: lookupError } = await createAdminClient()
+          .from('supplier_products')
+          .select('id, supplier_sku, cost_price, list_price')
+          .eq('supplier_id', supplierId)
+          .in('supplier_sku', skus.slice(k, k + 300))
+        if (lookupError) throw new Error(`Kunne ikke slå eksisterende varer op: ${lookupError.message}`)
+        existingProducts.push(...((chunk ?? []) as typeof existingProducts))
+      }
 
       const existingMap = new Map(
         (existingProducts || []).map((p) => [p.supplier_sku, p.id])
@@ -306,6 +324,8 @@ export async function executeImport(
       const BATCH_SIZE = 100
       let newProducts = 0
       let updatedProducts = 0
+      let failedInsertRows = 0
+      const insertErrors: Array<{ row: number; message: string }> = []
 
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
         const rowBatch = validRows.slice(i, i + BATCH_SIZE)
@@ -321,9 +341,12 @@ export async function executeImport(
             toUpdate.map((row) =>
               supabase
                 .from('supplier_products')
-                .update({
+                // Leverandør-review: tomme/ulæselige celler overskrev før eksisterende værdier med NULL (fx kostpris uden
+                // prishistorik) → kun felter med en værdi i filen opdateres
+                .update(withoutNulls({
                   supplier_name: row.parsed.name,
-                  cost_price: row.parsed.cost_price,
+                  // Leverandør-review 2026-10-08 (#6): kost ≤ 0 = ingen prisaftale → feltet udelades (ingen −100 %-historik)
+                  cost_price: row.parsed.cost_price != null && row.parsed.cost_price > 0 ? row.parsed.cost_price : null,
                   list_price: row.parsed.list_price,
                   unit: row.parsed.unit,
                   category: row.parsed.category,
@@ -332,7 +355,7 @@ export async function executeImport(
                   ean: row.parsed.ean,
                   min_order_quantity: row.parsed.min_order_quantity,
                   last_synced_at: now,
-                })
+                }))
                 .eq('id', row.existingProductId)
             )
           )
@@ -346,7 +369,7 @@ export async function executeImport(
               const row = toUpdate[j]
               const existingPrice = existingPriceMap.get(row.parsed.sku)
 
-              if (existingPrice && row.parsed.cost_price !== null) {
+              if (existingPrice && row.parsed.cost_price !== null && row.parsed.cost_price > 0) {
                 const oldPrice = existingPrice.cost
                 const newPrice = row.parsed.cost_price
 
@@ -407,6 +430,10 @@ export async function executeImport(
 
           if (!insertError) {
             newProducts += toInsert.length
+          } else {
+            // før ignoreret — importen meldte "fuldført" selvom en hel bid nye varer manglede
+            failedInsertRows += toInsert.length
+            insertErrors.push({ row: toInsert[0]?.rowNumber ?? 0, message: `${toInsert.length} nye varer kunne ikke oprettes: ${insertError.message}` })
           }
         }
       }
@@ -425,17 +452,21 @@ export async function executeImport(
         new_products: newProducts,
         updated_products: updatedProducts,
         skipped_rows: validatedRows.length - validRows.length,
-        errors: validatedRows
-          .filter((r) => !r.isValid)
-          .flatMap((r) =>
-            r.errors.map((message) => ({
-              row: r.rowNumber,
-              message,
-            }))
-          ),
+        errors: [
+          ...insertErrors,
+          ...validatedRows
+            .filter((r) => !r.isValid)
+            .flatMap((r) =>
+              r.errors.map((message) => ({
+                row: r.rowNumber,
+                message,
+              }))
+            ),
+        ],
         price_changes: priceChanges,
         status: 'completed',
       }
+      if (failedInsertRows > 0) result.skipped_rows += failedInsertRows
 
       // Update batch with final results
       await supabase
@@ -624,7 +655,10 @@ export async function getPriceChangesFromImport(
   batchId: string
 ): Promise<ActionResult<PriceChange[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // X4 (pris-review 2026-10-07, D48-privatliv): returnerer kostpriser → samme gate som getPriceHistory (før kun login,
+    // så salg/montør kunne læse indkøbspriser ud fra et import-batch-id)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('products.view.cost_prices')) return { success: false, error: 'Manglende tilladelse: products.view.cost_prices' }
     validateUUID(batchId, 'batch ID')
 
     const { data, error } = await supabase
@@ -666,4 +700,9 @@ export async function getPriceChangesFromImport(
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente prisændringer') }
   }
+}
+
+/** Felter med null/undefined udelades fra en opdatering (bevarer eksisterende værdi). */
+function withoutNulls<T extends Record<string, unknown>>(patch: T): Partial<T> {
+  return Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== null && v !== undefined)) as Partial<T>
 }

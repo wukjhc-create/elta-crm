@@ -17,9 +17,12 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface EmailRequiresResponseInfo {
   emailId: string
+  /** Tråden (conversation_id, ellers mailens eget id) — "kræver svar" tælles pr. tråd */
+  threadKey: string
   requiresResponse: boolean
   ageHours: number | null
   lastInboundAt: string | null
@@ -47,14 +50,19 @@ export async function getRequiresResponseStatus(
 
   try {
     // 1. Hent input-emails med conversation_id + meta
-    const { data: inputEmails, error: inputErr } = await supabase
-      .from('incoming_emails')
-      .select('id, conversation_id, customer_id, link_status, sender_email, received_at, responded_at')
-      .in('id', emailIds)
-
-    if (inputErr || !inputEmails) {
-      logger.error('getRequiresResponseStatus: input fetch failed', { error: inputErr })
-      return {}
+    // X4 (kommunikations-review 2026-10-07): i bidder (før ét .in() med op til 1.000+ id'er)
+    type InputRow = { id: string; conversation_id: string | null; customer_id: string | null; link_status: string | null; sender_email: string | null; received_at: string; responded_at: string | null }
+    const inputEmails: InputRow[] = []
+    for (let k = 0; k < emailIds.length; k += 200) {
+      const { data, error: inputErr } = await supabase
+        .from('incoming_emails')
+        .select('id, conversation_id, customer_id, link_status, sender_email, received_at, responded_at')
+        .in('id', emailIds.slice(k, k + 200))
+      if (inputErr || !data) {
+        logger.error('getRequiresResponseStatus: input fetch failed', { error: inputErr })
+        return {}
+      }
+      inputEmails.push(...(data as InputRow[]))
     }
 
     // 2. Saml unikke conversation_ids
@@ -66,11 +74,25 @@ export async function getRequiresResponseStatus(
     const convStats: Map<string, { lastInboundAt: string | null; lastOutboundAt: string | null }> = new Map()
 
     if (convIds.length > 0) {
-      const { data: convMessages, error: convErr } = await supabase
-        .from('incoming_emails')
-        .select('conversation_id, sender_email, received_at, responded_at')
-        .in('conversation_id', convIds)
-        .eq('is_archived', false)
+      // X4: alle beskeder i trådene side for side (før én ubegrænset forespørgsel → højst 1.000 rækker, så svar kunne
+      // mangle og tråde fejlagtigt stå som "kræver svar")
+      let convMessages: Array<{ conversation_id: string | null; sender_email: string | null; received_at: string; responded_at: string | null }> | null = []
+      let convErr: unknown = null
+      try {
+        for (let k = 0; k < convIds.length; k += 200) {
+          const chunk = convIds.slice(k, k + 200)
+          convMessages.push(...await fetchAllRows<{ conversation_id: string | null; sender_email: string | null; received_at: string; responded_at: string | null }>((from, to) => supabase
+            .from('incoming_emails')
+            .select('id, conversation_id, sender_email, received_at, responded_at')
+            .in('conversation_id', chunk)
+            .eq('is_archived', false)
+            .order('id')
+            .range(from, to)))
+        }
+      } catch (e) {
+        convErr = e
+        convMessages = null
+      }
 
       if (convErr) {
         logger.warn('getRequiresResponseStatus: conversation fetch failed', { error: convErr })
@@ -132,6 +154,7 @@ export async function getRequiresResponseStatus(
 
       result[email.id] = {
         emailId: email.id,
+        threadKey: email.conversation_id ?? email.id,
         requiresResponse,
         ageHours,
         lastInboundAt,
@@ -155,35 +178,40 @@ export async function getRequiresResponseStatus(
  * acceptabelt. Hvis dette vokser, kan vi senere materialisere kolonnen.
  */
 export async function getRequiresResponseEmailIds(): Promise<string[]> {
+  return (await requiresResponse()).ids
+}
+
+async function requiresResponse(): Promise<{ ids: string[]; statusMap: Record<string, EmailRequiresResponseInfo> }> {
   const supabase = await createClient()
 
   try {
     // Hent kandidater: linked, ikke arkiveret, ikke ignoreret
-    const { data: candidates, error } = await supabase
+    // X4: side for side, nyeste først (før .limit(2000), men PostgREST giver højst 1.000)
+    const candidates = await fetchAllRows<{ id: string }>((from, to) => supabase
       .from('incoming_emails')
       .select('id')
       .eq('is_archived', false)
       .eq('link_status', 'linked')
-      // nyeste først — uden rækkefølge var de 2000 kandidater tilfældige, så nye tråde kunne falde udenfor ved vækst
       .order('received_at', { ascending: false })
-      .limit(2000)
+      .order('id')
+      .range(from, to))
+    if (candidates.length === 0) return { ids: [], statusMap: {} }
 
-    if (error || !candidates || candidates.length === 0) return []
+    const all = candidates.map((c) => c.id as string)
+    const statusMap = await getRequiresResponseStatus(all)
 
-    const ids = candidates.map((c) => c.id as string)
-    const statusMap = await getRequiresResponseStatus(ids)
-
-    return ids.filter((id) => statusMap[id]?.requiresResponse === true)
+    return { ids: all.filter((id) => statusMap[id]?.requiresResponse === true), statusMap }
   } catch (err) {
     logger.error('getRequiresResponseEmailIds: failed', { error: err })
-    return []
+    return { ids: [], statusMap: {} }
   }
 }
 
 /**
- * Tæl antal mails der kræver svar (til counter-badge).
+ * Tæl antal TRÅDE der kræver svar (til counter-badge) — samme enhed som dashboardet (X4: før talte hver mail i en
+ * ubesvaret tråd, så badget var større end dashboardets tal for samme tilstand).
  */
 export async function countRequiresResponseEmails(): Promise<number> {
-  const ids = await getRequiresResponseEmailIds()
-  return ids.length
+  const { ids, statusMap } = await requiresResponse()
+  return new Set(ids.map((id) => statusMap[id]?.threadKey ?? id)).size
 }

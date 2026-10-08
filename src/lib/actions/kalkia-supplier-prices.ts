@@ -6,6 +6,7 @@ import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type { KalkiaVariantMaterial } from '@/types/kalkia.types'
 import type { ActionResult } from '@/types/common.types'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError, permissionDenied } from '@/lib/actions/action-helpers'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Permission } from '@/lib/auth/permissions'
 
 /**
@@ -39,7 +40,8 @@ export async function linkMaterialToSupplierProduct(
     validateUUID(supplierProductId, 'leverandørprodukt ID')
 
     // Get supplier product to verify it exists and get prices
-    const { data: supplierProduct, error: spError } = await supabase
+    // 00192: kostkolonner — admin-klient bag materials.edit
+    const { data: supplierProduct, error: spError } = await createAdminClient()
       .from('supplier_products')
       .select('id, cost_price, list_price, supplier_name')
       .eq('id', supplierProductId)
@@ -150,7 +152,8 @@ export async function getSupplierOptionsForMaterial(
       return { success: true, data: [] }
     }
 
-    const { data, error } = await supabase
+    // 00192: kostkolonner — admin-klient bag tools.calculations
+    const { data, error } = await createAdminClient()
       .from('v_supplier_products_with_supplier')
       .select(`
         id,
@@ -229,7 +232,8 @@ export async function syncMaterialPricesFromSupplier(
     // Get linked supplier products
     const supplierProductIds = materials.map((m) => m.supplier_product_id).filter(Boolean)
 
-    const { data: supplierProducts, error: spError } = await supabase
+    // 00192: kostkolonner — admin-klient bag materials.edit
+    const { data: supplierProducts, error: spError } = await createAdminClient()
       .from('supplier_products')
       .select('id, cost_price, list_price')
       .in('id', supplierProductIds)
@@ -329,7 +333,8 @@ export async function syncAllMaterialPricesFromSuppliers(): Promise<ActionResult
       // Get linked supplier products
       const supplierProductIds = materials.map((m) => m.supplier_product_id).filter(Boolean)
 
-      const { data: supplierProducts } = await supabase
+      // 00192: kostkolonner — admin-klient bag materials.edit
+      const { data: supplierProducts } = await createAdminClient()
         .from('supplier_products')
         .select('id, cost_price, list_price')
         .in('id', supplierProductIds)
@@ -444,7 +449,8 @@ export async function loadSupplierPricesForVariant(
     // Get linked supplier products with supplier info
     const supplierProductIds = materials.map((m) => m.supplier_product_id).filter(Boolean)
 
-    const { data: supplierProducts, error: spError } = await supabase
+    // 00192: kostkolonner — admin-klient bag tools.calculations
+    const { data: supplierProducts, error: spError } = await createAdminClient()
       .from('v_supplier_products_with_supplier')
       .select('*')
       .in('id', supplierProductIds)
@@ -710,7 +716,8 @@ export async function refreshSupplierPricesForCalculation(
     }
 
     // Get all materials with supplier links
-    const { data: materials, error: materialsError } = await supabase
+    // 00192: kostkolonner — admin-klient bag tools.calculations
+    const { data: materials, error: materialsError } = await createAdminClient()
       .from('kalkia_variant_materials')
       .select(`
         id,
@@ -793,7 +800,6 @@ export async function refreshSupplierPricesForCalculation(
           return { refreshed: 0, failed: supplierMaterials.length, changes: 0 }
         }
         // P-009: priser fra leverandoer-API'et skrives som service-role (supplier_products/price_history = admin)
-        const { createAdminClient } = await import('@/lib/supabase/admin')
         const sys = createAdminClient()
 
         const skus = supplierMaterials.map((m) => m.sku)
@@ -803,10 +809,21 @@ export async function refreshSupplierPricesForCalculation(
         // Collect updates and history records
         const productUpdates: Array<() => Promise<unknown>> = []
         const historyRecords: Array<Record<string, unknown>> = []
+        // X4e (pris-review 2026-10-07): ét leverandørprodukt kan være koblet til flere materialer → før flere
+        // opdateringer og dublet-price_history pr. kørsel. Hvert produkt behandles nu én gang.
+        const seenProducts = new Set<string>()
 
         for (const material of supplierMaterials) {
+          if (seenProducts.has(material.supplierProductId)) { refreshed++; continue }
+          seenProducts.add(material.supplierProductId)
           const newPrice = prices.get(material.sku)
           if (!newPrice) {
+            failed++
+            continue
+          }
+          // X4 (pris-review 2026-10-07): API'et giver 0 når der ingen prisaftale er (AO) / kost er ukendt (LM) — overskriv
+          // aldrig en rigtig kostpris med 0 og skriv ingen −100 %-historik
+          if (!(Number(newPrice.costPrice) > 0)) {
             failed++
             continue
           }

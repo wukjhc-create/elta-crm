@@ -3,6 +3,7 @@ import { validatePortalToken, getPortalOffers, getPortalMessages, getPortalDocum
 import { getPortalFuldmagter } from '@/lib/actions/fuldmagt'
 import { getPortalServiceCases } from '@/lib/actions/service-cases'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { COMPANY_SETTINGS_PORTAL_COLUMNS } from '@/lib/settings/company-columns'
 import { PortalDashboard } from '@/components/modules/portal/portal-dashboard'
 import type { CompanySettings } from '@/types/company-settings.types'
 
@@ -29,7 +30,7 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
     getPortalOffers(token),
     getPortalMessages(token),
     getPortalDocuments(token),
-    getPortalServiceCases(session.customer_id),
+    getPortalServiceCases(token),
     getPortalInvoices(token),
     getPortalFuldmagter(token),
   ])
@@ -40,8 +41,8 @@ export default async function PortalTokenPage({ params }: PortalPageProps) {
   let companySettings: CompanySettings | null = null
   try {
     const supabase = createAdminClient()
-    const { data } = await supabase.from('company_settings').select('*').maybeSingle()
-    companySettings = data as CompanySettings | null
+    const { data } = await supabase.from('company_settings').select(COMPANY_SETTINGS_PORTAL_COLUMNS).maybeSingle()
+    companySettings = data as unknown as CompanySettings | null
   } catch {
     // Non-critical
   }

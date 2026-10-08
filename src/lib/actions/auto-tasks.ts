@@ -19,6 +19,7 @@ import {
   getRequiresResponseEmailIds,
   getRequiresResponseStatus,
 } from '@/lib/actions/email-response-status'
+import { selectInChunks, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 
 const AUTO_RULE = 'unanswered_email_24h'
 const MIN_AGE_HOURS = 24
@@ -131,13 +132,15 @@ export async function createAutoTasksForUnansweredEmails(): Promise<AutoTaskRunR
     }
 
     // 2. Hent mail-rows med metadata vi har brug for
-    const { data: emailRows, error: fetchErr } = await supabase
-      .from('incoming_emails')
-      .select('id, conversation_id, customer_id, service_case_id, received_at')
-      .in('id', candidateIds)
-
-    if (fetchErr || !emailRows) {
-      result.errors.push(`Failed to fetch emails: ${fetchErr?.message || 'unknown'}`)
+    // X4n: i bidder af 200 (alle kandidat-id'er i én .in() sprængte URL-grænsen ~350 → ingen opgaver oprettet)
+    let emailRows: unknown[]
+    try {
+      emailRows = await selectInChunks(candidateIds, (chunk) => supabase
+        .from('incoming_emails')
+        .select('id, conversation_id, customer_id, service_case_id, received_at')
+        .in('id', chunk))
+    } catch (fetchErr) {
+      result.errors.push(`Failed to fetch emails: ${fetchErr instanceof Error ? fetchErr.message : 'unknown'}`)
       result.duration_ms = Date.now() - startedAt
       return result
     }
@@ -307,23 +310,29 @@ export async function autoCloseRespondedTasks(): Promise<number> {
 
     if (taskIdsToClose.length === 0) return 0
 
-    const { error: updateErr } = await supabase
-      .from('customer_tasks')
-      .update({
-        status: 'done',
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', taskIdsToClose)
+    // X4n: i bidder af 200 (op til 500 id'er i én .in() sprængte URL-grænsen → intet lukket)
+    let closed = 0
+    for (let k = 0; k < taskIdsToClose.length; k += IN_CHUNK_SIZE) {
+      const chunk = taskIdsToClose.slice(k, k + IN_CHUNK_SIZE)
+      const { error: updateErr } = await supabase
+        .from('customer_tasks')
+        .update({
+          status: 'done',
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', chunk)
 
-    if (updateErr) {
-      logger.warn('autoCloseRespondedTasks: update failed', {
-        error: updateErr,
-      })
-      return 0
+      if (updateErr) {
+        logger.warn('autoCloseRespondedTasks: update failed', {
+          error: updateErr,
+        })
+        return closed
+      }
+      closed += chunk.length
     }
 
-    return taskIdsToClose.length
+    return closed
   } catch (err) {
     logger.error('autoCloseRespondedTasks failed', { error: err })
     return 0

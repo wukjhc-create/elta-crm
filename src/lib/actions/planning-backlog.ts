@@ -7,6 +7,7 @@
 
 import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { logger } from '@/lib/utils/logger'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { calendarDaysSince, copenhagenParts } from '@/lib/utils/copenhagen-time'
 import type { ActionResult } from '@/types/common.types'
 
@@ -28,13 +29,17 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('work_orders.plan')) return { success: false, error: 'Manglende tilladelse: work_orders.plan' }
 
-    const { data: cases, error } = await supabase
-      .from('service_cases')
-      .select('id, case_number, title, status, created_at, customer:customers!service_cases_customer_id_fkey(company_name)')
-      .in('status', ACTIVE_STATUSES)
-      .order('created_at', { ascending: true })
-      .limit(300)
-    if (error) {
+    // X4: alle åbne sager side for side (før .limit(300) → de nyeste uplanlagte manglede, og total var for lav)
+    let cases: unknown[] = []
+    try {
+      cases = await fetchAllRows((from, to) => supabase
+        .from('service_cases')
+        .select('id, case_number, title, status, created_at, customer:customers!service_cases_customer_id_fkey(company_name)')
+        .in('status', ACTIVE_STATUSES)
+        .order('created_at', { ascending: true })
+        .order('id')
+        .range(from, to))
+    } catch (error) {
       logger.error('getPlanningBacklogAction: cases failed', { error })
       return { success: false, error: 'Kunne ikke hente sager' }
     }
@@ -42,16 +47,27 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
       customer: { company_name?: string | null } | Array<{ company_name?: string | null }> | null }>
     if (!list.length) return { success: true, data: { items: [], total: 0 } }
 
-    const { data: wos, error: woErr } = await supabase
-      .from('work_orders')
-      .select('case_id, status, scheduled_date, assigned_employee_id')
-      .in('case_id', list.map((c) => c.id))
-    if (woErr) {
-      logger.error('getPlanningBacklogAction: work_orders failed', { error: woErr })
-      return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
+    const wos: unknown[] = []
+    for (let k = 0; k < list.length; k += 200) {
+      const { data, error: woErr } = await supabase
+        .from('work_orders')
+        .select('case_id, status, scheduled_date, assigned_employee_id')
+        .in('case_id', list.slice(k, k + 200).map((c) => c.id))
+      if (woErr) {
+        logger.error('getPlanningBacklogAction: work_orders failed', { error: woErr })
+        return { success: false, error: 'Kunne ikke hente arbejdsordrer' }
+      }
+      wos.push(...(data ?? []))
     }
+    // X4: en planlagt arbejdsordre hos en DEAKTIVERET/fratrådt medarbejder mangler reelt en medarbejder
+    // admin-klient bag gaten work_orders.plan: kun id + fratrædelsesdato; RLS må ikke få ALLE ordrer til at se ufordelte ud
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const { data: activeEmps } = await createAdminClient().from('employees').select('id, termination_date').eq('active', true)
+    const today = copenhagenParts(new Date()).date
+    const activeIds = new Set(((activeEmps ?? []) as Array<{ id: string; termination_date: string | null }>)
+      .filter((e) => !e.termination_date || e.termination_date >= today).map((e) => e.id))
     const byCase = new Map<string, Array<{ status: string; scheduled_date: string | null; assigned_employee_id: string | null }>>()
-    for (const w of (wos ?? []) as Array<{ case_id: string; status: string; scheduled_date: string | null; assigned_employee_id: string | null }>) {
+    for (const w of wos as Array<{ case_id: string; status: string; scheduled_date: string | null; assigned_employee_id: string | null }>) {
       byCase.set(w.case_id, [...(byCase.get(w.case_id) ?? []), w])
     }
 
@@ -62,7 +78,7 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
       let reason: PlanningBacklogItem['reason'] | null = null
       if (w.filter((x) => x.status !== 'cancelled').length === 0) reason = 'no_work_order'
       else if (open.some((x) => !x.scheduled_date)) reason = 'missing_date'
-      else if (open.some((x) => !x.assigned_employee_id)) reason = 'missing_employee'
+      else if (open.some((x) => !x.assigned_employee_id || !activeIds.has(x.assigned_employee_id))) reason = 'missing_employee'
       if (!reason) continue
       const cust = Array.isArray(c.customer) ? c.customer[0] : c.customer
       items.push({ case_id: c.id, case_number: c.case_number, title: c.title, customer_name: cust?.company_name ?? null, status: c.status,
@@ -72,6 +88,24 @@ export async function getPlanningBacklogAction(): Promise<ActionResult<{ items: 
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente planlægningsbehov') }
   }
+}
+
+/**
+ * Arbejdsordrer (blandt ids) med mindst én timelinje. I bidder á 100 ordrer og pagineret — PostgREST giver højst 1000
+ * rækker pr. kald, så med mange timer blev resultatet afkortet og ordrer MED tid vist som "uden tid" (kode-review).
+ */
+async function workOrdersWithTime(supabase: Awaited<ReturnType<typeof getAuthenticatedClientWithRole>>['supabase'], ids: string[]): Promise<Set<string> | null> {
+  const out = new Set<string>()
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100)
+    for (let from = 0; from < 100_000; from += 1000) {
+      const { data, error } = await supabase.from('time_logs').select('id, work_order_id').in('work_order_id', chunk).order('id').range(from, from + 999)
+      if (error) { logger.error('workOrdersWithTime: time_logs failed', { error }); return null }
+      for (const l of (data ?? []) as Array<{ work_order_id: string }>) out.add(l.work_order_id)
+      if (!data || data.length < 1000) break
+    }
+  }
+  return out
 }
 
 export interface JobWithoutTimeItem {
@@ -113,12 +147,8 @@ export async function getJobsWithoutTimeAction(): Promise<ActionResult<{ items: 
     const list = (wos ?? []) as Array<{ id: string; case_id: string | null; title: string; status: string; scheduled_date: string; assigned_employee_id: string }>
     if (!list.length) return { success: true, data: { items: [], total: 0 } }
 
-    const { data: logs, error: logErr } = await supabase.from('time_logs').select('work_order_id').in('work_order_id', list.map((w) => w.id))
-    if (logErr) {
-      logger.error('getJobsWithoutTimeAction: time_logs failed', { error: logErr })
-      return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
-    }
-    const withTime = new Set(((logs ?? []) as Array<{ work_order_id: string }>).map((l) => l.work_order_id))
+    const withTime = await workOrdersWithTime(supabase, list.map((w) => w.id))
+    if (!withTime) return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
     const missing = list.filter((w) => !withTime.has(w.id))
     if (!missing.length) return { success: true, data: { items: [], total: 0 } }
 
@@ -161,12 +191,8 @@ export async function getWorkOrdersWithoutTimeAction(workOrderIds: string[]): Pr
     const ids = Array.from(new Set((Array.isArray(workOrderIds) ? workOrderIds : [])
       .filter((id) => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)))).slice(0, 200)
     if (!ids.length) return { success: true, data: [] }
-    const { data, error } = await supabase.from('time_logs').select('work_order_id').in('work_order_id', ids)
-    if (error) {
-      logger.error('getWorkOrdersWithoutTimeAction: time_logs failed', { error })
-      return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
-    }
-    const withTime = new Set(((data ?? []) as Array<{ work_order_id: string }>).map((l) => l.work_order_id))
+    const withTime = await workOrdersWithTime(supabase, ids)
+    if (!withTime) return { success: false, error: 'Kunne ikke hente tidsregistreringer' }
     return { success: true, data: ids.filter((id) => !withTime.has(id)) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente tidsregistreringer') }

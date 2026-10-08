@@ -45,9 +45,14 @@ export function generateBesigtigelseICS(options: ICSEventOptions): string {
 
   const dtStart = formatICSDate(startDate, startTime)
   // Calculate end time
-  const startHour = parseInt(dtStart.slice(9, 11), 10)
-  const endHour = startHour + durationHours
-  const dtEnd = dtStart.slice(0, 9) + String(endHour).padStart(2, '0') + dtStart.slice(11)
+  // Mail-review 2026-10-08 (#10): time + varighed uden dato-overløb gav fx T240000/T250000 (ugyldig fil) ved booking
+  // kl. 22+. Vægurs-aritmetik i UTC (TZID angiver zonen) ruller korrekt over midnat/måned.
+  const wall = new Date(Date.UTC(
+    Number(dtStart.slice(0, 4)), Number(dtStart.slice(4, 6)) - 1, Number(dtStart.slice(6, 8)),
+    Number(dtStart.slice(9, 11)), Number(dtStart.slice(11, 13)) + Math.round(durationHours * 60),
+  ))
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const dtEnd = `${wall.getUTCFullYear()}${p2(wall.getUTCMonth() + 1)}${p2(wall.getUTCDate())}T${p2(wall.getUTCHours())}${p2(wall.getUTCMinutes())}00`
 
   const now = new Date()
   const dtstamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}Z`

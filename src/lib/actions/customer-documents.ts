@@ -57,17 +57,22 @@ export async function getCustomerDocuments(
   customerId: string
 ): Promise<ActionResult<CustomerDocument[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // Kunde-review: før uden gate. Mail-vedhæftninger (fx leverandørers ordrebekræftelser med kostpriser) arkiveres
+    // på kunden — kun for roller der må se kundemails (montør må ikke, jf. G9/D28)
+    if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
 
     // Sprint 8D-1: select også service_case_id + source_email_id
     // og join service_cases for at vise sag-label uden ekstra fetch
-    const { data: docs, error } = await supabase
+    let docsQuery = supabase
       .from('customer_documents')
       .select(`
         *,
         service_case:service_cases (id, case_number, title, status)
       `)
       .eq('customer_id', customerId)
+    if (!hasPermission('customers.emails.view')) docsQuery = docsQuery.is('source_email_id', null)
+    const { data: docs, error } = await docsQuery
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -96,7 +101,7 @@ export async function getCustomerDocuments(
       try {
         const desc = JSON.parse(doc.description || '{}')
         if (desc.type === 'fuldmagt') {
-          fuldmagt_status = desc.status || 'pending'
+          fuldmagt_status = desc.status === 'signed' ? 'signed' : 'pending' // 'signing' = igangværende krav
           fuldmagt_signed_at = desc.signed_at || null
         }
       } catch { /* not JSON */ }
@@ -149,7 +154,8 @@ export async function getCustomerImages(
   customerId: string
 ): Promise<ActionResult<CustomerImage[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
 
     const folderPath = `customer-documents/${customerId}/besigtigelse-images`
 
@@ -197,10 +203,23 @@ export async function getDocumentDownloadUrls(
   storagePaths: string[]
 ): Promise<ActionResult<{ path: string; url: string; name: string }[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // Kunde-review: signerede før ENHVER sti i attachments-bucket'en for enhver indlogget bruger. Nu kun stier der
+    // hører til kundedokumenter brugeren må se (mail-vedhæftninger kræver customers.emails.view) eller
+    // besigtigelsesbilleder (customer-documents/<kunde>/besigtigelse-images/…).
+    if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
+    const requested = Array.from(new Set((storagePaths ?? []).filter((p) => typeof p === 'string' && p && !p.includes('..'))))
+    const allowed = new Set(requested.filter((p) => /^customer-documents\/[0-9a-f-]{36}\/besigtigelse-images\/[^/]+$/i.test(p)))
+    const docPaths = requested.filter((p) => !allowed.has(p))
+    for (let i = 0; i < docPaths.length; i += 200) {
+      let q = supabase.from('customer_documents').select('storage_path').in('storage_path', docPaths.slice(i, i + 200))
+      if (!hasPermission('customers.emails.view')) q = q.is('source_email_id', null)
+      const { data: rows } = await q
+      for (const r of (rows ?? []) as Array<{ storage_path: string | null }>) if (r.storage_path) allowed.add(r.storage_path)
+    }
 
     const urls: { path: string; url: string; name: string }[] = []
-    for (const path of storagePaths) {
+    for (const path of requested.filter((p) => allowed.has(p))) {
       const { data } = await supabase.storage
         .from('attachments')
         .createSignedUrl(path, 3600)

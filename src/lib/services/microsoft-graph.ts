@@ -586,6 +586,9 @@ export interface GraphEmailOptions {
   html: string
   text?: string
   replyTo?: string
+  /** Mail-review 2026-10-08 (#6): Cc/Bcc blev gemt på beskeden men aldrig sendt med */
+  cc?: string[]
+  bcc?: string[]
   senderName?: string
   /** Which mailbox to send FROM. Defaults to GRAPH_MAILBOX (kontakt@). */
   fromMailbox?: string
@@ -648,6 +651,9 @@ export async function sendEmailViaGraph(
   /** Sprint 8C-1.1 — RFC 2822 Message-ID, så reply.in_reply_to kan matches. */
   internetMessageId?: string
   error?: string
+  /** R-MAIL-B #6: timeout EFTER at forespørgslen er sendt — Graph kan have leveret mailen. Kaldere med et "krav"
+   *  (rykkere) må IKKE frigive kravet (ellers sendes igen = dublet). */
+  uncertain?: boolean
 }> {
   try {
     const mailbox = resolveMailbox(options.fromMailbox)
@@ -672,6 +678,11 @@ export async function sendEmailViaGraph(
     const toRecipients = recipients.map((addr) => ({
       emailAddress: { address: addr.trim() },
     }))
+    const ccList = (options.cc ?? []).map((a) => a.trim()).filter(Boolean)
+    const bccList = (options.bcc ?? []).map((a) => a.trim()).filter(Boolean)
+    if (undeliverableRecipients([...ccList, ...bccList]).length) {
+      return { success: false, error: UNDELIVERABLE_MESSAGE }
+    }
 
     // Build attachments array
     const graphAttachments = (options.attachments || []).map((att) => ({
@@ -699,6 +710,8 @@ export async function sendEmailViaGraph(
       },
       toRecipients,
     }
+    if (ccList.length) message.ccRecipients = ccList.map((address) => ({ emailAddress: { address } }))
+    if (bccList.length) message.bccRecipients = bccList.map((address) => ({ emailAddress: { address } }))
 
     // Always set replyTo to the CRM mailbox so customer replies come back to CRM.
     // Use explicit override if provided, otherwise default to the configured mailbox.
@@ -749,7 +762,7 @@ export async function sendEmailViaGraph(
       } catch (fetchError) {
         clearTimeout(sendTimeout)
         if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-          return { success: false, error: 'Email-afsendelse timeout efter 30s' }
+          return { success: false, uncertain: true, error: 'Email-afsendelse timeout efter 30s (status ukendt — kan være leveret)' }
         }
         throw fetchError
       } finally {

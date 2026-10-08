@@ -35,9 +35,16 @@ export async function getLeadCustomerCandidatesAction(leadId: string): Promise<A
     if (phone) {
       // telefon gemmes i forskellige formater ("+45 12 34 56 78", "12345678") — et ilike-forfilter rammer ikke tal med
       // mellemrum, så telefonfelterne hentes (lette kolonner; kundetabellen er lille) og matches på de sidste 8 cifre
-      const { data } = await supabase.from('customers').select('id, company_name, customer_number, email, phone, mobile')
-        .eq('is_active', true).or('phone.not.is.null,mobile.not.is.null').limit(5000)
-      for (const c of (data ?? []) as Array<{ id: string; company_name: string; customer_number: string | null; email: string | null; phone: string | null; mobile: string | null }>) {
+      // pagineret (PostgREST giver højst 1000 rækker pr. kald)
+      type Row = { id: string; company_name: string; customer_number: string | null; email: string | null; phone: string | null; mobile: string | null }
+      const data: Row[] = []
+      for (let from = 0; from < 50_000; from += 1000) {
+        const { data: page } = await supabase.from('customers').select('id, company_name, customer_number, email, phone, mobile')
+          .eq('is_active', true).or('phone.not.is.null,mobile.not.is.null').order('id').range(from, from + 999)
+        data.push(...((page ?? []) as Row[]))
+        if (!page || page.length < 1000) break
+      }
+      for (const c of data) {
         if (last8(c.phone) === phone || last8(c.mobile) === phone) out.set(c.id, { id: c.id, name: c.company_name, customer_number: c.customer_number, email: c.email, reason: 'phone' })
       }
     }

@@ -2,7 +2,7 @@
 
 import { pgQuote } from '@/lib/validations/postgrest-filter'
 import { revalidatePath } from 'next/cache'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 import { createMessageSchema } from '@/lib/validations/messages'
 import { validateUUID, sanitizeSearchTerm } from '@/lib/validations/common'
 import type {
@@ -406,22 +406,24 @@ export async function getRelatedEntities(): Promise<
   }>
 > {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    // Leads-review 2026-10-08 (#8): vælgeren viste leads/kunder/projekter uden modul-rettighed — tom liste uden
+    const none = Promise.resolve({ data: null })
 
     const [leadsResult, customersResult, projectsResult] = await Promise.all([
-      supabase
+      !hasPermission('leads.view') ? none : supabase
         .from('leads')
         .select('id, contact_person, company_name')
         .not('status', 'in', '("won","lost")')
         .order('created_at', { ascending: false })
         .limit(50),
-      supabase
+      !hasPermission('customers.view') ? none : supabase
         .from('customers')
         .select('id, company_name, customer_number')
         .eq('is_active', true)
         .order('company_name')
         .limit(50),
-      supabase
+      !hasPermission('projects.view') ? none : supabase
         .from('projects')
         .select('id, project_number, name')
         .not('status', 'in', '("completed","cancelled")')

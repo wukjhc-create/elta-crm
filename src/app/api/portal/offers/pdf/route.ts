@@ -47,6 +47,8 @@ export async function GET(request: NextRequest) {
       `)
       .eq('id', offerId)
       .eq('customer_id', customerId)
+      // Q10: kun tilbud kunden kan se i portalen (ikke kladder)
+      .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
       .single()
 
     if (offerError || !offer) {

@@ -24,6 +24,8 @@ async function requireMaterialsEdit(): Promise<string | null> {
 import { logger } from '@/lib/utils/logger'
 import { revalidatePath } from 'next/cache'
 import { validateUUID } from '@/lib/validations/common'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { selectInChunks } from '@/lib/supabase/in-chunks'
 
 export interface BindMaterialResult {
   success: boolean
@@ -303,13 +305,16 @@ async function countOfferLineUsage(materialIds: string[]): Promise<Map<string, n
   // Primary path: COUNT(*) grouped by the structured FK material_id.
   // Pull all rows for the requested ids in one round-trip and aggregate in JS.
   try {
-    const { data: rows } = await supabase
-      .from('offer_line_items')
-      .select('material_id')
-      .in('material_id', materialIds)
-      .limit(50000)
-    if (rows) {
-      for (const r of rows as Array<{ material_id: string | null }>) {
+    // side for side i bidder (før .limit(50000), men PostgREST giver højst 1.000 → for lave brugstal)
+    for (let k = 0; k < materialIds.length; k += 200) {
+      const chunk = materialIds.slice(k, k + 200)
+      const rows = await fetchAllRows<{ id: string; material_id: string | null }>((from, to) => supabase
+        .from('offer_line_items')
+        .select('id, material_id')
+        .in('material_id', chunk)
+        .order('id')
+        .range(from, to))
+      for (const r of rows) {
         if (!r.material_id) continue
         out.set(r.material_id, (out.get(r.material_id) ?? 0) + 1)
       }
@@ -323,10 +328,11 @@ async function countOfferLineUsage(materialIds: string[]): Promise<Map<string, n
   const zeroMaterialIds = materialIds.filter((id) => !out.get(id))
   if (zeroMaterialIds.length === 0) return out
 
-  const { data: materials } = await supabase
+  // X4n: i bidder af 200 (op til 500 id'er i én .in() sprængte URL-grænsen → fallback-tælling sprunget over)
+  const materials = await selectInChunks<{ id: string; slug: string | null }>(zeroMaterialIds, (chunk) => supabase
     .from('materials')
     .select('id, slug')
-    .in('id', zeroMaterialIds)
+    .in('id', chunk)).catch((error) => { logger.warn('countOfferLineUsage fallback lookup failed', { error }); return null })
   if (!materials) return out
 
   await Promise.all(

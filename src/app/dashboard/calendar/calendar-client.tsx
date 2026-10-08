@@ -1,6 +1,7 @@
 'use client'
 
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { ASSISTANT_RULE } from '@/lib/assistant/rules'
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, CalendarCheck, MapPin, Clock, User, Navigation, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -8,8 +9,12 @@ import { useRealtimeTable } from '@/lib/hooks/use-realtime'
 import { TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG } from '@/types/customer-tasks.types'
 import type { CustomerTaskWithRelations } from '@/types/customer-tasks.types'
 
+/** Egne personlige påmindelser (00197) — vises i månedsvisningen; kun ejeren får dem (RLS) */
+export type CalendarPersonalReminder = { id: string; title: string; due_at: string; status: 'pending' | 'done' }
+
 interface CalendarPageClientProps {
   tasks: CustomerTaskWithRelations[]
+  personalReminders?: CalendarPersonalReminder[]
 }
 
 const WEEKDAY_NAMES = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn']
@@ -28,7 +33,7 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return day === 0 ? 6 : day - 1
 }
 
-export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientProps) {
+export function CalendarPageClient({ tasks: initialTasks, personalReminders = [] }: CalendarPageClientProps) {
   const [tasks, setTasks] = useState(initialTasks)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -50,13 +55,24 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
     const map: Record<string, CustomerTaskWithRelations[]> = {}
     for (const task of tasks) {
       if (task.due_date) {
-        const dateKey = task.due_date.slice(0, 10)
+        // dansk kalenderdato (før: UTC-datoen → et opkald kl. 00:30 dansk tid lå på dagen før)
+        const dateKey = copenhagenParts(task.due_date).date
         if (!map[dateKey]) map[dateKey] = []
         map[dateKey].push(task)
       }
     }
     return map
   }, [tasks])
+
+  const remindersByDate = useMemo(() => {
+    const map: Record<string, CalendarPersonalReminder[]> = {}
+    for (const r of personalReminders) {
+      const key = copenhagenParts(r.due_at).date
+      ;(map[key] ??= []).push(r)
+    }
+    for (const list of Object.values(map)) list.sort((a, b) => a.due_at.localeCompare(b.due_at))
+    return map
+  }, [personalReminders])
 
   const today = copenhagenParts(new Date()).date
 
@@ -97,8 +113,9 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
   }
 
   // Count total upcoming
-  const upcomingCount = tasks.filter((t) => t.due_date && t.due_date >= today && t.status !== 'done').length
-  const overdueCount = tasks.filter((t) => t.due_date && t.due_date < today && t.status !== 'done').length
+  const dayOf = (iso: string) => copenhagenParts(iso).date
+  const upcomingCount = tasks.filter((t) => t.due_date && dayOf(t.due_date) >= today && t.status !== 'done').length
+  const overdueCount = tasks.filter((t) => t.due_date && dayOf(t.due_date) < today && t.status !== 'done').length
 
   return (
     <div className="space-y-6">
@@ -189,12 +206,25 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
                         }`}
                         title={`${task.title}${isConfirmed ? ' ✓ Bekræftet' : ''}`}
                       >
-                        {isConfirmed ? '✓ ' : ''}{task.customer?.company_name || task.title}
+                        {isConfirmed ? '✓ ' : ''}{task.auto_rule === ASSISTANT_RULE.callback || task.auto_rule === ASSISTANT_RULE.missedCall ? '📞 ' : task.auto_rule === ASSISTANT_RULE.reminder ? '⏰ ' : task.auto_rule === ASSISTANT_RULE.appointment ? '📅 ' : ''}{task.customer?.company_name || task.title}
                       </div>
                     )
                   })}
                   {dayTasks.length > 3 && (
                     <div className="text-[10px] text-gray-400">+{dayTasks.length - 3} mere</div>
+                  )}
+                  {(remindersByDate[dateKey] ?? []).slice(0, 2).map((r) => (
+                    <div
+                      key={r.id}
+                      data-testid="calendar-personal-reminder"
+                      className={`text-[10px] leading-tight px-1 py-0.5 rounded mb-0.5 truncate ${r.status === 'done' ? 'bg-gray-100 text-gray-500 line-through' : 'bg-amber-100 text-amber-800'}`}
+                      title={`Min påmindelse: ${r.title}`}
+                    >
+                      ⏰ {r.title}
+                    </div>
+                  ))}
+                  {(remindersByDate[dateKey]?.length ?? 0) > 2 && (
+                    <div className="text-[10px] text-amber-700">+{(remindersByDate[dateKey]?.length ?? 0) - 2} påmindelser</div>
                   )}
                 </div>
               )
@@ -216,14 +246,27 @@ export function CalendarPageClient({ tasks: initialTasks }: CalendarPageClientPr
             </h3>
           </div>
 
+          {selectedDate && (remindersByDate[selectedDate]?.length ?? 0) > 0 && (
+            <div className="px-4 pt-4" data-testid="calendar-day-reminders">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Mine påmindelser</h4>
+              <ul className="space-y-1 mb-2">
+                {remindersByDate[selectedDate]!.map((r) => (
+                  <li key={r.id} className={`text-sm ${r.status === 'done' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                    ⏰ {copenhagenParts(r.due_at).clock} {r.title}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/dashboard/tasks" className="text-xs text-blue-600 hover:underline">Ret under Opgaver → Mine påmindelser</Link>
+            </div>
+          )}
           <div className="p-4">
             {!selectedDate ? (
               <p className="text-sm text-gray-500 text-center py-8">
-                Klik på en dag for at se besigtigelser
+                Klik på en dag for at se besigtigelser og opkald
               </p>
             ) : selectedTasks.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-8">
-                Ingen besigtigelser denne dag
+                Ingen besigtigelser eller opkald denne dag
               </p>
             ) : (
               <div className="space-y-3">

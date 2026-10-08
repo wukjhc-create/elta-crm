@@ -394,7 +394,7 @@ export async function attachFileToInvoice(input: UploadInput & { invoiceId: stri
   if (LOCKED_INVOICE_STATUSES.includes(row.status as string)) return { ok: false, message: `Fakturaen er ${row.status} — bilag kan ikke ændres` }
   if (row.file_url) return { ok: false, message: 'Fakturaen har allerede et bilag' }
   const text = input.rawText.trim()
-  const { error: upErr } = await supabase.from('incoming_invoices').update({
+  const { data: updated, error: upErr } = await supabase.from('incoming_invoices').update({
     file_name: input.fileName,
     file_url: input.fileUrl ?? null,
     mime_type: input.mime,
@@ -402,7 +402,11 @@ export async function attachFileToInvoice(input: UploadInput & { invoiceId: stri
     ...(text ? { raw_text: input.rawText } : {}),
     parse_status: 'pending',
   }).eq('id', input.invoiceId)
+    // kode-review: samtidige vedhæftninger/statusændring — kun hvis der STADIG ikke er et bilag og fakturaen ikke er låst
+    .is('file_url', null).not('status', 'in', `(${LOCKED_INVOICE_STATUSES.join(',')})`)
+    .select('id')
   if (upErr) return { ok: false, message: 'Kunne ikke gemme bilaget' }
+  if (!(updated ?? []).length) return { ok: false, message: 'Fakturaen fik et bilag eller blev afsluttet imens — genindlæs siden' }
   await auditLog({
     incomingInvoiceId: input.invoiceId,
     action: 'file_attached',
@@ -513,7 +517,11 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
     knownSupplierId: row.supplier_id,
     // N66: mail-fakturaens afsender (domaene → leverandoer)
     senderEmail: row.source_email_id
-      ? ((await supabase.from('incoming_emails').select('sender_email').eq('id', row.source_email_id).maybeSingle()).data?.sender_email as string | null | undefined) ?? null
+      ? await (async () => {
+          const { data: m } = await supabase.from('incoming_emails').select('sender_email, original_sender_email').eq('id', row.source_email_id).maybeSingle()
+          const r = m as { sender_email?: string | null; original_sender_email?: string | null } | null
+          return r?.original_sender_email || r?.sender_email || null // videresendt → oprindelig afsender
+        })()
       : null,
   })
 
@@ -576,10 +584,16 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
     status: ('awaiting_approval' as const),    // never auto-approved
   }
 
-  const { error: updErr } = await supabase
+  // Leverandør-review 2026-10-08 (#8): en samtidig godkendelse/bogføring må ikke sendes tilbage til "afventer"
+  const { data: updRows, error: updErr } = await supabase
     .from('incoming_invoices')
     .update(patch)
     .eq('id', invoiceId)
+    .not('status', 'in', '(approved,posted,rejected,cancelled)')
+    .select('id')
+  if (!updErr && (updRows ?? []).length === 0) {
+    return { parsed: true, matched: false, duplicate: false, message: 'invoice was approved/locked concurrently — not reopened' }
+  }
   if (updErr) {
     if ((updErr as { code?: string }).code === '23505') {
       await supabase
@@ -732,7 +746,7 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
   if (row.status === 'posted' || row.status === 'rejected' || row.status === 'cancelled') {
     return { ok: false, message: `cannot reject ${row.status} invoice` }
   }
-  const { error } = await supabase
+  const { data: rejRows, error } = await supabase
     .from('incoming_invoices')
     .update({
       status: 'rejected',
@@ -741,7 +755,10 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
       rejected_reason: reason,
     })
     .eq('id', invoiceId)
+    .eq('status', row.status) // samtidig bogføring må ikke overskrives
+    .select('id')
   if (error) return { ok: false, message: error.message }
+  if ((rejRows ?? []).length === 0) return { ok: false, message: 'status ændret samtidig — genindlæs' }
   await auditLog({
     incomingInvoiceId: invoiceId,
     action: 'rejected',

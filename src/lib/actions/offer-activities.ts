@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient, getUser } from '@/lib/supabase/server'
-import { getAuthenticatedClient, formatError } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClient, getAuthenticatedClientWithRole, formatError } from '@/lib/actions/action-helpers'
 // Note: getUser is intentionally kept here for optional auth in logOfferActivity/logOfferActivities
 // These functions are called from both authenticated and unauthenticated (portal) contexts
 import type {
@@ -62,7 +62,7 @@ export async function getOfferActivities(
   offerId: string
 ): Promise<ActionResult<OfferActivityWithPerformer[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
 
     const { data, error } = await supabase
       .from('offer_activities')
@@ -78,7 +78,15 @@ export async function getOfferActivities(
       return { success: false, error: 'Kunne ikke hente aktiviteter' }
     }
 
-    return { success: true, data: data as OfferActivityWithPerformer[] }
+    // RBAC-review 2026-10-07: "sendt trods lav DB" gemmer db_percentage/db_threshold i metadata — samme tal som
+    // advarslen bevidst skjuler for salg (offers.view.cost_prices)
+    const showDb = hasPermission('offers.view.cost_prices')
+    const rows = (data as OfferActivityWithPerformer[]).map((r) => {
+      const md = (r as { metadata?: Record<string, unknown> | null }).metadata
+      if (showDb || !md || !Object.keys(md).some((k) => k.startsWith('db_'))) return r
+      return { ...r, metadata: Object.fromEntries(Object.entries(md).filter(([k]) => !k.startsWith('db_'))) }
+    })
+    return { success: true, data: rows }
   } catch (error) {
     return { success: false, error: formatError(error, 'Kunne ikke hente aktiviteter') }
   }

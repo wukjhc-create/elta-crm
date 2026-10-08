@@ -1,7 +1,7 @@
 'use server'
 
 import { pgQuote } from '@/lib/validations/postgrest-filter'
-import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { sanitizeSearchTerm } from '@/lib/validations/common'
 import type { SearchResultType, SearchResult, SearchResponse } from '@/types/search.types'
 import { logger } from '@/lib/utils/logger'
@@ -12,27 +12,29 @@ export async function globalSearch(query: string): Promise<SearchResponse> {
   }
 
   try {
-    const { supabase } = await getAuthenticatedClient()
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
     const searchTerm = `%${sanitizeSearchTerm(query.trim().toLowerCase())}%`
+    // Leads-review 2026-10-08 (#8): søgningen viste leads/tilbud/projekter uden modul-rettighed (kun RLS) — tom uden
+    const none = Promise.resolve({ data: null, count: 0 })
 
     // Execute all four searches in parallel
     const [leadsResult, customersResult, offersResult, projectsResult] = await Promise.all([
-      supabase
+      !hasPermission('leads.view') ? none : supabase
         .from('leads')
         .select('id, contact_person, email, company_name, status', { count: 'exact' })
         .or(`contact_person.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},company_name.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
-      supabase
+      !hasPermission('customers.view') ? none : supabase
         .from('customers')
         .select('id, company_name, email, customer_number', { count: 'exact' })
         .or(`company_name.ilike.${pgQuote(searchTerm)},email.ilike.${pgQuote(searchTerm)},customer_number.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
-      supabase
+      !hasPermission('offers.view') ? none : supabase
         .from('offers')
         .select('id, offer_number, title, status', { count: 'exact' })
         .or(`offer_number.ilike.${pgQuote(searchTerm)},title.ilike.${pgQuote(searchTerm)}`)
         .limit(5),
-      supabase
+      !hasPermission('projects.view') ? none : supabase
         .from('projects')
         .select('id, project_number, name, status', { count: 'exact' })
         .or(`project_number.ilike.${pgQuote(searchTerm)},name.ilike.${pgQuote(searchTerm)}`)

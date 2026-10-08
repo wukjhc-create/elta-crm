@@ -32,6 +32,9 @@ import { logger } from '@/lib/utils/logger'
 // og scope-kolonnen hedder partner_customer_id (partnerens egen kunde-række).
 // =====================================================
 
+/** Standard-levetid for en partner-adgang (kan forlænges ved at oprette en ny) */
+const PARTNER_TOKEN_DEFAULT_DAYS = 365
+
 // Create partner access token for a customer (the partner)
 export async function createPartnerToken(
   data: CreatePartnerTokenData
@@ -65,7 +68,8 @@ export async function createPartnerToken(
         partner_customer_id: data.partner_customer_id,
         email: data.email,
         token,
-        expires_at: data.expires_at || null,
+        // Partner-review 2026-10-08 (#6): en partner ser mange sager — adgang uden udløb levede for evigt
+        expires_at: data.expires_at || new Date(Date.now() + PARTNER_TOKEN_DEFAULT_DAYS * 86_400_000).toISOString(),
         created_by: userId,
       })
       .select()

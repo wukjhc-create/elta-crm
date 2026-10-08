@@ -17,6 +17,12 @@ import type { ActionResult } from '@/types/common.types'
 import { logger } from '@/lib/utils/logger'
 import { BRAND } from '@/lib/brand'
 import { APP_URL } from '@/lib/constants'
+import { internalRequestHeaders } from '@/lib/security/internal-request'
+import { escapeHtml } from '@/lib/utils/html-escape'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+
+/** En underskrivning der er hængt længere end dette regnes som afbrudt og kan genoptages */
+const FULDMAGT_SIGNING_STALE_MS = 10 * 60_000
 
 export interface FuldmagtData {
   id: string
@@ -179,6 +185,8 @@ export async function getPortalFuldmagter(
       .select('customer_id')
       .eq('token', token)
       .eq('is_active', true)
+      // Q10: udløbne links viste stadig CPR/CVR + underskrift og kunne underskrive (som validatePortalToken)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .single()
 
     if (tokenErr || !tokenData) {
@@ -265,7 +273,9 @@ export async function getPortalFuldmagter(
     // fuldmagt-row der har storage_path. Sikrer at portalen viser fri-
     // ske signed URLs efter bucket-privatisering (β.2.5).
     const { getStorageSignedUrls, SIGNED_URL_TTL: TTL } = await import('@/lib/storage/signed-url')
-    const fmPaths = fuldmagtDocs.map((d) => (d.storage_path as string | null) ?? '')
+    // S1 (portal-review 2026-10-07): kun den tiltænkte underskriver får CPR/CVR, underskrift og den underskrevne PDF.
+    // Før gik de rå felter til ALLE parter (betaler/partner/leveringskunde) i RSC-props — UI'et skjulte kun formularen.
+    const fmPaths = fuldmagtDocs.map((d) => (isIntendedSigner(d) ? (d.storage_path as string | null) ?? '' : ''))
     const fresh = await getStorageSignedUrls(
       'attachments',
       fmPaths.filter((p) => p),
@@ -279,6 +289,7 @@ export async function getPortalFuldmagter(
 
     const fuldmagter: FuldmagtData[] = fuldmagtDocs.map((doc, idx) => {
       const desc = JSON.parse(doc.description || '{}')
+      const signer = isIntendedSigner(doc)
       return {
         id: doc.id,
         customer_id: doc.customer_id,
@@ -286,16 +297,17 @@ export async function getPortalFuldmagter(
         customer_address: desc.customer_address || '',
         customer_postal_city: desc.customer_postal_city || '',
         order_number: desc.order_number || '',
-        foedselsdato_cvr: desc.foedselsdato_cvr || null,
+        foedselsdato_cvr: signer ? desc.foedselsdato_cvr || null : null,
         marketing_samtykke: desc.marketing_samtykke ?? null,
-        signature_data: desc.signature_data || null,
+        signature_data: signer ? desc.signature_data || null : null,
         signer_name: desc.signer_name || null,
         signed_at: desc.signed_at || null,
-        pdf_storage_path: doc.storage_path || null,
-        pdf_url: freshByIdx[idx] ?? doc.file_url ?? null,
-        status: desc.status || 'pending',
+        pdf_storage_path: signer ? doc.storage_path || null : null,
+        pdf_url: signer ? freshByIdx[idx] ?? doc.file_url ?? null : null,
+        // 'signing' (igangværende/afbrudt krav) vises som ventende — ellers forsvinder en hængt fuldmagt fra portalen
+        status: desc.status === 'signed' ? 'signed' : 'pending',
         created_at: doc.created_at,
-        is_intended_signer: isIntendedSigner(doc),
+        is_intended_signer: signer,
       }
     })
 
@@ -327,6 +339,8 @@ export async function submitSignedFuldmagt(
       .select('customer_id')
       .eq('token', token)
       .eq('is_active', true)
+      // Q10: udløbne links viste stadig CPR/CVR + underskrift og kunne underskrive (som validatePortalToken)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .single()
 
     if (tokenErr || !tokenData) {
@@ -345,6 +359,20 @@ export async function submitSignedFuldmagt(
     }
 
     const existingDesc = JSON.parse(doc.description || '{}')
+    // Q10: kun ventende fuldmagter — før kunne en allerede underskrevet fuldmagt (eller et andet kontraktdokument)
+    // underskrives igen og overskrive den gemte underskrift/PDF
+    if (doc.document_type !== 'contract' || existingDesc.type !== 'fuldmagt') {
+      return { success: false, error: 'Dokument ikke fundet' }
+    }
+    if (existingDesc.status === 'signed') {
+      return { success: false, error: 'Fuldmagten er allerede underskrevet' }
+    }
+    // Partner-review 2026-10-08 (#2): to samtidige underskrifter kunne begge passere tjekket ovenfor og overskrive
+    // hinandens CPR/underskrift/PDF. En igangværende underskrivning (< 10 min) afviser; ældre regnes som afbrudt.
+    if (existingDesc.status === 'signing' && typeof existingDesc.signing_started_at === 'string'
+      && Date.now() - new Date(existingDesc.signing_started_at).getTime() < FULDMAGT_SIGNING_STALE_MS) {
+      return { success: false, error: 'Fuldmagten er ved at blive underskrevet — prøv igen om lidt' }
+    }
 
     // Fase 2a — ROLLE-GATE (Plan A): kun sagens anlægsejer (end_customer) må
     // underskrive fuldmagten. Den tiltænkte signer resolves fra sagen (eller
@@ -367,6 +395,24 @@ export async function submitSignedFuldmagt(
     const now = new Date()
     const dateStr = now.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric' })
 
+    // Atomisk krav: kun den kørsel der ændrer PRÆCIS den læste beskrivelse fortsætter (compare-and-set på teksten)
+    const originalDescText: string = doc.description || '{}'
+    const claimedDescText = JSON.stringify({ ...existingDesc, status: 'signing', signing_started_at: now.toISOString() })
+    const { data: claimed } = await supabase
+      .from('customer_documents')
+      .update({ description: claimedDescText })
+      .eq('id', documentId)
+      .eq('description', originalDescText)
+      .select('id')
+    if (!claimed || claimed.length !== 1) {
+      return { success: false, error: 'Fuldmagten er allerede underskrevet eller ved at blive underskrevet' }
+    }
+    // Ved fejl før den endelige gem: giv kravet tilbage, så kunden kan prøve igen
+    const releaseClaim = async () => {
+      await supabase.from('customer_documents').update({ description: originalDescText })
+        .eq('id', documentId).eq('description', claimedDescText)
+    }
+
     // Update description with signed data
     const updatedDesc = {
       ...existingDesc,
@@ -382,9 +428,12 @@ export async function submitSignedFuldmagt(
     const appUrl = APP_URL || 'http://localhost:3000'
     const baseUrl = appUrl.startsWith('http') ? appUrl : `https://${appUrl}`
 
-    const pdfRes = await fetch(`${baseUrl}/api/fuldmagt/pdf`, {
+    // Netværks-/konfigurationsfejl må ikke efterlade kravet hængende (→ null → releaseClaim nedenfor)
+    let pdfRes: Response | null = null
+    try {
+      pdfRes = await fetch(`${baseUrl}/api/fuldmagt/pdf`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...internalRequestHeaders() },
       body: JSON.stringify({
         customer_name: updatedDesc.customer_name,
         customer_address: updatedDesc.customer_address,
@@ -397,15 +446,20 @@ export async function submitSignedFuldmagt(
         date: dateStr,
       }),
     })
+    } catch (err) {
+      logger.error('Fuldmagt PDF request failed', { error: err })
+    }
 
-    if (!pdfRes.ok) {
-      logger.error('Fuldmagt PDF generation failed', { error: await pdfRes.text() })
+    if (!pdfRes || !pdfRes.ok) {
+      if (pdfRes) logger.error('Fuldmagt PDF generation failed', { error: await pdfRes.text() })
+      await releaseClaim()
       return { success: false, error: 'Kunne ikke generere PDF' }
     }
 
     const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer())
-    const fileDate = now.toISOString().slice(0, 10)
-    const fileName = `fuldmagt-${fileDate}.pdf`
+    const fileDate = copenhagenParts(now).date
+    // Q10: dokument-id i navnet — to fuldmagter underskrevet samme dag overskrev hinandens PDF (upsert)
+    const fileName = `fuldmagt-${fileDate}-${documentId.slice(0, 8)}.pdf`
     // Læg PDF'en under dokumentets kunde (ikke nødvendigvis = signeren).
     const storagePath = `customer-documents/${doc.customer_id}/${fileName}`
 
@@ -419,6 +473,7 @@ export async function submitSignedFuldmagt(
 
     if (uploadErr) {
       logger.error('Fuldmagt PDF upload failed', { error: uploadErr })
+      await releaseClaim()
       return { success: false, error: 'Kunne ikke uploade PDF' }
     }
 
@@ -428,11 +483,13 @@ export async function submitSignedFuldmagt(
 
     const pdfUrl = urlData?.signedUrl || ''
 
-    // Update document record
-    await supabase
+    // Update document record (kun hvis vores krav stadig står)
+    const signedDesc: Record<string, unknown> = { ...updatedDesc }
+    delete signedDesc.signing_started_at
+    const { data: saved, error: saveErr } = await supabase
       .from('customer_documents')
       .update({
-        description: JSON.stringify(updatedDesc),
+        description: JSON.stringify(signedDesc),
         file_url: pdfUrl,
         storage_path: storagePath,
         file_name: fileName,
@@ -440,6 +497,13 @@ export async function submitSignedFuldmagt(
         updated_at: now.toISOString(),
       })
       .eq('id', documentId)
+      .eq('description', claimedDescText)
+      .select('id')
+    if (saveErr || !saved || saved.length !== 1) {
+      logger.error('Fuldmagt: kunne ikke gemme underskrift', { entityId: documentId, error: saveErr })
+      await releaseClaim()
+      return { success: false, error: 'Kunne ikke gemme underskriften — prøv igen' }
+    }
 
     // Create system alert for notification bell
     try {
@@ -468,10 +532,10 @@ export async function submitSignedFuldmagt(
               <h1 style="color: white; margin: 0; font-size: 20px;">Fuldmagt underskrevet</h1>
             </div>
             <div style="padding: 32px; background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-              <p style="font-size: 16px; color: #111827;"><strong>${input.signer_name}</strong> har underskrevet fuldmagten.</p>
+              <p style="font-size: 16px; color: #111827;"><strong>${escapeHtml(input.signer_name)}</strong> har underskrevet fuldmagten.</p>
               <table style="margin: 16px 0; font-size: 14px; color: #374151;">
-                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Ordrenr:</td><td>${updatedDesc.order_number}</td></tr>
-                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Fødselsdato/CVR:</td><td>${input.foedselsdato_cvr}</td></tr>
+                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Ordrenr:</td><td>${escapeHtml(updatedDesc.order_number)}</td></tr>
+                <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Fødselsdato/CVR:</td><td>${escapeHtml(input.foedselsdato_cvr)}</td></tr>
                 <tr><td style="padding: 4px 16px 4px 0; color: #6b7280;">Marketing:</td><td>${input.marketing_samtykke ? 'Ja — billeder må bruges' : 'Nej'}</td></tr>
               </table>
               <p style="color: #374151;">PDF'en er gemt under kundens dokumenter i ELTA Drift.</p>

@@ -49,6 +49,8 @@ export interface EngineOptions {
   risk_buffer_percentage?: number
   customer_name?: string
   project_address?: string
+  /** S2: valgt ladestander (supplier_products.id) — uden valg markeres hardwaren "Ikke prissat" */
+  charger_product_id?: string | null
   onProgress?: (progress: ProjectAnalysisProgress) => void
 }
 
@@ -102,13 +104,15 @@ export async function analyzeProject(
     // Stage 2: Match to components and materials
     reportProgress(onProgress, 'matching', 30, 'Finder komponenter og materialer...')
 
-    const matchResult = await matchComponents(interpretationWithId)
+    const matchResult = await matchComponents(interpretationWithId, { chargerProductId: options?.charger_product_id ?? null })
     const components = toCalculationComponents(matchResult.components)
     const materials = toCalculationMaterials(matchResult.materials)
 
     if (matchResult.matchConfidence < 0.5) {
       warnings.push('Mange komponenter blev estimeret. Tjek priser manuelt.')
     }
+    // Ufuldstændig pris (tavle-/gruppe-/lader-materiel) — vises altid, så tilbuddet ikke ser komplet ud
+    warnings.push(...matchResult.pricingGaps)
 
     // Stage 3: Calculate time and price
     reportProgress(onProgress, 'calculating', 50, 'Beregner tid og pris...')

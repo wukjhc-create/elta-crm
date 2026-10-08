@@ -17,6 +17,7 @@ import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { AccountingAction, AccountingEntityType, AccountingStatus } from '@/types/accounting.types'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import {
   friendlyEconomicError,
   computeAccountingHealthSummary,
@@ -426,13 +427,15 @@ async function economicReadiness(credentials: boolean, testOk: boolean | null, c
   ])
   // Kunder med sendte/betalte (ikke-eksporterede) fakturaer uden e-conomic-kobling
   // — de ville blive oprettet som NYE debitorer ved eksport.
-  const { data: billed } = await admin
+  // side for side (PostgREST max_rows 1000 — .limit(5000) gav et udsnit)
+  const billed = await fetchAllRows<{ id: string; customer_id: string }>((from, to) => admin
     .from('invoices')
-    .select('customer_id')
+    .select('id, customer_id')
     .in('status', ['sent', 'paid'])
     .is('external_invoice_id', null)
     .not('customer_id', 'is', null)
-    .limit(5000)
+    .order('id')
+    .range(from, to))
   const billedIds = [...new Set(((billed ?? []) as Array<{ customer_id: string }>).map((b) => b.customer_id))]
   let unlinkedCustomers = 0
   for (let i = 0; i < billedIds.length; i += 200) {
@@ -625,7 +628,9 @@ export async function updateEconomicCredentialsAction(
     if (typeof input.config.autoBookOnCreate === 'boolean') mergedConfig.autoBookOnCreate = input.config.autoBookOnCreate
   }
 
-  const active = input.active ?? existing?.active ?? true
+  // leverandør-/e-conomic-review: aldrig aktiv som standard — at gemme nøgler må ikke tænde live-bogføring uden et
+  // eksplicit valg (UI'en sender altid sit afkrydsningsfelt)
+  const active = input.active ?? existing?.active ?? false
 
   const { error } = await admin
     .from('accounting_integration_settings')
@@ -856,19 +861,16 @@ export async function listAccountingSyncLogAction(params?: {
   // Status-tællere (uafhængigt af valgt filter) — ét lille aggregat.
   const counts = { all: 0, success: 0, failed: 0, skipped: 0 }
   try {
-    const { data: allRows } = await supabase
-      .from('accounting_sync_log')
-      .select('status')
-      .in('entity_type', ['invoice', 'customer'])
-      .order('created_at', { ascending: false })
-      .limit(1000)
-    for (const row of allRows ?? []) {
-      counts.all++
-      const s = row.status as AccountingStatus
-      if (s === 'success') counts.success++
-      else if (s === 'failed') counts.failed++
-      else if (s === 'skipped') counts.skipped++
+    // X1 (regnskabs-review 2026-10-07): eksakte tal via count (før de nyeste 1.000 rækker → for lave tællere)
+    const countFor = async (status?: AccountingStatus) => {
+      let q = supabase.from('accounting_sync_log').select('id', { count: 'exact', head: true }).in('entity_type', ['invoice', 'customer'])
+      if (status) q = q.eq('status', status)
+      const { count, error } = await q
+      if (error) throw error
+      return count ?? 0
     }
+    const [all, success, failed, skipped] = await Promise.all([countFor(), countFor('success'), countFor('failed'), countFor('skipped')])
+    Object.assign(counts, { all, success, failed, skipped })
   } catch {
     /* tællere er best-effort */
   }

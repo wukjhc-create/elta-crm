@@ -21,6 +21,10 @@ import { validateUUID } from '@/lib/validations/common'
 import type { ActionResult } from '@/types/common.types'
 import type { ServiceCaseStatus } from '@/types/service-cases.types'
 import { computeRealizedDb, type RealizedDb } from '@/lib/cases/realized-db'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { netInvoicedExVat, summarizeCaseInvoices, type InvoiceAmountRow, type CaseInvoiceRow } from '@/lib/invoices/net-invoiced'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { selectInChunks, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 
 export interface ServiceCaseEconomy {
   case_id: string
@@ -190,10 +194,15 @@ export async function getServiceCaseEconomy(
     ] = await Promise.all([
       woIds.length === 0
         ? Promise.resolve({ data: [] as Array<{ hours: number | null; end_time: string | null; cost_amount: number | null; sale_amount: number | null; billable: boolean | null; invoice_line_id: string | null; employee: { hourly_rate: number | null } | null }> })
-        : supabase
+        : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
+          // 00192: kostkolonnen læses med admin-klienten bag economy.cost_prices-gaten ovenfor
+          fetchAllRows((f, t) => createAdminClient()
             .from('time_logs')
-            .select('hours, end_time, cost_amount, sale_amount, billable, invoice_line_id, employee:employees(hourly_rate)')
-            .in('work_order_id', woIds),
+            .select('id, hours, end_time, cost_amount, sale_amount, billable, invoice_line_id, employee:employees(hourly_rate)')
+            .in('work_order_id', woIds)
+            .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
+            .order('id')
+            .range(f, t)).then((data) => ({ data, error: null })),
       supabase
         .from('case_materials')
         .select('total_cost, total_sales_price, unit_cost, unit_sales_price, billable, invoice_line_id')
@@ -209,7 +218,7 @@ export async function getServiceCaseEconomy(
       // selv om der laa faktureret beloeb. Fix: join paa case_id direkte.
       supabase
         .from('invoices')
-        .select('total_amount, amount_paid, status, invoice_type, voided_at')
+        .select('total_amount, final_amount, amount_paid, status, invoice_type, voided_at')
         .eq('case_id', caseId),
       supabase
         .from('incoming_invoices')
@@ -270,7 +279,8 @@ export async function getServiceCaseEconomy(
       const lineSale = saleSnapshot != null && Number.isFinite(saleSnapshot)
         ? saleSnapshot
         : (Number.isFinite(hours) && rate != null ? hours * rate : 0)
-      total_labor_sale += lineSale
+      // X1: kun fakturerbart arbejde er salg (garanti/internt tæller som kost, ikke som omsætning → oppustet DB%)
+      if (tl.billable !== false) total_labor_sale += lineSale
       // Klar-til-fakturering: fakturalåst vs. fakturerbar & ikke-faktureret.
       if (tl.invoice_line_id) billed_line_count += 1
       else if (tl.billable !== false) { unbilled_time_logs += 1; unbilled_time_sale += lineSale }
@@ -294,7 +304,7 @@ export async function getServiceCaseEconomy(
     for (const m of matRows) {
       mat_cost += Number(m.total_cost ?? 0)
       const matSale = Number(m.total_sales_price ?? 0)
-      mat_sale += matSale
+      if (m.billable !== false) mat_sale += matSale
       if (Number(m.unit_cost ?? 0) === 0) mat_without_cost += 1
       if (Number(m.unit_sales_price ?? 0) === 0) mat_without_sale += 1
       if (m.invoice_line_id) billed_line_count += 1
@@ -317,7 +327,7 @@ export async function getServiceCaseEconomy(
     for (const o of otherRows) {
       oth_cost += Number(o.total_cost ?? 0)
       const othSale = Number(o.total_sales_price ?? 0)
-      oth_sale += othSale
+      if (o.billable !== false) oth_sale += othSale
       if (Number(o.unit_sales_price ?? 0) === 0) oth_without_sale += 1
       if (o.invoice_line_id) billed_line_count += 1
       else if (o.billable !== false) { unbilled_other += 1; unbilled_oth_sale += othSale }
@@ -326,17 +336,18 @@ export async function getServiceCaseEconomy(
     // ---- Invoices rollup ----
     const invRows = (invoicesRes.data ?? []) as Array<{
       total_amount: number | string | null
+      final_amount: number | string | null
       amount_paid: number | string | null
       status: string | null
       invoice_type: string | null
       voided_at: string | null
     }>
-    let invoiced_total = 0
-    let invoiced_paid = 0
-    for (const i of invRows) {
-      invoiced_total += Number(i.total_amount ?? 0)
-      invoiced_paid += Number(i.amount_paid ?? 0)
-    }
+    // Sags-review: før summeret over ALLE fakturaer (kladder, annullerede, kreditnotaer som +) → "Faktureret"/"Rest at
+    // fakturere" forkert (60k + kredit 60k + 40k viste 160k). Nu netto udstedt ekskl. moms (som projektøkonomien).
+    // X1: fuldt krediterede originaler udlignes af kreditnotaen; manuelt markeret betalt tæller som betalt (inkl. moms)
+    const invSum = summarizeCaseInvoices(invRows as CaseInvoiceRow[])
+    const invoiced_total = invSum.netExVat
+    const invoiced_paid = invSum.paidInclVat
     const has_invoice_data = invRows.length > 0
 
     // ---- Supplier invoices rollup (Sprint 5E-4) ----
@@ -585,32 +596,21 @@ export async function getServiceCaseBillingStatus(
 
     const [tlRes, matRes, othRes, invRes] = await Promise.all([
       woIds.length === 0
-        ? Promise.resolve({ data: [] as Array<{ end_time: string | null; sale_amount: number | string | null; billable: boolean | null; invoice_line_id: string | null }> })
-        : supabase.from('time_logs').select('end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds),
+        ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
+        : // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
+          fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).neq('approval_status', 'rejected').order('id').range(f, t)).then((data) => ({ data })),
       supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
       supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
-      supabase.from('invoices').select('total_amount').eq('case_id', caseId),
+      supabase.from('invoices').select('total_amount, status, invoice_type, voided_at').eq('case_id', caseId),
     ])
 
+    // X1: samme optælling og prisregel som lukke-værnet og fakturaen (summarizeUnbilled → priceTimeLog)
+    const { summarizeUnbilled } = await import('@/lib/invoices/unbilled')
     const tl = (tlRes.data ?? []) as Array<{ end_time: string | null; sale_amount: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
     const mat = (matRes.data ?? []) as Array<{ total_sales_price: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
     const oth = (othRes.data ?? []) as Array<{ total_sales_price: number | string | null; billable: boolean | null; invoice_line_id: string | null }>
-
-    let ut = 0, um = 0, uo = 0, usale = 0, billed = 0, openTimer = false
-    for (const r of tl) {
-      if (r.end_time === null) { openTimer = true; continue }
-      if (r.invoice_line_id) billed += 1
-      else if (r.billable !== false) { ut += 1; usale += Number(r.sale_amount ?? 0) }
-    }
-    for (const r of mat) {
-      if (r.invoice_line_id) billed += 1
-      else if (r.billable !== false) { um += 1; usale += Number(r.total_sales_price ?? 0) }
-    }
-    for (const r of oth) {
-      if (r.invoice_line_id) billed += 1
-      else if (r.billable !== false) { uo += 1; usale += Number(r.total_sales_price ?? 0) }
-    }
-
+    const us = summarizeUnbilled({ timeLogs: tl, materials: mat, otherCosts: oth })
+    const ut = us.timeLogs, um = us.materials, uo = us.otherCosts, usale = us.saleTotal, billed = us.billedLines, openTimer = us.openTimer
     const unbilled = ut + um + uo
     const hasWork = tl.length > 0 || mat.length > 0 || oth.length > 0
     let status: CaseBillingStatus['status']
@@ -619,8 +619,8 @@ export async function getServiceCaseBillingStatus(
     else if (unbilled > 0) status = 'ready_to_bill'
     else status = 'fully_billed'
 
-    const invoiced_total = ((invRes.data ?? []) as Array<{ total_amount: number | string | null }>)
-      .reduce((s, i) => s + Number(i.total_amount ?? 0), 0)
+    // sags-review: netto udstedt ekskl. moms (før alle fakturaer inkl. kladder/annullerede/kreditnotaer)
+    const invoiced_total = netInvoicedExVat((invRes.data ?? []) as InvoiceAmountRow[])
     const refSum = sag.revised_sum != null ? Number(sag.revised_sum)
       : sag.contract_sum != null ? Number(sag.contract_sum) : null
 
@@ -706,7 +706,7 @@ export async function getServiceCaseProjectEconomy(
     // Ét cost-free invoice-query (kun salgs-/status-felter).
     const { data: invs } = await supabase
       .from('invoices')
-      .select('id, invoice_number, final_amount, amount_paid, status, invoice_type, voided_at, currency, created_at')
+      .select('id, invoice_number, final_amount, total_amount, amount_paid, status, invoice_type, voided_at, currency, created_at')
       .eq('case_id', caseId)
       .order('created_at', { ascending: false })
 
@@ -716,33 +716,29 @@ export async function getServiceCaseProjectEconomy(
       voided_at: string | null; currency: string | null; created_at: string | null
     }>
 
+    // X1: samlet beregning (fuldt krediterede originaler udlignes af kreditnotaen; negativ slutfaktura beholder
+    // fortegn; manuelt markeret betalt tæller som betalt) — før dobbelt fradrag og udestående på betalte fakturaer
     const ISSUED = new Set(['sent', 'paid'])
-    let invoiced = 0, credited = 0, paid = 0, invoiceCount = 0, voidedCount = 0
     let currency = 'DKK'
     let latest: CaseProjectEconomy['latest_invoice'] = null
-
     for (const r of rows) {
-      if (r.voided_at) { voidedCount++; continue }            // annulleret → tæller ikke med
-      if (!ISSUED.has(r.status ?? '')) continue                // kladder ekskluderes
+      if (!ISSUED.has(r.status ?? '')) continue
       if (r.currency) currency = r.currency
-      const amount = Number(r.final_amount ?? 0)
-      if (r.invoice_type === 'credit') {
-        credited += Math.abs(amount)
-      } else {
-        invoiced += amount
-        paid += Number(r.amount_paid ?? 0)
-      }
-      invoiceCount++
-      if (!latest) {
+      if (!latest && !r.voided_at) {
         latest = {
           id: r.id, invoice_number: r.invoice_number, invoice_type: r.invoice_type,
-          status: r.status, final_amount: amount, created_at: r.created_at,
+          status: r.status, final_amount: Number(r.final_amount ?? 0), created_at: r.created_at,
         }
       }
     }
-
-    const netInvoiced = invoiced - credited
-    const outstanding = Math.max(0, netInvoiced - paid)
+    const sum = summarizeCaseInvoices(rows as unknown as CaseInvoiceRow[])
+    const invoiced = sum.invoicedInclVat
+    const credited = sum.creditedInclVat
+    const paid = sum.paidInclVat
+    const invoiceCount = sum.issuedCount - sum.voidedCount
+    const voidedCount = sum.voidedCount
+    const netInvoiced = sum.netInclVat
+    const outstanding = sum.outstandingInclVat
     const refSum = sag.revised_sum != null ? Number(sag.revised_sum)
       : sag.contract_sum != null ? Number(sag.contract_sum) : null
 
@@ -756,7 +752,8 @@ export async function getServiceCaseProjectEconomy(
         net_invoiced: r2(netInvoiced),
         paid_total: r2(paid),
         outstanding_total: r2(outstanding),
-        remaining_to_invoice: refSum != null ? r2(refSum - netInvoiced) : null,
+        // rapport-review: kontraktsummen er ekskl. moms → rest beregnes mod netto faktureret EKSKL. moms (før inkl. moms)
+        remaining_to_invoice: refSum != null ? r2(refSum - sum.netExVat) : null,
         invoice_count: invoiceCount,
         voided_count: voidedCount,
         currency,
@@ -799,12 +796,23 @@ export async function getServiceCaseEconomyBatch(
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
 
-    const [caseRes, invRes] = await Promise.all([
-      supabase.from('service_cases').select('id, contract_sum, revised_sum').in('id', ids),
-      supabase.from('invoices')
-        .select('case_id, final_amount, amount_paid, status, invoice_type, voided_at')
-        .in('case_id', ids),
+    // X4n: i bidder af 200 — ordrelistens fakturafilter sender op til 500 sager; én .in() sprængte URL-grænsen (~350)
+    // → ingen kontrakt/faktureret/udestående på nogen række
+    const [caseRows, invRows] = await Promise.all([
+      selectInChunks<Record<string, unknown>>(ids, (chunk) => supabase.from('service_cases').select('id, contract_sum, revised_sum').in('id', chunk)),
+      (async () => {
+        const out: Array<Record<string, unknown>> = []
+        for (let k = 0; k < ids.length; k += IN_CHUNK_SIZE) {
+          const chunk = ids.slice(k, k + IN_CHUNK_SIZE)
+          out.push(...await fetchAllRows<Record<string, unknown>>((from, to) => supabase.from('invoices')
+            .select('id, case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at')
+            .in('case_id', chunk).order('id').range(from, to)))
+        }
+        return out
+      })(),
     ])
+    const caseRes = { data: caseRows }
+    const invRes = { data: invRows }
 
     const refByCase = new Map<string, number | null>()
     for (const c of (caseRes.data ?? []) as Array<{ id: string; contract_sum: number | string | null; revised_sum: number | string | null }>) {
@@ -812,30 +820,26 @@ export async function getServiceCaseEconomyBatch(
       refByCase.set(c.id, ref)
     }
 
-    const agg = new Map<string, { invoiced: number; credited: number; paid: number; count: number }>()
-    for (const r of (invRes.data ?? []) as Array<{ case_id: string | null; final_amount: number | string | null; amount_paid: number | string | null; status: string | null; invoice_type: string | null; voided_at: string | null }>) {
+    // X1: pr. sag via summarizeCaseInvoices — rest at fakturere mod netto EKSKL. moms (kontraktsummen er ekskl. moms;
+    // før inkl. moms → falsk "Overfaktureret" over 80 %), fuldt krediterede originaler udlignes, manuelt betalt tæller
+    const rowsByCase = new Map<string, CaseInvoiceRow[]>()
+    for (const r of (invRes.data ?? []) as Array<CaseInvoiceRow & { case_id: string | null }>) {
       if (!r.case_id) continue
-      if (r.voided_at) continue
-      if (!ISSUED_STATUSES.has(r.status ?? '')) continue
-      const cur = agg.get(r.case_id) ?? { invoiced: 0, credited: 0, paid: 0, count: 0 }
-      const amt = Number(r.final_amount ?? 0)
-      if (r.invoice_type === 'credit') cur.credited += Math.abs(amt)
-      else { cur.invoiced += amt; cur.paid += Number(r.amount_paid ?? 0) }
-      cur.count += 1
-      agg.set(r.case_id, cur)
+      const list = rowsByCase.get(r.case_id) ?? []
+      list.push(r)
+      rowsByCase.set(r.case_id, list)
     }
 
     const out: Record<string, CaseEconomyBatchEntry> = {}
     for (const id of ids) {
-      const a = agg.get(id) ?? { invoiced: 0, credited: 0, paid: 0, count: 0 }
+      const sum = summarizeCaseInvoices(rowsByCase.get(id) ?? [])
       const ref = refByCase.get(id) ?? null
-      const net = a.invoiced - a.credited
       out[id] = {
-        net_invoiced: r2(net),
-        outstanding_total: r2(Math.max(0, net - a.paid)),
-        remaining_to_invoice: ref != null ? r2(ref - net) : null,
+        net_invoiced: sum.netInclVat,
+        outstanding_total: sum.outstandingInclVat,
+        remaining_to_invoice: ref != null ? r2(ref - sum.netExVat) : null,
         has_contract_sum: ref != null,
-        invoice_count: a.count,
+        invoice_count: sum.issuedCount - sum.voidedCount,
       }
     }
     return { success: true, data: out }
@@ -864,22 +868,29 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
     }
 
     // Udstedte, ikke-voided fakturaer (cost-free felter).
-    const { data: invs } = await supabase
+    // sags-review: side for side (før højst 1.000 fakturaer → totaler for lave)
+    const invs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
       .from('invoices')
-      .select('case_id, final_amount, amount_paid, status, invoice_type, voided_at, currency')
+      .select('id, case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at, currency')
       .in('status', ['sent', 'paid'])
-      .is('voided_at', null)
+      .order('id')
+      .range(from, to))
 
-    const agg = new Map<string, { invoiced: number; credited: number; paid: number }>()
+    // X1: inkl. fuldt krediterede originaler (udlignes af kreditnotaen) — før blev de filtreret fra, mens
+    // kreditnotaen talte med → forkert udestående
+    const byCase = new Map<string, CaseInvoiceRow[]>()
     let currency = 'DKK'
-    for (const r of (invs ?? []) as Array<{ case_id: string | null; final_amount: number | string | null; amount_paid: number | string | null; invoice_type: string | null; currency: string | null }>) {
+    for (const r of (invs ?? []) as Array<CaseInvoiceRow & { case_id: string | null; currency: string | null }>) {
       if (!r.case_id) continue
       if (r.currency) currency = r.currency
-      const cur = agg.get(r.case_id) ?? { invoiced: 0, credited: 0, paid: 0 }
-      const amt = Number(r.final_amount ?? 0)
-      if (r.invoice_type === 'credit') cur.credited += Math.abs(amt)
-      else { cur.invoiced += amt; cur.paid += Number(r.amount_paid ?? 0) }
-      agg.set(r.case_id, cur)
+      const list = byCase.get(r.case_id) ?? []
+      list.push(r)
+      byCase.set(r.case_id, list)
+    }
+    const agg = new Map<string, { net: number; outstanding: number }>()
+    for (const [cid, list] of byCase) {
+      const sum = summarizeCaseInvoices(list)
+      agg.set(cid, { net: sum.netInclVat, outstanding: sum.outstandingInclVat })
     }
 
     const caseIds = Array.from(agg.keys())
@@ -888,12 +899,18 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
     }
 
     // Kun aktive (ikke-lukkede) sager tæller med.
-    const { data: cases } = await supabase
-      .from('service_cases')
-      .select('id, case_number, title, status')
-      .in('id', caseIds)
+    // i bidder af 200 (én .in() med alle fakturerede sager sprænger URL-længden ved vækst → tom liste → 0 kr udestående)
+    const cases: Array<{ id: string; case_number: string | null; title: string | null; status: string | null }> = []
+    for (let k = 0; k < caseIds.length; k += 200) {
+      const { data, error } = await supabase
+        .from('service_cases')
+        .select('id, case_number, title, status')
+        .in('id', caseIds.slice(k, k + 200))
+      if (error) throw error
+      cases.push(...((data ?? []) as typeof cases))
+    }
     const activeMeta = new Map<string, { case_number: string | null; title: string | null }>()
-    for (const c of (cases ?? []) as Array<{ id: string; case_number: string | null; title: string | null; status: string | null }>) {
+    for (const c of cases as Array<{ id: string; case_number: string | null; title: string | null; status: string | null }>) {
       if (c.status === 'closed') continue
       activeMeta.set(c.id, { case_number: c.case_number, title: c.title })
     }
@@ -903,8 +920,8 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
     for (const [id, a] of agg) {
       const meta = activeMeta.get(id)
       if (!meta) continue // kun aktive sager
-      const net = a.invoiced - a.credited
-      const outstanding = Math.max(0, net - a.paid)
+      const net = a.net
+      const outstanding = a.outstanding
       totalNet += net
       totalOutstanding += outstanding
       if (outstanding > 0) {
@@ -963,23 +980,23 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
     const { caseMatchesBillingFilter } = await import('@/lib/invoices/case-billing-status')
 
     // 1) Udstedte, ikke-voided fakturaer (cost-free) → aggreger pr. sag.
-    const { data: invs } = await supabase
+    // sags-review: side for side (før højst 1.000 fakturaer → totaler for lave)
+    const invs = await fetchAllRows<Record<string, unknown>>((from, to) => supabase
       .from('invoices')
-      .select('case_id, final_amount, amount_paid, status, invoice_type, voided_at')
+      .select('id, case_id, total_amount, final_amount, amount_paid, status, invoice_type, voided_at')
       .in('status', ['sent', 'paid'])
-      .is('voided_at', null)
+      .order('id')
+      .range(from, to))
 
-    const agg = new Map<string, { invoiced: number; credited: number; paid: number; count: number }>()
-    for (const r of (invs ?? []) as Array<{ case_id: string | null; final_amount: number | string | null; amount_paid: number | string | null; invoice_type: string | null }>) {
+    // X1: samme regler som sagslisten (summarizeCaseInvoices) — rest mod netto ekskl. moms
+    const byCase = new Map<string, CaseInvoiceRow[]>()
+    for (const r of (invs ?? []) as Array<CaseInvoiceRow & { case_id: string | null }>) {
       if (!r.case_id) continue
-      const cur = agg.get(r.case_id) ?? { invoiced: 0, credited: 0, paid: 0, count: 0 }
-      const amt = Number(r.final_amount ?? 0)
-      if (r.invoice_type === 'credit') cur.credited += Math.abs(amt)
-      else { cur.invoiced += amt; cur.paid += Number(r.amount_paid ?? 0) }
-      cur.count += 1
-      agg.set(r.case_id, cur)
+      const list = byCase.get(r.case_id) ?? []
+      list.push(r)
+      byCase.set(r.case_id, list)
     }
-    const invoicedIds = Array.from(agg.keys())
+    const invoicedIds = Array.from(byCase.keys())
 
     // 2) Kandidat-sager: dem med fakturaer + alle afsluttede (ready_final kan
     //    gælde en afsluttet sag uden fakturaer). Bounded queries.
@@ -991,11 +1008,12 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
       }
     }
     if (invoicedIds.length) {
-      const { data } = await supabase
+      // Økonomi-review 2026-10-08 (#11): i bidder — .in() med op til 500 id'er fejlede stille over ~350
+      const data = await selectInChunks<unknown>(invoicedIds.slice(0, BILLING_FOLLOWUP_CAP), (chunk) => supabase
         .from('service_cases')
         .select('id, status, contract_sum, revised_sum')
-        .in('id', invoicedIds.slice(0, BILLING_FOLLOWUP_CAP))
-      addRows((data ?? []) as never)
+        .in('id', chunk))
+      addRows(data as never)
     }
     const { data: closedRows } = await supabase
       .from('service_cases')
@@ -1009,20 +1027,19 @@ export async function getBillingFollowupSummaryAction(): Promise<ActionResult<Bi
     // 3) Byg cost-free entry pr. kandidat-sag + tæl via Ø8.2-reglerne.
     let over = 0, ready = 0, outstanding = 0, noContract = 0
     for (const [id, meta] of caseMeta) {
-      const a = agg.get(id) ?? { invoiced: 0, credited: 0, paid: 0, count: 0 }
-      const net = a.invoiced - a.credited
+      const sum = summarizeCaseInvoices(byCase.get(id) ?? [])
       const entry = {
-        net_invoiced: r2(net),
-        outstanding_total: r2(Math.max(0, net - a.paid)),
-        remaining_to_invoice: meta.ref != null ? r2(meta.ref - net) : null,
+        net_invoiced: sum.netInclVat,
+        outstanding_total: sum.outstandingInclVat,
+        remaining_to_invoice: meta.ref != null ? r2(meta.ref - sum.netExVat) : null,
         has_contract_sum: meta.ref != null,
-        invoice_count: a.count,
+        invoice_count: sum.issuedCount - sum.voidedCount,
       }
       if (caseMatchesBillingFilter(entry, meta.status, 'over_invoiced')) over++
       if (caseMatchesBillingFilter(entry, meta.status, 'ready_final')) ready++
       if (caseMatchesBillingFilter(entry, meta.status, 'outstanding')) outstanding++
       // no_contract: kun handlingsrelevant når sagen rent faktisk er faktureret.
-      if (a.count > 0 && caseMatchesBillingFilter(entry, meta.status, 'no_contract')) noContract++
+      if (entry.invoice_count > 0 && caseMatchesBillingFilter(entry, meta.status, 'no_contract')) noContract++
     }
 
     return {

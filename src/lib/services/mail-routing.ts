@@ -356,6 +356,11 @@ export function buildRouteReason(
  * Vælg første EKSTERNE adresse fra en prioriteret kandidat-liste.
  * Returnerer null hvis ingen ekstern findes.
  */
+/** Formular-relæer (hjemmesidens kontaktformular) — afsenderen er aldrig kunden */
+export function isFormRelayEmail(email: string): boolean {
+  return /@([a-z0-9-]+\.)*formsubmit\.co$/i.test(email.trim())
+}
+
 export function pickFirstExternalEmail(
   candidates: Array<string | null | undefined>
 ): string | null {
@@ -364,6 +369,9 @@ export function pickFirstExternalEmail(
     if (!n) continue
     if (isInternalEmail(n)) continue
     if (!isValidEmail(n)) continue
+    // X4 (kommunikations-review 2026-10-07): formular-relæet (FormSubmit) er aldrig kunden — et hurtigsvar på en
+    // webhenvendelse uden Reply-To gik til submissions@formsubmit.co med kundens navn/telefon/adresse citeret
+    if (isFormRelayEmail(n)) continue
     return n
   }
   return null

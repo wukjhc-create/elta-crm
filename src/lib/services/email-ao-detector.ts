@@ -8,6 +8,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { AOImporter } from '@/lib/services/importers/ao-importer'
 import { logger } from '@/lib/utils/logger'
 import type { AOProductMatch } from '@/types/mail-bridge.types'
@@ -94,7 +95,8 @@ export async function lookupAOProducts(
 ): Promise<AOProductMatch[]> {
   if (skus.length === 0) return []
 
-  const supabase = await createClient()
+  // 00192: kostkolonner — admin-klient: baggrundsservice (mail-sync/cron, ofte uden session → anon og 0 rækker)
+  const supabase = createAdminClient()
 
   // Query supplier_products for AO supplier
   const { data: aoSupplier } = await supabase

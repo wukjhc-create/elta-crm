@@ -36,6 +36,8 @@ export interface ParsedCsv {
   mapped: Partial<Record<CustomerField, string>> // felt → original overskrift
   unmapped: string[]
   rows: ParsedCustomerRow[]
+  /** antal datarækker ud over maxRows (de er IKKE med i rows) — kalderen skal afvise eller sige det (kode-review) */
+  truncatedRows: number
 }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -98,7 +100,8 @@ export function parseCustomerCsv(input: string, maxRows = 2000): ParsedCsv {
     else if (values.company_name.length > 200) error = 'Firmanavn er for langt'
     return { line: idx + 2, values, error }
   })
-  return { delimiter, mapped, unmapped, rows }
+  const dataRows = table.slice(1).filter((cells) => cells.some((c) => c.trim())).length
+  return { delimiter, mapped, unmapped, rows, truncatedRows: Math.max(0, dataRows - rows.length) }
 }
 
 export type ImportRowStatus = 'new' | 'duplicate' | 'invalid'

@@ -58,6 +58,8 @@ export interface IncomingEmail {
 }
 
 export interface IncomingEmailWithCustomer extends IncomingEmail {
+  /** N96: webhenvendelse — "navn · postnr." fra formularen (kun i mail-listen) */
+  web_contact?: string
   customers?: {
     id: string
     company_name: string

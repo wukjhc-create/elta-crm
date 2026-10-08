@@ -8,9 +8,11 @@
  * 4. Mark as 'linked' or 'unidentified'
  */
 
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/utils/logger'
 import type { LinkResult, EmailLinkStatus } from '@/types/mail-bridge.types'
+import { isFreeMailDomain, isNonCustomerDomain } from '@/lib/email/free-mail-domains'
 
 // =====================================================
 // Original Sender Extraction (forwarded emails)
@@ -67,24 +69,21 @@ export function extractOriginalSender(
   // Search through body for original sender
   const searchText = bodyText || stripHtml(bodyHtml || '')
 
-  for (const pattern of FORWARDED_PATTERNS) {
-    const match = searchText.match(pattern)
-    if (match) {
-      // Pattern with name + email in angle brackets
-      if (match[2]) {
-        return {
-          email: match[2].trim().toLowerCase(),
-          name: match[1].trim().replace(/^["']|["']$/g, '') || null,
-          isForwarded: true,
-        }
-      }
-      // Pattern with just email
-      if (match[1] && match[1].includes('@')) {
-        return {
-          email: match[1].trim().toLowerCase(),
-          name: null,
-          isForwarded: true,
-        }
+  // X4 (kommunikations-review 2026-10-07): et almindeligt SVAR fra kunden indeholder det citerede "Fra: Elta Solar
+  // <kontakt@eltasolar.dk>" — før blev det tolket som videresendt, og kundens egen adresse blev aldrig matchet (mailen
+  // endte som uidentificeret / faldt ud af "kræver svar"). Nu kun ved VS:/Fwd:-emne eller eksplicit videresendt-markør,
+  // og en udtrukket intern/formular-adresse falder tilbage til den rigtige afsender.
+  const hasForwardMarker = FORWARD_BODY_MARKERS.some((p) => p.test(searchText))
+  if (isForwardedSubject || hasForwardMarker) {
+    for (const pattern of FORWARDED_PATTERNS) {
+      const match = searchText.match(pattern)
+      if (!match) continue
+      const email = (match[2] ?? (match[1] && match[1].includes('@') ? match[1] : '')).trim().toLowerCase()
+      if (!email || isNonCustomerAddress(email)) continue
+      return {
+        email,
+        name: match[2] ? match[1].trim().replace(/^["']|["']$/g, '') || null : null,
+        isForwarded: true,
       }
     }
   }
@@ -95,6 +94,15 @@ export function extractOriginalSender(
     name: senderName,
     isForwarded: isForwardedSubject,
   }
+}
+
+/** Markører i brødteksten der entydigt betyder "videresendt" (ikke et almindeligt svar med citat) */
+const FORWARD_BODY_MARKERS = [/videresendt besked/i, /forwarded message/i, /begin forwarded message/i]
+
+/** Adresser der aldrig er den oprindelige kunde: eget domæne og formular-relæet */
+function isNonCustomerAddress(email: string): boolean {
+  const domain = email.split('@')[1] ?? ''
+  return domain === 'eltasolar.dk' || domain.endsWith('.eltasolar.dk') || /(^|\.)formsubmit\.co$/.test(domain)
 }
 
 /**
@@ -142,7 +150,7 @@ export async function matchCustomer(
   const { data: customerMatch } = await supabase
     .from('customers')
     .select('id')
-    .ilike('email', emailLower)
+    .ilike('email', escapeLike(emailLower))
     .eq('is_active', true)
     .limit(1)
     .maybeSingle()
@@ -160,7 +168,7 @@ export async function matchCustomer(
   const { data: contactMatch } = await supabase
     .from('customer_contacts')
     .select('id, customer_id')
-    .ilike('email', emailLower)
+    .ilike('email', escapeLike(emailLower))
     .limit(1)
     .maybeSingle()
 
@@ -175,14 +183,17 @@ export async function matchCustomer(
 
   // 3. Domain match — extract domain and match against customer emails
   const domain = emailLower.split('@')[1]
-  if (domain && !isFreemailDomain(domain)) {
-    const { data: domainMatches } = await supabase
+  // gratis-/privat-mail (hotmail.dk, gmail …) kobles aldrig på domæne — fælles liste i lib/email/free-mail-domains.ts
+  // Kunde-/leads-review 2026-10-07: kun ved PRÆCIS én aktiv kunde på domænet (før limit(1) → vilkårlig kunde, fx én af
+  // flere i samme boligforening) og aldrig egne/relæ-domæner (eltasolar.dk ville ellers koble kollegers mails)
+  if (domain && !isFreeMailDomain(domain) && !isNonCustomerDomain(domain)) {
+    const { data: domainRows } = await supabase
       .from('customers')
       .select('id')
       .ilike('email', `%@${domain}`)
       .eq('is_active', true)
-      .limit(1)
-      .maybeSingle()
+      .limit(2)
+    const domainMatches = (domainRows ?? []).length === 1 ? (domainRows as Array<{ id: string }>)[0] : null
 
     if (domainMatches) {
       return {
@@ -203,23 +214,6 @@ export async function matchCustomer(
   }
 }
 
-/**
- * Freemail domains that should NOT be used for domain matching
- * (many different customers can share gmail.com etc.)
- */
-const FREEMAIL_DOMAINS = new Set([
-  'gmail.com', 'googlemail.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
-  'yahoo.com', 'yahoo.dk',
-  'icloud.com', 'me.com', 'mac.com',
-  'protonmail.com', 'proton.me',
-  'mail.dk', 'jubii.dk', 'ofir.dk', 'stofanet.dk', 'tdcadsl.dk',
-  'email.dk', 'webspeed.dk', 'telenet.dk',
-])
-
-function isFreemailDomain(domain: string): boolean {
-  return FREEMAIL_DOMAINS.has(domain.toLowerCase())
-}
 
 // =====================================================
 // Sprint 8C-3 Noise filter
@@ -391,10 +385,11 @@ export async function linkEmail(
 ): Promise<LinkResult> {
   const supabase = await createClient()
 
-  // 0. Thread-based matching: check conversation_id and in_reply_to first
+  // 0. Thread-based matching på conversation_id. Statisk skematjek 2026-10-05: kolonnerne in_reply_to og
+  //    internet_message_id findes ikke i prod → hele forespørgslen fejlede, så HELLER IKKE samtale-koblingen kørte.
   const { data: thisEmail } = await supabase
     .from('incoming_emails')
-    .select('conversation_id, in_reply_to')
+    .select('conversation_id')
     .eq('id', emailId)
     .maybeSingle()
 
@@ -421,21 +416,7 @@ export async function linkEmail(
     }
   }
 
-  // 0b. Match by in_reply_to → find the original email by its internet_message_id
-  if (!threadCustomerId && thisEmail?.in_reply_to) {
-    const { data: replyMatch } = await supabase
-      .from('incoming_emails')
-      .select('customer_id, service_case_id')
-      .eq('internet_message_id', thisEmail.in_reply_to)
-      .not('customer_id', 'is', null)
-      .limit(1)
-      .maybeSingle()
-
-    if (replyMatch?.customer_id) {
-      threadCustomerId = replyMatch.customer_id
-      threadServiceCaseId = replyMatch.service_case_id || null
-    }
-  }
+  // (0b in_reply_to → internet_message_id fjernet: kolonnerne findes ikke — se ovenfor)
 
   // 1. Extract original sender (handles forwarded emails)
   const extracted = extractOriginalSender(
@@ -484,16 +465,17 @@ export async function linkEmail(
     original_sender_name: extracted.isForwarded ? extracted.name : null,
     is_forwarded: extracted.isForwarded,
     processed_at: new Date().toISOString(),
-    // Sprint 8D-1: arv service_case_id fra existing thread (0a/0b match).
-    // Hvis ingen thread-match, forbliver rowen med service_case_id=NULL —
-    // brugeren kan manuelt koble via UI.
-    service_case_id: threadServiceCaseId,
+    // Sprint 8D-1: arv service_case_id fra existing thread (0a/0b match). Kunde-/leads-review 2026-10-07: KUN ved
+    // tråd-match — før blev en manuelt sat sag nulstillet, når "auto-kobl ventende" kørte.
+    ...(threadServiceCaseId ? { service_case_id: threadServiceCaseId } : {}),
   }
 
   const { error } = await supabase
     .from('incoming_emails')
     .update(updateData)
     .eq('id', emailId)
+    // aldrig overskriv en kobling som en bruger (eller en samtidig synk) har lavet imens
+    .is('customer_id', null)
 
   if (error) {
     logger.error('Failed to update email link status', {

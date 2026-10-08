@@ -27,6 +27,9 @@ const FORM_KEYS: Record<string, string> = {
  * FormSubmit sender en tabel (Name | Value); strippet til tekst bliver det skiftevis nøgle- og værdilinjer.
  * Omskriv til "Navn: …"-linjer, som den eksisterende mail-parser (labeled fields) forstår. Uændret tekst ellers.
  */
+/** FormSubmits egen tekst efter tabellen (sidefod) — hører aldrig til et felt */
+const FORM_FOOTER = /formsubmit|your friends from|here\s*→|sponsor|unsubscribe|here.?s what they had to say/i
+
 export function normalizeFormSubmitTable(text: string): string {
   if (!/here.?s what they had to say/i.test(text)) return text
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
@@ -46,7 +49,11 @@ export function normalizeFormSubmitTable(text: string): string {
     // henvendelser mistede navnet. Nøglen er første ord, værdien resten.
     const same = /^(\S+)\s+(.+)$/.exec(lines[i])
     const sameKey = same ? FORM_KEYS[same[1].toLowerCase()] : undefined
-    if (same && sameKey) out.push(`${sameKey}: ${same[2].trim()}`)
+    if (same && sameKey) { out.push(`${sameKey}: ${same[2].trim()}`); continue }
+    // Flerlinjet besked: efterfølgende linjer uden nøgle hører til beskeden (før: kun første linje kom med). Kun for
+    // Besked — og aldrig FormSubmits egen sidefod — så adressen ikke igen "løber" ind i fremmed tekst.
+    const last = out.length - 1
+    if (last >= 0 && out[last].startsWith('Besked: ') && !FORM_FOOTER.test(lines[i])) out[last] += ` ${lines[i]}`
   }
   // N92: kun de normaliserede felter — med den rå tabel bagefter "løb" adressen ind i FormSubmits egen tekst
   // ("Solvej 12, Here's what they had to say, Name, Value") i rigtige henvendelser

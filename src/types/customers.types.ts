@@ -22,7 +22,8 @@ export interface Customer {
   tags: string[]
   custom_fields: Record<string, unknown>
   is_active: boolean
-  created_by: string
+  /** NULL når den oprettende bruger er slettet (00199: ON DELETE SET NULL — kunden bevares) */
+  created_by: string | null
   created_at: string
   updated_at: string
 }

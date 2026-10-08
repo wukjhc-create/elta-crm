@@ -14,6 +14,7 @@ import { insertCustomerWithRetry } from '@/lib/customers/customer-number'
 import { classifyCustomerRows, parseCustomerCsv, phoneDigits, type ClassifiedRow, type CustomerField } from '@/lib/customers/csv-import'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 const MAX_TEXT = 2_000_000 // ~2 MB CSV
 const MAX_IMPORT = 500
@@ -46,6 +47,8 @@ async function analyse(ctx: Ctx, csvText: string) {
   if (typeof csvText !== 'string' || !csvText.trim()) return { ctx, error: 'Filen er tom' as const }
   if (csvText.length > MAX_TEXT) return { ctx, error: 'Filen er for stor (max ca. 2 MB)' as const }
   const parsed = parseCustomerCsv(csvText)
+  // før blev rækker efter nr. 2000 tavst droppet (kode-review) — brugeren troede hele filen var importeret
+  if (parsed.truncatedRows > 0) return { ctx, error: `Filen har for mange rækker (${parsed.rows.length + parsed.truncatedRows}); højst 2000 pr. import — del den op` as const }
   if (!parsed.mapped.company_name || !parsed.mapped.email) {
     return { ctx, error: 'Filen skal have kolonner for firmanavn og e-mail (fx "Firmanavn" og "E-mail")' as const }
   }
@@ -84,7 +87,7 @@ export async function importCustomersAction(csvText: string): Promise<ActionResu
     const { classified } = a as Required<Pick<typeof a, 'classified'>>
     const toCreate = classified.filter((r) => r.status === 'new')
     if (toCreate.length > MAX_IMPORT) return { success: false, error: `Højst ${MAX_IMPORT} nye kunder pr. import — del filen op` }
-    const batch = new Date().toISOString().slice(0, 10)
+    const batch = copenhagenParts(new Date()).date
     let created = 0, failed = 0
     for (const r of toCreate) {
       const v = r.values

@@ -43,8 +43,10 @@ import {
 import type { InvoiceLineRow, InvoiceRow } from '@/types/invoice.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
-import { copenhagenParts, calendarDaysSince } from '@/lib/utils/copenhagen-time'
+import { copenhagenParts, calendarDaysSince, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { priceTimeLog } from '@/lib/invoices/time-log-price'
+import { selectInChunks, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 import {
   computePaymentHealth,
   type HealthInvoice,
@@ -183,6 +185,8 @@ export async function listUnbilledForCaseAction(
           // Samme regel som materialer/øvrige — og som createInvoiceDraftFromCase,
           // der springer ikke-fakturerbare timer over.
           .eq('billable', true)
+          // Henrik 2026-10-07: afviste timer faktureres aldrig
+          .neq('approval_status', 'rejected')
           .order('start_time', { ascending: true }),
     supabase
       .from('case_materials')
@@ -1406,14 +1410,18 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
   // (ÉN query, ingen N+1) + integrations-parathed (uden hemmeligheder).
   const invoiceIds = list.map((r) => r.id as string)
   const failedSet = new Set<string>()
-  if (invoiceIds.length > 0) {
-    const { data: failed } = await supabase
+  // X4l: i bidder af 200 (op til 500 id'er i én .in() sprængte URL-grænsen (~350) → ingen fejlmarkeringer vist)
+  for (let k = 0; k < invoiceIds.length; k += IN_CHUNK_SIZE) {
+    const chunk = invoiceIds.slice(k, k + IN_CHUNK_SIZE)
+    const failed = await fetchAllRows<{ id: string; entity_id: string }>((from, to) => supabase
       .from('accounting_sync_log')
-      .select('entity_id')
+      .select('id, entity_id')
       .eq('entity_type', 'invoice')
       .eq('status', 'failed')
-      .in('entity_id', invoiceIds)
-    for (const f of failed ?? []) failedSet.add(f.entity_id as string)
+      .in('entity_id', chunk)
+      .order('id')
+      .range(from, to))
+    for (const f of failed) failedSet.add(f.entity_id)
   }
   let accountingReady = false
   try {
@@ -1432,29 +1440,19 @@ export async function listInvoicesOverviewAction(): Promise<InvoiceOverviewResul
   )
   const custById = new Map<string, { name: string | null; email: string | null }>()
   const caseById = new Map<string, string | null>()
+  // X4l: i bidder (op til 500 fakturaer → >350 id'er i én .in() fejlede stille → oversigten uden kundenavne/sagsnumre)
   await Promise.all([
-    customerIds.length === 0
-      ? Promise.resolve()
-      : supabase
-          .from('customers')
-          .select('id, company_name, contact_person, email')
-          .in('id', customerIds)
-          .then(({ data: cs }) => {
-            for (const c of cs ?? [])
-              custById.set(c.id as string, {
-                name: (c.company_name as string | null) || (c.contact_person as string | null) || null,
-                email: (c.email as string | null) ?? null,
-              })
-          }),
-    caseIds.length === 0
-      ? Promise.resolve()
-      : supabase
-          .from('service_cases')
-          .select('id, case_number')
-          .in('id', caseIds)
-          .then(({ data: cs }) => {
-            for (const c of cs ?? []) caseById.set(c.id as string, (c.case_number as string | null) ?? null)
-          }),
+    selectInChunks<{ id: string; company_name: string | null; contact_person: string | null; email: string | null }>(customerIds, (chunk) =>
+      supabase.from('customers').select('id, company_name, contact_person, email').in('id', chunk))
+      .then((cs) => {
+        for (const c of cs)
+          custById.set(c.id, { name: c.company_name || c.contact_person || null, email: c.email ?? null })
+      }),
+    selectInChunks<{ id: string; case_number: string | null }>(caseIds, (chunk) =>
+      supabase.from('service_cases').select('id, case_number').in('id', chunk))
+      .then((cs) => {
+        for (const c of cs) caseById.set(c.id, c.case_number ?? null)
+      }),
   ])
 
   // Forfald beregnes server-side: status='sent', ikke betalt, ikke annulleret,
@@ -1575,16 +1573,21 @@ export async function getInvoiceDashboardAction(
   const now = nowIso ? new Date(nowIso) : new Date()
   const todayMs = now.getTime()
   const DAY = 1000 * 60 * 60 * 24
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  // dansk kalendermåned (serveren kører i UTC) — faktura-review
+  const ym = copenhagenParts(now).date.slice(0, 7)
   const cutoff30 = new Date(todayMs - 30 * DAY).toISOString()
 
+  // Faktura-review: .limit(2000) blev afkortet til 1.000 vilkårlige rækker af PostgREST → side for side
   const [invRes, evRes, remRes] = await Promise.all([
-    supabase
-      .from('invoices')
-      .select(
-        'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, paid_at, due_date, voided_at, customer_id, case_id'
-      )
-      .limit(2000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('invoices')
+        .select(
+          'id, invoice_number, invoice_type, status, payment_status, final_amount, amount_paid, credit_of_invoice_id, currency, paid_at, due_date, voided_at, customer_id, case_id'
+        )
+        .order('id')
+        .range(from, to)
+    ).then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
     supabase
       .from('audit_logs')
       .select('id, created_at, action, entity_name, metadata')
@@ -1613,21 +1616,31 @@ export async function getInvoiceDashboardAction(
   let paidThisMonth = 0
   const overdueRaw: Array<(typeof list)[number] & { _days: number }> = []
 
+  // Økonomi-review 2026-10-08 (#8): udestående = final − betalt − sendte/betalte kreditnotaer (som rykkerne), ikke
+  // hele final_amount — delbetalte/delkrediterede fakturaer talte før med fuldt beløb
+  const creditedByOriginal = new Map<string, number>()
+  for (const r of list) {
+    if (r.invoice_type === 'credit' && r.credit_of_invoice_id && (r.status === 'sent' || r.status === 'paid')) {
+      creditedByOriginal.set(r.credit_of_invoice_id as string, (creditedByOriginal.get(r.credit_of_invoice_id as string) ?? 0) + Math.abs(Number(r.final_amount ?? 0)))
+    }
+  }
+  const openAmount = (r: (typeof list)[number]) =>
+    Math.max(0, Number(r.final_amount ?? 0) - Number(r.amount_paid ?? 0) - (creditedByOriginal.get(r.id as string) ?? 0))
   for (const r of list) {
     const isCredit = r.invoice_type === 'credit'
     const active = !r.voided_at && !isCredit
     if (r.status === 'draft' && !r.voided_at) draftCount += 1
     if (active && r.status === 'sent') {
-      sentUnpaid += Number(r.final_amount ?? 0)
-      outstanding += Number(r.final_amount ?? 0)
+      sentUnpaid += openAmount(r)
+      outstanding += openAmount(r)
     }
-    if (r.status === 'paid' && r.paid_at && String(r.paid_at).slice(0, 7) === ym) {
+    if (r.status === 'paid' && r.paid_at && copenhagenParts(String(r.paid_at)).date.slice(0, 7) === ym) {
       paidThisMonth += Number(r.final_amount ?? 0)
     }
     if (r.due_date && r.status === 'sent' && active) {
       const days = calendarDaysSince(String(r.due_date), todayMs)
-      if (days > 0) {
-        overdueTotal += Number(r.final_amount ?? 0)
+      if (days > 0 && openAmount(r) > 0) {
+        overdueTotal += openAmount(r)
         overdueRaw.push({ ...r, _days: days })
       }
     }
@@ -1746,33 +1759,39 @@ export async function getInvoiceLiquidityChartAction(
   }
 
   const now = nowIso ? new Date(nowIso) : new Date()
-  const base = new Date(now.getFullYear(), now.getMonth(), 1)
   const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+  // X1 (økonomi-review 2026-10-07): DANSKE måneder — før serverens (UTC) ur og .slice(0, 7) af UTC-tidsstempler, så en
+  // faktura sendt 1/11 kl. 00:30 dansk tid landede i oktober
+  const [cy, cm] = copenhagenParts(now).date.split('-').map(Number)
 
   // Indeværende måned + 5 foregående (ældst → nyest).
   const buckets = new Map<string, LiquidityMonth>()
   const order: string[] = []
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(base.getFullYear(), base.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const d = new Date(Date.UTC(cy, cm - 1 - i, 15))
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
     const label = cap(d.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', month: 'short' }).replace('.', ''))
     buckets.set(key, { month: key, month_label: label, invoiced_total: 0, paid_total: 0, draft_total: 0 })
     order.push(key)
   }
   const earliest = order[0] // 'YYYY-MM' — kun rækker fra denne måned og frem er relevante
+  const sinceIso = copenhagenLocalToIso(`${earliest}-01`, '00:00')
 
-  const { data, error } = await supabase
+  // side for side (PostgREST max_rows 1000 — .limit(5000) gav for lave månedstal ved mange fakturaer)
+  const { data, error } = await fetchAllRows((from, to) => supabase
     .from('invoices')
-    .select('status, invoice_type, final_amount, voided_at, sent_at, paid_at, created_at')
-    .gte('created_at', earliest + '-01T00:00:00')
-    .limit(5000)
+    .select('id, status, invoice_type, final_amount, voided_at, sent_at, paid_at, created_at')
+    // X1: en faktura oprettet FØR vinduet kan være sendt/betalt i det (før kun created_at → betalinger manglede)
+    .or(`created_at.gte.${sinceIso},sent_at.gte.${sinceIso},paid_at.gte.${sinceIso}`)
+    .order('id')
+    .range(from, to)).then((rows) => ({ data: rows, error: null }), (e: Error) => ({ data: null, error: e }))
 
   if (error) {
     logger.error('getInvoiceLiquidityChartAction: query failed', { error })
     return { ok: false, message: 'Kunne ikke hente likviditetsdata' }
   }
 
-  const ym = (s: unknown): string | null => (s ? String(s).slice(0, 7) : null)
+  const ym = (s: unknown): string | null => (s ? copenhagenParts(String(s)).date.slice(0, 7) : null)
   let hasData = false
 
   for (const r of data ?? []) {

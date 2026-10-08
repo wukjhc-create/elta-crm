@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js'
 import { CRON_REGISTRY } from '@/lib/services/cron-registry'
 import { INCIDENT_REGISTER } from '@/lib/ops/incident-register'
 import { isLiveSendEnabled } from '@/lib/agents/live-gates'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type HealthLevel = 'green' | 'yellow' | 'red' | 'unknown'
 
@@ -69,9 +70,11 @@ function expectedGapHours(schedule: string): number {
 }
 async function cronItems(admin: Admin): Promise<HealthItem[]> {
   const since = new Date(Date.now() - 9 * 24 * HOUR).toISOString()
-  const { data, error } = await admin.from('system_health_log').select('status, message, metadata, created_at')
-    .eq('service', 'cron').gte('created_at', since).order('created_at', { ascending: false }).limit(2000)
-  if (error) throw new Error(`cron-log: ${error.message}`)
+  // side for side: 5-minutters-crons giver > 1.000 rækker på 9 dage → ugentlige crons faldt udenfor og så ud til at mangle
+  const data = await fetchAllRows<{ status: string; message: string; metadata: { cron?: string } | null; created_at: string }>((from, to) => admin
+    .from('system_health_log').select('id, status, message, metadata, created_at')
+    .eq('service', 'cron').gte('created_at', since).order('created_at', { ascending: false }).order('id').range(from, to))
+    .catch((e: Error) => { throw new Error(`cron-log: ${e.message}`) })
   const last = new Map<string, { status: string; at: string; message: string }>()
   for (const r of (data ?? []) as Array<{ status: string; message: string; metadata: { cron?: string } | null; created_at: string }>) {
     const name = r.metadata?.cron

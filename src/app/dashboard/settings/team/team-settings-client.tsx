@@ -6,7 +6,6 @@ import { useToast } from '@/components/ui/toast'
 import {
   updateTeamMember,
   inviteTeamMember,
-  cancelInvitation,
   resendInvitation,
 } from '@/lib/actions/settings'
 import type { Profile, TeamInvitation } from '@/types/settings.types'
@@ -22,7 +21,6 @@ import {
   Loader2,
   Mail,
   RotateCw,
-  Trash2,
   UserPlus,
   Clock,
 } from 'lucide-react'
@@ -291,7 +289,7 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                 setInviteRole('montør')
                 // Refresh invitations list
                 setInvitationsList(prev => [
-                  { id: crypto.randomUUID(), email: inviteEmail.toLowerCase(), role: inviteRole, invited_by: currentUserId, invited_by_name: null, created_at: new Date().toISOString(), status: 'pending' },
+                  { id: result.data?.id ?? crypto.randomUUID(), email: inviteEmail.toLowerCase(), role: inviteRole, invited_by: currentUserId, invited_by_name: null, created_at: new Date().toISOString(), status: 'pending' },
                   ...prev,
                 ])
               } else {
@@ -375,22 +373,6 @@ export function TeamSettingsClient({ members, invitations, currentUserId }: Team
                         title="Gensend invitation"
                       >
                         <RotateCw className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Annuller invitation til ${inv.email}?`)) return
-                          const result = await cancelInvitation(inv.id)
-                          if (result.success) {
-                            setInvitationsList(prev => prev.filter(i => i.id !== inv.id))
-                            toast.success('Invitation annulleret')
-                          } else {
-                            toast.error(result.error || 'Kunne ikke annullere')
-                          }
-                        }}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-md"
-                        title="Annuller invitation"
-                      >
-                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   )}

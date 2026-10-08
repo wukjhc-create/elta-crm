@@ -16,6 +16,7 @@ import { senderDomain } from '@/lib/invoice-control/sender-domain'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 import type { ActionResult } from '@/types/common.types'
+import { selectInChunks } from '@/lib/supabase/in-chunks'
 
 const TERMINAL = ['approved', 'rejected', 'posted', 'cancelled']
 
@@ -44,8 +45,10 @@ async function loadInvoice(ctx: Ctx, invoiceId: string) {
 
 async function senderOf(ctx: Ctx, sourceEmailId: string | null): Promise<string | null> {
   if (!sourceEmailId) return null
-  const { data } = await ctx.supabase.from('incoming_emails').select('sender_email').eq('id', sourceEmailId).maybeSingle()
-  return senderDomain((data as { sender_email?: string | null } | null)?.sender_email)
+  // videresendte mails: den oprindelige afsender er leverandøren
+  const { data } = await ctx.supabase.from('incoming_emails').select('sender_email, original_sender_email').eq('id', sourceEmailId).maybeSingle()
+  const row = data as { sender_email?: string | null; original_sender_email?: string | null } | null
+  return senderDomain(row?.original_sender_email || row?.sender_email)
 }
 
 /** N66b: åbne fakturaer uden leverandør fra samme afsenderdomæne (ekskl. den aktuelle). Gratis-mail giver aldrig et domæne. */
@@ -55,17 +58,30 @@ async function sameDomainOpenInvoices(ctx: Ctx, domain: string | null, excludeId
     .ilike('sender_email', `%@${domain.replace(/[%_\\]/g, (c) => `\\${c}`)}`).limit(500)
   const ids = ((mails ?? []) as Array<{ id: string; sender_email: string | null }>).filter((m) => senderDomain(m.sender_email) === domain).map((m) => m.id)
   if (!ids.length) return []
-  const { data: inv } = await ctx.supabase.from('incoming_invoices').select('id, status')
-    .in('source_email_id', ids).is('supplier_id', null).neq('id', excludeId).limit(500)
-  return ((inv ?? []) as Array<{ id: string; status: string }>).filter((i) => !TERMINAL.includes(i.status)).map((i) => i.id)
+  // X4n: i bidder af 200 (op til 500 mail-id'er i én .in() sprængte URL-grænsen → de øvrige fakturaer blev ikke fundet)
+  // best-effort som før: en opslagsfejl må ikke vælte selve leverandørvalget (logges i stedet for stille tom liste)
+  let inv: Array<{ id: string; status: string }>
+  try {
+    inv = await selectInChunks<{ id: string; status: string }>(ids, (chunk) => ctx.supabase.from('incoming_invoices').select('id, status')
+      .in('source_email_id', chunk).is('supplier_id', null).neq('id', excludeId))
+  } catch (error) {
+    logger.error('incoming-invoice-supplier: same-domain lookup failed', { error })
+    return []
+  }
+  return inv.filter((i) => !TERMINAL.includes(i.status)).map((i) => i.id)
 }
 
-async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null, supplierId: string | null, label: string | null) {
-  const { error } = await ctx.supabase.from('incoming_invoices').update({ supplier_id: supplierId }).eq('id', invoiceId)
+async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null, supplierId: string | null, label: string | null, onlyIfUnset = false) {
+  let q = ctx.supabase.from('incoming_invoices').update({ supplier_id: supplierId }).eq('id', invoiceId)
+  // samme-domæne-kobling: kun fakturaer der STADIG er uden leverandør og ikke er afsluttet (kode-review: ellers kunne en
+  // samtidig ændring/godkendelse overskrives, og audit'ens "previous: null" ville være forkert)
+  if (onlyIfUnset) q = q.is('supplier_id', null).not('status', 'in', '(approved,posted,rejected,cancelled)')
+  const { data: upd, error } = await q.select('id')
   if (error) {
     logger.error('incoming-invoice-supplier: update failed', { error })
     return 'Kunne ikke gemme leverandøren'
   }
+  if (onlyIfUnset && !(upd ?? []).length) return 'ændret imens'
   try {
     await ctx.supabase.from('incoming_invoice_audit_log').insert({
       incoming_invoice_id: invoiceId, action: 'matched', actor_id: ctx.userId, ok: true,
@@ -82,7 +98,7 @@ async function linkSupplier(ctx: Ctx, invoiceId: string, previous: string | null
 async function linkSameDomain(ctx: Ctx, inv: { id: string; source_email_id: string | null }, supplierId: string, label: string | null): Promise<number> {
   const ids = await sameDomainOpenInvoices(ctx, await senderOf(ctx, inv.source_email_id), inv.id)
   let n = 0
-  for (const id of ids) if (!(await linkSupplier(ctx, id, null, supplierId, label))) n++
+  for (const id of ids) if (!(await linkSupplier(ctx, id, null, supplierId, label, true))) n++
   return n
 }
 

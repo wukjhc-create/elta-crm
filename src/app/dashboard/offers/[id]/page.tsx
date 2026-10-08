@@ -5,6 +5,7 @@ import { getCalculationSettings } from '@/lib/actions/calculation-settings'
 import { getServiceCaseFromOffer } from '@/lib/actions/offer-to-case'
 import { getOfferParties } from '@/lib/actions/offer-parties'
 import { OfferDetailClient } from './offer-detail-client'
+import { offerRevisionsEnabled } from '@/lib/offers/revisions'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,7 @@ export default async function OfferDetailPage({ params }: OfferDetailPageProps) 
       dbThresholds={dbThresholds}
       linkedCase={linkedCase}
       parties={parties}
+      revisionsEnabled={offerRevisionsEnabled()}
     />
   )
 }

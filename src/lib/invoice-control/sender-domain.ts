@@ -6,11 +6,10 @@
  * leverandørsignal — her sender privatpersoner og montører også fra.
  */
 
-const FREE_MAIL = new Set([
-  'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.dk', 'live.com', 'live.dk', 'outlook.com', 'outlook.dk', 'msn.com',
-  'yahoo.com', 'yahoo.dk', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'mail.dk', 'jubii.dk', 'privat.dk', 'protonmail.com',
-  'proton.me', 'gmx.com', 'gmx.net', 'tdcadsl.dk', 'post.tele.dk', 'stofanet.dk', 'youmail.dk', 'webspeed.dk', 'email.dk',
-])
+import { FREE_MAIL_DOMAINS } from '@/lib/email/free-mail-domains'
+
+// fælles liste (kommunikations-review 2026-10-04: linker og leverandørsignal havde hver sin, ufuldstændige liste)
+const FREE_MAIL = FREE_MAIL_DOMAINS
 
 /** true når adressen er en gratis-/privat-mail (gmail, hotmail, live …). */
 export function isFreeMailAddress(email: string | null | undefined): boolean {
@@ -27,12 +26,20 @@ export function isProbablyNotSupplierInvoice(i: { senderEmail: string | null | u
   return isFreeMailAddress(i.senderEmail) && !i.supplierId && i.amountInclVat == null
 }
 
-/** Domænet fra en e-mailadresse (små bogstaver, uden www.) — null ved ugyldig adresse eller gratis-mail. */
+/** Eltas egne domæner — medarbejdere videresender rigtige leverandørfakturaer herfra; aldrig et leverandørsignal. */
+export const INTERNAL_MAIL_DOMAINS = ['eltasolar.dk']
+
+/**
+ * Domænet fra en e-mailadresse (små bogstaver, uden www.) — null ved ugyldig adresse, gratis-mail eller eget domæne
+ * (eltasolar.dk; ellers kunne en videresendt faktura gøre Eltas domæne til en "leverandør").
+ */
 export function senderDomain(email: string | null | undefined): string | null {
   const m = /@([a-z0-9.-]+\.[a-z]{2,})\s*>?\s*$/i.exec(String(email ?? '').trim())
   if (!m) return null
   const dom = m[1].toLowerCase().replace(/^www\./, '')
-  return FREE_MAIL.has(dom) ? null : dom
+  if (FREE_MAIL.has(dom)) return null
+  if (INTERNAL_MAIL_DOMAINS.some((d) => dom === d || dom.endsWith(`.${d}`))) return null
+  return dom
 }
 
 /** Host fra et website-felt ("https://www.sieg.dk/kontakt", "sieg.dk") uden www. — null hvis det ikke ligner en host. */

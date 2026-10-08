@@ -24,17 +24,28 @@ const f = computeSalesFunnel({
     { created_at: '2026-10-05T10:00:00Z', status: 'sent', invoice_type: 'standard', voided_at: null, total_amount: 8000 },
     { created_at: '2026-10-06T10:00:00Z', status: 'sent', invoice_type: 'credit', voided_at: null, total_amount: 1000 },
     { created_at: '2026-10-06T10:00:00Z', status: 'draft', invoice_type: 'standard', voided_at: null, total_amount: 5000 },
+    // fuldt krediteret original (voided_at sættes kun ved fuld kreditering) + dens kreditnota → netto 0 (ikke −7000)
     { created_at: '2026-10-06T10:00:00Z', status: 'sent', invoice_type: 'standard', voided_at: '2026-10-07T10:00:00Z', total_amount: 7000 },
+    { created_at: '2026-10-07T10:00:00Z', status: 'sent', invoice_type: 'credit', voided_at: null, total_amount: -7000 },
   ],
 })
 const [sep, oct] = f.months
 ok(sep.new_customers === 1 && oct.new_customers === 1, 'nye kunder pr. måned (august udenfor)')
 ok(sep.offers_created === 2 && sep.offers_sent === 2 && oct.offers_created === 1 && oct.offers_sent === 0, 'oprettet/sendt (forslag udelukket)', JSON.stringify(f.months))
 ok(oct.offers_accepted === 1 && oct.accepted_value === 10000, 'accepteret i acceptmåneden med værdi')
-ok(oct.invoiced_ex_vat === 7000, 'faktureret = udstedt − kredit (kladde/annulleret udelukket)', String(oct.invoiced_ex_vat))
+ok(oct.invoiced_ex_vat === 7000, 'faktureret = udstedt − kredit (kladde udelukket; annulleret original + kreditnota = 0)', String(oct.invoiced_ex_vat))
 ok(f.totals.sent_rate === 66.67 && f.totals.win_rate === 50, 'konverteringsrater', JSON.stringify(f.totals))
 const empty = computeSalesFunnel({ months: ['2026-10'], customers: [], offers: [], invoices: [] })
 ok(empty.totals.sent_rate === null && empty.totals.win_rate === null, 'ingen data → ingen rater')
+
+// Kode-review: accepteret værdi ekskl. moms (final − moms) og faktura i udstedelsesmåneden (sent_at)
+const vat = computeSalesFunnel({
+  months: ['2026-09', '2026-10'], customers: [],
+  offers: [{ created_at: '2026-10-02T10:00:00Z', sent_at: '2026-10-02T10:00:00Z', accepted_at: '2026-10-03T10:00:00Z', final_amount: 12500, tax_amount: 2500 }],
+  invoices: [{ created_at: '2026-09-29T10:00:00Z', sent_at: '2026-10-01T10:00:00Z', status: 'sent', invoice_type: 'standard', voided_at: null, total_amount: 10000 }],
+})
+ok(vat.months[1].accepted_value === 10000, 'accepteret værdi ekskl. moms', String(vat.months[1].accepted_value))
+ok(vat.months[0].invoiced_ex_vat === 0 && vat.months[1].invoiced_ex_vat === 10000, 'faktura tæller i udstedelsesmåneden', JSON.stringify(vat.months.map((m) => m.invoiced_ex_vat)))
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle salgstragt-tests bestået')
 process.exitCode = bad ? 1 : 0

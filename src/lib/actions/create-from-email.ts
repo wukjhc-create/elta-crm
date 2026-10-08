@@ -17,6 +17,7 @@
  * Alle modes kobler mailen til betaler-kunden (og evt. sagen).
  */
 
+import { escapeLike } from '@/lib/validations/postgrest-filter'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 
@@ -105,7 +106,7 @@ async function findOrCreateCustomerByEmail(
   const { data: existing } = await supabase
     .from('customers')
     .select('id, company_name')
-    .ilike('email', emailLower)
+    .ilike('email', escapeLike(emailLower))
     .limit(1)
     .maybeSingle()
 
@@ -239,27 +240,13 @@ export async function createCustomerAndCaseFromEmail(
       (input.mode === 'payer_plus_site' && (input.site?.address || siteContactId))
 
     if (shouldCreateCase) {
-      // Generér case_number
-      const { data: lastCase } = await supabase
-        .from('service_cases')
-        .select('case_number')
-        .order('case_number', { ascending: false })
-        .limit(1)
-      let caseNumber = 'SAG-000001'
-      if (lastCase && lastCase.length > 0) {
-        const m = (lastCase[0].case_number as string).match(/(\d+)$/)
-        if (m) {
-          const next = parseInt(m[1], 10) + 1
-          caseNumber = 'SAG-' + next.toString().padStart(6, '0')
-        }
-      }
-
+      // Kunde-/leads-review 2026-10-07: sagsnummer fra DB-sekvensen (SVC-…, som alle andre sagsflows). Før blev
+      // 'SAG-(højeste+1)' beregnet ud fra en tekst-sortering, hvor SVC sorterer over SAG → samme nummer to gange.
       const title = email.subject
         ? email.subject.replace(/^(?:(?:Re|Fwd|Fw|SV|VS|VB)\s*:\s*)+/gi, '').trim() || 'Ny opgave fra mail'
         : 'Ny opgave fra mail'
 
       const caseInsert: Record<string, unknown> = {
-        case_number: caseNumber,
         customer_id: customerId,
         title: title.substring(0, 200),
         status: 'new',
@@ -291,7 +278,7 @@ export async function createCustomerAndCaseFromEmail(
       if (caseErr) {
         logger.warn('createFromEmail: service_case insert failed', {
           error: caseErr,
-          metadata: { customerId, caseNumber },
+          metadata: { customerId },
         })
       } else if (newCase) {
         serviceCaseId = newCase.id as string

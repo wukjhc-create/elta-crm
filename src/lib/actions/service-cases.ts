@@ -33,6 +33,9 @@ import type {
 } from '@/types/service-cases.types'
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
 import type { PortalServiceCase } from '@/types/portal.types'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { pageWithinIds, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 const PAGE_SIZE = 25
 
@@ -72,36 +75,55 @@ export async function getServiceCases(filters?: {
       }
     }
 
-    let query = supabase
-      .from('service_cases')
-      .select(`
+    const LIST_SELECT = `
         *,
         customer:customers!service_cases_customer_id_fkey(id, company_name, contact_person, email, phone),
         assignee:profiles!service_cases_assigned_to_fkey(id, full_name)
-      `, { count: 'exact' })
-      .eq('is_proposal', filters?.proposalsOnly === true)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pageSize - 1)
-
-    // Sprint 7E — applikér scope-filter
-    if (scope.type === 'specific') {
-      query = query.in('id', scope.caseIds)
+      `
+    // Filtre som funktion, så et stort sags-scope (montør/salg) kan pagineres i bidder (X4n: én .in() med alle
+    // scope-id'er sprængte URL-grænsen ~350 → tom sagsliste for en montør efter 1–2 års sager)
+    const applyFilters = (q: any): any => {
+      q = q.eq('is_proposal', filters?.proposalsOnly === true)
+      if (filters?.status) {
+        q = q.eq('status', filters.status)
+      }
+      if (filters?.priority) {
+        q = q.eq('priority', filters.priority)
+      }
+      if (filters?.type) {
+        q = q.eq('type', filters.type)
+      }
+      if (filters?.search) {
+        q = q.or(`title.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},case_number.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},description.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)}`)
+      }
+      return q
     }
 
-    if (filters?.status) {
-      query = query.eq('status', filters.status)
+    let data: unknown[] | null = null
+    let error: unknown = null
+    let count: number | null = null
+    if (scope.type === 'specific' && scope.caseIds.length > IN_CHUNK_SIZE) {
+      try {
+        const r = await pageWithinIds<{ id: string }>(
+          scope.caseIds,
+          { sortKey: 'created_at', ascending: false, offset, pageSize },
+          (chunk) => applyFilters(supabase.from('service_cases').select('id, created_at')).in('id', chunk).order('id'),
+          (pageIds) => supabase.from('service_cases').select(LIST_SELECT).in('id', pageIds),
+        )
+        data = r.rows
+        count = r.count
+      } catch (e) {
+        error = e
+      }
+    } else {
+      // Sprint 7E — applikér scope-filter (lille scope: direkte .in())
+      let q = applyFilters(supabase.from('service_cases').select(LIST_SELECT, { count: 'exact' }))
+      if (scope.type === 'specific') q = q.in('id', scope.caseIds)
+      const r = await q.order('created_at', { ascending: false }).range(offset, offset + pageSize - 1)
+      data = r.data
+      error = r.error
+      count = r.count
     }
-    if (filters?.priority) {
-      query = query.eq('priority', filters.priority)
-    }
-    if (filters?.type) {
-      query = query.eq('type', filters.type)
-    }
-    if (filters?.search) {
-      query = query.or(`title.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},case_number.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)},description.ilike.${pgQuote(`%${escapeLike(filters.search)}%`)}`)
-    }
-
-    const { data, error, count } = await query
 
     if (error) {
       logger.error('Error fetching service cases', { error })
@@ -430,9 +452,17 @@ export async function deleteServiceCase(id: string): Promise<ActionResult> {
 // =====================================================
 
 export async function getPortalServiceCases(
-  customerId: string
+  token: string
 ): Promise<ActionResult<PortalServiceCase[]>> {
   try {
+    // Portal-review 2026-10-07: tager TOKEN (ikke et kunde-id fra kalderen) — som eksporteret server action med
+    // service-role kunne et kunde-id fra klienten ellers liste en vilkårlig kundes sager.
+    const { validatePortalToken } = await import('@/lib/actions/portal')
+    const sessionResult = await validatePortalToken(token)
+    if (!sessionResult.success || !sessionResult.data) {
+      return { success: false, error: sessionResult.error || 'Ugyldig adgang' }
+    }
+    const customerId = sessionResult.data.customer_id
     // Phase α.2 trin 4: service_cases anon-policy via portal_access_tokens
     // er droppet i 00127. Vi bruger nu createAdminClient + customer_id-scope
     // fra caller (typisk session.customer_id efter validatePortalToken).
@@ -1175,11 +1205,12 @@ async function sendServiceCaseConfirmation(
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Tak for din henvendelse</h2>
-        <p>Kære ${customer.contact_person || customer.company_name || 'kunde'},</p>
+        <p>Kære ${escapeHtml(customer.contact_person || customer.company_name || 'kunde')},</p>
         <p>Vi har modtaget din henvendelse og oprettet en serviceopgave:</p>
         <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
-          <p style="margin: 0;"><strong>Sagsnr.:</strong> ${serviceCase.case_number}</p>
-          <p style="margin: 8px 0 0;"><strong>Emne:</strong> ${serviceCase.title}</p>
+          <p style="margin: 0;"><strong>Sagsnr.:</strong> ${escapeHtml(String(serviceCase.case_number ?? ''))}</p>
+          <!-- mail-review 2026-10-07: titlen kan være en indgående mails emne (kundestyret) → escapes -->
+          <p style="margin: 8px 0 0;"><strong>Emne:</strong> ${escapeHtml(String(serviceCase.title ?? ''))}</p>
           <p style="margin: 8px 0 0;"><strong>Status:</strong> Ny — vi kigger på den hurtigst muligt</p>
         </div>
         ${portalUrl ? `<p><a href="${portalUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">Se status i kundeportalen</a></p>` : ''}
@@ -1475,7 +1506,8 @@ async function loadCaseWork(
   const woIds = (wos ?? []).map((w) => w.id as string)
   const [tl, mat, oth] = await Promise.all([
     woIds.length
-      ? supabase.from('time_logs').select('end_time, sale_amount, billable, invoice_line_id').in('work_order_id', woIds)
+      ? // montør-review: side for side (sager med > 1.000 timeregistreringer blev talt for lavt)
+        fetchAllRows((f, t) => supabase.from('time_logs').select('id, end_time, hours, sale_amount, sale_rate_snapshot, billable, invoice_line_id, employee:employees(hourly_rate)').in('work_order_id', woIds).order('id').range(f, t)).then((data) => ({ data }))
       : Promise.resolve({ data: [] }),
     supabase.from('case_materials').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
     supabase.from('case_other_costs').select('total_sales_price, billable, invoice_line_id').eq('case_id', caseId),
@@ -1780,9 +1812,14 @@ export interface CaseNoteEntry {
 export async function getCaseNotes(caseId: string): Promise<ActionResult<CaseNoteEntry[]>> {
   try {
     if (!caseId) return { success: false, error: 'caseId mangler' }
-    const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, userId, role, hasPermission } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
       return { success: false, error: 'Manglende tilladelse: cases.view' }
+    }
+    // Sags-review: uden cases.view.all kun sager i brugerens scope (som sagens mails) — før kunne montør/salg læse alle
+    // noter (inkl. AI-resuméer af kundemails) på enhver sag ud fra sags-id'et
+    if (!hasPermission('cases.view.all') && !(await userCanViewCase(caseId, { role, userId, supabase }))) {
+      return { success: false, error: 'Sagen er ikke tildelt dig' }
     }
 
     const { data, error } = await supabase

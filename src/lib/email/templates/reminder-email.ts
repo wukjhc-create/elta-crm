@@ -5,6 +5,7 @@
  * Uses Elta Solar brand colors from brand.ts.
  */
 import { BRAND_GREEN, BRAND_GREEN_DARK, BRAND_ORANGE, BRAND_EMAIL, BRAND_WEBSITE, BRAND_COMPANY_NAME } from '@/lib/brand'
+import { escapeHtml } from '@/lib/utils/html-escape'
 
 interface ReminderEmailParams {
   customerName: string
@@ -18,17 +19,16 @@ interface ReminderEmailParams {
   reminderCount: number
 }
 
-export function generateReminderEmailHtml({
-  customerName,
-  companyName,
-  offerNumber,
-  offerTitle,
-  finalAmount,
-  validUntil,
-  portalUrl,
-  senderName,
-  reminderCount,
-}: ReminderEmailParams): string {
+export function generateReminderEmailHtml(params: ReminderEmailParams): string {
+  // kommunikations-review: kunde-/tilbudsfelter (fra webformularer/AI-udtræk) escapes i HTML-versionen
+  const customerName = escapeHtml(params.customerName)
+  const companyName = escapeHtml(params.companyName)
+  const offerNumber = escapeHtml(params.offerNumber)
+  const offerTitle = escapeHtml(params.offerTitle)
+  const finalAmount = escapeHtml(params.finalAmount)
+  const validUntil = params.validUntil ? escapeHtml(params.validUntil) : null
+  const { portalUrl, reminderCount } = params
+  const senderName = escapeHtml(params.senderName)
   const intro = reminderCount <= 1
     ? `Vi ville h&oslash;re, om du har haft mulighed for at gennemg&aring; vores tilbud <strong>${offerTitle}</strong> (${offerNumber}).`
     : `Vi f&oslash;lger op p&aring; vores tilbud <strong>${offerTitle}</strong> (${offerNumber}), som vi sendte for noget tid siden.`

@@ -124,7 +124,8 @@ export interface PackageItem {
     id: string
     sku: string | null
     name: string
-    cost_price: number | null
+    /** 00201: ikke læsbar for authenticated — udfyldes ikke af pakke-forespørgslerne */
+    cost_price?: number | null
     list_price: number
   }
 }

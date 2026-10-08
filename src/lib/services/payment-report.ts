@@ -19,6 +19,8 @@ import {
 } from '@/lib/invoices/payment-report-config'
 import type { PaymentExportRow } from '@/lib/actions/invoices'
 import type { PaymentReportPdfPayload } from '@/lib/pdf/payment-report-pdf-template'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 const EXPORT_LABEL: Record<string, string> = {
   late_payer: 'Ofte forsinket',
@@ -37,20 +39,24 @@ export async function buildPaymentExportRows(
   supabase: SupabaseClient,
   filter: ExportFilter
 ): Promise<{ rows: PaymentExportRow[]; error: string | null }> {
+  // side for side (PostgREST max_rows 1000 — .limit(50000) gav højst 1.000 kunder i eksporten)
+  const build = () => {
   let q = supabase
     .from('v_customers_with_payment_summary')
     .select(
       'id, company_name, contact_person, email, phone, is_active, outstanding_total, overdue_total, overdue_count, payment_status, average_days_late, latest_invoice_at, latest_paid_at'
     )
-    .order('outstanding_total', { ascending: false })
-    .limit(50000)
   if (filter === 'overdue') q = q.gt('overdue_count', 0)
   else if (filter === 'outstanding' || filter === 'all') q = q.gt('outstanding_total', 0)
   else if (filter === 'late_payer') q = q.eq('payment_status', 'late_payer')
   else if (filter === 'on_time') q = q.eq('payment_status', 'on_time')
   else if (filter === 'no_data') q = q.eq('payment_status', 'no_data')
 
-  const { data, error } = await q
+  return q
+  }
+  const { data, error } = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    build().order('outstanding_total', { ascending: false }).order('id').range(from, to) as never)
+    .then((rows) => ({ data: rows, error: null }), (e: Error) => ({ data: null, error: e }))
   if (error) {
     logger.error('buildPaymentExportRows: view query failed', { error })
     return { rows: [], error: 'Kunne ikke hente betalingsdata' }
@@ -220,7 +226,7 @@ export async function sendPaymentReport(opts: {
   }
 
   const today = new Date()
-  const dateIso = today.toISOString().slice(0, 10)
+  const dateIso = copenhagenParts(today).date
   const dateDk = today.toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', day: '2-digit', month: 'long', year: 'numeric' })
 
   const totalOutstanding = rows.reduce((s, r) => s + r.outstanding_total, 0)

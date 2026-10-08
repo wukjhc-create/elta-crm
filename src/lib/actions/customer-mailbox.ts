@@ -77,7 +77,7 @@ async function recordOutgoingEmail(
       const { data: customer } = await supabase
         .from('customers')
         .select('id')
-        .ilike('email', data.to_email.toLowerCase())
+        .ilike('email', escapeLike(data.to_email.toLowerCase()))
         .eq('is_active', true)
         .limit(1)
         .maybeSingle()
@@ -473,9 +473,8 @@ export async function replyToCustomerEmail(
     const { sendEmailViaGraph, getMailbox } = await import('@/lib/services/microsoft-graph')
     const { generateCrmReplyHtml } = await import('@/lib/email/templates/crm-reply-email')
 
-    const originalBody = (email.body_text || email.body_preview || '')
-      .replace(/\n/g, '<br />')
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+    // almindelig tekst — skabelonen escaper og laver linjeskift (kommunikations-review)
+    const originalBody = email.body_text || email.body_preview || ''
 
     const dateStr = new Date(email.received_at).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen',
       day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',

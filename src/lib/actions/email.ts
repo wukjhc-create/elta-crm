@@ -32,6 +32,10 @@ import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 import type { CompanySettings } from '@/types/company-settings.types'
 import { logOfferActivity } from '@/lib/actions/offer-activities'
 import { getOfferLowDbStatus } from '@/lib/offers/low-db-status'
+import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
+
+/** 00192: kost-synlighed (navngivet: check:rls-matrix læser literal-strenge i skrivefunktioner som skrive-gates). */
+const OFFER_COST_VISIBILITY_PERMISSION = 'offers.view.cost_prices' as const
 import { lowDbAckMessage } from '@/lib/offers/low-db-warning'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { createPortalToken } from '@/lib/actions/portal'
@@ -588,9 +592,10 @@ export async function generateEmailPreview(
       : `${appUrl}/view-offer/${offer.id}`
 
     // Fetch line items for the branded template
+    // 00192: kun offentlige linjekolonner — salg kan sende tilbud, mailen viser ingen kost
     const { data: lineItems } = await supabase
       .from('offer_line_items')
-      .select('*')
+      .select(OFFER_LINE_PUBLIC_COLUMNS)
       .eq('offer_id', offer.id)
       .order('position', { ascending: true })
 
@@ -665,7 +670,7 @@ export async function sendOfferEmail(
   input: SendOfferEmailInput
 ): Promise<SendOfferEmailResult> {
   try {
-    const { supabase, userId } = await requireGate('offers.send')
+    const { supabase, userId, hasPermission } = await requireGate('offers.send')
 
     // Resolve sender name: explicit > profile > fallback
     let senderName = input.sender_name
@@ -697,9 +702,9 @@ export async function sendOfferEmail(
     }
 
     // N8a: lav DB er en advarsel — et kladde-tilbud under minimum-DB sendes kun med aktiv bekræftelse
-    const lowDb = offer.status === 'draft' ? await getOfferLowDbStatus(supabase, input.offer_id) : null
+    const lowDb = offer.status === 'draft' ? await getOfferLowDbStatus(input.offer_id) : null
     if (lowDb?.low && !input.acknowledge_low_db) {
-      return { success: false, error: lowDbAckMessage(lowDb) }
+      return { success: false, error: lowDbAckMessage(lowDb, hasPermission(OFFER_COST_VISIBILITY_PERMISSION)) }
     }
 
     // Generate preview (includes all variables and rendered content)
@@ -737,11 +742,13 @@ export async function sendOfferEmail(
 
         if (settingsResult.success && settingsResult.data) {
           // Fetch full offer with line items for PDF
-          const { data: fullOffer } = await supabase
+          // 00192: kun offentlige linjekolonner (salg kan sende tilbud)
+          const { data: fullOfferRaw } = await supabase
             .from('offers')
-            .select(`*, line_items:offer_line_items(*), customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)`)
+            .select(`*, line_items:offer_line_items(${OFFER_LINE_PUBLIC_COLUMNS}), customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)`)
             .eq('id', input.offer_id)
             .single()
+          const fullOffer = fullOfferRaw as unknown as { offer_number?: string | null; line_items?: Array<{ position: number }> | null } | null
 
           if (fullOffer) {
             if (fullOffer.line_items) {
@@ -858,6 +865,24 @@ export async function sendOfferEmail(
       return { success: false, error: routeResult.error || 'Kunne ikke bygge route' }
     }
     const route = routeResult.route
+    if (route.toEmail !== message.to_email) {
+      await supabase.from('email_messages').update({ to_email: route.toEmail }).eq('id', message.id)
+    }
+
+    // Mail-review 2026-10-08 (#2): dobbeltklik/to faner sendte tilbuddet to gange. Af trådens udgående beskeder fra det
+    // sidste minut (i kø/sendes/sendt) vinder den ældste — alle samtidige kald ser samme rækkefølge, så kun én sender.
+    const { data: recentOut } = await supabase.from('email_messages').select('id')
+      .eq('thread_id', thread.id).eq('direction', 'outbound').in('status', ['queued', 'sending', 'sent'])
+      .gte('created_at', new Date(Date.now() - 60_000).toISOString())
+      .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1)
+    const firstOut = ((recentOut ?? []) as Array<{ id: string }>)[0]?.id
+    if (firstOut && firstOut !== message.id) {
+      await supabase.from('email_messages')
+        .update({ status: 'failed', failed_at: new Date().toISOString(), error_message: 'Dublet — tilbuddet blev netop sendt' })
+        .eq('id', message.id)
+      return { success: false, error: 'Tilbuddet er netop sendt (eller ved at blive sendt) — vent et øjeblik og tjek tidslinjen' }
+    }
+    await supabase.from('email_messages').update({ status: 'sending' }).eq('id', message.id)
 
     // Actually send the email via Microsoft Graph
     const emailResult = await sendEmailViaGraph({
@@ -866,6 +891,8 @@ export async function sendOfferEmail(
       html: finalHtml,
       senderName,
       replyTo: fromEmail,
+      cc: input.cc,
+      bcc: input.bcc,
       attachments: emailAttachments.map(att => ({
         filename: att.filename,
         content: att.content instanceof Buffer ? att.content : Buffer.from(att.content as string),
@@ -874,17 +901,25 @@ export async function sendOfferEmail(
     })
 
     if (!emailResult.success) {
-      // Update message status to failed
+      // Mail-review 2026-10-08 (#2): timeout efter afsendelse = UKENDT udfald — markeres 'uncertain' (ingen gensend-knap)
+      // i stedet for 'failed', som indbød til at sende tilbuddet igen
       await supabase
         .from('email_messages')
         .update({
-          status: 'failed',
+          status: emailResult.uncertain ? 'uncertain' : 'failed',
           failed_at: new Date().toISOString(),
-          error_message: emailResult.error,
+          error_message: emailResult.uncertain
+            ? 'Ukendt udfald (timeout) — tjek Sendt post i Outlook før tilbuddet sendes igen'
+            : emailResult.error,
         })
         .eq('id', message.id)
 
-      return { success: false, error: emailResult.error || 'Kunne ikke sende e-mail' }
+      return {
+        success: false,
+        error: emailResult.uncertain
+          ? 'Afsendelsen fik timeout — mailen kan være sendt. Tjek Sendt post i Outlook før du sender igen.'
+          : emailResult.error || 'Kunne ikke sende e-mail',
+      }
     }
 
     // Update message status to sent
@@ -923,6 +958,13 @@ export async function sendOfferEmail(
           sent_at: new Date().toISOString(),
         })
         .eq('id', offer.id)
+      // 00203 (staging): uforanderligt snapshot af den sendte revision + forrige revision afløses (no-op uden flag)
+      const { recordOfferSent } = await import('@/lib/offers/revisions')
+      await recordOfferSent(offer.id, userId)
+      // Salgspipeline: tilknyttet lead → "Tilbud sendt" (kaster aldrig)
+      const { markLeadProposalForSentOffer } = await import('@/lib/services/lead-won')
+      const { createAdminClient: adminForLead } = await import('@/lib/supabase/admin')
+      await markLeadProposalForSentOffer(adminForLead(), offer.id, userId)
     }
 
     // Record outgoing email in incoming_emails for customer timeline
@@ -939,7 +981,7 @@ export async function sendOfferEmail(
           sender_email: fromEmail,
           sender_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',
           to_email: route.toEmail,
-          cc: [],
+          cc: input.cc ?? [],
           body_html: finalHtml,
           body_preview: subject.substring(0, 200),
           has_attachments: emailAttachments.length > 0,
@@ -956,7 +998,8 @@ export async function sendOfferEmail(
     }
 
     // Log activity
-    await logOfferActivity(offer.id, 'email_sent', `E-mail sendt til ${offer.customer.email}`, null, {
+    // Mail-review 2026-10-08 (#10): den faktiske modtager (routeren kan vælge betalers faktureringskontakt)
+    await logOfferActivity(offer.id, 'email_sent', `E-mail sendt til ${route.toEmail}`, null, {
       message_id: message.id,
       tracking_id: trackingId,
       subject,

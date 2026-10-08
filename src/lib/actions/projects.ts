@@ -56,7 +56,10 @@ export async function getProjects(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<ProjectWithRelations>>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // RBAC-review 2026-10-07: læsning kræver projects.view (før: alle indloggede, også salg); budget/faktisk kost kun
+    // til economy.cost_prices
+    const { supabase, hasPermission } = await requireGate('projects.view')
+    const hideCost = <T extends object>(p: T): T => (hasPermission('economy.cost_prices') ? p : { ...p, budget: null, actual_cost: null })
 
     // Validate UUID filters
     if (filters?.customer_id) {
@@ -138,7 +141,7 @@ export async function getProjects(filters?: {
     return {
       success: true,
       data: {
-        data: dataResult.data as ProjectWithRelations[],
+        data: (dataResult.data as ProjectWithRelations[]).map(hideCost),
         total,
         page,
         pageSize,
@@ -153,7 +156,10 @@ export async function getProjects(filters?: {
 // Get single project with all relations
 export async function getProject(id: string): Promise<ActionResult<ProjectWithRelations>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // RBAC-review 2026-10-07: læsning kræver projects.view (før: alle indloggede, også salg); budget/faktisk kost kun
+    // til economy.cost_prices
+    const { supabase, hasPermission } = await requireGate('projects.view')
+    const hideCost = <T extends object>(p: T): T => (hasPermission('economy.cost_prices') ? p : { ...p, budget: null, actual_cost: null })
     validateUUID(id, 'projekt ID')
 
     const { data, error } = await supabase
@@ -195,7 +201,7 @@ export async function getProject(id: string): Promise<ActionResult<ProjectWithRe
       )
     }
 
-    return { success: true, data: data as ProjectWithRelations }
+    return { success: true, data: hideCost(data as ProjectWithRelations) }
   } catch (err) {
     return { success: false, error: formatError(err, 'Kunne ikke hente projekt') }
   }
@@ -739,7 +745,13 @@ export async function createProjectFromOffer(
   offerFinalAmount: number
 ): Promise<ActionResult<Project>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // 00192/RBAC: før uden tilladelsestjek — samme gate som createProject (projects.edit)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('projects.edit')) {
+      return { success: false, error: 'Manglende tilladelse: projects.edit' }
+    }
+    validateUUID(offerId, 'tilbud ID')
+    validateUUID(customerId, 'kunde ID')
 
     // Generate project number
     const projectNumber = await generateProjectNumber()
@@ -767,9 +779,10 @@ export async function createProjectFromOffer(
     }
 
     // Load offer line items to build detailed description and tasks
+    // 00192: kun offentlige linjekolonner (cost_price blev ikke brugt)
     const { data: lineItems } = await supabase
       .from('offer_line_items')
-      .select('description, quantity, unit, unit_price, total, cost_price, section')
+      .select('description, quantity, unit, unit_price, total, section')
       .eq('offer_id', offerId)
       .order('position', { ascending: true })
 

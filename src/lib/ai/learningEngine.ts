@@ -450,11 +450,9 @@ export async function collectFeedbackFromProjects(): Promise<number> {
     if (offer?.id) offerIds.push(offer.id)
   }
 
-  const { data: allCalcs } = await supabase
-    .from('auto_calculations')
-    .select('id, offer_id, total_hours, material_cost')
-    .in('offer_id', offerIds)
-    .limit(100)
+  // Statisk skematjek 2026-10-06: auto_calculations har INGEN offer_id-kolonne — opslaget fejlede altid, så cronen
+  // oprettede aldrig feedback. Kobling kalkulation↔tilbud kræver migration (godkendelse); indtil da: intet at indsamle.
+  const allCalcs: Array<{ id: string; offer_id: string; total_hours: number; material_cost: number }> = []
 
   const calcsByOfferId = new Map<string, { id: string; offer_id: string; total_hours: number; material_cost: number }>()
   for (const calc of allCalcs || []) {

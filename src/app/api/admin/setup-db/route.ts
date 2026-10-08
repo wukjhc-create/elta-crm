@@ -10,6 +10,7 @@
  */
 
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 
 const MIGRATIONS = [
   {
@@ -592,20 +593,28 @@ async function checkTableExists(tableName: string): Promise<boolean> {
   return res.ok
 }
 
+/** Fail-closed, timing-safe CRON_SECRET (som de øvrige admin-/cron-ruter). */
+function authorized(request: Request): boolean {
+  const secret = process.env.CRON_SECRET
+  const header = request.headers.get('authorization') ?? ''
+  const expected = `Bearer ${secret}`
+  return !!secret && header.length === expected.length && timingSafeEqual(Buffer.from(header), Buffer.from(expected))
+}
+
 export async function POST(request: Request) {
-  // Auth check
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
+  // Sikkerhedsreview Q10 (S1): ruten kunne kaldes af ALLE (headeren x-internal-call: true sprang auth over, og manglende
+  // CRON_SECRET = åben) og kørte DDL — bl.a. 00064's anon-grant + "FOR ALL TO anon USING (true)" på customer_tasks, som
+  // 00122 bevidst fjernede (sentinel-tabellen findes aldrig → kørte hver gang). Skema ændres kun via supabase/migrations
+  // og `npm run prod:apply-migration` med godkendelse — derfor er DDL-kørsel her slået fra.
+  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  return NextResponse.json(
+    { error: 'Deaktiveret: skemaændringer køres via supabase/migrations (prod: npm run prod:apply-migration med godkendelse).' },
+    { status: 410 },
+  )
+}
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    // Also allow if called from server-side (no auth needed for internal calls)
-    const { headers } = request
-    const isInternal = headers.get('x-internal-call') === 'true'
-    if (!isInternal) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  }
-
+/** Den tidligere runtime-DDL — bevaret som reference, kaldes ikke (se POST). */
+async function legacySetupDisabled(): Promise<NextResponse> {
   const results: { migration: string; status: string; error?: string }[] = []
 
   for (const migration of MIGRATIONS) {
@@ -671,6 +680,7 @@ export async function POST(request: Request) {
 
 // Allow GET for easy browser testing
 export async function GET(request: Request) {
+  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   // Check tables only (no modifications)
   const tables = ['sent_quotes', 'customer_documents', 'customer_tasks']
   const status: Record<string, boolean> = {}

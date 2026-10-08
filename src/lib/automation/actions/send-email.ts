@@ -59,6 +59,11 @@ export async function runSendEmail(ctx: ActionContext): Promise<ActionResult> {
   if (!isGraphConfigured()) return { ok: false, message: 'Graph not configured' }
 
   const result = await sendEmailViaGraph({ to: toNormalized, subject, html })
+  // Mail-review 2026-10-08 (#4): timeout efter afsendelse = UKENDT udfald. ok:false gav 'failed', som frigav regel-
+  // pladsen → næste hændelse/kørsel sendte igen. Ukendt udfald beholder pladsen ('executed', markeret uncertain).
+  if (!result.success && result.uncertain) {
+    return { ok: true, message: 'uncertain: timeout — mailen kan være sendt (sendes ikke igen)', data: { to: toNormalized, subject, uncertain: true, error: result.error } }
+  }
   return {
     ok: result.success,
     message: result.success ? 'sent' : (result.error || 'send failed'),

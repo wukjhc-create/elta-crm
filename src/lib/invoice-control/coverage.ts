@@ -9,6 +9,7 @@
  */
 import { controlInvoice, type InvoiceVerdict } from '@/lib/invoice-control/engine'
 import { matchLines, type LineMatchMethod, type ProductRef } from '@/lib/invoice-control/line-matcher'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface CoverageLine {
   line_number: number
@@ -81,11 +82,20 @@ export function measureCoverage(invoices: CoverageInvoice[], productsBySupplier:
  
 export async function loadAndMeasureCoverage(admin: any): Promise<CoverageReport> {
   const { codesToLookup } = await import('@/lib/invoice-control/line-matcher')
-  const { data: invs } = await admin.from('incoming_invoices').select('id, supplier_id').neq('status', 'cancelled').limit(5000)
-  const { data: lines } = await admin.from('incoming_invoice_lines')
-    .select('incoming_invoice_id, line_number, description, quantity, unit_price, supplier_product_id, raw_line').limit(50000)
-  const invoices: CoverageInvoice[] = ((invs ?? []) as Array<{ id: string; supplier_id: string | null }>).map((i) => ({
-    ...i, lines: ((lines ?? []) as Array<CoverageLine & { incoming_invoice_id: string }>).filter((l) => l.incoming_invoice_id === i.id),
+  // X4 (leverandørfaktura-review 2026-10-07): side for side — før .limit(5000)/.limit(50000), men PostgREST giver højst
+  // 1.000 rækker, så dækningen blev målt på et tilfældigt udsnit af linjerne (fakturaer uden linjer talte som 0 %)
+  const invs = await fetchAllRows<{ id: string; supplier_id: string | null }>((from, to) => admin.from('incoming_invoices')
+    .select('id, supplier_id').neq('status', 'cancelled').order('id').range(from, to))
+  const lines = await fetchAllRows<CoverageLine & { id: string; incoming_invoice_id: string }>((from, to) => admin.from('incoming_invoice_lines')
+    .select('id, incoming_invoice_id, line_number, description, quantity, unit_price, supplier_product_id, raw_line').order('id').range(from, to))
+  const linesByInvoice = new Map<string, CoverageLine[]>()
+  for (const l of lines) {
+    const list = linesByInvoice.get(l.incoming_invoice_id)
+    if (list) list.push(l)
+    else linesByInvoice.set(l.incoming_invoice_id, [l])
+  }
+  const invoices: CoverageInvoice[] = invs.map((i) => ({
+    ...i, lines: (linesByInvoice.get(i.id) ?? []).sort((a, b) => (a.line_number ?? 0) - (b.line_number ?? 0)),
   }))
   const productsBySupplier = new Map<string, ProductRef[]>()
   for (const supplierId of [...new Set(invoices.map((i) => i.supplier_id).filter(Boolean) as string[])]) {
@@ -103,7 +113,10 @@ export async function loadAndMeasureCoverage(admin: any): Promise<CoverageReport
     productsBySupplier.set(supplierId, found)
   }
   const storedIds = [...new Set(invoices.flatMap((i) => i.lines.map((l) => l.supplier_product_id)).filter(Boolean) as string[])]
-  const stored: ProductRef[] = storedIds.length
-    ? (((await admin.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds)).data ?? []) as ProductRef[]) : []
+  const stored: ProductRef[] = []
+  for (let k = 0; k < storedIds.length; k += 200) {
+    const { data } = await admin.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds.slice(k, k + 200))
+    stored.push(...((data ?? []) as ProductRef[]))
+  }
   return measureCoverage(invoices, productsBySupplier, new Map(stored.map((p) => [p.id, p])))
 }

@@ -355,7 +355,8 @@ export async function getOfferRecipientCandidates(
 // Trin 5B — updateOfferParties (mutation)
 // =====================================================
 
-const EDITABLE_STATUSES = new Set(['draft', 'sent', 'viewed'])
+// Henrik 2026-10-07: sendte tilbud er låst — parter (betaler/anlægsejer) kun i kladde (lib/offers/edit-lock.ts)
+const EDITABLE_STATUSES = new Set(['draft'])
 
 export interface UpdateOfferPartiesInput {
   /** null = same as primary customer_id. */
@@ -405,7 +406,7 @@ export async function updateOfferParties(
     if (!EDITABLE_STATUSES.has(status)) {
       return {
         success: false,
-        error: `Sagspartnere kan kun redigeres på tilbud i status kladde, sendt eller set (nuværende status: ${status})`,
+        error: `Sagspartnere kan kun redigeres på tilbud i kladde — sæt tilbuddet tilbage til kladde først (nuværende status: ${status})`,
       }
     }
 

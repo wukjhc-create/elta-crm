@@ -14,6 +14,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { executeFtpSync, buildFtpCredentials } from '@/lib/services/supplier-ftp-sync'
 import { decryptCredentials } from '@/lib/utils/encryption'
 import { logger } from '@/lib/utils/logger'
+import { loadExistingSupplierProducts } from '@/lib/suppliers/load-existing-products'
 import { withCronRun } from '@/lib/services/cron-run'
 
 export const dynamic = 'force-dynamic'
@@ -110,12 +111,13 @@ async function handleCron(request: Request): Promise<Response> {
     }
 
     // Load existing products for price change tracking
-    const { data: existingProducts } = await supabase
-      .from('supplier_products')
-      .select('id, supplier_sku, cost_price, list_price')
-      .eq('supplier_id', supplier.id)
-
-    const productsBySku = new Map((existingProducts || []).map((p) => [p.supplier_sku, p]))
+    // X4 (pris-review 2026-10-07): ALLE produkter (før højst 1.000 → resten "nye", aldrig price_history). Parallel
+    // paginering med tidsbudget, så cronen (300 s, i dag 150–200 s) aldrig bliver dårligere end før.
+    const existingLoad = await loadExistingSupplierProducts(supabase, supplier.id, { budgetMs: 60_000 })
+    const productsBySku = existingLoad.bySku
+    if (!existingLoad.complete) {
+      logger.warn('LEMU cron: eksisterende produkter kun delvist indlæst (tidsbudget)', { metadata: { loaded: existingLoad.loaded, total: existingLoad.total, ms: existingLoad.ms } })
+    }
     const now = new Date().toISOString()
 
     let newProducts = 0
@@ -155,7 +157,8 @@ async function handleCron(request: Request): Promise<Response> {
           supplier_id: supplier.id,
           supplier_sku: row.parsed.sku,
           supplier_name: row.parsed.name || row.parsed.sku,
-          cost_price: row.parsed.cost_price ?? 0,
+          // X4: tom priscelle overskriver ikke en kendt kostpris med 0
+          cost_price: row.parsed.cost_price ?? existing.cost_price ?? 0,
           list_price: row.parsed.list_price,
           unit: row.parsed.unit || 'stk',
           category,
@@ -251,7 +254,8 @@ async function handleCron(request: Request): Promise<Response> {
       supabase.from('supplier_sync_logs').insert({
         supplier_id: supplier.id,
         job_type: 'ftp',
-        status: status === 'success' ? 'completed' : 'partial',
+        // X4: 'partial' findes ikke i CHECK (00043) → indsættelsen fejlede og fejlkørsler efterlod ingen log
+        status: status === 'success' ? 'completed' : 'failed',
         trigger_type: 'scheduled',
         started_at: new Date(startTime).toISOString(),
         completed_at: now,
@@ -262,7 +266,7 @@ async function handleCron(request: Request): Promise<Response> {
         updated_items: updatedProducts,
         price_changes_count: priceChanges,
         error_message: errors.length > 0 ? errors.join('; ') : null,
-        details: { file_name: ftpResult.file_name, file_size: ftpResult.file_size_bytes, total_parsed: totalParsed, deduplicated: deduplicatedCount },
+        details: { file_name: ftpResult.file_name, file_size: ftpResult.file_size_bytes, total_parsed: totalParsed, deduplicated: deduplicatedCount, partial: errors.length > 0, existing_loaded: existingLoad.loaded, existing_total: existingLoad.total, existing_ms: existingLoad.ms },
       }),
     ])
 

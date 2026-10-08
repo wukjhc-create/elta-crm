@@ -3,7 +3,7 @@
  *   npx tsx scripts/website-inquiry-test.ts
  */
 import { isWebsiteInquiry, normalizeFormSubmitTable } from '../src/lib/mail/website-inquiry'
-import { parseCustomerFromEmail } from '../src/lib/utils/email-parser'
+import { extractFormSubmitFields, parseCustomerFromEmail } from '../src/lib/utils/email-parser'
 import { scoreEmail } from '../src/lib/services/email-intelligence'
 
 let bad = 0
@@ -34,10 +34,19 @@ const html = ['<p>Here\'s what they had to say</p>', '<table>', '<tr><th>Name</t
   '<tr><td>inquiry_type</td><td>Solceller</td></tr>', '<tr><td>message</td><td>Hej med jer</td></tr>', '<tr><td>postnr</td><td>4000 Roskilde</td></tr>',
   '<tr><td>adresse</td><td>Solvej 12</td></tr>', '</table>', '<p>Your friends from, FormSubmit Team</p>'].join('\n')
 const ph = parseCustomerFromEmail(null, html, null)
+const ff = extractFormSubmitFields(null, html)
+ok(ff.Type === 'Solceller' && ff.Besked === 'Hej med jer', 'N93: formularfelter (type + besked)', JSON.stringify(ff))
 ok(ph.name === 'Hanne Holm Jensen', 'HTML-tabel (samme linje): navn', String(ph.name))
 ok(ph.email === 'hanne@example.dk', 'HTML-tabel: e-mail', String(ph.email))
 ok(ph.address === 'Solvej 12', 'HTML-tabel: adresse løber ikke ind i FormSubmits tekst', String(ph.address))
 ok(ph.postalCode === '4000' && ph.city === 'Roskilde', 'HTML-tabel: postnr + by fra "postnr"', `${ph.postalCode} ${ph.city}`)
+
+// Kode-review: flerlinjet besked (sidste felt) beholder alle linjer, men ikke FormSubmits sidefod
+const multi = ["<p>Here's what they had to say</p>", '<table>', '<tr><th>Name</th><th>Value</th></tr>', '<tr><td>name</td><td>Ole Hansen</td></tr>',
+  '<tr><td>email</td><td>ole@example.dk</td></tr>', '<tr><td>message</td><td>Hej<br>Vi vil gerne have solceller<br>Mvh Ole</td></tr>', '</table>',
+  '<p>Your friends from, FormSubmit Team</p>'].join('\n')
+const fm = extractFormSubmitFields(null, multi)
+ok(fm.Besked === 'Hej Vi vil gerne have solceller Mvh Ole', 'flerlinjet besked bevares uden sidefod', JSON.stringify(fm.Besked))
 
 // Regressionsværn: andre FormSubmit-/noreply-mails scores fortsat ned (støjfiltret er uændret for dem)
 ok(scoreEmail({ subject: 'Action Required: Activate FormSubmit', senderEmail: 'noreply@formsubmit.co', senderName: null, bodyText: 'activate', bodyHtml: null, bodyPreview: null } as never) < 2, 'systemmail fortsat lav score')

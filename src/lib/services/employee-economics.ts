@@ -8,6 +8,7 @@
  *     from time_logs — billable hours × rates → cost / revenue / DB.
  */
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import type {
   EmployeeCompensationRow,
   EmployeeProjectImpact,
@@ -87,18 +88,21 @@ export async function calculateEmployeeProjectImpact(args: {
     .maybeSingle()
   if (!emp) return []
 
-  let q = supabase
-    .from('time_logs')
-    .select('work_order_id, hours, cost_amount, billable, end_time, start_time')
-    .eq('employee_id', args.employeeId)
-    .not('end_time', 'is', null)
-
-  if (args.workOrderId) q = q.eq('work_order_id', args.workOrderId)
-  if (args.sinceIso) q = q.gte('start_time', args.sinceIso)
-  if (args.untilIso) q = q.lte('start_time', args.untilIso)
-
-  const { data: logs } = await q
-  if (!logs || logs.length === 0) return []
+  // Profit-review 2026-10-07: side for side — uden periode (hele historikken) passerer én medarbejder let 1.000
+  // timerækker, og PostgREST afkortede så stille → for lave timer/kost/dækningsbidrag pr. projekt
+  const logs = await fetchAllRows<{ id: string; work_order_id: string; hours: number | string | null; cost_amount: number | string | null; billable: boolean | null }>((from, to) => {
+    let q = supabase
+      .from('time_logs')
+      .select('id, work_order_id, hours, cost_amount, billable, end_time, start_time')
+      .eq('employee_id', args.employeeId)
+      .not('end_time', 'is', null)
+      .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
+    if (args.workOrderId) q = q.eq('work_order_id', args.workOrderId)
+    if (args.sinceIso) q = q.gte('start_time', args.sinceIso)
+    if (args.untilIso) q = q.lte('start_time', args.untilIso)
+    return q.order('id').range(from, to)
+  })
+  if (logs.length === 0) return []
 
   // Group by work_order_id
   const byWo = new Map<string, { hours: number; billableHours: number; cost: number }>()
@@ -114,11 +118,14 @@ export async function calculateEmployeeProjectImpact(args: {
   }
 
   const woIds = Array.from(byWo.keys())
-  const { data: workOrders } = await supabase
-    .from('work_orders')
-    .select('id, title')
-    .in('id', woIds)
-  const woMap = new Map((workOrders ?? []).map((w) => [w.id, w.title as string]))
+  const woMap = new Map<string, string>()
+  for (let k = 0; k < woIds.length; k += 200) {
+    const { data: workOrders } = await supabase
+      .from('work_orders')
+      .select('id, title')
+      .in('id', woIds.slice(k, k + 200))
+    for (const w of workOrders ?? []) woMap.set(w.id, w.title as string)
+  }
 
   const salesRate = Number(emp.hourly_rate) || 0
   const empName =

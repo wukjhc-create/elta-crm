@@ -155,7 +155,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { spawn, execSync, type ChildProcess } from 'child_process'
 import { randomBytes } from 'crypto'
 import { makeTextPdf } from './pdf-fixture'
-import { mkdirSync, writeFileSync, appendFileSync } from 'fs'
+import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
@@ -183,10 +183,10 @@ const tele = { gotoTimeouts: 0, gotoRetries: 0 }
 export const UI_E2E_GROUPS: Record<string, string[]> = {
   crawl: ['U101', 'U102', 'U103', 'U104', 'U105', 'U106', 'U107', 'U108', 'U109', 'U110'],
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
-  sales: ['U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
+  sales: ['U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60'],
   montor: ['U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
-  economy: ['U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  'portal-mail': ['U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
+  economy: ['U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  'portal-mail': ['U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
 
 async function gotoSafe(page: import('playwright').Page, url: string, opts: { waitUntil?: 'load' | 'networkidle' | 'domcontentloaded'; timeout?: number } = {}) {
@@ -296,6 +296,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   const env: Record<string, string> = { ...(process.env as Record<string, string>), NEXT_PUBLIC_APP_URL: base, NEXT_TELEMETRY_DISABLED: '1', PORT: String(port),
     // N11: staging har RLS 00181 -> montør må starte eget job (prod: flaget er OFF indtil 00181 er godkendt)
     MONTOR_START_JOB_ENABLED: 'true',
+    // 00203 (staging only): tilbudsrevisioner
+    // UI_OFFER_REVISIONS_ENABLED=false → kør som prod (flag OFF) for regression
+    OFFER_REVISIONS_ENABLED: process.env.UI_OFFER_REVISIONS_ENABLED ?? 'true',
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
     // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }
@@ -406,6 +409,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   let u100OfferIds: string[] = []
   let u109OfferId: string | null = null
   let u109TokenId: string | null = null
+  let u134OfferId: string | null = null
+  let u134TokenId: string | null = null
+  let u134DraftId: string | null = null
   let u109InvoiceId: string | null = null
   let u110OfferId: string | null = null
   let u111OfferId: string | null = null
@@ -2254,7 +2260,8 @@ ${m.text()}`) })
       const denied: string[] = []
       for (const path of ['/dashboard/agents', '/dashboard/pilot-health', '/dashboard/mail']) { // mail: G9
         await gotoSafe(m.page, `${base}${path}`, { waitUntil: 'networkidle', timeout: 180_000 })
-        if ((await m.page.getByText('Du har ikke adgang').count()) > 0) denied.push(path)
+        // vent på teksten (server-komponenten kan streame efter networkidle — count() alene var flaky: 2/3 én gang)
+        if (await m.page.getByText('Du har ikke adgang').first().waitFor({ timeout: 15_000 }).then(() => true, () => false)) denied.push(path)
       }
       await m.page.screenshot({ caret: 'initial', path: join(shots, 'pilot-health-montoer.png'), fullPage: true })
       out.push({ id: 'U4 montør: ingen adgang', ok: denied.length === 3, note: `NoAccess på ${denied.length}/3 (${denied.join(', ') || '-'})` })
@@ -2911,6 +2918,106 @@ ${m.text()}`) })
         out.push({ id: 'U89 PV16 løn på Rediger medarbejder foldet + hentes ved åbning', ok: !!u89EmployeeId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U147 (00203, staging): "Ny revision" på et sendt tilbud → kladde R2 (redigerbar), historik viser R1 → R2.
+      if (want('U147') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const { data: o } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-REV-${stamp}`, title: '[HARNESS] revision UI', created_by: adminUser.id,
+          customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString() }]).select('id')
+        const r1 = (o?.[0] as { id?: string } | undefined)?.id ?? null
+        if (r1) await c.admin.from('offer_line_items').insert([{ offer_id: r1, position: 1, description: 'Linje', quantity: 1, unit: 'stk', unit_price: 500, sale_price: 500, total: 500 }])
+        await gotoSafe(a.page, `${base}/dashboard/offers/${r1}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const btn = a.page.getByTestId('offer-new-revision')
+        await btn.waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {})
+        r.panel_og_knap = (await btn.count()) === 1
+        await a.page.waitForTimeout(1500)
+        await btn.click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForURL((u) => !u.pathname.endsWith(String(r1)), { timeout: 60_000 }).catch(() => {})
+        const r2 = a.page.url().split('/').pop() ?? ''
+        r.navigeret_til_revision = !!r2 && r2 !== r1
+        await a.page.getByRole('button', { name: 'Rediger', exact: true }).waitFor({ timeout: 60_000 }).catch(() => {})
+        r.revision_er_redigerbar_kladde = (await a.page.getByRole('button', { name: 'Rediger', exact: true }).count()) === 1
+        await a.page.getByTestId('offer-revisions').getByText('Rev. 2').waitFor({ timeout: 30_000 }).catch(() => {})
+        r.historik_r1_r2 = (await a.page.getByTestId('offer-revisions').getByText('Rev. 1').count()) > 0 && (await a.page.getByTestId('offer-revisions').getByText('Rev. 2').count()) > 0
+        for (const id of [r2, r1].filter(Boolean) as string[]) {
+          await c.admin.from('offer_activities').delete().eq('offer_id', id)
+          await c.admin.from('offer_snapshots').delete().eq('offer_id', id)
+          await c.admin.from('offer_line_items').delete().eq('offer_id', id)
+          await c.admin.from('offers').update({ revision_of: null, superseded_by: null }).eq('id', id)
+        }
+        for (const id of [r2, r1].filter(Boolean) as string[]) await c.admin.from('offers').delete().eq('id', id)
+        out.push({ id: 'U147 tilbudsrevision: ny revision fra sendt tilbud + historik', ok: !!r1 && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U146 (Henrik 2026-10-07): sendte/accepterede tilbud er låst — "Låst" i stedet for "Rediger"; accepteret kan ikke
+      // sættes tilbage til kladde. Serveren afviser også (lib/offers/edit-lock.ts).
+      if (want('U146') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const mk = async (status: string) => {
+          const { data } = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-LOCK-${status}-${stamp}`, title: `[HARNESS] lås ${status}`, created_by: adminUser.id,
+            customer_id: profitCustomerId, status, sent_at: new Date().toISOString(), ...(status === 'accepted' ? { accepted_at: new Date().toISOString() } : {}) }]).select('id')
+          return (data?.[0] as { id?: string } | undefined)?.id ?? null
+        }
+        const sentId = await mk('sent'), accId = await mk('accepted')
+        for (const [tag, id] of [['sendt', sentId], ['accepteret', accId]] as Array<[string, string | null]>) {
+          await gotoSafe(a.page, `${base}/dashboard/offers/${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.getByTestId('offer-edit-locked').waitFor({ timeout: 60_000 }).catch(() => {})
+          r[`${tag}_laast`] = (await a.page.getByTestId('offer-edit-locked').count()) === 1
+          r[`${tag}_ingen_rediger`] = (await a.page.getByRole('button', { name: 'Rediger', exact: true }).count()) === 0
+        }
+        if (sentId) await c.admin.from('offers').delete().eq('id', sentId)
+        if (accId) await c.admin.from('offers').delete().eq('id', accId)
+        out.push({ id: 'U146 sendte/accepterede tilbud er låst for redigering', ok: !!sentId && !!accId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U145 (Henrik 2026-10-07): deaktiveres en medarbejder (Rediger → "Aktiv" fra), deaktiveres login'et også — efter
+      // bekræftelse; intet slettes; admin kan genaktivere login'et i login-panelet. Audit i employee_events + audit_logs.
+      if (want('U145')) {
+        const r: Record<string, boolean> = {}
+        const u = await mkUser('montør')
+        const emp = await c.admin.from('employees').insert([{ name: `U145 Harness ${stamp}`, first_name: 'U145', last_name: `Harness ${stamp}`, email: `u145-${stamp}@harness.test`, role: 'montør', active: true, profile_id: u.id }]).select('id')
+        const empId = (emp.data?.[0] as { id?: string } | undefined)?.id ?? null
+        let dialogText = ''
+        const onDialog = async (d: { message(): string; accept(): Promise<void> }) => { dialogText = d.message(); await d.accept() }
+        a.page.on('dialog', onDialog)
+        await gotoSafe(a.page, `${base}/dashboard/employees/${empId}/edit`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const aktiv = a.page.getByRole('checkbox', { name: 'Aktiv', exact: true }).first()
+        await aktiv.waitFor({ timeout: 60_000 }).catch(() => {})
+        await aktiv.uncheck({ timeout: 30_000 }).catch(() => {})
+        await a.page.getByRole('button', { name: 'Gem stamdata' }).click({ timeout: 30_000 }).catch(() => {})
+        await a.page.waitForTimeout(4000)
+        a.page.off('dialog', onDialog)
+        r.bekraeftelse_vist = /LOGIN deaktiveres/.test(dialogText)
+        const e1 = (await c.admin.from('employees').select('active, termination_date').eq('id', empId).maybeSingle()).data as { active: boolean; termination_date: string | null } | null
+        const p1 = (await c.admin.from('profiles').select('is_active').eq('id', u.id).maybeSingle()).data as { is_active: boolean } | null
+        r.medarbejder_deaktiveret = e1?.active === false
+        r.login_deaktiveret = p1?.is_active === false
+        const ev = (await c.admin.from('employee_events').select('event_type').eq('employee_id', empId)).data as Array<{ event_type: string }> | null
+        r.audit_medarbejder = !!ev?.some((x) => x.event_type === 'login_deactivated')
+        const al = await c.admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', u.id)
+        r.audit_logs = (al.count ?? 0) > 0
+        // genaktivér login via login-panelet (på Rediger-siden)
+        await gotoSafe(a.page, `${base}/dashboard/employees/${empId}/edit`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const btn = a.page.getByRole('button', { name: /Aktivér login/ }).first()
+        await btn.waitFor({ state: 'visible', timeout: 60_000 }).catch(() => {})
+        await a.page.waitForTimeout(1500) // hydrering (klik før hydrering gik tabt — samme mønster som U142)
+        r.knap_fundet = (await a.page.getByRole('button', { name: /Aktivér login/ }).count()) > 0
+        if (!r.knap_fundet) {
+          const txt = (await a.page.locator('body').innerText().catch(() => '')) ?? ''
+          const lines = txt.split(/\r?\n/).filter((l) => /login|adgang|fejl|indlæs/i.test(l)).slice(0, 12)
+          console.log('[U145 debug] ' + lines.join(' | '))
+        }
+        await a.page.screenshot({ caret: 'initial', path: join(shots, 'u145-login-panel.png'), fullPage: true }).catch(() => {})
+        await btn.click({ timeout: 30_000 }).catch(() => {})
+        let reactivated = false
+        for (let i = 0; i < 10 && !reactivated; i++) {
+          await a.page.waitForTimeout(1000)
+          reactivated = ((await c.admin.from('profiles').select('is_active').eq('id', u.id).maybeSingle()).data as { is_active: boolean } | null)?.is_active === true
+        }
+        r.admin_kan_genaktivere = reactivated
+        if (empId) { await c.admin.from('employee_events').delete().eq('employee_id', empId); await c.admin.from('employees').delete().eq('id', empId) }
+        out.push({ id: 'U145 deaktivering af medarbejder deaktiverer login (bekræftelse, audit, genaktivering)', ok: !!empId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
       // U90 D50b: Medarbejderøkonomi — serviceleder (kostpris, ikke løn) får ingen kost/DB pr. medarbejder i data/UI,
       // kun samlede totaler (sammenfoldet); admin (løn) ser kost pr. medarbejder efter "Vis kost/DB"
       if (want('U90') && jobEmployeeId) {
@@ -2926,6 +3033,10 @@ ${m.text()}`) })
         const rowCost = /\\?"employee_name\\?":\\?"[^"\\]*\\?",\\?"hours\\?":[-\d.]+,\\?"labor_sale\\?":[-\d.]+,\\?"labor_cost\\?":-?[1-9]/.test(slData)
         const rowNull = /\\?"employee_name\\?":\\?"[^"\\]*\\?",\\?"hours\\?":[-\d.]+,\\?"labor_sale\\?":[-\d.]+,\\?"labor_cost\\?":null/.test(slData)
         r.sl_ingen_kost_pr_medarbejder = !rowCost && rowNull
+        if (!r.sl_ingen_kost_pr_medarbejder) {
+          const at = slData.indexOf('employee_name')
+          console.log(`[U90 debug] rowCost=${rowCost} rowNull=${rowNull} · ${at >= 0 ? slData.slice(Math.max(0, at - 20), at + 260).replace(/\s+/g, ' ') : 'INGEN employee_name i data'}`)
+        }
         r.sl_totaler_foldet = ((await sl.page.getByTestId('employee-economy-totals').innerText().catch(() => '')) ?? '').includes('••••')
         await sl.page.getByTestId('cost-reveal-toggle').first().click({ timeout: 30_000 }).catch(() => {})
         await sl.page.waitForTimeout(600)
@@ -3727,6 +3838,8 @@ ${m.text()}`) })
         // N85: listen har ingen brødtekst — den hentes ved åbning (her via deeplink) og vises
         await a.page.getByText('Besked: Ladestander').first().waitFor({ timeout: 30_000 }).catch(() => {})
         r.broedtekst_hentet = (await a.page.getByText('Besked: Ladestander').count()) > 0 && (await a.page.getByTestId('mail-body-loading').count()) === 0
+        // N96: listen viser navnet fra formularen i stedet for afsenderen "FormSubmit"
+        r.liste_viser_navn = (await a.page.getByTestId('mail-row-web-contact').filter({ hasText: `Harness Formkunde ${stamp}` }).count()) > 0
         await a.page.getByRole('button', { name: /Opret som ny kunde/ }).first().click({ timeout: 60_000 }).catch(() => {})
         const bodyOnly = a.page.locator('input[name="create-mode"][value="body_only"]')
         await bodyOnly.waitFor({ timeout: 30_000 }).catch(() => {})
@@ -3738,15 +3851,19 @@ ${m.text()}`) })
       // U130 N86: "Opret leads for alle" — henvendelse med e-mail får et lead, en uden læsbar e-mail springes over
       if (want('U130')) {
         const r: Record<string, boolean> = {}
-        const mk = async (tag: string, lines: string[]) => {
+        const mk = async (tag: string, lines: string[], html?: string) => {
           const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', sender_name: 'FormSubmit',
-            subject: `Ny henvendelse fra eltasolar.dk [HARNESS] U130 ${tag} ${stamp}`, body_text: lines.join(String.fromCharCode(10)),
+            subject: `Ny henvendelse fra eltasolar.dk [HARNESS] U130 ${tag} ${stamp}`, body_text: html ? null : lines.join(String.fromCharCode(10)), body_html: html ?? null,
             link_status: 'unidentified', received_at: new Date().toISOString(), is_archived: false, is_read: false }]).select('id')
           const id = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
           if (id) u113EmailIds.push(id)
           return id
         }
-        const withMail = await mk('med', [`Navn: Bulk Kunde ${stamp}`, `Email: bulk-${stamp}@harness.test`, 'Telefon: 11223344'])
+        // N92/N93: realistisk FormSubmit-HTML (cellerne havner på samme linje i parserens tekst) med type + besked
+        const fsRows = [['name', `Bulk Kunde ${stamp}`], ['phone', '11223344'], ['email', `bulk-${stamp}@harness.test`], ['inquiry_type', 'Solceller'], ['message', 'Ring gerne efter kl 16']]
+        const fsHtml = ["<p>Here's what they had to say</p>", '<table>', '<tr><th>Name</th><th>Value</th></tr>',
+          ...fsRows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`), '</table>'].join(String.fromCharCode(10))
+        const withMail = await mk('med', [], fsHtml)
         const noMail = await mk('uden', [`Navn: Uden Mail ${stamp}`, 'Telefon: 55667788'])
         r.seed = !!withMail && !!noMail
         await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
@@ -3754,10 +3871,16 @@ ${m.text()}`) })
         await a.page.getByTestId('cockpit-bulk-leads').click({ timeout: 60_000 }).catch(() => {})
         await a.page.getByTestId('cockpit-bulk-leads-result').waitFor({ timeout: 90_000 }).catch(() => {})
         r.resultat_vist = /oprettet/.test((await a.page.getByTestId('cockpit-bulk-leads-result').textContent().catch(() => '')) ?? '')
-        const lA = ((await c.admin.from('leads').select('id, email').eq('custom_fields->>source_email_id', withMail ?? '')).data ?? []) as Array<{ id: string; email: string }>
+        const lA = ((await c.admin.from('leads').select('id, email, contact_person, notes').eq('custom_fields->>source_email_id', withMail ?? '')).data ?? []) as Array<{ id: string; email: string; contact_person: string; notes: string | null }>
         const lB = ((await c.admin.from('leads').select('id').eq('custom_fields->>source_email_id', noMail ?? '')).data ?? []) as Array<{ id: string }>
         u128LeadIds.push(...lA.map((x) => x.id), ...lB.map((x) => x.id))
         r.lead_med_mail = lA.length === 1 && lA[0].email === `bulk-${stamp}@harness.test`
+        r.navn_fra_html_tabel = lA[0]?.contact_person === `Bulk Kunde ${stamp}`
+        r.noter_type_besked = /Type: Solceller/.test(lA[0]?.notes ?? '') && /Besked: Ring gerne efter kl 16/.test(lA[0]?.notes ?? '')
+        // N94: leadlisten viser type · besked under kontakten
+        await gotoSafe(a.page, `${base}/dashboard/leads?search=${encodeURIComponent(`Bulk Kunde ${stamp}`)}`, { waitUntil: 'networkidle', timeout: 120_000 })
+        await a.page.getByTestId('lead-row-inquiry').first().waitFor({ timeout: 30_000 }).catch(() => {})
+        r.liste_viser_henvendelse = /Type: Solceller · Besked: Ring gerne/.test((await a.page.getByTestId('lead-row-inquiry').first().textContent().catch(() => '')) ?? '')
         r.uden_mail_sprunget_over = lB.length === 0
         out.push({ id: 'U130 N86 opret leads for alle webhenvendelser', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
@@ -3785,6 +3908,402 @@ ${m.text()}`) })
         await a.page.waitForTimeout(1500)
         r.intet_kort_koblet = (await a.page.getByTestId('web-inquiry-card').count()) === 0
         out.push({ id: 'U132 N88 kontaktdata-kort på ukoblede mails', ok: Object.values(r).every(Boolean), note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')} · ${txt.slice(0, 80)}` })
+      }
+
+      // U133 N95: webhenvendelse fra en eksisterende kunde (samme e-mail) vises "findes som kunde" + "Kobl til kunde" i
+      // cockpittet; "Opret leads for alle" kobler en anden sådan henvendelse til kunden i stedet for at oprette et lead
+      if (want('U133')) {
+        const r: Record<string, boolean> = {}
+        const custEmail = `kunde95-${stamp}@harness.test`
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-95-${stamp}`, company_name: `[HARNESS] eksisterende ${stamp}`, contact_person: 'E',
+          email: custEmail, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        const custId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (custId) u115CustomerIds.push(custId)
+        const mk = async (tag: string) => {
+          const rows = [['name', `Eksisterende ${tag} ${stamp}`], ['phone', '99887766'], ['email', custEmail], ['message', 'Igen']]
+          const html = ["<p>Here's what they had to say</p>", '<table>', '<tr><th>Name</th><th>Value</th></tr>', ...rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`), '</table>'].join(String.fromCharCode(10))
+          const em = await c.admin.from('incoming_emails').insert([{ sender_email: 'submissions@formsubmit.co', sender_name: 'FormSubmit',
+            subject: `Ny henvendelse fra eltasolar.dk [HARNESS] U133 ${tag} ${stamp}`, body_html: html, link_status: 'unidentified',
+            received_at: new Date().toISOString(), is_archived: false, is_read: false }]).select('id')
+          const id = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (id) u113EmailIds.push(id)
+          return id
+        }
+        const viaCard = await mk('kort')
+        const viaBulk = await mk('bulk')
+        r.seed = !!custId && !!viaCard && !!viaBulk
+        const mailCustomer = async (id: string | null) => ((await c.admin.from('incoming_emails').select('customer_id').eq('id', id ?? '').maybeSingle()).data as { customer_id: string | null } | null)?.customer_id ?? null
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        const row = a.page.getByTestId('cockpit-web-inquiries').locator('li', { hasText: `Eksisterende kort ${stamp}` }).first()
+        await row.waitFor({ timeout: 60_000 }).catch(() => {})
+        r.vist_som_kunde = (await row.getByTestId('cockpit-web-existing').count()) === 1
+        await row.getByTestId('cockpit-link-customer').click({ timeout: 30_000 }).catch(() => {})
+        let linked: string | null = null
+        for (let i = 0; i < 15 && !linked; i++) { await a.page.waitForTimeout(1000); linked = await mailCustomer(viaCard) }
+        r.kort_kobler = linked === custId
+        await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+        a.page.once('dialog', (d) => d.accept().catch(() => {}))
+        await a.page.getByTestId('cockpit-bulk-leads').click({ timeout: 60_000 }).catch(() => {})
+        await a.page.getByTestId('cockpit-bulk-leads-result').waitFor({ timeout: 90_000 }).catch(() => {})
+        r.bulk_kobler = (await mailCustomer(viaBulk)) === custId
+        const leads = ((await c.admin.from('leads').select('id').eq('custom_fields->>source_email_id', viaBulk ?? '')).data ?? []) as Array<{ id: string }>
+        u128LeadIds.push(...leads.map((x) => x.id))
+        r.intet_lead_for_kunde = leads.length === 0
+        r.resultat_naevner_kobling = /koblet til eksisterende kunde/.test((await a.page.getByTestId('cockpit-bulk-leads-result').textContent().catch(() => '')) ?? '')
+        out.push({ id: 'U133 N95 henvendelse fra eksisterende kunde → kobl', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U134 Q10 sikkerhed (S1): kundeportalens sider sendte HELE company_settings-rækken (select '*' via admin) i sidens
+      // RSC-data → SMTP-adgangskode/SMS-nøgler synlige for enhver med et portallink. Kun portal-kolonner nu. Plus:
+      // /api/admin/setup-db kunne kaldes af alle med headeren x-internal-call (kørte DDL der genskabte en anon-policy).
+      if (want('U134') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const off = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-SEC-${stamp}`, title: '[HARNESS] U134 portal-sikkerhed',
+          created_by: adminUser.id, customer_id: profitCustomerId, status: 'sent', sent_at: new Date().toISOString(),
+          valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10) }]).select('id')
+        u134OfferId = (off.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-sec-${stamp}@harness.test`,
+          created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+        u134TokenId = (pt.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const secretKeys = ['smtp_password', 'sms_gateway_api_key', 'sms_gateway_secret', 'smtp_user', 'time_cost_rate', 'bank_account']
+        const leaks: string[] = []
+        for (const [label, path] of [['forside', `/portal/${tok}`], ['tilbud', `/portal/${tok}/offers/${u134OfferId}`]] as Array<[string, string]>) {
+          const res = await fetch(`${base}${path}`, { redirect: 'manual' })
+          const html = await res.text()
+          r[`${label}_200`] = res.status === 200
+          // positiv kontrol: portal-indstillingerne er stadig med i siden (valuta/momssats bruges af komponenterne)
+          r[`${label}_har_portalfelter`] = html.includes('default_currency')
+          for (const k of secretKeys) if (html.includes(k)) leaks.push(`${label}:${k}`)
+        }
+        r.ingen_hemmelige_felter = leaks.length === 0
+        const bypass = await fetch(`${base}/api/admin/setup-db`, { method: 'POST', headers: { 'x-internal-call': 'true' } })
+        r.setup_db_header_afvist = bypass.status === 401
+        r.setup_db_get_kraever_secret = (await fetch(`${base}/api/admin/setup-db`)).status === 401
+        // PDF-ruterne var åbne (forfalsket fuldmagt/rapport + <Image src=URL> → SSRF): nu kun interne kald
+        const pdfBody = (b: unknown) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
+        r.fuldmagt_pdf_lukket = (await fetch(`${base}/api/fuldmagt/pdf`, pdfBody({ customer_name: 'X', date: '2026-10-04', signature_data: 'http://127.0.0.1/' }))).status === 401
+        r.besigtigelse_pdf_lukket = (await fetch(`${base}/api/besigtigelse/pdf`, pdfBody({ customer: { customer_number: 'X' }, formData: {}, date: '2026-10-04', images: [] }))).status === 401
+        // Q10 lave: vejr-proxy kun for indloggede; migrate-roles timing-safe/fail-closed; kladde-tilbud ikke via UUID
+        r.vejr_kraever_login = (await fetch(`${base}/api/weather?lat=55.6&lon=12.5`, { redirect: 'manual' })).status !== 200
+        r.migrate_roles_lukket = [401, 404].includes((await fetch(`${base}/api/admin/migrate-roles`, { method: 'POST', headers: { Authorization: 'Bearer ' } })).status) // ruten fjernet (auth-review)
+        const draft = await c.admin.from('offers').insert([{ offer_number: `UI-E2E-SECD-${stamp}`, title: '[HARNESS] U134 kladde', created_by: adminUser.id,
+          customer_id: profitCustomerId, status: 'draft' }]).select('id')
+        u134DraftId = (draft.data?.[0] as { id?: string } | undefined)?.id ?? null
+        const dRes = await fetch(`${base}/portal/${tok}/offers/${u134DraftId}`, { redirect: 'manual' })
+        const dHtml = dRes.status === 200 ? await dRes.text() : ''
+        r.kladde_ikke_i_portal = !dHtml.includes(`UI-E2E-SECD-${stamp}`)
+        r.kladde_pdf_afvist = (await fetch(`${base}/api/portal/offers/pdf?token=${tok}&offerId=${u134DraftId}`)).status !== 200
+        // Q13 (S1): /view-offer/<uuid> (uden login) videresendte med kundens portal-token i URL'en
+        const vo = await fetch(`${base}/view-offer/${u134OfferId}`, { redirect: 'manual' })
+        r.view_offer_uden_token = !(vo.headers.get('location') ?? '').includes(tok) && !(await vo.text()).includes(tok)
+        // positiv kontrol: det sendte tilbud kan stadig hentes som PDF
+        r.sendt_pdf_ok = (await fetch(`${base}/api/portal/offers/pdf?token=${tok}&offerId=${u134OfferId}`)).status === 200
+        out.push({ id: 'U134 Q10 portal lækker ikke firmahemmeligheder + setup-db lukket', ok: !!u134TokenId && Object.values(r).every(Boolean),
+          note: `${Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ')}${leaks.length ? ` · læk: ${leaks.join(',')}` : ''}` })
+      }
+
+      // U135 kunde-review (HØJ): sletning af en kunde med tilbud slettede stille tilbud + underskrifter (ON DELETE
+      // CASCADE) og efterlod fakturaer/sager uden kunde → afvises med "deaktivér i stedet"; kunde uden tilknytning slettes
+      if (want('U135')) {
+        const r: Record<string, boolean> = {}
+        const ins = await c.admin.from('customers').insert([
+          { customer_number: `UI-E2E-DL-${stamp}`, company_name: `[HARNESS] slet-med-tilbud ${stamp}`, contact_person: 'D', email: `dl-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+          { customer_number: `UI-E2E-DF-${stamp}`, company_name: `[HARNESS] slet-fri ${stamp}`, contact_person: 'F', email: `df-${stamp}@harness.test`, created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } },
+        ]).select('id, customer_number')
+        const rows = (ins.data ?? []) as Array<{ id: string; customer_number: string }>
+        const withOffer = rows.find((x) => x.customer_number.startsWith('UI-E2E-DL'))?.id ?? null
+        const free = rows.find((x) => x.customer_number.startsWith('UI-E2E-DF'))?.id ?? null
+        u115CustomerIds.push(...rows.map((x) => x.id))
+        const off = withOffer ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-DLO-${stamp}`, title: '[HARNESS] U135', created_by: adminUser.id, customer_id: withOffer, status: 'sent' }]).select('id') : null
+        const offerId = (off?.data?.[0] as { id?: string } | undefined)?.id ?? null
+        r.seed = !!withOffer && !!free && !!offerId
+        const tryDelete = async (id: string) => {
+          await gotoSafe(a.page, `${base}/dashboard/customers/${id}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.getByRole('button', { name: /^Slet$/ }).first().click({ timeout: 60_000 }).catch(() => {})
+          await a.page.getByRole('alertdialog').getByRole('button', { name: /^Slet$/ }).click({ timeout: 30_000 }).catch(() => {})
+          await a.page.waitForTimeout(2500)
+        }
+        if (withOffer) {
+          await tryDelete(withOffer)
+          r.afvist_med_besked = (await a.page.getByText(/kan ikke slettes — deaktivér kunden i stedet/).count()) > 0
+          r.kunde_bevaret = !!(await c.admin.from('customers').select('id').eq('id', withOffer).maybeSingle()).data
+          r.tilbud_bevaret = !!offerId && !!(await c.admin.from('offers').select('id').eq('id', offerId).maybeSingle()).data
+        }
+        if (free) {
+          await tryDelete(free)
+          r.fri_kunde_slettet = !(await c.admin.from('customers').select('id').eq('id', free).maybeSingle()).data
+        }
+        if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
+        out.push({ id: 'U135 kunde med tilbud kan ikke slettes (cascade)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U136 kunde-review: kunde- og lead-eksport fejlede ALTID (kolonnerne billing_zip og leads.description findes ikke)
+      // → CSV med postnr. og leadets noter
+      if (want('U136')) {
+        const r: Record<string, boolean> = {}
+        const cu = await c.admin.from('customers').insert([{ customer_number: `UI-E2E-EX-${stamp}`, company_name: `[HARNESS] eksport ${stamp}`, contact_person: 'E',
+          email: `ex-${stamp}@harness.test`, billing_postal_code: '8999', created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+        const cuId = (cu.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (cuId) u115CustomerIds.push(cuId)
+        const ld = await c.admin.from('leads').insert([{ company_name: `[HARNESS] lead-eksport ${stamp}`, contact_person: 'L', email: `lx-${stamp}@harness.test`,
+          status: 'new', source: 'website', notes: `Noter ${stamp}`, created_by: adminUser.id }]).select('id')
+        const leadId = (ld.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (leadId) u128LeadIds.push(leadId)
+        const grab = async (path: string, label: string) => {
+          await gotoSafe(a.page, `${base}${path}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const dl = a.page.waitForEvent('download', { timeout: 60_000 }).catch(() => null)
+          await a.page.getByRole('button', { name: label }).first().click({ timeout: 60_000 }).catch(() => {})
+          const d = await dl
+          const fp = d ? await d.path().catch(() => null) : null
+          return fp ? readFileSync(fp, 'utf8') : ''
+        }
+        const csvC = await grab(`/dashboard/customers?search=${stamp}`, 'Eksportér kunder')
+        r.kunde_csv = csvC.includes(`[HARNESS] eksport ${stamp}`) && csvC.includes('8999')
+        const csvL = await grab(`/dashboard/leads?search=${stamp}`, 'Eksportér leads')
+        r.lead_csv = csvL.includes(`[HARNESS] lead-eksport ${stamp}`) && csvL.includes(`Noter ${stamp}`)
+        out.push({ id: 'U136 kunde-/lead-eksport virker (rigtige kolonner)', ok: !!cuId && !!leadId && Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U137 auth-review (HØJ): en bruger kunne sætte sit eget avatar_storage_path (via updateProfile eller REST) til en
+      // vilkårlig fil i attachments — profilsiden signerede den med admin-klienten → læsning af enhver fil. Kun
+      // avatars/<eget id>- signeres nu. (Stien sættes her via admin = det et direkte REST-kald kan i dag.)
+      if (want('U137')) {
+        const r: Record<string, boolean> = {}
+        const foreign = `customer-documents/u137-${stamp}/fremmed.txt`
+        const up = await c.admin.storage.from('attachments').upload(foreign, new Blob([`[HARNESS] U137 ${stamp}`], { type: 'text/plain' }), { upsert: true })
+        r.seed = !up.error
+        await c.admin.from('profiles').update({ avatar_storage_path: foreign }).eq('id', montor.id)
+        try {
+          const m = await login(montor)
+          await gotoSafe(m.page, `${base}/dashboard/settings/profile`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const html = await m.page.content()
+          // det farlige er en SIGNERET URL til filen (rå stiværdi i sidens data giver ingen adgang)
+          r.fremmed_fil_ikke_signeret = !html.includes(`/object/sign/attachments/${foreign}`) && !html.includes(`/object/sign/attachments/${encodeURI(foreign)}`)
+          r.sti_i_html = html.includes(`u137-${stamp}`) // kun info
+          await m.ctx.close().catch(() => {})
+        } finally {
+          await c.admin.from('profiles').update({ avatar_storage_path: null }).eq('id', montor.id)
+          await c.admin.storage.from('attachments').remove([foreign])
+        }
+        out.push({ id: 'U137 profil signerer ikke fremmede filer (avatar-sti)', ok: r.seed && r.fremmed_fil_ikke_signeret, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U142 T6: kundens notelog — admin tilføjer en note (customer_notes, tidsstemplet, forfatter), kundens fritekst
+      // "Noter" overskrives ikke; montør kan læse men ikke skrive
+      if (want('U142') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        let u142Diag = ''
+        const text = `U142 note ${stamp}`
+        await c.admin.from('customers').update({ notes: `FRITEKST ${stamp}` }).eq('id', profitCustomerId)
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const box = a.page.getByTestId('customer-notes-timeline')
+          r.notelog_vises = await box.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          if (r.notelog_vises) {
+            await box.getByLabel('Ny kundenote').fill(text)
+            await box.getByRole('button', { name: 'Tilføj note' }).click()
+            r.note_vises = await box.locator('li', { hasText: text }).first().waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+            if (!r.note_vises) u142Diag += ` ui_fejl=${JSON.stringify(await box.locator('p.text-red-600').allInnerTexts().catch(() => []))}`
+          }
+          const { data: rows, error: rowsErr } = await c.admin.from('customer_notes').select('source, created_by, content').eq('customer_id', profitCustomerId)
+          const row = ((rows ?? []) as Array<{ source: string; created_by: string; content: string }>).find((x) => x.content === text)
+          r.gemt_som_manuel_af_admin = row?.source === 'manual' && row?.created_by === adminUser.id
+          if (!r.gemt_som_manuel_af_admin) u142Diag = JSON.stringify({ err: rowsErr?.message ?? null, n: (rows ?? []).length, row: row ? { source: row.source, by_admin: row.created_by === adminUser.id } : null })
+          const { data: cu } = await c.admin.from('customers').select('notes').eq('id', profitCustomerId).single()
+          r.fritekst_uroert = (cu as { notes: string }).notes === `FRITEKST ${stamp}`
+          const mo = await login(montor)
+          await gotoSafe(mo.page, `${base}/dashboard/customers/${profitCustomerId}`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const mbox = mo.page.getByTestId('customer-notes-timeline')
+          const seen = await mbox.waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+          r.montor_laeser_ikke_skriver = seen && (await mbox.getByText(text).count()) > 0 && (await mbox.getByLabel('Ny kundenote').count()) === 0 && (await mbox.getByLabel('Slet note').count()) === 0
+          await mo.ctx.close().catch(() => {})
+        } finally {
+          await c.admin.from('customer_notes').delete().eq('customer_id', profitCustomerId)
+        }
+        out.push({ id: 'U142 kundens notelog (tidsstemplet, fritekst urørt, montør kun læse)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + (u142Diag ? ` diag=${u142Diag}` : '') })
+      }
+
+      // U144 Mine påmindelser i CRM-kalenderen (månedsvisning ⏰ + dagspanel); andre brugere ser dem ikke
+      if (want('U144')) {
+        const r: Record<string, boolean> = {}
+        const title = `U144 påmindelse ${stamp}`
+        const { copenhagenParts: cph2, copenhagenLocalToIso: toIso2 } = await import('../../src/lib/utils/copenhagen-time')
+        const day = cph2(new Date()).date
+        const ins = await c.admin.from('personal_reminders').insert({ owner_id: adminUser.id, title, due_at: toIso2(day, '23:00'), reminder_at: toIso2(day, '23:00'), source: 'manual' }).select('id').single()
+        r.seed = !ins.error
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/calendar?view=month`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const chip = a.page.locator(`[data-testid="calendar-personal-reminder"][title="Min påmindelse: ${title}"]`).first()
+          r.chip_vises = await chip.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          if (r.chip_vises) {
+            await chip.click()
+            r.dagspanel_viser = await a.page.getByTestId('calendar-day-reminders').getByText(title).waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+          }
+          const mo = await login(montor)
+          await gotoSafe(mo.page, `${base}/dashboard/calendar?view=month`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await mo.page.waitForTimeout(1_500)
+          r.montor_ser_ikke = (await mo.page.getByText(title).count()) === 0
+          await mo.ctx.close().catch(() => {})
+        } finally {
+          await c.admin.from('personal_reminders').delete().eq('title', title)
+        }
+        out.push({ id: 'U144 Mine påmindelser i kalenderen (kun ejer)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U143 Mine påmindelser (00197): opret, ret tidspunkt, udsæt, udført — og kun ejeren ser dem
+      if (want('U143')) {
+        const r: Record<string, boolean> = {}
+        const title = `U143 husk ${stamp}`
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const card = a.page.getByTestId('personal-reminders')
+          r.kort_vises = await card.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          if (r.kort_vises) {
+            await card.getByLabel('Påmindelse').fill(title)
+            await card.getByLabel('Klokkeslæt').fill('09:00')
+            await card.getByRole('button', { name: 'Tilføj' }).click()
+            const row = card.getByTestId('personal-reminder-row').filter({ hasText: title })
+            r.oprettet = await row.waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+            const get = async () => ((await c.admin.from('personal_reminders').select('id, owner_id, due_at, reminder_at, status').eq('title', title).maybeSingle()).data as { id: string; owner_id: string; due_at: string; reminder_at: string; status: string } | null)
+            const v1 = await get()
+            r.ejer_admin_kl_9_dansk = v1?.owner_id === adminUser.id && new Date(v1.due_at).toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' }) === '09.00'
+            if (r.oprettet) {
+              await row.getByRole('button', { name: 'Ret tidspunkt' }).click()
+              await row.getByLabel('Nyt klokkeslæt').fill('14:30')
+              await row.getByRole('button', { name: 'Gem tidspunkt' }).click()
+              await a.page.waitForTimeout(2_000)
+              const v2 = await get()
+              r.tidspunkt_rettet_og_paamindelse_fulgt = !!v2 && new Date(v2.due_at).toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' }) === '14.30' && v2.reminder_at === v2.due_at
+              const before = Date.now()
+              await row.getByRole('button', { name: 'Udsæt' }).click()
+              await a.page.waitForTimeout(2_000)
+              const v3 = await get()
+              r.udsat_en_time = !!v3 && Math.abs(new Date(v3.reminder_at).getTime() - (before + 3_600_000)) < 120_000
+              const mo = await login(montor)
+              await gotoSafe(mo.page, `${base}/dashboard/tasks`, { waitUntil: 'networkidle', timeout: 120_000 })
+              await mo.page.waitForTimeout(1_500)
+              r.montor_ser_den_ikke = (await mo.page.getByText(title).count()) === 0
+              await mo.ctx.close().catch(() => {})
+              await row.getByRole('button', { name: 'Udført' }).click()
+              await a.page.waitForTimeout(2_000)
+              r.udfoert = (await get())?.status === 'done'
+            }
+          }
+        } finally {
+          await c.admin.from('personal_reminders').delete().eq('title', title)
+        }
+        out.push({ id: 'U143 Mine påmindelser (opret/ret/udsæt/udført, kun ejer)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U141 T10: "Forbind Telegram" på profilen — admin får en engangskode (/start <kode>, kun hash gemmes), montør ser
+      // ikke kortet (fase 1 kun kontorroller)
+      if (want('U141')) {
+        const r: Record<string, boolean> = {}
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/settings/profile`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const card = a.page.getByTestId('telegram-link-card')
+          r.admin_ser_kort = await card.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          if (r.admin_ser_kort) {
+            await card.getByRole('button', { name: 'Forbind Telegram' }).click({ timeout: 30_000 })
+            const codeEl = card.locator('span.font-mono').first()
+            const txt = await codeEl.waitFor({ timeout: 30_000 }).then(() => codeEl.innerText()).catch(() => '')
+            const m = txt.match(/^\/start ([A-Z2-9]{8})$/)
+            r.kode_vises = !!m
+            const { data: row } = await c.admin.from('assistant_links').select('link_code_hash, telegram_chat_id').eq('profile_id', adminUser.id).maybeSingle()
+            const lr = row as { link_code_hash: string | null; telegram_chat_id: number | null } | null
+            r.kun_hash_gemt = !!m && !!lr?.link_code_hash && lr.link_code_hash !== m[1] && lr.link_code_hash.length === 64
+          }
+          const mo = await login(montor)
+          await gotoSafe(mo.page, `${base}/dashboard/settings/profile`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await mo.page.waitForTimeout(1_500)
+          r.montor_ser_ikke_kort = (await mo.page.getByTestId('telegram-link-card').count()) === 0
+          await mo.ctx.close().catch(() => {})
+        } finally {
+          await c.admin.from('assistant_links').delete().eq('profile_id', adminUser.id)
+        }
+        out.push({ id: 'U141 Forbind Telegram (engangskode, kun hash; montør ser ikke)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U140 T2: opkald oprettet via ELTA Assistant vises i CRM-kalenderens månedsvisning (📞) på den DANSKE dato —
+      // kl. 00:30 dansk tid lå før på dagen før (UTC-dato)
+      if (want('U140') && profitCustomerId) {
+        const r: Record<string, boolean> = {}
+        const { copenhagenParts: cph, copenhagenLocalToIso } = await import('../../src/lib/utils/copenhagen-time')
+        const today = cph(new Date()).date
+        const tomorrow = cph(new Date(Date.now() + 86_400_000)).date
+        const day = tomorrow.slice(0, 7) === today.slice(0, 7) ? tomorrow : today
+        const title = `Ring til U140 ${stamp}`
+        const ins = await c.admin.from('customer_tasks').insert({ customer_id: profitCustomerId, title, status: 'pending', priority: 'normal', assigned_to: adminUser.id, created_by: adminUser.id, due_date: copenhagenLocalToIso(day, '00:30'), auto_rule: 'assistant_callback' }).select('id').single()
+        const taskId = (ins.data as { id?: string } | null)?.id ?? null
+        r.seed = !!taskId
+        try {
+          await gotoSafe(a.page, `${base}/dashboard/calendar?view=month`, { waitUntil: 'networkidle', timeout: 120_000 })
+          const chip = a.page.locator(`div[title="${title}"]`).first()
+          r.vises_med_telefon = await chip.waitFor({ timeout: 60_000 }).then(async () => (await chip.innerText()).startsWith('📞')).catch(() => false)
+          if (r.vises_med_telefon) {
+            await chip.click({ timeout: 30_000 })
+            const expected = new Date(`${day}T12:00:00`).toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' })
+            r.rette_danske_dag = await a.page.getByRole('heading', { name: expected }).first().waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+          }
+        } finally {
+          if (taskId) await c.admin.from('customer_tasks').delete().eq('id', taskId)
+        }
+        out.push({ id: 'U140 assistent-opkald i kalenderen (📞, dansk dato)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U139 P1: selvregistrering lukket i appen — /register sender til login, og hverken forside eller login viser
+      // "Opret konto" (medarbejdere oprettes kun via invitation)
+      if (want('U139')) {
+        const r: Record<string, boolean> = {}
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        try {
+          const p = await kctx.newPage()
+          await gotoSafe(p, `${base}/register`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.register_til_login = new URL(p.url()).pathname === '/login'
+          r.login_uden_opret_link = (await p.locator('a[href="/register"]').count()) === 0
+          await gotoSafe(p, `${base}/`, { waitUntil: 'networkidle', timeout: 120_000 })
+          r.forside_uden_opret_link = (await p.locator('a[href="/register"]').count()) === 0
+        } finally {
+          await kctx.close().catch(() => {})
+        }
+        out.push({ id: 'U139 selvregistrering lukket i appen (/register → login, ingen opret-links)', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
+      }
+
+      // U138 00194 system_alerts: portal-hændelse ("Fuldmagt underskrevet") vises i klokken for admin, kan afvises
+      // derfra (DB: is_dismissed), og montør ser den ikke
+      if (want('U138')) {
+        const r: Record<string, boolean> = {}
+        const title = `Fuldmagt underskrevet U138 ${stamp}`
+        const ins = await c.admin.from('system_alerts').insert({ alert_type: 'fuldmagt_signed', severity: 'info', title, message: 'Harness Kunde har underskrevet fuldmagten.', entity_type: 'customer' }).select('id').single()
+        const alertId = (ins.data as { id?: string } | null)?.id ?? null
+        r.seed = !!alertId
+        try {
+          await gotoSafe(a.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await a.page.locator('button[aria-label^="Notifikationer"]').first().click({ timeout: 60_000 })
+          const item = a.page.getByText(title).first()
+          r.admin_ser_i_klokken = await item.waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+          if (r.admin_ser_i_klokken) {
+            const row = a.page.locator('div', { has: a.page.getByText(title) }).filter({ has: a.page.locator('button[aria-label="Afvis"]') }).last()
+            await row.locator('button[aria-label="Afvis"]').first().click({ timeout: 30_000 }).catch(() => {})
+            let dismissed = false
+            for (let i = 0; i < 20 && !dismissed; i++) {
+              dismissed = !!((await c.admin.from('system_alerts').select('is_dismissed').eq('id', alertId).single()).data as { is_dismissed?: boolean } | null)?.is_dismissed
+              if (!dismissed) await a.page.waitForTimeout(500)
+            }
+            r.afvist_i_db = dismissed
+          }
+          await c.admin.from('system_alerts').update({ is_dismissed: false }).eq('id', alertId)
+          const m = await login(montor)
+          await gotoSafe(m.page, `${base}/dashboard`, { waitUntil: 'networkidle', timeout: 120_000 })
+          await m.page.locator('button[aria-label^="Notifikationer"]').first().click({ timeout: 60_000 }).catch(() => {})
+          await m.page.waitForTimeout(2_000)
+          r.montor_ser_ikke = (await m.page.getByText(title).count()) === 0
+          await m.ctx.close().catch(() => {})
+        } finally {
+          if (alertId) await c.admin.from('system_alerts').delete().eq('id', alertId)
+        }
+        out.push({ id: 'U138 klokken viser portal-hændelse; afvis virker; montør ser den ikke', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U114 Go-live-tjekliste: nye driftspunkter (portal-ulæste, mail-fakturaer uden bilag, leverandørpriser, sagsstatus)
@@ -4589,6 +5108,9 @@ ${m.text()}`) })
     if (u84SupplierId) { await c.admin.from('customer_supplier_prices').delete().eq('supplier_id', u84SupplierId); await c.admin.from('supplier_products').delete().eq('supplier_id', u84SupplierId); await c.admin.from('suppliers').delete().eq('id', u84SupplierId) }
     if (u84PackageId) await c.admin.from('packages').delete().eq('id', u84PackageId)
     if (u109TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u109TokenId)
+    if (u134TokenId) await c.admin.from('portal_access_tokens').delete().eq('id', u134TokenId)
+    if (u134OfferId) await c.admin.from('offers').delete().eq('id', u134OfferId)
+    if (u134DraftId) await c.admin.from('offers').delete().eq('id', u134DraftId)
     for (const id of u115CustomerIds) await c.admin.from('customers').delete().eq('id', id)
     if (u114MessageId) await c.admin.from('portal_messages').delete().eq('id', u114MessageId)
     if (u122LeadId) await c.admin.from('leads').delete().eq('id', u122LeadId)

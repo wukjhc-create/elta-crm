@@ -389,7 +389,8 @@ export async function getSystemAlerts(
 export async function markAlertRead(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'advarsel ID')
-    const { supabase } = await requireGate('tools.calculations')
+    // Samme rettighed som visningen (getSystemAlerts, D49) — før kunne bogholderi se men ikke markere/afvise
+    const { supabase } = await requireGate('economy.cost_prices')
 
     const { error } = await supabase
       .from('system_alerts')
@@ -406,7 +407,7 @@ export async function markAlertRead(id: string): Promise<ActionResult> {
 export async function dismissAlert(id: string): Promise<ActionResult> {
   try {
     validateUUID(id, 'advarsel ID')
-    const { supabase, userId } = await requireGate('tools.calculations')
+    const { supabase, userId } = await requireGate('economy.cost_prices')
 
     const { error } = await supabase
       .from('system_alerts')
@@ -533,6 +534,9 @@ export async function generateOfferFromCalculation(
   upsell_suggestions: Array<{ title: string; description: string; estimated_cost: number }>
 }>> {
   try {
+    // Rapport-review (S1): returnerer kostpriser/DB — kun med kalkulationsadgang (samme gate som modulet)
+    const __costDenied = await permissionDenied('tools.calculations')
+    if (__costDenied) return { success: false, error: __costDenied }
     const { supabase } = await getAuthenticatedClient()
 
     // Get calculation with rows

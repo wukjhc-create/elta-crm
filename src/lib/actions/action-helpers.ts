@@ -40,14 +40,16 @@ export async function getAuthenticatedClient() {
 /**
  * Sprint 7B-1A — Get authenticated client with role + permission helper.
  *
- * Læser profiles.role for current user. Returnerer fail-safe default
- * 'montør' (mest restriktiv) hvis profile-row mangler eller læsning
- * fejler. Det betyder: aldrig auto-elevation hvis profile ikke findes.
+ * Læser profiles.role for current user. Returnerer en rolle UDEN rettigheder, hvis profile-row mangler, er
+ * deaktiveret eller læsning fejler. Det betyder: aldrig auto-elevation hvis profile ikke findes.
  *
  * Pilot-modus: indtil migration 00108 er kørt, er TS PERMISSIONS-matrix
  * eneste autoritative kilde. Når migration kører, kan denne udvides til
  * at slå op i role_permissions-tabellen via DB-funktion.
  */
+/** Rolle uden nogen rettigheder (findes ikke i permissions-matrixen) — bruges som fail-safe. */
+const NO_ACCESS_ROLE = 'ingen_adgang' as UserRole
+
 export async function getAuthenticatedClientWithRole(): Promise<{
   supabase: Awaited<ReturnType<typeof createClient>>
   userId: string
@@ -58,18 +60,20 @@ export async function getAuthenticatedClientWithRole(): Promise<{
   const userId = await requireAuth()
   const supabase = await createClient()
 
-  let role: UserRole = 'montør' // fail-safe default
+  // Auth-review 2026-10-07: fail-safe = INGEN rettigheder (før 'montør', som har reelle læse-/skriverettigheder) — gælder
+  // manglende profil, læsefejl og deaktiveret profil
+  let role: UserRole = NO_ACCESS_ROLE
   try {
     const { data } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', userId)
       .maybeSingle()
-    if (data?.role) {
+    if (data?.role && data.is_active !== false) {
       role = data.role as UserRole
     }
   } catch {
-    // beholder 'montør' default på læsefejl
+    // beholder ingen-adgang på læsefejl
   }
 
   const has = (perm: Permission) => hasPermission(role, perm)

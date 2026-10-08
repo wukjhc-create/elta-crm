@@ -69,13 +69,13 @@ export function EmployeeEconomyClient({
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="employee-economy-totals">
         <StatCard label="Samlet timer" value={`${formatNumber(totalHours, 2)} t`} />
         <StatCard label="Samlet arbejdssalg" value={formatCurrency(totalSale)} />
-        <StatCard label="Samlet arbejdskost" value={costOpen ? formatCurrency(totalCost) : '••••••'} />
+        <StatCard label="Samlet arbejdskost" value={costOpen ? (totalCost == null ? 'skjult (≤ 1 medarbejder)' : formatCurrency(totalCost)) : '••••••'} />
         <StatCard
           label="Samlet DB"
-          value={costOpen ? formatCurrency(totalDb) : '••••••'}
-          tone={!costOpen ? 'neutral' : totalDb >= 0 ? 'pos' : 'neg'}
+          value={costOpen ? (totalDb == null ? 'skjult' : formatCurrency(totalDb)) : '••••••'}
+          tone={!costOpen || totalDb == null ? 'neutral' : totalDb >= 0 ? 'pos' : 'neg'}
         />
-        <StatCard label="Samlet DB %" value={costOpen ? formatPercent(totalDbPct, 1) : '••••••'} />
+        <StatCard label="Samlet DB %" value={costOpen ? (totalDbPct == null ? 'skjult' : formatPercent(totalDbPct, 1)) : '••••••'} />
       </div>
 
       {/* Tabel */}
