@@ -911,7 +911,16 @@ export async function createCustomerFromEmail(
       sourcePath: a.storagePath,
     }))
 
-  const { data: newLead, error: leadError } = await supabase.from('leads').insert({
+  // Leads-review 2026-10-08 (#3/#4): findes der allerede et lead fra DENNE mail (fx "Opret lead" først), kobles det til
+  // den nye kunde i stedet for et dublet-lead; nye leads får customer_id (pipeline/kundekort finder dem via den)
+  const { data: priorLead } = await supabase.from('leads').select('id, custom_fields')
+    .eq('custom_fields->>source_email_id', emailId).limit(1).maybeSingle()
+  if (priorLead) {
+    const prior = priorLead as { id: string; custom_fields: Record<string, unknown> | null }
+    await supabase.from('leads').update({ custom_fields: { ...(prior.custom_fields ?? {}), customer_id: newCustomer.id } })
+      .eq('id', prior.id)
+  }
+  const { data: newLead, error: leadError } = priorLead ? { data: null, error: null } : await supabase.from('leads').insert({
     company_name: senderName,
     contact_person: senderName,
     email: senderEmail,
@@ -922,6 +931,7 @@ export async function createCustomerFromEmail(
     tags: ['email'],
     custom_fields: {
       source_email_id: emailId,
+      customer_id: newCustomer.id,
       source_email_subject: email.subject,
       source_email_received_at: email.received_at,
       attachments: attachmentRefs,
@@ -955,6 +965,7 @@ export async function createCustomerFromEmail(
         await supabase.from('leads').update({
           custom_fields: {
             source_email_id: emailId,
+            customer_id: newCustomer.id,
             source_email_subject: email.subject,
             source_email_received_at: email.received_at,
             attachments: updatedAttachments,
@@ -999,7 +1010,7 @@ export async function createCustomerFromEmail(
   revalidatePath('/dashboard/mail')
   revalidatePath('/dashboard/customers')
   revalidatePath('/dashboard/leads')
-  return { success: true, customerId: newCustomer.id, leadId: newLead?.id, customerName: senderName }
+  return { success: true, customerId: newCustomer.id, leadId: newLead?.id ?? (priorLead as { id: string } | null)?.id, customerName: senderName }
 }
 
 // =====================================================

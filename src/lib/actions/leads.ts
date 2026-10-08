@@ -692,7 +692,12 @@ export async function convertLeadToCustomerAction(leadId: string): Promise<Actio
       created = true
     }
 
-    await supabase.from('leads').update({ custom_fields: { ...cf, customer_id: customerId } }).eq('id', leadId)
+    // Leads-review 2026-10-08 (#7): fejlen blev ignoreret → leadet stod ukoblet, og næste klik oprettede en dublet-kunde
+    const { error: linkLeadErr } = await supabase.from('leads').update({ custom_fields: { ...cf, customer_id: customerId } }).eq('id', leadId)
+    if (linkLeadErr) {
+      logger.error('convertLeadToCustomer: lead ikke koblet til kunden', { error: linkLeadErr, entityId: leadId, metadata: { customerId } })
+      return { success: false, error: 'Kunden er oprettet, men leadet kunne ikke kobles — prøv igen (kunden genbruges via e-mail)' }
+    }
     // N77: kildemailen (fx webhenvendelsen) kobles til kunden, så den står i kundens mailhistorik og ikke længere tæller
     // som "uden kunde". Kun en ukoblet mail, kun med indbakke-adgang; best-effort (konverteringen lykkes uanset).
     if (typeof cf.source_email_id === 'string' && hasPermission('inbox.view')) {
