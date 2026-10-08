@@ -24,6 +24,7 @@ import type {
 import { PARTNER_DOCUMENT_TYPES } from '@/types/partner-portal.types'
 import type { ActionResult } from '@/types/common.types'
 import { logger } from '@/lib/utils/logger'
+import { isFuldmagtDocument } from '@/lib/documents/is-fuldmagt'
 
 // =====================================================
 // Partner Token Management (for employees)
@@ -323,7 +324,8 @@ export async function getPartnerDocuments(
     }
 
     const { getSafeDocumentDescription } = await import('@/lib/documents/display-description')
-    const docs: PartnerDocument[] = (data || []).map((d) => ({
+    // S1-review 2026-10-08: fuldmagter (CPR + underskrift) udleveres aldrig til partneren (som i kundeportalen)
+    const docs: PartnerDocument[] = (data || []).filter((d) => !isFuldmagtDocument(d)).map((d) => ({
       id: d.id as string,
       title: d.title as string,
       description: getSafeDocumentDescription(d),

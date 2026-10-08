@@ -48,6 +48,7 @@ import {
 } from '@/types/offers.types'
 import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
 import { isBookedCustomerBesigtigelse, isPortalBesigtigelseRequest } from '@/lib/tasks/besigtigelse-task'
+import { isFuldmagtDocument } from '@/lib/documents/is-fuldmagt'
 
 // =====================================================
 // Portal Token Management (for employees)
@@ -1780,11 +1781,7 @@ export async function getPortalDocuments(
     // S1 (portal-review 2026-10-07): fuldmagter vises KUN i fuldmagt-sektionen (getPortalFuldmagter, med
     // underskriver-tjek). Her lå den underskrevne fuldmagt-PDF (CPR + underskrift) også — på kortet, hvor den blev
     // oprettet, ofte betalerens/partnerens, ikke anlægsejerens.
-    const isFuldmagt = (d: { document_type: string | null; description: string | null }) => {
-      if (d.document_type !== 'contract') return false
-      try { return (JSON.parse(d.description || '{}') as { type?: string }).type === 'fuldmagt' } catch { return false }
-    }
-    const visible = (data ?? []).filter((d) => !isFuldmagt(d as { document_type: string | null; description: string | null }))
+    const visible = (data ?? []).filter((d) => !isFuldmagtDocument(d as { document_type: string | null; description: string | null }))
 
     // Phase β.2.3: lazy-refresh file_url via signed-URL helper for hver
     // row der har storage_path. Sikrer at portalen virker baade foer og

@@ -437,6 +437,41 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'partner-fuldmagt-leak-check') {
+    // S1 (storage-review 2026-10-08): partneren (betaler på sagen) må hverken se eller hente slutkundens fuldmagt-PDF;
+    // almindelige kontrakter/tilbud på sagen ses stadig. Rydder op. Ingen mail.
+    const { getPartnerDocuments } = await import('../../src/lib/actions/partner-portal')
+    const { GET } = await import('../../src/app/api/partner/documents/route')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const mk = async (tag: string) => ((await admin.from('customers').insert({ customer_number: `PF${tag}-${stamp}`, company_name: `[HARNESS] pf ${tag} ${stamp}`, contact_person: tag, email: `pf${tag.toLowerCase()}-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const partner = await mk('P'), end = await mk('E')
+    const tok = randomBytes(32).toString('hex')
+    const caseId = ((await admin.from('service_cases').insert({ case_number: `SVC-5${String(stamp).slice(-6)}`, customer_id: partner, payer_customer_id: partner, end_customer_id: end, title: '[HARNESS] partner', status: 'new', created_by: owner }).select('id').single()).data as { id: string }).id
+    try {
+      await admin.from('partner_access_tokens').insert({ partner_customer_id: partner, token: tok, email: `pfp-${stamp}@harness.test`, is_active: true, created_by: owner })
+      const fm = JSON.stringify({ type: 'fuldmagt', status: 'signed', foedselsdato_cvr: 'HARNESS-CPR' })
+      const { data: d1 } = await admin.from('customer_documents').insert({ customer_id: partner, service_case_id: caseId, title: 'Fuldmagt [HARNESS]', description: fm, document_type: 'contract', file_url: '', storage_path: `harness/${stamp}-fm.pdf`, file_name: 'fuldmagt.pdf', mime_type: 'application/pdf' }).select('id').single()
+      await admin.from('customer_documents').insert({ customer_id: partner, service_case_id: caseId, title: 'Kontrakt [HARNESS]', description: 'almindelig', document_type: 'contract', file_url: '', storage_path: `harness/${stamp}-k.pdf`, file_name: 'kontrakt.pdf', mime_type: 'application/pdf' })
+      const list = await getPartnerDocuments(tok)
+      const titles = (list.success ? list.data ?? [] : []).map((x) => x.title)
+      check('partner-listen indeholder IKKE fuldmagten', list.success && !titles.includes('Fuldmagt [HARNESS]'), JSON.stringify(titles))
+      check('almindelig kontrakt ses stadig', titles.includes('Kontrakt [HARNESS]'))
+      const res = await GET(new Request(`http://localhost/api/partner/documents?token=${tok}&documentId=${(d1 as { id: string }).id}`) as never)
+      check('download af fuldmagt via partner-route → 404', res.status === 404, `status=${res.status}`)
+    } finally {
+      await admin.from('customer_documents').delete().eq('service_case_id', caseId)
+      await admin.from('partner_access_tokens').delete().eq('partner_customer_id', partner)
+      await admin.from('service_cases').delete().eq('id', caseId)
+      await admin.from('customers').delete().in('id', [partner, end])
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ partner-fuldmagt-læk lukket')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'portal-fuldmagt-leak-check') {
     // S1 (portal-review 2026-10-07): fuldmagt oprettet på betalerens kort (A) for en sag hvor B er anlægsejer.
     // B (tiltænkt underskriver) skal se CPR/underskrift/PDF; A må KUN se status — hverken i fuldmagt-sektionen eller

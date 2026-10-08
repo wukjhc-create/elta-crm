@@ -6,6 +6,7 @@ import { validatePartnerToken } from '@/lib/actions/partner-portal'
 import { PARTNER_DOCUMENT_TYPES } from '@/types/partner-portal.types'
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { logger } from '@/lib/utils/logger'
+import { isFuldmagtDocument } from '@/lib/documents/is-fuldmagt'
 
 /**
  * Partner-portal dokument-download — token-baseret auth (ingen bruger-session).
@@ -42,13 +43,14 @@ export async function GET(request: NextRequest) {
     // og være en kunde-vendt type. !inner ekskluderer rækker uden sag.
     const { data: doc, error } = await supabase
       .from('customer_documents')
-      .select('id, file_name, storage_path, document_type, service_cases!inner(payer_customer_id)')
+      .select('id, file_name, storage_path, document_type, description, service_cases!inner(payer_customer_id)')
       .eq('id', documentId)
       .eq('service_cases.payer_customer_id', partnerCustomerId)
       .in('document_type', PARTNER_DOCUMENT_TYPES as unknown as string[])
       .maybeSingle()
 
-    if (error || !doc || !doc.storage_path) {
+    // S1-review 2026-10-08: fuldmagt-PDF'er (CPR + underskrift) kan aldrig hentes via partnerportalen
+    if (error || !doc || !doc.storage_path || isFuldmagtDocument(doc as { document_type: string | null; description: string | null })) {
       return NextResponse.json({ error: 'Dokument ikke fundet' }, { status: 404 })
     }
 
