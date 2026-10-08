@@ -560,6 +560,31 @@ export async function createCreditNoteForInvoice(
     }
   }
 
+  // Økonomi-review 2026-10-08 (#4): to samtidige kreditnotaer læste begge samme "resterende" og krediterede tilsammen
+  // op til 200 %. Efter indsættelse summeres originalens kreditnotaer i oprettelsesrækkefølge (deterministisk for alle
+  // samtidige kald); bringer DENNE kreditnota summen over originalens beløb, fjernes den igen.
+  const { data: allCredits } = await supabase
+    .from('invoices')
+    .select('id, total_amount')
+    .eq('credit_of_invoice_id', original.id)
+    .eq('invoice_type', 'credit')
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+  let cumulative = 0
+  let overCredited = false
+  for (const c of (allCredits ?? []) as Array<{ id: string; total_amount: number | string | null }>) {
+    cumulative = r2(cumulative + Math.abs(Number(c.total_amount) || 0))
+    if (c.id === header.id) { overCredited = cumulative > r2(origTotalExVat) + 0.01; break }
+  }
+  if (overCredited) {
+    await supabase.from('invoice_lines').delete().eq('invoice_id', header.id)
+    await supabase.from('invoices').delete().eq('id', header.id)
+    return {
+      ...empty,
+      message: 'Fakturaen er netop krediteret i en anden handling — genindlæs og se det resterende beløb',
+    }
+  }
+
   // ---- Audit-trail i invoice_predecessors junction (genbrug fra mig 00106) ----
   // Best-effort. Schema fra 00106:
   //   invoice_id              = kreditnota

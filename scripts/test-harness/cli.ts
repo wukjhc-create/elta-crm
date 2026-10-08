@@ -2361,6 +2361,35 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'credit-race-check') {
+    // Økonomi-review #4: to samtidige fulde kreditnotaer → højst 100 % krediteret. Kun kladder; ingen mail/eksport.
+    const { createCreditNoteForInvoice } = await import('../../src/lib/services/invoice-credit')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `CR-${stamp}`, company_name: `[HARNESS] cr ${stamp}`, contact_person: 'X', email: `cr-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const { data: inv, error } = await admin.from('invoices').insert({ invoice_number: `H-CR-${stamp}`, customer_id: cust, status: 'sent', payment_status: 'pending', total_amount: 800, tax_amount: 200, final_amount: 1000, amount_paid: 0, currency: 'DKK', reminder_count: 0 }).select('id').single()
+    if (error) throw new Error(error.message)
+    const origId = (inv as { id: string }).id
+    await admin.from('invoice_lines').insert({ invoice_id: origId, position: 1, description: 'harness', quantity: 1, unit: 'stk', unit_price: 800, total_price: 800 })
+    try {
+      const rs = await Promise.all([1, 2, 3].map(() => createCreditNoteForInvoice({ invoice_id: origId, credit_type: 'full', reason: 'harness race' }, owner)))
+      const { data: cr } = await admin.from('invoices').select('total_amount').eq('credit_of_invoice_id', origId)
+      const total = ((cr ?? []) as Array<{ total_amount: number }>).reduce((a, c) => a + Math.abs(Number(c.total_amount)), 0)
+      check('3 samtidige fulde kreditnotaer → præcis 800 krediteret', total === 800 && rs.filter((r) => r.ok).length === 1, `krediteret=${total} ok=${rs.filter((r) => r.ok).length} ${rs.map((r) => r.message).join(' | ').slice(0, 200)}`)
+    } finally {
+      const { data: cr } = await admin.from('invoices').select('id').eq('credit_of_invoice_id', origId)
+      const crIds = ((cr ?? []) as Array<{ id: string }>).map((c) => c.id)
+      if (crIds.length) { await admin.from('invoice_predecessors').delete().in('invoice_id', crIds); await admin.from('invoice_lines').delete().in('invoice_id', crIds); await admin.from('invoices').delete().in('id', crIds) }
+      await admin.from('invoice_lines').delete().eq('invoice_id', origId)
+      await admin.from('invoices').delete().eq('id', origId)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ kreditnota-race ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'assistant-voice-check') {
     // STAGING (T11): talebesked → transskription → samme kommandomotor. Fil-hentning, transskription og Telegram-
     // transport er test-adaptere (intet live, ingen AI-kald). Ukendt chat/flag fra/for lang → intet hentes.
