@@ -784,6 +784,8 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     await logReminder(invoiceId, null, 'skipped', null, 'no due_date')
     return { invoiceId, status: 'skipped', level: null, reason: 'no due_date' }
   }
+  // R-MAIL-B #8: et krav uden afsendelse (kørslen blev afbrudt mellem krav og mail) må ikke forbruge et rykkerniveau
+  await reconcileOrphanReminderClaim(supabase, invoice)
   // R-MAIL-B #3: rykkeren gælder det UDESTÅENDE (delbetaling/delkreditering); intet udestående → ingen rykker
   const outstandingAmount = (await outstandingByInvoice(supabase, [invoice])).get(invoice.id) ?? 0
   if (outstandingAmount <= 0.5) {
@@ -946,7 +948,7 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
       .update({ reminder_count: prevCount, last_reminder_at: invoice.last_reminder_at ?? null })
       .eq('id', invoiceId)
       .eq('reminder_count', prevCount + 1)
-    await logReminder(invoiceId, level, 'failed', recipient, null, result.error || 'send failed')
+    await logReminder(invoiceId, level, 'failed', recipient, result.uncertain ? REMINDER_UNCERTAIN_REASON : null, result.error || 'send failed')
     await logMailRoute(route, 'failed', { invoiceId, level, error: result.error })
     return { invoiceId, status: 'failed', level, error: result.error }
   }
@@ -964,6 +966,37 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
 function daysBetween(from: Date, to: Date): number {
   const ms = to.getTime() - from.getTime()
   return Math.floor(ms / (1000 * 60 * 60 * 24))
+}
+
+/** Logårsag for en afsendelse med ukendt udfald (Graph-timeout): niveauet regnes som brugt — ingen genafsendelse. */
+const REMINDER_UNCERTAIN_REASON = 'uncertain_timeout'
+/** Et krav ældre end dette uden log-række regnes som afbrudt (ikke en kørsel i gang) */
+const REMINDER_CLAIM_STALE_MS = 15 * 60_000
+
+/**
+ * R-MAIL-B #8 (Henrik 2026-10-08): reminder_count hæves FØR mailen (krav mod dobbelt-send). Afbrydes kørslen før
+ * logReminder, er niveauet brugt uden at kunden fik noget. Brugte niveauer = log-rækker 'sent' + 'failed' med ukendt
+ * udfald (de må ikke sendes igen). Er reminder_count højere, og kravet er ældre end 15 min, rettes tælleren betinget
+ * tilbage (og fakturaobjektet opdateres i hukommelsen), så niveauet kan sendes ved næste kørsel. Ingen skemaændring.
+ */
+async function reconcileOrphanReminderClaim(supabase: ReturnType<typeof createAdminClient>, invoice: InvoiceRow): Promise<void> {
+  const claimed = invoice.reminder_count ?? 0
+  if (claimed <= 0 || !invoice.last_reminder_at) return
+  if (Date.now() - new Date(invoice.last_reminder_at).getTime() < REMINDER_CLAIM_STALE_MS) return
+  const { data: logs } = await supabase.from('invoice_reminder_log').select('status, reason, created_at')
+    .eq('invoice_id', invoice.id).in('status', ['sent', 'failed']).order('created_at', { ascending: false })
+  const used = ((logs ?? []) as Array<{ status: string; reason: string | null; created_at: string }>)
+    .filter((l) => l.status === 'sent' || l.reason === REMINDER_UNCERTAIN_REASON)
+  if (used.length >= claimed) return
+  const restoredAt = used[0]?.created_at ?? null
+  const { data: fixed } = await supabase.from('invoices')
+    .update({ reminder_count: used.length, last_reminder_at: restoredAt })
+    .eq('id', invoice.id).eq('reminder_count', claimed).select('id').maybeSingle()
+  if (fixed) {
+    logger.warn('invoice reminder: afbrudt krav genoprettet', { entityId: invoice.id, metadata: { from: claimed, to: used.length } })
+    invoice.reminder_count = used.length
+    invoice.last_reminder_at = restoredAt
+  }
 }
 
 async function logReminder(

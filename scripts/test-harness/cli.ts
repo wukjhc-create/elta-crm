@@ -591,6 +591,43 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'reminder-reconcile-check') {
+    // R-MAIL-B #8: afbrudt rykker-krav (reminder_count hævet, ingen log) genoprettes efter 15 min; 'sent' og ukendt
+    // udfald (uncertain_timeout) tæller som brugt; friskt krav røres ikke. Kunden har en .local-pladsholder → afsendelse
+    // afvises lokalt efter afstemningen (ingen mail sendes).
+    const { sendInvoiceReminder } = await import('../../src/lib/services/invoices')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: cu, error: cErr } = await admin.from('customers').insert({ customer_number: `RR-${stamp}`, company_name: `[HARNESS] rr ${stamp}`, contact_person: 'X', email: `auto+rr${stamp}@elta-crm.local`, created_by: owner }).select('id').single()
+    if (cErr) throw new Error(`kunde: ${cErr.message}`)
+    const custId = (cu as { id: string }).id
+    const invIds: string[] = []
+    const mk = async (tag: string, claimAgoMin: number, logRow: null | { status: string; reason: string | null }) => {
+      const due = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
+      const { data, error } = await admin.from('invoices').insert({ invoice_number: `H-RR-${tag}-${stamp}`, customer_id: custId, status: 'sent', sent_at: new Date(Date.now() - 40 * 86_400_000).toISOString(),
+        due_date: due, total_amount: 80, tax_amount: 20, final_amount: 100, reminder_count: 1, last_reminder_at: new Date(Date.now() - claimAgoMin * 60_000).toISOString() }).select('id').single()
+      if (error) throw new Error(`faktura ${tag}: ${error.message}`)
+      const id = (data as { id: string }).id
+      invIds.push(id)
+      if (logRow) await admin.from('invoice_reminder_log').insert({ invoice_id: id, level: 1, status: logRow.status, reason: logRow.reason })
+      await sendInvoiceReminder(id).catch(() => undefined)
+      return ((await admin.from('invoices').select('reminder_count').eq('id', id).single()).data as { reminder_count: number }).reminder_count
+    }
+    try {
+      check('afbrudt krav (1 t, ingen log) → niveau genoprettet (0)', (await mk('orphan', 60, null)) === 0)
+      check("krav med 'sent'-log bevares (1)", (await mk('sent', 60, { status: 'sent', reason: null })) === 1)
+      check('krav med ukendt udfald (uncertain_timeout) bevares — ingen genafsendelse (1)', (await mk('uncertain', 60, { status: 'failed', reason: 'uncertain_timeout' })) === 1)
+      check('frisk krav (5 min — kørsel i gang) røres ikke (1)', (await mk('fresh', 5, null)) === 1)
+    } finally {
+      for (const id of invIds) { await admin.from('invoice_reminder_log').delete().eq('invoice_id', id); await admin.from('invoices').delete().eq('id', id) }
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ rykker-afstemning ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'automation-claim-check') {
     // R-MAIL-B #11: regelmotoren kræver (rule, entitet) FØR handlingen. 3 samtidige hændelser → præcis én udførelse;
     // fejlende handling → 'failed' (pladsen frigives). Handling create_task (ingen mail). Unik trigger → kun testreglen.
