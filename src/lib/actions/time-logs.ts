@@ -329,7 +329,7 @@ export async function updateTimeLog(
     // Read current row + check invoice lock.
     const { data: cur, error: readErr } = await supabase
       .from('time_logs')
-      .select('id, work_order_id, employee_id, start_time, end_time, invoice_line_id, pay_rate_type')
+      .select('id, work_order_id, employee_id, start_time, end_time, invoice_line_id, pay_rate_type, employee_rate_id, approval_status')
       .eq('id', timeLogId)
       .maybeSingle()
     if (readErr || !cur) return { success: false, error: 'Timeregistrering ikke fundet' }
@@ -412,6 +412,12 @@ export async function updateTimeLog(
       patch.pay_rate_type = input.pay_rate_type
     }
     if (input.employee_rate_id !== undefined) {
+      // Mail-/planlægningsreview 2026-10-08 (#5): godkendelses-triggeren (00185) nulstiller ikke godkendelsen ved
+      // satsskift → en godkendt time kunne flyttes til en dyrere sats uden ny godkendelse. Uden godkenderret: afvis.
+      if ((input.employee_rate_id ?? null) !== ((cur as { employee_rate_id?: string | null }).employee_rate_id ?? null)
+        && (cur as { approval_status?: string }).approval_status !== 'pending' && !hasPermission('time_logs.approve')) {
+        return { success: false, error: 'Satsen kan ikke ændres på godkendte/afviste timer — bed en godkender om at rette den' }
+      }
       if (input.employee_rate_id && !(await rateBelongsToEmployee(createAdminClient(), input.employee_rate_id, cur.employee_id as string))) {
         return { success: false, error: 'Satsen hører ikke til medarbejderen eller er inaktiv' }
       }
