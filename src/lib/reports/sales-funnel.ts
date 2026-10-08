@@ -1,10 +1,11 @@
 /**
  * N53: salgstragt pr. måned (ren logik, ingen I/O). Måned = dansk kalendermåned (Europe/Copenhagen).
  *   nye kunder → tilbud oprettet → sendt → accepteret (antal + værdi) → faktureret ekskl. moms
- * Forslag (is_proposal) tæller ikke som tilbud; kladde-/annullerede fakturaer og kreditnotaer tæller ikke som faktureret
- * (kreditnotaer trækkes fra).
+ * Forslag (is_proposal) tæller ikke som tilbud; kun udstedte fakturaer tæller (som summarizeCaseInvoices: annullerede
+ * originaler tæller med, deres kreditnotaer trækkes fra).
  */
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { ISSUED_INVOICE_STATUSES } from '@/lib/invoices/net-invoiced'
 
 export interface FunnelOffer { created_at: string; sent_at: string | null; accepted_at: string | null; final_amount: number | string | null; tax_amount?: number | string | null; is_proposal?: boolean | null }
 export interface FunnelInvoice { created_at: string; sent_at?: string | null; status: string | null; invoice_type: string | null; voided_at: string | null; total_amount: number | string | null }
@@ -64,10 +65,13 @@ export function computeSalesFunnel(input: {
     bump(o.accepted_at, (x) => { x.offers_accepted += 1; x.accepted_value += exVat })
   }
   for (const i of input.invoices) {
-    if (i.voided_at || (i.status ?? 'draft') === 'draft') continue
-    const amount = Math.abs(Number(i.total_amount ?? 0) || 0)
+    // Leads-review 2026-10-08: samme regel som summarizeCaseInvoices — kun udstedte (sendt/betalt) tæller, OGSÅ en
+    // annulleret original (dens kreditnota udligner den; før blev originalen sprunget over OG kreditnotaen trukket fra
+    // = dobbelt fradrag). Kreditnota trækkes fra uanset fortegn; en negativ slutfaktura beholder sit fortegn.
+    if (!ISSUED_INVOICE_STATUSES.has(i.status ?? '')) continue
+    const raw = Number(i.total_amount ?? 0) || 0
     // udstedelsesmåned (sent_at) — en kladde fra september udstedt i oktober hører til oktober (kode-review)
-    bump(i.sent_at || i.created_at, (x) => { x.invoiced_ex_vat += i.invoice_type === 'credit' ? -amount : amount })
+    bump(i.sent_at || i.created_at, (x) => { x.invoiced_ex_vat += i.invoice_type === 'credit' ? -Math.abs(raw) : raw })
   }
   const months = input.months.map((m) => {
     const x = map.get(m)!
