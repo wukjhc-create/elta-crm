@@ -2453,7 +2453,8 @@ async function main() {
     const sp = ((await admin.from('supplier_products').select('id, supplier_id, cost_price').gt('cost_price', 0).limit(1)).data as Array<{ id: string; supplier_id: string; cost_price: number }>)[0]
     const cust = ((await admin.from('customers').insert({ customer_number: `CP-${stamp}`, company_name: `[HARNESS] cp ${stamp}`, contact_person: 'X', email: `cp-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
     try {
-      await admin.from('customer_supplier_prices').insert({ customer_id: cust, supplier_id: sp.supplier_id, discount_percentage: 10, custom_margin_percentage: 20, // uden avance ignoreres rabatten af DB-funktionen (record IS NOT NULL-fejl — rettes i 00206, BLOCKED_APPROVAL) is_active: true, created_by: owner })
+      // uden egen avance ignorerer DB-funktionen rabatten (record IS NOT NULL-fejl — rettes i 00206, BLOCKED_APPROVAL)
+      await admin.from('customer_supplier_prices').insert({ customer_id: cust, supplier_id: sp.supplier_id, discount_percentage: 10, custom_margin_percentage: 20, is_active: true, created_by: owner })
       const { data, error } = await admin.rpc('get_customer_product_price', { p_customer_id: cust, p_supplier_product_id: sp.id })
       const eff = Number((data as Array<{ effective_cost_price: number }> | null)?.[0]?.effective_cost_price)
       const ok = !error && Math.abs(eff - Number(sp.cost_price) * 0.9) < 0.02
