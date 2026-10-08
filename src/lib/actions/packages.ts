@@ -35,6 +35,7 @@ async function requireGate(permission: Permission) {
 import { DEFAULT_PAGE_SIZE, CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { offerEditLockReason } from '@/lib/offers/edit-lock'
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -643,6 +644,9 @@ export async function insertPackageIntoOffer(
     // tilbuddet via sin egen klient (RLS), så scope bevares.
     const { data: visibleOffer } = await supabase.from('offers').select('id').eq('id', offerId).maybeSingle()
     if (!visibleOffer) return { success: false, error: 'Tilbud ikke fundet' }
+    // Leverandør-review 2026-10-08 (#4): kun kladder kan redigeres (sendt/accepteret pris må ikke ændres via pakke)
+    const lock = await offerEditLockReason(supabase, offerId)
+    if (lock) return { success: false, error: lock }
     const { data, error } = await createAdminClient()
       .rpc('insert_package_into_offer', {
         p_package_id: packageId,

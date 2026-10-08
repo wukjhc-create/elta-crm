@@ -345,7 +345,8 @@ export async function executeImport(
                 // prishistorik) → kun felter med en værdi i filen opdateres
                 .update(withoutNulls({
                   supplier_name: row.parsed.name,
-                  cost_price: row.parsed.cost_price,
+                  // Leverandør-review 2026-10-08 (#6): kost ≤ 0 = ingen prisaftale → feltet udelades (ingen −100 %-historik)
+                  cost_price: row.parsed.cost_price != null && row.parsed.cost_price > 0 ? row.parsed.cost_price : null,
                   list_price: row.parsed.list_price,
                   unit: row.parsed.unit,
                   category: row.parsed.category,
@@ -368,7 +369,7 @@ export async function executeImport(
               const row = toUpdate[j]
               const existingPrice = existingPriceMap.get(row.parsed.sku)
 
-              if (existingPrice && row.parsed.cost_price !== null) {
+              if (existingPrice && row.parsed.cost_price !== null && row.parsed.cost_price > 0) {
                 const oldPrice = existingPrice.cost
                 const newPrice = row.parsed.cost_price
 

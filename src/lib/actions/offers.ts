@@ -1774,8 +1774,9 @@ export async function searchSupplierProductsForOffer(
             let productId: string
             if (existing) {
               productId = existing.id
+              // Leverandør-review 2026-10-08 (#5): 0 = ingen prisaftale hos grossisten — overskriv aldrig en kendt kost med 0
               await sys.from('supplier_products').update({
-                cost_price: lp.costPrice,
+                ...(Number(lp.costPrice) > 0 ? { cost_price: lp.costPrice } : {}),
                 list_price: lp.listPrice,
                 is_available: lp.isAvailable,
                 lead_time_days: lp.leadTimeDays,

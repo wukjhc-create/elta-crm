@@ -425,7 +425,8 @@ async function executeFtpSyncSchedule(
         if (existing) {
           // Update existing product
           const oldCost = existing.cost_price
-          const newCost = row.parsed.cost_price
+          // Leverandør-review 2026-10-08 (#6): kost ≤ 0 = ingen prisaftale → behold kendt kost, ingen historik
+          const newCost = row.parsed.cost_price != null && row.parsed.cost_price > 0 ? row.parsed.cost_price : null
 
           updateFns.push(async () => {
             const { error } = await supabase
