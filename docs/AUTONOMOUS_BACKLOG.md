@@ -13,6 +13,27 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Long-run 2026-10-08 — partner-/offentlige links + leads-tragt (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| P #1/#4 integrations-webhook: rå offer_id/nummer → vilkårligt tilbud; 'draft'/'accepted' via webhook; fejlet auth fyldte integration_logs; ingen hård body-grænse | DONE | `cli.ts integration-webhook-check` 5/5; prod 0 integrationer (`prod-integrations-usage.ts`) |
+| P #2 fuldmagt: samtidige underskrifter overskrev hinanden | DONE — compare-and-set krav ('signing') før PDF, frigives ved fejl, >10 min = afbrudt; 'signing' vises som ventende | `fuldmagt-sign-race-check` 5/5 + `portal-fuldmagt-leak-check` 4/4 |
+| P #3 /api/public/contact uden grænser (nøglen er reelt offentlig) | DONE — 30/t globalt, dublet pr. e-mail 10 min, honeypot, hård body-grænse | `public-contact-limit-check` 4/4 |
+| P #5 bekræftet besigtigelseslink viste PDF/persondata for evigt | DONE — efter udløb kun kvittering | `confirmation-expiry-check` 3/3 |
+| P #6 partner-adgang uden udløb | DONE — standard 365 dage | tsc/gates |
+| L #1 accept markerede ALLE kundens åbne leads vundet; vundet var irreversibelt | DONE — kun tilbuddets lead (uden lead_id: kun ved præcis ét åbent); won → negotiation; betinget statusskift | `lead-pipeline-check` 7/7 |
+| L #9 leads kom aldrig i "Tilbud sendt" | DONE — begge sendeveje | samme |
+| L #2 salgstragt: annulleret original + kreditnota trukket fra to gange | DONE — følger summarizeCaseInvoices | `sales-funnel-test` |
+| L #3/#4 kunde fra mail lavede dublet-lead og leads uden customer_id | DONE | tsc/gates |
+| L #5 noteret opfølgning fjernede ikke leadet fra "uden opfølgning" | DONE — aktivitet rører leads.updated_at | — |
+| L #6 samtidige "Opret lead fra mail" | DONE app-niveau (ældste vinder, egen dublet fjernes). **BLOCKED_APPROVAL**: unikt delvist indeks `leads ((custom_fields->>'source_email_id')) WHERE … IS NOT NULL` (prod-dubletter tjekkes før) | — |
+| L #7 konvertering ignorerede fejl ved kobling | DONE | — |
+| L #8 lead-læsninger uden leads.view (aktivitetsoversigt, global søgning, besked-vælger) | DONE app. Prod: `leads`/`lead_activities` SELECT = `true` for authenticated (`prod-table-select-policies.ts`) → **BLOCKED_APPROVAL**: rolle-scopet SELECT (user_role() IN admin/serviceleder/montør/salg) | — |
+| L #10 dublet-tjek uden telefon | DONE — sidste 8 cifre uanset format | `lead-phone-dupe-probe` |
+| L #11 kundekortet fandt kun leads via e-mail | DONE — også custom_fields.customer_id | — |
+| L #12 relatel-opslag `.limit(5000)` (=1.000) | DONE — side for side | `relatel-lookup` 3/3 |
+| P1 selvregistrering | VENTER Henrik — 2026-10-08 stadig `disable_signup:false` | `prod-auth-signup-status.ts` |
+
 ## Prod-kørsel 2026-10-07 aften (Henrik: 00198/00199/00200+00201/00202 GODKENDT TIL PROD)
 | Migration | Pre | Post | Flow (rollback) |
 |---|---|---|---|
