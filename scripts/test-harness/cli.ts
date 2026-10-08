@@ -2446,6 +2446,38 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'invoice-line-convert-race-check') {
+    // Leverandør-review #2: to samtidige konverteringer af samme linje → præcis én kostrække på sagen
+    const { convertApprovedInvoiceLines } = await import('../../src/lib/services/incoming-invoice-conversion')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `LC-${stamp}`, company_name: `[HARNESS] lc ${stamp}`, contact_person: 'X', email: `lc-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const caseId = ((await admin.from('service_cases').insert({ case_number: `SVC-6${String(stamp).slice(-6)}`, customer_id: cust, title: '[HARNESS] konv', status: 'new', created_by: owner }).select('id').single()).data as { id: string }).id
+    const { data: ii, error: iiErr } = await admin.from('incoming_invoices').insert({ source: 'manual', status: 'approved', matched_case_id: caseId, invoice_number: `H-LC-${stamp}`, currency: 'DKK' }).select('id').single()
+    if (iiErr) throw new Error(iiErr.message)
+    const invId = (ii as { id: string }).id
+    const { data: ln, error: lnErr } = await admin.from('incoming_invoice_lines').insert({ incoming_invoice_id: invId, line_number: 1, description: 'harness kabel', quantity: 2, unit_price: 50, total_price: 100 }).select('id').single()
+    if (lnErr) throw new Error(lnErr.message)
+    const lineId = (ln as { id: string }).id
+    try {
+      await Promise.all([1, 2, 3].map(() => convertApprovedInvoiceLines(invId, owner, [{ lineId, disposition: 'material' }])))
+      const n = (await admin.from('case_materials').select('id', { count: 'exact', head: true }).eq('case_id', caseId)).count ?? 0
+      check('3 samtidige konverteringer → præcis 1 materialerække', n === 1, `rækker=${n}`)
+    } finally {
+      await admin.from('incoming_invoice_lines').update({ converted_case_material_id: null }).eq('id', lineId)
+      await admin.from('case_materials').delete().eq('case_id', caseId)
+      await admin.from('incoming_invoice_audit_log').delete().eq('incoming_invoice_id', invId)
+      await admin.from('incoming_invoice_lines').delete().eq('id', lineId)
+      await admin.from('incoming_invoices').delete().eq('id', invId)
+      await admin.from('service_cases').delete().eq('id', caseId)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ konverterings-race ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'assistant-case-scope-check') {
     // Assistent-review #1: salg ser kun egne sager via assistenten (som i CRM); admin ser alle
     const { runAssistantCommand } = await import('../../src/lib/assistant/run-command')

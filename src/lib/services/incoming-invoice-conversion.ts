@@ -237,7 +237,9 @@ async function runLineConversion(
       }
       // Reverse-link the invoice line. The UNIQUE partial index
       // guards against double conversion.
-      const { error: bindErr } = await supabase
+      // Leverandør-review 2026-10-08 (#2): to samtidige konverteringer oprettede begge en kostrække — bindingen er nu
+      // kravet: kun en endnu ukonverteret linje bindes; taber vi, fjernes vores række igen (ingen dobbelt kost)
+      const { data: boundRows, error: bindErr } = await supabase
         .from('incoming_invoice_lines')
         .update({
           converted_case_material_id: cm.id,
@@ -246,6 +248,14 @@ async function runLineConversion(
         })
         .eq('id', p.lineId)
         .is('converted_case_material_id', null)
+        .is('converted_case_other_cost_id', null)
+        .is('converted_at', null)
+        .select('id')
+      if (!bindErr && (boundRows ?? []).length === 0) {
+        await supabase.from('case_materials').delete().eq('id', cm.id)
+        perLine.push({ lineId: p.lineId, disposition: 'material', ok: true, alreadyConverted: true, message: 'Allerede konverteret (samtidig)' })
+        continue
+      }
       if (bindErr) {
         // Couldn't bind — best effort cleanup of the orphan case_material.
         await supabase.from('case_materials').delete().eq('id', cm.id)
@@ -283,7 +293,7 @@ async function runLineConversion(
         conversionFatal = true
         continue
       }
-      const { error: bindErr } = await supabase
+      const { data: boundOc, error: bindErr } = await supabase
         .from('incoming_invoice_lines')
         .update({
           converted_case_other_cost_id: oc.id,
@@ -292,6 +302,14 @@ async function runLineConversion(
         })
         .eq('id', p.lineId)
         .is('converted_case_other_cost_id', null)
+        .is('converted_case_material_id', null)
+        .is('converted_at', null)
+        .select('id')
+      if (!bindErr && (boundOc ?? []).length === 0) {
+        await supabase.from('case_other_costs').delete().eq('id', oc.id)
+        perLine.push({ lineId: p.lineId, disposition: 'other_cost', ok: true, alreadyConverted: true, message: 'Allerede konverteret (samtidig)' })
+        continue
+      }
       if (bindErr) {
         await supabase.from('case_other_costs').delete().eq('id', oc.id)
         perLine.push({ lineId: p.lineId, disposition: 'other_cost', ok: false, message: bindErr.message })
