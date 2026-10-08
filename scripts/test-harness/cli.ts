@@ -591,6 +591,53 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'integration-webhook-check') {
+    // Partner-review 2026-10-08: integrations-webhook — kun egne external_references, ingen kladde/accept via webhook,
+    // gyldige overgange virker, fejlet godkendelse skriver ikke integration_logs. Route-handleren kaldes direkte.
+    const { POST } = await import('../../src/app/api/integrations/webhook/[integrationId]/route')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const key = `hk-${stamp}-${Math.random().toString(36).slice(2)}`
+    const { data: integ, error: iErr } = await admin.from('integrations').insert({ name: `[HARNESS] webhook ${stamp}`, is_active: true, api_key: key }).select('id').single()
+    if (iErr) throw new Error(`integration: ${iErr.message}`)
+    const integId = (integ as { id: string }).id
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `WH-${stamp}`, company_name: `[HARNESS] wh ${stamp}`, contact_person: 'X', email: `wh-${stamp}@harness.test`, created_by: owner }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const mkOffer = async (tag: string, status: string) => ((await admin.from('offers').insert([{ offer_number: `WH-${tag}-${stamp}`, title: '[HARNESS] webhook', created_by: owner, customer_id: custId, status }]).select('id').single()).data as { id: string }).id
+    const accepted = await mkOffer('acc', 'accepted'), sent = await mkOffer('sent', 'sent'), foreign = await mkOffer('foreign', 'sent')
+    await admin.from('external_references').insert([{ integration_id: integId, entity_type: 'offer', entity_id: accepted, external_id: `ext-acc-${stamp}` },
+      { integration_id: integId, entity_type: 'offer', entity_id: sent, external_id: `ext-sent-${stamp}` }])
+    const call = async (body: Record<string, unknown>, apiKey = key) => {
+      const req = new Request(`http://localhost/api/integrations/webhook/${integId}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': apiKey }, body: JSON.stringify(body) })
+      return POST(req as never, { params: Promise.resolve({ integrationId: integId }) })
+    }
+    const st = async (id: string) => ((await admin.from('offers').select('status').eq('id', id).single()).data as { status: string }).status
+    try {
+      const logsBefore = (await admin.from('integration_logs').select('id', { count: 'exact', head: true }).eq('integration_id', integId)).count ?? 0
+      const bad = await call({ external_id: `ext-sent-${stamp}`, status: 'rejected' }, 'forkert-nøgle')
+      const logsAfter = (await admin.from('integration_logs').select('id', { count: 'exact', head: true }).eq('integration_id', integId)).count ?? 0
+      check('forkert nøgle → 401 og INGEN log-række i DB', bad.status === 401 && logsAfter === logsBefore, `status=${bad.status} logs ${logsBefore}→${logsAfter}`)
+      await call({ offer_number: `WH-foreign-${stamp}`, status: 'rejected' })
+      check('tilbud uden egen external_reference røres ikke (rå offer_number ignoreres)', (await st(foreign)) === 'sent')
+      await call({ external_id: `ext-acc-${stamp}`, status: 'pending' })
+      check("'pending'/kladde kan ikke genåbne accepteret tilbud", (await st(accepted)) === 'accepted')
+      await call({ external_id: `ext-sent-${stamp}`, status: 'accepted' })
+      check("'accepted' via webhook afvises (kræver underskrift)", (await st(sent)) === 'sent')
+      await call({ external_id: `ext-sent-${stamp}`, status: 'declined' })
+      check('gyldig overgang (sendt → afvist) via egen reference virker', (await st(sent)) === 'rejected')
+    } finally {
+      await admin.from('integration_logs').delete().eq('integration_id', integId)
+      await admin.from('external_references').delete().eq('integration_id', integId)
+      await admin.from('offers').delete().in('id', [accepted, sent, foreign])
+      await admin.from('integrations').delete().eq('id', integId)
+      await admin.from('customers').delete().eq('id', custId)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ webhook-sikring ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'reminder-reconcile-check') {
     // R-MAIL-B #8: afbrudt rykker-krav (reminder_count hævet, ingen log) genoprettes efter 15 min; 'sent' og ukendt
     // udfald (uncertain_timeout) tæller som brugt; friskt krav røres ikke. Kunden har en .local-pladsholder → afsendelse
