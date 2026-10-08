@@ -101,7 +101,7 @@ export async function getCustomerDocuments(
       try {
         const desc = JSON.parse(doc.description || '{}')
         if (desc.type === 'fuldmagt') {
-          fuldmagt_status = desc.status || 'pending'
+          fuldmagt_status = desc.status === 'signed' ? 'signed' : 'pending' // 'signing' = igangværende krav
           fuldmagt_signed_at = desc.signed_at || null
         }
       } catch { /* not JSON */ }

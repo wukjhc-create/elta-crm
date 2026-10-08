@@ -591,6 +591,56 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'fuldmagt-sign-race-check') {
+    // Partner-review #2: to samtidige underskrifter → kun ét krav; fejl før gem giver kravet tilbage; en igangværende
+    // underskrivning afviser. PDF-kaldet stubbes (500 efter 300 ms) → ingen PDF, ingen upload, ingen mail.
+    const { submitSignedFuldmagt, getPortalFuldmagter } = await import('../../src/lib/actions/fuldmagt')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input instanceof Request ? input.url : input).includes('/api/fuldmagt/pdf')) {
+        await new Promise((r) => setTimeout(r, 300))
+        return new Response('stub', { status: 500 })
+      }
+      return realFetch(input, init)
+    }) as typeof fetch
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `FS-${stamp}`, company_name: `[HARNESS] fm-race ${stamp}`, contact_person: 'X', email: `fs-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const tok = randomBytes(32).toString('hex')
+    try {
+      await admin.from('portal_access_tokens').insert({ customer_id: cust, token: tok, email: `fs-${stamp}@harness.test`, is_active: true, created_by: owner })
+      const origDesc = JSON.stringify({ type: 'fuldmagt', status: 'pending', order_number: `H-${stamp}`, customer_name: 'X', expected_signer_customer_id: cust })
+      const { data: d } = await admin.from('customer_documents').insert({ customer_id: cust, title: 'Fuldmagt [HARNESS]', description: origDesc, document_type: 'contract', file_url: 'harness://none', file_name: 'fuldmagt.pdf', mime_type: 'application/pdf' }).select('id').single()
+      const docId = (d as { id: string }).id
+      const input = { foedselsdato_cvr: 'HARNESS', marketing_samtykke: false, signature_data: 'data:image/png;base64,HARNESS', signer_name: 'X' }
+      const [r1, r2] = await Promise.all([submitSignedFuldmagt(tok, docId, input), submitSignedFuldmagt(tok, docId, input)])
+      const errs = [r1, r2].map((r) => (r.success ? 'OK' : r.error ?? ''))
+      check('samtidige underskrifter: præcis én får kravet (den anden afvises)', errs.filter((e) => e.includes('ved at blive underskrevet')).length === 1 && errs.some((e) => e === 'Kunne ikke generere PDF'), JSON.stringify(errs))
+      const after = ((await admin.from('customer_documents').select('description').eq('id', docId).single()).data as { description: string }).description
+      check('PDF-fejl → kravet frigives (beskrivelsen er uændret)', after === origDesc)
+      const fresh = JSON.stringify({ ...JSON.parse(origDesc), status: 'signing', signing_started_at: new Date().toISOString() })
+      await admin.from('customer_documents').update({ description: fresh }).eq('id', docId)
+      const r3 = await submitSignedFuldmagt(tok, docId, input)
+      check('igangværende underskrivning (<10 min) afviser ny', !r3.success && (r3.error ?? '').includes('ved at blive underskrevet'), r3.success ? 'OK' : r3.error)
+      const pf = await getPortalFuldmagter(tok)
+      check("portalen viser 'signing' som ventende", pf.success && pf.data?.[0]?.status === 'pending', JSON.stringify(pf.data?.[0]?.status))
+      const stale = JSON.stringify({ ...JSON.parse(origDesc), status: 'signing', signing_started_at: new Date(Date.now() - 11 * 60_000).toISOString() })
+      await admin.from('customer_documents').update({ description: stale }).eq('id', docId)
+      const r4 = await submitSignedFuldmagt(tok, docId, input)
+      check('afbrudt krav (>10 min) kan genoptages', !r4.success && r4.error === 'Kunne ikke generere PDF', r4.success ? 'OK' : r4.error)
+    } finally {
+      globalThis.fetch = realFetch
+      await admin.from('customer_documents').delete().eq('customer_id', cust)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ fuldmagt-underskrift atomisk')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'integration-webhook-check') {
     // Partner-review 2026-10-08: integrations-webhook — kun egne external_references, ingen kladde/accept via webhook,
     // gyldige overgange virker, fejlet godkendelse skriver ikke integration_logs. Route-handleren kaldes direkte.
