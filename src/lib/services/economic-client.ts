@@ -883,7 +883,14 @@ export async function pushSupplierInvoiceToEconomic(
   if (inv.status !== 'approved') {
     return { ok: false, status: 'failed', error: `incoming_invoice is ${inv.status}, expected approved` }
   }
-  if (inv.external_invoice_id && inv.external_provider === 'economic') {
+  // Leverandør-review 2026-10-08 (#1): krav før bogføring (som kundefakturaer) — automatisk push ved godkendelse +
+  // klik på "Bogfør" (eller dobbeltklik) bogførte samme omkostning to gange
+  const supPending = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith(EXPORT_CLAIM_PREFIX)
+    ? inv.external_invoice_id : null
+  if (supPending && Date.now() - Number(supPending.slice(EXPORT_CLAIM_PREFIX.length)) < EXPORT_CLAIM_STALE_MS) {
+    return { ok: false, status: 'skipped', reason: 'export in progress' }
+  }
+  if (inv.external_invoice_id && !supPending && inv.external_provider === 'economic') {
     await logAttempt({
       entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'skip',
       status: 'skipped', external_id: inv.external_invoice_id, error_message: 'already linked',
@@ -938,13 +945,29 @@ export async function pushSupplierInvoiceToEconomic(
   }
   const body = draft.body
 
-  const res = await economicFetch<{ draftSupplierInvoiceNumber: number }>(
-    ready,
-    '/supplier-invoices/drafts',
-    { method: 'POST', body }
-  )
+  const supClaimValue = `${EXPORT_CLAIM_PREFIX}${Date.now()}`
+  const supClaimQ = supabase.from('incoming_invoices').update({ external_invoice_id: supClaimValue }).eq('id', incomingInvoiceId).eq('status', 'approved')
+  const { data: supClaimed } = await (supPending ? supClaimQ.eq('external_invoice_id', supPending) : supClaimQ.is('external_invoice_id', null)).select('id')
+  if (!supClaimed || supClaimed.length !== 1) {
+    await logAttempt({ entity_type: 'invoice', entity_id: incomingInvoiceId, action: 'skip', status: 'skipped', error_message: 'export claimed by another run' })
+    return { ok: false, status: 'skipped', reason: 'export in progress' }
+  }
+  const releaseSupClaim = () => supabase.from('incoming_invoices').update({ external_invoice_id: null }).eq('id', incomingInvoiceId).eq('external_invoice_id', supClaimValue)
+
+  let res: Awaited<ReturnType<typeof economicFetch<{ draftSupplierInvoiceNumber: number }>>>
+  try {
+    res = await economicFetch<{ draftSupplierInvoiceNumber: number }>(
+      ready,
+      '/supplier-invoices/drafts',
+      { method: 'POST', body }
+    )
+  } catch (err) {
+    await releaseSupClaim()
+    throw err
+  }
 
   if (!res.ok || !res.data?.draftSupplierInvoiceNumber) {
+    await releaseSupClaim()
     await logAttempt({
       entity_type: 'invoice',
       entity_id: incomingInvoiceId,

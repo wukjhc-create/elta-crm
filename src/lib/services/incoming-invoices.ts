@@ -584,10 +584,16 @@ export async function parseAndMatch(invoiceId: string, hints: StructuredHints = 
     status: ('awaiting_approval' as const),    // never auto-approved
   }
 
-  const { error: updErr } = await supabase
+  // Leverandør-review 2026-10-08 (#8): en samtidig godkendelse/bogføring må ikke sendes tilbage til "afventer"
+  const { data: updRows, error: updErr } = await supabase
     .from('incoming_invoices')
     .update(patch)
     .eq('id', invoiceId)
+    .not('status', 'in', '(approved,posted,rejected,cancelled)')
+    .select('id')
+  if (!updErr && (updRows ?? []).length === 0) {
+    return { parsed: true, matched: false, duplicate: false, message: 'invoice was approved/locked concurrently — not reopened' }
+  }
   if (updErr) {
     if ((updErr as { code?: string }).code === '23505') {
       await supabase
@@ -740,7 +746,7 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
   if (row.status === 'posted' || row.status === 'rejected' || row.status === 'cancelled') {
     return { ok: false, message: `cannot reject ${row.status} invoice` }
   }
-  const { error } = await supabase
+  const { data: rejRows, error } = await supabase
     .from('incoming_invoices')
     .update({
       status: 'rejected',
@@ -749,7 +755,10 @@ export async function rejectInvoice(invoiceId: string, rejecterId: string, reaso
       rejected_reason: reason,
     })
     .eq('id', invoiceId)
+    .eq('status', row.status) // samtidig bogføring må ikke overskrives
+    .select('id')
   if (error) return { ok: false, message: error.message }
+  if ((rejRows ?? []).length === 0) return { ok: false, message: 'status ændret samtidig — genindlæs' }
   await auditLog({
     incomingInvoiceId: invoiceId,
     action: 'rejected',
