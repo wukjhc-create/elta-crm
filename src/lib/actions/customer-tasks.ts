@@ -512,12 +512,13 @@ export async function snoozeTask(
 export async function bookBesigtigelse(
   customerId: string,
   customerName: string,
-  customerEmail: string,
+  _customerEmail: string, // modtageren vælges af mail-routeren
   date: string,
   time: string,
   notes?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const denied = await gateDenied('customers.view')
+  // Mail-review 2026-10-08 (#7): sender kundemail → kræver redigeringsret (før customers.view, inkl. montør/bogholderi)
+  const denied = await gateDenied('customers.edit')
   if (denied) return { success: false, error: denied }
   try {
     const supabase = await createClient()
@@ -659,6 +660,39 @@ export async function bookBesigtigelse(
       return { success: false, error: routeResult.error || 'Kunne ikke bygge mail-route' }
     }
     const route = routeResult.route
+
+    // Mail-review 2026-10-08 (#7): opgaven oprettes FØR mailen og er kravet. Før: mail først → fejlede opgaven (eller
+    // fik mailen timeout), bookede brugeren igen → kunden fik to bekræftelser med to kalenderinvitationer.
+    const title = `Besigtigelse hos ${customerName}`
+    const { data: dup } = await supabase.from('customer_tasks').select('id')
+      .eq('customer_id', customerId).eq('title', title).eq('due_date', date)
+      .gte('created_at', new Date(Date.now() - 2 * 60_000).toISOString()).limit(1)
+    if ((dup ?? []).length > 0) {
+      return { success: true } // dobbeltklik: allerede booket og mailet
+    }
+    const baseDescription = [
+      `Besigtigelse planlagt d. ${formattedDate} kl. ${time}`,
+      fullAddress ? `Adresse: ${fullAddress}` : null,
+      notes ? `Bemærkninger: ${notes}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const { data: task, error: taskError } = await supabase.from('customer_tasks').insert({
+      customer_id: customerId,
+      title,
+      description: `${baseDescription}\nBekræftelses-email sendes til ${route.toEmail}`,
+      priority: 'high',
+      due_date: date,
+      assigned_to: user.id,
+      created_by: user.id,
+    }).select('id').single()
+
+    if (taskError || !task) {
+      logger.error('Failed to create besigtigelse task', { error: taskError, entityId: customerId })
+      return { success: false, error: taskError?.message ?? 'Kunne ikke oprette opgaven' }
+    }
+    const taskId = (task as { id: string }).id
+
     const emailResult = await sendEmailViaGraph({
       to: route.toEmail,
       subject,
@@ -674,40 +708,21 @@ export async function bookBesigtigelse(
     await logMailRoute(
       route,
       emailResult.success ? 'sent' : 'failed',
-      { source: 'book_besigtigelse', error: emailResult.error }
+      { source: 'book_besigtigelse', error: emailResult.error, uncertain: emailResult.uncertain ?? false }
     )
-    if (!emailResult.success) {
+    if (!emailResult.success && !emailResult.uncertain) {
       logger.error('Failed to send besigtigelse confirmation email', {
         error: emailResult.error,
         entityId: customerId,
       })
+      await supabase.from('customer_tasks').delete().eq('id', taskId)
       return { success: false, error: `Kunne ikke sende bekræftelses-email: ${emailResult.error}` }
     }
-
-    // Create a customer task for the inspection visit
-    const description = [
-      `Besigtigelse planlagt d. ${formattedDate} kl. ${time}`,
-      fullAddress ? `Adresse: ${fullAddress}` : null,
-      notes ? `Bemærkninger: ${notes}` : null,
-      `Bekræftelses-email sendt til ${customerEmail}`,
-    ]
-      .filter(Boolean)
-      .join('\n')
-
-    const { error: taskError } = await supabase.from('customer_tasks').insert({
-      customer_id: customerId,
-      title: `Besigtigelse hos ${customerName}`,
-      description,
-      priority: 'high',
-      due_date: date,
-      assigned_to: user.id,
-      created_by: user.id,
-    })
-
-    if (taskError) {
-      logger.error('Failed to create besigtigelse task', { error: taskError, entityId: customerId })
-      return { success: false, error: taskError.message }
-    }
+    await supabase.from('customer_tasks').update({
+      description: emailResult.uncertain
+        ? `${baseDescription}\n⚠ Bekræftelses-email til ${route.toEmail}: ukendt udfald (timeout) — tjek Sendt post, book ikke igen`
+        : `${baseDescription}\nBekræftelses-email sendt til ${route.toEmail}`,
+    }).eq('id', taskId)
 
     revalidatePath('/dashboard/customers')
     revalidatePath('/dashboard/tasks')
