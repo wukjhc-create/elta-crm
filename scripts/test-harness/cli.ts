@@ -2320,6 +2320,45 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'register-payment-check') {
+    // Økonomi-review #3/#5/#7: registerPayment — kladde/kreditnota afvises; samtidige betalinger tabes ikke; "betalt"
+    // måles efter kreditnotaer. Ingen mail; e-conomic er ikke sat op på staging (mark-paid springes over).
+    const { registerPayment } = await import('../../src/lib/services/invoices')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `RP-${stamp}`, company_name: `[HARNESS] rp ${stamp}`, contact_person: 'X', email: `rp-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const ids: string[] = []
+    const mk = async (tag: string, status: string, final: number, extra: Record<string, unknown> = {}) => {
+      const { data, error } = await admin.from('invoices').insert({ invoice_number: `H-RP-${tag}-${stamp}`, customer_id: cust, status, payment_status: 'pending', total_amount: final * 0.8, tax_amount: final * 0.2, final_amount: final, amount_paid: 0, currency: 'DKK', reminder_count: 0, ...extra }).select('id').single()
+      if (error) throw new Error(`${tag}: ${error.message}`)
+      ids.push((data as { id: string }).id)
+      return (data as { id: string }).id
+    }
+    const get = async (id: string) => (await admin.from('invoices').select('status, payment_status, amount_paid').eq('id', id).single()).data as { status: string; payment_status: string; amount_paid: number }
+    try {
+      const draft = await mk('draft', 'draft', 500)
+      const dErr = await registerPayment(draft, 500).then(() => null, (e: Error) => e.message)
+      const dPays = (await admin.from('invoice_payments').select('id', { count: 'exact', head: true }).eq('invoice_id', draft)).count ?? 0
+      check('kladde kan ikke modtage betaling (ingen betalingsrække)', !!dErr && dPays === 0, dErr ?? 'ingen fejl')
+      const orig = await mk('orig', 'sent', 1000)
+      await mk('cred', 'sent', -400, { invoice_type: 'credit', credit_of_invoice_id: orig })
+      const r = await registerPayment(orig, 600)
+      const o = await get(orig)
+      check('1.000 − kredit 400, betalt 600 → fuldt betalt', r.fullyPaid && o.status === 'paid' && o.payment_status === 'paid', JSON.stringify(o))
+      const conc = await mk('conc', 'sent', 1000)
+      await Promise.all([registerPayment(conc, 300), registerPayment(conc, 300)])
+      const c = await get(conc)
+      check('to samtidige betalinger à 300 → amount_paid 600 (ingen tabt)', Number(c.amount_paid) === 600 && c.payment_status === 'partial', JSON.stringify(c))
+    } finally {
+      if (ids.length) { await admin.from('invoice_payments').delete().in('invoice_id', ids); await admin.from('invoices').delete().in('credit_of_invoice_id', ids); await admin.from('invoices').delete().in('id', ids) }
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ betalingsregistrering ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'assistant-voice-check') {
     // STAGING (T11): talebesked → transskription → samme kommandomotor. Fil-hentning, transskription og Telegram-
     // transport er test-adaptere (intet live, ingen AI-kald). Ukendt chat/flag fra/for lang → intet hentes.

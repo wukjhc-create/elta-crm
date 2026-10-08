@@ -354,6 +354,7 @@ async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
       .select('*')
       .in('invoice_number', Array.from(new Set(numberMatches)))
       .neq('payment_status', 'paid')
+      .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
     if (data && data.length > 0) return data as InvoiceRow[]
   }
 
@@ -370,6 +371,7 @@ async function findByReference(refRaw: string | null): Promise<InvoiceRow[]> {
       .select('*')
       .not('payment_reference', 'is', null)
       .neq('payment_status', 'paid')
+      .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
       .order('id')
       .range(from, to))
   } catch {
@@ -390,7 +392,8 @@ async function findByAmount(amount: number): Promise<InvoiceRow[]> {
     .select('*')
     .eq('final_amount', amount)
     .neq('payment_status', 'paid')
-    .in('status', ['sent', 'draft'])
+    // Økonomi-review 2026-10-08 (#3): kun udstedte, ikke-annullerede almindelige fakturaer kan modtage betaling
+    .eq('status', 'sent').is('voided_at', null).or('invoice_type.is.null,invoice_type.neq.credit')
     .limit(50)
   return (data ?? []) as InvoiceRow[]
 }
@@ -451,6 +454,11 @@ async function applyMatch(
   confidence: Exclude<BankMatchConfidence, null>
 ): Promise<MatchOutcome> {
   const supabase = createAdminClient()
+  // Økonomi-review 2026-10-08 (#6): en udbetaling/refusion (≤ 0) bindes aldrig — registerPayment ville kaste efter
+  // kravet og efterlade transaktionen "matched" uden betaling
+  if (!(Number(tx.amount) > 0)) {
+    return { bankTxId: tx.id, status: 'unmatched', invoiceId: null, amount: tx.amount, reason: 'not an incoming payment' }
+  }
 
   // Race-safe: only bind if not already bound.
   const claim = await supabase
@@ -471,7 +479,16 @@ async function applyMatch(
   }
 
   // registerPayment is idempotent on already-paid invoices.
-  const payment = await registerPayment(invoice.id, tx.amount, tx.reference_text || tx.sender_name || undefined)
+  let payment: Awaited<ReturnType<typeof registerPayment>>
+  try {
+    payment = await registerPayment(invoice.id, tx.amount, tx.reference_text || tx.sender_name || undefined)
+  } catch (err) {
+    // frigiv kravet, så transaktionen kan matches igen (før stod den "matched" uden registreret betaling)
+    await supabase.from('bank_transactions')
+      .update({ matched_invoice_id: null, match_status: 'unmatched', match_confidence: null, matched_at: null })
+      .eq('id', tx.id).eq('matched_invoice_id', invoice.id)
+    return { bankTxId: tx.id, status: 'unmatched', invoiceId: null, amount: tx.amount, reason: err instanceof Error ? err.message : 'registerPayment failed' }
+  }
 
   let finalStatus: BankMatchStatus = 'matched'
   if (payment.fullyPaid) {

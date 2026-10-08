@@ -1496,11 +1496,16 @@ export async function registerPayment(
 
   const { data: inv, error: readErr } = await supabase
     .from('invoices')
-    .select('id, status, payment_status, amount_paid, final_amount, currency')
+    .select('id, status, payment_status, amount_paid, final_amount, currency, invoice_type, voided_at')
     .eq('id', invoiceId)
     .maybeSingle()
   if (readErr || !inv) {
     throw new Error(`registerPayment: invoice ${invoiceId} not found`)
+  }
+  // Økonomi-review 2026-10-08 (#3): bankmatch kunne "betale" en kladde (aldrig sendt → kan ikke slettes, mark-paid i
+  // e-conomic for en ikke-eksporteret faktura), en kreditnota eller en annulleret faktura
+  if (inv.status === 'draft' || inv.invoice_type === 'credit' || inv.voided_at) {
+    throw new Error(`registerPayment: invoice ${invoiceId} kan ikke modtage betaling (status=${inv.status}${inv.invoice_type === 'credit' ? ', kreditnota' : ''}${inv.voided_at ? ', annulleret' : ''})`)
   }
 
   // Safety: never mark paid twice. If payment_status is already 'paid',
@@ -1532,8 +1537,15 @@ export async function registerPayment(
     }
   }
 
-  const newAmountPaid = round2(Number(inv.amount_paid) + amt)
-  const final = Number(inv.final_amount)
+  // Økonomi-review 2026-10-08 (#5): amount_paid = læst + beløb tabte en betaling ved samtidige registreringer (manuelt
+  // match + automatch). Nu = summen af invoice_payments (inkl. vores netop indsatte række) — sidste skriver har altid
+  // alle committede betalinger med. (#7): "fuldt betalt" måles mod udestående efter sendte/betalte kreditnotaer.
+  const { data: payRows } = await supabase.from('invoice_payments').select('amount').eq('invoice_id', invoiceId)
+  const newAmountPaid = round2(((payRows ?? []) as Array<{ amount: number | string }>).reduce((a, r) => a + (Number(r.amount) || 0), 0))
+  const { data: creditRows } = await supabase.from('invoices').select('final_amount')
+    .eq('credit_of_invoice_id', invoiceId).eq('invoice_type', 'credit').in('status', ['sent', 'paid'])
+  const credited = ((creditRows ?? []) as Array<{ final_amount: number | string | null }>).reduce((a, r) => a + Math.abs(Number(r.final_amount) || 0), 0)
+  const final = round2(Number(inv.final_amount) - credited)
   let nextPaymentStatus: InvoicePaymentStatus = 'pending'
   if (newAmountPaid >= final) nextPaymentStatus = 'paid'
   else if (newAmountPaid > 0) nextPaymentStatus = 'partial'
