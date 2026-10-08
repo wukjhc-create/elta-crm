@@ -94,12 +94,14 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   // Læs med brugerens session (RLS-scope) — kun rækker brugeren må se, kan besluttes
   const { data: visible, error: readErr } = await supabase
     .from('time_logs')
-    .select('id, end_time, approval_status, employee:employees(profile_id)')
+    .select('id, end_time, approval_status, invoice_line_id, employee:employees(profile_id)')
     .in('id', unique)
   if (readErr) return { success: false, error: 'Kunne ikke hente timer' }
-  type V = { id: string; end_time: string | null; approval_status: TimeApprovalStatus; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
+  type V = { id: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
   const eligible = ((visible ?? []) as unknown as V[]).filter((v) =>
-    v.end_time !== null && v.approval_status !== decision && one(v.employee)?.profile_id !== userId)
+    v.end_time !== null && v.approval_status !== decision && one(v.employee)?.profile_id !== userId
+    // HR-review 2026-10-08 (#4): fakturerede timer kan ikke afvises (de forsvandt fra kost/avance, men stod på fakturaen)
+    && !(decision === 'rejected' && v.invoice_line_id))
   const skipped = unique.length - eligible.length
   if (eligible.length === 0) {
     return { success: false, error: 'Ingen af de valgte registreringer kan behandles (egne timer, igangværende timer eller allerede behandlet)' }

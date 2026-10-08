@@ -564,7 +564,8 @@ export async function getEmployeeWorkSummaryAction(id: string): Promise<{ jobs: 
   const [{ data: wos }, { data: logs }] = await Promise.all([
     supabase.from('work_orders').select('id, title, status, scheduled_date, case:service_cases(id, case_number)')
       .eq('assigned_employee_id', id).order('scheduled_date', { ascending: false, nullsFirst: false }).limit(15),
-    supabase.from('time_logs').select('hours, billable').eq('employee_id', id).gte('start_time', since).not('end_time', 'is', null),
+    // HR-review 2026-10-08 (#6): afviste timer tæller aldrig
+    supabase.from('time_logs').select('hours, billable').eq('employee_id', id).gte('start_time', since).not('end_time', 'is', null).neq('approval_status', 'rejected'),
   ])
   const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null)
   const jobs = ((wos ?? []) as unknown as Array<{ id: string; title: string | null; status: string; scheduled_date: string | null; case: { id: string; case_number: string | null } | Array<{ id: string; case_number: string | null }> | null }>).map((w) => {

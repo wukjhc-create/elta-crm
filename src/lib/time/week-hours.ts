@@ -67,10 +67,13 @@ export function summarizeWeekHours(logs: WeekLogInput[], weekStart: string): Wee
       continue
     }
     const h = Number(l.hours ?? 0) || 0
-    const day = days.find((d) => d.date === date)
-    if (day) day.hours = r2(day.hours + h)
-    total += h
-    if (l.billable !== false) billableTotal += h
+    // HR-review 2026-10-08 (#5): afviste timer tæller ikke i ugens total (rækken vises stadig med afvisningsgrunden)
+    if (l.approval_status !== 'rejected') {
+      const day = days.find((d) => d.date === date)
+      if (day) day.hours = r2(day.hours + h)
+      total += h
+      if (l.billable !== false) billableTotal += h
+    }
     entries.push({ ...l, date, clock, hoursNum: h })
   }
   entries.sort((a, b) => (a.start_time < b.start_time ? 1 : -1))

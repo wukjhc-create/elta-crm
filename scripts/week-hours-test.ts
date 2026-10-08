@@ -20,5 +20,12 @@ eq('søndag 23:00 dansk (21:00Z) hører til forrige uge — total 8 + 2', w.tota
 eq('fakturerbar total', w.billableTotal, 8)
 eq('åben timer markeret', w.openTimer, true)
 eq('næste og forrige uges timer udeladt; nyeste først', w.entries.map((e) => e.id), ['c', 'b', 'a'])
+// HR-review 2026-10-08 (#5): afviste timer tæller ikke, men vises stadig
+const r = summarizeWeekHours([
+  { id: 'ok', start_time: '2026-09-28T05:00:00Z', end_time: '2026-09-28T13:00:00Z', hours: 8, billable: true, approval_status: 'approved' },
+  { id: 'rej', start_time: '2026-09-29T05:00:00Z', end_time: '2026-09-29T13:00:00Z', hours: 8, billable: true, approval_status: 'rejected' },
+], '2026-09-28')
+eq('afvist tæller ikke i total/fakturerbar/dag', [r.total, r.billableTotal, r.days[1].hours], [8, 8, 0])
+eq('afvist række vises stadig', r.entries.map((e) => e.id).sort(), ['ok', 'rej'])
 console.log(fail ? `\n❌ ${fail} fejl` : '\n✅ alle uge-timer-tests PASS')
 process.exitCode = fail ? 1 : 0

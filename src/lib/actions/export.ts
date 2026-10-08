@@ -212,11 +212,12 @@ export async function exportOffers(filters?: {
     if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
+    const build = () => {
     let query = supabase
       .from('offers')
       .select('offer_number, title, customer:customers!offers_customer_id_fkey(company_name, customer_number), status, total_amount, discount_amount, final_amount, valid_until, notes, created_at')
       .order('created_at', { ascending: false })
-      .limit(MAX_EXPORT_ROWS)
+      .order('id')
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
@@ -226,8 +227,17 @@ export async function exportOffers(filters?: {
     if (filters?.status) {
       query = query.eq('status', filters.status)
     }
+    return query
+    }
 
-    const { data, error } = await query
+    // Review 2026-10-08: .limit(MAX_EXPORT_ROWS) gav højst 1.000 rækker (PostgREST max_rows) → side for side
+    let data: Record<string, unknown>[] | null = null
+    let error: unknown = null
+    try {
+      data = await fetchAllRows<Record<string, unknown>>((f, t) => build().range(f, t) as never, MAX_EXPORT_ROWS)
+    } catch (e) {
+      error = e
+    }
 
     if (error) {
       return { success: false, error: 'Kunne ikke hente tilbud til eksport' }
@@ -267,11 +277,12 @@ export async function exportProjects(filters?: {
     if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
+    const build = () => {
     let query = supabase
       .from('projects')
       .select('project_number, name, customer:customers(company_name, customer_number), status, priority, start_date, end_date, estimated_hours, actual_hours, budget, actual_cost, description, created_at')
       .order('created_at', { ascending: false })
-      .limit(MAX_EXPORT_ROWS)
+      .order('id')
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
@@ -285,8 +296,17 @@ export async function exportProjects(filters?: {
     if (filters?.priority) {
       query = query.eq('priority', filters.priority)
     }
+    return query
+    }
 
-    const { data, error } = await query
+    // Review 2026-10-08: .limit(MAX_EXPORT_ROWS) gav højst 1.000 rækker (PostgREST max_rows) → side for side
+    let data: Record<string, unknown>[] | null = null
+    let error: unknown = null
+    try {
+      data = await fetchAllRows<Record<string, unknown>>((f, t) => build().range(f, t) as never, MAX_EXPORT_ROWS)
+    } catch (e) {
+      error = e
+    }
 
     if (error) {
       return { success: false, error: 'Kunne ikke hente projekter til eksport' }
@@ -324,13 +344,17 @@ export async function exportCalculations(filters?: {
   is_template?: boolean
 }): Promise<ActionResult<ExportCalculation[]>> {
   try {
+    // Review 2026-10-08: kalkulationsbeløb — kun tools.calculations (før uden gate)
+    const denied = await permissionDenied('tools.calculations')
+    if (denied) return { success: false, error: denied }
     const { supabase } = await getAuthenticatedClient()
 
+    const build = () => {
     let query = supabase
       .from('calculations')
       .select('name, calculation_type, customer:customers(company_name, customer_number), is_template, total_amount:subtotal, final_amount, created_by_profile:profiles!created_by(full_name), created_at')
       .order('created_at', { ascending: false })
-      .limit(MAX_EXPORT_ROWS)
+      .order('id')
 
     if (filters?.search) {
       const term = `%${sanitizeSearchTerm(filters.search)}%`
@@ -344,8 +368,17 @@ export async function exportCalculations(filters?: {
     if (filters?.is_template !== undefined) {
       query = query.eq('is_template', filters.is_template)
     }
+    return query
+    }
 
-    const { data, error } = await query
+    // Review 2026-10-08: .limit(MAX_EXPORT_ROWS) gav højst 1.000 rækker (PostgREST max_rows) → side for side
+    let data: Record<string, unknown>[] | null = null
+    let error: unknown = null
+    try {
+      data = await fetchAllRows<Record<string, unknown>>((f, t) => build().range(f, t) as never, MAX_EXPORT_ROWS)
+    } catch (e) {
+      error = e
+    }
 
     if (error) {
       return { success: false, error: 'Kunne ikke hente kalkulationer til eksport' }

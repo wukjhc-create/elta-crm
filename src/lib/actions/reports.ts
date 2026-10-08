@@ -511,12 +511,20 @@ export async function getTeamProductivity(
     since.setMonth(since.getMonth() - months)
 
     // N26b: medarbejdernes timer fra time_logs (før: den gamle time_entries-tabel)
-    const { data: logs } = await supabase
+    // HR-review 2026-10-08 (#7): side for side (før afkortet ved 1.000) og navne via admin-klienten efter gaten
+    // (employees-RLS 00180 skjuler andres rækker for bogholderi → alle hed "Ukendt")
+    const logs = await fetchAllRows<Record<string, unknown>>((f, t) => supabase
       .from('time_logs')
-      .select('employee_id, hours, billable, end_time, work_order:work_orders(case_id), employee:employees(name)')
+      .select('id, employee_id, hours, billable, end_time, work_order:work_orders(case_id)')
       .gte('start_time', since.toISOString())
       .not('end_time', 'is', null)
       .neq('approval_status', 'rejected') // afviste timer tæller aldrig (Henrik 2026-10-07)
+      .order('id')
+      .range(f, t)).catch(() => [] as Record<string, unknown>[])
+    const empIds = [...new Set(logs.map((l) => l.employee_id as string).filter(Boolean))]
+    const { data: emps } = empIds.length ? await createAdminClient().from('employees').select('id, name').in('id', empIds) : { data: [] }
+    const empName = new Map(((emps ?? []) as Array<{ id: string; name: string | null }>).map((e) => [e.id, e.name]))
+    for (const l of logs) (l as { employee: unknown }).employee = { name: empName.get(l.employee_id as string) ?? null }
 
     if (!logs || logs.length === 0) {
       return { success: true, data: [] }
