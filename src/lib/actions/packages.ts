@@ -85,7 +85,13 @@ export async function getPackages(filters?: {
   pageSize?: number
 }): Promise<ActionResult<PaginatedResponse<PackageSummary>>> {
   try {
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase: userClient, hasPermission } = await getAuthenticatedClientWithRole()
+    // N8-1 (2026-10-08): læsning kræver en rolle der bruger pakker (før ingen gate). Roller uden kostret (salg) læser
+    // med admin-klienten — kost/DB fjernes nedenfor — så packages/package_items kan låses til kost-roller i DB (00207)
+    if (!hasPermission('tools.packages') && !hasPermission('tools.calculations') && !hasPermission('offers.edit')) {
+      return { success: false, error: 'Manglende tilladelse: pakker' }
+    }
+    const supabase = hasPermission('offers.view.cost_prices') ? userClient : createAdminClient()
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || DEFAULT_PAGE_SIZE
     const offset = (page - 1) * pageSize
