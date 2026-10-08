@@ -23,6 +23,27 @@ export const dynamic = 'force-dynamic'
 // Vercel cron secret for authentication
 const CRON_SECRET = process.env.CRON_SECRET
 
+/** En 'running'-kørsel ældre end dette regnes som død (funktionen blev dræbt) */
+const SYNC_RUN_STALE_MS = 30 * 60_000
+
+/**
+ * Krav på en sync-kørsel: ingen anden plan for samme leverandør må køre (frisk 'running'), og planens egen status
+ * sættes betinget til 'running'. Returnerer false hvis en anden kørsel er i gang.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function claimSupplierSync(supabase: any, scheduleId: string, supplierId: string): Promise<boolean> {
+  const staleIso = new Date(Date.now() - SYNC_RUN_STALE_MS).toISOString()
+  const { data: busy } = await supabase.from('supplier_sync_schedules').select('id')
+    .eq('supplier_id', supplierId).eq('last_run_status', 'running').gt('last_run_at', staleIso).neq('id', scheduleId).limit(1)
+  if ((busy ?? []).length > 0) return false
+  const { data: claimed } = await supabase.from('supplier_sync_schedules')
+    .update({ last_run_at: new Date().toISOString(), last_run_status: 'running' })
+    .eq('id', scheduleId)
+    .or(`last_run_status.is.null,last_run_status.neq.running,last_run_at.lt.${staleIso}`)
+    .select('id')
+  return (claimed ?? []).length === 1
+}
+
 async function handleCron(request: Request): Promise<Response> {
   try {
     // Verify cron secret - fail-secure when CRON_SECRET is not configured
@@ -86,11 +107,12 @@ async function handleCron(request: Request): Promise<Response> {
         }
 
         try {
-          // Mark as running
-          await supabase
-            .from('supplier_sync_schedules')
-            .update({ last_run_at: new Date().toISOString(), last_run_status: 'running' })
-            .eq('id', schedule.id)
+          // Leverandør-review 2026-10-08 (#9): krav på kørslen — 'running' blev skrevet men aldrig tjekket, så cron + "Kør nu"
+          // (eller to planer for samme leverandør) behandlede samme varer samtidig (dobbelt prishistorik, sidste skriver vinder)
+          const claimed = await claimSupplierSync(supabase, schedule.id, schedule.supplier_id)
+          if (!claimed) {
+            return { supplierId: schedule.supplier_id, supplierName: supplier.name, syncType: schedule.sync_type, status: 'skipped', error: 'Sync kører allerede for leverandøren', durationMs: 0 }
+          }
 
           // Branch by sync type
           if (schedule.sync_type === 'ftp') {

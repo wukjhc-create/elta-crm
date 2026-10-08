@@ -268,11 +268,27 @@ export async function runSyncNow(scheduleId: string): Promise<ActionResult<{ mes
       return { success: false, error: 'Synkroniseringsplan ikke fundet' }
     }
 
+    // Leverandør-review 2026-10-08 (#9): krav på kørslen (samme regel som cronen) — ingen samtidig sync for leverandøren
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const sys = createAdminClient()
+    const staleIso = new Date(Date.now() - 30 * 60_000).toISOString()
+    const { data: busy } = await sys.from('supplier_sync_schedules').select('id')
+      .eq('supplier_id', schedule.supplier_id).eq('last_run_status', 'running').gt('last_run_at', staleIso).neq('id', scheduleId).limit(1)
+    const { data: claimed } = (busy ?? []).length > 0 ? { data: [] } : await sys.from('supplier_sync_schedules')
+      .update({ last_run_at: new Date().toISOString(), last_run_status: 'running' })
+      .eq('id', scheduleId)
+      .or(`last_run_status.is.null,last_run_status.neq.running,last_run_at.lt.${staleIso}`)
+      .select('id')
+    if ((claimed ?? []).length !== 1) {
+      return { success: false, error: 'Der kører allerede en synkronisering for leverandøren — prøv igen om lidt' }
+    }
+
     // Import sync function dynamically to avoid circular dependency
     const { syncSupplierPrices } = await import('./supplier-sync')
 
     // Run sync
-    const result = await syncSupplierPrices(schedule.supplier_id)
+    const result = await syncSupplierPrices(schedule.supplier_id).catch((e: unknown) => ({ success: false as const, error: e instanceof Error ? e.message : 'sync fejlede', data: undefined }))
+    await sys.from('supplier_sync_schedules').update({ last_run_status: result.success ? 'success' : 'failed' }).eq('id', scheduleId)
 
     if (!result.success) {
       return { success: false, error: result.error }
