@@ -48,6 +48,19 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | M #6 Cc/Bcc blev aldrig sendt | DONE | — |
 | M #7 besigtigelse: mail før opgave, timeout = fejl, gate customers.view | DONE — opgave er kravet, customers.edit | `besigtigelse-task-test` |
 | M #8/#9/#10 portalbesked til fremmed tilbud; rykker til deaktiveret kunde; historik-modtager; ICS efter kl. 22 | DONE (rolle-gaten på portalbeskeder uændret — forretningsvalg) | `ics-end-test` |
+| L #1 leverandørfaktura bogført to gange i e-conomic (auto ved godkendelse + klik) | DONE — krav `pending-<ms>` | — |
+| L #2 dobbelt kost ved samtidig linjekonvertering | DONE — bindingen er kravet | `invoice-line-convert-race-check` |
+| L #3 **pakkeelementer fejlede for ALLE roller i prod siden 00201** (embed af product_catalog.cost_price → 42501) | DONE (S2-regression) | `package-embed-probe` (5 personaer: gammel 42501, ny ok) |
+| L #4 pakke kunne indsættes i sendt/accepteret tilbud | DONE — redigeringslås | — |
+| L #5/#6 kostpris 0 (ingen prisaftale) overskrev kendt kost (live-søgning, CSV, FTP) | DONE | — |
+| L #7 kundeaftaler aldrig brugt i auto-tilbud/materialekatalog (forkert RPC) | DONE app. **Fund:** `get_customer_product_price` ignorerer rabat når aftalen ikke har egen avance (`record IS NOT NULL`) → **BLOCKED_APPROVAL** udkast 00206 på branch `customer-price-00206` | `customer-price-rpc-check` |
+| L #8 genparsning genåbnede godkendt faktura; afvisning overskrev samtidig bogføring | DONE | — |
+| L #9 samtidige prissyncs (cron + "Kør nu") | DONE — krav pr. leverandør, død efter 30 min | — |
+| A #1 assistenten viste/handlede på sager uden for brugerens sags-scope (salg) | DONE — samme scope som CRM; arbejdsordre kun med rettighed | `assistant-case-scope-check` 3/3 |
+| A #2/#5 rykkerloft omgået af regelmotoren; regelmotoren udførte uden krav ved DB-fejl | DONE (fail-closed) | `automation-claim-check` |
+| A #3/#7 dobbelte påmindelser ved overlappende kørsler; genleveret Telegram-update udført to gange | DONE — krav før afsendelse; update_id-markør | `telegram-update-dedupe-check`, `notes-reminders-flow` |
+| A #4/#10 "kl. 7" efter kl. 7 → i dag (aldrig sendt); "I dag" på sommertidsdøgn | DONE | `assistant-parser-test` |
+| A #6/#8/#9 tale for deaktiverede/montør; præcist kundetræf overset; .in() > 350 | DONE | `assistant-resolve-check` |
 | T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
 | T12 ubesvaret opkald → tilbageringning | DONE (fundament) — `lib/integrations/relatel/missed-calls.ts`: kun ved præcis én kunde, idempotent pr. opkald, telefonsvarer i beskrivelsen, kalender 📞; Relatel-klienten er fortsat 'disabled' (ingen cron, intet live) | `missed-call-check` 8/8 |
 
