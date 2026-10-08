@@ -100,8 +100,8 @@ export function LeadForm({ lead, onClose, onSuccess }: LeadFormProps) {
       setError(null)
 
       // Check for duplicates when creating
-      if (!isEditing && data.email) {
-        const dupeResult = await checkDuplicateLead(data.email, data.company_name)
+      if (!isEditing && (data.email || data.phone)) {
+        const dupeResult = await checkDuplicateLead(data.email ?? '', data.company_name, undefined, data.phone)
         if (dupeResult.success && dupeResult.data && dupeResult.data.length > 0) {
           const matches = dupeResult.data.map(d => `${d.company_name} (${d.email})`).join(', ')
           const proceed = await confirmUnsaved({

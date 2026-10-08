@@ -1277,6 +1277,23 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'lead-phone-dupe-probe') {
+    // Leads-review #10: telefonmønstret i checkDuplicateLead (cifre i rækkefølge, vilkårlige skilletegn) via PostgREST .or()
+    const { pgQuote } = await import('../../src/lib/validations/postgrest-filter')
+    const stamp = Date.now()
+    const digits = `9${String(stamp).slice(-7)}`
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: l } = await admin.from('leads').insert({ company_name: '[HARNESS] dupe', contact_person: 'x', email: `dp-${stamp}@harness.test`, phone: `+45 ${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)} ${digits.slice(6)}`, status: 'new', source: 'other', created_by: owner }).select('id').single()
+    try {
+      const { data, error } = await admin.from('leads').select('id').or(`company_name.ilike.${pgQuote('ingen-match-xyz')},phone.ilike.${pgQuote(`%${digits.split('').join('%')}%`)}`).limit(5)
+      const ok = !error && (data ?? []).some((r: { id: string }) => r.id === (l as { id: string }).id)
+      log(`  ${ok ? '✓' : '❌'} "${digits}" finder lead gemt som "+45 xx xx xx xx"${error ? ` — ${error.message}` : ''}`)
+      process.exitCode = ok ? 0 : 1
+    } finally {
+      await admin.from('leads').delete().eq('id', (l as { id: string }).id)
+    }
+    return
+  }
   if (SUB === 'in-list-limit') {
     // Hvor mange UUID'er tåler én .in() (GET-URL) før gatewayen afviser? Read-only mod customers med tilfældige id'er.
     const { randomUUID } = await import('crypto')

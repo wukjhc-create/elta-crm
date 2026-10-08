@@ -147,7 +147,8 @@ export async function getLead(id: string): Promise<ActionResult<LeadWithRelation
 export async function checkDuplicateLead(
   email: string,
   companyName: string,
-  excludeId?: string
+  excludeId?: string,
+  phone?: string | null
 ): Promise<ActionResult<{ id: string; company_name: string; email: string; status: string }[]>> {
   try {
     const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
@@ -155,10 +156,19 @@ export async function checkDuplicateLead(
       return { success: false, error: 'Manglende tilladelse: leads.create' }
     }
 
+    // Leads-review 2026-10-08 (#10): også telefon — samme kunde ringer ofte ind under nyt navn/uden e-mail. De sidste 8
+    // cifre matches uanset mellemrum/+45 (cifrene i rækkefølge med vilkårlige skilletegn imellem).
+    const conds: string[] = []
+    if (email.trim()) conds.push(`email.ilike.${pgQuote(sanitizeSearchTerm(email.trim()))}`)
+    if (companyName.trim()) conds.push(`company_name.ilike.${pgQuote(sanitizeSearchTerm(companyName.trim()))}`)
+    const digits = (phone ?? '').replace(/\D/g, '').slice(-8)
+    if (digits.length === 8) conds.push(`phone.ilike.${pgQuote(`%${digits.split('').join('%')}%`)}`)
+    if (conds.length === 0) return { success: true, data: [] }
+
     let query = supabase
       .from('leads')
       .select('id, company_name, email, status')
-      .or(`email.ilike.${pgQuote(sanitizeSearchTerm(email))},company_name.ilike.${pgQuote(sanitizeSearchTerm(companyName))}`)
+      .or(conds.join(','))
       .limit(5)
 
     if (excludeId) {
