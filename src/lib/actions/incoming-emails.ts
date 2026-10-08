@@ -2075,6 +2075,18 @@ export async function createLeadFromEmailAction(emailId: string): Promise<{ succ
       logger.error('createLeadFromEmail failed', { error, entityId: emailId })
       return { success: false, error: 'Kunne ikke oprette lead' }
     }
+    // Leads-review 2026-10-08 (#6): to samtidige klik passerede begge "findes allerede"-tjekket. Indtil et unikt indeks
+    // på source_email_id er godkendt (migration): det ældste lead vinder, vores dublet fjernes igen.
+    const newId = (lead as { id: string }).id
+    const { data: same } = await supabase.from('leads').select('id').eq('custom_fields->>source_email_id', emailId)
+      .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(2)
+    const winner = ((same ?? []) as Array<{ id: string }>)[0]?.id
+    if (winner && winner !== newId) {
+      // kun vores egen netop oprettede dublet (RLS tillader kun admin at slette leads)
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      await createAdminClient().from('leads').delete().eq('id', newId).eq('created_by', userId)
+      return { success: true, data: { leadId: winner, existed: true } }
+    }
     revalidatePath('/dashboard/leads')
     revalidatePath('/dashboard/mail')
     return { success: true, data: { leadId: (lead as { id: string }).id, existed: false } }
