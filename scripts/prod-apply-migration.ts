@@ -52,6 +52,7 @@ const APPROVED: Record<string, string> = {
   '00200': '2026-10-07', // kost-lockdown bølge 2a (15 tabeller rolle-scopet), godkendt af Henrik i chat 2026-10-07 ("00200 + 00201 GODKENDT TIL PROD")
   '00201': '2026-10-07', // kost-lockdown bølge 2b (product_catalog kolonne-niveau m.m.), godkendt af Henrik i chat 2026-10-07 ("00200 + 00201 GODKENDT TIL PROD")
   '00202': '2026-10-07', // afviste timer ude af faktura-/avancefunktioner, godkendt af Henrik i chat 2026-10-07 ("00202 GODKENDT TIL PROD")
+  '00203': '2026-10-08', // tilbudsrevisioner (skema; flag OFFER_REVISIONS_ENABLED forbliver OFF), godkendt af Henrik i chat 2026-10-08 ("00203 GODKENDT TIL PROD I TO TRIN")
 }
 
 async function main() {
