@@ -206,7 +206,7 @@ export function CalendarPageClient({ tasks: initialTasks, personalReminders = []
                         }`}
                         title={`${task.title}${isConfirmed ? ' ✓ Bekræftet' : ''}`}
                       >
-                        {isConfirmed ? '✓ ' : ''}{task.auto_rule === ASSISTANT_RULE.callback ? '📞 ' : task.auto_rule === ASSISTANT_RULE.reminder ? '⏰ ' : task.auto_rule === ASSISTANT_RULE.appointment ? '📅 ' : ''}{task.customer?.company_name || task.title}
+                        {isConfirmed ? '✓ ' : ''}{task.auto_rule === ASSISTANT_RULE.callback || task.auto_rule === ASSISTANT_RULE.missedCall ? '📞 ' : task.auto_rule === ASSISTANT_RULE.reminder ? '⏰ ' : task.auto_rule === ASSISTANT_RULE.appointment ? '📅 ' : ''}{task.customer?.company_name || task.title}
                       </div>
                     )
                   })}

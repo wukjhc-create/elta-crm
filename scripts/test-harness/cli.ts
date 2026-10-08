@@ -2446,6 +2446,51 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'missed-call-check') {
+    // T12 (staging): ubesvaret opkald → tilbageringningsopgave via test-klient (ingen Relatel, intet live).
+    const { syncMissedCalls } = await import('../../src/lib/integrations/relatel/missed-calls')
+    const { disabledRelatelClient } = await import('../../src/lib/integrations/relatel/contract')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const local = `9${String(stamp).slice(-7)}`, local2 = `8${String(stamp).slice(-7)}`, unknown = `7${String(stamp).slice(-7)}`
+    const spaced = `${local.slice(0, 2)} ${local.slice(2, 4)} ${local.slice(4, 6)} ${local.slice(6)}`
+    const mkC = async (tag: string, phone: string) => ((await admin.from('customers').insert({ customer_number: `MC${tag}-${stamp}`, company_name: `[HARNESS] mc ${tag} ${stamp}`, contact_person: 'X', email: `mc${tag}-${stamp}@harness.test`, phone, created_by: owner }).select('id').single()).data as { id: string }).id
+    const c1 = await mkC('a', spaced), c2 = await mkC('b', local2), c3 = await mkC('c', `+45${local2}`)
+    const call = (uuid: string, from: string, extra: Record<string, unknown> = {}) => ({ uuid: `${uuid}-${stamp}`, direction: 'inbound' as const, from, started_at: '2026-10-08T08:15:00Z', answered_at: null, ...extra })
+    const fake = (calls: unknown[]) => ({ ...disabledRelatelClient, listCalls: async () => calls as never })
+    try {
+      const d = await syncMissedCalls(admin, disabledRelatelClient, { since: '2026-10-08T00:00:00Z', assigneeProfileId: owner })
+      check('deaktiveret klient → intet sker', d.status === 'disabled' && d.outcomes.length === 0)
+      const calls = [
+        call('m1', `45${local}`, { voicemail_transcript: 'Hej, det er om tavlen, ring gerne tilbage' }),
+        call('m1', `45${local}`),
+        call('answered', `45${local}`, { answered_at: '2026-10-08T08:15:05Z' }),
+        call('amb', `45${local2}`),
+        call('unk', `45${unknown}`),
+      ]
+      const r = await syncMissedCalls(admin, fake(calls), { since: '2026-10-08T00:00:00Z', assigneeProfileId: owner })
+      const st = r.outcomes.map((o) => o.status)
+      check('ubesvaret fra kendt nummer → opgave', st[0] === 'created', JSON.stringify(st))
+      check('samme opkald igen → ingen dublet', st[1] === 'duplicate')
+      check('besvaret opkald ignoreres', st[2] === 'ignored')
+      check('nummer på to kunder → tvetydig (intet gæt)', st[3] === 'ambiguous')
+      check('ukendt nummer → unmatched', st[4] === 'unmatched')
+      const { data: t } = await admin.from('customer_tasks').select('title, description, auto_rule, assigned_to, priority').eq('customer_id', c1)
+      const task = ((t ?? []) as Array<{ title: string; description: string; auto_rule: string; assigned_to: string; priority: string }>)
+      check('præcis én opgave med telefonsvarer og klokkeslæt (dansk tid)', task.length === 1 && task[0].auto_rule === 'assistant_missed_call' && task[0].description.includes('kl. 10.15') && task[0].description.includes('tavlen'), JSON.stringify(task[0] ?? {}).slice(0, 160))
+      const others = (await admin.from('customer_tasks').select('id', { count: 'exact', head: true }).in('customer_id', [c2, c3])).count ?? 0
+      check('ingen opgave på de tvetydige kunder', others === 0)
+    } finally {
+      await admin.from('customer_tasks').delete().in('customer_id', [c1, c2, c3])
+      await admin.from('audit_logs').delete().eq('action', 'assistant_missed_call_task').gte('created_at', new Date(stamp - 5_000).toISOString())
+      await admin.from('customers').delete().in('id', [c1, c2, c3])
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ ubesvarede opkald (T12) ok — intet live')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'assistant-voice-check') {
     // STAGING (T11): talebesked → transskription → samme kommandomotor. Fil-hentning, transskription og Telegram-
     // transport er test-adaptere (intet live, ingen AI-kald). Ukendt chat/flag fra/for lang → intet hentes.
