@@ -24,6 +24,15 @@ import type { ConfirmationRecipientRole } from '@/types/document-confirmations.t
 import { escapeHtml } from '@/lib/utils/html-escape'
 import { internalRequestHeaders } from '@/lib/security/internal-request'
 import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+/**
+ * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
+ * låses for direkte REST-adgang (authenticated kunne læse/overskrive alle filer i 'attachments').
+ */
+function storageClient() {
+  return createAdminClient()
+}
 
 /**
  * Sprint 9F Phase 6a — shadow-preview wrapper for besigtigelse.
@@ -156,8 +165,13 @@ export async function saveBesigtigelsesnotat(
     // Upload images to storage and collect URLs
     const imageUrls: { category: string; url: string; name: string }[] = []
     for (const img of input.images) {
-      const ext = img.name.split('.').pop() || 'jpg'
-      const imgFileName = `besigtigelse-${img.category}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
+      // Storage-review 2026-10-08: kun billeder; filtype/kategori fra klienten renses før de bruges i stien
+      const declaredMime = img.base64.startsWith('data:') ? img.base64.split(';')[0].split(':')[1] : 'image/jpeg'
+      if (!/^image\/(jpeg|png|webp|heic|heif|gif)$/i.test(declaredMime)) continue
+      const rawExt = (img.name.split('.').pop() || 'jpg').toLowerCase()
+      const ext = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif'].includes(rawExt) ? rawExt : 'jpg'
+      const category = String(img.category ?? 'andet').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40) || 'andet'
+      const imgFileName = `besigtigelse-${category}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
       const imgPath = `customer-documents/${input.customerId}/besigtigelse-images/${imgFileName}`
 
       // Convert base64 data URI to buffer
@@ -166,15 +180,15 @@ export async function saveBesigtigelsesnotat(
 
       const mimeType = img.base64.startsWith('data:') ? img.base64.split(';')[0].split(':')[1] : 'image/jpeg'
 
-      const { error: imgUploadErr } = await supabase.storage
+      const { error: imgUploadErr } = await storageClient().storage
         .from('attachments')
         .upload(imgPath, imgBuffer, {
           contentType: mimeType,
-          upsert: true,
+          upsert: false,
         })
 
       if (!imgUploadErr) {
-        const { data: imgUrlData } = await supabase.storage
+        const { data: imgUrlData } = await storageClient().storage
           .from('attachments')
           .createSignedUrl(imgPath, 86400) // 24h for PDF generation
 
@@ -231,7 +245,9 @@ export async function saveBesigtigelsesnotat(
     }
 
     const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer())
-    const fileName = `besigtigelse-${customer.customer_number}-${fileDate}.pdf`
+    // Storage-review 2026-10-08 (S2): unikt filnavn — to besigtigelser samme dag for samme kunde (fx partner med to
+    // sager) overskrev hinanden (upsert), så sag A's dokument viste sag B's rapport (andens adresse/underskrift)
+    const fileName = `besigtigelse-${customer.customer_number}-${fileDate}-${crypto.randomUUID().slice(0, 8)}.pdf`
     const storagePath = `customer-documents/${input.customerId}/${fileName}`
 
     console.error('[BESIGTIGELSE-DIAG] PDF buffer built', {
@@ -248,11 +264,11 @@ export async function saveBesigtigelsesnotat(
     })
 
     // Upload PDF to Supabase Storage
-    const { error: uploadErr } = await supabase.storage
+    const { error: uploadErr } = await storageClient().storage
       .from('attachments')
       .upload(storagePath, pdfBuffer, {
         contentType: 'application/pdf',
-        upsert: true,
+        upsert: false,
       })
 
     if (uploadErr) {
@@ -304,7 +320,7 @@ export async function saveBesigtigelsesnotat(
     })
 
     // Get signed URL
-    const { data: urlData } = await supabase.storage
+    const { data: urlData } = await storageClient().storage
       .from('attachments')
       .createSignedUrl(storagePath, 3600)
 
@@ -452,7 +468,7 @@ export async function sendBesigtigelsePdf(
     }
 
     // Download PDF from storage
-    const { data: fileData, error: dlErr } = await supabase.storage
+    const { data: fileData, error: dlErr } = await storageClient().storage
       .from('attachments')
       .download(doc.storage_path)
 
@@ -1044,7 +1060,7 @@ export async function sendExistingBesigtigelsesreport(
     }
 
     // Download PDF én gang — bucket forbliver private.
-    const { data: fileData, error: dlErr } = await supabase.storage
+    const { data: fileData, error: dlErr } = await storageClient().storage
       .from('attachments')
       .download(doc.storage_path)
     if (dlErr || !fileData) {
@@ -1451,7 +1467,7 @@ async function sendConfirmationEmailInternal(
     return { success: false, error: 'Modtager afvist — intern domæne' }
   }
 
-  const { data: fileData, error: dlErr } = await supabase.storage
+  const { data: fileData, error: dlErr } = await storageClient().storage
     .from('attachments')
     .download(doc.storage_path)
   if (dlErr || !fileData) return { success: false, error: 'Kunne ikke hente PDF fra storage' }

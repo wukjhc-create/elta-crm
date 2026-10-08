@@ -37,6 +37,14 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { pageWithinIds, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 import { escapeHtml } from '@/lib/utils/html-escape'
 
+/**
+ * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
+ * låses for direkte REST-adgang (authenticated kunne læse/overskrive alle filer i 'attachments').
+ */
+function storageClient() {
+  return createAdminClient()
+}
+
 const PAGE_SIZE = 25
 
 // =====================================================
@@ -749,6 +757,8 @@ export async function getServiceCaseAttachments(
   }
 }
 
+const ATTACHMENT_CATEGORIES = ['inverter_photo', 'panel_photo', 'tavle_photo', 'before_photo', 'after_photo', 'signature', 'other']
+
 export async function uploadServiceCaseAttachment(
   serviceCaseId: string,
   formData: FormData
@@ -758,16 +768,24 @@ export async function uploadServiceCaseAttachment(
     if (!hasPermission('cases.edit')) {
       return { success: false, error: 'Manglende tilladelse: cases.edit' }
     }
+    validateUUID(serviceCaseId, 'sags-ID')
     const file = formData.get('file') as File
-    const category = (formData.get('category') as string) || 'other'
+    // Storage-review 2026-10-08 (#6): kategorien indgik urenset i stien ('../x', 'a/b') — nu kun kendte værdier
+    const rawCategory = (formData.get('category') as string) || 'other'
+    const category = ATTACHMENT_CATEGORIES.includes(rawCategory) ? rawCategory : 'other'
 
-    if (!file) return { success: false, error: 'Ingen fil valgt' }
+    if (!file || file.size === 0) return { success: false, error: 'Ingen fil valgt' }
+    if (file.size > 20 * 1024 * 1024) return { success: false, error: 'Filen er for stor (max 20 MB)' }
+    if (!/^(image\/(jpeg|png|webp|heic|heif)|application\/pdf)$/i.test(file.type || '')) {
+      return { success: false, error: 'Kun billeder (JPG, PNG, WEBP, HEIC) og PDF' }
+    }
 
     // Upload to Supabase Storage
-    const ext = file.name.split('.').pop() || 'jpg'
+    const rawExt = (file.name.split('.').pop() || '').toLowerCase()
+    const ext = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'pdf'].includes(rawExt) ? rawExt : (file.type === 'application/pdf' ? 'pdf' : 'jpg')
     const storagePath = `service-cases/${serviceCaseId}/${category}_${Date.now()}.${ext}`
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await storageClient().storage
       .from('service-case-files')
       .upload(storagePath, file, { contentType: file.type })
 
@@ -826,7 +844,7 @@ export async function deleteServiceCaseAttachment(
       .single()
 
     if (att?.storage_path) {
-      await supabase.storage
+      await storageClient().storage
         .from('service-case-files')
         .remove([att.storage_path])
     }

@@ -568,8 +568,9 @@ export async function generateEmailPreview(
       .select('token')
       .eq('customer_id', offer.customer_id)
       .eq('is_active', true)
-      // Samme regel som portal-link.ts/view-offer: uden udløb (NULL) ELLER fremtidigt; nyeste ved flere aktive.
-      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      // Uden udløb (NULL) ELLER mindst 30 dage tilbage (nye links udløber efter 365 dage — et link der snart udløber
+      // genbruges ikke i en ny tilbudsmail); nyeste ved flere aktive.
+      .or(`expires_at.is.null,expires_at.gt.${new Date(Date.now() + 30 * 86_400_000).toISOString()}`)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()

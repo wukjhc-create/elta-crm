@@ -777,6 +777,30 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
       tasksRes.count ? `${tasksRes.count} opgave${tasksRes.count === 1 ? '' : 'r'}` : '',
       portalRes.count ? `${portalRes.count} portalbesked${portalRes.count === 1 ? '' : 'er'}` : '',
     ].filter(Boolean)
+    // Kunde-review 2026-10-08 (#2): også data der ellers forsvandt/blev tømt stille — kundens rolle på ANDRES sager/tilbud
+    // (bestiller/slutkunde/betaler/købt-fra/anlægsadresse), noter, tagtegninger, mailtråde, partneradgang og prisaftaler.
+    // Tabeller der ikke findes i miljøet (fx customer_notes før 00196) tæller som 0.
+    const optionalCount = async (table: string, column = 'customer_id') => {
+      const { count, error } = await admin.from(table).select('id', { count: 'exact', head: true }).eq(column, id)
+      return error ? 0 : count ?? 0
+    }
+    const roleRefs = await Promise.all([
+      ...['site_customer_id', 'orderer_customer_id', 'end_customer_id', 'payer_customer_id', 'purchased_from_customer_id'].map((c) => optionalCount('service_cases', c)),
+      ...['orderer_customer_id', 'end_customer_id', 'payer_customer_id'].map((c) => optionalCount('offers', c)),
+    ])
+    const [notesN, roofN, threadsN, partnerN, cspN, cppN] = await Promise.all([
+      optionalCount('customer_notes'), optionalCount('roof_drawings'), optionalCount('email_threads'),
+      optionalCount('partner_access_tokens', 'partner_customer_id'), optionalCount('customer_supplier_prices'), optionalCount('customer_product_prices'),
+    ])
+    const roleN = roleRefs.reduce((a, b) => a + b, 0)
+    linked.push(...[
+      roleN ? `en rolle på ${roleN} sag(er)/tilbud (bestiller/slutkunde/betaler)` : '',
+      notesN ? `${notesN} note${notesN === 1 ? '' : 'r'}` : '',
+      roofN ? `${roofN} tagtegning${roofN === 1 ? '' : 'er'}` : '',
+      threadsN ? `${threadsN} mailtråd${threadsN === 1 ? '' : 'e'}` : '',
+      partnerN ? 'partneradgang' : '',
+      cspN || cppN ? 'prisaftaler' : '',
+    ].filter(Boolean))
     if (linked.length) {
       return { success: false, error: `Kunden har ${linked.join(', ')} og kan ikke slettes — deaktivér kunden i stedet` }
     }

@@ -71,6 +71,13 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | HR #3/#4/#5/#6/#7 godkendelse af ubeset ændring; afvisning af fakturerede timer; afviste timer i totaler; teamproduktivitet afkortet/"Ukendt" | DONE | `week-hours-test` |
 | Eksport: tilbud/projekter/kalkulationer afkortet ved 1.000; kalkulationseksport uden gate | DONE | — |
 | K #1 (S1) Kalkia "Opret tilbud" ≠ vist pris; #2 import uden avance/rabat/kost; #3 salgspakke på låst tilbud; #4 AI-tilbud fejlede altid; #5 arbejdskost kvadratisk; #6 sale_price ≠ unit_price | DONE | tsc/gates |
+| S #1 (S1) storage-politikker kun på bucket_id (alle kan læse/overskrive alle filer) | App DONE (al fil-adgang via service-klient bag gates, UI upload-regression 15/15); **BLOCKED_APPROVAL** 00209 på branch `storage-lockdown-00209` | `prod-storage-policies.ts` |
+| S #2 (S1) partnerportalen udleverede fuldmagt-PDF (CPR + underskrift) | DONE (deployet) | `partner-fuldmagt-leak-check` 3/3 |
+| S #3 besigtigelses-PDF overskrev hinanden (samme kunde, samme dag); #5/#6 upload uden type-/stitjek; #7 portalen signerede fremmede stier | DONE | `portal-token-rules-check` |
+| S #4 1-årige signerede links gemt i file_url (læsbare for alle) | DELVIS — nye kundedokumenter gemmer intet link. Gemte links virker til udløb uanset RLS → **BLOCKED_APPROVAL** (dataændring): `UPDATE customer_documents SET file_url = ''` hvor storage_path findes (læsere signerer allerede fra storage_path) + øvrige skrivesteder (fuldmagt, mailvedhæftninger, sagsbilag) — foreslås sammen med 00209 | — |
+| C #1 portal-links uden udløb og aktive for deaktiverede kunder | DONE — deaktiveret kunde afvises (også partner), nye links 365 dage, mail genbruger kun links med ≥ 30 dage tilbage | `portal-token-rules-check` |
+| C #2/#3 sletning tabte noter/tagtegninger/roller stille; retro-kobling af egne/system-adresser | DONE | — |
+| C #4–#7 CSV-import uden skema-validering/dublet-lås; primærkontakt; upload-oprydning | #7 DONE; #4–#6 LATER (lav volumen) | — |
 | T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
 | T12 ubesvaret opkald → tilbageringning | DONE (fundament) — `lib/integrations/relatel/missed-calls.ts`: kun ved præcis én kunde, idempotent pr. opkald, telefonsvarer i beskrivelsen, kalender 📞; Relatel-klienten er fortsat 'disabled' (ingen cron, intet live) | `missed-call-check` 8/8 |
 

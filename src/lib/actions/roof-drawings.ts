@@ -24,6 +24,15 @@ import type {
   SaveRoofDrawingInput,
 } from '@/types/roof-drawings.types'
 import { emptyRoofDrawingData } from '@/types/roof-drawings.types'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+/**
+ * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
+ * låses for direkte REST-adgang (authenticated kunne læse/overskrive alle filer i 'attachments').
+ */
+function storageClient() {
+  return createAdminClient()
+}
 
 const BUCKET = 'service-case-files'
 
@@ -63,7 +72,7 @@ export async function createRoofDrawing(
     const ext = mimeType.includes('png') ? 'png' : 'jpg'
     const storagePath = `roof-drawings/${input.customerId}/${randomUUID()}.${ext}`
 
-    const { error: uploadErr } = await supabase.storage
+    const { error: uploadErr } = await storageClient().storage
       .from(BUCKET)
       .upload(storagePath, buffer, { contentType: mimeType, upsert: true })
 

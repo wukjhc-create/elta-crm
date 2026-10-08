@@ -9,8 +9,21 @@
  */
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 import { logger } from '@/lib/utils/logger'
+import { isInternalEmail } from '@/lib/services/mail-routing'
 
 type Client = { from: (t: string) => any }
+
+/**
+ * Kunde-review 2026-10-08 (#3): egne adresser (kontakt@ o.l. — ofte indtastet når kunden ingen e-mail har), pladsholdere
+ * og system-afsendere (formularer) må aldrig retro-kobles — ellers hænger alle firmaets/formularens mails på én kunde.
+ */
+function retroLinkable(email: string): boolean {
+  const e = email.trim().toLowerCase()
+  if (isInternalEmail(e)) return false
+  if (e.endsWith('@elta-crm.local')) return false
+  if (/@(formsubmit\.co|.*\.formsubmit\.co)$/.test(e) || /^(no-?reply|noreply|mailer-daemon|postmaster)@/.test(e)) return false
+  return true
+}
 
 function addressFilter(email: string): string {
   const q = pgQuote(escapeLike(email.trim().toLowerCase()))
@@ -18,7 +31,7 @@ function addressFilter(email: string): string {
 }
 
 export async function countUnlinkedEmailsFromAddress(supabase: Client, email: string | null | undefined): Promise<number> {
-  if (!email || !email.includes('@')) return 0
+  if (!email || !email.includes('@') || !retroLinkable(email)) return 0
   const { count } = await supabase
     .from('incoming_emails')
     .select('id', { count: 'exact', head: true })
@@ -29,7 +42,7 @@ export async function countUnlinkedEmailsFromAddress(supabase: Client, email: st
 }
 
 export async function linkUnlinkedEmailsFromAddress(supabase: Client, customerId: string, email: string | null | undefined): Promise<number> {
-  if (!email || !email.includes('@')) return 0
+  if (!email || !email.includes('@') || !retroLinkable(email)) return 0
   try {
     const { data, error } = await supabase
       .from('incoming_emails')

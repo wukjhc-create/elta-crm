@@ -96,7 +96,8 @@ export async function createPortalToken(
         customer_id: data.customer_id,
         email: data.email,
         token,
-        expires_at: data.expires_at || null,
+        // Kunde-review 2026-10-08 (#1): standard-udløb (før uendeligt) — som partneradgang
+        expires_at: data.expires_at || new Date(Date.now() + 365 * 86_400_000).toISOString(),
         created_by: userId,
       })
       .select(PORTAL_TOKEN_PUBLIC_COLUMNS) // token-kolonnen er skjult for bruger-sessionen (00175)
@@ -207,7 +208,8 @@ export async function validatePortalToken(
           customer_number,
           company_name,
           contact_person,
-          email
+          email,
+          is_active
         )
       `)
       .eq('token', token)
@@ -216,6 +218,11 @@ export async function validatePortalToken(
       .maybeSingle()
 
     if (error || !tokenData) {
+      return { success: false, error: 'Ugyldig eller udløbet adgang' }
+    }
+
+    // Kunde-review 2026-10-08 (#1): deaktiveret kunde → linket virker ikke (genaktivering giver adgang igen)
+    if ((tokenData.customer as { is_active?: boolean | null } | null)?.is_active === false) {
       return { success: false, error: 'Ugyldig eller udløbet adgang' }
     }
 
@@ -1787,7 +1794,11 @@ export async function getPortalDocuments(
     // row der har storage_path. Sikrer at portalen virker baade foer og
     // efter bucket-privatisering (β.2.5). TTL=SHORT (1t) — portal-siden
     // re-loader ofte og kort levetid er mest sikkert.
-    const paths = visible.map((d) => (d.storage_path as string | null) ?? '')
+    // Storage-review 2026-10-08 (#7): kun stier i kundens egne mapper (eller tilbuds-PDF'er) signeres — en dokumentrække
+    // hvis storage_path peger andre steder hen (fx leverandørfakturaer/en anden kundes mappe) udleveres ikke
+    const ownPath = (p: string) => !p.includes('..') && (p.startsWith(`customer-documents/${customerId}/`)
+      || p.startsWith(`outbound-attachments/${customerId}/`) || /^quotes\/\d{4}\/[^/]+\.pdf$/i.test(p))
+    const paths = visible.map((d) => { const p = (d.storage_path as string | null) ?? ''; return ownPath(p) ? p : '' })
     const { getStorageSignedUrls, SIGNED_URL_TTL: TTL } = await import('@/lib/storage/signed-url')
     const fresh = await getStorageSignedUrls(
       'attachments',
@@ -1805,7 +1816,8 @@ export async function getPortalDocuments(
     const { getSafeDocumentDescription } = await import('@/lib/documents/display-description')
     const curated = visible.map((d, idx) => ({
       ...d,
-      file_url: freshByIdx[idx] ?? d.file_url ?? '',
+      // ingen fallback til et gemt (evt. 1-årigt) link når stien ikke er kundens egen
+      file_url: freshByIdx[idx] ?? (paths[idx] || !d.storage_path ? d.file_url ?? '' : ''),
       description: getSafeDocumentDescription(d),
     }))
 

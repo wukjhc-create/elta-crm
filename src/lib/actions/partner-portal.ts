@@ -174,7 +174,8 @@ export async function validatePartnerToken(
           customer_number,
           company_name,
           contact_person,
-          email
+          email,
+          is_active
         )
       `)
       .eq('token', token)
@@ -183,6 +184,11 @@ export async function validatePartnerToken(
       .maybeSingle()
 
     if (error || !tokenData) {
+      return { success: false, error: 'Ugyldig eller udløbet adgang' }
+    }
+
+    // Kunde-review 2026-10-08 (#1): deaktiveret kunde → linket virker ikke (genaktivering giver adgang igen)
+    if ((tokenData.partner as { is_active?: boolean | null } | null)?.is_active === false) {
       return { success: false, error: 'Ugyldig eller udløbet adgang' }
     }
 

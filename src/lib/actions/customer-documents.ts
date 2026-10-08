@@ -16,6 +16,15 @@ import { getStorageSignedUrls, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import type { ActionResult } from '@/types/common.types'
 import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+/**
+ * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
+ * låses for direkte REST-adgang (authenticated kunne læse/overskrive alle filer i 'attachments').
+ */
+function storageClient() {
+  return createAdminClient()
+}
 
 export interface CustomerDocument {
   id: string
@@ -159,7 +168,7 @@ export async function getCustomerImages(
 
     const folderPath = `customer-documents/${customerId}/besigtigelse-images`
 
-    const { data: files, error } = await supabase.storage
+    const { data: files, error } = await storageClient().storage
       .from('attachments')
       .list(folderPath, { limit: 200 })
 
@@ -172,7 +181,7 @@ export async function getCustomerImages(
       if (!file.name || file.name === '.emptyFolderPlaceholder') continue
 
       const filePath = `${folderPath}/${file.name}`
-      const { data: urlData } = await supabase.storage
+      const { data: urlData } = await storageClient().storage
         .from('attachments')
         .createSignedUrl(filePath, 3600)
 
@@ -220,7 +229,7 @@ export async function getDocumentDownloadUrls(
 
     const urls: { path: string; url: string; name: string }[] = []
     for (const path of requested.filter((p) => allowed.has(p))) {
-      const { data } = await supabase.storage
+      const { data } = await storageClient().storage
         .from('attachments')
         .createSignedUrl(path, 3600)
 
@@ -256,28 +265,31 @@ export async function uploadCustomerDocument(
       return { success: false, error: 'Filen er for stor (max 20 MB)' }
     }
 
-    const ext = file.name.split('.').pop() || 'pdf'
-    const safeFileName = `upload-${Date.now()}.${ext}`
+    // Storage-review 2026-10-08 (#5): gyldigt kunde-id, kun kendte dokument-/billedtyper (ingen HTML/SVG der vises i
+    // portalen), renset filendelse, ingen overskrivning; ingen 1-årige signerede links i DB (#4 — signeres ved visning)
+    validateUUID(customerId, 'kunde ID')
+    const rawExt = (file.name.split('.').pop() || '').toLowerCase()
+    const ext = CUSTOMER_UPLOAD_EXT[rawExt] && CUSTOMER_UPLOAD_EXT[rawExt].test(file.type || '') ? rawExt : null
+    if (!ext) {
+      return { success: false, error: 'Filtypen er ikke tilladt (PDF, billeder, Word, Excel)' }
+    }
+    const safeFileName = `upload-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`
     const storagePath = `customer-documents/${customerId}/${safeFileName}`
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    const { error: uploadErr } = await supabase.storage
+    const { error: uploadErr } = await storageClient().storage
       .from('attachments')
       .upload(storagePath, buffer, {
-        contentType: file.type || 'application/octet-stream',
-        upsert: true,
+        contentType: file.type,
+        upsert: false,
       })
 
     if (uploadErr) {
       return { success: false, error: 'Upload fejlede' }
     }
 
-    const { data: urlData } = await supabase.storage
-      .from('attachments')
-      .createSignedUrl(storagePath, 86400 * 365)
-
-    const fileUrl = urlData?.signedUrl || ''
+    const fileUrl = ''
 
     const { data: doc, error: docErr } = await supabase
       .from('customer_documents')
@@ -296,6 +308,7 @@ export async function uploadCustomerDocument(
       .single()
 
     if (docErr || !doc) {
+      await storageClient().storage.from('attachments').remove([storagePath]) // ingen forældreløs fil
       return { success: false, error: 'Kunne ikke gemme dokument' }
     }
 
@@ -307,6 +320,16 @@ export async function uploadCustomerDocument(
 }
 
 const CASE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+/** Tilladte kundedokumenter: filendelse → forventet MIME (klientens filtype skal matche) */
+const CUSTOMER_UPLOAD_EXT: Record<string, RegExp> = {
+  pdf: /^application\/pdf$/i,
+  jpg: /^image\/jpe?g$/i, jpeg: /^image\/jpe?g$/i, png: /^image\/png$/i, webp: /^image\/webp$/i, heic: /^image\/hei[cf]$/i,
+  doc: /^application\/msword$/i,
+  docx: /^application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document$/i,
+  xls: /^application\/vnd\.ms-excel$/i,
+  xlsx: /^application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet$/i,
+}
+
 const CASE_UPLOAD_MIME = /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf)$/i
 
 /**
@@ -336,7 +359,7 @@ export async function uploadCaseDocument(caseId: string, formData: FormData): Pr
 
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'jpg'
     const storagePath = `customer-documents/${sc.customer_id}/case-${caseId}-${Date.now()}.${ext}`
-    const { error: uploadErr } = await supabase.storage.from('attachments')
+    const { error: uploadErr } = await storageClient().storage.from('attachments')
       .upload(storagePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false })
     if (uploadErr) {
       logger.error('uploadCaseDocument: storage upload failed', { error: uploadErr, entityId: caseId })
@@ -344,7 +367,7 @@ export async function uploadCaseDocument(caseId: string, formData: FormData): Pr
     }
 
     // file_url er NOT NULL; visning henter altid friske signerede URL'er via storage_path (getDocumentsForCase)
-    const { data: signed } = await supabase.storage.from('attachments').createSignedUrl(storagePath, 3600)
+    const { data: signed } = await storageClient().storage.from('attachments').createSignedUrl(storagePath, 3600)
     const { data: doc, error: docErr } = await supabase.from('customer_documents').insert({
       customer_id: sc.customer_id,
       service_case_id: caseId,

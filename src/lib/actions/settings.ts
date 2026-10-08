@@ -24,6 +24,14 @@ import { getStorageSignedUrlOrNull, getStorageSignedUrls, SIGNED_URL_TTL } from 
 import { setProfileLoginActive } from '@/lib/auth/login-access'
 import { isValidRole, lastAdminBlock } from '@/lib/auth/role-guard'
 import { isOwnAvatarPath } from '@/lib/auth/avatar-path'
+
+/**
+ * Storage-review 2026-10-08 (S1): fil-adgang går via service-klienten bag action-gaten — så bucket-politikkerne kan
+ * låses for direkte REST-adgang (authenticated kunne læse/overskrive alle filer i 'attachments').
+ */
+function storageClient() {
+  return createAdminClient()
+}
 import {
   parseInvoiceEmailConfig,
   type InvoiceEmailConfig,
@@ -723,13 +731,13 @@ export async function uploadProfileAvatar(
       null
     // kun brugerens egne avatar-filer slettes (stien kunne før pege på vilkårlige filer)
     if (oldAvatarPath && isOwnAvatarPath(oldAvatarPath, userId)) {
-      await supabase.storage.from('attachments').remove([oldAvatarPath])
+      await storageClient().storage.from('attachments').remove([oldAvatarPath])
     }
 
     const ext = file.name.split('.').pop() || 'png'
     const filePath = `avatars/${userId}-${Date.now()}.${ext}`
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await storageClient().storage
       .from('attachments')
       .upload(filePath, file, { upsert: true, contentType: file.type })
 
@@ -777,7 +785,7 @@ export async function deleteProfileAvatar(): Promise<ActionResult<void>> {
       currentProfile?.avatar_url?.split('/attachments/')[1] ||
       null
     if (filePath && isOwnAvatarPath(filePath, userId)) {
-      await supabase.storage.from('attachments').remove([filePath])
+      await storageClient().storage.from('attachments').remove([filePath])
     }
 
     // 00192 (P2): avatar-felterne skrives kun server-side
@@ -832,7 +840,7 @@ export async function uploadCompanyLogo(
     const fileName = `company-logo-${Date.now()}.${ext}`
     const filePath = `logos/${fileName}`
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await storageClient().storage
       .from('attachments')
       .upload(filePath, file, { upsert: true, contentType: file.type })
 
@@ -861,7 +869,7 @@ export async function uploadCompanyLogo(
       existing.company_logo_url?.split('/attachments/')[1] ||
       null
     if (oldLogoPath && oldLogoPath !== filePath) {
-      await supabase.storage.from('attachments').remove([oldLogoPath])
+      await storageClient().storage.from('attachments').remove([oldLogoPath])
     }
 
     const { error: updateError } = await supabase
@@ -902,7 +910,7 @@ export async function deleteCompanyLogo(): Promise<ActionResult<void>> {
       existing.company_logo_url?.split('/attachments/')[1] ||
       null
     if (filePath) {
-      await supabase.storage.from('attachments').remove([filePath])
+      await storageClient().storage.from('attachments').remove([filePath])
     }
 
     // Clear URL + path in settings

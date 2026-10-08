@@ -437,6 +437,40 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'portal-token-rules-check') {
+    // Kunde-review #1 + storage-review #7: deaktiveret kunde → link afvist (genaktiveret → virker); nye links har udløb;
+    // portalen signerer kun stier i kundens egne mapper. Ingen mail.
+    const { validatePortalToken, getPortalDocuments } = await import('../../src/lib/actions/portal')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `PT-${stamp}`, company_name: `[HARNESS] pt ${stamp}`, contact_person: 'X', email: `pt-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const tok = randomBytes(32).toString('hex')
+    try {
+      await admin.from('portal_access_tokens').insert({ customer_id: cust, token: tok, email: `pt-${stamp}@harness.test`, is_active: true, created_by: owner })
+      check('aktiv kunde → link virker', (await validatePortalToken(tok)).success)
+      await admin.from('customers').update({ is_active: false }).eq('id', cust)
+      check('deaktiveret kunde → link afvist', !(await validatePortalToken(tok)).success)
+      await admin.from('customers').update({ is_active: true }).eq('id', cust)
+      check('genaktiveret → link virker igen', (await validatePortalToken(tok)).success)
+      await admin.from('customer_documents').insert([
+        { customer_id: cust, title: 'Egen [HARNESS]', document_type: 'other', file_url: 'https://gammelt-link', storage_path: `customer-documents/${cust}/egen.pdf`, file_name: 'egen.pdf', mime_type: 'application/pdf' },
+        { customer_id: cust, title: 'Fremmed [HARNESS]', document_type: 'other', file_url: 'https://gammelt-link', storage_path: 'supplier-invoices/x/faktura.pdf', file_name: 'f.pdf', mime_type: 'application/pdf' },
+      ])
+      const docs = await getPortalDocuments(tok)
+      const fremmed = (docs.data ?? []).find((d) => d.title === 'Fremmed [HARNESS]')
+      check('dokument med fremmed sti → intet link (heller ikke det gemte)', docs.success && !!fremmed && !fremmed.file_url, JSON.stringify(fremmed?.file_url))
+    } finally {
+      await admin.from('customer_documents').delete().eq('customer_id', cust)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ portal-link-regler ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'partner-fuldmagt-leak-check') {
     // S1 (storage-review 2026-10-08): partneren (betaler på sagen) må hverken se eller hente slutkundens fuldmagt-PDF;
     // almindelige kontrakter/tilbud på sagen ses stadig. Rydder op. Ingen mail.
