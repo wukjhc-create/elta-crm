@@ -933,6 +933,10 @@ export async function sendOfferEmail(
       // 00203 (staging): uforanderligt snapshot af den sendte revision + forrige revision afløses (no-op uden flag)
       const { recordOfferSent } = await import('@/lib/offers/revisions')
       await recordOfferSent(offer.id, userId)
+      // Salgspipeline: tilknyttet lead → "Tilbud sendt" (kaster aldrig)
+      const { markLeadProposalForSentOffer } = await import('@/lib/services/lead-won')
+      const { createAdminClient: adminForLead } = await import('@/lib/supabase/admin')
+      await markLeadProposalForSentOffer(adminForLead(), offer.id, userId)
     }
 
     // Record outgoing email in incoming_emails for customer timeline

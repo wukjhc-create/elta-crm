@@ -499,12 +499,13 @@ export async function updateLeadStatus(
       .from('leads')
       .update({ status })
       .eq('id', id)
+      .eq('status', oldLead.status) // samtidig ændring (fx automatisk "vundet") må ikke overskrives blindt
       .select()
       .single()
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return { success: false, error: 'Lead blev ikke fundet' }
+        return { success: false, error: 'Leadets status er ændret imens — genindlæs og prøv igen' }
       }
       logger.error('Database error updating lead status', { error: error })
       throw new Error('DATABASE_ERROR')

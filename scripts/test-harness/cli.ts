@@ -591,6 +591,48 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'lead-pipeline-check') {
+    // Leads-review #1/#9: accept markerer kun tilbuddets eget lead vundet (ikke alle kundens); uden lead_id kun ved
+    // præcis ét åbent konverteret lead; afsendelse → "Tilbud sendt"; vundet kan genåbnes.
+    const { markLeadsWonForAcceptedOffer, markLeadProposalForSentOffer } = await import('../../src/lib/services/lead-won')
+    const { isValidLeadTransition } = await import('../../src/types/leads.types')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `LP-${stamp}`, company_name: `[HARNESS] lp ${stamp}`, contact_person: 'X', email: `lp-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const mkLead = async (tag: string, status: string) => ((await admin.from('leads').insert({ company_name: `[HARNESS] lp ${tag}`, contact_person: 'x', email: `lp-${tag}-${stamp}@harness.test`, status, source: 'website', created_by: owner, custom_fields: { customer_id: cust } }).select('id').single()).data as { id: string }).id
+    const mkOffer = async (tag: string, leadId: string | null) => ((await admin.from('offers').insert({ offer_number: `LP-${tag}-${stamp}`, title: '[HARNESS] lp', created_by: owner, customer_id: cust, lead_id: leadId, status: 'sent' }).select('id').single()).data as { id: string }).id
+    const st = async (id: string) => ((await admin.from('leads').select('status').eq('id', id).single()).data as { status: string }).status
+    const offerIds: string[] = []
+    try {
+      const l1 = await mkLead('1', 'qualified'), l2 = await mkLead('2', 'qualified')
+      const o1 = await mkOffer('1', l1); offerIds.push(o1)
+      await markLeadProposalForSentOffer(admin, o1, owner)
+      check('afsendelse → eget lead "Tilbud sendt"', (await st(l1)) === 'proposal')
+      check('afsendelse rører ikke kundens andet lead', (await st(l2)) === 'qualified')
+      await markLeadsWonForAcceptedOffer(admin, o1, owner)
+      check('accept → eget lead vundet', (await st(l1)) === 'won')
+      check('accept rører IKKE kundens andet åbne lead', (await st(l2)) === 'qualified')
+      const l3 = await mkLead('3', 'qualified')
+      const o2 = await mkOffer('2', null); offerIds.push(o2)
+      await markLeadsWonForAcceptedOffer(admin, o2, owner)
+      check('tilbud uden lead_id + flere åbne leads → intet ændret', (await st(l2)) === 'qualified' && (await st(l3)) === 'qualified')
+      await admin.from('leads').update({ status: 'lost' }).eq('id', l3)
+      await markLeadsWonForAcceptedOffer(admin, o2, owner)
+      check('tilbud uden lead_id + præcis ét åbent → det vindes', (await st(l2)) === 'won')
+      check('vundet kan genåbnes (won → negotiation)', isValidLeadTransition('won', 'negotiation'))
+    } finally {
+      const { data: ls } = await admin.from('leads').select('id').like('email', `lp-%-${stamp}@harness.test`)
+      const ids = ((ls ?? []) as Array<{ id: string }>).map((r) => r.id)
+      if (offerIds.length) await admin.from('offers').delete().in('id', offerIds)
+      if (ids.length) { await admin.from('lead_activities').delete().in('lead_id', ids); await admin.from('leads').delete().in('id', ids) }
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ lead-pipeline ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'public-contact-limit-check') {
     // Partner-review #3: /api/public/contact — honeypot, dublet inden for 10 min, timegrænse. Test-nøgle sættes kun i
     // denne proces. Rydder op (leads/aktiviteter/kunder med harness-e-mails).

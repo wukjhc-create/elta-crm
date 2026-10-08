@@ -820,6 +820,8 @@ export async function updateOfferStatus(
     if (status === 'sent') {
       const { recordOfferSent } = await import('@/lib/offers/revisions')
       await recordOfferSent(id, userId)
+      const { markLeadProposalForSentOffer } = await import('@/lib/services/lead-won')
+      await markLeadProposalForSentOffer(createAdminClient(), id, userId)
     }
     revalidatePath('/offers')
     revalidatePath(`/offers/${id}`)
