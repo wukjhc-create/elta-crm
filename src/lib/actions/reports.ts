@@ -151,17 +151,22 @@ export async function getReportsSummary(): Promise<ActionResult<ReportsSummary>>
       monthEntriesResult,
       topCustomerResult,
     ] = await Promise.all([
-      supabase.from('offers').select('final_amount').eq('status', 'accepted').eq('is_proposal', false),
-      supabase.from('offers').select('final_amount').in('status', ['sent', 'viewed']).eq('is_proposal', false),
+      // Økonomi-review 2026-10-08: summer side for side (PostgREST giver højst 1.000 rækker)
+      fetchAllRows<{ final_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount').eq('status', 'accepted').eq('is_proposal', false).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
+      fetchAllRows<{ final_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount').in('status', ['sent', 'viewed']).eq('is_proposal', false).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'accepted').eq('is_proposal', false),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('status', 'rejected').eq('is_proposal', false),
-      supabase.from('offers').select('final_amount').not('status', 'eq', 'draft').eq('is_proposal', false),
+      fetchAllRows<{ final_amount: number | null }>((from, to) => supabase.from('offers').select('id, final_amount').not('status', 'eq', 'draft').eq('is_proposal', false).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
       supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', 'active'),
       // rapport-review: time_entries er den gamle model (≈ 0 i prod) — timer registreres i time_logs
       fetchAllRows<{ hours: number | string | null; billable: boolean | null }>((from, to) => supabase.from('time_logs')
         .select('id, hours, billable').not('end_time', 'is', null).neq('approval_status', 'rejected').gte('start_time', monthStartIso).order('id').range(from, to))
         .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
-      supabase.from('offers').select('customer_id, final_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted').eq('is_proposal', false),
+      fetchAllRows<{ customer_id: string | null; final_amount: number | null; customer: unknown }>((from, to) => supabase.from('offers').select('id, customer_id, final_amount, customer:customers!offers_customer_id_fkey(company_name)').eq('status', 'accepted').eq('is_proposal', false).order('id').range(from, to))
+        .then((data) => ({ data, error: null }), (e: Error) => ({ data: null, error: e })),
     ])
 
     // Calculate revenue
