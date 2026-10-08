@@ -297,7 +297,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     // N11: staging har RLS 00181 -> montør må starte eget job (prod: flaget er OFF indtil 00181 er godkendt)
     MONTOR_START_JOB_ENABLED: 'true',
     // 00203 (staging only): tilbudsrevisioner
-    OFFER_REVISIONS_ENABLED: 'true',
+    // UI_OFFER_REVISIONS_ENABLED=false → kør som prod (flag OFF) for regression
+    OFFER_REVISIONS_ENABLED: process.env.UI_OFFER_REVISIONS_ENABLED ?? 'true',
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
     // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }

@@ -13,8 +13,10 @@ withProdReadOnlyRoleProbe('prod-role-check-00203', async (probe, run) => {
   for (const u of users as Array<{ role: string; id: string }>) {
     const sel = await probe(u.id, `SELECT count(*)::int n FROM public.offer_snapshots`)
     res.push([`${u.role}: offer_snapshots læs ${READERS.has(u.role) ? 'tilladt' : '(0 rækker)'}`, sel.ok, sel.ok ? `${sel.rows[0]?.n} rækker` : sel.code])
-    const ins = await probe(u.id, `INSERT INTO public.offer_snapshots (offer_id, revision_number, snapshot) SELECT id, 99, '{}'::jsonb FROM public.offers LIMIT 1`)
-    res.push([`${u.role}: offer_snapshots skrivning nægtet`, !ins.ok, ins.ok ? 'SKREV' : ins.code])
+    // read-only-proben tillader kun SELECT → skriveret testes som privilegium i brugerens egen session
+    const priv = await probe(u.id, `SELECT has_table_privilege('public.offer_snapshots', 'INSERT') i, has_table_privilege('public.offer_snapshots', 'UPDATE') u, has_table_privilege('public.offer_snapshots', 'DELETE') d`)
+    const pr = priv.ok ? priv.rows[0] as { i: boolean; u: boolean; d: boolean } : null
+    res.push([`${u.role}: offer_snapshots skrivning nægtet (ingen INSERT/UPDATE/DELETE)`, !!pr && !pr.i && !pr.u && !pr.d, pr ? JSON.stringify(pr) : (priv as { code: string }).code])
     const off = await probe(u.id, `SELECT count(*)::int n, count(revision_number)::int r FROM public.offers`)
     res.push([`${u.role}: tilbud læsbare som før (inkl. revision_number)`, off.ok, off.ok ? JSON.stringify(off.rows[0]) : off.code])
   }
