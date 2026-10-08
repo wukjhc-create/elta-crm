@@ -17,6 +17,7 @@ import { timingSafeEqual } from 'crypto'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
 
+const MAX_REMINDER_MAILS_PER_RUN = 3
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
@@ -43,7 +44,11 @@ async function handleCron(request: Request): Promise<Response> {
     const summary = { checked: overdue.length, sent: 0, manual_review: 0, skipped: 0, failed: 0 }
     const errors: string[] = []
 
+    let mailsThisRun = 0
     for (const inv of overdue) {
+      // Mail-review 2026-10-08 (#1): højst MAX_REMINDER_MAILS_PER_RUN afsendelser pr. kørsel (maxDuration 60 s, en
+      // Graph-afsendelse kan tage op til 30 s) — resten tages ved næste kørsel i stedet for at blive dræbt midt i en send
+      if (mailsThisRun >= MAX_REMINDER_MAILS_PER_RUN) { summary.skipped++; continue }
       // Phase 10 — fire automation rules first; default rule maps to
       // send_reminder. The DB UNIQUE index prevents double-fire even
       // if the cron runs twice for the same overdue invoice.
@@ -65,6 +70,7 @@ async function handleCron(request: Request): Promise<Response> {
 
       try {
         const result = await sendInvoiceReminder(inv.id)
+        if (result.status === 'sent' || result.status === 'failed') mailsThisRun++
         if (result.status === 'sent') summary.sent++
         else if (result.status === 'manual_review') summary.manual_review++
         else if (result.status === 'skipped') summary.skipped++

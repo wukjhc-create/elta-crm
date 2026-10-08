@@ -931,6 +931,20 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
     await logReminder(invoiceId, level, 'skipped', recipient, 'claimed by parallel run')
     return { invoiceId, status: 'skipped', level, reason: 'claimed by parallel run' }
   }
+  // Mail-review 2026-10-08 (#1): log-række "på vej" FØR afsendelsen. Blev funktionen dræbt efter at Graph tog mailen,
+  // men før 'sent' blev logget, genoprettede reparationen niveauet → samme rykker igen dagen efter. En in_flight-række
+  // tæller som brugt (hellere en manglende rykker end en dublet); den opdateres til det endelige udfald nedenfor.
+  const { data: inflight } = await supabase.from('invoice_reminder_log')
+    .insert({ invoice_id: invoiceId, level, status: 'failed', recipient, reason: REMINDER_INFLIGHT_REASON, error: null })
+    .select('id').single()
+  const inflightId = (inflight as { id: string } | null)?.id ?? null
+  const finishLog = async (status: 'sent' | 'failed', reason: string | null, error: string | null) => {
+    if (inflightId) {
+      await supabase.from('invoice_reminder_log').update({ status, reason, error }).eq('id', inflightId)
+    } else {
+      await logReminder(invoiceId, level, status, recipient, reason, error)
+    }
+  }
 
   const result = await sendEmailViaGraph({
     to: recipient,
@@ -948,12 +962,12 @@ export async function sendInvoiceReminder(invoiceId: string): Promise<SendRemind
       .update({ reminder_count: prevCount, last_reminder_at: invoice.last_reminder_at ?? null })
       .eq('id', invoiceId)
       .eq('reminder_count', prevCount + 1)
-    await logReminder(invoiceId, level, 'failed', recipient, result.uncertain ? REMINDER_UNCERTAIN_REASON : null, result.error || 'send failed')
+    await finishLog('failed', result.uncertain ? REMINDER_UNCERTAIN_REASON : null, result.error || 'send failed')
     await logMailRoute(route, 'failed', { invoiceId, level, error: result.error })
     return { invoiceId, status: 'failed', level, error: result.error }
   }
 
-  await logReminder(invoiceId, level, 'sent', recipient, null)
+  await finishLog('sent', null, null)
   await logMailRoute(route, 'sent', { invoiceId, level, messageId: result.messageId })
   console.log('INVOICE REMINDER SENT:', invoice.invoice_number, 'level', level, '→', recipient)
   return { invoiceId, status: 'sent', level }
@@ -970,6 +984,8 @@ function daysBetween(from: Date, to: Date): number {
 
 /** Logårsag for en afsendelse med ukendt udfald (Graph-timeout): niveauet regnes som brugt — ingen genafsendelse. */
 const REMINDER_UNCERTAIN_REASON = 'uncertain_timeout'
+/** Logårsag for en rykker der er ved at blive sendt (skrives før Graph); efterlades kun hvis kørslen dræbes → brugt */
+const REMINDER_INFLIGHT_REASON = 'in_flight'
 /** Et krav ældre end dette uden log-række regnes som afbrudt (ikke en kørsel i gang) */
 const REMINDER_CLAIM_STALE_MS = 15 * 60_000
 
@@ -984,9 +1000,11 @@ async function reconcileOrphanReminderClaim(supabase: ReturnType<typeof createAd
   if (claimed <= 0 || !invoice.last_reminder_at) return
   if (Date.now() - new Date(invoice.last_reminder_at).getTime() < REMINDER_CLAIM_STALE_MS) return
   const { data: logs } = await supabase.from('invoice_reminder_log').select('status, reason, created_at')
-    .eq('invoice_id', invoice.id).in('status', ['sent', 'failed']).order('created_at', { ascending: false })
+    .eq('invoice_id', invoice.id).in('status', ['sent', 'failed', 'manual_review']).order('created_at', { ascending: false })
+  // Mail-review 2026-10-08 (#3): eskalering (niveau 3) logges som manual_review — talte ikke med, så tælleren blev
+  // rullet 3 → 2 hver dag og eskaleret igen
   const used = ((logs ?? []) as Array<{ status: string; reason: string | null; created_at: string }>)
-    .filter((l) => l.status === 'sent' || l.reason === REMINDER_UNCERTAIN_REASON)
+    .filter((l) => l.status === 'sent' || l.status === 'manual_review' || l.reason === REMINDER_UNCERTAIN_REASON || l.reason === REMINDER_INFLIGHT_REASON)
   if (used.length >= claimed) return
   const restoredAt = used[0]?.created_at ?? null
   const { data: fixed } = await supabase.from('invoices')

@@ -835,6 +835,8 @@ async function main() {
       check("krav med 'sent'-log bevares (1)", (await mk('sent', 60, { status: 'sent', reason: null })) === 1)
       check('krav med ukendt udfald (uncertain_timeout) bevares — ingen genafsendelse (1)', (await mk('uncertain', 60, { status: 'failed', reason: 'uncertain_timeout' })) === 1)
       check('frisk krav (5 min — kørsel i gang) røres ikke (1)', (await mk('fresh', 5, null)) === 1)
+      check('krav med in_flight-log (dræbt under afsendelse) bevares — ingen dublet (1)', (await mk('inflight', 60, { status: 'failed', reason: 'in_flight' })) === 1)
+      check('eskalering (manual_review) bevares — rulles ikke tilbage (1)', (await mk('manual', 60, { status: 'manual_review', reason: 'escalated' })) === 1)
     } finally {
       for (const id of invIds) { await admin.from('invoice_reminder_log').delete().eq('invoice_id', id); await admin.from('invoices').delete().eq('id', id) }
       await admin.from('customers').delete().eq('id', custId)
