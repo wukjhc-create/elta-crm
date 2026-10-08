@@ -10,6 +10,7 @@ import { runAssistantCommand, type AssistantActor, type AssistantButton } from '
 import { ASSISTANT_RULES } from '@/lib/assistant/rules'
 import { actorForChat, consumeLinkCode } from './link'
 import { sendTelegram } from './transport'
+import { transcribeTelegramVoice, voiceEnabled, voiceWithinLimits } from '@/lib/assistant/voice'
 
 /** Telegrams X-Telegram-Bot-Api-Secret-Token mod env TELEGRAM_WEBHOOK_SECRET — timing-safe, fail-closed (min. 16 tegn) */
 export function telegramSecretOk(header: string | null, secret: string | undefined = process.env.TELEGRAM_WEBHOOK_SECRET): boolean {
@@ -25,7 +26,11 @@ export const SNOOZE_MIN = 60
 
 export type TelegramUpdate = {
   update_id?: number
-  message?: { chat?: { id?: number; type?: string }; text?: string }
+  message?: {
+    chat?: { id?: number; type?: string }
+    text?: string
+    voice?: { file_id?: string; duration?: number; mime_type?: string; file_size?: number }
+  }
   callback_query?: { id?: string; data?: string; message?: { chat?: { id?: number } } }
 }
 
@@ -106,6 +111,43 @@ export async function handleTelegramUpdate(admin: SupabaseClient, update: Telegr
     await audit(admin, actor, 'task_snoozed', ref, { reminder_at: next })
     await reply(chatId, `⏳ Udsat ${SNOOZE_MIN} min: ${task!.title}`)
     return { handled: 'snooze' }
+  }
+
+  // ---- talebesked (T11) → transskription → samme kommandomotor ----
+  const voice = update.message?.voice
+  if (voice?.file_id && typeof update.message?.chat?.id === 'number') {
+    const vChat = update.message.chat.id
+    if (update.message.chat.type && update.message.chat.type !== 'private') {
+      await reply(vChat, 'ELTA Assistant virker kun i private chats.')
+      return { handled: 'not_private' }
+    }
+    // Bruger først: ukendte/deaktiverede chats transskriberes aldrig (ingen omkostning, intet gemt)
+    const vActor = await actorForChat(admin, vChat)
+    if (!vActor) {
+      await audit(admin, null, 'unlinked_message', null, { kind: 'voice' })
+      await reply(vChat, 'Denne chat er ikke forbundet. Forbind din CRM-bruger under Indstillinger → Profil → "Forbind Telegram".')
+      return { handled: 'unlinked' }
+    }
+    if (!voiceEnabled()) {
+      await reply(vChat, 'Talebeskeder er ikke slået til endnu — skriv kommandoen som tekst.')
+      return { handled: 'voice_disabled' }
+    }
+    const lim = voiceWithinLimits(voice)
+    if (!lim.ok) {
+      await audit(admin, vActor, 'voice_rejected', null, { reason: lim.reason, duration: voice.duration ?? null })
+      await reply(vChat, `Talebeskeden er for lang — højst 60 sekunder. Del den op eller skriv den.`)
+      return { handled: 'voice_rejected' }
+    }
+    const tr = await transcribeTelegramVoice({ file_id: voice.file_id, duration: voice.duration, mime_type: voice.mime_type })
+    await audit(admin, vActor, tr.ok ? 'voice_transcribed' : 'voice_failed', null, tr.ok ? { duration: voice.duration ?? null, length: tr.text.length } : { reason: tr.reason })
+    if (!tr.ok) {
+      await reply(vChat, tr.reason === 'budget' ? 'Dagens AI-kvote er brugt — skriv kommandoen som tekst.' : 'Jeg kunne ikke høre beskeden — prøv igen eller skriv den.')
+      return { handled: 'voice_failed' }
+    }
+    const vr = await runAssistantCommand(admin, vActor, tr.text, now)
+    // Transskriptionen vises altid, så en fejlhørt kommando ses med det samme
+    await reply(vChat, `🎙️ «${tr.text}»\n\n${vr.text}`, vr.buttons)
+    return { handled: vr.ok ? 'voice_command_ok' : 'voice_command_rejected' }
   }
 
   // ---- tekstbesked ----

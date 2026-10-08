@@ -2320,6 +2320,72 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'assistant-voice-check') {
+    // STAGING (T11): talebesked → transskription → samme kommandomotor. Fil-hentning, transskription og Telegram-
+    // transport er test-adaptere (intet live, ingen AI-kald). Ukendt chat/flag fra/for lang → intet hentes.
+    const { setTelegramTransport } = await import('../../src/lib/assistant/telegram/transport')
+    const { handleTelegramUpdate } = await import('../../src/lib/assistant/telegram/handle-update')
+    const { createLinkCode } = await import('../../src/lib/assistant/telegram/link')
+    const { setVoiceAdapters } = await import('../../src/lib/assistant/voice')
+    const stamp = Date.now()
+    const sent: Array<{ chatId: number; text: string }> = []
+    setTelegramTransport(async (m) => { sent.push(m); return { delivered: true } })
+    let fetches = 0
+    let heard: string | null = null
+    setVoiceAdapters({
+      fetcher: async () => { fetches++; return new Uint8Array([1, 2, 3]) },
+      transcriber: async () => (heard ? { ok: true as const, text: heard } : { ok: false as const, reason: 'failed' as const }),
+    })
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const adminP = (((await admin.from('profiles').select('id, role').eq('is_active', true).eq('role', 'admin').limit(1)).data ?? []) as Array<{ id: string }>)[0]
+    const chat = 920_000_000 + (stamp % 1_000_000)
+    const { data: cu } = await admin.from('customers').insert({ customer_number: `VC-${stamp}`, company_name: `VCkunde${stamp}`, contact_person: 'x', email: `vc-${stamp}@harness.test`, phone: '12345678', created_by: adminP.id }).select('id').single()
+    const custId = (cu as { id: string }).id
+    const prevLinks = ((await admin.from('assistant_links').select('*').eq('profile_id', adminP.id)).data ?? []) as Array<Record<string, unknown>>
+    const prevFlag = process.env.ASSISTANT_VOICE_ENABLED
+    const voiceMsg = (duration = 5) => ({ message: { chat: { id: chat, type: 'private' }, voice: { file_id: 'f1', duration, mime_type: 'audio/ogg', file_size: 20_000 } } })
+    try {
+      process.env.ASSISTANT_VOICE_ENABLED = 'true'
+      const u = await handleTelegramUpdate(admin, voiceMsg())
+      check('ukendt chat → afvist, intet hentet/transskriberet', u.handled === 'unlinked' && fetches === 0)
+      await admin.from('assistant_links').delete().eq('profile_id', adminP.id)
+      const { code } = await createLinkCode(admin, adminP.id)
+      await handleTelegramUpdate(admin, { message: { chat: { id: chat, type: 'private' }, text: `/start ${code}` } })
+      process.env.ASSISTANT_VOICE_ENABLED = 'false'
+      const d = await handleTelegramUpdate(admin, voiceMsg())
+      check('flag fra → "skriv som tekst", intet hentet', d.handled === 'voice_disabled' && fetches === 0)
+      process.env.ASSISTANT_VOICE_ENABLED = 'true'
+      const l = await handleTelegramUpdate(admin, voiceMsg(120))
+      check('over 60 sek → afvist før download', l.handled === 'voice_rejected' && fetches === 0)
+      heard = null
+      const f = await handleTelegramUpdate(admin, voiceMsg())
+      const tasksAfterFail = (await admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', custId)).count ?? 0
+      check('transskription fejler → venligt svar, ingen opgave', f.handled === 'voice_failed' && tasksAfterFail === 0)
+      heard = `Ring til VCkunde${stamp} i morgen kl. 10`
+      sent.length = 0
+      const ok = await handleTelegramUpdate(admin, voiceMsg())
+      const tasks = (await admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', custId)).count ?? 0
+      const last = sent[sent.length - 1]?.text ?? ''
+      check('talebesked → samme kommando som tekst → CRM-opgave', ok.handled === 'voice_command_ok' && tasks === 1, `${ok.handled} tasks=${tasks}`)
+      check('svaret viser transskriptionen', last.startsWith(`🎙️ «${heard}»`), last.slice(0, 80))
+      const { data: au } = await admin.from('audit_logs').select('action, metadata').eq('action', 'assistant_voice_transcribed').gte('created_at', new Date(stamp - 5_000).toISOString())
+      const meta = JSON.stringify(au ?? [])
+      check('audit: voice_transcribed uden transskriptionstekst', (au ?? []).length === 1 && !meta.includes('VCkunde'), meta.slice(0, 120))
+    } finally {
+      if (prevFlag === undefined) delete process.env.ASSISTANT_VOICE_ENABLED; else process.env.ASSISTANT_VOICE_ENABLED = prevFlag
+      setTelegramTransport(null)
+      setVoiceAdapters({ fetcher: null, transcriber: null })
+      await admin.from('assistant_links').delete().eq('profile_id', adminP.id)
+      if (prevLinks.length) await admin.from('assistant_links').insert(prevLinks)
+      await admin.from('customer_tasks').delete().eq('customer_id', custId)
+      await admin.from('customers').delete().eq('id', custId)
+      await admin.from('audit_logs').delete().gte('created_at', new Date(stamp - 5_000).toISOString()).like('action', 'assistant_%')
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ talebeskeder (T11) bestået (intet live)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'notes-reminders-rls') {
     // STAGING (00196/00197): RLS/rolle/CRUD med rigtige persona-sessioner — kundenoter (skriv: admin/serviceleder/salg
     // som sig selv; ret/slet: admin/serviceleder eller egen), case_notes.source, personal_reminders kun ejeren.
