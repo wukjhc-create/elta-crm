@@ -2446,6 +2446,40 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'telegram-webhook-route-check') {
+    // T10-webhook: selve ruten — flag fra → 404, manglende/forkert hemmelighed → 401, korrekt → 200 og behandlet.
+    // Test-hemmelighed/flag sættes kun i denne proces; transport fanges (intet live).
+    const { setTelegramTransport } = await import('../../src/lib/assistant/telegram/transport')
+    setTelegramTransport(async () => ({ delivered: true }))
+    const prevFlag = process.env.ASSISTANT_TELEGRAM_ENABLED, prevSecret = process.env.TELEGRAM_WEBHOOK_SECRET
+    const secret = `harness-secret-${Date.now()}-xyz`
+    const { POST } = await import('../../src/app/api/assistant/telegram/route')
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const call = (hdr: string | null, body: unknown = { update_id: Date.now(), message: { chat: { id: 940_000_001, type: 'private' }, text: 'hej' } }) =>
+      POST(new Request('http://localhost/api/assistant/telegram', { method: 'POST', headers: { 'content-type': 'application/json', ...(hdr ? { 'x-telegram-bot-api-secret-token': hdr } : {}) }, body: JSON.stringify(body) }))
+    try {
+      process.env.TELEGRAM_WEBHOOK_SECRET = secret
+      process.env.ASSISTANT_TELEGRAM_ENABLED = 'false'
+      check('flag fra → 404', (await call(secret)).status === 404)
+      process.env.ASSISTANT_TELEGRAM_ENABLED = 'true'
+      check('ingen hemmelighed → 401', (await call(null)).status === 401)
+      check('forkert hemmelighed → 401', (await call(secret.replace('xyz', 'abc'))).status === 401)
+      const ok = await call(secret)
+      const j = (await ok.json()) as { ok: boolean; handled?: string }
+      check('korrekt hemmelighed → 200, ukendt chat afvist høfligt', ok.status === 200 && j.handled === 'unlinked', JSON.stringify(j))
+      const bad = await POST(new Request('http://localhost/api/assistant/telegram', { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': secret }, body: '{ikke json' }))
+      check('ugyldig JSON → 200 (Telegram gentager ikke)', bad.status === 200)
+    } finally {
+      if (prevFlag === undefined) delete process.env.ASSISTANT_TELEGRAM_ENABLED; else process.env.ASSISTANT_TELEGRAM_ENABLED = prevFlag
+      if (prevSecret === undefined) delete process.env.TELEGRAM_WEBHOOK_SECRET; else process.env.TELEGRAM_WEBHOOK_SECRET = prevSecret
+      setTelegramTransport(null)
+      await admin.from('audit_logs').delete().gte('created_at', new Date(Date.now() - 120_000).toISOString()).in('action', ['assistant_unlinked_message', 'assistant_update_received'])
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ telegram-webhook-rute ok (intet live)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'leads-json-in-probe') {
     // Perf-review #7: .in() på custom_fields->>source_email_id via PostgREST (som getLeadsForEmails)
     const stamp = Date.now()
