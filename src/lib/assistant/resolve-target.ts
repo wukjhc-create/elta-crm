@@ -4,7 +4,7 @@
  * Tvetydighed gættes ALDRIG — flere lige gode træf → kandidatliste, som brugeren vælger imellem.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { orIlikeContains } from '@/lib/validations/postgrest-filter'
+import { orIlikeContains, pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
 
 export type TargetCandidate = {
   kind: 'customer' | 'case'
@@ -70,6 +70,19 @@ export async function resolveTarget(client: SupabaseClient, rawTerm: string, cas
     const r = rows[0]
     return { status: 'resolved', target: { kind: 'case', id: r.id, customerId: r.customer_id, label: `${r.case_number} ${r.title ?? ''}`.trim() } }
   }
+
+  // Assistent-review 2026-10-08 (#8): præcise træf søges for sig — før kun blandt de første 20 delstrengs-træf, så et
+  // præcist træf længere nede blev overset, og et andet blev valgt uden at spørge
+  const exactPattern = pgQuote(escapeLike(term))
+  const { data: exactRows, error: exactErr } = await client
+    .from('customers')
+    .select('id, customer_number, company_name, contact_person, email')
+    .eq('is_active', true)
+    .or(['company_name', 'contact_person', 'email', 'customer_number'].map((c) => `${c}.ilike.${exactPattern}`).join(','))
+    .order('company_name')
+    .limit(MAX_CANDIDATES + 1)
+  if (exactErr) throw exactErr
+  if ((exactRows ?? []).length > 0) return rankCustomers(term, (exactRows ?? []) as CustomerRow[])
 
   const { data, error } = await client
     .from('customers')
