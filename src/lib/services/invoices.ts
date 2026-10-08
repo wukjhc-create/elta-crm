@@ -1288,6 +1288,11 @@ async function sendClaimedInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
       error: updErr,
     })
   }
+  // Økonomi-review 2026-10-08 (#1): en kreditnota sendt pr. mail annullerede aldrig originalen (kun setInvoiceStatus
+  // gjorde) → fuldt krediteret original stod som udestående/forfalden, i bankmatch og kunne eksporteres
+  if (!updErr && invoice.invoice_type === 'credit' && invoice.credit_of_invoice_id) {
+    await recomputeOriginalVoidStatus(invoice.credit_of_invoice_id, null)
+  }
 
   console.log('INVOICE SENT:', invoiceId)
   try {

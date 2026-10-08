@@ -32,6 +32,9 @@ import type {
 
 const ECONOMIC_BASE = 'https://restapi.e-conomic.com'
 const PROVIDER = 'economic' as const
+/** Krav-markør i invoices.external_invoice_id mens en eksport kører (pending-<ms>); ældre end 15 min = afbrudt */
+const EXPORT_CLAIM_PREFIX = 'pending-'
+const EXPORT_CLAIM_STALE_MS = 15 * 60_000
 
 // =====================================================
 // Secret-at-rest (Ø6.2)
@@ -335,8 +338,16 @@ export async function createInvoiceInEconomic(
     return { ok: false, status: 'failed', error: 'invoice not found' }
   }
 
+  // Økonomi-review 2026-10-08 (#2): igangværende eksport (krav) — en samtidig kørsel må ikke bogføre igen
+  const pendingClaim = typeof inv.external_invoice_id === 'string' && inv.external_invoice_id.startsWith(EXPORT_CLAIM_PREFIX)
+    ? inv.external_invoice_id : null
+  if (pendingClaim && Date.now() - Number(pendingClaim.slice(EXPORT_CLAIM_PREFIX.length)) < EXPORT_CLAIM_STALE_MS) {
+    await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'skip', status: 'skipped', error_message: 'export in progress' })
+    return { ok: false, status: 'skipped', reason: 'export in progress' }
+  }
+
   // Idempotency.
-  if (inv.external_invoice_id && inv.external_provider === PROVIDER) {
+  if (inv.external_invoice_id && !pendingClaim && inv.external_provider === PROVIDER) {
     await logAttempt({
       entity_type: 'invoice',
       entity_id: invoiceId,
@@ -428,12 +439,29 @@ export async function createInvoiceInEconomic(
   }
   const draftBody = draft.body
 
-  const draftRes = await economicFetch<{ draftInvoiceNumber: number }>(ready, '/invoices/drafts', {
-    method: 'POST',
-    body: draftBody,
-  })
+  // Krav FØR bogføring: kun den kørsel der sætter krav-markøren (fra tom eller et afbrudt krav) fortsætter
+  const claimValue = `${EXPORT_CLAIM_PREFIX}${Date.now()}`
+  const claimQ = supabase.from('invoices').update({ external_invoice_id: claimValue }).eq('id', invoiceId)
+  const { data: claimed } = await (pendingClaim ? claimQ.eq('external_invoice_id', pendingClaim) : claimQ.is('external_invoice_id', null)).select('id')
+  if (!claimed || claimed.length !== 1) {
+    await logAttempt({ entity_type: 'invoice', entity_id: invoiceId, action: 'skip', status: 'skipped', error_message: 'export claimed by another run' })
+    return { ok: false, status: 'skipped', reason: 'export in progress' }
+  }
+  const releaseClaim = () => supabase.from('invoices').update({ external_invoice_id: null }).eq('id', invoiceId).eq('external_invoice_id', claimValue)
+
+  let draftRes: Awaited<ReturnType<typeof economicFetch<{ draftInvoiceNumber: number }>>>
+  try {
+    draftRes = await economicFetch<{ draftInvoiceNumber: number }>(ready, '/invoices/drafts', {
+      method: 'POST',
+      body: draftBody,
+    })
+  } catch (err) {
+    await releaseClaim()
+    throw err
+  }
 
   if (!draftRes.ok || !draftRes.data?.draftInvoiceNumber) {
+    await releaseClaim()
     await logAttempt({
       entity_type: 'invoice',
       entity_id: invoiceId,
