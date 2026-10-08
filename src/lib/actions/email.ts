@@ -865,6 +865,9 @@ export async function sendOfferEmail(
       return { success: false, error: routeResult.error || 'Kunne ikke bygge route' }
     }
     const route = routeResult.route
+    if (route.toEmail !== message.to_email) {
+      await supabase.from('email_messages').update({ to_email: route.toEmail }).eq('id', message.id)
+    }
 
     // Mail-review 2026-10-08 (#2): dobbeltklik/to faner sendte tilbuddet to gange. Af trådens udgående beskeder fra det
     // sidste minut (i kø/sendes/sendt) vinder den ældste — alle samtidige kald ser samme rækkefølge, så kun én sender.
@@ -888,6 +891,8 @@ export async function sendOfferEmail(
       html: finalHtml,
       senderName,
       replyTo: fromEmail,
+      cc: input.cc,
+      bcc: input.bcc,
       attachments: emailAttachments.map(att => ({
         filename: att.filename,
         content: att.content instanceof Buffer ? att.content : Buffer.from(att.content as string),
@@ -976,7 +981,7 @@ export async function sendOfferEmail(
           sender_email: fromEmail,
           sender_name: senderName ? `${senderName} | Elta Solar` : 'Elta Solar',
           to_email: route.toEmail,
-          cc: [],
+          cc: input.cc ?? [],
           body_html: finalHtml,
           body_preview: subject.substring(0, 200),
           has_attachments: emailAttachments.length > 0,
@@ -993,7 +998,8 @@ export async function sendOfferEmail(
     }
 
     // Log activity
-    await logOfferActivity(offer.id, 'email_sent', `E-mail sendt til ${offer.customer.email}`, null, {
+    // Mail-review 2026-10-08 (#10): den faktiske modtager (routeren kan vælge betalers faktureringskontakt)
+    await logOfferActivity(offer.id, 'email_sent', `E-mail sendt til ${route.toEmail}`, null, {
       message_id: message.id,
       tracking_id: trackingId,
       subject,

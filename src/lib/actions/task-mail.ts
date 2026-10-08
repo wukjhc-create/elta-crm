@@ -308,6 +308,7 @@ export async function sendTaskEmail(
       html: bodyHtml,
       text: bodyText,
       replyTo: fromEmail,
+      cc: ccArr ?? undefined,
       senderName: senderName || undefined,
       attachments: graphAttachments.length > 0 ? graphAttachments : undefined,
     })
