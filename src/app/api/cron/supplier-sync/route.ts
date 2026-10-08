@@ -137,7 +137,7 @@ async function handleCron(request: Request): Promise<Response> {
           // leverandør-review: side for side — før kun de første 1.000 varer (PostgREST max_rows)
           const products = await fetchAllRows<{ id: string; supplier_sku: string; cost_price: number | null; list_price: number | null }>((from, to) => supabase
             .from('supplier_products')
-            .select('id, supplier_sku, cost_price, list_price')
+            .select('id, supplier_sku, cost_price, list_price, is_available, lead_time_days')
             .eq('supplier_id', schedule.supplier_id)
             .order('id')
             .range(from, to), 2_000_000)
@@ -174,6 +174,8 @@ async function handleCron(request: Request): Promise<Response> {
               const now = new Date().toISOString()
               const priceHistoryBatch: Array<Record<string, unknown>> = []
               const updateFns: Array<() => Promise<unknown>> = []
+              // Perf-review 2026-10-08 (N8-5): uændrede varer får kun last_synced_at — i én samlet opdatering pr. batch
+              const unchangedIds: string[] = []
 
               for (const [sku, price] of prices) {
                 const existingProduct = productsBySkU.get(sku)
@@ -185,6 +187,11 @@ async function handleCron(request: Request): Promise<Response> {
                 // X4 (pris-review 2026-10-07): API'et giver 0 når der ingen prisaftale er (AO) / kost er ukendt (LM) — overskriv
                 // aldrig en rigtig kostpris med 0 og skriv ingen −100 %-historik
                 if (!(Number(newPrice) > 0)) continue
+
+                const ep = existingProduct as { list_price?: number | null; is_available?: boolean | null; lead_time_days?: number | null }
+                const unchanged = Number(oldPrice) === Number(newPrice) && Number(ep.list_price ?? NaN) === Number(price.listPrice ?? NaN)
+                  && (ep.is_available ?? null) === (price.isAvailable ?? null) && (ep.lead_time_days ?? null) === (price.leadTimeDays ?? null)
+                if (unchanged) { unchangedIds.push(productId); updatedProducts++; continue }
 
                 updateFns.push(async () => {
                   const { error } = await supabase
@@ -215,6 +222,13 @@ async function handleCron(request: Request): Promise<Response> {
                   })
                   priceChanges++
                 }
+              }
+
+              if (unchangedIds.length > 0) {
+                updateFns.push(async () => {
+                  const { error } = await supabase.from('supplier_products').update({ last_synced_at: now }).in('id', unchangedIds)
+                  if (error) throw error
+                })
               }
 
               // Execute all product updates in parallel
