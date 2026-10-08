@@ -184,7 +184,8 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
       await audit(admin, actor, 'lookup', target.id, target.label, { kind: 'case' })
       const lines = c ? [`${c.case_number} ${c.title ?? ''}`.trim(), `Status: ${c.status}`] : [target.label]
       if (c?.start_date) lines.push(`Start: ${c.start_date}`)
-      lines.push(next ? `Næste arbejdsordre: ${next.scheduled_date} — ${next.title}${next.status === 'in_progress' ? ' (i gang)' : ''}` : 'Ingen planlagt arbejdsordre')
+      const mayViewWo = hasPermission(actor.role, 'work_orders.view.all') || hasPermission(actor.role, 'work_orders.view.assigned')
+      if (mayViewWo) lines.push(next ? `Næste arbejdsordre: ${next.scheduled_date} — ${next.title}${next.status === 'in_progress' ? ' (i gang)' : ''}` : 'Ingen planlagt arbejdsordre')
       return { ok: true, text: lines.join('\n'), buttons: target.customerId ? [{ label: 'Åbn kunde', action: 'open_customer', ref: target.customerId }] : undefined }
     }
     const [{ count: openTasks }, { count: openCases }] = await Promise.all([

@@ -13,7 +13,7 @@ Kør altid pre → `npm run prod:apply-migration -- <nr> --approved-by-henrik` (
 | # | Hvad | Status | Verificering |
 |---|---|---|---|
 | 00205 | `calculate_work_order_profit` tager omsætning fra seneste faktura uanset status (også kladde); satsskift på godkendte timer nulstiller ikke godkendelsen i DB | Udkast på branch `profit-rate-00205` (appen afviser allerede satsskift uden godkenderret) | diff mod 00202/00185: kun to betingelser |
-| 00206 | `get_customer_product_price` ignorerer kunderabat når aftalen ikke har egen avance (`record IS NOT NULL`) | Udkast på branch `customer-price-00206` | staging: `cli.ts customer-price-rpc-check` (uden avance 100 → efter rettelse 90) |
+| 00206 | `get_customer_product_price` ignorerer kunderabat når aftalen ikke har egen avance (`record IS NOT NULL`) | Udkast på branch `customer-price-00206` — LATENT: prod har 0 kundeaftaler (`prod-customer-price-agreements.ts`), lav hast | staging: `cli.ts customer-price-rpc-check` (uden avance 100 → efter rettelse 90) |
 | 00203 Trin B | Aktivering af tilbudsrevisioner (`OFFER_REVISIONS_ENABLED`) | Klar — docs/runbooks/offer-revisions-activation.md (smoke 7/7) | `npx tsx scripts/prod-smoke-00203.ts` lige før |
 
 ## ELTA Assistant / Telegram (staging færdig, intet live)
