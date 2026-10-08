@@ -268,12 +268,17 @@ export async function setInvoiceStatus(
       if (rebased) patch.due_date = rebased
     }
   }
-  if (next === 'paid') patch.paid_at = new Date().toISOString()
+  if (next === 'paid') {
+    patch.paid_at = new Date().toISOString()
+    // Økonomi-review 2026-10-08: manuelt markeret betalt beholdt payment_status 'pending' → stadig bankmatch-kandidat
+    patch.payment_status = 'paid'
+  }
 
   const { data: updated, error: updErr } = await supabase
     .from('invoices')
     .update(patch)
     .eq('id', invoiceId)
+    .eq('status', cur) // samtidigt statusskift må ikke overskrives blindt
     .select('*')
     .single()
 
