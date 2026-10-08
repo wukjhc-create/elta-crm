@@ -72,7 +72,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 ## NEXT-8 (genereret 2026-10-08 efter review-runde 2 — prod: 109 kunder, 15 tilbud, 8 sager, 5 leads, ~800 mails)
 | # | Område | Opgave | Kræver | Status |
 |---|---|---|---|---|
-| N8-1 | Sikkerhed | `packages`/`v_packages_summary` kost-kolonner (total_cost_price/db_amount) læsbare via REST for salg — kolonne-niveau som product_catalog + visning uden kost + kost via admin-klient | migration (00207) | TODO (udkast) |
+| N8-1 | Sikkerhed | `packages`/`v_packages_summary` kost-kolonner (total_cost_price/db_amount) læsbare via REST for salg | migration (00207) | App DONE (getPackages: gate + admin-klient for salg); **BLOCKED_APPROVAL** 00207 på branch `packages-cost-00207` |
 | N8-2 | Perf | "Kræver svar" som DB-funktion/visning (én forespørgsel) i stedet for 30–60 kald pr. indbakke-indlæsning | migration | LATER (volumen lille) |
 | N8-3 | Perf | Dashboard-widgets hentes samlet i server-komponenten (Promise.all) i stedet for 12 klient-kald i kæde | kode | TODO |
 | N8-4 | Perf | Dashboard-tællinger/summer som DB-aggregater (leads/kunder/tilbud/timer, ufaktureret pr. sag) | migration | LATER |
