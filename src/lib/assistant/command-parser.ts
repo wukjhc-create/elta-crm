@@ -118,7 +118,9 @@ export function extractWhen(input: string, now: Date = new Date()): { rest: stri
     }
   }
 
-  if (clock && !date) date = today
+  // Assistent-review 2026-10-08 (#4): kun klokkeslæt, og tidspunktet er passeret i dag → i morgen (før: i dag, i fortiden,
+  // så påmindelsen aldrig blev sendt)
+  if (clock && !date) date = copenhagenLocalToIso(today, clock) <= now.toISOString() ? copenhagenDatePlusDays(1, now) : today
   const rest = text.replace(/\s+/g, ' ').trim()
   if (!date) return { rest, when: null }
   return { rest, when: { date, clock, iso: clock ? copenhagenLocalToIso(date, clock) : null } }

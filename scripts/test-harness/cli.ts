@@ -2250,7 +2250,7 @@ async function main() {
     const chatS = chatA + 1
     const { data: cu } = await admin.from('customers').insert({ customer_number: `NF-${stamp}`, company_name: `NFkunde${stamp}`, contact_person: 'x', email: `nf-${stamp}@harness.test`, notes: 'FRITEKST URØRT', created_by: adminP.id }).select('id').single()
     const custId = (cu as { id: string }).id
-    const { data: sc } = await admin.from('service_cases').insert({ case_number: `SVC-9${String(stamp).slice(-6)}`, customer_id: custId, title: '[HARNESS] notesag', status: 'new', created_by: adminP.id }).select('id, case_number').single()
+    const { data: sc } = await admin.from('service_cases').insert({ case_number: `SVC-9${String(stamp).slice(-6)}`, customer_id: custId, title: '[HARNESS] notesag', status: 'new', created_by: adminP.id, assigned_to: salgP.id }).select('id, case_number').single()
     const sCase = sc as { id: string; case_number: string } | null
     const prevLinks = ((await admin.from('assistant_links').select('*').in('profile_id', [adminP.id, salgP.id])).data ?? []) as Array<Record<string, unknown>>
     try {

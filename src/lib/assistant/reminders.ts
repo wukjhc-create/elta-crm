@@ -9,6 +9,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ASSISTANT_RULES } from './rules'
+import { selectInChunks } from '@/lib/supabase/in-chunks'
 
 /** Hvor langt tilbage en overset påmindelse stadig sendes (fx efter nedetid) */
 export const REMINDER_CATCHUP_MIN = 60
@@ -61,12 +62,12 @@ export async function findDueAssistantReminders(admin: SupabaseClient, now: Date
   }
   if (!rows.length) return []
 
-  const { data: sent, error: sErr } = await admin
+  // Assistent-review 2026-10-08 (#9): op til 400 id'er — i bidder (én .in() > ~350 UUID fejler)
+  const sent = await selectInChunks<{ entity_id: string; metadata: { reminder_at?: string } | null }>(rows.map((r) => r.taskId), (chunk) => admin
     .from('audit_logs')
     .select('entity_id, metadata')
     .eq('action', 'assistant_reminder_sent')
-    .in('entity_id', rows.map((r) => r.taskId))
-  if (sErr) throw sErr
+    .in('entity_id', chunk))
   const sentAt = new Map<string, string[]>()
   for (const s of (sent ?? []) as Array<{ entity_id: string; metadata: { reminder_at?: string } | null }>) {
     const list = sentAt.get(s.entity_id) ?? []
@@ -87,20 +88,42 @@ export async function dispatchAssistantReminders(admin: SupabaseClient, send: Re
   let delivered = 0
   let failed = 0
   for (const r of due) {
+    // Assistent-review 2026-10-08 (#3): markøren skrives FØR afsendelsen (krav). To overlappende kørsler sendte før
+    // begge; nu vinder den ældste markør for (opgave, tidspunkt), og fejler indsættelsen sendes intet.
+    const { data: mark, error: markErr } = await admin.from('audit_logs').insert({
+      user_id: r.assignedTo,
+      entity_type: r.kind === 'personal' ? 'personal_reminder' : 'customer_task',
+      entity_id: r.taskId,
+      entity_name: r.title.slice(0, 120),
+      action: 'assistant_reminder_sent',
+      action_description: 'Påmindelse sendes',
+      metadata: { reminder_at: r.reminderAt, due_date: r.dueDate, kind: r.kind },
+    }).select('id').single()
+    if (markErr || !mark) { failed++; continue }
+    const markId = (mark as { id: string }).id
+    const { data: marks } = await admin.from('audit_logs').select('id, metadata')
+      .eq('action', 'assistant_reminder_sent').eq('entity_id', r.taskId)
+      .order('created_at', { ascending: true }).order('id', { ascending: true })
+    const first = ((marks ?? []) as Array<{ id: string; metadata: { reminder_at?: string } | null }>)
+      .find((m) => m.metadata?.reminder_at === r.reminderAt)
+    if (first && first.id !== markId) {
+      await admin.from('audit_logs').delete().eq('id', markId)
+      continue
+    }
     try {
       const res = await send(r)
-      if (!res.delivered) { failed++; continue }
-      await admin.from('audit_logs').insert({
-        user_id: r.assignedTo,
-        entity_type: r.kind === 'personal' ? 'personal_reminder' : 'customer_task',
-        entity_id: r.taskId,
-        entity_name: r.title.slice(0, 120),
-        action: 'assistant_reminder_sent',
+      if (!res.delivered) {
+        await admin.from('audit_logs').delete().eq('id', markId) // ikke leveret → næste kørsel prøver igen
+        failed++
+        continue
+      }
+      await admin.from('audit_logs').update({
         action_description: `Påmindelse sendt (${res.channel})`,
         metadata: { channel: res.channel, reminder_at: r.reminderAt, due_date: r.dueDate, kind: r.kind },
-      })
+      }).eq('id', markId)
       delivered++
     } catch {
+      // ukendt udfald (fx netværk under afsendelse) → markøren bevares: hellere én manglende end en dobbelt påmindelse
       failed++
     }
   }

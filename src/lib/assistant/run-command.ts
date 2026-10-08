@@ -14,7 +14,7 @@ import type { UserRole } from '@/types/auth.types'
 import { parseAssistantCommand, type ParsedCommand } from './command-parser'
 import { resolveTarget } from './resolve-target'
 import { getCaseScope } from '@/lib/auth/case-scope'
-import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
+import { copenhagenParts, copenhagenLocalToIso, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
 
 export type AssistantActor = { profileId: string; role: UserRole; isActive: boolean; channel: 'telegram' | 'test' }
@@ -87,7 +87,8 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
     // Dagens overblik læses fra CRM: egne åbne assistent-opgaver + egne personlige påmindelser med tid i dag (dansk dato)
     const today = copenhagenParts(now).date
     const dayStart = copenhagenLocalToIso(today, '00:00')
-    const dayEnd = new Date(new Date(dayStart).getTime() + 86_400_000).toISOString()
+    // Assistent-review 2026-10-08 (#10): næste danske midnat (23/25-timers døgn ved sommertid)
+    const dayEnd = copenhagenLocalToIso(copenhagenDatePlusDays(1, now), '00:00')
     const [{ data: tasks }, { data: personal }] = await Promise.all([
       admin.from('customer_tasks').select('id, title, due_date').eq('assigned_to', actor.profileId).in('auto_rule', ASSISTANT_RULES).neq('status', 'done').gte('due_date', dayStart).lt('due_date', dayEnd).order('due_date').limit(30),
       admin.from('personal_reminders').select('id, title, due_at').eq('owner_id', actor.profileId).eq('status', 'pending').gte('due_at', dayStart).lt('due_at', dayEnd).order('due_at').limit(30),
