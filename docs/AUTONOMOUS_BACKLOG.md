@@ -49,7 +49,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | M #7 besigtigelse: mail før opgave, timeout = fejl, gate customers.view | DONE — opgave er kravet, customers.edit | `besigtigelse-task-test` |
 | M #8/#9/#10 portalbesked til fremmed tilbud; rykker til deaktiveret kunde; historik-modtager; ICS efter kl. 22 | DONE (rolle-gaten på portalbeskeder uændret — forretningsvalg) | `ics-end-test` |
 | T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
-| T12 ubesvaret opkald → tilbageringning | TODO (næste) — Relatel-klienten er stadig 'disabled'; bygges som ren service + test-adapter | — |
+| T12 ubesvaret opkald → tilbageringning | DONE (fundament) — `lib/integrations/relatel/missed-calls.ts`: kun ved præcis én kunde, idempotent pr. opkald, telefonsvarer i beskrivelsen, kalender 📞; Relatel-klienten er fortsat 'disabled' (ingen cron, intet live) | `missed-call-check` 8/8 |
 
 ## Prod-kørsel 2026-10-07 aften (Henrik: 00198/00199/00200+00201/00202 GODKENDT TIL PROD)
 | Migration | Pre | Post | Flow (rollback) |
@@ -432,8 +432,8 @@ parallelt med øvrige NEXT-flows, når core gates (tsc, check:rls-matrix, check:
 | T8 | 1 | Opslag: kunde, sag, status (respekterer brugerens rolle/rettigheder som i CRM) | DONE (kontorroller) — montør afvist i fase 1 (scope kan ikke håndhæves med admin-klient) |
 | T9 | 1 | Audit-log af ALLE Telegram-handlinger (hvem, hvad, hvilken kunde/sag) | DONE — audit_logs entity_type 'assistant' (oprettet, opslag, tvetydig, afvist) + påmindelse sendt |
 | T10 | 1 | Fundament: kobling Telegram-bruger ↔ CRM-bruger (kun inviterede medarbejdere), webhook med hemmelighed, rettigheder = CRM-permissions | DONE på staging — 00195 anvendt på staging; webhook (flag + secret, fail-closed), kobling via engangskode (U141), rolle pr. handling, audit. Prod: secrets + flag + webhook kræver ny godkendelse |
-| T11 | 2 | Talebeskeder (voice commands) → transskription → samme kommandoer som tekst | TODO |
-| T12 | 2 | Ubesvaret opkald/telefonsvarer → transskription → kunde-/sagsmatch → forslag/opgave om tilbageringning | TODO |
+| T11 | 2 | Talebeskeder (voice commands) → transskription → samme kommandoer som tekst | DONE staging (flag ASSISTANT_VOICE_ENABLED OFF) — `assistant-voice-check` 7/7 |
+| T12 | 2 | Ubesvaret opkald/telefonsvarer → transskription → kunde-/sagsmatch → forslag/opgave om tilbageringning | DONE (fundament, intet live) — `missed-call-check` 8/8; live kræver Relatel-token + godkendelse |
 | T13 | 2 | Relatel-/SMS-integration (live kræver godkendelse) | TODO |
 | T14 | 2 | Regelbaseret opfølgning | BLOCKED_APPROVAL — spec mangler; forslag R1–R6 (genbruger eksisterende signaler, kun besked til medarbejder) i docs/design/elta-assistant-telegram.md § T14. Henrik vælger regler/grænser/modtagere/cron |
 | T15 | 3 | Live AI-telefonreceptionist | LATER |
