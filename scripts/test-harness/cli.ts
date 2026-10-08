@@ -591,6 +591,50 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'public-contact-limit-check') {
+    // Partner-review #3: /api/public/contact — honeypot, dublet inden for 10 min, timegrænse. Test-nøgle sættes kun i
+    // denne proces. Rydder op (leads/aktiviteter/kunder med harness-e-mails).
+    const testKey = `harness-contact-${Date.now()}`
+    process.env.CONTACT_FORM_API_KEY = testKey
+    const { POST } = await import('../../src/app/api/public/contact/route')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const mail = (t: string) => `pc-${t}-${stamp}@harness.test`
+    const call = async (body: Record<string, unknown>) => {
+      const res = await POST(new Request('http://localhost/api/public/contact', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': testKey }, body: JSON.stringify(body) }) as never)
+      return { status: res.status, json: (await res.json()) as { success: boolean; leadId?: string } }
+    }
+    const form = (t: string) => ({ name: `Harness ${t}`, email: mail(t), phone: '12345678', zip: '8000', address: 'Testvej 1', inquiry_type: 'Solceller', message: 'harness' })
+    const leadCount = async (t: string) => (await admin.from('leads').select('id', { count: 'exact', head: true }).eq('email', mail(t))).count ?? 0
+    const fillerIds: string[] = []
+    try {
+      const hp = await call({ ...form('hp'), _honey: 'http://spam' })
+      check('honeypot udfyldt → 200 men intet gemt', hp.status === 200 && (await leadCount('hp')) === 0, `status=${hp.status}`)
+      const a1 = await call(form('a'))
+      const a2 = await call(form('a'))
+      check('første henvendelse opretter lead', a1.status === 200 && !!a1.json.leadId, JSON.stringify(a1))
+      check('samme e-mail inden for 10 min → samme lead, ingen ny række', a2.status === 200 && a2.json.leadId === a1.json.leadId && (await leadCount('a')) === 1)
+      const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+      const { count: already } = await admin.from('leads').select('id', { count: 'exact', head: true }).eq('source', 'website').gte('created_at', new Date(Date.now() - 3_600_000).toISOString())
+      const need = Math.max(0, 30 - (already ?? 0))
+      if (need) {
+        const { data: f } = await admin.from('leads').insert(Array.from({ length: need }, (_, i) => ({ company_name: '[HARNESS] fyld', contact_person: 'x', email: mail(`fill${i}`), status: 'new', source: 'website', created_by: owner }))).select('id')
+        fillerIds.push(...((f ?? []) as Array<{ id: string }>).map((r) => r.id))
+      }
+      const b = await call(form('b'))
+      check('timegrænse nået → 429 og intet gemt', b.status === 429 && (await leadCount('b')) === 0, `status=${b.status}`)
+    } finally {
+      if (fillerIds.length) await admin.from('leads').delete().in('id', fillerIds)
+      const { data: ls } = await admin.from('leads').select('id').like('email', `pc-%-${stamp}@harness.test`)
+      const ids = ((ls ?? []) as Array<{ id: string }>).map((r) => r.id)
+      if (ids.length) { await admin.from('lead_activities').delete().in('lead_id', ids); await admin.from('leads').delete().in('id', ids) }
+      await admin.from('customers').delete().like('email', `pc-%-${stamp}@harness.test`)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ kontaktformular-grænser ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'confirmation-expiry-check') {
     // Partner-review #5: bekræftet link efter udløb → kun kvittering (ingen PDF/navn/e-mail/sag/bemærkning)
     const { getConfirmationContext } = await import('../../src/lib/actions/document-confirmations')

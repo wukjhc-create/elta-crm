@@ -20,6 +20,13 @@ export const dynamic = 'force-dynamic'
  */
 
 const MAX_PAYLOAD = 65_536 // 64KB
+// Partner-review 2026-10-08 (#3): API-nøglen ligger i hjemmesidens browser-kode → reelt offentlig. DB-baserede grænser
+// (virker på tværs af serverless-instanser): højst N henvendelser i timen i alt, og samme e-mail inden for 10 min
+// giver den eksisterende henvendelse tilbage i stedet for nye kunde-/lead-rækker.
+const MAX_SUBMISSIONS_PER_HOUR = 30
+const DUPLICATE_WINDOW_MS = 10 * 60_000
+/** Skjulte felter som mennesker ikke udfylder — udfyldt = bot (svar som succes, gem intet) */
+const HONEYPOT_FIELDS = ['_honey', 'website', 'company_website'] as const
 
 // =====================================================
 // Service role client (bypasses RLS)
@@ -130,11 +137,27 @@ export async function POST(request: NextRequest) {
     // 3. Parse and validate body
     let body: unknown
     try {
-      body = await request.json()
+      // Hård grænse uanset Content-Length (chunked upload)
+      const raw = await request.arrayBuffer()
+      if (raw.byteLength > MAX_PAYLOAD) {
+        return NextResponse.json({ success: false, error: 'Payload for stor' }, { status: 413, headers: cors })
+      }
+      body = JSON.parse(new TextDecoder().decode(raw))
     } catch {
       return NextResponse.json(
         { success: false, error: 'Ugyldig JSON' },
         { status: 400, headers: cors }
+      )
+    }
+
+    if (body && typeof body === 'object' && HONEYPOT_FIELDS.some((f) => {
+      const v = (body as Record<string, unknown>)[f]
+      return typeof v === 'string' && v.trim() !== ''
+    })) {
+      logger.warn('Contact form: honeypot udfyldt — ignoreret')
+      return NextResponse.json(
+        { success: true, message: 'Tak for din henvendelse! Vi kontakter dig hurtigst muligt.' },
+        { status: 200, headers: cors }
       )
     }
 
@@ -150,6 +173,35 @@ export async function POST(request: NextRequest) {
     const { name, email, phone, zip, address, inquiry_type, message } = parsed.data
 
     const supabase = getServiceClient()
+
+    // Dublet: samme e-mail inden for vinduet → returnér den eksisterende henvendelse (ingen nye rækker)
+    const { data: recentSame } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('source', 'website')
+      .ilike('email', escapeLike(email))
+      .gte('created_at', new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (recentSame) {
+      return NextResponse.json(
+        { success: true, leadId: recentSame.id, message: 'Tak for din henvendelse! Vi kontakter dig hurtigst muligt.' },
+        { status: 200, headers: cors }
+      )
+    }
+    const { count: lastHour } = await supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('source', 'website')
+      .gte('created_at', new Date(Date.now() - 3_600_000).toISOString())
+    if ((lastHour ?? 0) >= MAX_SUBMISSIONS_PER_HOUR) {
+      logger.warn('Contact form: timegrænse nået', { metadata: { lastHour } })
+      return NextResponse.json(
+        { success: false, error: 'For mange henvendelser lige nu — prøv igen senere eller ring til os' },
+        { status: 429, headers: cors }
+      )
+    }
 
     // 4. Get system user for created_by — prefer admin, fallback to any user
     const { data: adminUser } = await supabase
