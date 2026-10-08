@@ -866,6 +866,21 @@ export async function sendOfferEmail(
     }
     const route = routeResult.route
 
+    // Mail-review 2026-10-08 (#2): dobbeltklik/to faner sendte tilbuddet to gange. Af trådens udgående beskeder fra det
+    // sidste minut (i kø/sendes/sendt) vinder den ældste — alle samtidige kald ser samme rækkefølge, så kun én sender.
+    const { data: recentOut } = await supabase.from('email_messages').select('id')
+      .eq('thread_id', thread.id).eq('direction', 'outbound').in('status', ['queued', 'sending', 'sent'])
+      .gte('created_at', new Date(Date.now() - 60_000).toISOString())
+      .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1)
+    const firstOut = ((recentOut ?? []) as Array<{ id: string }>)[0]?.id
+    if (firstOut && firstOut !== message.id) {
+      await supabase.from('email_messages')
+        .update({ status: 'failed', failed_at: new Date().toISOString(), error_message: 'Dublet — tilbuddet blev netop sendt' })
+        .eq('id', message.id)
+      return { success: false, error: 'Tilbuddet er netop sendt (eller ved at blive sendt) — vent et øjeblik og tjek tidslinjen' }
+    }
+    await supabase.from('email_messages').update({ status: 'sending' }).eq('id', message.id)
+
     // Actually send the email via Microsoft Graph
     const emailResult = await sendEmailViaGraph({
       to: route.toEmail,
@@ -881,17 +896,25 @@ export async function sendOfferEmail(
     })
 
     if (!emailResult.success) {
-      // Update message status to failed
+      // Mail-review 2026-10-08 (#2): timeout efter afsendelse = UKENDT udfald — markeres 'uncertain' (ingen gensend-knap)
+      // i stedet for 'failed', som indbød til at sende tilbuddet igen
       await supabase
         .from('email_messages')
         .update({
-          status: 'failed',
+          status: emailResult.uncertain ? 'uncertain' : 'failed',
           failed_at: new Date().toISOString(),
-          error_message: emailResult.error,
+          error_message: emailResult.uncertain
+            ? 'Ukendt udfald (timeout) — tjek Sendt post i Outlook før tilbuddet sendes igen'
+            : emailResult.error,
         })
         .eq('id', message.id)
 
-      return { success: false, error: emailResult.error || 'Kunne ikke sende e-mail' }
+      return {
+        success: false,
+        error: emailResult.uncertain
+          ? 'Afsendelsen fik timeout — mailen kan være sendt. Tjek Sendt post i Outlook før du sender igen.'
+          : emailResult.error || 'Kunne ikke sende e-mail',
+      }
     }
 
     // Update message status to sent
