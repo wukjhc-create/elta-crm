@@ -4,10 +4,20 @@
  * Server Actions — Customer Relations (Aktivitetsoversigt)
  *
  * Queries for offers, projects, leads, and sent quotes linked to a customer.
+ *
+ * Leads-review 2026-10-08 (#8): funktionerne havde ingen rettighedstjek (kun RLS) — hver læsning kræver nu sin
+ * modul-rettighed og returnerer [] uden den.
  */
 
+async function clientFor(permission: Permission) {
+  const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+  return hasPermission(permission) ? supabase : null
+}
+
 import { escapeLike } from '@/lib/validations/postgrest-filter'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import type { Permission } from '@/lib/auth/permissions'
+import { validateUUID } from '@/lib/validations/common'
 import { logger } from '@/lib/utils/logger'
 
 export interface CustomerOffer {
@@ -43,7 +53,9 @@ export interface CustomerSentQuote {
 }
 
 export async function getCustomerOffers(customerId: string): Promise<CustomerOffer[]> {
-  const supabase = await createClient()
+  validateUUID(customerId, 'customerId')
+  const supabase = await clientFor('offers.view')
+  if (!supabase) return []
 
   const { data, error } = await supabase
     .from('offers')
@@ -60,7 +72,9 @@ export async function getCustomerOffers(customerId: string): Promise<CustomerOff
 }
 
 export async function getCustomerProjects(customerId: string): Promise<CustomerProject[]> {
-  const supabase = await createClient()
+  validateUUID(customerId, 'customerId')
+  const supabase = await clientFor('projects.view')
+  if (!supabase) return []
 
   const { data, error } = await supabase
     .from('projects')
@@ -76,25 +90,33 @@ export async function getCustomerProjects(customerId: string): Promise<CustomerP
   return (data || []) as CustomerProject[]
 }
 
-export async function getCustomerLeads(customerEmail: string): Promise<CustomerLead[]> {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('leads')
-    .select('id, company_name, status, source, created_at')
-    .ilike('email', escapeLike(customerEmail))
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    logger.error('Failed to fetch customer leads', { error })
+/**
+ * Leads-review 2026-10-08 (#11): kun e-mail-match — et konverteret lead med anden/ingen e-mail (custom_fields.customer_id)
+ * manglede på kundekortet. Nu begge, uden dubletter.
+ */
+export async function getCustomerLeads(customerId: string, customerEmail: string | null): Promise<CustomerLead[]> {
+  validateUUID(customerId, 'customerId')
+  const supabase = await clientFor('leads.view')
+  if (!supabase) return []
+  const cols = 'id, company_name, status, source, created_at'
+  const email = (customerEmail ?? '').trim()
+  const [byId, byEmail] = await Promise.all([
+    supabase.from('leads').select(cols).eq('custom_fields->>customer_id', customerId),
+    email ? supabase.from('leads').select(cols).ilike('email', escapeLike(email)) : Promise.resolve({ data: [], error: null }),
+  ])
+  if (byId.error || byEmail.error) {
+    logger.error('Failed to fetch customer leads', { error: byId.error ?? byEmail.error, entityId: customerId })
     return []
   }
-
-  return (data || []) as CustomerLead[]
+  const seen = new Map<string, CustomerLead>()
+  for (const l of [...(byId.data ?? []), ...(byEmail.data ?? [])] as CustomerLead[]) seen.set(l.id, l)
+  return [...seen.values()].sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
 
 export async function getCustomerSentQuotes(customerId: string): Promise<CustomerSentQuote[]> {
-  const supabase = await createClient()
+  validateUUID(customerId, 'customerId')
+  const supabase = await clientFor('offers.view')
+  if (!supabase) return []
 
   const { data, error } = await supabase
     .from('sent_quotes')
@@ -123,7 +145,9 @@ export interface CustomerEmail {
 }
 
 export async function getCustomerEmails(customerId: string): Promise<CustomerEmail[]> {
-  const supabase = await createClient()
+  validateUUID(customerId, 'customerId')
+  const supabase = await clientFor('inbox.view')
+  if (!supabase) return []
 
   const { data, error } = await supabase
     .from('incoming_emails')
