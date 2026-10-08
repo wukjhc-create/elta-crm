@@ -591,6 +591,38 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'confirmation-expiry-check') {
+    // Partner-review #5: bekræftet link efter udløb → kun kvittering (ingen PDF/navn/e-mail/sag/bemærkning)
+    const { getConfirmationContext } = await import('../../src/lib/actions/document-confirmations')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `DC-${stamp}`, company_name: `[HARNESS] dc ${stamp}`, contact_person: 'X', email: `dc-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    try {
+      const { data: d, error: dErr } = await admin.from('customer_documents').insert({ customer_id: cust, title: 'Besigtigelse [HARNESS]', document_type: 'other', file_url: 'harness://none', storage_path: `harness/${stamp}.pdf`, file_name: 'rapport.pdf', mime_type: 'application/pdf' }).select('id').single()
+      if (dErr) throw new Error(dErr.message)
+      const mk = async (expiresAt: string) => {
+        const token = randomBytes(32).toString('hex')
+        const { error } = await admin.from('document_confirmations').insert({ customer_document_id: (d as { id: string }).id, token, recipient_type: 'manual', recipient_email: `dc-${stamp}@harness.test`, recipient_name: 'Hemmelig Navn', recipient_role: 'manual', status: 'confirmed', expires_at: expiresAt, confirmed_at: new Date().toISOString(), confirmed_by_name: 'Hemmelig Navn', confirmed_by_email: `dc-${stamp}@harness.test`, confirmation_note: 'privat note' })
+        if (error) throw new Error(error.message)
+        return token
+      }
+      const live = await getConfirmationContext(await mk(new Date(Date.now() + 86_400_000).toISOString()))
+      check('bekræftet + ikke udløbet → fuld kvittering', live.success && live.data?.state === 'already_confirmed' && live.data.documentTitle === 'Besigtigelse [HARNESS]' && live.data.confirmedByName === 'Hemmelig Navn')
+      const old = await getConfirmationContext(await mk(new Date(Date.now() - 86_400_000).toISOString()))
+      const o = old.data
+      check('bekræftet + udløbet → kun kvittering', old.success && o?.state === 'already_confirmed' && !!o.confirmedAt)
+      check('udløbet: ingen PDF/navn/e-mail/sag/bemærkning/titel', !!o && o.pdfUrl === null && !o.confirmedByName && !o.confirmedByEmail && !o.confirmationNote && !o.recipientEmail && !o.recipientName && o.serviceCase === null && !o.documentTitle, JSON.stringify(o))
+    } finally {
+      await admin.from('customer_documents').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ bekræftelses-udløb ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'fuldmagt-sign-race-check') {
     // Partner-review #2: to samtidige underskrifter → kun ét krav; fejl før gem giver kravet tilbage; en igangværende
     // underskrivning afviser. PDF-kaldet stubbes (500 efter 300 ms) → ingen PDF, ingen upload, ingen mail.
