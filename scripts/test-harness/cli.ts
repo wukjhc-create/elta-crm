@@ -2446,6 +2446,25 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'customer-price-rpc-check') {
+    // Leverandør-review #7: kundeaftale (10 % rabat) slår igennem via get_customer_product_price (som koden nu kalder)
+    const stamp = Date.now()
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const sp = ((await admin.from('supplier_products').select('id, supplier_id, cost_price').gt('cost_price', 0).limit(1)).data as Array<{ id: string; supplier_id: string; cost_price: number }>)[0]
+    const cust = ((await admin.from('customers').insert({ customer_number: `CP-${stamp}`, company_name: `[HARNESS] cp ${stamp}`, contact_person: 'X', email: `cp-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    try {
+      await admin.from('customer_supplier_prices').insert({ customer_id: cust, supplier_id: sp.supplier_id, discount_percentage: 10, custom_margin_percentage: 20, // uden avance ignoreres rabatten af DB-funktionen (record IS NOT NULL-fejl — rettes i 00206, BLOCKED_APPROVAL) is_active: true, created_by: owner })
+      const { data, error } = await admin.rpc('get_customer_product_price', { p_customer_id: cust, p_supplier_product_id: sp.id })
+      const eff = Number((data as Array<{ effective_cost_price: number }> | null)?.[0]?.effective_cost_price)
+      const ok = !error && Math.abs(eff - Number(sp.cost_price) * 0.9) < 0.02
+      log(`  ${ok ? '✓' : '❌'} kost ${sp.cost_price} − 10 % → ${eff}${error ? ` (${error.message})` : ''}`)
+      process.exitCode = ok ? 0 : 1
+    } finally {
+      await admin.from('customer_supplier_prices').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    return
+  }
   if (SUB === 'invoice-line-convert-race-check') {
     // Leverandør-review #2: to samtidige konverteringer af samme linje → præcis én kostrække på sagen
     const { convertApprovedInvoiceLines } = await import('../../src/lib/services/incoming-invoice-conversion')
