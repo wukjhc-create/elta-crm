@@ -112,6 +112,12 @@ export async function evaluateAndRunAutomations(event: AutomationEvent): Promise
       summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status: 'skipped', message: 'race: already executed' })
       continue
     }
+    // Assistent-review 2026-10-08 (#5): kunne kravet ikke skrives (DB-fejl), udføres handlingen IKKE — ellers ingen
+    // spærre mod gentagelse ved næste hændelse (fail-closed; næste kørsel prøver igen)
+    if (claim === null) {
+      summary.executions.push({ ruleId: rule.id, ruleName: rule.name, status: 'skipped', message: 'claim failed — retry later' })
+      continue
+    }
     try {
       const result = await handler({ rule, event })
       const status: AutomationStatus = result.ok ? 'executed' : 'failed'

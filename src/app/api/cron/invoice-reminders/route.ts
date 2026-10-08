@@ -53,7 +53,7 @@ async function handleCron(request: Request): Promise<Response> {
       // send_reminder. The DB UNIQUE index prevents double-fire even
       // if the cron runs twice for the same overdue invoice.
       try {
-        await evaluateAndRunAutomations({
+        const auto = await evaluateAndRunAutomations({
           trigger: 'invoice_overdue',
           entityType: 'invoice',
           entityId: inv.id,
@@ -64,9 +64,12 @@ async function handleCron(request: Request): Promise<Response> {
             final_amount: inv.final_amount,
           },
         })
+        // Assistent-review 2026-10-08 (#2): regelmotorens send_reminder sender også — tælles med i loftet pr. kørsel
+        mailsThisRun += auto.executions.filter((e) => /^reminder (sent|failed)/.test(e.message ?? '')).length
       } catch (autoErr) {
         logger.error('autopilot invoice_overdue failed', { entityId: inv.id, error: autoErr })
       }
+      if (mailsThisRun >= MAX_REMINDER_MAILS_PER_RUN) { summary.skipped++; continue }
 
       try {
         const result = await sendInvoiceReminder(inv.id)
