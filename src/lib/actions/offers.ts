@@ -1189,6 +1189,7 @@ export async function addProductToOffer(
         quantity,
         unit: product.unit || 'stk',
         unit_price: product.list_price,
+        sale_price: product.list_price, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
         cost_price: product.cost_price,
         discount_percentage: 0,
         total,
@@ -1266,7 +1267,9 @@ export async function importCalculationToOffer(
     const startingPosition = options?.startingPosition
     const groupBySection = options?.groupBySection ?? calculation.group_by_section ?? false
     const includeHiddenRows = options?.includeHiddenRows ?? false
-    const includeCostPrices = options?.includeCostPrices ?? false
+    // Kalkule-review 2026-10-08 (#2): kun tools.calculations (admin/serviceleder) kan importere — kost følger med som
+    // standard (før null → DB/avance ~100 % på importerede linjer)
+    const includeCostPrices = options?.includeCostPrices ?? true
 
     // Filter rows that should be shown on offer (unless includeHiddenRows is true)
     let rowsToImport = calculation.rows || []
@@ -1316,6 +1319,7 @@ export async function importCalculationToOffer(
       quantity: number
       unit: string
       unit_price: number
+      sale_price: number
       cost_price: number | null
       discount_percentage: number
       total: number
@@ -1343,10 +1347,28 @@ export async function importCalculationToOffer(
         quantity: row.hours || row.quantity, // Use hours if labor row
         unit: row.hours ? 'timer' : row.unit,
         unit_price: row.hourly_rate || row.sale_price, // Use hourly_rate if labor row
+        sale_price: row.hourly_rate || row.sale_price, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
         cost_price: includeCostPrices ? row.cost_price : null,
         discount_percentage: row.discount_percentage,
         total: row.total,
       })
+    }
+
+    // Kalkule-review 2026-10-08 (#2): kalkulationens Avance % og Rabat % (update_calculation_totals: avance på subtotal,
+    // rabat efter avance) blev tabt — tilbuddet blev subtotalen uden avance. Nu som eksplicitte linjer på de importerede rækker.
+    {
+      const importedSubtotal = Math.round(lineItems.reduce((sum, l) => sum + Number(l.total || 0), 0) * 100) / 100
+      const marginPct = Number((calculation as { margin_percentage?: number | null }).margin_percentage ?? 0)
+      const discountPct = Number((calculation as { discount_percentage?: number | null }).discount_percentage ?? 0)
+      const marginAmt = Math.round(importedSubtotal * marginPct) / 100
+      const discountAmt = Math.round((importedSubtotal + marginAmt) * discountPct) / 100
+      const extra = (description: string, amount: number) => lineItems.push({
+        offer_id: offerId, line_type: 'calculation', product_id: null, calculation_id: calculationId, section: null,
+        position: positionCounter++, description, quantity: 1, unit: 'stk', unit_price: amount, sale_price: amount,
+        cost_price: includeCostPrices ? 0 : null, discount_percentage: 0, total: amount,
+      })
+      if (marginAmt >= 0.01) extra(`Avance ${marginPct.toLocaleString('da-DK')} % iht. kalkulation`, marginAmt)
+      if (discountAmt >= 0.01) extra(`Rabat ${discountPct.toLocaleString('da-DK')} % iht. kalkulation`, -discountAmt)
     }
 
     const { error: insertError } = await supabase
@@ -1523,6 +1545,7 @@ export async function createLineItemFromSupplierProduct(
         quantity,
         unit: supplierProduct.unit || 'stk',
         unit_price: Math.round(unitPrice * 100) / 100,
+        sale_price: Math.round(unitPrice * 100) / 100, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
         discount_percentage: discount,
         total,
         supplier_product_id: supplierProductId,
@@ -2206,6 +2229,7 @@ export async function refreshLineItemPrice(
       .from('offer_line_items')
       .update({
         unit_price: newUnitPrice,
+        sale_price: newUnitPrice, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
         total,
         // N47: kost opdateres begge steder — cost_price er det DB-beregningen bruger først
         cost_price: Math.round(effectiveCostPrice * 100) / 100,
@@ -2464,6 +2488,7 @@ export async function optimizeOfferPrices(
           .from('offer_line_items')
           .update({
             unit_price: newUnitPrice,
+            sale_price: newUnitPrice, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
             total,
             cost_price: newCost,
             supplier_product_id: cheaperProduct.id,
@@ -2505,6 +2530,7 @@ export async function optimizeOfferPrices(
             .from('offer_line_items')
             .update({
               unit_price: newUnitPrice,
+              sale_price: newUnitPrice, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
               total,
               cost_price: currentCost,
               supplier_cost_price_at_creation: currentCost,

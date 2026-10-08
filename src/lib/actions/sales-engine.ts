@@ -11,6 +11,7 @@
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
+import { offerEditLockReason } from '@/lib/offers/edit-lock'
 
 /**
  * RBAC app-lag (P-006, runde 2): modul-paritet — skrivende actions kraever samme rettighed som modulets side
@@ -99,6 +100,9 @@ export async function applyPackageToDraftOfferAction(input: {
 }): Promise<ActionOutcome<ApplyPackageWithOptionsResult>> {
   try {
     const { supabase } = await requireGate('offers.edit')
+    // Kalkule-review 2026-10-08 (#3): kun kladder (servicen skriver med admin-klienten — ingen DB-spærre)
+    const lock = await offerEditLockReason(supabase, input.offerId)
+    if (lock) return { ok: false, message: lock }
 
     const result = await applyPackageWithOptionsToOffer({
       offerId: input.offerId,

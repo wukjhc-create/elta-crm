@@ -34,6 +34,7 @@ import { validateUUID } from '@/lib/validations/common'
 import { revalidatePath } from 'next/cache'
 import { OFFER_VALIDITY_DAYS, CALC_DEFAULTS } from '@/lib/constants'
 import { logger } from '@/lib/utils/logger'
+import { insertOfferWithNumber } from '@/lib/services/offer-number'
 
 // =====================================================
 // Types
@@ -553,7 +554,8 @@ export async function createOfferFromAnalysis(
   customerId: string
 ): Promise<ActionResult<{ offer_id: string }>> {
   try {
-    const { supabase } = await requireGate('tools.ai_project')
+    const { supabase, userId } = await requireGate('tools.ai_project')
+    validateUUID(customerId, 'kunde ID')
 
     // Get the analysis
     const analysisResult = await getAnalysis(analysisId)
@@ -563,25 +565,23 @@ export async function createOfferFromAnalysis(
 
     const { calculation, offer_text } = analysisResult.data
 
-    // Create offer
-    const { data: offer, error: offerError } = await supabase
-      .from('offers')
-      .insert({
-        customer_id: customerId,
-        status: 'draft',
-        description: offer_text.sections.work_description,
-        total_amount: calculation.price.total_price,
-        valid_until: new Date(Date.now() + OFFER_VALIDITY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-        notes: offer_text.full_offer_text,
-      })
-      .select('id')
-      .single()
+    // Kalkule-review 2026-10-08 (#4): offer_number/title/created_by er NOT NULL — indsættelsen fejlede ALTID. Fælles
+    // nummerering (insertOfferWithNumber); totaler beregnes af linjerne (trigger), ikke af en klient-sum.
+    const { data: offer, error: offerError } = await insertOfferWithNumber(supabase, {
+      customer_id: customerId,
+      title: (offer_text.sections.work_description || 'Tilbud fra AI-projektanalyse').slice(0, 200),
+      status: 'draft',
+      description: offer_text.sections.work_description,
+      valid_until: new Date(Date.now() + OFFER_VALIDITY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+      notes: offer_text.full_offer_text,
+      created_by: userId,
+    })
 
     if (offerError || !offer) {
       return { success: false, error: 'Kunne ikke oprette tilbud' }
     }
 
-    // Create offer line items
+    // Create offer line items (sale_price = unit_price — fakturering fra tilbud kræver det)
     const lineItems = calculation.components.map((comp, idx) => ({
       offer_id: offer.id,
       position: idx + 1,
@@ -589,11 +589,15 @@ export async function createOfferFromAnalysis(
       quantity: comp.quantity,
       unit: comp.unit,
       unit_price: comp.unit_price,
-      total_price: comp.total,
+      sale_price: comp.unit_price,
     }))
 
     if (lineItems.length > 0) {
-      await supabase.from('offer_line_items').insert(lineItems)
+      const { error: lineErr } = await supabase.from('offer_line_items').insert(lineItems)
+      if (lineErr) {
+        await supabase.from('offers').delete().eq('id', offer.id)
+        return { success: false, error: 'Kunne ikke oprette tilbudslinjer — tilbuddet er ikke gemt' }
+      }
     }
 
     // Record in feedback that this was converted to offer

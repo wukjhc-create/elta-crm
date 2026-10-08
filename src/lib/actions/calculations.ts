@@ -34,6 +34,9 @@ async function requireGate(permission: Permission) {
   return ctx
 }
 import { logger } from '@/lib/utils/logger'
+
+/** Hurtig-kalkulation: kostpris pr. arbejdstime (lærlingesats) — ganges med antal timer i rækken */
+const QUICK_CALC_LABOR_COST_PER_HOUR = 295
 function safeJsonParse<T>(value: string | null, defaultValue: T): T {
   if (!value) return defaultValue
   try {
@@ -1007,7 +1010,9 @@ export async function createQuickCalculation(
           description: `Arbejde - ${room.name} (${hours.toFixed(1)} timer)`,
           quantity: hours,
           unit: 'timer',
-          cost_price: hours * 295, // Apprentice rate as cost
+          // Kalkule-review 2026-10-08 (#5): kostpris er PR. TIME (rækken ganges med quantity = timer) — før hours × 295,
+          // dvs. kvadratisk overvurderet arbejdskost (8 t → 18.880 kr i stedet for 2.360 kr)
+          cost_price: QUICK_CALC_LABOR_COST_PER_HOUR,
           sale_price: input.hourlyRate,
           total: laborCost,
           cost_category: 'variable',

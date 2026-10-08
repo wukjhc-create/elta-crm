@@ -757,6 +757,7 @@ export async function createOfferFromCalculation(
         quantity: item.quantity,
         unit: 'stk',
         unit_price: item.salePrice,
+        sale_price: item.salePrice, // sale_price = unit_price (faktura fra tilbud kræver det — kalkule-review 2026-10-08 #6)
         cost_price: item.quantity > 0 ? itemCostPrice / item.quantity : null, // rapport-review: antal 0 gav NaN
         discount_percentage: 0,
         total: itemSalePrice,
@@ -768,6 +769,32 @@ export async function createOfferFromCalculation(
         supplier_name_at_creation: linkedMaterial?.supplierName || null,
       }
     })
+
+    // Kalkule-review 2026-10-08 (#1, S1): linjerne prises med katalogets salgspris, mens dialogen viser kalkulationens
+    // pris (kost + overhead + risiko + avance + arbejdstype-faktorer). Tilbuddet blev derfor et andet beløb end det viste
+    // (fx 0 kr). Afviger summen, tilføjes en eksplicit reguleringslinje, så tilbuddet = den viste kalkulationspris.
+    const shownExVat = Math.round(Number(input.result?.salePriceExclVat ?? 0) * 100) / 100
+    const componentSum = Math.round(lineItems.reduce((sum, l) => sum + Number(l.total || 0), 0) * 100) / 100
+    if (shownExVat > 0 && Math.abs(shownExVat - componentSum) >= 0.01) {
+      const diff = Math.round((shownExVat - componentSum) * 100) / 100
+      lineItems.push({
+        offer_id: offer.id,
+        position: lineItems.length,
+        description: diff > 0 ? 'Avance, overhead og risiko iht. kalkulation' : 'Regulering iht. kalkulation',
+        quantity: 1,
+        unit: 'stk',
+        unit_price: diff,
+        sale_price: diff,
+        cost_price: 0,
+        discount_percentage: 0,
+        total: diff,
+        line_type: 'calculation' as const,
+        supplier_product_id: null,
+        supplier_cost_price_at_creation: null,
+        supplier_margin_applied: null,
+        supplier_name_at_creation: null,
+      })
+    }
 
     // Add electrical line items if present
     if (input.electrical) {
@@ -783,6 +810,7 @@ export async function createOfferFromCalculation(
           quantity: 1,
           unit: 'stk',
           unit_price: panelSalePrice,
+          sale_price: panelSalePrice,
           cost_price: elec.panel_cost,
           discount_percentage: 0,
           total: panelSalePrice,
@@ -803,6 +831,7 @@ export async function createOfferFromCalculation(
           quantity: 1,
           unit: 'stk',
           unit_price: cableSalePrice,
+          sale_price: cableSalePrice,
           cost_price: elec.cable_cost,
           discount_percentage: 0,
           total: cableSalePrice,
@@ -820,8 +849,10 @@ export async function createOfferFromCalculation(
       .insert(lineItems)
 
     if (lineItemsError) {
+      // Kalkule-review 2026-10-08: før blev fejlen slugt → tilbud med klient-totaler og ingen linjer. Rul tilbage.
       logger.error('Error creating line items', { error: lineItemsError })
-      // Don't fail the whole operation, the offer was created
+      await supabase.from('offers').delete().eq('id', offer.id)
+      return { success: false, error: 'Kunne ikke oprette tilbudslinjerne — tilbuddet er ikke gemt' }
     }
 
     // Build activity description including electrical info
