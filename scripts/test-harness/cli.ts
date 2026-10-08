@@ -2446,6 +2446,34 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'assistant-case-scope-check') {
+    // Assistent-review #1: salg ser kun egne sager via assistenten (som i CRM); admin ser alle
+    const { runAssistantCommand } = await import('../../src/lib/assistant/run-command')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const profs = ((await admin.from('profiles').select('id, role').eq('is_active', true)).data ?? []) as Array<{ id: string; role: string }>
+    const adminP = profs.find((p) => p.role === 'admin')!, salgP = profs.find((p) => p.role === 'salg')!
+    const cust = ((await admin.from('customers').insert({ customer_number: `AS-${stamp}`, company_name: `[HARNESS] as ${stamp}`, contact_person: 'X', email: `as-${stamp}@harness.test`, created_by: adminP.id }).select('id').single()).data as { id: string }).id
+    const caseNo = `SVC-7${String(stamp).slice(-6)}`
+    const { data: sc } = await admin.from('service_cases').insert({ case_number: caseNo, customer_id: cust, title: '[HARNESS] hemmelig sag', status: 'new', created_by: adminP.id }).select('id').single()
+    try {
+      const salg = await runAssistantCommand(admin, { profileId: salgP.id, role: 'salg', isActive: true, channel: 'test' }, `Status på ${caseNo}`)
+      check('salg: andens sag findes ikke (ingen titel/status)', !salg.ok && !salg.text.includes('hemmelig'), salg.text)
+      const adm = await runAssistantCommand(admin, { profileId: adminP.id, role: 'admin', isActive: true, channel: 'test' }, `Status på ${caseNo}`)
+      check('admin: sagen vises', adm.ok && adm.text.includes('hemmelig'), adm.text.slice(0, 80))
+      await admin.from('service_cases').update({ assigned_to: salgP.id }).eq('id', (sc as { id: string }).id)
+      const own = await runAssistantCommand(admin, { profileId: salgP.id, role: 'salg', isActive: true, channel: 'test' }, `Status på ${caseNo}`)
+      check('salg: egen (tildelt) sag vises — uden arbejdsordre-linje', own.ok && own.text.includes('hemmelig'), own.text.slice(0, 120))
+    } finally {
+      await admin.from('audit_logs').delete().gte('created_at', new Date(stamp - 5_000).toISOString()).like('action', 'assistant_%')
+      await admin.from('service_cases').delete().eq('id', (sc as { id: string }).id)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ assistent-sagsscope ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'package-embed-probe') {
     // Leverandør-review #3: package_items med product_catalog-embed som rigtige persona-sessioner (efter 00201)
     const { loginPersonas } = await import('./role-matrix')

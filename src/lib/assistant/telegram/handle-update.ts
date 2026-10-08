@@ -128,6 +128,12 @@ export async function handleTelegramUpdate(admin: SupabaseClient, update: Telegr
       await reply(vChat, 'Denne chat er ikke forbundet. Forbind din CRM-bruger under Indstillinger → Profil → "Forbind Telegram".')
       return { handled: 'unlinked' }
     }
+    // Assistent-review 2026-10-08 (#6): deaktiverede brugere og roller uden assistent-adgang transskriberes aldrig
+    if (!vActor.isActive || !hasPermission(vActor.role, 'customers.edit')) {
+      await audit(admin, vActor, 'voice_rejected', null, { reason: vActor.isActive ? 'role' : 'inactive' })
+      await reply(vChat, !vActor.isActive ? 'Din CRM-bruger er deaktiveret.' : 'ELTA Assistant er endnu kun åben for kontor-roller.')
+      return { handled: 'voice_rejected' }
+    }
     if (!voiceEnabled()) {
       await reply(vChat, 'Talebeskeder er ikke slået til endnu — skriv kommandoen som tekst.')
       return { handled: 'voice_disabled' }

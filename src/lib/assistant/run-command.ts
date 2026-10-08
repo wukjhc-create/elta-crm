@@ -13,6 +13,7 @@ import { hasPermission } from '@/lib/auth/permissions'
 import type { UserRole } from '@/types/auth.types'
 import { parseAssistantCommand, type ParsedCommand } from './command-parser'
 import { resolveTarget } from './resolve-target'
+import { getCaseScope } from '@/lib/auth/case-scope'
 import { copenhagenParts, copenhagenLocalToIso } from '@/lib/utils/copenhagen-time'
 import { escapeLike } from '@/lib/validations/postgrest-filter'
 
@@ -132,7 +133,12 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
     await audit(admin, actor, 'personal_reminder_created', id, title, { due })
     return { ok: true, taskId: id, text: `⏰ ${title} — ${fmtWhen(due)}. Ligger under "Mine påmindelser" i CRM.` }
   }
-  const res = await resolveTarget(admin, cmd.target)
+  // Assistent-review 2026-10-08 (#1): sags-scope som i CRM (salg: egne sager, montør: sager med egne job)
+  const caseFilter = async (ids: string[]) => {
+    const scope = await getCaseScope({ role: actor.role, userId: actor.profileId, supabase: admin })
+    return new Set(scope.type === 'all' ? ids : ids.filter((id) => scope.caseIds.includes(id)))
+  }
+  const res = await resolveTarget(admin, cmd.target, caseFilter)
   if (res.status === 'none') return { ok: false, text: `Jeg fandt ingen kunde eller sag for "${cmd.target}".` }
   if (res.status === 'ambiguous') {
     await audit(admin, actor, 'ambiguous', null, cmd.target, { intent: cmd.intent, candidates: res.candidates.map((c) => c.id) })
@@ -167,7 +173,10 @@ export async function runAssistantCommand(admin: SupabaseClient, actor: Assistan
     if (target.kind === 'case') {
       const [{ data }, { data: wo }] = await Promise.all([
         admin.from('service_cases').select('case_number, title, status, start_date, end_date').eq('id', target.id).single(),
-        admin.from('work_orders').select('title, scheduled_date, status').eq('case_id', target.id).in('status', ['planned', 'in_progress']).not('scheduled_date', 'is', null).order('scheduled_date').limit(1).maybeSingle(),
+        // kun med arbejdsordre-rettighed (salg har ingen work_orders.view)
+        hasPermission(actor.role, 'work_orders.view.all') || hasPermission(actor.role, 'work_orders.view.assigned')
+          ? admin.from('work_orders').select('title, scheduled_date, status').eq('case_id', target.id).in('status', ['planned', 'in_progress']).not('scheduled_date', 'is', null).order('scheduled_date').limit(1).maybeSingle()
+          : Promise.resolve({ data: null }),
       ])
       const c = data as { case_number: string; title: string | null; status: string; start_date: string | null; end_date: string | null } | null
       const next = wo as { title: string; scheduled_date: string; status: string } | null

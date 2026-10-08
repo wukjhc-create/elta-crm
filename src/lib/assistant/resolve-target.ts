@@ -48,7 +48,10 @@ export function rankCustomers(term: string, rows: CustomerRow[]): TargetResoluti
 
 const CASE_NUMBER = /^svc-\d+$/i
 
-export async function resolveTarget(client: SupabaseClient, rawTerm: string): Promise<TargetResolution> {
+/** Hvilke af disse sags-id'er må brugeren se? (samme sags-scope som CRM'et — assistenten kører med admin-klienten) */
+export type CaseScopeFilter = (caseIds: string[]) => Promise<Set<string>>
+
+export async function resolveTarget(client: SupabaseClient, rawTerm: string, caseFilter?: CaseScopeFilter): Promise<TargetResolution> {
   const term = rawTerm.replace(/\s+/g, ' ').trim()
   if (term.length < 2) return { status: 'none' }
 
@@ -59,7 +62,10 @@ export async function resolveTarget(client: SupabaseClient, rawTerm: string): Pr
       .ilike('case_number', term)
       .limit(2)
     if (error) throw error
-    const rows = (data ?? []) as Array<{ id: string; case_number: string; title: string | null; customer_id: string | null }>
+    const all = (data ?? []) as Array<{ id: string; case_number: string; title: string | null; customer_id: string | null }>
+    // Assistent-review 2026-10-08 (#1): sager uden for brugerens scope findes ikke (heller ikke i kandidatlisten)
+    const allowed = caseFilter ? await caseFilter(all.map((r) => r.id)) : null
+    const rows = allowed ? all.filter((r) => allowed.has(r.id)) : all
     if (rows.length !== 1) return rows.length ? { status: 'ambiguous', candidates: rows.map((r) => ({ kind: 'case', id: r.id, customerId: r.customer_id, label: `${r.case_number} ${r.title ?? ''}`.trim() })) } : { status: 'none' }
     const r = rows[0]
     return { status: 'resolved', target: { kind: 'case', id: r.id, customerId: r.customer_id, label: `${r.case_number} ${r.title ?? ''}`.trim() } }
