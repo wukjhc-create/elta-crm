@@ -1583,7 +1583,7 @@ export async function getInvoiceDashboardAction(
       supabase
         .from('invoices')
         .select(
-          'id, invoice_number, invoice_type, status, payment_status, final_amount, currency, paid_at, due_date, voided_at, customer_id, case_id'
+          'id, invoice_number, invoice_type, status, payment_status, final_amount, amount_paid, credit_of_invoice_id, currency, paid_at, due_date, voided_at, customer_id, case_id'
         )
         .order('id')
         .range(from, to)
@@ -1616,21 +1616,31 @@ export async function getInvoiceDashboardAction(
   let paidThisMonth = 0
   const overdueRaw: Array<(typeof list)[number] & { _days: number }> = []
 
+  // Økonomi-review 2026-10-08 (#8): udestående = final − betalt − sendte/betalte kreditnotaer (som rykkerne), ikke
+  // hele final_amount — delbetalte/delkrediterede fakturaer talte før med fuldt beløb
+  const creditedByOriginal = new Map<string, number>()
+  for (const r of list) {
+    if (r.invoice_type === 'credit' && r.credit_of_invoice_id && (r.status === 'sent' || r.status === 'paid')) {
+      creditedByOriginal.set(r.credit_of_invoice_id as string, (creditedByOriginal.get(r.credit_of_invoice_id as string) ?? 0) + Math.abs(Number(r.final_amount ?? 0)))
+    }
+  }
+  const openAmount = (r: (typeof list)[number]) =>
+    Math.max(0, Number(r.final_amount ?? 0) - Number(r.amount_paid ?? 0) - (creditedByOriginal.get(r.id as string) ?? 0))
   for (const r of list) {
     const isCredit = r.invoice_type === 'credit'
     const active = !r.voided_at && !isCredit
     if (r.status === 'draft' && !r.voided_at) draftCount += 1
     if (active && r.status === 'sent') {
-      sentUnpaid += Number(r.final_amount ?? 0)
-      outstanding += Number(r.final_amount ?? 0)
+      sentUnpaid += openAmount(r)
+      outstanding += openAmount(r)
     }
     if (r.status === 'paid' && r.paid_at && copenhagenParts(String(r.paid_at)).date.slice(0, 7) === ym) {
       paidThisMonth += Number(r.final_amount ?? 0)
     }
     if (r.due_date && r.status === 'sent' && active) {
       const days = calendarDaysSince(String(r.due_date), todayMs)
-      if (days > 0) {
-        overdueTotal += Number(r.final_amount ?? 0)
+      if (days > 0 && openAmount(r) > 0) {
+        overdueTotal += openAmount(r)
         overdueRaw.push({ ...r, _days: days })
       }
     }
