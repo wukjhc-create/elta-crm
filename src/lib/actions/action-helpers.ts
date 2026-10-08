@@ -7,6 +7,7 @@
  * instead of defining local copies.
  */
 
+import { cache } from 'react'
 import { getUser } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
 import { hasPermission, type Permission } from '@/lib/auth/permissions'
@@ -50,6 +51,26 @@ export async function getAuthenticatedClient() {
 /** Rolle uden nogen rettigheder (findes ikke i permissions-matrixen) — bruges som fail-safe. */
 const NO_ACCESS_ROLE = 'ingen_adgang' as UserRole
 
+/**
+ * Auth-review 2026-10-07: fail-safe = INGEN rettigheder (før 'montør', som har reelle læse-/skriverettigheder) — gælder
+ * manglende profil, læsefejl og deaktiveret profil. Perf-review 2026-10-08 (#2): request-scoped cache (én profillæsning
+ * pr. request i stedet for én pr. gate).
+ */
+const readRoleCached = cache(async (userId: string): Promise<UserRole> => {
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('profiles')
+      .select('role, is_active')
+      .eq('id', userId)
+      .maybeSingle()
+    if (data?.role && data.is_active !== false) return data.role as UserRole
+  } catch {
+    // ingen-adgang på læsefejl
+  }
+  return NO_ACCESS_ROLE
+})
+
 export async function getAuthenticatedClientWithRole(): Promise<{
   supabase: Awaited<ReturnType<typeof createClient>>
   userId: string
@@ -60,21 +81,7 @@ export async function getAuthenticatedClientWithRole(): Promise<{
   const userId = await requireAuth()
   const supabase = await createClient()
 
-  // Auth-review 2026-10-07: fail-safe = INGEN rettigheder (før 'montør', som har reelle læse-/skriverettigheder) — gælder
-  // manglende profil, læsefejl og deaktiveret profil
-  let role: UserRole = NO_ACCESS_ROLE
-  try {
-    const { data } = await supabase
-      .from('profiles')
-      .select('role, is_active')
-      .eq('id', userId)
-      .maybeSingle()
-    if (data?.role && data.is_active !== false) {
-      role = data.role as UserRole
-    }
-  } catch {
-    // beholder ingen-adgang på læsefejl
-  }
+  const role = await readRoleCached(userId)
 
   const has = (perm: Permission) => hasPermission(role, perm)
   const req = (perm: Permission) => {

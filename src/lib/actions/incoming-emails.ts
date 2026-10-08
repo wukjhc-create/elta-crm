@@ -38,6 +38,7 @@ import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/utils/logger'
 import { getStorageSignedUrlOrNull, SIGNED_URL_TTL } from '@/lib/storage/signed-url'
 import { pageWithinIds } from '@/lib/supabase/in-chunks'
+import { selectInChunks } from '@/lib/supabase/in-chunks'
 import type {
   IncomingEmailWithCustomer,
   EmailLinkStatus,
@@ -310,21 +311,21 @@ export async function getLeadsForEmails(
 
   // N67: alle leads oprettet fra en mail — også webhenvendelser (source='website'; før kun 'email').
   // Pagineret: PostgREST giver højst 1000 rækker pr. kald (kode-review 2026-10-04)
-  const data: Array<{ id: string; status: string; custom_fields: unknown }> = []
-  for (let from = 0; from < 50_000; from += 1000) {
-    const { data: page } = await supabase.from('leads').select('id, status, custom_fields')
-      .not('custom_fields->>source_email_id', 'is', null).order('id').range(from, from + 999)
-    data.push(...((page ?? []) as typeof data))
-    if (!page || page.length < 1000) break
+  // Perf-review 2026-10-08 (#7): kun leads for DISSE mails (før blev alle mail-leads inkl. custom_fields hentet ved hver
+  // indlæsning/realtime-opdatering af indbakken)
+  let data: Array<{ id: string; status: string; source_email_id: string | null }> = []
+  try {
+    data = await selectInChunks<{ id: string; status: string; source_email_id: string | null }>(emailIds, (chunk) => supabase
+      .from('leads').select('id, status, source_email_id:custom_fields->>source_email_id')
+      .in('custom_fields->>source_email_id', chunk))
+  } catch (err) {
+    logger.warn('getLeadsForEmails failed', { error: err })
+    return {}
   }
 
   const map: Record<string, { leadId: string; status: string }> = {}
   for (const lead of data) {
-    const cf = lead.custom_fields as Record<string, unknown> | null
-    const sourceEmailId = cf?.source_email_id as string | undefined
-    if (sourceEmailId && emailIds.includes(sourceEmailId)) {
-      map[sourceEmailId] = { leadId: lead.id, status: lead.status }
-    }
+    if (lead.source_email_id) map[lead.source_email_id] = { leadId: lead.id, status: lead.status }
   }
   return map
 }

@@ -10,6 +10,7 @@
  * ude i stedet for at give privilege escalation).
  */
 
+import { cache } from 'react'
 import { getUser } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
 import { hasPermission, type Permission } from '@/lib/auth/permissions'
@@ -18,7 +19,10 @@ import type { UserRole } from '@/types/auth.types'
 /** Auth-review 2026-10-07: fail-safe uden rettigheder (før 'montør') — manglende bruger/profil eller deaktiveret profil */
 const NO_ACCESS_ROLE = 'ingen_adgang' as UserRole
 
-export async function getUserRoleForPage(): Promise<UserRole> {
+/** Perf-review 2026-10-08 (#2): request-scoped cache — pageHasPermission kaldes mange gange pr. side */
+export const getUserRoleForPage = cache(getUserRoleForPageUncached)
+
+async function getUserRoleForPageUncached(): Promise<UserRole> {
   const user = await getUser()
   if (!user) return NO_ACCESS_ROLE
   const supabase = await createClient()

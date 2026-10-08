@@ -19,6 +19,8 @@ import { withCronRun } from '@/lib/services/cron-run'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export const dynamic = 'force-dynamic'
+// Perf-review 2026-10-08 (#4): eksplicit loft (før platformens standard) — sync af hele kataloger tager tid
+export const maxDuration = 300
 
 // Vercel cron secret for authentication
 const CRON_SECRET = process.env.CRON_SECRET

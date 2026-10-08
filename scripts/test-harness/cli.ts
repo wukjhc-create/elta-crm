@@ -2446,6 +2446,23 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'leads-json-in-probe') {
+    // Perf-review #7: .in() på custom_fields->>source_email_id via PostgREST (som getLeadsForEmails)
+    const stamp = Date.now()
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { randomUUID } = await import('crypto')
+    const src = randomUUID()
+    const { data: l } = await admin.from('leads').insert({ company_name: '[HARNESS] jsonin', contact_person: 'x', email: `ji-${stamp}@harness.test`, status: 'new', source: 'email', created_by: owner, custom_fields: { source_email_id: src } }).select('id').single()
+    try {
+      const { data, error } = await admin.from('leads').select('id, status, source_email_id:custom_fields->>source_email_id').in('custom_fields->>source_email_id', [src, randomUUID()])
+      const ok = !error && (data ?? []).length === 1 && (data as Array<{ source_email_id: string }>)[0].source_email_id === src
+      log(`  ${ok ? '✓' : '❌'} .in() på JSON-sti${error ? ` — ${error.message}` : ''}`)
+      process.exitCode = ok ? 0 : 1
+    } finally {
+      await admin.from('leads').delete().eq('id', (l as { id: string }).id)
+    }
+    return
+  }
   if (SUB === 'telegram-update-dedupe-check') {
     // Assistent-review #7: samme update_id leveret to gange (samtidig) → kommandoen udføres én gang. Intet live.
     const { setTelegramTransport } = await import('../../src/lib/assistant/telegram/transport')

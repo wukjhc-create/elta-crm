@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createClient as createJsClient, isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
 type CookieToSet = { name: string; value: string; options: CookieOptions }
 
@@ -52,7 +53,13 @@ export async function getSession() {
   return session
 }
 
-export async function getUser() {
+/**
+ * Perf-review 2026-10-08 (#2): én Auth-opslag pr. request — getUser kaldes af hver gate/permission-tjek (fx 10× i
+ * træk på ordresiden). React cache() er request-scoped (Next-dokumentationens DAL-mønster).
+ */
+export const getUser = cache(getUserUncached)
+
+async function getUserUncached() {
   const supabase = await createClient()
   let { data: { user }, error } = await supabase.auth.getUser()
   // Forbigående Auth-fejl (netværk/429/5xx) må ikke ligne "ikke logget ind" —

@@ -8,6 +8,8 @@ import { withCronRun } from '@/lib/services/cron-run'
 import { offerCostAndSale } from '@/lib/alerts/offer-margin'
 
 export const dynamic = 'force-dynamic'
+// Perf-review 2026-10-08 (#8): eksplicit loft (kører lige efter natlig prissync)
+export const maxDuration = 300
 
 // =====================================================
 // Background Intelligence Check
