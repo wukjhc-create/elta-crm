@@ -84,7 +84,15 @@ export async function listTimeLogsForApprovalAction(status: TimeApprovalStatus =
   }
 }
 
-async function decide(ids: string[], decision: 'approved' | 'rejected', reason: string | null): Promise<ActionResult<{ updated: number; skipped: number }>> {
+function sameInstant(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return !a && !b
+  return new Date(a).getTime() === new Date(b).getTime()
+}
+
+/** Det godkenderen så pr. id (start/slut) — godkendes kun hvis registreringen ikke er ændret siden */
+export type SeenTimes = Record<string, { start_time: string; end_time: string | null }>
+
+async function decide(ids: string[], decision: 'approved' | 'rejected', reason: string | null, seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number }>> {
   const { supabase, userId, hasPermission } = await getAuthenticatedClientWithRole()
   if (!hasPermission('time_logs.approve')) return { success: false, error: 'Manglende tilladelse: time_logs.approve' }
   const unique = [...new Set(ids)]
@@ -94,14 +102,16 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   // Læs med brugerens session (RLS-scope) — kun rækker brugeren må se, kan besluttes
   const { data: visible, error: readErr } = await supabase
     .from('time_logs')
-    .select('id, end_time, approval_status, invoice_line_id, employee:employees(profile_id)')
+    .select('id, start_time, end_time, approval_status, invoice_line_id, employee:employees(profile_id)')
     .in('id', unique)
   if (readErr) return { success: false, error: 'Kunne ikke hente timer' }
-  type V = { id: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
+  type V = { id: string; start_time: string; end_time: string | null; approval_status: TimeApprovalStatus; invoice_line_id: string | null; employee: { profile_id: string | null } | Array<{ profile_id: string | null }> | null }
   const eligible = ((visible ?? []) as unknown as V[]).filter((v) =>
     v.end_time !== null && v.approval_status !== decision && one(v.employee)?.profile_id !== userId
     // HR-review 2026-10-08 (#4): fakturerede timer kan ikke afvises (de forsvandt fra kost/avance, men stod på fakturaen)
-    && !(decision === 'rejected' && v.invoice_line_id))
+    && !(decision === 'rejected' && v.invoice_line_id)
+    // HR-review 2026-10-08 (#3): ændret efter godkenderen så den (fx 8 → 12 t) → springes over (godkendes ikke ubeset)
+    && (!seen || !seen[v.id] || (sameInstant(seen[v.id].start_time, v.start_time) && sameInstant(seen[v.id].end_time, v.end_time))))
   const skipped = unique.length - eligible.length
   if (eligible.length === 0) {
     return { success: false, error: 'Ingen af de valgte registreringer kan behandles (egne timer, igangværende timer eller allerede behandlet)' }
@@ -133,11 +143,11 @@ async function decide(ids: string[], decision: 'approved' | 'rejected', reason: 
   return { success: true, data: { updated: (upd ?? []).length, skipped } }
 }
 
-export async function approveTimeLogsAction(ids: string[]): Promise<ActionResult<{ updated: number; skipped: number }>> {
+export async function approveTimeLogsAction(ids: string[], seen?: SeenTimes): Promise<ActionResult<{ updated: number; skipped: number }>> {
   try {
     const denied = await permissionDenied('time_logs.approve') // eksplicit (decide() gater også)
     if (denied) return { success: false, error: denied }
-    return await decide(ids, 'approved', null)
+    return await decide(ids, 'approved', null, seen)
   } catch (error) {
     return { success: false, error: formatError(error, 'Der opstod en fejl') }
   }

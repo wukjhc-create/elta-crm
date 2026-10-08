@@ -64,10 +64,12 @@ export function TimeApprovalClient() {
 
   const approve = async (ids: string[], key: string) => {
     setBusy(key); setMsg(null); setError(null)
-    const r = await approveTimeLogsAction(ids)
+    // HR-review 2026-10-08 (#3): send det viste tidsrum med — ændrede registreringer godkendes ikke ubeset
+    const seen = Object.fromEntries((rows ?? []).filter((l) => ids.includes(l.id)).map((l) => [l.id, { start_time: l.start_time, end_time: l.end_time }]))
+    const r = await approveTimeLogsAction(ids, seen)
     setBusy(null)
     if (!r.success) { setError(r.error ?? 'Kunne ikke godkende'); return }
-    setMsg(`${r.data?.updated ?? 0} registrering(er) godkendt${r.data?.skipped ? ` · ${r.data.skipped} sprunget over (egne/igangværende)` : ''}`)
+    setMsg(`${r.data?.updated ?? 0} registrering(er) godkendt${r.data?.skipped ? ` · ${r.data.skipped} sprunget over (egne/igangværende/ændret siden visning)` : ''}`)
     await load()
   }
 
