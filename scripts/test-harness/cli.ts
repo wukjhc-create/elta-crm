@@ -2446,6 +2446,38 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'telegram-update-dedupe-check') {
+    // Assistent-review #7: samme update_id leveret to gange (samtidig) → kommandoen udføres én gang. Intet live.
+    const { setTelegramTransport } = await import('../../src/lib/assistant/telegram/transport')
+    const { handleTelegramUpdate } = await import('../../src/lib/assistant/telegram/handle-update')
+    const { createLinkCode } = await import('../../src/lib/assistant/telegram/link')
+    const stamp = Date.now()
+    setTelegramTransport(async () => ({ delivered: true }))
+    const adminP = (((await admin.from('profiles').select('id').eq('is_active', true).eq('role', 'admin').limit(1)).data ?? []) as Array<{ id: string }>)[0]
+    const chat = 930_000_000 + (stamp % 1_000_000)
+    const cust = ((await admin.from('customers').insert({ customer_number: `TD-${stamp}`, company_name: `TDkunde${stamp}`, contact_person: 'x', email: `td-${stamp}@harness.test`, created_by: adminP.id }).select('id').single()).data as { id: string }).id
+    const prevLinks = ((await admin.from('assistant_links').select('*').eq('profile_id', adminP.id)).data ?? []) as Array<Record<string, unknown>>
+    let ok = false
+    try {
+      await admin.from('assistant_links').delete().eq('profile_id', adminP.id)
+      const { code } = await createLinkCode(admin, adminP.id)
+      await handleTelegramUpdate(admin, { update_id: stamp, message: { chat: { id: chat, type: 'private' }, text: `/start ${code}` } })
+      const upd = { update_id: stamp + 1, message: { chat: { id: chat, type: 'private' }, text: `Ring til TDkunde${stamp} i morgen kl. 10` } }
+      const rs = await Promise.all([handleTelegramUpdate(admin, upd), handleTelegramUpdate(admin, upd)])
+      const n = (await admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', cust)).count ?? 0
+      ok = n === 1 && rs.some((r) => r.handled === 'duplicate_update')
+      log(`  ${ok ? '✓' : '❌'} samme update_id ×2 → ${n} opgave(r) · ${rs.map((r) => r.handled).join(', ')}`)
+    } finally {
+      setTelegramTransport(null)
+      await admin.from('assistant_links').delete().eq('profile_id', adminP.id)
+      if (prevLinks.length) await admin.from('assistant_links').insert(prevLinks)
+      await admin.from('customer_tasks').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+      await admin.from('audit_logs').delete().gte('created_at', new Date(stamp - 5_000).toISOString()).like('action', 'assistant_%')
+    }
+    process.exitCode = ok ? 0 : 1
+    return
+  }
   if (SUB === 'customer-price-rpc-check') {
     // Leverandør-review #7: kundeaftale (10 % rabat) slår igennem via get_customer_product_price (som koden nu kalder)
     const stamp = Date.now()

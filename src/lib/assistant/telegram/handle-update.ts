@@ -48,6 +48,24 @@ async function audit(admin: SupabaseClient, actor: AssistantActor | null, action
 const reply = (chatId: number, text: string, buttons?: AssistantButton[]) => sendTelegram({ chatId, text, buttons })
 
 export async function handleTelegramUpdate(admin: SupabaseClient, update: TelegramUpdate, now: Date = new Date()): Promise<{ handled: string }> {
+  // Assistent-review 2026-10-08 (#7): Telegram genleverer en update, når webhooken svarer langsomt (fx talebesked) →
+  // samme kommando kunne oprette to opgaver. Markør pr. update_id; den ældste markør vinder, øvrige ignoreres.
+  if (typeof update.update_id === 'number') {
+    const { data: mark, error: markErr } = await admin.from('audit_logs').insert({
+      entity_type: 'assistant', action: 'assistant_update_received',
+      action_description: 'ELTA Assistant (telegram): update modtaget', metadata: { channel: 'telegram', update_id: update.update_id },
+    }).select('id').single()
+    if (!markErr && mark) {
+      const { data: marks } = await admin.from('audit_logs').select('id')
+        .eq('action', 'assistant_update_received').eq('metadata->>update_id', String(update.update_id))
+        .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1)
+      const first = ((marks ?? []) as Array<{ id: string }>)[0]?.id
+      if (first && first !== (mark as { id: string }).id) {
+        await admin.from('audit_logs').delete().eq('id', (mark as { id: string }).id)
+        return { handled: 'duplicate_update' }
+      }
+    }
+  }
   // ---- knaptryk ----
   if (update.callback_query) {
     const chatId = update.callback_query.message?.chat?.id
