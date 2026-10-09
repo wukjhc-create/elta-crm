@@ -437,6 +437,93 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'fresh-signed-url-check') {
+    // 00210: dokument med blankt file_url men rigtig fil → portalen (og kundekortets service) giver et friskt, virkende link
+    const { getPortalDocuments } = await import('../../src/lib/actions/portal')
+    const { randomBytes } = await import('crypto')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const cust = ((await admin.from('customers').insert({ customer_number: `FS-${stamp}`, company_name: `[HARNESS] fs ${stamp}`, contact_person: 'X', email: `fsu-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const path = `customer-documents/${cust}/harness-${stamp}.pdf`
+    const tok = randomBytes(32).toString('hex')
+    try {
+      const up = await admin.storage.from('attachments').upload(path, new Blob(['%PDF-1.4 harness'], { type: 'application/pdf' }), { upsert: false })
+      check('fil uploadet (service-klient)', !up.error, up.error?.message)
+      await admin.from('portal_access_tokens').insert({ customer_id: cust, token: tok, email: `fsu-${stamp}@harness.test`, is_active: true, created_by: owner })
+      await admin.from('customer_documents').insert({ customer_id: cust, title: 'Frisk [HARNESS]', document_type: 'other', file_url: '', storage_path: path, file_name: 'frisk.pdf', mime_type: 'application/pdf' })
+      const docs = await getPortalDocuments(tok)
+      const d = (docs.data ?? []).find((x) => x.title === 'Frisk [HARNESS]')
+      check('portalen giver et friskt signeret link trods blankt file_url', !!d?.file_url && d.file_url.includes('/storage/v1/object/sign/'))
+      const r = d?.file_url ? await fetch(d.file_url) : null
+      check('linket virker (kan hentes)', !!r?.ok, `status=${r?.status}`)
+    } finally {
+      await admin.storage.from('attachments').remove([path])
+      await admin.from('customer_documents').delete().eq('customer_id', cust)
+      await admin.from('portal_access_tokens').delete().eq('customer_id', cust)
+      await admin.from('customers').delete().eq('id', cust)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ friske signerede links ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
+  if (SUB === 'time-logs-grants-check') {
+    // 00208: montør (rigtig persona-session) på EGNE timer: beløbs-/fakturafelter kan ikke skrives (42501), retter han
+    // sluttiden virker det og godkendelsen nulstilles, en kollegas sats afvises, appens felter virker stadig.
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const montor = personas.get('montør' as never)!
+    const montorId = (await montor.auth.getUser()).data.user!.id
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: existingEmp } = await admin.from('employees').select('id').eq('profile_id', montorId).maybeSingle()
+    let empId = (existingEmp as { id: string } | null)?.id ?? null
+    let createdEmp = false
+    if (!empId) {
+      const { data: e, error } = await admin.from('employees').insert({ name: '[HARNESS] montør-persona', email: `tg-${stamp}@harness.test`, role: 'montør', active: true, profile_id: montorId }).select('id').single()
+      if (error) throw new Error(`employee: ${error.message}`)
+      empId = (e as { id: string }).id; createdEmp = true
+    }
+    const { data: other } = await admin.from('employees').insert({ name: '[HARNESS] kollega', email: `tgk-${stamp}@harness.test`, role: 'montør', active: true }).select('id').single()
+    const otherId = (other as { id: string }).id
+    const { data: rate } = await admin.from('employee_overtime_rates').insert({ employee_id: otherId, name: 'Kollega 100%', code: `h${stamp % 100000}`, multiplier: 2 }).select('id').single()
+    const cust = ((await admin.from('customers').insert({ customer_number: `TG-${stamp}`, company_name: `[HARNESS] tg ${stamp}`, contact_person: 'X', email: `tg-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const caseId = ((await admin.from('service_cases').insert({ case_number: `SVC-4${String(stamp).slice(-6)}`, customer_id: cust, title: '[HARNESS] tg', status: 'in_progress', created_by: owner }).select('id').single()).data as { id: string }).id
+    const woId = ((await admin.from('work_orders').insert({ case_id: caseId, customer_id: cust, title: '[HARNESS] tg', status: 'in_progress', scheduled_date: '2026-10-01', assigned_employee_id: empId }).select('id').single()).data as { id: string }).id
+    const { data: tl, error: tlErr } = await admin.from('time_logs').insert({ work_order_id: woId, employee_id: empId, start_time: '2026-10-01T06:00:00Z', end_time: '2026-10-01T14:00:00Z', billable: true }).select('id').single()
+    if (tlErr) throw new Error(`time_log: ${tlErr.message}`)
+    const tlId = (tl as { id: string }).id
+    await admin.from('time_logs').update({ approval_status: 'approved', approved_by: owner, approved_at: new Date().toISOString() }).eq('id', tlId)
+    const row = async () => (await admin.from('time_logs').select('sale_amount, cost_amount, invoice_line_id, approval_status, end_time').eq('id', tlId).single()).data as { sale_amount: number | null; cost_amount: number | null; invoice_line_id: string | null; approval_status: string; end_time: string }
+    try {
+      const before = await row()
+      for (const [label, patch] of [['sale_amount', { sale_amount: 0 }], ['cost_amount', { cost_amount: 9999 }], ['invoice_line_id', { invoice_line_id: null }], ['hours', { hours: 99 }]] as const) {
+        const r = await montor.from('time_logs').update(patch).eq('id', tlId).select('id')
+        const after = await row()
+        const unchanged = JSON.stringify({ s: after.sale_amount, c: after.cost_amount }) === JSON.stringify({ s: before.sale_amount, c: before.cost_amount })
+        check(`montør kan ikke skrive ${label} på egne timer`, !!r.error || ((r.data ?? []).length === 0 && unchanged), r.error ? `${r.error.code}` : `rækker=${(r.data ?? []).length}`)
+      }
+      const rr = await montor.from('time_logs').update({ employee_rate_id: (rate as { id: string }).id }).eq('id', tlId).select('id')
+      check('montør kan ikke vælge en kollegas sats', !!rr.error, rr.error ? rr.error.code ?? rr.error.message : 'TILLADT')
+      const ok = await montor.from('time_logs').update({ end_time: '2026-10-01T15:00:00Z' }).eq('id', tlId).select('id')
+      const after = await row()
+      check('montør kan rette egen sluttid (appens felt) → godkendelse nulstilles', !ok.error && after.approval_status === 'pending' && after.end_time.startsWith('2026-10-01T15:00'), ok.error ? ok.error.message : after.approval_status)
+    } finally {
+      await admin.from('time_logs').delete().eq('id', tlId)
+      await admin.from('work_orders').delete().eq('id', woId)
+      await admin.from('service_cases').delete().eq('id', caseId)
+      await admin.from('customers').delete().eq('id', cust)
+      await admin.from('employee_overtime_rates').delete().eq('employee_id', otherId)
+      await admin.from('employees').delete().eq('id', otherId)
+      if (createdEmp) await admin.from('employees').delete().eq('id', empId!)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ time_logs kolonne-grants ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'storage-persona-check') {
     // 00209: rigtige persona-sessioner (5 roller) må hverken liste, hente eller uploade direkte i attachments /
     // service-case-files / portal-attachments; service-klienten kan stadig liste, signere og hente.

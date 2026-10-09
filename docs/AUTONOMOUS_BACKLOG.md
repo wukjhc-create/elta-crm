@@ -81,6 +81,15 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
 | T12 ubesvaret opkald → tilbageringning | DONE (fundament) — `lib/integrations/relatel/missed-calls.ts`: kun ved præcis én kunde, idempotent pr. opkald, telefonsvarer i beskrivelsen, kalender 📞; Relatel-klienten er fortsat 'disabled' (ingen cron, intet live) | `missed-call-check` 8/8 |
 
+## Prod-kørsel 2026-10-09 (Henrik: "00209 STORAGE LOCKDOWN GODKENDT TIL PROD" + "STORED DOWNLOAD URLS GODKENDT")
+| Trin | Resultat |
+|---|---|
+| Server-side storage-kode live | `/api/public/version` = 7aa4be5 (indeholder 946ba4f) |
+| Staging 00209 | `storage-persona-check` 7/7 (5 roller: hverken liste/hente/uploade; service-klient signerer + henter); UI upload/dokument/portal 21/21 |
+| Prod pre | `prod-role-check-00209.ts pre`: admin+montør så 158 objekter; 7 brede authenticated-politikker |
+| Prod 00209 | COMMIT; post: 0 politikker, admin+montør ser 0 objekter; objektantal uændret (158); `/api/brand/logo` (server-side download fra attachments) 200; `prod:db-audit` 0/0/0 |
+| Prod 00210 | pre 11/18 gemte signerede links (alle med storage_path), tjeksum b622c071…; COMMIT; post 0/18, samme tjeksum (kun file_url ændret); staging `fresh-signed-url-check` 3/3 (friskt link virker) |
+
 ## NEXT-8 (genereret 2026-10-08 efter review-runde 2 — prod: 109 kunder, 15 tilbud, 8 sager, 5 leads, ~800 mails)
 | # | Område | Opgave | Kræver | Status |
 |---|---|---|---|---|
