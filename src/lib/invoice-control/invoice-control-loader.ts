@@ -4,6 +4,7 @@
  * (bruger-session under RLS: linjer er kun læsbare for admin/serviceleder/bogholderi, 00166). Bevidst IKKE 'use server'.
  */
 import { controlInvoice, type InvoiceControl } from '@/lib/invoice-control/engine'
+import { headerLineCheck, type HeaderLineCheck } from '@/lib/invoice-control/header-totals'
 import { codeFromRawLine } from '@/lib/invoice-control/coverage'
 import { codesToLookup, matchLines, type ProductRef, type LineMatchMethod } from '@/lib/invoice-control/line-matcher'
 import { expectedCostOnInvoiceDate, priceHistoryAfterIso, type PriceChange } from '@/lib/invoice-control/price-at-date'
@@ -15,7 +16,13 @@ export interface InvoiceControlLineInfo {
   expectedUnitPrice: number | null
 }
 
-export interface InvoiceControlResult { control: InvoiceControl; matches: InvoiceControlLineInfo[]; hasSupplier: boolean }
+export interface InvoiceControlResult {
+  control: InvoiceControl
+  matches: InvoiceControlLineInfo[]
+  hasSupplier: boolean
+  /** IC8. Kun visning. Ændrer ikke godkendelse eller bogføring. */
+  header: HeaderLineCheck
+}
 
 type Client = { from: (t: string) => any }
 
@@ -24,11 +31,11 @@ type Client = { from: (t: string) => any }
  * `catalogClient` (kalderen giver admin-klienten bag sin gate); faktura og linjer læses fortsat med `client` (RLS).
  */
 export async function loadInvoiceControl(client: Client, invoiceId: string, catalogClient: Client = client): Promise<InvoiceControlResult | null> {
-  const { data: inv } = await client.from('incoming_invoices').select('id, supplier_id, invoice_date').eq('id', invoiceId).maybeSingle()
+  const { data: inv } = await client.from('incoming_invoices').select('id, supplier_id, invoice_date, amount_excl_vat, vat_amount, amount_incl_vat').eq('id', invoiceId).maybeSingle()
   if (!inv) return null
   const { data: rows } = await client.from('incoming_invoice_lines')
-    .select('line_number, description, quantity, unit_price, supplier_product_id, raw_line').eq('incoming_invoice_id', invoiceId).order('line_number')
-  const lines = (rows ?? []) as Array<{ line_number: number; description: string | null; quantity: number | null; unit_price: number | null; supplier_product_id: string | null; raw_line: string | null }>
+    .select('line_number, description, quantity, unit_price, total_price, supplier_product_id, raw_line').eq('incoming_invoice_id', invoiceId).order('line_number')
+  const lines = (rows ?? []) as Array<{ line_number: number; description: string | null; quantity: number | null; unit_price: number | null; total_price: number | string | null; supplier_product_id: string | null; raw_line: string | null }>
 
   const toMatch = lines.map((l) => ({ lineNumber: l.line_number, description: l.description, supplierProductCode: codeFromRawLine(l.raw_line) }))
   let products: ProductRef[] = []
@@ -79,5 +86,11 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     return { lineNumber: l.line_number, description: l.description ?? '', quantity: l.quantity, unitPrice: l.unit_price, expectedUnitPrice: expected,
       expectedMissingReason: st || m.supplierProductId ? 'produkt uden kostpris' : inv.supplier_id ? 'intet produktmatch' : 'leverandør ukendt' }
   }))
-  return { control, matches: matches.sort((a, b) => a.lineNumber - b.lineNumber), hasSupplier: !!inv.supplier_id }
+  const header = headerLineCheck({
+    amountExclVat: (inv as { amount_excl_vat?: number | string | null }).amount_excl_vat ?? null,
+    vatAmount: (inv as { vat_amount?: number | string | null }).vat_amount ?? null,
+    amountInclVat: (inv as { amount_incl_vat?: number | string | null }).amount_incl_vat ?? null,
+    lines: lines.map((l) => ({ totalPrice: l.total_price, quantity: l.quantity, unitPrice: l.unit_price })),
+  })
+  return { control, matches: matches.sort((a, b) => a.lineNumber - b.lineNumber), hasSupplier: !!inv.supplier_id, header }
 }

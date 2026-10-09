@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { getInvoiceControl } from '@/lib/actions/invoice-control'
+import { headerLineSummary } from '@/lib/invoice-control/header-totals'
 import type { InvoiceControlResult } from '@/lib/invoice-control/invoice-control-loader'
 
 const kr = (n: number) => `${n.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`
@@ -35,6 +36,8 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
 
   if (lineCount === 0) return null
   const v = res ? VERDICT[res.control.verdict] : null
+  const header = res ? headerLineSummary(res.header) : null
+  const headerCls = header?.tone === 'bad' ? 'text-red-700' : header?.tone === 'warn' ? 'text-amber-800' : 'text-gray-600'
 
   return (
     <div className="bg-white rounded-lg ring-1 ring-gray-200 p-4" data-testid="invoice-control-panel">
@@ -46,6 +49,7 @@ export function InvoiceControlPanel({ invoiceId, lineCount }: { invoiceId: strin
       {!res && !error && <p className="text-xs text-gray-400">Kontrollerer priser…</p>}
       {res && (
         <>
+          {header && <p className={`text-xs mb-3 ${headerCls}`} data-testid="invoice-control-header">{header.text}</p>}
           <div className="grid grid-cols-3 gap-3 text-xs mb-3">
             <div><div className="text-gray-500">Kontrollerede linjer</div><div className="font-medium">{res.control.controlledLines} / {res.control.totalLines} ({res.control.coveragePct} %)</div></div>
             <div><div className="text-gray-500">Overpris i alt</div><div className={`font-medium ${res.control.overchargeAmount > 0 ? 'text-red-700' : ''}`} data-testid="invoice-control-overcharge">{kr(res.control.overchargeAmount)}</div></div>

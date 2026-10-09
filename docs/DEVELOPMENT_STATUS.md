@@ -32,22 +32,23 @@
 | 17:03 | Test-politik (Henrik): smoke ≤10, målrettet ≤20, proces ≤30, enkelt test ≤5 min. D38: e2e kører nu mod produktionsbuild (build ~40 s–2,5 min, tests 4–50 s) + watchdog-batches `harness:ui-batches` (FAILED_TIMEOUT/kill tree/sidste output, afhængigheder automatisk) + telemetri JSONL; 533 testbrugere ryddet på staging. Målt: montør 282 s, portal-mail 308 s, 16 berørte tests i 6 batches 735 s — ingen hængende processer. Lokalt main: merge af `webform-inquiries` + `n23-case-status`, D39 (legacy-projekt fjernet fra portal-accept), N27 (cockpit: sager klar til lukning, U67), N35 (Opret lead fra mail/webhenvendelse, U68), U22 rettet til prod-prerender. Pushes efter grøn batch-kørsel + lint. |
 
 ## Grok på grok-next (2026-10-09)
-Efterkalkulation v1 er på `grok-next` (`2274215`): tilbudt/faktisk/afvigelse i øre, rabat én gang, manglende kost forbliver null, tilbudshoved via admin efter sagstjek. Sagsrentabiliteten på `/dashboard/reports` bruger samme kostregel (`src/lib/cases/profitability-figures.ts`). Fakturakontrol-dækningen i Pilot Health bruger kostprisen på fakturadatoen, samme regel som fakturapanelet (`price-at-date-test`). Opfølgningens skygge i Pilot Health viser kun antal mod dagens regler og sender intet (`followup-shadow-test`). Ingen prod-migration. Claude ejer fortsat storage/auth/RLS og prod-gates.
+Efterkalkulation v1 er på `grok-next` (`2274215`): tilbudt/faktisk/afvigelse i øre, rabat én gang, manglende kost forbliver null, tilbudshoved via admin efter sagstjek. Sagsrentabiliteten på `/dashboard/reports` bruger samme kostregel (`src/lib/cases/profitability-figures.ts`). Fakturakontrol-dækningen i Pilot Health bruger kostprisen på fakturadatoen, samme regel som fakturapanelet (`price-at-date-test`). Opfølgningens skygge i Pilot Health viser kun antal mod dagens regler og sender intet (`followup-shadow-test`). Leverandørfakturaens panel viser om linjesummen stemmer med beløb ekskl. moms (`header-totals-test`); en linje uden beløb gør forskellen ukendt. Ingen prod-migration. Claude ejer fortsat storage/auth/RLS og prod-gates.
 
 ## Slutrapport
 AGENT: GROK
 BRANCH: grok-next
 
-Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. Køen af sikre NOW/NEXT-punkter uden prod-godkendelse er gået igennem.
+Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. Arbejdet fortsætter på de sikre punkter, der stadig er åbne.
 
 Features leveret:
 - Sagsrentabilitet på `/dashboard/reports` behandler manglende kost som ukendt, ikke 0 (`9defa9b`).
 - Fakturakontrol-dækning og det read-only prod-script bruger kostprisen på fakturadatoen (`cf620e3`). Scriptet er ikke kørt.
 - Pilot Health viser opfølgningens skygge som antal. Der sendes ingen mail (`c3a9f25`).
+- Leverandørfakturaens panel viser om linjesummen stemmer med beløb ekskl. moms. En linje uden beløb gør forskellen ukendt (`header-totals-test`). Godkendelse og e-conomic er urørt.
 
 Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, plus denne status-commit. Ingen merge til main. Ingen ny fil under `supabase/migrations`.
 
-Tests: `aftercalc-test`, `offer-vs-actual-test`, `profitability-figures-test`, `price-at-date-test`, `followup-shadow-test` med exit 0. `npm run type-check`, `check:rbac` og `check:rls-matrix` med exit 0 efter de to kode-slices. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000.
+Tests: `aftercalc-test`, `offer-vs-actual-test`, `profitability-figures-test`, `price-at-date-test`, `followup-shadow-test`, `header-totals-test` med exit 0. `npm run type-check`, `check:rbac` og `check:rls-matrix` med exit 0 efter header-tjekket. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000.
 
 Performance: ingen ny måling. Dækningen og skyggen henter side for side (`fetchAllRows`) for de rækker de allerede læste.
 
