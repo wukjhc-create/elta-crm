@@ -4,12 +4,16 @@
  *
  * Daekning = andel af fakturalinjer der KAN kontrolleres (har antal + enhedspris + et produktmatch med kostpris).
  * Linjer uden allerede gemt supplier_product_id matches deterministisk (line-matcher) paa varenr. fra raw_line/tekst.
- * Forventet pris = supplier_products.cost_price (NUVAERENDE nettopris — tilnaermelse indtil prishistorik/aftaler
- * pr. fakturadato findes, se Profit Engine #18 og migration 00165).
+ * Forventet pris = kostprisen PAA fakturadatoen: nuvaerende supplier_products.cost_price rullet tilbage via
+ * price_history (foerste aendring efter datoen, X1 #14). Uden dato eller uden historik bruges dagens pris.
+ * En aendring uden kendt gammel pris goer linjen ukontrollerbar — dagens pris bruges ikke som gaet.
  */
 import { controlInvoice, type InvoiceVerdict } from '@/lib/invoice-control/engine'
 import { matchLines, type LineMatchMethod, type ProductRef } from '@/lib/invoice-control/line-matcher'
+import { expectedCostOnInvoiceDate, type PriceChange } from '@/lib/invoice-control/price-at-date'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+
+const NO_PRICE_CHANGES: Map<string, PriceChange[]> = new Map()
 
 export interface CoverageLine {
   line_number: number
@@ -19,7 +23,13 @@ export interface CoverageLine {
   supplier_product_id: string | null
   raw_line: string | null
 }
-export interface CoverageInvoice { id: string; supplier_id: string | null; lines: CoverageLine[] }
+export interface CoverageInvoice {
+  id: string
+  supplier_id: string | null
+  lines: CoverageLine[]
+  /** Fakturadato (YYYY-MM-DD eller ISO). Uden dato sammenlignes med dagens kostpris. */
+  invoice_date?: string | null
+}
 
 export interface CoverageReport {
   invoices: number
@@ -44,7 +54,12 @@ export function codeFromRawLine(raw: string | null): string | null {
   }
 }
 
-export function measureCoverage(invoices: CoverageInvoice[], productsBySupplier: Map<string, ProductRef[]>, productById: Map<string, ProductRef>): CoverageReport {
+export function measureCoverage(
+  invoices: CoverageInvoice[],
+  productsBySupplier: Map<string, ProductRef[]>,
+  productById: Map<string, ProductRef>,
+  changesByProduct: Map<string, PriceChange[]> = NO_PRICE_CHANGES,
+): CoverageReport {
   const r: CoverageReport = {
     invoices: invoices.length, invoicesWithLines: 0, lines: 0, matchedLines: 0,
     byMethod: { stored: 0, sku: 0, ean: 0, description_sku: 0 }, controllableLines: 0, coveragePct: 0,
@@ -59,7 +74,12 @@ export function measureCoverage(invoices: CoverageInvoice[], productsBySupplier:
     const control = controlInvoice(inv.lines.map((l, i) => {
       const stored = l.supplier_product_id ? productById.get(l.supplier_product_id) : undefined
       const m = matched[i]
-      const expected = stored?.cost_price ?? m.expectedUnitCost
+      const fromStored = stored?.cost_price ?? null
+      const productId = fromStored != null ? stored!.id : (m.supplierProductId ?? stored?.id ?? null)
+      const current = fromStored ?? m.expectedUnitCost ?? null
+      const expected = productId
+        ? expectedCostOnInvoiceDate(current, inv.invoice_date, changesByProduct.get(productId) ?? [])
+        : null
       if (stored) r.byMethod.stored++
       else if (m.method) r.byMethod[m.method]++
       if (stored || m.supplierProductId) r.matchedLines++
@@ -84,8 +104,8 @@ export async function loadAndMeasureCoverage(admin: any): Promise<CoverageReport
   const { codesToLookup } = await import('@/lib/invoice-control/line-matcher')
   // X4 (leverandørfaktura-review 2026-10-07): side for side — før .limit(5000)/.limit(50000), men PostgREST giver højst
   // 1.000 rækker, så dækningen blev målt på et tilfældigt udsnit af linjerne (fakturaer uden linjer talte som 0 %)
-  const invs = await fetchAllRows<{ id: string; supplier_id: string | null }>((from, to) => admin.from('incoming_invoices')
-    .select('id, supplier_id').neq('status', 'cancelled').order('id').range(from, to))
+  const invs = await fetchAllRows<{ id: string; supplier_id: string | null; invoice_date: string | null }>((from, to) => admin.from('incoming_invoices')
+    .select('id, supplier_id, invoice_date').neq('status', 'cancelled').order('id').range(from, to))
   const lines = await fetchAllRows<CoverageLine & { id: string; incoming_invoice_id: string }>((from, to) => admin.from('incoming_invoice_lines')
     .select('id, incoming_invoice_id, line_number, description, quantity, unit_price, supplier_product_id, raw_line').order('id').range(from, to))
   const linesByInvoice = new Map<string, CoverageLine[]>()
@@ -118,5 +138,21 @@ export async function loadAndMeasureCoverage(admin: any): Promise<CoverageReport
     const { data } = await admin.from('supplier_products').select('id, supplier_sku, ean, cost_price').in('id', storedIds.slice(k, k + 200))
     stored.push(...((data ?? []) as ProductRef[]))
   }
-  return measureCoverage(invoices, productsBySupplier, new Map(stored.map((p) => [p.id, p])))
+  const productIds = [...new Set([
+    ...stored.map((p) => p.id),
+    ...[...productsBySupplier.values()].flatMap((ps) => ps.map((p) => p.id)),
+  ])]
+  const changesByProduct = new Map<string, PriceChange[]>()
+  for (let k = 0; k < productIds.length; k += 200) {
+    const ids = productIds.slice(k, k + 200)
+    const rows = await fetchAllRows<PriceChange & { id: string }>((from, to) => admin.from('price_history')
+      .select('id, supplier_product_id, old_cost_price, created_at')
+      .in('supplier_product_id', ids).order('id').range(from, to))
+    for (const c of rows) {
+      const list = changesByProduct.get(c.supplier_product_id) ?? []
+      list.push(c)
+      changesByProduct.set(c.supplier_product_id, list)
+    }
+  }
+  return measureCoverage(invoices, productsBySupplier, new Map(stored.map((p) => [p.id, p])), changesByProduct)
 }

@@ -45,13 +45,13 @@ Benchmark: KlarPris' fakturakontrol ([Installatør](https://www.installator.dk/m
 | IC8 | Ingen OIOUBL, intet tjek af header-total = sum af linjer, e-conomic-fejl returnerer `ok: true`, fejl kun i audit/log | kvalitet og synlighed | åben |
 
 ## 4. Reel dækning (målt)
-`src/lib/invoice-control/coverage.ts` (ren; samme kode på staging og read-only i prod): `npx tsx scripts/prod-invoice-coverage.ts` og Pilot Health → Integrationer → *Fakturakontrol-dækning*. **Prod 2026-09-29: 0 % (0 af 9 linjer; 3 af 53 fakturaer har linjer)**. Nye API-fakturaer får nu varenummer og match, så tallet kan stige, men det kræver, at API-importen køres (i dag inaktiv/ukonfigureret, gate). Test I7: 75 % dækning og 100 kr merbetaling målt korrekt på en probe-faktura.
+`src/lib/invoice-control/coverage.ts` (ren; samme kode på staging og read-only i prod): `npx tsx scripts/prod-invoice-coverage.ts` og Pilot Health → Integrationer → *Fakturakontrol-dækning*. **Prod 2026-09-29: 0 % (0 af 9 linjer; 3 af 53 fakturaer har linjer)**. Nye API-fakturaer får nu varenummer og match, så tallet kan stige, men det kræver, at API-importen køres (i dag inaktiv/ukonfigureret, gate). Test I7: 75 % dækning og 100 kr merbetaling målt korrekt på en probe-faktura. Fra 2026-10-09 (grok-next) sammenligner både Pilot Health og det read-only prod-script med kostprisen på fakturadatoen, samme tilbagerulning som fakturapanelet (X1 #14). Scriptet er kun SELECT og køres ikke herfra.
 
 ## 5. Kontrolmotor (implementeret, ren)
 `controlInvoice(lines, tolerance)` returnerer pr. linje `ok | overcharge | undercharge | not_controllable` (med årsag), og pr. faktura `ok | deviation | partially_controlled | not_controllable`. Den giver også **dækning i %** og **merbetaling i kr**.
 - Tolerance: afvigelsen skal overstige **både** 2 % og 0,50 kr pr. enhed (afrunding giver ikke falske alarmer).
 - En faktura uden kontrollerbare linjer bliver **aldrig** `ok`. Manglende data vises ærligt som manglende dækning.
-- Forventet pris er nettoprisen på fakturadatoen fra grossistaftalen (Profit Engine #18: `supplier_agreements`) eller `supplier_products.cost_price`.
+- Forventet pris på fakturaen og i Pilot Health er `supplier_products.cost_price` rullet tilbage til fakturadatoen via `price_history` (første ændring efter datoen). Uden dato bruges dagens pris. En ændring uden kendt gammel pris gør linjen ukontrollerbar. Grossistaftaler (`supplier_agreements`, Profit Engine #18) er ikke koblet på.
 
 ## 6. Målbillede (trin; hver er en gate)
 1. ✅ Kontrolmotor + fejlrettelser IC1–IC4.

@@ -6,8 +6,7 @@
 import { controlInvoice, type InvoiceControl } from '@/lib/invoice-control/engine'
 import { codeFromRawLine } from '@/lib/invoice-control/coverage'
 import { codesToLookup, matchLines, type ProductRef, type LineMatchMethod } from '@/lib/invoice-control/line-matcher'
-import { costPriceAtDate, type PriceChange } from '@/lib/invoice-control/price-at-date'
-import { copenhagenLocalToIso, copenhagenDatePlusDays } from '@/lib/utils/copenhagen-time'
+import { expectedCostOnInvoiceDate, priceHistoryAfterIso, type PriceChange } from '@/lib/invoice-control/price-at-date'
 
 export interface InvoiceControlLineInfo {
   lineNumber: number
@@ -56,8 +55,8 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
   const invoiceDate = (inv as { invoice_date?: string | null }).invoice_date
   if (invoiceDate) {
     const productIds = [...new Set([...storedIds, ...(matched.map((m) => m.supplierProductId).filter(Boolean) as string[])])]
-    const after = copenhagenLocalToIso(copenhagenDatePlusDays(1, new Date(`${invoiceDate}T12:00:00Z`)), '00:00')
-    for (let k = 0; k < productIds.length; k += 200) {
+    const after = priceHistoryAfterIso(invoiceDate)
+    for (let k = 0; k < productIds.length && after; k += 200) {
       const { data: ph } = await catalogClient.from('price_history').select('supplier_product_id, old_cost_price, created_at')
         .in('supplier_product_id', productIds.slice(k, k + 200)).gte('created_at', after)
       for (const c of (ph ?? []) as PriceChange[]) {
@@ -68,7 +67,7 @@ export async function loadInvoiceControl(client: Client, invoiceId: string, cata
     }
   }
   const atDate = (productId: string | null | undefined, current: number | null | undefined) =>
-    productId ? costPriceAtDate(current ?? null, changesByProduct.get(productId) ?? []) : (current ?? null)
+    expectedCostOnInvoiceDate(current ?? null, invoiceDate, productId ? changesByProduct.get(productId) ?? [] : [])
 
   const matches: InvoiceControlLineInfo[] = []
   const control = controlInvoice(lines.map((l, i) => {
