@@ -77,7 +77,8 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | S #4 1-årige signerede links gemt i file_url (læsbare for alle) | DELVIS — nye kundedokumenter gemmer intet link. Gemte links virker til udløb uanset RLS → **BLOCKED_APPROVAL** (dataændring): `UPDATE customer_documents SET file_url = ''` hvor storage_path findes (læsere signerer allerede fra storage_path) + øvrige skrivesteder (fuldmagt, mailvedhæftninger, sagsbilag) — foreslås sammen med 00209 | — |
 | C #1 portal-links uden udløb og aktive for deaktiverede kunder | DONE — deaktiveret kunde afvises (også partner), nye links 365 dage, mail genbruger kun links med ≥ 30 dage tilbage | `portal-token-rules-check` |
 | C #2/#3 sletning tabte noter/tagtegninger/roller stille; retro-kobling af egne/system-adresser | DONE | — |
-| C #4–#7 CSV-import uden skema-validering/dublet-lås; primærkontakt; upload-oprydning | #7 DONE; #4–#6 LATER (lav volumen) | — |
+| C #4–#7 CSV-import uden skema-validering/dublet-lås; primærkontakt; upload-oprydning | DONE (import: skema i forhåndsvisning + ved indsættelse, dublet-tjek lige før insert, retro-kobling; primærkontakt skiftes efter vellykket insert / ud fra kontaktens egen kunde) | `customer-csv-import-test`, UI 15/15 |
+| S #4 rest: lead-vedhæftninger med 1-årigt link i leads.custom_fields | DONE — signeres ved klik (`getLeadAttachmentUrlAction`, kun stier på leadet, leads.view); intet link gemmes (prod: 0 leads med vedhæftninger → ingen dataændring) | U57/U133 |
 | T11 talebeskeder (fundament) | DONE staging — flag ASSISTANT_VOICE_ENABLED (OFF), ingen live | `assistant-voice-check` 7/7 |
 | T12 ubesvaret opkald → tilbageringning | DONE (fundament) — `lib/integrations/relatel/missed-calls.ts`: kun ved præcis én kunde, idempotent pr. opkald, telefonsvarer i beskrivelsen, kalender 📞; Relatel-klienten er fortsat 'disabled' (ingen cron, intet live) | `missed-call-check` 8/8 |
 
