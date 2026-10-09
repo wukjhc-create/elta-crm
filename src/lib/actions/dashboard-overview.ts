@@ -518,15 +518,20 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         const { calendarDaysSince } = await import('@/lib/utils/copenhagen-time')
         const { nextReminder } = await import('@/lib/invoices/reminder-plan')
         const { data, error } = await supabase.from('invoices')
-          .select('id, invoice_number, invoice_type, final_amount, due_date, reminder_count, last_reminder_at, customer_id')
+          .select('id, invoice_number, invoice_type, final_amount, amount_paid, due_date, reminder_count, last_reminder_at, customer_id')
           .eq('status', 'sent').is('voided_at', null).not('due_date', 'is', null)
           .order('due_date', { ascending: true }).limit(500)
         if (error) throw new Error(error.message)
         const nowMs = Date.now()
-        const rows = ((data ?? []) as Array<{ id: string; invoice_number: string | null; invoice_type: string | null; final_amount: number | string | null; due_date: string; reminder_count: number | null; last_reminder_at: string | null; customer_id: string | null }>)
+        const overdue = ((data ?? []) as Array<{ id: string; invoice_number: string | null; invoice_type: string | null; final_amount: number | string | null; amount_paid: number | string | null; due_date: string; reminder_count: number | null; last_reminder_at: string | null; customer_id: string | null }>)
           .filter((r) => r.invoice_type !== 'credit')
           .map((r) => ({ ...r, days: calendarDaysSince(r.due_date, nowMs) }))
           .filter((r) => r.days > 0)
+        // Rapport-review 2026-10-09 (#1): åbent beløb (− betalt − kreditnotaer) som fakturaoversigten; fuldt betalte/
+        // krediterede fakturaer tælles ikke som forfaldne
+        const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
+        const credited = await creditedByOriginal(supabase, overdue.map((r) => r.id))
+        const rows = overdue.map((r) => ({ ...r, open: openAmount(r, credited) })).filter((r) => r.open > 0)
         if (!rows.length) return
         const custIds = Array.from(new Set(rows.slice(0, TOP_N).map((r) => r.customer_id).filter((x): x is string => !!x)))
         const names = new Map<string, string>()
@@ -537,10 +542,10 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         overview.overdueInvoices = {
           allowed: true,
           count: rows.length,
-          total: Math.round(rows.reduce((sum, r) => sum + (Number(r.final_amount ?? 0) || 0), 0) * 100) / 100,
+          total: Math.round(rows.reduce((sum, r) => sum + r.open, 0) * 100) / 100,
           items: rows.slice(0, TOP_N).map((r) => ({
             id: r.id, invoice_number: r.invoice_number, customer_name: r.customer_id ? names.get(r.customer_id) ?? null : null,
-            amount: Number(r.final_amount ?? 0) || 0, daysOverdue: r.days, reminders: Number(r.reminder_count ?? 0),
+            amount: r.open, daysOverdue: r.days, reminders: Number(r.reminder_count ?? 0),
             // samme dagsberegning som invoice-reminders-cronen (floor af forløbne døgn), så trinnet matcher cronens valg
             next: nextReminder(Math.floor((nowMs - Date.parse(r.due_date)) / 86_400_000), Number(r.reminder_count ?? 0),
               r.last_reminder_at ? Math.floor((nowMs - Date.parse(r.last_reminder_at)) / 86_400_000) : null),

@@ -149,7 +149,7 @@ export async function GET() {
         .limit(8),
       supabase
         .from('invoices')
-        .select('id, invoice_number, final_amount, currency, due_date, customer_id')
+        .select('id, invoice_number, final_amount, amount_paid, currency, due_date, customer_id')
         .eq('status', 'sent')
         .neq('payment_status', 'paid')
         .neq('invoice_type', 'credit')
@@ -159,12 +159,16 @@ export async function GET() {
         .limit(10),
     ])
 
-    const overdue_invoices = (overdueRes.data ?? []).map((r) => {
+    // Rapport-review 2026-10-09 (#1): vist beløb = åbent beløb (− betalt − kreditnotaer); fuldt dækkede udelades
+    const { creditedByOriginal, openAmount } = await import('@/lib/invoices/open-amount')
+    const overdueRows = overdueRes.data ?? []
+    const credited = await creditedByOriginal(supabase, overdueRows.map((r) => r.id as string)).catch(() => new Map<string, number>())
+    const overdue_invoices = overdueRows.filter((r) => openAmount(r as { id: string; final_amount: number; amount_paid: number }, credited) > 0).map((r) => {
       const daysOverdue = r.due_date ? Math.max(0, calendarDaysSince(String(r.due_date), now)) : 0
       return {
         id: r.id,
         invoice_number: r.invoice_number,
-        final_amount: Number(r.final_amount) || 0,
+        final_amount: openAmount(r as { id: string; final_amount: number; amount_paid: number }, credited),
         currency: r.currency || 'DKK',
         due_date: r.due_date,
         days_overdue: daysOverdue,

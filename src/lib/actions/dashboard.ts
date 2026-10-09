@@ -5,7 +5,7 @@ import type { OfferStatus } from '@/types/offers.types'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { DASHBOARD_LIMITS } from '@/lib/constants'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { copenhagenParts } from '@/lib/utils/copenhagen-time'
+import { copenhagenLocalToIso, copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 export interface DashboardStats {
   leads: {
@@ -80,7 +80,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // Rækker hentes side for side — PostgREST giver højst 1.000 pr. kald (N36-rest: tallene stod stille ved 1.000)
     allRows<{ status: string }>((f, t) => supabase.from('leads').select('id, status').order('id').range(f, t)),
     allRows<{ is_active: boolean; created_at: string }>((f, t) => supabase.from('customers').select('id, is_active, created_at').order('id').range(f, t)),
-    allRows<{ status: string; total_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, total_amount').eq('is_proposal', false).order('id').range(f, t)),
+    // Rapport-review 2026-10-09 (#2): værdi ekskl. moms efter rabat (final − tax) — total_amount er subtotal før rabat
+    allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase.from('offers').select('id, status, final_amount, tax_amount').eq('is_proposal', false).order('id').range(f, t)),
     // N36: sager (ikke gamle projekter)
     // count i databasen (ikke rækker i JS — PostgREST giver højst 1.000 rækker; U70 fandt 999 vs 1.286)
     supabase.from('service_cases').select('id', { count: 'exact', head: true }).eq('is_proposal', false).not('status', 'in', '("closed","converted")'),
@@ -146,14 +147,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const acceptedOffers = offers.filter((o) => o.status === 'accepted')
   const rejectedOffers = offers.filter((o) => o.status === 'rejected')
 
-  const pendingValue = pendingOffers.reduce(
-    (sum, o) => sum + (o.total_amount || 0),
-    0
-  )
-  const acceptedValue = acceptedOffers.reduce(
-    (sum, o) => sum + (o.total_amount || 0),
-    0
-  )
+  const pendingValue = pendingOffers.reduce((sum, o) => sum + offerExVat(o), 0)
+  const acceptedValue = acceptedOffers.reduce((sum, o) => sum + offerExVat(o), 0)
   const decidedOffers = acceptedOffers.length + rejectedOffers.length
   const acceptanceRate =
     decidedOffers > 0 ? Math.round((acceptedOffers.length / decidedOffers) * 100) : 0
@@ -401,25 +396,30 @@ export async function getMonthlyOfferStats(): Promise<{
 }> {
   const { supabase } = await getAuthenticatedClient()
 
-  const now = new Date()
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  // Rapport-review 2026-10-09 (#9): dansk månedsstart (før serverens UTC → 00–02 den 1. tabt), alle rækker, ekskl. moms
+  const firstDayOfMonth = copenhagenLocalToIso(`${copenhagenParts(new Date()).date.slice(0, 7)}-01`, '00:00')
 
-  const { data } = await supabase
+  const offers = await allRows<{ status: string; final_amount: number | null; tax_amount: number | null }>((f, t) => supabase
     .from('offers')
-    .select('status, total_amount')
+    .select('id, status, final_amount, tax_amount')
     .eq('is_proposal', false)
     .gte('created_at', firstDayOfMonth)
     .in('status', ['sent', 'viewed', 'accepted'])
-
-  const offers = data || []
+    .order('id')
+    .range(f, t))
 
   const sentOffers = offers.filter((o) => o.status === 'sent' || o.status === 'viewed')
   const acceptedOffers = offers.filter((o) => o.status === 'accepted')
 
   return {
-    sentValue: sentOffers.reduce((sum, o) => sum + (o.total_amount || 0), 0),
-    acceptedValue: acceptedOffers.reduce((sum, o) => sum + (o.total_amount || 0), 0),
+    sentValue: sentOffers.reduce((sum, o) => sum + offerExVat(o), 0),
+    acceptedValue: acceptedOffers.reduce((sum, o) => sum + offerExVat(o), 0),
     sentCount: sentOffers.length,
     acceptedCount: acceptedOffers.length,
   }
+}
+
+/** Tilbudsværdi ekskl. moms efter rabat (final_amount − tax_amount) — samme grundlag som rapporter og salgstragt. */
+function offerExVat(o: { final_amount?: number | string | null; tax_amount?: number | string | null }): number {
+  return Number(o.final_amount ?? 0) - Number(o.tax_amount ?? 0)
 }

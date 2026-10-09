@@ -898,7 +898,7 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
       return { success: true, data: { total_outstanding: 0, total_net_invoiced: 0, cases_with_outstanding: 0, currency, top: [] } }
     }
 
-    // Kun aktive (ikke-lukkede) sager tæller med.
+    // Alle sager undtagen konverterede tæller med (også lukkede — se nedenfor).
     // i bidder af 200 (én .in() med alle fakturerede sager sprænger URL-længden ved vækst → tom liste → 0 kr udestående)
     const cases: Array<{ id: string; case_number: string | null; title: string | null; status: string | null }> = []
     for (let k = 0; k < caseIds.length; k += 200) {
@@ -911,7 +911,9 @@ export async function getCaseOutstandingPortfolioAction(): Promise<ActionResult<
     }
     const activeMeta = new Map<string, { case_number: string | null; title: string | null }>()
     for (const c of cases as Array<{ id: string; case_number: string | null; title: string | null; status: string | null }>) {
-      if (c.status === 'closed') continue
+      // Rapport-review 2026-10-09 (#3): lukkede sager tæller MED — lukning kræver ikke betaling, så en sendt
+      // slutfaktura på en lukket sag er stadig udestående (fulgte-op-oversigten talte den allerede). Kun konverterede ud.
+      if (c.status === 'converted') continue
       activeMeta.set(c.id, { case_number: c.case_number, title: c.title })
     }
 

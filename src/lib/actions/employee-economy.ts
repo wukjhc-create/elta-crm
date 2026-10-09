@@ -88,7 +88,11 @@ export async function getEmployeeEconomyAction(
       : { hours, labor_sale: sale, labor_cost: cost, db_amount: r2(sale - cost), db_percentage: sale > 0 ? r2(((sale - cost) / sale) * 100) : 0 }
     const employees: EmployeeEconomyViewRow[] = perEmployeeCost
       ? data.employees
-      : data.employees.map((e) => ({ ...e, labor_cost: null, db_amount: null, db_percentage: null }))
+      // Rapport-review 2026-10-09 (#10): sortér om efter maskering — rækkefølgen efter DB afslørede ellers den
+      // relative kost/DB pr. medarbejder
+      : data.employees
+          .map((e) => ({ ...e, labor_cost: null, db_amount: null, db_percentage: null }))
+          .sort((a, b) => b.hours - a.hours || a.employee_name.localeCompare(b.employee_name, 'da'))
     return { success: true, data: { ...data, employees, totals, per_employee_cost: perEmployeeCost } }
   } catch (error) {
     logger.error('getEmployeeEconomyAction failed', { error })

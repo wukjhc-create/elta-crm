@@ -13,6 +13,17 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Long-run 2026-10-09 — rapporter/dashboard/KPI (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| R #1 (S2) cockpittets "Forfaldne fakturaer" + dashboard-API'ets forfaldsliste med fuldt beløb (delbetalt/krediteret) | DONE — fælles `lib/invoices/open-amount.ts` (final − betalt − kreditnotaer); fuldt dækkede udelades. View `v_customer_payment_summary` (00146, kundeliste + betalingsrapport) har samme fejl → **BLOCKED_APPROVAL** 00214 på branch `payment-summary-00214` (samme kolonner; åbent beløb + dansk dato) | economy-UI |
+| R #2 (S2) tilbudsværdi tre måder (dashboard subtotal før rabat, rapporter inkl. moms, tragt ekskl. moms) | DONE — ekskl. moms efter rabat (final − tax) overalt | sales-funnel-test ✅, economy-UI |
+| R #3 (S2) udestående-porteføljen udelod lukkede sager | DONE — kun konverterede udelades | economy-UI |
+| R #4 (S2) AI-forecast talte kladder og AI-forslag + 1.000-grænse | DONE — kun sendte, is_proposal=false, pagineret, ekskl. moms | tsc/gates |
+| R #5 (S2) AI "90-dages omsætning" talte alle profit-snapshots (append-only) | DONE — seneste pr. arbejdsordre, pagineret | tsc/gates |
+| R #6–#9 projektrentabilitet med forslag; topkunder upagineret + acceptrate inkl. kladder; "sendt"-serien forkert; månedsgraf UTC/upagineret | DONE | tsc/gates |
+| R #10 medarbejderøkonomi: rækkefølge efter DB afslørede kost uden løn-ret | DONE — sorteres efter timer efter maskering | tsc/gates |
+
 ## Long-run 2026-10-09 — planlægning (arbejdsordrer, kalender, besigtigelse) (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|

@@ -1,8 +1,8 @@
 /**
  * Revenue forecast (Phase 9, §5).
  *
- *   pipelineValue           = sum of final_amount on offers in
- *                             ['draft','sent','viewed']
+ *   pipelineValue           = sum of (final_amount − tax_amount) on SENT offers
+ *                             ['sent','viewed'], is_proposal = false
  *   conversionRate          = accepted / (accepted + rejected) over the
  *                             trailing 90 days; 0.4 fallback when there's
  *                             no signal yet
@@ -14,6 +14,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAiSuggestion } from '@/lib/ai/suggestion-log'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import type { RevenueForecast } from '@/types/ai-insights.types'
 
 export async function forecastRevenue(days = 30): Promise<RevenueForecast> {
@@ -23,30 +24,28 @@ export async function forecastRevenue(days = 30): Promise<RevenueForecast> {
   const sinceWindowIso = new Date(Date.now() - horizon * 24 * 60 * 60 * 1000).toISOString()
   const since90Iso = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
+  // Rapport-review 2026-10-09 (#4): kun SENDTE tilbud (ikke kladder/AI-forslag, is_proposal), alle rækker (PostgREST
+  // giver højst 1.000), og beløb ekskl. moms (final − tax) som salgstragten
+  type OfferAmt = { final_amount: number | string | null; tax_amount: number | string | null }
+  const exVat = (rows: OfferAmt[]) => sum(rows.map((o) => Number(o.final_amount ?? 0) - Number(o.tax_amount ?? 0)))
   const [pipeline, recentAccepted, conv] = await Promise.all([
-    supabase
-      .from('offers')
-      .select('final_amount')
-      .in('status', ['draft', 'sent', 'viewed'])
-      .then((r) => sum(r.data?.map((o) => Number(o.final_amount)))),
-    supabase
-      .from('offers')
-      .select('final_amount')
-      .eq('status', 'accepted')
-      .gte('accepted_at', sinceWindowIso)
-      .then((r) => sum(r.data?.map((o) => Number(o.final_amount)))),
-    supabase
-      .from('offers')
-      .select('status')
-      .in('status', ['accepted', 'rejected'])
-      .gte('updated_at', since90Iso)
-      .then((r) => {
-        const rows = r.data ?? []
-        const accepted = rows.filter((x) => x.status === 'accepted').length
-        const rejected = rows.filter((x) => x.status === 'rejected').length
-        const denom = accepted + rejected
-        return denom > 0 ? accepted / denom : 0.4
-      }),
+    fetchAllRows<OfferAmt>((f, t) =>
+      supabase.from('offers').select('id, final_amount, tax_amount')
+        .in('status', ['sent', 'viewed']).eq('is_proposal', false).order('id').range(f, t)
+    ).then(exVat),
+    fetchAllRows<OfferAmt>((f, t) =>
+      supabase.from('offers').select('id, final_amount, tax_amount')
+        .eq('status', 'accepted').eq('is_proposal', false).gte('accepted_at', sinceWindowIso).order('id').range(f, t)
+    ).then(exVat),
+    fetchAllRows<{ status: string }>((f, t) =>
+      supabase.from('offers').select('id, status')
+        .in('status', ['accepted', 'rejected']).eq('is_proposal', false).gte('updated_at', since90Iso).order('id').range(f, t)
+    ).then((rows) => {
+      const accepted = rows.filter((x) => x.status === 'accepted').length
+      const rejected = rows.filter((x) => x.status === 'rejected').length
+      const denom = accepted + rejected
+      return denom > 0 ? accepted / denom : 0.4
+    }),
   ])
 
   const expected =

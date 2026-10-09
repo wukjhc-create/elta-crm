@@ -18,6 +18,7 @@ Kør altid pre → `npm run prod:apply-migration -- <nr> --approved-by-henrik` (
 ## Økonomi
 | # | Hvad | Status | Verificering |
 |---|---|---|---|
+| 00214 | Kundelistens betalingsoversigt + ugentlig betalingsrapport (`v_customer_payment_summary`) tæller delbetalte/delkrediterede fakturaer med fuldt beløb og fuldt dækkede som forfaldne; "i dag" i UTC | Udkast på branch `payment-summary-00214` (CREATE OR REPLACE VIEW, samme kolonner, security_invoker bevaret). Ingen dataændring | prod read-only: sammenlign outstanding_total før/efter pr. kunde |
 | 00205 | `calculate_work_order_profit` tager omsætning fra seneste faktura uanset status (også kladde); satsskift på godkendte timer nulstiller ikke godkendelsen i DB | Udkast på branch `profit-rate-00205` (appen afviser allerede satsskift uden godkenderret) | diff mod 00202/00185: kun to betingelser |
 | 00206 | `get_customer_product_price` ignorerer kunderabat når aftalen ikke har egen avance (`record IS NOT NULL`) | Udkast på branch `customer-price-00206` — LATENT: prod har 0 kundeaftaler (`prod-customer-price-agreements.ts`), lav hast | staging: `cli.ts customer-price-rpc-check` (uden avance 100 → efter rettelse 90) |
 | 00203 Trin B | Aktivering af tilbudsrevisioner (`OFFER_REVISIONS_ENABLED`) | Klar — docs/runbooks/offer-revisions-activation.md (smoke 7/7) | `npx tsx scripts/prod-smoke-00203.ts` lige før |
