@@ -21,6 +21,11 @@ export async function logEmployeeEvent(input: {
   createdBy?: string | null
 }): Promise<void> {
   try {
+    // IDOR-sweep 2026-10-09 (#7): eksporteret fra en 'use server'-fil → kan kaldes direkte. Kun roller der må redigere
+    // medarbejdere/brugere (alle interne kaldere har allerede den gate), og created_by er altid den indloggede bruger
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission('employees.edit') && !ctx.hasPermission('users.edit') && !ctx.hasPermission('users.create')) return
+    if (!/^[0-9a-f-]{36}$/i.test(input.employeeId)) return
     const admin = createAdminClient()
     await admin.from('employee_events').insert({
       employee_id: input.employeeId,
@@ -28,7 +33,7 @@ export async function logEmployeeEvent(input: {
       title: input.title,
       description: input.description ?? null,
       metadata: input.metadata ?? {},
-      created_by: input.createdBy ?? null,
+      created_by: ctx.userId,
     })
   } catch (e) {
     // Revisionsspor må aldrig vælte hovedhandlingen.

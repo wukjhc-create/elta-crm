@@ -57,7 +57,16 @@ export async function createFuldmagt(
   serviceCaseId: string
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { supabase, userId } = await requireGate('service.edit')
+    const { supabase, userId, role } = await requireGate('service.edit')
+    // IDOR-sweep 2026-10-09 (#1): gyldige id'er, og sagen skal være i brugerens scope (montør: egne sager) og høre til
+    // kunden — før kunne en montør oprette en fuldmagt (kontrakt til underskrift i portalen) på enhver kunde/sag
+    if (!/^[0-9a-f-]{36}$/i.test(customerId) || !/^[0-9a-f-]{36}$/i.test(serviceCaseId || '')) {
+      return { success: false, error: 'Vælg en sag, før du opretter fuldmagten' }
+    }
+    const { userCanViewCase } = await import('@/lib/auth/case-scope')
+    if (!(await userCanViewCase(serviceCaseId, { supabase, userId, role }))) {
+      return { success: false, error: 'Du har ikke adgang til denne sag' }
+    }
 
     const { data: customer, error: custErr } = await supabase
       .from('customers')

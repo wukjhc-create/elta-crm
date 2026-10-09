@@ -296,7 +296,10 @@ export async function getEmailThreads(options?: {
   limit?: number
 }): Promise<EmailThreadWithRelations[]> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
+    // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return []
 
     let query = supabase
       .from('email_threads')
@@ -349,7 +352,10 @@ export async function getEmailThreads(options?: {
 
 export async function getEmailThread(id: string): Promise<EmailThreadWithRelations | null> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
+    // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return null
     validateUUID(id, 'tråd ID')
 
     const { data, error } = await supabase
@@ -415,7 +421,10 @@ export async function createEmailThread(
 
 export async function getEmailMessages(threadId: string): Promise<EmailMessageWithRelations[]> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // IDOR-sweep 2026-10-09 (#4): tilbudsmails (brødtekst/vedhæftninger) kun for roller med offers.view — før var
+    // login nok (montør/bogholderi kunne læse alle sendte tilbudsmails)
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('offers.view')) return []
     validateUUID(threadId, 'tråd ID')
 
     const { data, error } = await supabase

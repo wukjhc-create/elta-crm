@@ -34,6 +34,7 @@ import type {
 import { DEFAULT_CHECKLIST } from '@/types/service-cases.types'
 import type { PortalServiceCase } from '@/types/portal.types'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { safeDocumentDescription } from '@/lib/documents/safe-description'
 import { pageWithinIds, IN_CHUNK_SIZE } from '@/lib/supabase/in-chunks'
 import { escapeHtml } from '@/lib/utils/html-escape'
 
@@ -1165,7 +1166,8 @@ export async function getDocumentsForCase(
     for (let i = 0; i < paths.length; i++) {
       if (paths[i]) { freshByIdx[i] = fresh[fIdx]; fIdx++ }
     }
-    return rows.map((r, idx) => ({ ...r, file_url: freshByIdx[idx] ?? r.file_url ?? '' }))
+    // IDOR-sweep 2026-10-09 (#2): ingen CPR/underskrift fra fuldmagter i listen
+    return rows.map((r, idx) => ({ ...r, description: safeDocumentDescription(r.description), file_url: freshByIdx[idx] ?? r.file_url ?? '' }))
   } catch {
     return []
   }

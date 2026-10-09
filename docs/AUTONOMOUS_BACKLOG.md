@@ -13,6 +13,19 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Long-run 2026-10-09 — IDOR/scope-sweep af server-actions (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| I #2 (S2→S1-klasse: CPR) kundens og sagens dokumentlister returnerede fuldmagtens description med fødselsdato/CVR, underskrift og e-mail til alle med customers.view (montør) | DONE (deployet direkte — lukker læk) — `lib/documents/safe-description.ts` (kun ufølsomme felter) i kundedokumenter + sagsdokumenter | tsc/gates |
+| I #1 createFuldmagt uden sag-scope (montør kunne oprette fuldmagt på enhver kunde/sag) | DONE — UUID + userCanViewCase (+ eksisterende sag↔kunde-tjek) | tsc/gates |
+| I #3 tagtegninger: læse-ret var nok til at overskrive/slette enhver kundes tegning | DONE — customers.edit eller sag i scope der hører til kunden | tsc/gates |
+| I #4 tilbudsmail-tråde/beskeder læsbare med login alene | DONE — offers.view | tsc/gates |
+| I #5 sags-økonomi (kontraktsum/udestående) uden sag-scope for salg | DONE — userCanViewCase / getCaseScope-filter | tsc/gates |
+| I #6 sagskontakter uden sag-scope | DONE | tsc/gates |
+| I #7 ugatede 'use server'-eksporter (bekræftelser, hændelseslog, hurtig-kunde fra mail) | DONE — gates + forældede RBAC-undtagelser fjernet. route-preview/mail-route-resolvers kun server-importeret (cron uden session) → uændret | check:rbac |
+| I #8 materiale med fremmed sags arbejdsordre | DONE — arbejdsordren skal høre til sagen | tsc/gates |
+| RLS `USING (true)` på email_threads/messages, customer_documents, roof_drawings, case_materials m.fl. | LATER/BLOCKED_APPROVAL — DB-stramning når app-gates er på plads (samme mønster som 00204/00207) | — |
+
 ## Long-run 2026-10-09 — kundemodul (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|

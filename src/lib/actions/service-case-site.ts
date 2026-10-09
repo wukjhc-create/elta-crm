@@ -347,9 +347,14 @@ export async function getContactsForCase(caseId: string): Promise<{
   try {
     validateUUID(caseId, 'caseId')
 
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('cases.view.all') && !hasPermission('cases.view.assigned')) {
       return { success: false, error: 'Manglende tilladelse' }
+    }
+    // IDOR-sweep 2026-10-09 (#6): kun sager i brugerens scope (montør/salg: egne)
+    {
+      const { userCanViewCase } = await import('@/lib/auth/case-scope')
+      if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Du har ikke adgang til denne sag' }
     }
 
     const { data: caseRow } = await supabase

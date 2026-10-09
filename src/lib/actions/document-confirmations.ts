@@ -30,6 +30,7 @@
 import { headers } from 'next/headers'
 import {
   getAuthenticatedClient,
+  getAuthenticatedClientWithRole,
   formatError,
   ActionError,
 } from '@/lib/actions/action-helpers'
@@ -190,6 +191,9 @@ export async function createConfirmationRequests(
       return { success: false, error: 'Ingen modtagere angivet' }
     }
 
+    // IDOR-sweep 2026-10-09 (#7): gate (før kun login) — offentlige bekræftelses-tokens må kun oprettes af roller der
+    // må sende besigtigelser
+    { const denied = await confirmationGateDenied('service.edit', null); if (denied) return { success: false, error: denied } }
     const { supabase, userId } = await getAuthenticatedClient()
 
     // Valider dokumentet eksisterer og hent service_case_id som default
@@ -535,6 +539,7 @@ export async function listConfirmationsForDocument(
 ): Promise<ActionResult<ConfirmationListItem[]>> {
   try {
     validateUUID(documentId, 'documentId')
+    { const denied = await confirmationGateDenied('service.view', null); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -569,6 +574,7 @@ export async function listConfirmationsForServiceCase(
 ): Promise<ActionResult<ConfirmationListItem[]>> {
   try {
     validateUUID(serviceCaseId, 'serviceCaseId')
+    { const denied = await confirmationGateDenied('service.view', serviceCaseId); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
 
     const { data, error } = await supabase
@@ -612,6 +618,7 @@ export async function markConfirmationMailSent(
 ): Promise<ActionResult<void>> {
   try {
     validateUUID(confirmationId, 'confirmationId')
+    { const denied = await confirmationGateDenied('service.edit', null); if (denied) return { success: false, error: denied } }
     const { supabase } = await getAuthenticatedClient()
     const { error } = await supabase
       .from('document_confirmations')
@@ -667,6 +674,7 @@ export async function revokeConfirmation(input: {
 }): Promise<ActionResult<void>> {
   try {
     validateUUID(input.confirmationId, 'confirmationId')
+    { const denied = await confirmationGateDenied('service.edit', null); if (denied) return { success: false, error: denied } }
     const { supabase, userId } = await getAuthenticatedClient()
     const now = new Date().toISOString()
 
@@ -769,5 +777,22 @@ function mapToListItem(r: {
     createdAt: r.created_at,
     sequence,
     readyToSend: meta.readyToSend === true,
+  }
+}
+
+/**
+ * IDOR-sweep 2026-10-09 (#7): rettighed + (valgfrit) sag i brugerens scope. Returnerer fejltekst eller null.
+ */
+async function confirmationGateDenied(permission: 'service.view' | 'service.edit', serviceCaseId: string | null): Promise<string | null> {
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    if (!ctx.hasPermission(permission)) return `Manglende tilladelse: ${permission}`
+    if (serviceCaseId) {
+      const { userCanViewCase } = await import('@/lib/auth/case-scope')
+      if (!(await userCanViewCase(serviceCaseId, ctx))) return 'Du har ikke adgang til denne sag'
+    }
+    return null
+  } catch {
+    return 'Ikke logget ind'
   }
 }

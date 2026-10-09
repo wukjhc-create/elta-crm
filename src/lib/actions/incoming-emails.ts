@@ -455,6 +455,9 @@ export async function quickCreateCustomerFromEmail(
   input: QuickCreateCustomerInput
 ): Promise<{ success: boolean; customerId?: string; error?: string }> {
   try {
+    // IDOR-sweep 2026-10-09 (#7): samme gate som linkEmailToCustomer (før kun login)
+    const denied = await gateDenied('inbox.view')
+    if (denied) return { success: false, error: denied }
     const { supabase, userId } = await getAuthenticatedClient()
 
     // Check if customer already exists by email

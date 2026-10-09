@@ -206,6 +206,13 @@ export async function createCaseMaterial(
     }
     // Sags-review 2026-10-09 (#6): intet nyt arbejde på en lukket sag (det blev aldrig faktureret og gav ingen advarsel)
     if ((caseRow as { status?: string }).status === 'closed') return { success: false, error: 'Sagen er lukket — genåbn den først' }
+    // IDOR-sweep 2026-10-09 (#8): arbejdsordren skal høre til sagen (ellers forvrænges en anden sags ordre-totaler)
+    if (input.work_order_id) {
+      const { data: wo } = await supabase.from('work_orders').select('case_id').eq('id', input.work_order_id).maybeSingle()
+      if (!wo || (wo as { case_id: string | null }).case_id !== input.case_id) {
+        return { success: false, error: 'Arbejdsordren hører ikke til sagen' }
+      }
+    }
 
     const { data, error } = await supabase
       .from('case_materials')

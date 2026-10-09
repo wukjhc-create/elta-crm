@@ -1,4 +1,5 @@
 'use server'
+import { safeDocumentDescription } from '@/lib/documents/safe-description'
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClient, formatError, getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
@@ -127,7 +128,9 @@ export async function getCustomerDocuments(
         id: doc.id,
         customer_id: doc.customer_id,
         title: doc.title,
-        description: doc.description,
+        // IDOR-sweep 2026-10-09 (#2): en underskrevet fuldmagts description indeholder fødselsdato/CVR, underskrift og
+        // underskriverens e-mail — kun ufølsomme felter sendes til klienten (status/tidspunkt står i fuldmagt_status)
+        description: safeDocumentDescription(doc.description as string | null),
         document_type: doc.document_type,
         file_url: fileUrl,
         storage_path: doc.storage_path,

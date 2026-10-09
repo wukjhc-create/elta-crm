@@ -1,4 +1,5 @@
 'use server'
+import { getCaseScope, userCanViewCase } from '@/lib/auth/case-scope'
 
 /**
  * Sprint 5D — getServiceCaseEconomy
@@ -579,10 +580,12 @@ export async function getServiceCaseBillingStatus(
 ): Promise<ActionResult<CaseBillingStatus>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
+    // IDOR-sweep 2026-10-09 (#5): kun sager i brugerens scope (salg: egne) — kontraktsum/udestående er ellers åbne
+    if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Du har ikke adgang til denne sag' }
 
     const { data: sag } = await supabase
       .from('service_cases')
@@ -691,10 +694,12 @@ export async function getServiceCaseProjectEconomy(
 ): Promise<ActionResult<CaseProjectEconomy>> {
   try {
     validateUUID(caseId, 'case_id')
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
     }
+    // IDOR-sweep 2026-10-09 (#5): kun sager i brugerens scope (salg: egne) — kontraktsum/udestående er ellers åbne
+    if (!(await userCanViewCase(caseId, { supabase, userId, role }))) return { success: false, error: 'Du har ikke adgang til denne sag' }
 
     const { data: sag } = await supabase
       .from('service_cases')
@@ -788,12 +793,18 @@ export async function getServiceCaseEconomyBatch(
   caseIds: string[]
 ): Promise<ActionResult<Record<string, CaseEconomyBatchEntry>>> {
   try {
-    const ids = Array.from(new Set((caseIds ?? []).filter(Boolean)))
+    let ids = Array.from(new Set((caseIds ?? []).filter(Boolean)))
     if (ids.length === 0) return { success: true, data: {} }
 
-    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    const { supabase, hasPermission, userId, role } = await getAuthenticatedClientWithRole()
     if (!hasPermission('invoices.view.own_cases')) {
       return { success: false, error: 'Manglende tilladelse: invoices.view.own_cases' }
+    }
+    // IDOR-sweep 2026-10-09 (#5): kun sager i brugerens scope ('all' ved cases.view.all)
+    {
+      const scope = await getCaseScope({ supabase, userId, role })
+      if (scope.type !== 'all') ids = ids.filter((id) => scope.caseIds.includes(id))
+      if (ids.length === 0) return { success: true, data: {} }
     }
 
     // X4n: i bidder af 200 — ordrelistens fakturafilter sender op til 500 sager; én .in() sprængte URL-grænsen (~350)
