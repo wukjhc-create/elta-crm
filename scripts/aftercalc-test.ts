@@ -2,6 +2,8 @@
  * Efterkalkulation V1. Ingen DB.
  *   npx tsx scripts/aftercalc-test.ts
  */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { buildCaseAftercalc, toOre, type AftercalcInput, type CaseAftercalc } from '../src/lib/cases/aftercalc'
 import { selectOverviewPage, takeCaseWindow, type AftercalcOverviewItem } from '../src/lib/cases/aftercalc-overview'
 
@@ -209,6 +211,33 @@ header.offer!.total_amount = 15000
 const headerRes = buildCaseAftercalc(header)
 ok(headerRes.quoted.revenue === 15000 && has(headerRes, 'header_line_mismatch') && ore(headerRes.quoted.contribution_margin) === 300000, 'header bruges når den afviger mere end 1 kr')
 
+// Tilbudsrabat: total_amount er før rabat. Procent vinder, så beløbet ikke trækkes fra to gange. final_amount bruges ikke.
+const disc = base()
+disc.offer!.discount_percentage = 10
+disc.offer!.discount_amount = 2000
+const discRes = buildCaseAftercalc(disc)
+ok(discRes.quoted.revenue === 18000 && ore(discRes.quoted.contribution_margin) === 600000 && !has(discRes, 'header_line_mismatch'), 'tilbudsrabat trækkes fra totalen, ekskl. moms', JSON.stringify({ revenue: discRes.quoted.revenue, db: discRes.quoted.contribution_margin }))
+ok(discRes.actual.revenue === 20000, 'tilbudsrabat ændrer ikke den faktiske faktura')
+const disagree = base()
+disagree.offer!.discount_percentage = 10
+disagree.offer!.discount_amount = 5000
+const disagreeRes = buildCaseAftercalc(disagree)
+ok(disagreeRes.quoted.revenue === 18000 && ore(disagreeRes.quoted.contribution_margin) === 600000, 'procent vinder over discount_amount, så rabatten ikke trækkes fra to gange')
+const amountOnly = base()
+amountOnly.offer!.discount_percentage = 0
+amountOnly.offer!.discount_amount = 2000
+ok(buildCaseAftercalc(amountOnly).quoted.revenue === 18000, 'discount_amount trækkes fra når procenten er 0')
+const ten = buildCaseAftercalc({
+  offer: { id: 'o10', offer_number: 'T-10', total_amount: 10000, discount_percentage: 10, discount_amount: 1000 },
+  offerLines: [{ id: 'P', description: 'Pakke', quantity: 1, unit: 'stk', total: 10000, cost_price: 4000 }],
+  materials: [],
+  otherCosts: [],
+  timeLogs: [],
+  invoices: [],
+  workOrders: [],
+})
+ok(ten.quoted.revenue === 9000 && ten.quoted.total_cost === 4000 && ten.quoted.contribution_margin === 5000 && !has(ten, 'header_line_mismatch'), '10 % rabat: 10.000 bliver 9.000 og DB 5.000', JSON.stringify(ten.quoted))
+
 // Åben timer og kladde
 const open = base()
 open.timeLogs.push({ hours: 3, cost_amount: 9999, billable: true, end_time: null, approval_status: 'approved' })
@@ -292,6 +321,23 @@ const wide = Array.from({ length: 201 }, (_, i) => i)
 const windowed = takeCaseWindow(wide)
 ok(windowed.truncated && windowed.rows.length === 200 && windowed.rows[0] === 0 && windowed.rows[199] === 199, 'oversigt beregner højst de 200 første i listen')
 ok(takeCaseWindow(wide.slice(0, 200)).truncated === false && takeCaseWindow(wide.slice(0, 200)).rows.length === 200, 'præcis 200 sager er ikke afskåret')
+
+// Tilbudshovedet må ikke læses med brugerklienten. offers-RLS skjuler rækken for serviceleder og bogholderi.
+const actionRaw = readFileSync(join(process.cwd(), 'src/lib/actions/case-aftercalc.ts'), 'utf8')
+function actionBody(name: string): string {
+  const start = actionRaw.indexOf(`export async function ${name}`)
+  const next = actionRaw.indexOf('\nexport async function ', start + 10)
+  return actionRaw.slice(start, next === -1 ? actionRaw.length : next)
+}
+for (const name of ['getCaseAftercalc', 'getAftercalcOverview']) {
+  const body = actionBody(name)
+  const sag = body.indexOf(".from('service_cases')")
+  const adminNew = body.indexOf('createAdminClient()')
+  const offer = body.search(/admin\.from\(\s*'offers'\)/)
+  const userOffer = /supabase\.from\(\s*'offers'\)/.test(body)
+  ok(sag >= 0 && adminNew > sag && offer > adminNew && !userOffer, `${name}: tilbudshoved via admin efter sagstjekket`)
+}
+ok((actionRaw.match(/admin\.from\(\s*'offers'\)/g) || []).length >= 2, 'begge tilbudshoveder læses med admin-klienten')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle efterkalkulationstests bestået')
 process.exitCode = bad ? 1 : 0

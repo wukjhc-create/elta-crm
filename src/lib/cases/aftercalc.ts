@@ -72,7 +72,7 @@ export interface AftercalcWorkOrder {
 export interface AftercalcOffer {
   id: string
   offer_number: string | null
-  /** Ekskl. moms, efter tilbuds-rabat. */
+  /** Linjesum ekskl. moms, før tilbuds-rabat. Ikke final_amount. */
   total_amount: number | string | null
   discount_percentage?: number | string | null
   discount_amount?: number | string | null
@@ -355,14 +355,16 @@ function consumeCost(rows: Array<{ quantity?: number | string | null; unit_cost?
 function quotedRevenueOre(offer: AftercalcOffer, lines: AftercalcOfferLine[]): { ore: number | null; mismatch: boolean } {
   const saleLines = lines.filter((l) => !isSection(l))
   const lineOre = saleLines.reduce((s, l) => s + (toOre(l.total) ?? 0), 0)
-  const pct = finite(offer.discount_percentage) ?? 0
-  const discountOre = toOre(offer.discount_amount)
-  const fromLines = pct > 0
-    ? Math.round(lineOre * (100 - pct) / 100)
-    : lineOre - (discountOre ?? 0)
+  const discountOre = toOre(offer.discount_amount) ?? 0
+  // offers.total_amount er linjesummen FØR tilbuds-rabat (update_offer_totals). final_amount er inkl. moms og bruges ikke.
+  // Procenten er et tal som 10.00 for 10 %. Den vinder over discount_amount, så rabatten ikke trækkes fra to gange.
   const header = toOre(offer.total_amount)
-  if (header == null) return { ore: fromLines, mismatch: false }
-  return { ore: header, mismatch: Math.abs(header - fromLines) > 100 }
+  const gross = header ?? lineOre
+  const pctHundredths = toOre(offer.discount_percentage)
+  const net = pctHundredths != null && pctHundredths > 0
+    ? Math.round((gross * (10000 - pctHundredths)) / 10000)
+    : gross - discountOre
+  return { ore: net, mismatch: header != null && Math.abs(header - lineOre) > 100 }
 }
 
 export function buildCaseAftercalc(input: AftercalcInput): CaseAftercalc {
@@ -386,7 +388,7 @@ export function buildCaseAftercalc(input: AftercalcInput): CaseAftercalc {
       warnings.push({
         code: 'header_line_mismatch',
         severity: 'warning',
-        message: 'Tilbuddets total afviger mere end 1 kr fra linjerne efter rabat. Omsætningen er tilbuddets total.',
+        message: 'Tilbuddets total afviger mere end 1 kr fra linjesummen. Omsætningen er totalen minus tilbuds-rabatten.',
       })
     }
 

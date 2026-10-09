@@ -228,7 +228,7 @@ export async function getCaseAftercalc(caseId: string): Promise<ActionResult<Cas
       })
     const [offerRes, linesRes, materialsRes, otherRes, invoicesRes, logsRes] = await Promise.all([
       offerId
-        ? supabase.from('offers').select('id, offer_number, total_amount, discount_percentage, discount_amount').eq('id', offerId).maybeSingle()
+        ? admin.from('offers').select('id, offer_number, total_amount, discount_percentage, discount_amount').eq('id', offerId).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       offerId
         ? paged('offer_line_items', () => fetchAllRows<LineRow & { position?: number | null }>((from, to) =>
@@ -408,7 +408,7 @@ export async function getAftercalcOverview(filters: AftercalcOverviewFilters = {
 
     const [offers, lines, materials, others, invoices, workOrders, logs] = await Promise.all([
       offerIds.length
-        ? fetchAllRows<OfferRow>((f, t) => supabase.from('offers').select('id, offer_number, total_amount, discount_percentage, discount_amount').in('id', offerIds).order('id').range(f, t))
+        ? fetchAllRows<OfferRow>((f, t) => admin.from('offers').select('id, offer_number, total_amount, discount_percentage, discount_amount').in('id', offerIds).order('id').range(f, t))
         : Promise.resolve([] as OfferRow[]),
       offerIds.length
         ? fetchAllRows<LineRow>((f, t) => admin.from('offer_line_items').select('id, offer_id, description, quantity, unit, total, cost_price, supplier_cost_price_at_creation, supplier_product_id, line_type').in('offer_id', offerIds).order('id').range(f, t))

@@ -25,7 +25,7 @@ CRM er source of truth. Motoren gætter ikke en manglende kostpris. Beløb er ek
 
 | Felt | Tilbudt | Faktisk |
 |---|---|---|
-| Omsætning | `offers.total_amount` (ekskl. moms, efter tilbuds-rabat). Uden header: sum af `offer_line_items.total` minus `discount_percentage` / `discount_amount`. Sektionslinjer springes over. | `summarizeCaseInvoices` på `invoices` med `case_id`. |
+| Omsætning | `offers.total_amount` er linjesummen før rabat og ekskl. moms. Tilbudt omsætning er den minus `discount_percentage` (eller `discount_amount`, når procenten er 0). `final_amount` bruges ikke — den er inkl. moms. Uden header: samme fradrag på summen af `offer_line_items.total`. Sektionslinjer springes over. | `summarizeCaseInvoices` på `invoices` med `case_id`. |
 | Materialekost | Antal × (`cost_price` eller ellers `supplier_cost_price_at_creation`) på linjer der ikke er timer. 0 og null = ukendt. | `case_materials.total_cost` når `unit_cost` er sat og forskellig fra 0. |
 | Timer | Sum af antal på time-enheder. | Afsluttede, ikke-afviste `time_logs.hours` via sagens arbejdsordrer. |
 | Lønkost | Antal × frossen `cost_price` på timelinjer. Én linje uden kost gør hele lønkosten ukendt. | Sum af `time_logs.cost_amount`. `null` gør lønkosten ukendt. 0 er en gemt nul, ikke et gæt. |
@@ -53,7 +53,7 @@ Ingen advarsel retter data.
 ## Sikkerhed
 
 - `getCaseAftercalc` og `getAftercalcOverview` kræver `economy.cost_prices`.
-- Sagen læses med brugerens klient (RLS) før admin-klienten rører kostkolonner.
+- Sagen læses med brugerens klient (RLS) før admin-klienten rører kostkolonner og tilbudshovedet. Tilbudslæsning med brugerklienten skjuler rækken for serviceleder og bogholderi (`offers` RLS er opretter, lead-ansvarlig eller admin), så efterkalkulationen ville miste tilbudt omsætning. Kun `source_offer_id` fra sager, brugeren selv kan se, hentes.
 - Ingen lønkolonne, ingen `hourly_rate`, ingen `cost_rate_snapshot`. Service-role kaldes først efter gaten.
 - UUID-tjek på sag og ansvarlig. Status, sortering og afvigelse er allowlists. Periode er en rigtig `YYYY-MM-DD`.
 - Siden `/dashboard/reports/aftercalc` har samme gate. Tallene hentes først når sektionen åbnes, og ryddes når den lukkes.
