@@ -9,6 +9,7 @@ Kør altid pre → `npm run prod:apply-migration -- <nr> --approved-by-henrik` (
 | P1 | Selvregistrering i Supabase Auth er stadig slået TIL | Henrik slår "Allow new users to sign up" fra (docs/runbooks/supabase-disable-signup.md) | `npx tsx scripts/prod-auth-signup-status.ts` → `disable_signup: true` (2026-10-08: stadig `false`) |
 | ~~**00208 (S1)**~~ CLOSED i prod 2026-10-09 | `time_logs`: authenticated har UPDATE på ALLE kolonner (prod, `prod-time-logs-update-privs.ts`) → en montør kan via REST på egne timer ændre sale_amount/cost_amount, nulstille invoice_line_id (frigive fakturerede timer) eller vælge en kollegas sats; godkendelsen nulstilles ikke | Udkast på branch `time-logs-grants-00208`: kolonne-grants kun for de felter appen skriver + sats-ejerskab i guard. Appen er kompatibel. **Anbefales kørt først** | post: kun 6 UPDATE-kolonner = JA; staging-persona: montør PATCH sale_amount → 42501 |
 | ~~**00209 (S1)**~~ DONE i prod 2026-10-09 (+ 00210: gemte links blanket) | Storage: enhver indlogget bruger kan via storage-API'et liste/hente/OVERSKRIVE alle filer i 'attachments' (prod: 122 mailvedhæftninger, 20 kundedokumenter inkl. fuldmagter med CPR, 7 tilbud) og alt i 'service-case-files' | Udkast på branch `storage-lockdown-00209` (fjerner de brede authenticated-politikker). Appen bruger nu service-klienten bag gates til al fil-adgang (deployet) | `prod-storage-policies.ts` før/efter + upload-UI-regression |
+| 00211 (S2) | Montør kan via REST indsætte materialer/udlæg på ENHVER sag med egne priser/fakturabinding; salg kan opdatere ALLE sager (lukke uden værn, ændre betaler/kontraktsum) | Udkast på branch `case-write-rows-00211` (rækkebetingelser; admin/serviceleder uændret). Appen gør allerede det samme i actions | `prod-table-write-policies.ts` + staging-personatest |
 | 00204 | `leads`/`lead_activities` læsbare for ALLE indloggede (USING true) + unikt indeks pr. kildemail | Udkast på branch `leads-00204-read-scope`. Appen gater allerede på leads.view | pre: `prod-leads-source-email-dupes.ts` (0 dubletter) + `prod-table-select-policies.ts leads lead_activities` |
 | 00207 | `packages` (kostpris/DB pr. pakke) læsbar for alle indloggede via REST | Udkast på branch `packages-cost-00207`; appen er allerede klar (getPackages via admin-klient for salg) | `prod-table-select-policies.ts packages` før/efter |
 
@@ -32,6 +33,10 @@ Kør altid pre → `npm run prod:apply-migration -- <nr> --approved-by-henrik` (
 |---|---|---|
 | G11 | Montør #2 har login men ingen koblet medarbejder (2 logins, 1 koblet) | `npx tsx scripts/prod-montor-linkage.ts` |
 | G12 | Bankoplysninger på fakturaer (Vercel `INVOICE_BANK_*` eller Indstillinger → Firma) | /dashboard/go-live "Opsætning før pilot" |
+
+## Latente (0 data i prod)
+- `integration_logs` læsbar for alle indloggede (00036) — appen logger ikke længere nøgler (redigeret); DB-stramning når integrationer tages i brug
+- SQL-funktionen `create_invoice_from_work_order` fakturerer arbejdsordrens kunde (ikke sagens betaler) — app-stierne bruger nu betaleren
 
 ## Forretningsvalg (ingen kode blokeret)
 - Fire-øjne på timer: den der indtaster timer for en anden (serviceleder) kan selv godkende dem — kræver `time_logs.created_by` (migration) for at håndhæve
