@@ -25,6 +25,7 @@ Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 202
 | I #7 ugatede 'use server'-eksporter (bekræftelser, hændelseslog, hurtig-kunde fra mail) | DONE — gates + forældede RBAC-undtagelser fjernet. route-preview/mail-route-resolvers kun server-importeret (cron uden session) → uændret | check:rbac |
 | I #8 materiale med fremmed sags arbejdsordre | DONE — arbejdsordren skal høre til sagen | tsc/gates |
 | RLS `USING (true)` på email_threads/messages, customer_documents, roof_drawings, case_materials m.fl. | LATER/BLOCKED_APPROVAL — DB-stramning når app-gates er på plads (samme mønster som 00204/00207) | — |
+| Prod-overblik 2026-10-09 (`prod-open-select-tables.ts`): 102 tabeller læsbare for alle indloggede. Hemmelige kolonner (portal-/partner-/bekræftelses-tokens, integrations-/e-conomic-nøgler, leverandør-credentials) er LUKKET (`prod-secret-column-privs.ts`); kostkolonner på supplier_products/product_catalog/offer_line_items lukket (`prod-cost-column-privs.ts`). Stadig åbne kostdata: `packages` (00207-udkast) og `kalkia_calculation_rows.labor/material/total_cost` (ny kandidat). Følsomme rækker åbne: offer_signatures (underskrift + IP), portal_messages, email_*/sms_messages, customer_documents.description (fuldmagter — app filtrerer nu) | LATER — samlet RLS-plan pr. tabel (rolle + scope) til Henrik | scripts ovenfor |
 
 ## Long-run 2026-10-09 — kundemodul (review-fund)
 | Fund | Status | Bevis |
