@@ -677,6 +677,7 @@ Floorplan/3D · fuld Kalkia-motor · F2b katalog-prisspænd (migration) · gener
 - P-001 getDecryptedCredentials var ugatet server action (rettet i kode) · P-002 v_recent_audit_logs omgik RLS (R4, i 00161) · P-003 supplier-sync-cron bruger anon-klient (→ #9).
 
 ## Log
+- 2026-10-09: Efter F3c er der ingen NOW/NEXT-række, der kan bygges på grok-next uden prod-godkendelse, live afsendelse, migration eller Claudes spor. Opfølgning trin 2–4, fakturakontrol trin 4 og 6, og IC8-push forbliver BLOCKED_APPROVAL. N29 står som NÆSTEN DÆKKET (før fakturakontrol; opgavelisten har allerede filter og tæller).
 - 2026-10-01: P-009 læse-side A4 (00179) på staging; pilot-roles-probe gjort uafhængig af skjulte kolonner.
 - 2026-10-01: P-009 læse-side A1–A3 (00175–00177) + runde 4 (00178) på staging; prod afventer gate.
 - 2026-10-01: P-009 runde 1–3B (00170–00174) kørt i prod (godkendt); alle pre/post/trigger/effektiv-adgang-checks grønne; åbne skrive-tabeller 108→44.

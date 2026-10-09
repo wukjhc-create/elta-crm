@@ -38,7 +38,7 @@ Efterkalkulation v1 er på `grok-next` (`2274215`): tilbudt/faktisk/afvigelse i 
 AGENT: GROK
 BRANCH: grok-next
 
-Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. De sikre kodehuller, der stadig var åbne i fakturakontrollen, er lukket. Resten kræver Henriks godkendelse, er LATER fra en tidligere beslutning, eller er Claudes spor.
+Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. De sikre kodehuller i fakturakontrollen er lukket. Genlæsning bagefter: den første NOW/NEXT-række efter fakturakontrol, som hverken er DONE, LATER, Claudes spor eller BLOCKED_APPROVAL, findes ikke. Verifikationsloggene er skrevet efter den konklusion. Resten kræver Henriks godkendelse, er LATER fra en tidligere beslutning, eller er Claudes spor.
 
 Features leveret:
 - Sagsrentabilitet på `/dashboard/reports` behandler manglende kost som ukendt, ikke 0 (`9defa9b`).
@@ -47,9 +47,19 @@ Features leveret:
 - Leverandørfakturaens panel viser om linjesummen stemmer med beløb ekskl. moms. En linje uden beløb gør forskellen ukendt (`header-totals-test`). Godkendelse og e-conomic er urørt.
 - OIOUBL-faktura og kreditnota giver hovedfelter og linjer (`oioubl-test`). `parseAndMatch` gemmer linjerne kun når der ingen er. Låste fakturaer genåbnes ikke.
 
-Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, plus denne status-commit. Ingen merge til main. Ingen ny fil under `supabase/migrations`.
+Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, `e70787f`, plus denne status-commit. Ingen merge til main. Ingen ny fil under `supabase/migrations`. Gren `grok-next`, upstream `origin/grok-next`.
 
-Tests: `aftercalc-test`, `offer-vs-actual-test`, `profitability-figures-test`, `price-at-date-test`, `followup-shadow-test`, `header-totals-test`, `oioubl-test` med exit 0. `npm run type-check`, `check:rbac` og `check:rls-matrix` med exit 0 efter OIOUBL. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000.
+Køen efter fakturakontrol (punkt 11–16):
+- Opfølgning: trin 1 er leveret. Trin 2 er BLOCKED_APPROVAL (samme godkendelse som X4d). Trin 3 er live afsendelse. Trin 4 kræver migration.
+- Leads og salg: rækkerne er DONE, ANALYSE (N56, N70, N72) eller BLOCKED_APPROVAL.
+- Ydelse: N8-2, N8-3, N8-4 og resten af N36 er LATER. N4 er BLOCKED_APPROVAL (prod-indeks 00183).
+- UI og mobil: Q1 er DONE.
+- Statisk skema uden for Claudes spor: X3 er DONE. De åbne skema-fund er migrationer eller Claudes spor.
+- Pilot: G13 er DONE. G11 og G12 er drift hos Henrik.
+- Fakturakontrol trin 4 og 6 samt IC8-fejlsvaret forbliver BLOCKED_APPROVAL, fordi de sidder i `approveInvoice` og e-conomic-push. Trin 5 (`profit_snapshots`) er et eksisterende DDL-forslag og er ikke bygget.
+- N29 ligger før fakturakontrol og står som NÆSTEN DÆKKET. Opgavelisten har allerede ansvarlig-filter og forfalden-tæller. Den er ikke genbygget.
+
+Tests efter genlæsningen, alle exit 0: `aftercalc-test` (tilbudt omsætning 18.000, DB 6.000, ens tekst er ikke matchet, manglende kost er ikke en besparelse), `offer-vs-actual-test`, `profitability-figures-test`, `price-at-date-test`, `followup-shadow-test`, `header-totals-test`, `oioubl-test`. `npm run type-check`, `check:rbac` (479 skrivende, 419 gatet, 60 undtaget, 0 fejl) og `check:rls-matrix` med exit 0. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000. Chrome findes. Next blev ikke startet.
 
 Performance: ingen ny måling. Dækningen og skyggen henter side for side (`fetchAllRows`) for de rækker de allerede læste.
 
@@ -77,7 +87,8 @@ Næste anbefaling: Henriks godkendelsesbunke, med X4d (kundemail) og Q11 B1–B3
 P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtaget, `check:rbac` blokerende i CI) · **fakturapipeline F-a–F-d DONE** (F-d prod-gate).
 **Prod-migrationer 00159–00166 kørt og verificeret** (00163–00166 den 2026-09-29). Ingen prod-migration afventer.
 **Venter på Henrik (beslutninger):** kundemail-crons (fakturarykkere har aldrig virket) · anon-crons · Relatel-token · pilotbrugere · agent-aktivering.
-Næste ikke-blokerede: CVR-kolonne til leverandør-match (IC10, kræver migration) · døde `files.ts` · OIOUBL-parsing · prishistorik-baseret forventet pris.
+Næste ikke-blokerede (historisk, 2026-09-27): CVR-kolonne til leverandør-match (IC10, kræver migration) · døde `files.ts` · OIOUBL-parsing · prishistorik-baseret forventet pris.
+Opdatering 2026-10-09: `files.ts` er fjernet. OIOUBL og prisen på fakturadatoen er leveret på `grok-next`. IC10 er stadig en migration. Se slutrapporten ovenfor.
 
 ## Staging-state at kende
 - 00175–00186 anvendt (00184 D26, 00185 N2, 00186 D28 den 2026-10-02 — prod afventer godkendelse) · 00159–00166 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
