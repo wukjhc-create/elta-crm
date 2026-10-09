@@ -562,6 +562,37 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'ai-budget-concurrency-check') {
+    // Mail-review 2026-10-09 (#3): 20 samtidige recordAiCall → tælleren stiger med præcis 20 (før: læs-så-skriv tabte
+    // optællinger). Dagens tæller sættes tilbage bagefter. Ingen AI-kald.
+    const { recordAiCall } = await import('../../src/lib/services/ai-budget')
+    const day = new Date().toISOString().substring(0, 10)
+    const read = async () => ((await admin.from('ai_usage_daily').select('call_count').eq('day', day).maybeSingle()).data as { call_count: number } | null)?.call_count ?? null
+    const before = await read()
+    await Promise.all(Array.from({ length: 20 }, () => recordAiCall(1)))
+    const after = await read()
+    const delta = (after ?? 0) - (before ?? 0)
+    if (before === null) await admin.from('ai_usage_daily').delete().eq('day', day)
+    else await admin.from('ai_usage_daily').update({ call_count: (after ?? 0) - 20 }).eq('day', day)
+    log(`${delta === 20 ? '✅' : '❌'} 20 samtidige recordAiCall → +${delta}`)
+    process.exitCode = delta === 20 ? 0 : 1
+    return
+  }
+  if (SUB === 'mail-backfill-probe') {
+    // Mail-review 2026-10-09 (#1): orchestratorens backfill-forespørgsel (kolonner/filtre) virker mod det rigtige skema
+    const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+    const { data, error } = await admin
+      .from('incoming_emails')
+      .select('id, subject, sender_email, sender_name, body_text, body_html, body_preview')
+      .eq('link_status', 'pending')
+      .is('processed_at', null)
+      .gte('received_at', since)
+      .order('received_at', { ascending: true })
+      .limit(60)
+    log(`${error ? '❌' : '✅'} backfill-forespørgsel ${error ? error.message : `ok (${(data ?? []).length} ubehandlede)`}`)
+    process.exitCode = error ? 1 : 0
+    return
+  }
   if (SUB === 'storage-persona-check') {
     // 00209: rigtige persona-sessioner (5 roller) må hverken liste, hente eller uploade direkte i attachments /
     // service-case-files / portal-attachments; service-klienten kan stadig liste, signere og hente.

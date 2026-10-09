@@ -58,6 +58,7 @@ export async function runEmailSync(): Promise<EmailSyncResult> {
     const supabase = createAdminClient()
     const mailboxes = getMailboxes()
     result.mailboxResults = []
+    const budget = { remaining: MAX_ANALYZE_PER_RUN }
 
     console.log('SYNC ALL MAILBOXES:', mailboxes.map(m => m.email))
     logger.info('Starting multi-mailbox email sync', {
@@ -78,7 +79,7 @@ export async function runEmailSync(): Promise<EmailSyncResult> {
 
       try {
         const before = { fetched: result.emailsFetched, inserted: result.emailsInserted, skipped: result.emailsSkipped, linked: result.emailsLinked }
-        await syncOneMailbox(supabase, mb.email, result)
+        await syncOneMailbox(supabase, mb.email, result, budget)
         mbDetail.fetched = result.emailsFetched - before.fetched
         mbDetail.inserted = result.emailsInserted - before.inserted
         mbDetail.skipped = result.emailsSkipped - before.skipped
@@ -103,7 +104,7 @@ export async function runEmailSync(): Promise<EmailSyncResult> {
           await logHealth('email', 'error', `mailbox sync failed: ${mb.email}: ${errMsg}`, { mailbox: mb.email })
         } catch { /* never crash */ }
 
-        // Record failure for this mailbox
+        // Record failure for this mailbox (last_sync_at flyttes ikke — den er cursor for sendte mails)
         try {
           await updateSyncState(supabase, mb.email, null, 'failed', errMsg, 0)
         } catch { /* ignore */ }
@@ -149,8 +150,12 @@ export async function runEmailSync(): Promise<EmailSyncResult> {
 async function syncOneMailbox(
   supabase: ReturnType<typeof createAdminClient>,
   mailbox: string,
-  result: EmailSyncResult
+  result: EmailSyncResult,
+  budget: { remaining: number }
 ): Promise<void> {
+  // Cursor for sendte mails = kørslens START (ikke slut): mails sendt mens kørslen står på hentes næste gang
+  const syncStartedAt = new Date().toISOString()
+
   // 1. Get sync state for this specific mailbox
   const { data: syncState } = await supabase
     .from('graph_sync_state')
@@ -285,59 +290,55 @@ async function syncOneMailbox(
     result.emailsInserted++
     mailboxInserted++
 
-    // Link to customer (non-critical — wrapped in try/catch)
-    if (inserted?.id) {
-      try {
-        const linkResult = await (isAutoLinkEnabled() ? autoLinkEmail : linkEmail)(
-          inserted.id,
-          senderEmail,
-          msg.from.emailAddress.name || null,
-          subject,
-          msg.body?.content || null,
-          null
-        )
-        if (linkResult.status === 'linked') result.emailsLinked++
+    // Link + intelligence (op til 2 AI-kald) inden for kørslens budget; resten forbliver 'pending' og tages af
+    // backfill i en senere kørsel
+    if (budget.remaining > 0) {
+      budget.remaining--
+      await linkAndAnalyze({
+        id: inserted.id,
+        subject,
+        senderEmail,
+        senderName: msg.from.emailAddress.name || null,
+        bodyText: msg.body?.contentType === 'text' ? msg.body.content : null,
+        bodyHtml: msg.body?.contentType === 'html' ? msg.body.content : null,
+        bodyPreview: msg.bodyPreview || null,
+      }, result)
+    }
+  }
 
-        // Email intelligence: classify + extract real customer + auto-link/create.
-        // Normally we skip when the linker already matched (saves AI cost), BUT we
-        // ALWAYS run when the email is forwarded — the linker matches the forwarder,
-        // and the real customer is in the body. Hard filters in classifyEmail still
-        // reject newsletters/system mail cheaply.
-        const intelInput = {
-          subject,
-          senderEmail,
-          senderName: msg.from.emailAddress.name || null,
-          bodyText: msg.body?.contentType === 'text' ? msg.body.content : null,
-          bodyHtml: msg.body?.contentType === 'html' ? msg.body.content : null,
-          bodyPreview: msg.bodyPreview || null,
-        }
-        const forwarded = isForwardedEmail(intelInput)
-        const shouldRunIntel = linkResult.status !== 'linked' || forwarded
-
-        if (shouldRunIntel) {
-          if (forwarded && linkResult.status === 'linked') {
-            console.log('INTEL RUN ON FORWARDED EMAIL (linker matched forwarder):', subject)
-          }
-          try {
-            const intel = await processEmailIntelligence(inserted.id, intelInput)
-            if (intel.customerId && !intel.skipped) result.emailsLinked++
-            if (intel.created) {
-              console.log('CUSTOMER CREATED for email:', subject, '→', intel.customerId)
-            }
-          } catch (intelErr) {
-            console.warn('INTELLIGENCE FAILED:', subject, intelErr instanceof Error ? intelErr.message : '')
-          }
-        }
-      } catch (linkErr) {
-        console.warn('LINK FAILED:', subject, linkErr instanceof Error ? linkErr.message : '')
-      }
+  // 3b. Mail-review 2026-10-09 (#1): ubehandlede indgående mails (link_status 'pending' + processed_at NULL) — fx fra
+  // en kørsel der timede ud efter insert, eller ud over budgettet. Før blev de aldrig linket/analyseret, fordi næste
+  // kørsel ramte DUPLICATE SKIP. Sendte mails får processed_at ved insert og rammes ikke.
+  if (budget.remaining > 0) {
+    const since = new Date(Date.now() - BACKFILL_DAYS * 86_400_000).toISOString()
+    const { data: pending } = await supabase
+      .from('incoming_emails')
+      .select('id, subject, sender_email, sender_name, body_text, body_html, body_preview')
+      .eq('mailbox_source', mailbox)
+      .eq('link_status', 'pending')
+      .is('processed_at', null)
+      .gte('received_at', since)
+      .order('received_at', { ascending: true })
+      .limit(budget.remaining)
+    for (const row of pending ?? []) {
+      if (budget.remaining <= 0) break
+      budget.remaining--
+      await linkAndAnalyze({
+        id: row.id as string,
+        subject: (row.subject as string) || '(Intet emne)',
+        senderEmail: ((row.sender_email as string) || '').toLowerCase(),
+        senderName: (row.sender_name as string | null) ?? null,
+        bodyText: (row.body_text as string | null) ?? null,
+        bodyHtml: (row.body_html as string | null) ?? null,
+        bodyPreview: (row.body_preview as string | null) ?? null,
+      }, result)
     }
   }
 
   // 4. Sync sent items for this mailbox
   try {
     const sinceDateTime = syncState?.last_sync_at || null
-    const sentMessages = await pollSentItems(sinceDateTime, 25, mailbox)
+    const sentMessages = await pollSentItems(sinceDateTime, 50, mailbox)
 
     for (const msg of sentMessages) {
       try {
@@ -370,10 +371,77 @@ async function syncOneMailbox(
         delta_link: newDeltaLink,
         last_sync_status: 'success',
         last_sync_error: null,
-        last_sync_at: new Date().toISOString(),
+        last_sync_at: syncStartedAt,
       }, { onConflict: 'mailbox' })
   } else {
-    await updateSyncState(supabase, mailbox, null, 'success', null, mailboxInserted)
+    await updateSyncState(supabase, mailbox, null, 'success', null, mailboxInserted, syncStartedAt)
+  }
+}
+
+// =====================================================
+// Link + email intelligence for one incoming email
+// =====================================================
+
+/** Højst så mange mails linkes/analyseres (op til 2 AI-kald hver) pr. kørsel på tværs af postkasser. */
+const MAX_ANALYZE_PER_RUN = 60
+/** Backfill af ubehandlede mails ser højst så mange dage tilbage. */
+const BACKFILL_DAYS = 14
+
+async function linkAndAnalyze(
+  email: {
+    id: string
+    subject: string
+    senderEmail: string
+    senderName: string | null
+    bodyText: string | null
+    bodyHtml: string | null
+    bodyPreview: string | null
+  },
+  result: EmailSyncResult
+): Promise<void> {
+  try {
+    const linkResult = await (isAutoLinkEnabled() ? autoLinkEmail : linkEmail)(
+      email.id,
+      email.senderEmail,
+      email.senderName,
+      email.subject,
+      email.bodyHtml ?? email.bodyText,
+      null
+    )
+    if (linkResult.status === 'linked') result.emailsLinked++
+
+    // Email intelligence: classify + extract real customer + auto-link/create.
+    // Normally we skip when the linker already matched (saves AI cost), BUT we
+    // ALWAYS run when the email is forwarded — the linker matches the forwarder,
+    // and the real customer is in the body. Hard filters in classifyEmail still
+    // reject newsletters/system mail cheaply.
+    const intelInput = {
+      subject: email.subject,
+      senderEmail: email.senderEmail,
+      senderName: email.senderName,
+      bodyText: email.bodyText,
+      bodyHtml: email.bodyHtml,
+      bodyPreview: email.bodyPreview,
+    }
+    const forwarded = isForwardedEmail(intelInput)
+    const shouldRunIntel = linkResult.status !== 'linked' || forwarded
+
+    if (shouldRunIntel) {
+      if (forwarded && linkResult.status === 'linked') {
+        console.log('INTEL RUN ON FORWARDED EMAIL (linker matched forwarder):', email.subject)
+      }
+      try {
+        const intel = await processEmailIntelligence(email.id, intelInput)
+        if (intel.customerId && !intel.skipped) result.emailsLinked++
+        if (intel.created) {
+          console.log('CUSTOMER CREATED for email:', email.subject, '→', intel.customerId)
+        }
+      } catch (intelErr) {
+        console.warn('INTELLIGENCE FAILED:', email.subject, intelErr instanceof Error ? intelErr.message : '')
+      }
+    }
+  } catch (linkErr) {
+    console.warn('LINK FAILED:', email.subject, linkErr instanceof Error ? linkErr.message : '')
   }
 }
 
@@ -534,17 +602,17 @@ async function updateSyncState(
   newDeltaLink: string | null,
   status: string,
   error: string | null,
-  emailsInserted: number
+  emailsInserted: number,
+  syncedAt?: string
 ): Promise<void> {
-  const now = new Date().toISOString()
-
-  // Upsert: creates the row if this is a new mailbox (e.g. switching from crm@ to ordre@)
+  // Upsert: creates the row if this is a new mailbox (e.g. switching from crm@ to ordre@).
+  // last_sync_at er cursor for sendte mails → flyttes kun ved succes (mail-review 2026-10-09 #2)
   const upsertData: Record<string, unknown> = {
     mailbox,
-    last_sync_at: now,
     last_sync_status: status,
     last_sync_error: error,
   }
+  if (status !== 'failed') upsertData.last_sync_at = syncedAt ?? new Date().toISOString()
 
   if (newDeltaLink) {
     upsertData.delta_link = newDeltaLink

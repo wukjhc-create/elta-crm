@@ -10,6 +10,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const DEFAULT_CAP = 2000
+const MAX_CAS_ATTEMPTS = 20
 
 function getCap(): number {
   const raw = process.env.AI_DAILY_CAP
@@ -55,22 +56,33 @@ export async function recordAiCall(n = 1): Promise<void> {
   try {
     const supabase = createAdminClient()
     const day = todayUtc()
-    // Try increment via update first (avoids upsert race)
-    const { data: row } = await supabase
-      .from('ai_usage_daily')
-      .select('call_count')
-      .eq('day', day)
-      .maybeSingle()
-    if (row) {
-      await supabase
+    // Mail-review 2026-10-09 (#3): compare-and-set i stedet for læs-så-skriv — samtidige kald (sync + brugeres
+    // AI-assistent) mistede før optællinger, så AI_DAILY_CAP blev et blødt loft
+    for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+      // tilfældig backoff efter et tabt kapløb, så samtidige kald ikke rammer samme værdi igen
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 20 + Math.random() * 80 * attempt))
+      const { data: row } = await supabase
         .from('ai_usage_daily')
-        .update({ call_count: (row.call_count || 0) + n, updated_at: new Date().toISOString() })
+        .select('call_count')
         .eq('day', day)
-    } else {
-      await supabase
+        .maybeSingle()
+      if (!row) {
+        const { error } = await supabase
+          .from('ai_usage_daily')
+          .insert({ day, call_count: n, updated_at: new Date().toISOString() })
+        if (!error) return
+        continue // 23505: en anden oprettede dagens række — prøv igen som opdatering
+      }
+      const current = row.call_count ?? 0
+      const { data: updated } = await supabase
         .from('ai_usage_daily')
-        .upsert({ day, call_count: n, updated_at: new Date().toISOString() }, { onConflict: 'day' })
+        .update({ call_count: current + n, updated_at: new Date().toISOString() })
+        .eq('day', day)
+        .eq('call_count', current)
+        .select('day')
+      if (updated && updated.length > 0) return
     }
+    console.warn(`recordAiCall: gav op efter ${MAX_CAS_ATTEMPTS} forsøg (konkurrerende opdateringer)`)
   } catch (err) {
     console.warn('recordAiCall failed', err instanceof Error ? err.message : err)
   }

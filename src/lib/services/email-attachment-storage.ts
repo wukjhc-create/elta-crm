@@ -165,20 +165,27 @@ export async function processEmailAttachments(
   // 2. Store each attachment that has content
   const stored: StoredAttachment[] = []
 
-  for (const att of attachments) {
+  for (const [index, att] of attachments.entries()) {
     if (!att.contentBytes) continue
 
     try {
       const buffer = Buffer.from(att.contentBytes, 'base64')
+      // Mail-review 2026-10-09 (#6): højst 25 MB pr. fil
+      if (buffer.length > MAX_ATTACHMENT_BYTES) {
+        logger.warn('Attachment skipped (too large)', { entity: 'incoming_emails', entityId: emailId, metadata: { size: buffer.length } })
+        continue
+      }
       const safeName = sanitizeFilename(att.name || 'unnamed')
-      const storagePath = `email-attachments/${emailId}/${safeName}`
+      // Index-præfiks: to vedhæftninger med samme (rensede) navn overskrev før hinanden (upsert) og pegede på samme fil
+      const storagePath = `email-attachments/${emailId}/${index}-${safeName}`
 
       const supabase = getServiceClient()
 
       const { error: uploadError } = await supabase.storage
         .from('attachments')
         .upload(storagePath, buffer, {
-          contentType: att.contentType || 'application/octet-stream',
+          // Afsenderens content-type stoles ikke på for aktive typer (html/svg/xml/js)
+          contentType: safeContentType(att.contentType),
           upsert: true,
         })
 
@@ -375,4 +382,12 @@ async function archiveAttachmentsToCustomerDocuments(
       })
     }
   }
+}
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
+function safeContentType(contentType: string | null | undefined): string {
+  const ct = (contentType || '').toLowerCase().trim()
+  if (!ct || /html|svg|xml|javascript|ecmascript/.test(ct)) return 'application/octet-stream'
+  return ct
 }

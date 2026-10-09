@@ -231,7 +231,10 @@ export async function autoMatchTransactions(): Promise<AutoMatchSummary> {
     .select('*')
     .eq('match_status', 'unmatched')
     .is('matched_invoice_id', null)
-    .order('date', { ascending: true })
+    // Cron-review 2026-10-09 (#1): kun indbetalinger, nyeste først — udbetalinger og umatchbare rækker forbliver
+    // 'unmatched', så de 500 ældste blev læst hver morgen og nye kundebetalinger nåede aldrig auto-match
+    .gt('amount', 0)
+    .order('date', { ascending: false })
     .limit(500)
 
   if (error) {

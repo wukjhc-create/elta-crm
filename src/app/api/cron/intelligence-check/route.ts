@@ -6,6 +6,8 @@ import { calculateDBPercentage } from '@/lib/logic/pricing'
 import { logger } from '@/lib/utils/logger'
 import { withCronRun } from '@/lib/services/cron-run'
 import { offerCostAndSale } from '@/lib/alerts/offer-margin'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { copenhagenParts } from '@/lib/utils/copenhagen-time'
 
 export const dynamic = 'force-dynamic'
 // Perf-review 2026-10-08 (#8): eksplicit loft (kører lige efter natlig prissync)
@@ -93,60 +95,75 @@ async function handleCron(request: Request): Promise<Response> {
       const yesterday = new Date()
       yesterday.setDate(yesterday.getDate() - 1)
 
-      const { data: priceChanges } = await supabase
-        .from('price_history')
-        .select(`
-          *,
-          supplier_product:supplier_products(
-            id, supplier_name, supplier_sku, supplier_id,
-            suppliers(name)
-          )
-        `)
-        .gte('created_at', yesterday.toISOString())
+      // Cron-review 2026-10-09 (#4): alle rækker (PostgREST giver højst 1.000) og ÉN samlet advarsel pr. leverandør og
+      // regeltype pr. dag — før én klokke-advarsel pr. ændret vare (hundreder ved en ugentlig prisfil) med 2 DB-kald hver
+      type PriceChangeRow = {
+        id: string
+        supplier_product_id: string | null
+        change_percentage: number | null
+        old_cost_price: number | null
+        new_cost_price: number | null
+        supplier_product: { supplier_name: string | null; supplier_sku: string | null; suppliers: { name: string | null } | null } | null
+      }
+      const priceChanges = await fetchAllRows<PriceChangeRow>((from, to) =>
+        supabase
+          .from('price_history')
+          .select('id, supplier_product_id, change_percentage, old_cost_price, new_cost_price, supplier_product:supplier_products(supplier_name, supplier_sku, suppliers(name))')
+          .gte('created_at', yesterday.toISOString())
+          .order('id')
+          .range(from, to) as unknown as PromiseLike<{ data: PriceChangeRow[] | null; error: { message: string } | null }>
+      )
 
-      if (priceChanges) {
-        for (const change of priceChanges) {
-          if (!change.change_percentage) continue
-
-          for (const rule of alertRules) {
-            let shouldAlert = false
-            let alertTitle = ''
-            let severity: 'info' | 'warning' | 'critical' = 'warning'
-
-            if (rule.alert_type === 'price_increase' && change.change_percentage > 0) {
-              if (rule.threshold_percentage && change.change_percentage > rule.threshold_percentage) {
-                shouldAlert = true
-                alertTitle = `Prisstigning: ${change.supplier_product?.supplier_name || 'Ukendt'}`
-                severity = change.change_percentage > MONITORING_CONFIG.PRICE_CRITICAL_CHANGE_THRESHOLD ? 'critical' : 'warning'
-              }
-            } else if (rule.alert_type === 'price_decrease' && change.change_percentage < 0) {
-              if (rule.threshold_percentage && Math.abs(change.change_percentage) > rule.threshold_percentage) {
-                shouldAlert = true
-                alertTitle = `Prisfald: ${change.supplier_product?.supplier_name || 'Ukendt'}`
-                severity = 'info'
-              }
-            }
-
-            if (shouldAlert) {
-              await insertAlert({
-                alert_type: rule.alert_type,
-                severity,
-                title: alertTitle,
-                message: `Prisændring på ${Math.abs(change.change_percentage).toFixed(1)}% for ${change.supplier_product?.supplier_name || 'ukendt produkt'} (${change.supplier_product?.supplier_sku || ''})`,
-                details: {
-                  supplier_product_id: change.supplier_product_id,
-                  old_price: change.old_cost_price,
-                  new_price: change.new_cost_price,
-                  change_percentage: change.change_percentage,
-                  supplier_name: change.supplier_product?.suppliers?.name,
-                },
-                entity_type: 'supplier_product',
-                entity_id: change.supplier_product_id,
-              })
-              results.price_alerts++
-            }
-          }
+      type Group = { alertType: string; supplier: string; maxPct: number; items: Array<{ product: string; sku: string; pct: number; old: number | null; new: number | null }> }
+      const groups = new Map<string, Group>()
+      for (const change of priceChanges) {
+        const pct = Number(change.change_percentage)
+        if (!pct) continue
+        for (const rule of alertRules) {
+          const threshold = Number(rule.threshold_percentage)
+          if (!threshold) continue
+          const hit =
+            (rule.alert_type === 'price_increase' && pct > threshold) ||
+            (rule.alert_type === 'price_decrease' && pct < 0 && Math.abs(pct) > threshold)
+          if (!hit) continue
+          const supplier = change.supplier_product?.suppliers?.name || 'Ukendt leverandør'
+          const key = `${rule.alert_type}|${supplier}`
+          const g = groups.get(key) ?? { alertType: String(rule.alert_type), supplier, maxPct: 0, items: [] }
+          g.maxPct = Math.max(g.maxPct, Math.abs(pct))
+          g.items.push({
+            product: change.supplier_product?.supplier_name || 'Ukendt',
+            sku: change.supplier_product?.supplier_sku || '',
+            pct,
+            old: change.old_cost_price,
+            new: change.new_cost_price,
+          })
+          groups.set(key, g)
         }
+      }
+
+      const today = copenhagenParts(new Date()).date
+      for (const g of groups.values()) {
+        const increase = g.alertType === 'price_increase'
+        const severity: 'info' | 'warning' | 'critical' = !increase
+          ? 'info'
+          : g.maxPct > MONITORING_CONFIG.PRICE_CRITICAL_CHANGE_THRESHOLD ? 'critical' : 'warning'
+        const top = [...g.items].sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
+        const inserted = await insertAlert({
+          alert_type: g.alertType,
+          severity,
+          // Fast titel pr. leverandør og dag → dubletsikringen i insertAlert virker; antallet står i beskeden
+          title: `${increase ? 'Prisstigninger' : 'Prisfald'}: ${g.supplier} (${today})`,
+          message: `${g.items.length} ${g.items.length === 1 ? 'vare' : 'varer'} med ${increase ? 'prisstigning' : 'prisfald'} over grænsen — størst ${g.maxPct.toFixed(1)}% (${top[0].product}${top[0].sku ? ` ${top[0].sku}` : ''})`,
+          details: {
+            supplier_name: g.supplier,
+            count: g.items.length,
+            max_change_percentage: g.maxPct,
+            products: top.slice(0, 50),
+          },
+          entity_type: 'supplier_product',
+          entity_id: null,
+        })
+        if (inserted) results.price_alerts++
       }
     }
 

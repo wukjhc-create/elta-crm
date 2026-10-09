@@ -11,8 +11,12 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { copenhagenParts, copenhagenLocalToIso, calendarDaysSince } from '@/lib/utils/copenhagen-time'
 import { logger } from '@/lib/utils/logger'
+import { getUserRoleForPage } from '@/lib/auth/page-guard'
+import type { UserRole } from '@/types/auth.types'
 
 export const dynamic = 'force-dynamic'
+
+const OPS_ROLES: UserRole[] = ['admin', 'serviceleder', 'bogholderi'] as UserRole[]
 
 interface DashboardStats {
   generated_at: string
@@ -169,8 +173,12 @@ export async function GET() {
     })
 
     // System health — already safely-fallbacked internally.
+    // Cron-review 2026-10-09 (#7): driftsloggen (postkasser, bank-id'er, modtagerlister) kun for samme roller som
+    // system_alerts (admin/serviceleder/bogholderi); øvrige får en tom oversigt
+    const role = await getUserRoleForPage()
+    const canSeeOps = OPS_ROLES.includes(role)
     let systemHealth: DashboardStats['system_health'] = { overall: 'ok', services: [] }
-    try {
+    if (canSeeOps) try {
       const { getSystemHealth } = await import('@/lib/services/system-health')
       const snap = await getSystemHealth()
       systemHealth = {
@@ -195,7 +203,7 @@ export async function GET() {
         invoices_sent: invoicesSent,
         invoices_overdue: invoicesOverdue,
         payments_today: paymentsToday,
-        system_errors_last_hour: systemErrors,
+        system_errors_last_hour: canSeeOps ? systemErrors : 0,
       },
       latest_emails: (latestEmailsRes.data ?? []).map((r) => ({
         id: r.id,

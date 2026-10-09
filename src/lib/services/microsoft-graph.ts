@@ -944,17 +944,26 @@ export async function pollSentItems(
     url += `&$filter=sentDateTime ge ${sinceDateTime}`
   }
 
-  const result = await graphFetch<{ value: GraphMailMessage[] }>(url)
+  // Mail-review 2026-10-09 (#2): følg @odata.nextLink (højst 10 sider) — før gik alt ud over de første `top` sendte
+  // mails mellem to kørsler tabt
+  const all: GraphMailMessage[] = []
+  let next: string | null = url
+  for (let page = 0; next && page < 10; page++) {
+    const result: { value: GraphMailMessage[]; '@odata.nextLink'?: string } =
+      await graphFetch<{ value: GraphMailMessage[]; '@odata.nextLink'?: string }>(next)
+    all.push(...result.value)
+    next = result['@odata.nextLink'] ?? null
+  }
 
   logger.info('Graph sent items polled', {
     metadata: {
       mailbox,
-      messagesReturned: result.value.length,
+      messagesReturned: all.length,
       sinceDateTime,
     },
   })
 
-  return result.value
+  return all
 }
 
 // =====================================================
