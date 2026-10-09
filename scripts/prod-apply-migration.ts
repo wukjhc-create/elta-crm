@@ -53,6 +53,8 @@ const APPROVED: Record<string, string> = {
   '00201': '2026-10-07', // kost-lockdown bølge 2b (product_catalog kolonne-niveau m.m.), godkendt af Henrik i chat 2026-10-07 ("00200 + 00201 GODKENDT TIL PROD")
   '00202': '2026-10-07', // afviste timer ude af faktura-/avancefunktioner, godkendt af Henrik i chat 2026-10-07 ("00202 GODKENDT TIL PROD")
   '00203': '2026-10-08', // tilbudsrevisioner (skema; flag OFFER_REVISIONS_ENABLED forbliver OFF), godkendt af Henrik i chat 2026-10-08 ("00203 GODKENDT TIL PROD I TO TRIN")
+  '00209': '2026-10-09', // storage-lockdown (fjerner brede authenticated-politikker på storage.objects), godkendt af Henrik i chat 2026-10-09 ("00209 STORAGE LOCKDOWN GODKENDT TIL PROD")
+  '00210': '2026-10-09', // blank gemte signerede download-links i customer_documents.file_url (kun hvor storage_path findes), godkendt af Henrik i chat 2026-10-09 ("STORED DOWNLOAD URLS GODKENDT")
 }
 
 async function main() {

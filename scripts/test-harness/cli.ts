@@ -437,6 +437,39 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'storage-persona-check') {
+    // 00209: rigtige persona-sessioner (5 roller) må hverken liste, hente eller uploade direkte i attachments /
+    // service-case-files / portal-attachments; service-klienten kan stadig liste, signere og hente.
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    // et kendt objekt at forsøge at hente
+    const { data: adminList } = await admin.storage.from('attachments').list('customer-documents', { limit: 5 })
+    const folder = (adminList ?? []).find((o) => !o.id)?.name ?? null
+    const { data: inner } = folder ? await admin.storage.from('attachments').list(`customer-documents/${folder}`, { limit: 5 }) : { data: [] }
+    const obj = folder && (inner ?? []).find((o) => o.id) ? `customer-documents/${folder}/${(inner ?? []).find((o) => o.id)!.name}` : null
+    check('service-klienten kan liste attachments', (adminList ?? []).length > 0, `obj=${obj ? 'fundet' : 'ingen'}`)
+    if (obj) {
+      const { data: signed, error } = await admin.storage.from('attachments').createSignedUrl(obj, 60)
+      const r = signed?.signedUrl ? await fetch(signed.signedUrl) : null
+      check('service-klienten signerer og filen kan hentes via signeret link', !error && !!r?.ok, `status=${r?.status}`)
+    }
+    for (const [role, cl] of personas) {
+      const l1 = await cl.storage.from('attachments').list('email-attachments', { limit: 5 })
+      const l2 = await cl.storage.from('attachments').list('customer-documents', { limit: 5 })
+      const l3 = await cl.storage.from('service-case-files').list('', { limit: 5 })
+      const dl = obj ? await cl.storage.from('attachments').download(obj) : { data: null, error: null }
+      const up = await cl.storage.from('attachments').upload(`harness/${role}-${Date.now()}.txt`, new Blob(['x'], { type: 'text/plain' }), { upsert: false })
+      const listed = (l1.data ?? []).length + (l2.data ?? []).length + (l3.data ?? []).length
+      const ok = listed === 0 && !dl.data && !!up.error
+      check(`${role.padEnd(12)} kan hverken liste/hente/uploade direkte`, ok, `listet=${listed} hentet=${dl.data ? 'JA' : 'nej'} upload=${up.error ? 'afvist' : 'TILLADT'}`)
+      if (!up.error) await admin.storage.from('attachments').remove([up.data!.path])
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ storage-lockdown ok (personaer)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'portal-token-rules-check') {
     // Kunde-review #1 + storage-review #7: deaktiveret kunde → link afvist (genaktiveret → virker); nye links har udløb;
     // portalen signerer kun stier i kundens egne mapper. Ingen mail.

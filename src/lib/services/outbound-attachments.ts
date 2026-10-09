@@ -225,7 +225,8 @@ export async function uploadOutboundAttachment(
   // Phase β.2.2: signed URL (1 år) i stedet for manuelt konstrueret
   // /object/public/ URL. Sidstnaevnte virker IKKE efter bucket-
   // privatisering. storage_path bevares i row saa consumer kan refreshe.
-  const fileUrl = await getStorageSignedUrlOrNull(BUCKET, storagePath, SIGNED_URL_TTL.YEAR) ?? ''
+  // Storage-review 2026-10-09 (00210): intet langlivet signeret link i DB — læsere signerer friskt fra storage_path
+  const fileUrl = ''
 
   // 2. Opret customer_documents row
   const description = JSON.stringify({

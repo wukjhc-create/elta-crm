@@ -477,11 +477,8 @@ export async function submitSignedFuldmagt(
       return { success: false, error: 'Kunne ikke uploade PDF' }
     }
 
-    const { data: urlData } = await supabase.storage
-      .from('attachments')
-      .createSignedUrl(storagePath, 86400 * 365) // 1 year
-
-    const pdfUrl = urlData?.signedUrl || ''
+    // Storage-review 2026-10-09 (00210): intet 1-årigt signeret link i DB — getPortalFuldmagter/kundekortet signerer friskt
+    const pdfUrl = ''
 
     // Update document record (kun hvis vores krav stadig står)
     const signedDesc: Record<string, unknown> = { ...updatedDesc }
