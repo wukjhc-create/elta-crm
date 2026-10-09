@@ -51,7 +51,7 @@ Der er ti tidsdrevne regler. De vigtigste:
 | Trin | Indhold | Effekt |
 |---|---|---|
 | 0 ✅ | Motor + tests + read-only skygge mod prod | ingen |
-| 1 | Daglig skygge-rapport i Pilot Health: "motor vs. nuværende regler" (kun antal) | ingen, kun visning |
+| 1 | Daglig skygge-rapport i Pilot Health: "motor vs. nuværende regler" (kun antal) | DONE på grok-next 2026-10-09. `followupShadowReport` i Crons → "Opfølgning (skygge)". Sender intet. Mail-tråde er ikke med (trin 2). |
 | 2 | Opfølgningsagenten bruger motoren (`offer.seller_task`, `mail.reply_task`) som kilde til forslag. Det fjerner parallel-konflikten og dashboard-afvigelsen. | interne forslag (approval) |
 | 3 | Kundepåmindelser (tilbud/faktura) flyttes fra crons til motor → forslag → approval → afsendelse. Kræver `AGENT_LIVE_SEND_ENABLED` + beslutning om kundemail-crons. | **ekstern** |
 | 4 | Fuldmagt/besigtigelse: erstat titel-søgning og JSON-i-description med eksplicit status/`reminder_sent_at` | kræver migration |

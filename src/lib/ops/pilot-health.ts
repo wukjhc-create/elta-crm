@@ -12,6 +12,10 @@ import { CRON_REGISTRY } from '@/lib/services/cron-registry'
 import { INCIDENT_REGISTER } from '@/lib/ops/incident-register'
 import { isLiveSendEnabled } from '@/lib/agents/live-gates'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { localDay } from '@/lib/followup/calendar'
+import { DEFAULT_FOLLOWUP_CONFIG } from '@/lib/followup/engine'
+import { followupShadowDetail, followupShadowLevel, followupShadowReport, type ShadowOffer } from '@/lib/followup/shadow'
+import type { InvoiceSnap } from '@/lib/followup/engine'
 
 export type HealthLevel = 'green' | 'yellow' | 'red' | 'unknown'
 
@@ -80,7 +84,7 @@ async function cronItems(admin: Admin): Promise<HealthItem[]> {
     const name = r.metadata?.cron
     if (name && !last.has(name)) last.set(name, { status: r.status, at: r.created_at, message: r.message })
   }
-  return CRON_REGISTRY.map((c) => {
+  const items: HealthItem[] = CRON_REGISTRY.map((c) => {
     const run = last.get(c.name)
     const stale = run ? (Date.now() - new Date(run.at).getTime()) / HOUR > expectedGapHours(c.schedule) : false
     // 'unknown' er forbeholdt kilder der ikke kunne hentes; 'ingen koersel endnu' er en observation (gul).
@@ -89,6 +93,46 @@ async function cronItems(admin: Admin): Promise<HealthItem[]> {
     const runTxt = run ? `seneste ${run.status} ${ago(run.at)}${stale ? ' (FORSINKET)' : ''}` : 'ingen kørsel registreret endnu'
     return { label: c.name, level, detail: `${runTxt}${mail}${c.knownIssue ? ` · kendt: ${c.knownIssue}` : ''}` }
   })
+  items.push(await followupShadowHealthItem(admin))
+  return items
+}
+
+/** Trin 1 i opfølgningsdesignet: motor mod dagens regler. Kun antal. Sender ikke. */
+async function followupShadowHealthItem(admin: Admin): Promise<HealthItem> {
+  try {
+    const settings = await admin.from('company_settings').select('reminder_enabled, reminder_interval_days, reminder_max_count').limit(1)
+    const s = (settings.data?.[0] ?? {}) as { reminder_enabled?: boolean | null; reminder_interval_days?: number | null; reminder_max_count?: number | null }
+    const cfg = {
+      ...DEFAULT_FOLLOWUP_CONFIG,
+      offerReminders: {
+        enabled: s.reminder_enabled ?? true,
+        intervalDays: s.reminder_interval_days ?? 3,
+        maxCount: s.reminder_max_count ?? 3,
+      },
+    }
+    const offers = await fetchAllRows<ShadowOffer>((from, to) => admin.from('offers')
+      .select('id, customer_id, status, is_proposal, sent_at, valid_until, reminder_count, last_reminder_sent, created_at')
+      .in('status', ['sent', 'viewed']).order('id').range(from, to))
+    const invoices = await fetchAllRows<InvoiceSnap>((from, to) => admin.from('invoices')
+      .select('id, customer_id, status, invoice_type, voided_at, final_amount, due_date, reminder_count, last_reminder_at')
+      .eq('status', 'sent').order('id').range(from, to))
+    const tasks = await fetchAllRows<{ id: string; offer_id: string | null }>((from, to) => admin.from('customer_tasks')
+      .select('id, offer_id').neq('status', 'done').not('offer_id', 'is', null).order('id').range(from, to))
+    const open = new Set(tasks.map((t) => t.offer_id).filter((id): id is string => !!id))
+    const report = followupShadowReport({
+      offers: offers.map((o) => ({
+        ...o,
+        is_proposal: !!o.is_proposal,
+        reminder_count: o.reminder_count ?? 0,
+        has_open_followup_task: open.has(o.id),
+      })),
+      invoices: invoices.map((i) => ({ ...i, reminder_count: i.reminder_count ?? 0, final_amount: Number(i.final_amount) })),
+      threads: [],
+    }, localDay(new Date()), Date.now(), cfg)
+    return { label: 'Opfølgning (skygge)', level: followupShadowLevel(report), detail: followupShadowDetail(report) }
+  } catch (err) {
+    return { label: 'Opfølgning (skygge)', level: 'unknown', detail: `kunne ikke måles: ${err instanceof Error ? err.message.slice(0, 80) : 'fejl'}` }
+  }
 }
 
 // ---------- 3. Brugere ----------
