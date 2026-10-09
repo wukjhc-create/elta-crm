@@ -506,6 +506,61 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'work-orders-guard-check') {
+    // 00213: montør (rigtig persona-session) på EGEN arbejdsordre: kun status (planned→in_progress→done) virker;
+    // case_id/dato/titel afvises; en annulleret ordre kan ikke gøres 'done'. Admin uændret. Midlertidige rækker ryddes.
+    const { loginPersonas } = await import('./role-matrix')
+    const personas = new Map(Array.from(await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })))
+    const montor = personas.get('montør' as never)!
+    const montorId = (await montor.auth.getUser()).data.user!.id
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const { data: existingEmp } = await admin.from('employees').select('id').eq('profile_id', montorId).maybeSingle()
+    let empId = (existingEmp as { id: string } | null)?.id ?? null
+    let createdEmp = false
+    if (!empId) {
+      const { data: e, error } = await admin.from('employees').insert({ name: '[HARNESS] montør-persona', email: `wg-${stamp}@harness.test`, role: 'montør', active: true, profile_id: montorId }).select('id').single()
+      if (error) throw new Error(`employee: ${error.message}`)
+      empId = (e as { id: string }).id; createdEmp = true
+    }
+    const cust = ((await admin.from('customers').insert({ customer_number: `WG-${stamp}`, company_name: `[HARNESS] wg ${stamp}`, contact_person: 'X', email: `wg-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const mkCase = async (n: number, status: string) => ((await admin.from('service_cases').insert({ case_number: `SVC-5${String(stamp).slice(-5)}${n}`, customer_id: cust, title: '[HARNESS] wg', status, created_by: owner }).select('id').single()).data as { id: string }).id
+    const caseId = await mkCase(1, 'in_progress')
+    const closedCase = await mkCase(2, 'closed')
+    const mkWo = async (status: string) => ((await admin.from('work_orders').insert({ case_id: caseId, customer_id: cust, title: '[HARNESS] wg', status, scheduled_date: '2026-10-01', assigned_employee_id: empId }).select('id').single()).data as { id: string }).id
+    const wo = await mkWo('planned')
+    const cancelled = await mkWo('cancelled')
+    try {
+      const r3 = await montor.from('work_orders').update({ status: 'in_progress' }).eq('id', wo).select('id')
+      check('montør kan starte egen ordre (planned→in_progress)', !r3.error && (r3.data ?? []).length === 1, r3.error?.message ?? '')
+      // politikken (00181) kræver ny status in_progress/done — derfor sendes status med for at ramme selve hullet
+      const r1 = await montor.from('work_orders').update({ case_id: closedCase, status: 'in_progress' }).eq('id', wo).select('id')
+      check('montør kan ikke flytte egen ordre til anden sag', !!r1.error || (r1.data ?? []).length === 0, r1.error?.code ?? `rækker=${(r1.data ?? []).length}`)
+      const r2 = await montor.from('work_orders').update({ scheduled_date: '2027-01-01', title: 'ændret', status: 'in_progress' }).eq('id', wo).select('id')
+      check('montør kan ikke ændre dato/titel', !!r2.error || (r2.data ?? []).length === 0, r2.error?.code ?? `rækker=${(r2.data ?? []).length}`)
+      const r4 = await montor.from('work_orders').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', wo).select('id')
+      check('montør kan afslutte egen ordre (in_progress→done)', !r4.error && (r4.data ?? []).length === 1, r4.error?.message ?? '')
+      const r5 = await montor.from('work_orders').update({ status: 'done' }).eq('id', cancelled).select('id')
+      check('montør kan ikke gøre annulleret ordre done', !!r5.error || (r5.data ?? []).length === 0, r5.error?.code ?? `rækker=${(r5.data ?? []).length}`)
+      const r6 = await montor.from('work_orders').update({ status: 'in_progress' }).eq('id', wo).select('id')
+      check('montør kan ikke genåbne udført ordre', !!r6.error || (r6.data ?? []).length === 0, r6.error?.code ?? `rækker=${(r6.data ?? []).length}`)
+      const { data: row } = await admin.from('work_orders').select('case_id, title').eq('id', wo).single()
+      check('ordren er stadig på sin sag med uændret titel', (row as { case_id: string; title: string }).case_id === caseId && (row as { title: string }).title === '[HARNESS] wg')
+      const r7 = await admin.from('work_orders').update({ title: '[HARNESS] wg admin' }).eq('id', wo).select('id')
+      check('admin (service) kan stadig ændre', !r7.error && (r7.data ?? []).length === 1, r7.error?.message ?? '')
+    } finally {
+      await admin.from('work_order_profit').delete().in('work_order_id', [wo, cancelled])
+      await admin.from('work_orders').delete().in('id', [wo, cancelled])
+      await admin.from('service_cases').delete().in('id', [caseId, closedCase])
+      await admin.from('customers').delete().eq('id', cust)
+      if (createdEmp) await admin.from('employees').delete().eq('id', empId!)
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ arbejdsordre-guard ok (montør-persona)')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'time-logs-grants-check') {
     // 00208: montør (rigtig persona-session) på EGNE timer: beløbs-/fakturafelter kan ikke skrives (42501), retter han
     // sluttiden virker det og godkendelsen nulstilles, en kollegas sats afvises, appens felter virker stadig.

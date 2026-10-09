@@ -13,6 +13,19 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Long-run 2026-10-09 — planlægning (arbejdsordrer, kalender, besigtigelse) (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| PL #1 (S1) `sendBesigtigelsePdf`: dokument-id og kunde-id hver for sig → ethvert dokument (intern mailvedhæftning, tilbud, faktura) kunne mailes til en vilkårlig kunde som "Besigtigelsesrapport" (gate kun service.edit = også montør) | DONE (deployet direkte — lukker kun læk) — dokumentet skal tilhøre kunden, være en besigtigelsesrapport (ikke mailarkiv) og sagen være i brugerens scope | tsc/gates; montør-UI-gruppe |
+| PL #2 (S2) montør kan via REST ændre alle kolonner på egen arbejdsordre (case_id → lukket sag, annulleret → done, dato/kunde/auto_invoice) | **BLOCKED_APPROVAL** 00213 på branch `work-orders-guard-00213` (BEFORE UPDATE-guard: montør kun status/completed_at fra planned/in_progress) | — |
+| PL #3 besigtigelse gemt på vilkårlig sag; lukkede alle kundens "%esigtigelse%"-opgaver (også andre sagers bookinger og interne opgaver) uden completed_at | DONE — sag-scope; kun kundevendte opgaver på denne sag (eller uden sag); completed_at | tsc/gates |
+| PL #4 kalenderens sags-vælger kun 200 højeste sagsnumre (inkl. forslag) | DONE — alle åbne, ikke forslag | tsc/gates |
+| PL #5 createWorkOrderForCase: status fra klient ('done' direkte), inaktiv/fratrådt medarbejder, forslag-sager | DONE | tsc/gates |
+| PL #6 "job uden tid" talte afviste timer som registreret; .limit(500) | DONE | tsc/gates |
+| PL #7 besigtigelses-læseactions uden gate (sager/parter/modtagere for enhver kunde) | DONE — service.view + sag-scope | tsc/gates |
+| PL #8 portal-besigtigelser: 50 første opgaver før filtrering | DONE — filtrerer på titel før grænsen | portal-mail-UI 34/34 |
+| PL #9 slet arbejdsordre uden compare-and-set; kalender valgte UTC-dato; portalens maks-dato i UTC | DONE | tsc/gates |
+
 ## Long-run 2026-10-09 — AI-mailautomatik + crons/alarmer (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|
