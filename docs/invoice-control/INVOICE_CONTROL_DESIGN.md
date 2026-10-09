@@ -60,6 +60,6 @@ Benchmark: KlarPris' fakturakontrol ([Installatør](https://www.installator.dk/m
    - ret IC5,
    - tilføj OIOUBL-parsing (e-faktura giver strukturerede linjer uden OCR).
 3. **Skygge-kontrol:** kør motoren på alle fakturaer med linjer, og vis dækning og afvigelser i Pilot Health og på fakturaen. Kun visning, ingen blokering.
-4. **Kontrol i godkendelsen:** afvigelse > tolerance kræver eksplicit bekræftelse (som `requires_manual_review`). Godkendelse og bogføring forbliver menneskelige handlinger (finance er hard-blocked for agenter).
+4. **Kontrol i godkendelsen:** afvigelse > tolerance kræver eksplicit bekræftelse (som `requires_manual_review`). Godkendelse og bogføring forbliver menneskelige handlinger (finance er hard-blocked for agenter). BLOCKED_APPROVAL: den bekræftelse skal sidde i `approveInvoice`, som pusher til e-conomic. Funktionen er ikke ændret. `requires_manual_review` har allerede `acknowledgeReview`. Mangler: Henrik godkender at røre bogføringsstien.
 5. **Efterkalkulation:** faktiske indkøb mod tilbuddets `profit_snapshots` (#18) pr. sag.
 6. **Adskil godkendelse og bogføring:** e-conomic-push som særskilt, idempotent trin med synlig fejlstatus (IC8).

@@ -34,6 +34,40 @@
 ## Grok på grok-next (2026-10-09)
 Efterkalkulation v1 er på `grok-next` (`2274215`): tilbudt/faktisk/afvigelse i øre, rabat én gang, manglende kost forbliver null, tilbudshoved via admin efter sagstjek. Sagsrentabiliteten på `/dashboard/reports` bruger samme kostregel (`src/lib/cases/profitability-figures.ts`). Fakturakontrol-dækningen i Pilot Health bruger kostprisen på fakturadatoen, samme regel som fakturapanelet (`price-at-date-test`). Opfølgningens skygge i Pilot Health viser kun antal mod dagens regler og sender intet (`followup-shadow-test`). Ingen prod-migration. Claude ejer fortsat storage/auth/RLS og prod-gates.
 
+## Slutrapport
+AGENT: GROK
+BRANCH: grok-next
+
+Samlet arbejdstid: denne kørsel efter context compaction, plus rentabilitetsslicen umiddelbart før (`9defa9b`). Ikke et sammenhængende 8-timers-ur. Køen af sikre NOW/NEXT-punkter uden prod-godkendelse er gået igennem.
+
+Features leveret:
+- Sagsrentabilitet på `/dashboard/reports` behandler manglende kost som ukendt, ikke 0 (`9defa9b`).
+- Fakturakontrol-dækning og det read-only prod-script bruger kostprisen på fakturadatoen (`cf620e3`). Scriptet er ikke kørt.
+- Pilot Health viser opfølgningens skygge som antal. Der sendes ingen mail (`c3a9f25`).
+
+Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, plus denne status-commit. Ingen merge til main. Ingen ny fil under `supabase/migrations`.
+
+Tests: `aftercalc-test`, `offer-vs-actual-test`, `profitability-figures-test`, `price-at-date-test`, `followup-shadow-test` med exit 0. `npm run type-check`, `check:rbac` og `check:rls-matrix` med exit 0 efter de to kode-slices. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000.
+
+Performance: ingen ny måling. Dækningen og skyggen henter side for side (`fetchAllRows`) for de rækker de allerede læste.
+
+Blockers (mangler godkendelse, ikke påbegyndt):
+- D27: prod-migration for `price_alert_rules` (00046 er ikke i prod).
+- X4c: Henrik vælger afrunding før kundeaftale-RPC rettes.
+- X4d / opfølgning trin 2: kundemail-cron. Et skift af agenten nu fjerner interne forslag, mens cronen ikke sender.
+- Fakturakontrol trin 4: afvigelses-bekræftelse sidder i `approveInvoice`, som pusher til e-conomic.
+- T13: Relatel-token og live SMS.
+- N24 (b): 59 gamle pending-mails er prod-data.
+- Q11 B1–B3, R-OFR-B, R-PRT-B, R-MAIL-B og de øvrige eksisterende BLOCKED_APPROVAL-rækker er uændrede.
+
+Findings til Claude:
+- `getServiceCaseEconomy` læser stadig `employees.hourly_rate`. Efterkalkulationen bruger den ikke.
+- Tilbuds-RLS skjuler stadig hovedet for serviceleder og bogholderi. Efterkalkulationen læser hovedet med admin-klienten efter sagstjek.
+- `approveInvoice` pusher stadig til e-conomic. Den sti er ikke rørt.
+- Claude ejer fortsat storage, auth, RLS og prod-gates. Intet af det er lukket her.
+
+Næste anbefaling: Henriks godkendelsesbunke, med X4d (kundemail) og Q11 B1–B3 først, fordi de låser opfølgning trin 2 og rykkerbeløb. Dernæst D27 hvis prisadvarsler skal tændes. Claude fortsætter storage/auth/RLS.
+
 ## Nu
 P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtaget, `check:rbac` blokerende i CI) · **fakturapipeline F-a–F-d DONE** (F-d prod-gate).
 **Prod-migrationer 00159–00166 kørt og verificeret** (00163–00166 den 2026-09-29). Ingen prod-migration afventer.
