@@ -52,7 +52,7 @@ import { CalculationSnapshots } from '@/components/modules/calculations/calculat
 import { CalculationAnomalies } from '@/components/modules/calculations/calculation-anomalies'
 import { PackagePickerDialog } from '@/components/modules/packages/package-picker-dialog'
 import { insertPackageIntoCalculation } from '@/lib/actions/packages'
-import { convertCalculationToOffer } from '@/lib/actions/calculation-intelligence'
+import { createOfferFromCalculationRecord } from '@/lib/actions/offers'
 import {
   CALCULATION_TYPE_LABELS,
   CALCULATION_ROW_TYPE_LABELS,
@@ -100,10 +100,7 @@ export default function CalculationDetailClient({
       return
     }
     setIsConverting(true)
-    const result = await convertCalculationToOffer(
-      calculation.id,
-      calculation.customer_id || null,
-    )
+    const result = await createOfferFromCalculationRecord(calculation.id)
     if (result.success && result.data) {
       toast.success('Tilbud oprettet fra kalkulation')
       router.push(`/dashboard/offers/${result.data.offer_id}`)

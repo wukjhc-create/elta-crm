@@ -13,6 +13,21 @@ NEXT → audits/refactors. Komplette vertikale brugerflows; GO-LIVE tømmes før
 Grundlag: 3 flow-gennemgange (kode → action → RLS) + read-only prod-brug 2026-10-01 (105 kunder, 15 tilbud, 8 sager,
 3 arbejdsordrer, 1 timeregistrering, 2 medarbejdere, 802 mails / 67 seneste 30 d) → systemet er reelt før go-live.
 
+## Long-run 2026-10-10 — kalkulationsmotor (review-fund)
+| Fund | Status | Bevis |
+|---|---|---|
+| C #9b (læk) rumberegnerens calculateProject gav kost/DB til alle indloggede | DONE — tools.calculations | tsc/gates |
+| C #1 (S2) kundens leverandørrabat droppet når en avanceregel fandtes (søgning 112,50 vs. linje 125,00) | DONE — fælles `supplierLinePricing` (rabat altid; regel → aftale-avance → produkt) | kalkule-UI |
+| C #2 (S2) opdatér leverandørpris ændrede prisen ved uændret kost (regel/fast tillæg tabt, 0 % → 25 %, kost-betydning forskellig) | DONE — samme funktion; cost_price = faktisk indkøbspris ved både oprettelse og opdatering | kalkule-UI |
+| C #5 (S2) starter-linjer/billigste match til 0 kr (0-kost fra live-import) | DONE — 0-kost vinder aldrig, starter-linje springes over, live-import uden pris oprettes ikke | tsc/gates |
+| C #6 "Konverter til tilbud" på kalkulationssiden fejlede altid (forkert tabel) | DONE — `createOfferFromCalculationRecord` (kladde + importCalculationToOffer, rulles tilbage ved fejl) | kalkule-UI |
+| C #3 skjulte rækker ("Vis på tilbud" fra) falder ud af tilbudstotalen (kalkulation 14.400 → tilbud 12.000) | FORRETNINGSVALG — skal skjulte rækker indgå i prisen (samlelinje) eller ej? | — |
+| C #4 hurtigkalkulation anvender ikke komponent-varianter/kompleksitet (fx beton ×1,8) | NEXT — feature-hul (varianter er kun et navn i dag) | — |
+| C #8 rumberegnerens "Timepris" behandles som KOST og lægges der avance på (495 × 1,15 × 1,25 ≈ 712 kr/t) | FORRETNINGSVALG — er feltet kost (≈400) eller salgspris? | — |
+| C #9a kalkulationens dækningsbidrag ignorerer kalkulationens avance/rabat (DB-trigger 00015) | LATER — migration | — |
+| C #7 + dormant Kalkia Pro-motor (ikke nåbar fra UI) | LATER — ryd op eller ret før den aktiveres | — |
+| Søgningens "estimeret salgspris" bruger ikke avanceregler (estimat) | LATER — kan bruge supplierLinePricing pr. resultat (pris pr. kald) | — |
+
 ## Long-run 2026-10-09 — IDOR/scope-sweep af server-actions (review-fund)
 | Fund | Status | Bevis |
 |---|---|---|

@@ -118,6 +118,10 @@ export async function getComponentTimeData(): Promise<ActionResult<ComponentTime
 export async function calculateProject(
   input: ProjectCalculationInput
 ): Promise<ActionResult<ProjectEstimate>> {
+  // Kalkulations-review 2026-10-09 (#9b): resultatet indeholder kostpris/DB — kun roller med kalkulationsværktøjet
+  // (før kun login: salg/montør fik kost og dækningsbidrag)
+  const __denied = await permissionDenied('tools.calculations')
+  if (__denied) return { success: false, error: __denied }
   try {
     const { supabase } = await getAuthenticatedClient()
 
