@@ -2593,6 +2593,38 @@ async function main() {
     process.exitCode = fails ? 1 : 0
     return
   }
+  if (SUB === 'case-payer-invoice-check') {
+    // Sags-review #1: rate-/forskudsfaktura på en sag med separat betaler udstedes til betaleren (ellers sagens kunde)
+    const { createStageInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
+    const stamp = Date.now()
+    let fails = 0
+    const check = (label: string, ok: boolean, note = '') => { if (!ok) fails++; log(`  ${ok ? '✓' : '❌'} ${label}${note ? ` — ${note}` : ''}`) }
+    const owner = ((await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1)).data as Array<{ id: string }>)[0].id
+    const mk = async (tag: string) => ((await admin.from('customers').insert({ customer_number: `CPI${tag}-${stamp}`, company_name: `[HARNESS] cpi ${tag} ${stamp}`, contact_person: tag, email: `cpi${tag.toLowerCase()}-${stamp}@harness.test`, created_by: owner }).select('id').single()).data as { id: string }).id
+    const end = await mk('E'), payer = await mk('P')
+    const caseIds: string[] = []
+    try {
+      const mkCase = async (n: string, p: string | null) => {
+        const { data } = await admin.from('service_cases').insert({ case_number: `SVC-3${n}${String(stamp).slice(-5)}`, customer_id: end, payer_customer_id: p, title: '[HARNESS] betaler', status: 'in_progress', contract_sum: 10000, created_by: owner }).select('id').single()
+        caseIds.push((data as { id: string }).id); return (data as { id: string }).id
+      }
+      const withPayer = await mkCase('1', payer), noPayer = await mkCase('2', null)
+      const r1 = await createStageInvoiceForCase({ case_id: withPayer, invoice_type: 'deposit', amount_basis: 'contract_sum', billing_percentage: 30 }, owner)
+      const r2 = await createStageInvoiceForCase({ case_id: noPayer, invoice_type: 'deposit', amount_basis: 'contract_sum', billing_percentage: 30 }, owner)
+      const inv = async (caseId: string) => ((await admin.from('invoices').select('customer_id').eq('case_id', caseId).maybeSingle()).data as { customer_id: string } | null)?.customer_id
+      check('sag med betaler → faktura til betaleren', r1.ok && (await inv(withPayer)) === payer, r1.message)
+      check('sag uden betaler → faktura til sagens kunde', r2.ok && (await inv(noPayer)) === end, r2.message)
+    } finally {
+      const { data: invs } = await admin.from('invoices').select('id').in('case_id', caseIds)
+      const ids = ((invs ?? []) as Array<{ id: string }>).map((r) => r.id)
+      if (ids.length) { await admin.from('invoice_lines').delete().in('invoice_id', ids); await admin.from('invoices').delete().in('id', ids) }
+      await admin.from('service_cases').delete().in('id', caseIds)
+      await admin.from('customers').delete().in('id', [end, payer])
+    }
+    log(fails ? `❌ ${fails} fejl` : '✅ faktura til betaler ok')
+    process.exitCode = fails ? 1 : 0
+    return
+  }
   if (SUB === 'stage-race-check') {
     // Økonomi-review: to samtidige rater à 60 % → kun én oprettes (≤ 100 %). Kun kladder; ingen mail/eksport.
     const { createStageInvoiceForCase } = await import('../../src/lib/services/invoice-stage')
