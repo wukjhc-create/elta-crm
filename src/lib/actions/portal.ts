@@ -961,7 +961,9 @@ export async function getPortalMessages(
       offer: m.offer_id ? offerMap.get(m.offer_id) || null : null,
     }))
 
-    return { success: true, data: enriched as PortalMessageWithRelations[] }
+    // Kommunikations-review 2026-10-09 (#1): friske links (de gemte udløb efter 1 time)
+    const { withFreshChatAttachmentUrls } = await import('@/lib/portal/chat-attachment-links')
+    return { success: true, data: (await withFreshChatAttachmentUrls(enriched, customerId)) as PortalMessageWithRelations[] }
   } catch (error) {
     logger.error('Error in getPortalMessages', { error: error })
     return { success: false, error: 'Der opstod en fejl' }
@@ -1031,7 +1033,9 @@ export async function sendPortalMessage(
       const { data: own } = await admin.from('offers').select('id').eq('id', data.offer_id).eq('customer_id', customerId).maybeSingle()
       if (!own) return { success: false, error: 'Ugyldigt tilbud' }
     }
-    const senderName = data.sender_name || sessionResult.data.customer.contact_person
+    // Kommunikations-review 2026-10-09 (#7): afsendernavnet kommer fra kunden selv (token), aldrig fra klienten — ellers
+    // kunne en tokenholder skrive som "Elta Solar – Henrik" eller gemme vilkårligt lange navne
+    const senderName = sessionResult.data.customer.contact_person || sessionResult.data.customer.company_name || 'Kunde'
     const { data: message, error } = await admin
       .from('portal_messages')
       .insert({
@@ -1115,7 +1119,13 @@ export async function sendEmployeeMessage(
   attachments?: PortalAttachment[]
 ): Promise<ActionResult<PortalMessage>> {
   try {
-    const { supabase, userId } = await requireGate('customers.view')
+    // Kommunikations-review 2026-10-09 (#5): skrive til kunden kræver kunderelationen (customers.edit — samme som at
+    // markere læst); montør/bogholderi kunne ellers skrive i enhver kundes chat (og udløse mail til kunden). Længdeloft
+    // som portalens 5000 tegn.
+    const { supabase, userId } = await requireGate('customers.edit')
+    if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { success: false, error: 'Ugyldig kunde' }
+    if ((!message || !message.trim()) && !(attachments && attachments.length)) return { success: false, error: 'Beskeden er tom' }
+    if ((message ?? '').length > 5000) return { success: false, error: 'Beskeden er for lang (højst 5000 tegn)' }
     // Mail-review 2026-10-08 (#8): offerId blev aldrig tjekket — en besked kunne knyttes til en anden kundes tilbud
     if (offerId) {
       const { data: own } = await supabase.from('offers').select('id').eq('id', offerId).eq('customer_id', customerId).maybeSingle()
@@ -1402,7 +1412,12 @@ export async function getCustomerPortalMessages(
   offerId?: string
 ): Promise<ActionResult<PortalMessageWithRelations[]>> {
   try {
-    const { supabase } = await getAuthenticatedClient()
+    // Kommunikations-review 2026-10-09 (#8): gate (før kun login) + UUID-validering (offerId gik ufiltreret i .or())
+    const { supabase, hasPermission } = await getAuthenticatedClientWithRole()
+    if (!hasPermission('customers.view')) return { success: false, error: 'Manglende tilladelse: customers.view' }
+    if (!/^[0-9a-f-]{36}$/i.test(customerId) || (offerId && !/^[0-9a-f-]{36}$/i.test(offerId))) {
+      return { success: false, error: 'Ugyldigt id' }
+    }
 
     let query = supabase
       .from('portal_messages')
@@ -1421,13 +1436,14 @@ export async function getCustomerPortalMessages(
 
     if (error) {
       logger.error('Error fetching customer portal messages', { error })
-      return { success: false, error: `Kunne ikke hente beskeder: ${error.message}` }
+      return { success: false, error: 'Kunne ikke hente beskeder' }
     }
 
-    return { success: true, data: (data || []) as PortalMessageWithRelations[] }
+    const { withFreshChatAttachmentUrls } = await import('@/lib/portal/chat-attachment-links')
+    return { success: true, data: (await withFreshChatAttachmentUrls(data || [], customerId)) as PortalMessageWithRelations[] }
   } catch (error) {
     logger.error('Error in getCustomerPortalMessages', { error })
-    return { success: false, error: `Fejl ved hentning: ${error instanceof Error ? error.message : 'Ukendt fejl'}` }
+    return { success: false, error: 'Kunne ikke hente beskeder' }
   }
 }
 
@@ -1581,7 +1597,12 @@ export async function uploadEmployeeAttachment(
   formData: FormData
 ): Promise<ActionResult<UploadAttachmentResult>> {
   try {
-    const { supabase, userId } = await requireGate('customers.view')
+    const { userId } = await requireGate('customers.edit')
+    // Kommunikations-review 2026-10-09 (#3): fil-adgang via service-klienten bag gaten — 00209 (prod) fjernede
+    // medarbejdernes direkte storage-politikker, så upload med bruger-sessionen fejlede. customers.edit (#5) som
+    // markCustomerMessagesAsRead; gyldig kunde-id (stien bygges af den)
+    if (!/^[0-9a-f-]{36}$/i.test(customerId)) return { success: false, error: 'Ugyldig kunde' }
+    const supabase = createAdminClient()
 
     const file = formData.get('file') as File | null
 
