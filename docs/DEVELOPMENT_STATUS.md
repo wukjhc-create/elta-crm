@@ -50,7 +50,7 @@ Features leveret:
 - Tilbuddets linjefod viser DB efter tilbudsrabat ved siden af tallet før rabat (`1e8c198`, `offer-db-shadow-test`). Kost og salgspriser er uændrede. Send-gaten er uændret.
 - Fakturapanelet henter hele `price_history` side for side og giver den til `expectedCostOnInvoiceDate`. En faktura med 1.001 senere ændringer får den første gamle pris, ikke dagens pris (`price-at-date-test`). Godkendelse og e-conomic er urørt.
 
-Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, `e70787f`, `7da4464`, `992cbd2`, `1e8c198`, `faa3928`, plus pagineringen af prishistorik i fakturapanelet. Ingen merge til main. Ingen ny fil under `supabase/migrations`. Gren `grok-next`, upstream `origin/grok-next`.
+Commits på grok-next i denne kørsel: `9defa9b`, `cf620e3`, `c3a9f25`, `aa76883`, `5591172`, `a60eebf`, `e70787f`, `7da4464`, `992cbd2`, `1e8c198`, `faa3928`, `c8d1f00` (paginering af `price_history` i fakturapanelet). Ingen merge til main. Ingen ny fil under `supabase/migrations`. Gren `grok-next`, upstream `origin/grok-next`.
 
 Køen efter fakturakontrol (punkt 11–16):
 - Opfølgning: trin 1 er leveret. Trin 2 er BLOCKED_APPROVAL (samme godkendelse som X4d). Trin 3 er live afsendelse. Trin 4 kræver migration.
@@ -63,7 +63,7 @@ Køen efter fakturakontrol (punkt 11–16):
 - N29 er leveret: mine forfaldne og dagens liste. Fakturakontrol trin 2 og 3 var allerede i koden og er markeret DONE.
 - Profit Engine trin 2 er leveret: reel DB efter tilbudsrabat i linjefoden. Trin 3–5 er BLOCKED_APPROVAL (migration og ændrede salgspriser). IC7 er parkeret: Henrik skal godkende salgsprisen på konverterede linjer, eller at de ikke faktureres før prisen er sat. IC10 var allerede i prod (00167).
 
-Tests efter pagineringen, alle exit 0: `price-at-date-test` (1.001 senere ændringer → første gamle pris 100, ikke dagens 120; loader henter mere end én side) og `header-totals-test`. Tidligere i kørslen, stadig grønne og urørt af denne rettelse: `aftercalc-test` (tilbudt omsætning 18.000, DB 6.000, ens tekst er ikke matchet, manglende kost er ikke en besparelse), `offer-vs-actual-test`, `profitability-figures-test`, `followup-shadow-test`, `oioubl-test`, `my-day-test`, `offer-db-shadow-test`. `npm run type-check`, `check:rbac` (479 skrivende, 419 gatet, 60 undtaget, 0 fejl) og `check:rls-matrix` med exit 0. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000. Chrome findes. Next blev ikke startet.
+Tests efter `c8d1f00`, alle exit 0: `aftercalc-test` (tilbudt omsætning 18.000, DB 6.000, ens tekst er ikke matchet, manglende kost er ikke en besparelse), `offer-vs-actual-test`, `price-at-date-test` (1.001 senere ændringer → første gamle pris 100, ikke dagens 120; loader henter mere end én side). Samme kørsel tidligere, urørt af pagineringen: `profitability-figures-test`, `followup-shadow-test`, `header-totals-test`, `oioubl-test`, `my-day-test`, `offer-db-shadow-test`. `npm run type-check`, `check:rbac` (479 skrivende, 419 gatet, 60 undtaget, 0 fejl) og `check:rls-matrix` med exit 0. UI er ikke åbnet: der er ingen `.env` / `.env.local`, og intet lytter på port 3000. Chrome findes. Next blev ikke startet.
 
 Performance: ingen ny måling. Fakturapanelet henter `price_history` side for side (`fetchAllRows`, 1.000 rækker), samme loft som dækningen. Uden det tabes den tidligste tilbagerulning.
 
@@ -93,8 +93,8 @@ Næste anbefaling: Henriks godkendelsesbunke, med X4d (kundemail) og Q11 B1–B3
 P0–P3 DONE · **RBAC app-lag DONE** (P-006 lukket: 317 gatet, 46 bevist undtaget, `check:rbac` blokerende i CI) · **fakturapipeline F-a–F-d DONE** (F-d prod-gate).
 **Prod-migrationer 00159–00166 kørt og verificeret** (00163–00166 den 2026-09-29). Ingen prod-migration afventer.
 **Venter på Henrik (beslutninger):** kundemail-crons (fakturarykkere har aldrig virket) · anon-crons · Relatel-token · pilotbrugere · agent-aktivering.
-Næste ikke-blokerede (historisk, 2026-09-27): CVR-kolonne til leverandør-match (IC10, kræver migration) · døde `files.ts` · OIOUBL-parsing · prishistorik-baseret forventet pris.
-Opdatering 2026-10-09: `files.ts` er fjernet. OIOUBL og prisen på fakturadatoen er leveret på `grok-next`. IC10 er stadig en migration. Se slutrapporten ovenfor.
+Næste ikke-blokerede (historisk, 2026-09-27): CVR-kolonne til leverandør-match (IC10) · døde `files.ts` · OIOUBL-parsing · prishistorik-baseret forventet pris.
+Opdatering 2026-10-09: de fire historiske punkter er lukket. `files.ts` er fjernet. OIOUBL og prisen på fakturadatoen er leveret på `grok-next`, og panelet paginerer `price_history` (`c8d1f00`). IC10 er DONE i prod (00167), ikke en åben migration. Se slutrapporten ovenfor.
 
 ## Staging-state at kende
 - 00175–00186 anvendt (00184 D26, 00185 N2, 00186 D28 den 2026-10-02 — prod afventer godkendelse) · 00159–00166 anvendt · view-parity (security_invoker på betalings-views) anvendt · agent_configs seedet.
